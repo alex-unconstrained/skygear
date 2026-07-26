@@ -20,7 +20,8 @@
 const FEEL = Object.assign({
   simHz: 60, inputBuffer: 0, killStop: null, stopRefractory: 0,
   cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
-  camTau: 0.155, autoAttack: null, keys: null, loadout: null,
+  camTau: 0.155, autoAttack: null, basic: null, basicTurn: 12, basicArc: 1.2,
+  keys: null, loadout: null,
 }, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
 
 const TUNING = {
@@ -778,11 +779,14 @@ function resetGame(){
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
-  S.slots = FEEL.loadout
-    ? [ newSkill(FEEL.loadout[0][0], FEEL.loadout[0][1]),
-        newSkill(FEEL.loadout[1][0], FEEL.loadout[1][1]), null, null ]
-    : [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
-  S.unlockedSlots = 2;
+  S.slots = [null, null, null, null];
+  const LD = FEEL.loadout || [['CLOSEHIT', 'EMBER'], ['RANGED_AOE', 'FROST']];
+  for (let i = 0; i < Math.min(4, LD.length); i++) S.slots[i] = newSkill(LD[i][0], LD[i][1]);
+  S.unlockedSlots = Math.max(2, LD.length);   // a free slot to draft into from wave 1
+  // v6: the basic attack is a real skill — the same Ember Cleave, with the same
+  // shape code, element and crit — rather than a generic sabre flick bolted on
+  // beside it. It swings itself; the four slots stay for drafted abilities.
+  S.basic = FEEL.basic ? newSkill(FEEL.basic[0], FEEL.basic[1]) : null;
 
   S.wave = 0; S.waveActive = false; S.waveT = 0; S.queue = []; S.loopT = 0;
   S.spawned = 0; S.remaining = 0; S.interT = 0; S.banner = null;
@@ -1135,10 +1139,10 @@ function randomLiveEnemy(skip){
 --------------------------------------------------------------------------- */
 function castSlot(idx, opt){
   opt = opt || {};
-  const sk = S.slots[idx];
+  const sk = (typeof idx === 'number') ? S.slots[idx] : idx;
   if (!sk) return false;
   const st = skillStats(sk);
-  if (st.kind === 'ray') return startRay(idx, sk, st);
+  if (st.kind === 'ray' && typeof idx === 'number') return startRay(idx, sk, st);
   if (!opt.free && sk.cdLeft > 0) return false;
 
   const P = opt.from || S.player;
@@ -1456,7 +1460,35 @@ function updatePlayer(dt){
   // its own target and fires on its own cadence. Facing follows that target so
   // she reads as engaged, and falls back to the cursor when nothing is in range.
   const AA = FEEL.autoAttack;
-  if (AA){
+  if (S.basic){
+    // v6 — the basic IS the Ember Cleave. Same arc, same element, same crit and
+    // knockback as when it sat on a slot; it just picks its own target and its
+    // own moment. Reach comes from the skill, so LONG REACH cards lengthen it.
+    const bst = skillStats(S.basic);
+    const reach = bst.range + 30;
+    let best = null, bd = reach * reach;
+    Hash.query(P.x, P.y, reach + 60, _q);
+    for (const e of _q){
+      if (e.dead || e.state === 'climb') continue;
+      const d = dist2(P.x, P.y, e.x, e.y);
+      if (d < bd - e.r * e.r){ bd = d; best = e; }
+    }
+    // a vulnerable hulk is a legitimate target too, or the captain stands at the
+    // boarding vessel swinging at nothing
+    const H = (PRESET.lanes && S.hulk && !S.hulk.dead && S.hulk.vulnerable) ? S.hulk : null;
+    const hIn = H && dist(P.x, P.y, H.x, H.y) < H.r + reach;
+    P.atkTarget = best;
+    const tx = best ? best.x : (hIn ? H.x : null);
+    const ty = best ? best.y : (hIn ? H.y : null);
+    const want = (tx !== null) ? Math.atan2(ty - P.y, tx - P.x) : P.aim;
+    P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -FEEL.basicTurn * dt, FEEL.basicTurn * dt));
+    P.atkSwing = Math.max(0, P.atkSwing - dt);
+    if (tx !== null && S.basic.cdLeft <= 0 && P.dashT <= 0 &&
+        Math.abs(angDiff(P.facing, want)) < FEEL.basicArc){
+      P.atkSwing = 0.18;
+      castSlot(S.basic, { atX: tx, atY: ty });
+    }
+  } else if (AA){
     P.atkCd = Math.max(0, P.atkCd - dt);
     P.atkSwing = Math.max(0, P.atkSwing - dt);
     let best = null, bd = AA.range * AA.range;
@@ -1592,6 +1624,8 @@ function updatePlayer(dt){
     P.trail[i].t += dt;
     if (P.trail[i].t > 0.32) P.trail.splice(i, 1);
   }
+
+  if (S.basic) S.basic.cdLeft = Math.max(0, S.basic.cdLeft - dt);
 
   // --- fire
   for (let i = 0; i < 4; i++){

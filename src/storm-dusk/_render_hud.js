@@ -99,8 +99,45 @@ const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
    able to see it swinging and know it is doing work without a slot of its own. */
 function drawAutoPip(x, y, size){
   const AA = FEEL.autoAttack;
-  if (!AA) return;
+  const B = S.basic;
+  if (!AA && !B) return;
   const P = S.player, r = size * 0.34;
+  // v6: the basic is a real skill, so the pip shows that skill — its glyph, its
+  // element colour, its actual cooldown. The player asked what their auto-attack
+  // was; the HUD should answer without them having to guess.
+  if (B){
+    const E = ELEMENTS[B.element], st = skillStats(B);
+    ctx.save();
+    ctx.translate(x, y);
+    circ(0, 0, r); ctx.fillStyle = PAL.base; ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4; ctx.stroke();
+    gaugeRing(0, 0, r, hexToRgba(PAL.brass, 0.55), 12);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    drawGlow(0, 0, r * 1.5, E.color, P.atkTarget ? 0.26 : 0.12);
+    ctx.restore();
+    drawShapeGlyph(B.shape, 0, -1, r * 0.82, E.color, E.glow);
+    const frac = clamp(B.cdLeft / Math.max(0.001, st.cd), 0, 1);
+    if (frac > 0){
+      ctx.save(); circ(0, 0, r - 2); ctx.clip();
+      ctx.globalAlpha = 0.7; ctx.fillStyle = '#0B0910';
+      ctx.beginPath(); ctx.moveTo(0, 0);
+      ctx.arc(0, 0, r * 2, -Math.PI/2, -Math.PI/2 + TAU * frac);
+      ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    if (P.atkSwing > 0){
+      ctx.globalAlpha = P.atkSwing / 0.18;
+      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3;
+      circ(0, 0, r + 5); ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    const hs = size / 78;
+    setFont(Math.round(9.5 * hs), 800, true);
+    textOut('AUTO', 0, r + 12 * hs, P.atkTarget ? PAL.bone : '#6E667A');
+    setFont(Math.round(8.5 * hs), 700, true);
+    textOut(skillName(B).toUpperCase(), 0, r + 24 * hs, hexToRgba(E.color, 0.85));
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.translate(x, y);
   circ(0, 0, r); ctx.fillStyle = PAL.base; ctx.fill();

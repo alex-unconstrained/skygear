@@ -162,6 +162,52 @@ PRESETS = {
             },
         },
     },
+    'storm-dusk-v6': {
+        'label': 'v6',
+        'title': 'SKYGEAR — Storm-Dusk v6 · Lanes',
+        # a lane map: wider, and the objective sits at the STERN, not amidships
+        'world_w': 1780, 'deck_cx': 890, 'deck_r': 120,
+        'deck_w': 1560, 'world_h': 2560, 'deck_cy': 1240, 'deck_h': 2320, 'boiler_y': 2090,
+        'js': {
+            'name': 'v6',
+            'follow': True,
+            'xray': True,
+            'pitch': 0.72,
+            'camBack': 120,
+            'boilerH': 150,
+            'lanes': True,
+            'feel': {
+                'simHz': 120,
+                'inputBuffer': 0.14,
+                'killStop': {'SWARM': 0, 'SCRAPPER': 0.030, 'GUNNER': 0.030,
+                             'ARMORED': 0.055, 'BOSS': 0.10},
+                'stopRefractory': 0.10,
+                'cdScale': 0.80,
+                'recoilScale': 0.35,
+                'accel': 3100, 'friction': 2700, 'dashCd': 1.15,
+                'camTau': 0.075,
+                # The basic swings itself, so both mouse buttons are free
+                # for abilities: two on the mouse, two on Q/E, dash on space.
+                'keys': {
+                    'slots': [
+                        {'label': 'LMB', 'mouse': 0, 'alt': '1'},
+                        {'label': 'RMB', 'mouse': 2, 'alt': '2'},
+                        {'label': 'Q',   'key': 'q', 'alt': '3'},
+                        {'label': 'E',   'key': 'e', 'alt': '4'},
+                    ],
+                    'dash': {'label': 'SPACE', 'key': 'space'},
+                },
+                # The basic attack is the Ember Cleave itself — the real
+                # shape, element and crit, swung automatically at whatever the
+                # captain is facing. v4/v5 used a generic sabre flick alongside
+                # it, which read as a second, weaker weapon.
+                'basic': ['CLOSEHIT', 'EMBER'],
+                'basicTurn': 12, 'basicArc': 1.2,
+                # mortar on the left button; RMB/Q/E fill from the draft
+                'loadout': [['RANGED_AOE', 'FROST']],
+            },
+        },
+    },
 }
 
 CORE_SUBS = [

@@ -23,6 +23,15 @@ the projected floor. Props that behave as billboards follow the same upright
 rule; screen-space layers remain flat and circular ground art remains dead
 top-down. The archived 49° set is comparison-only, not production.
 
+**On the earlier 49° recommendation.** An in-engine A/B I ran during V3 argued
+for matching the bake to the engine pitch. That test compared four assets in an
+empty arena; the player comparison above was made on the full V5 lane
+composition, with props, crew and x-ray in frame. Where the two disagree, the
+composed scene wins — matching the bake to the projection is geometrically
+tidy but reads as figures leaning away from camera, which is why almost no
+game in this genre does it. The lock stands at 10–15°. The archived set stays
+in `assets-49/` and is reachable with `?art=49` if anyone wants to re-look.
+
 ---
 
 ## The layering, outermost first

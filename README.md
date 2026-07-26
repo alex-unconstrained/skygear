@@ -43,6 +43,15 @@ Rebuild the Storm-Dusk build after editing `src/storm-dusk/`:
 python src/storm-dusk/build.py
 ```
 
+Runtime PNGs must match the dimensions declared in `ASSET_MANIFEST`; keep the
+high-resolution generation masters outside this repository. Validate the game
+copies before packaging:
+
+```
+python -m pip install -r requirements-tools.txt
+python src/optimize-assets.py --check --set production
+```
+
 ## Status
 
 Classic is complete against its spec and verified: 24/24 shape×element combos,
