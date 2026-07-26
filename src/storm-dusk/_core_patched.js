@@ -449,6 +449,32 @@ const WAVES = [
     loop: { every: 9.5, sets: [['SWARM',5],['SCRAPPER',4],['GUNNER',3],['SWARM',6],['ARMORED',2]] } },
 ];
 
+/* Lane campaign. Waves 4 and 8 are pushes: their hulk opens and you have to
+   leave the objective to break it. Everything else is a hold. Lane numbers are
+   0 = port, 1 = centre, 2 = starboard; 'all' hits every lane; 'rail' climbs a
+   side rail amidships as a scripted interruption. */
+const LANE_WAVE_TABLE = [
+  { batches: [[0,'SCRAPPER',2,1],[4,'SCRAPPER',2,0],[8,'SCRAPPER',2,2]] },
+  { batches: [[0,'SCRAPPER',2,'all'],[6,'GUNNER',1,1],[10,'SCRAPPER',3,1]] },
+  { batches: [[0,'SWARM',4,'all'],[5,'SCRAPPER',2,0],[9,'GUNNER',2,2],[13,'SWARM',4,1]] },
+  { push: true,
+    batches: [[0,'SCRAPPER',3,'all'],[7,'GUNNER',2,1],[13,'SWARM',5,'all'],[20,'SCRAPPER',3,'all']],
+    loop: { every: 11, sets: [['SCRAPPER',2],['SWARM',4],['GUNNER',2]] } },
+  { batches: [[0,'ARMORED',1,1],[4,'SWARM',5,'all'],[9,'GUNNER',2,0],[13,'SCRAPPER',3,2]] },
+  { batches: [[0,'SCRAPPER',3,'all'],[6,'ARMORED',1,0],[8,'ARMORED',1,2],[13,'GUNNER',2,1],[17,'SWARM',5,'all']] },
+  { batches: [[0,'SWARM',6,'all'],[5,'ARMORED',1,1],[9,'GUNNER',2,'all'],[15,'SCRAPPER',3,'all'],[19,'SCRAPPER',2,'rail']] },
+  { push: true,
+    batches: [[0,'SCRAPPER',3,'all'],[6,'ARMORED',1,'all'],[13,'GUNNER',2,'all'],[19,'SWARM',6,'all']],
+    loop: { every: 10, sets: [['SCRAPPER',3],['SWARM',5],['ARMORED',1],['GUNNER',2]] } },
+  { batches: [[0,'SWARM',6,'all'],[5,'ARMORED',2,1],[10,'SCRAPPER',3,'all'],[15,'GUNNER',2,'all'],[20,'SWARM',3,'rail']] },
+  { batches: [[0,'ARMORED',1,'all'],[6,'GUNNER',3,'all'],[12,'SCRAPPER',4,'all'],[18,'SWARM',6,'all'],[23,'ARMORED',1,'all']] },
+  { batches: [[0,'SWARM',7,'all'],[5,'SCRAPPER',4,'all'],[11,'ARMORED',2,'all'],[17,'GUNNER',3,'all'],[22,'SCRAPPER',3,'rail'],[26,'SWARM',7,'all']] },
+  { boss: true, push: true,
+    batches: [[0,'BOSS',1,1],[5,'SWARM',4,'all'],[11,'SCRAPPER',3,'all']],
+    loop: { every: 10, sets: [['SWARM',5],['SCRAPPER',3],['GUNNER',2],['ARMORED',1]] } },
+];
+if (PRESET.lanes) for (let i = 0; i < WAVES.length; i++) WAVES[i] = LANE_WAVE_TABLE[i];
+
 /* ---------------------------------------------------------------------------
    DATA — deck props. Visual, and they block movement. Middle stays open.
 --------------------------------------------------------------------------- */
@@ -494,7 +520,18 @@ const PROPS = PROP_LAYOUT.map(function(p){
   };
 }).filter(function(p){
   // never dress the ground the Boiler stands on
-  return dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) > 190;
+  if (dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) < 190) return false;
+  // on a lane map, nothing solid may stand inside a walkable lane — a mast in
+  // the middle of the centre lane is a wall you cannot see coming
+  if (PRESET.lanes && p.r > 0){
+    const D = TUNING.deck, laneW = D.w / 3;
+    const left = D.cx - D.w / 2;
+    for (let i = 0; i < 3; i++){
+      const cx = left + laneW * (i + 0.5), inner = laneW * 0.5 - 66;
+      if (Math.abs(p.x - cx) < inner - 40 && p.y < D.cy + D.h / 2 - 430) return false;
+    }
+  }
+  return true;
 });
 const SOLID_PROPS = PROPS.filter(p => p.r > 0);
 
@@ -730,7 +767,8 @@ function resetGame(){
 
   S.mods = freshMods();
   S.player = {
-    x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * 0.20, vx: 0, vy: 0, aim: -Math.PI/2,
+    x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * (PRESET.lanes ? 0.29 : 0.20),
+    vx: 0, vy: 0, aim: -Math.PI/2,
     hp: TUNING.player.hp, maxHp: TUNING.player.hp,
     dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
@@ -1031,6 +1069,9 @@ function hitEnemy(e, dmg, o){
 
 function damageArea(x, y, r, dmg, element, o){
   o = o || {};
+  if (PRESET.lanes && S.hulk && !S.hulk.dead &&
+      dist2(x, y, S.hulk.x, S.hulk.y) < (r + S.hulk.r) * (r + S.hulk.r))
+    damageHulk(dmg);
   Hash.query(x, y, r + 40, _q);
   let n = 0;
   for (const e of _q){
@@ -1541,11 +1582,25 @@ function pushOut(o, cx, cy, minD){
 /* ---------------------------------------------------------------------------
    SYSTEMS — enemies
 --------------------------------------------------------------------------- */
-function spawnEnemy(type, forced){
+function spawnEnemy(type, forced, lane){
   const def = ENEMIES[type];
   const scale = 1 + TUNING.enemyScaling * (S.wave - 1);
 
   let pt = forced;
+  if (PRESET.lanes && !pt){
+    if (lane === 'rail'){
+      // the occasional rail boarder: climbs amidships, then joins that lane
+      const side = chance(0.5) ? -1 : 1;
+      const D = TUNING.deck;
+      const y = rnd(LANE_TOP + 240, BASE_Y - 260);
+      pt = { x: D.cx + side * (D.w/2 - 26), y, side: side < 0 ? 'left' : 'right' };
+      lane = laneOf(pt.x);
+    } else {
+      if (typeof lane !== 'number') lane = rndi(0, LANE_N);
+      const L = LANES[lane];
+      pt = { x: L.cx + rnd(-L.halfW * 0.55, L.halfW * 0.55), y: LANE_TOP, side: 'bow' };
+    }
+  }
   if (!pt){
     // Never drop a boarder on top of the player.
     let best = null, bestD = -1;
@@ -1574,6 +1629,7 @@ function spawnEnemy(type, forced){
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
     boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0 } : null,
   };
+  e.lane = PRESET.lanes ? (typeof lane === 'number' ? lane : laneOf(e.x)) : 0;
   S.enemies.push(e);
   if (type === 'BOSS'){ S.bossRef = e; SFX.bossRoar(); addTrauma(0.6); }
   if (!S.seenTypes[type] && type !== 'BOSS'){
@@ -1905,6 +1961,16 @@ function updateBolts(dt){
         dist2(b.x, b.y, P.x, P.y) < (b.r + TUNING.player.radius)**2){
       hurtPlayer(b.dmg, b.ang); hit = true;
     }
+    if (!hit && PRESET.lanes){
+      for (const c of S.crew){
+        if (c.dead) continue;
+        if (dist2(b.x, b.y, c.x, c.y) < (b.r + c.r)**2){ hurtCrew(c, b.dmg, b.ang); hit = true; break; }
+      }
+      if (!hit) for (const t of S.turrets){
+        if (t.dead) continue;
+        if (dist2(b.x, b.y, t.x, t.y) < (b.r + t.r)**2){ damageTurret(t, b.dmg); hit = true; break; }
+      }
+    }
     if (!hit && dist2(b.x, b.y, S.boiler.x, S.boiler.y) < (b.r + S.boiler.r)**2){
       hurtBoiler(b.dmg, Math.atan2(b.y - S.boiler.y, b.x - S.boiler.x)); hit = true;
     }
@@ -1982,10 +2048,18 @@ function updateFx(dt){
 /* ---------------------------------------------------------------------------
    SYSTEMS — waves
 --------------------------------------------------------------------------- */
+// batch = [t, type, count] or [t, type, count, lane] where lane is 0..2,
+// 'all' (that count into EVERY lane) or 'rail' (climbs a side rail amidships)
 function buildQueue(w){
   const def = WAVES[w-1], q = [];
-  for (const b of def.batches)
-    for (let i = 0; i < b[2]; i++) q.push({ t: b[0] + i * 0.22, type: b[1] });
+  for (const b of def.batches){
+    const lanes = !PRESET.lanes ? [undefined]
+      : b[3] === 'all' ? [0, 1, 2]
+      : b[3] === undefined ? [undefined] : [b[3]];
+    for (const ln of lanes)
+      for (let i = 0; i < b[2]; i++)
+        q.push({ t: b[0] + i * 0.22, type: b[1], lane: ln });
+  }
   q.sort((a,b) => a.t - b.t);
   return q;
 }
@@ -1994,6 +2068,13 @@ function pendingCount(){ return S.queue.length + countLive(); }
 
 function startWave(n){
   S.wave = n;
+  if (PRESET.lanes && S.hulk){
+    S.hulk.vulnerable = !!(WAVES[n-1] && WAVES[n-1].push);
+    if (S.hulk.vulnerable){
+      S.banner = { kind:'push', n, t:0, life: 3.0 };
+      SFX.bossRoar();
+    }
+  }
   S.queue = buildQueue(n);
   S.waveT = 0; S.loopT = 0; S.loopIdx = 0;
   S.phase = 'fight';
@@ -2037,7 +2118,8 @@ function updateWave(dt){
     const def = WAVES[S.wave-1];
     let live = countLive();
     while (S.queue.length && S.queue[0].t <= S.waveT && live < TUNING.maxLiveEnemies){
-      spawnEnemy(S.queue.shift().type);
+      const nx = S.queue.shift();
+      spawnEnemy(nx.type, null, nx.lane);
       live++;
       if (S.enemies[S.enemies.length-1].type === 'BOSS') S.bossSpawned = true;
     }
@@ -2047,12 +2129,17 @@ function updateWave(dt){
         S.loopT = 0;
         const set = def.loop.sets[S.loopIdx % def.loop.sets.length];
         S.loopIdx++;
-        for (let i = 0; i < set[1]; i++) S.queue.push({ t: S.waveT + i*0.25, type: set[0] });
+        for (let i = 0; i < set[1]; i++)
+          S.queue.push({ t: S.waveT + i*0.25, type: set[0],
+                         lane: PRESET.lanes ? rndi(0, LANE_N) : undefined });
         S.queue.sort((a,b) => a.t - b.t);
       }
     }
     if (def.boss){
       if (S.bossSpawned && !S.bossRef){ S.winSeq = 2.3; S.killT = 0; S.stats.waves = 12; }
+    } else if (def.push && PRESET.lanes){
+      // a push wave ends when their hulk does, not when the deck is clear
+      if (S.hulk && S.hulk.dead){ S.hulk.vulnerable = false; waveComplete(); }
     } else if (S.queue.length === 0 && live === 0){
       waveComplete();
     }

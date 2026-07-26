@@ -369,6 +369,16 @@ function drawBanner(){
     textOut('WAVE ' + b.n + ' COMPLETE', 0, 0, PAL.crit, PAL.ink, 10);
     setFont(Math.round(17*HS), 700, true);
     textOut('DRAFT AN UPGRADE', 0, 44*HS, PAL.bone, PAL.ink, 5);
+  } else if (b.kind === 'push'){
+    setFont(Math.round(34*HS), 900, true);
+    textOut('THEIR PLATING IS OPEN', 0, -30*HS, PAL.fireCore, PAL.ink, 8);
+    setFont(Math.round(58*HS), 900, true);
+    textOut('BREAK THE HULK', 0, 14*HS, PAL.fire, PAL.ink, 10);
+    setFont(Math.round(16*HS), 700, true);
+    textOut('PUSH UP A LANE — THE BOILER STILL HAS TO HOLD', 0, 56*HS, PAL.bone, PAL.ink, 5);
+  } else if (b.kind === 'lane'){
+    setFont(Math.round(40*HS), 900, true);
+    textOut(b.text, 0, 0, PAL.danger, PAL.ink, 8);
   } else if (b.kind === 'boss'){
     setFont(Math.round(38*HS), 900, true);
     textOut('FINAL WAVE', 0, -34*HS, PAL.danger, PAL.ink, 8);

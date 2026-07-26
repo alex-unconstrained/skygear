@@ -147,7 +147,7 @@ function spawnCrewWave(){
     for (let i = 0; i < C.perWave; i++){
       S.crew.push({
         lane: L.id,
-        x: L.cx + rnd(-70, 70), y: BASE_Y + 120 + i * 26,
+        x: L.cx + rnd(-70, 70), y: BASE_Y + 50 + i * 26,
         vx: 0, vy: 0, hp: C.hp, maxHp: C.hp, r: C.r,
         facing: -Math.PI/2, state: 'move', st: 0, anim: rnd(TAU),
         flash: 0, dead: false, atkAng: 0, target: null,

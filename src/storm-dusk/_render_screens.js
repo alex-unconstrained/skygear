@@ -461,8 +461,11 @@ function render(){
   if (CAM.follow) drawDeckLive();
   else { if (!_deckCv) buildDeck(); ctx.drawImage(_deckCv, 0, 0, View.w, View.h); }
 
+  if (PRESET.lanes) drawHulk();
+
   // --- flat on the deck
   drawFields();
+  if (PRESET.lanes) drawLaneWalls();
   drawTelegraphs();
   drawAoePreview();
   drawGroundFx();
@@ -470,19 +473,26 @@ function render(){
   // --- billboards, far to near
   const list = [];
   for (const p of PROPS)     list.push({ y: p.y, k: 0, o: p });
+  if (PRESET.lanes){
+    for (const t of S.turrets) list.push({ y: t.y, k: 5, o: t });
+    for (const c of S.crew)    if (!c.dead) list.push({ y: c.y, k: 6, o: c });
+  }
   for (const e of S.enemies) list.push({ y: e.y, k: 1, o: e });
   list.push({ y: S.boiler.y, k: 2 });
   for (const p of S.pickups) list.push({ y: p.y, k: 4, o: p });
-  if (S.player.hp > 0)       list.push({ y: S.player.y, k: 3 });
   list.sort((a, b) => a.y - b.y);
   for (const it of list){
     if (it.k === 0) drawPropBillboard(it.o);
     else if (it.k === 1) drawEnemyBillboard(it.o);
     else if (it.k === 2) drawBoilerBillboard();
     else if (it.k === 3) drawPlayerBillboard();
+    else if (it.k === 5) drawTurretBillboard(it.o);
+    else if (it.k === 6) drawCrewBillboard(it.o);
     else drawPickupBillboard(it.o);
   }
 
+  // the captain last, over everything — she is never allowed to be occluded
+  if (S.player.hp > 0) drawPlayerBillboard();
   drawXrayPass();
 
   // --- above the deck
@@ -493,7 +503,10 @@ function render(){
   drawNums();
   drawEnvelope();
   ctx.restore();
-  if (S.mode === 'play' || S.mode === 'pause') drawObjectiveMarker();
+  if (S.mode === 'play' || S.mode === 'pause'){
+    drawObjectiveMarker();
+    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); }
+  }
 
   drawScreenFx();
   const ended = S.mode === 'gameover' || S.mode === 'victory';

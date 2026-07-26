@@ -65,7 +65,7 @@ function isOccluded(sx, top, w, h, groundY){
    is drawn as a coloured RIM around a dark interior: the outline is built from
    offset copies, then the middle is punched back out. Shapes stay countable
    even in a pile, and it never reads as a real, in-front enemy. */
-const _xrayOffsets = [[-3,0],[3,0],[0,-3],[0,3],[-2,-2],[2,-2],[-2,2],[2,2]];
+const _xrayOffsets = [[-1,0],[1,0],[0,-1],[0,1]];
 function drawXrayPass(){
   if (!_xrayQueue.length) return;
   ctx.save();
@@ -73,13 +73,16 @@ function drawXrayPass(){
     if (!isOccluded(q.x + q.w / 2, q.y, q.w, q.h, q.gy)) continue;
     const rim = tintVersion(q.img, q.col);
     const core = tintVersion(q.img, '#140F1A');
-    const s = Math.max(1.5, q.w * 0.020);
-    ctx.globalAlpha = 0.5;
+    // Outline width is CAPPED in screen pixels. Scaling it with the sprite made
+    // a close-up boarder's rim spread ~18px in eight directions, which stacked
+    // into one solid orange blob instead of an outline.
+    const s = clamp(q.w * 0.012, 1.5, 4.5);
+    ctx.globalAlpha = 0.42;
     for (const o of _xrayOffsets)
       ctx.drawImage(rim, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h);
-    ctx.globalAlpha = 0.82;
+    ctx.globalAlpha = 0.88;
     ctx.drawImage(core, q.x, q.y, q.w, q.h);
-    ctx.globalAlpha = 0.30;
+    ctx.globalAlpha = 0.22;
     ctx.drawImage(rim, q.x, q.y, q.w, q.h);
   }
   ctx.restore();
@@ -354,9 +357,8 @@ function drawPlayerBillboard(){
   const hi = charImage('hero', v.view);
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
-  if (PRESET.xray)
-    _xrayQueue.push({ img: hi, col: PAL.teal, x: hr.p.x - hr.wpx/2, y: hr.top,
-                      w: hr.wpx, h: hr.hpx, gy: P.y });
+  // no x-ray for the captain: she is drawn above everything, so she can never
+  // be hidden and a silhouette of her would just be a teal blob over herself
   // a soft teal aura so the captain never gets lost in a crowd
   const q = CAM.project(P.x, P.y, 46);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';

@@ -45,7 +45,8 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:18px}
   .card.old{opacity:.72}
   .card.old:hover{opacity:1}
-  .card.v4 .play{background:var(--teal)}
+  .card.v5 .play{background:var(--teal)}
+  .card.v4 .play{background:#9BE8D2}
   .card.v3 .play{background:#8FA6C9}
   .card.old .play{background:#7E778C}
   .card{
@@ -110,26 +111,34 @@
   </header>
 
   <div class="grid">
-    <a class="card v4" href="storm-dusk-v4.html">
+    <a class="card v5" href="storm-dusk-v5.html">
       <div class="shot dusk"><span class="tag">Newest &mdash; start here</span></div>
       <div class="body">
-        <h2>Storm-Dusk v4</h2>
-        <p>The responsiveness pass. True auto-attack &mdash; the captain picks her
-           own target, turns to face it and swings on her own cadence, so all four
-           slots are real abilities instead of something you mash. Doubled sim
-           rate, input buffering, and hit-stop that no longer freezes the world
-           every time a swarm dies.</p>
+        <h2>v5 &middot; Lanes</h2>
+        <p>The MOBA restructure. Three hard-separated lanes, a deck cannon
+           gating each one, your own crew pushing up them, and the Boiler moved
+           to the stern like a nexus. Two waves are pushes: their boarding hulk
+           opens and you have to leave the objective to break it.</p>
+        <span class="play">Play v5</span>
+      </div>
+    </a>
+    <a class="card v4" href="storm-dusk-v4.html">
+      <div class="shot dusk"><span class="tag">Responsiveness</span></div>
+      <div class="body">
+        <h2>v4 &middot; Snappy</h2>
+        <p>Open deck, but rebuilt for feel: true auto-attack, doubled sim rate,
+           input buffering, and hit-stop that stopped freezing the world every
+           time a swarm died. The build where it started feeling like an ARPG.</p>
         <span class="play">Play v4</span>
       </div>
     </a>
     <a class="card v3" href="storm-dusk-v3.html">
       <div class="shot dusk"><span class="tag">Camera + occlusion</span></div>
       <div class="body">
-        <h2>Storm-Dusk v3</h2>
-        <p>Answer to the first playtest: longer deck, a camera that follows the
-           captain, and boarders hidden behind the Boiler drawn through as
-           outlines. Same feel as v2 underneath &mdash; kept so v4's snappiness can
-           be judged against it.</p>
+        <h2>v3 &middot; See-through</h2>
+        <p>Answer to the first playtest: longer deck, following camera, and
+           boarders hidden behind the Boiler drawn through as outlines. Still on
+           the old click-to-swing controls.</p>
         <span class="play">Play v3</span>
       </div>
     </a>
@@ -137,19 +146,18 @@
       <div class="shot classic"><span class="tag">The benchmark</span></div>
       <div class="body">
         <h2>Classic</h2>
-        <p>Straight top-down, daylight brass-and-khaki. Nothing is ever hidden and
-           the whole deck is always on screen. The build the first tester
-           preferred, and still the one to beat.</p>
+        <p>Where it started. Straight top-down, daylight brass-and-khaki, whole
+           deck always visible. The build the first tester preferred.</p>
         <span class="play">Play the benchmark</span>
       </div>
     </a>
     <a class="card old" href="storm-dusk.html">
-      <div class="shot dusk"><span class="tag">Where it started</span></div>
+      <div class="shot dusk"><span class="tag">Superseded</span></div>
       <div class="body">
-        <h2>Storm-Dusk v2</h2>
+        <h2>v2 &middot; First restyle</h2>
         <p>The first three-quarter attempt: fixed camera, short deck, no
-           see-through. Kept as the record of what v3 and v4 were fixing.</p>
-        <span class="play">Play the original restyle</span>
+           see-through. Kept as the record of what everything after it fixed.</p>
+        <span class="play">Play v2</span>
       </div>
     </a>
   </div>

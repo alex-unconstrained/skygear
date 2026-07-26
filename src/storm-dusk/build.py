@@ -30,7 +30,7 @@ PRESETS = {
     'storm-dusk': {
         'label': 'v2',
         'title': 'SKYGEAR — Storm-Dusk',
-        'world_h': 1520, 'deck_cy': 760, 'deck_h': 1360, 'boiler_y': 760,
+        'world_w': 1400, 'deck_cx': 700, 'deck_r': 150, 'deck_w': 900, 'world_h': 1520, 'deck_cy': 760, 'deck_h': 1360, 'boiler_y': 760,
         'js': {
             'name': 'v2',
             'follow': False,      # camera pinned to the deck centre
@@ -48,7 +48,7 @@ PRESETS = {
     'storm-dusk-v3': {
         'label': 'v3',
         'title': 'SKYGEAR — Storm-Dusk v3',
-        'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
+        'world_w': 1400, 'deck_cx': 700, 'deck_r': 150, 'deck_w': 900, 'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
         'js': {
             'name': 'v3',
             'follow': True,       # bounded follow — the objective stays framed
@@ -71,7 +71,7 @@ PRESETS = {
     'storm-dusk-v4': {
         'label': 'v4',
         'title': 'SKYGEAR — Storm-Dusk v4',
-        'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
+        'world_w': 1400, 'deck_cx': 700, 'deck_r': 150, 'deck_w': 900, 'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
         'js': {
             'name': 'v4',
             'follow': True,
@@ -105,13 +105,42 @@ PRESETS = {
             },
         },
     },
+    'storm-dusk-v5': {
+        'label': 'v5',
+        'title': 'SKYGEAR — Storm-Dusk v5 · Lanes',
+        # a lane map: wider, and the objective sits at the STERN, not amidships
+        'world_w': 1780, 'deck_cx': 890, 'deck_r': 120,
+        'deck_w': 1560, 'world_h': 2560, 'deck_cy': 1240, 'deck_h': 2320, 'boiler_y': 2090,
+        'js': {
+            'name': 'v5',
+            'follow': True,
+            'xray': True,
+            'pitch': 0.72,
+            'camBack': 120,
+            'boilerH': 150,
+            'lanes': True,
+            'feel': {
+                'simHz': 120,
+                'inputBuffer': 0.14,
+                'killStop': {'SWARM': 0, 'SCRAPPER': 0.030, 'GUNNER': 0.030,
+                             'ARMORED': 0.055, 'BOSS': 0.10},
+                'stopRefractory': 0.10,
+                'cdScale': 0.80,
+                'recoilScale': 0.35,
+                'accel': 3100, 'friction': 2700, 'dashCd': 1.15,
+                'camTau': 0.075,
+                'autoAttack': {'range': 195, 'dmg': 16, 'cd': 0.55,
+                               'arc': 1.2, 'turn': 12},
+            },
+        },
+    },
 }
 
 CORE_SUBS = [
-    ('  world:   { w: 1400, h: %(world_h)s },', '  world:   { w: 1400, h: 1520 },'),
-    ('  deck:    { cx: 700, cy: %(deck_cy)s, w: 900, h: %(deck_h)s, r: 150, bow: 170 },',
+    ('  world:   { w: %(world_w)s, h: %(world_h)s },', '  world:   { w: 1400, h: 1520 },'),
+    ('  deck:    { cx: %(deck_cx)s, cy: %(deck_cy)s, w: %(deck_w)s, h: %(deck_h)s, r: %(deck_r)s, bow: 170 },',
      '  deck:    { cx: 700, cy: 760, w: 900, h: 1360, r: 150, bow: 170 },'),
-    ('  boiler:  { x: 700, y: %(boiler_y)s, r: 62, hp: 500 },',
+    ('  boiler:  { x: %(deck_cx)s, y: %(boiler_y)s, r: 62, hp: 500 },',
      '  boiler:  { x: 700, y: 760, r: 62, hp: 500 },'),
 ]
 
@@ -125,7 +154,7 @@ FAVICON = ("<link rel=\"icon\" href=\"data:image/svg+xml,"
            "%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E\">")
 
 PARTS = ['_lanes.js', '_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
-         '_render_entities.js', '_render_fx_hud.js', '_render_hud.js', '_render_screens.js']
+         '_render_entities.js', '_render_lanes.js', '_render_fx_hud.js', '_render_hud.js', '_render_screens.js']
 
 BASE_CORE = R('_core_patched.js')
 RENDER = '\n\n'.join(R(p) for p in PARTS)
