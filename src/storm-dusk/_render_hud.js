@@ -383,7 +383,7 @@ function drawHints(){
     setFont(Math.round(13*HS), 600, false);
     textOut(r[1], px + 108*HS, y, '#9C93A8', null, 0, 'left');
   });
-  const b = CAM.project(S.boiler.x, S.boiler.y, 250);
+  const b = CAM.project(S.boiler.x, S.boiler.y, PRESET.boilerH + 90);
   const bob = Math.sin(S.rt * 4) * 4;
   ctx.globalAlpha = a * (0.72 + Math.sin(S.rt * 4) * 0.2);
   setFont(Math.round(17*HS), 800, true);
@@ -426,12 +426,66 @@ function drawFps(){
   const lines = [
     Math.round(1/avg) + ' fps   ' + (avg*1000).toFixed(1) + ' ms   peak ' + (worst*1000).toFixed(0) + ' ms',
     live + ' boarders   ' + parts + ' particles   assets ' + Assets.ready + '/' + Assets.total,
+    PRESET.name + '   pitch ' + CAM.pitch.toFixed(2) + '   ' +
+      (CAM.follow ? 'follow' : 'fixed') + (PRESET.xray ? '   xray' : ''),
   ];
   setFont(Math.round(13*HS), 700, false);
   const w = Math.max(ctx.measureText(lines[0]).width, ctx.measureText(lines[1]).width) + 22*HS;
-  brassPanel(View.w - w - 16*HS, 16*HS, w, 50*HS, 7*HS, 0.92);
+  brassPanel(View.w - w - 16*HS, 16*HS, w, 68*HS, 7*HS, 0.92);
+  const cols = [1/avg > 55 ? PAL.teal : PAL.dangerIn, '#9C93A8', PAL.brass];
   lines.forEach((l, i) => textOut(l, View.w - w - 5*HS, 30*HS + i * 19*HS,
-                                  i ? '#9C93A8' : (1/avg > 55 ? PAL.teal : PAL.dangerIn), null, 0, 'left'));
+                                  cols[i], null, 0, 'left'));
+  ctx.restore();
+}
+
+/* With a moving camera the Boiler can drift to the edge of frame. It is the
+   thing you lose the run by ignoring, so it gets a persistent marker: a health
+   pip on screen when visible, an arrow pinned to the edge when it is not. */
+function drawObjectiveMarker(){
+  if (!CAM.follow || !S.boiler) return;
+  const B = S.boiler;
+  const p = CAM.project(B.x, B.y, 150);
+  const HS = hudScale();
+  const m = 74 * HS;
+  const onScreen = p.x > m && p.x < View.w - m && p.y > m * 1.4 && p.y < View.h - m;
+  const frac = clamp(B.hp / B.maxHp, 0, 1);
+  const hurt = frac < 0.5;
+
+  ctx.save();
+  if (onScreen){
+    // a slim pip above the Boiler, only once it has taken a hit
+    if (frac >= 0.999){ ctx.restore(); return; }
+    const w = 74 * HS, h = 7 * HS;
+    ctx.globalAlpha = 0.9;
+    rr(p.x - w/2 - 2, p.y - 2, w + 4, h + 4, 3);
+    ctx.fillStyle = 'rgba(13,11,18,0.85)'; ctx.fill();
+    ctx.fillStyle = hurt ? PAL.danger : PAL.fire;
+    rr(p.x - w/2, p.y, w * frac, h, 2); ctx.fill();
+    ctx.restore();
+    return;
+  }
+  // off frame: clamp to the edge and point at it
+  const cx = View.w / 2, cy = View.h / 2;
+  let dx = p.x - cx, dy = p.y - cy;
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  const ex = clamp(cx + dx * View.w, m, View.w - m);
+  const ey = clamp(cy + dy * View.h, m * 1.4, View.h - m);
+  const pulse = 0.72 + Math.sin(S.rt * (hurt ? 9 : 4)) * 0.24;
+  ctx.globalAlpha = pulse;
+  ctx.translate(ex, ey);
+  ctx.globalCompositeOperation = 'lighter';
+  drawGlow(0, 0, 44 * HS, hurt ? PAL.danger : PAL.fire, 0.55);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.rotate(Math.atan2(dy, dx));
+  ctx.beginPath();
+  ctx.moveTo(20 * HS, 0); ctx.lineTo(-8 * HS, -14 * HS); ctx.lineTo(-2 * HS, 0);
+  ctx.lineTo(-8 * HS, 14 * HS); ctx.closePath();
+  fillStroke(hurt ? PAL.danger : PAL.fire, PAL.ink, 4);
+  ctx.rotate(-Math.atan2(dy, dx));
+  setFont(Math.round(11 * HS), 800, true);
+  textOut('BOILER ' + Math.round(frac * 100) + '%', 0, 28 * HS,
+          hurt ? PAL.danger : PAL.bone, PAL.ink, 4);
   ctx.restore();
 }
 

@@ -1,0 +1,3 @@
+[     665ms] [ERROR] Failed to load resource: net::ERR_FILE_NOT_FOUND @ file:///C:/static/styles.css:0
+[     665ms] [ERROR] Failed to load resource: net::ERR_FILE_NOT_FOUND @ file:///C:/library/heroes/captain_front_idle.png:0
+[     667ms] [ERROR] Failed to load resource: net::ERR_FILE_NOT_FOUND @ file:///C:/static/app.js:0

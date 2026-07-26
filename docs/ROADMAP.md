@@ -1,6 +1,6 @@
 # SKYGEAR — road to a testable MVP
 
-**Where we are.** Two playable builds off one simulation. Classic (top-down) is
+**Where we are.** Three playable builds off one simulation. Classic (top-down) is
 complete against the original one-shot spec and verified: all 24 shape×element
 combos deal damage and apply their element, all 34 draft cards apply cleanly,
 a headless run clears 12 waves to the victory screen, both loss conditions fire.
@@ -21,6 +21,51 @@ Deployed as a static site. Two builds behind one landing page so the restyle is
 an A/B test rather than a leap of faith.
 
 **Exit:** a link a stranger can click. ✅
+
+---
+
+## Playtest 1 result — and what v3 changed
+
+**Verdict: Classic played better than Storm-Dusk.** Both the tester and Alex
+agreed. That is a real result and it was acted on rather than argued with.
+
+**Root cause.** Not polish — geometry. The Boiler's billboard stood 210 units
+tall against a 120-unit boarder, and at the spec's 0.72 rad pitch that silhouette
+covered the deck from the Boiler back to roughly 465 units behind it. On a
+1360-deep deck, **over a third of the arena was blind, and it was precisely the
+far side of the objective** where boarders do their damage. A defence game was
+hiding the thing you defend behind the thing you defend.
+
+**v3 (`storm-dusk-v3.html`) addresses it four ways:**
+
+| Change | Why |
+|---|---|
+| **Occlusion x-ray** | Anything hidden behind the Boiler, a mast or a crate stack is re-drawn on top as a coloured rim with a dark interior. Rims, not solid fills, so a pile of boarders stays countable. This is the actual fix. |
+| **Bounded follow camera** | The tester's suggestion. The camera tracks the captain so you can walk round and take an angle. Leashed to the deck, not to the Boiler — an earlier build clamped to keep the objective framed and could push the *captain* off screen at the bow, which is far worse. The Boiler gets an edge marker with its health instead. |
+| **Deck lengthened 1360 → 2240** | Also the tester's suggestion. More room to manoeuvre, and it gives the follow camera something to do. Deck dressing is now authored in normalised coordinates so one table dresses any deck length. |
+| **Pitch 0.72 → 0.86, Boiler 210 → 132 tall** | Attacks the problem at source. A steeper camera and a flatter engine block shrink the blind band directly, and steeper pitch also evens out the depth foreshortening that made aiming into the distance feel inconsistent. |
+
+v3 clears all 12 waves to victory in a headless run and holds ~82 fps.
+
+> ### ⚠ This blocks the art, and the art is being generated now
+>
+> **v3 runs at pitch 0.86 (49°), not the spec's 0.72 (41°).** Visual spec §2.1 is
+> explicit that assets bake the viewing angle in and that art painted at the
+> wrong angle "will look broken in-engine and must be regenerated."
+>
+> So the angle has to be locked *before* Codex generates 66 assets, or the art
+> budget gets spent twice. Both builds print their pitch in the `F3` panel, so
+> the next playtest can settle it empirically. Once it is settled, update the
+> Master Style Block in §1.4 and the "40 degrees" language throughout §4 to match
+> the number that won.
+>
+> If 0.86 is kept, the brief should say **"high three-quarter view from 49
+> degrees above horizontal"** everywhere it currently says 40.
+
+**Still open after v3:** whether the follow camera is actually better than a
+fixed one for a *defence* game. Holding a fixed objective may simply want a
+fixed view. That is what the next test is for — all three builds ship side by
+side so it is a comparison, not an argument.
 
 ---
 

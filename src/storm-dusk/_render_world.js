@@ -237,10 +237,19 @@ function pathGround(pts){
 }
 
 let _deckCv = null;
+
+// With a follow camera the deck cannot be baked to a screen-space layer, so it
+// is drawn live. It is ~60 path ops — trivial next to the billboard crowd.
+function drawDeckLive(){
+  withCtx(ctx, () => paintDeck(View.w, View.h));
+}
 function buildDeck(){
   const w = Math.max(2, Math.round(View.w)), h = Math.max(2, Math.round(View.h));
   _deckCv = document.createElement('canvas'); _deckCv.width = w; _deckCv.height = h;
-  withCtx(_deckCv.getContext('2d'), () => {
+  withCtx(_deckCv.getContext('2d'), () => paintDeck(w, h));
+}
+function paintDeck(w, h){
+  {
     const D = TUNING.deck;
     ctx.lineJoin = 'round';
     // hull mass below the deck line, so the ship reads as a solid object in air
@@ -322,10 +331,11 @@ function buildDeck(){
         ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(t.x, t.y); ctx.stroke();
       }
     }
-  });
+  }
 }
 function onViewportChanged(){
   _spriteCache.clear();
   buildSky();
-  buildDeck();
+  CAM.recompute();
+  if (!CAM.follow) buildDeck();   // a moving camera draws the deck live instead
 }

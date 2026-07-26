@@ -42,7 +42,11 @@
   .kicker{color:var(--moon);letter-spacing:.34em;font-size:clamp(10px,2.2vw,13px);
           text-transform:uppercase;margin-top:14px}
   .lede{max-width:60ch;margin:22px auto 0;color:#C6BFD2}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:18px}
+  .card.old{opacity:.72}
+  .card.old:hover{opacity:1}
+  .card.v3 .play{background:var(--teal)}
+  .card.old .play{background:#7E778C}
   .card{
     display:flex;flex-direction:column;background:var(--panel);
     border:1px solid rgba(176,129,63,.45);border-radius:14px;overflow:hidden;
@@ -105,24 +109,34 @@
   </header>
 
   <div class="grid">
-    <a class="card dusk" href="storm-dusk.html">
-      <div class="shot dusk"><span class="tag">New look</span></div>
+    <a class="card v3" href="storm-dusk-v3.html">
+      <div class="shot dusk"><span class="tag">Newest &mdash; start here</span></div>
       <div class="body">
-        <h2>Storm-Dusk</h2>
-        <p>Three-quarter camera over a projected deck, dark painted world, chibi
-           billboards. The direction we want to take it. Art is still placeholder —
-           everything you see is drawn in code.</p>
-        <span class="play">Play this one first</span>
+        <h2>Storm-Dusk v3</h2>
+        <p>Built from the first playtest. Longer deck, a camera that follows the
+           captain, and boarders hidden behind the Boiler now show through as
+           outlines &mdash; the fight on its far side is no longer invisible.</p>
+        <span class="play">Play v3</span>
       </div>
     </a>
     <a class="card classic" href="classic.html">
-      <div class="shot classic"><span class="tag">Original</span></div>
+      <div class="shot classic"><span class="tag">Plays best so far</span></div>
       <div class="body">
         <h2>Classic</h2>
-        <p>Straight top-down, daylight brass-and-khaki. Identical game underneath —
-           same skills, waves, cards and boss. Here as the control: if the new camera
-           costs you readability, this is what it cost you against.</p>
-        <span class="play">Play the control</span>
+        <p>Straight top-down, daylight brass-and-khaki. Nothing is ever hidden and
+           the whole deck is always on screen. The build to beat &mdash; v3 has to
+           feel at least this good before the new look is worth it.</p>
+        <span class="play">Play the benchmark</span>
+      </div>
+    </a>
+    <a class="card old" href="storm-dusk.html">
+      <div class="shot dusk"><span class="tag">Superseded</span></div>
+      <div class="body">
+        <h2>Storm-Dusk v2</h2>
+        <p>The first three-quarter attempt: fixed camera, short deck, no
+           see-through. Kept only so the v3 changes can be compared against
+           what they were fixing.</p>
+        <span class="play">Play the old one</span>
       </div>
     </a>
   </div>

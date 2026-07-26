@@ -5,18 +5,84 @@
 const ANCHOR = 0.92;      // feet sit here in the sprite, per §2.4
 const FIG = 0.86;         // fraction of sprite height the figure occupies
 
-const _whiteCache = new Map();
-function whiteVersion(img){
-  let cn = _whiteCache.get(img);
+const _tintCache = new Map();
+function tintVersion(img, col){
+  let byCol = _tintCache.get(img);
+  if (!byCol){ byCol = new Map(); _tintCache.set(img, byCol); }
+  let cn = byCol.get(col);
   if (cn) return cn;
   cn = document.createElement('canvas');
   cn.width = img.width || img.naturalWidth; cn.height = img.height || img.naturalHeight;
   const c = cn.getContext('2d');
   c.drawImage(img, 0, 0, cn.width, cn.height);
   c.globalCompositeOperation = 'source-atop';
-  c.fillStyle = '#FFFFFF'; c.fillRect(0, 0, cn.width, cn.height);
-  _whiteCache.set(img, cn);
+  c.fillStyle = col; c.fillRect(0, 0, cn.width, cn.height);
+  byCol.set(col, cn);
   return cn;
+}
+function whiteVersion(img){ return tintVersion(img, '#FFFFFF'); }
+
+/* ---------------------------------------------------------------------------
+   OCCLUSION X-RAY
+   The first playtest killed v2 on exactly this: the Boiler you are defending
+   stood between you and the boarders attacking its far side, so the fight you
+   most needed to see was the one you could not. Tall geometry now registers as
+   an occluder, and anything hidden behind it is re-drawn on top as a flat
+   silhouette. Standard for any three-quarter action game; not optional here.
+--------------------------------------------------------------------------- */
+const _occluders = [];      // {x0,x1,y0,y1, depth} screen rects, rebuilt per frame
+const _xrayQueue = [];      // entities to re-draw as silhouettes
+
+function resetOccluders(){ _occluders.length = 0; _xrayQueue.length = 0; }
+
+// register a screen-space box that hides what is behind it
+function addOccluder(sx, sy, w, h, groundY){
+  if (!PRESET.xray) return;
+  _occluders.push({ x0: sx - w * 0.5, x1: sx + w * 0.5, y0: sy - h, y1: sy, gy: groundY });
+}
+
+// is this entity's silhouette meaningfully covered by nearer, taller geometry?
+function isOccluded(sx, top, w, h, groundY){
+  if (!PRESET.xray || !_occluders.length) return false;
+  const ax0 = sx - w * 0.30, ax1 = sx + w * 0.30;
+  const ay0 = top + h * 0.12, ay1 = top + h * 0.92;
+  const area = Math.max(1, (ax1 - ax0) * (ay1 - ay0));
+  let covered = 0;
+  for (const o of _occluders){
+    if (o.gy <= groundY) continue;                 // only things NEARER can occlude
+    const ox = Math.min(ax1, o.x1) - Math.max(ax0, o.x0);
+    if (ox <= 0) continue;
+    const oy = Math.min(ay1, o.y1) - Math.max(ay0, o.y0);
+    if (oy <= 0) continue;
+    covered += ox * oy;
+    if (covered / area > 0.32) return true;        // a third hidden is enough
+  }
+  return false;
+}
+
+/* Solid silhouettes merge into one unreadable mass the moment two boarders
+   overlap — which is exactly when you need to count them. So each hidden body
+   is drawn as a coloured RIM around a dark interior: the outline is built from
+   offset copies, then the middle is punched back out. Shapes stay countable
+   even in a pile, and it never reads as a real, in-front enemy. */
+const _xrayOffsets = [[-3,0],[3,0],[0,-3],[0,3],[-2,-2],[2,-2],[-2,2],[2,2]];
+function drawXrayPass(){
+  if (!_xrayQueue.length) return;
+  ctx.save();
+  for (const q of _xrayQueue){
+    if (!isOccluded(q.x + q.w / 2, q.y, q.w, q.h, q.gy)) continue;
+    const rim = tintVersion(q.img, q.col);
+    const core = tintVersion(q.img, '#140F1A');
+    const s = Math.max(1.5, q.w * 0.020);
+    ctx.globalAlpha = 0.5;
+    for (const o of _xrayOffsets)
+      ctx.drawImage(rim, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h);
+    ctx.globalAlpha = 0.82;
+    ctx.drawImage(core, q.x, q.y, q.w, q.h);
+    ctx.globalAlpha = 0.30;
+    ctx.drawImage(rim, q.x, q.y, q.w, q.h);
+  }
+  ctx.restore();
 }
 
 function drawBillboard(img, x, y, worldH, o){
@@ -188,10 +254,15 @@ function propSprite(t){
     applyTwoSourceLight(c2, w, h);
   });
 }
+// width/height of the sprite box that is actually SOLID, per prop type.
+// Anything not listed here does not occlude at all.
+const OCCLUDE_BOX = { mast: [0.20, 0.86], crates: [0.52, 0.66], ballista: [0.44, 0.50] };
 function drawPropBillboard(p){
   if (p.r > 0) entityShadow(p.x, p.y, p.r * 1.15, 0.5);
   else entityShadow(p.x, p.y, 34, 0.34);
-  drawBillboard(propSprite(p.t), p.x, p.y, PROP_H[p.t] || 80, {});
+  const r = drawBillboard(propSprite(p.t), p.x, p.y, PROP_H[p.t] || 80, {});
+  const box = OCCLUDE_BOX[p.t];
+  if (box) addOccluder(r.p.x, r.p.y, r.wpx * box[0], r.hpx * box[1], p.y);
   if (p.t === 'lantern'){
     const q = CAM.project(p.x, p.y, PROP_H.lantern * 0.86);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -244,8 +315,17 @@ function drawBoilerBillboard(){
   drawGlow(q.x, q.y, (120 + Math.sin(S.rt * 5) * 10) * q.k,
            frac > 0.35 ? PAL.fire : PAL.danger, 0.35 + 0.3 * frac);
   ctx.restore();
-  drawBillboard(boilerSprite(), B.x + rnd(-sh, sh), B.y, 210,
-                { flash: B.flash > 0.02 });
+  // Never white-silhouette the Boiler on hit: it is scenery you read constantly,
+  // and a full flash makes the thing you are defending unreadable mid-fight.
+  const r = drawBillboard(boilerSprite(), B.x + rnd(-sh, sh), B.y, PRESET.boilerH, {});
+  if (B.flash > 0){
+    const c = CAM.project(B.x, B.y, PRESET.boilerH * 0.5);
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    drawGlow(c.x, c.y, r.wpx * 0.42, '#FFE9C0', clamp(B.flash / 0.14, 0, 1) * 0.45);
+    ctx.restore();
+  }
+  addOccluder(r.p.x, r.p.y, r.wpx * 0.58, r.hpx * 0.70, B.y);
   if (frac < 0.6 && rnd() < 0.12) pSmoke(B.x + rnd(-30, 30), B.y, 1, 'rgba(40,36,48,0.6)', 40);
   if (rnd() < 0.05) pSmoke(B.x - 30, B.y, 1, 'rgba(200,196,210,0.30)', 26);
 }
@@ -266,8 +346,12 @@ function drawPlayerBillboard(){
   }
   const attacking = P.castFlash > 0 || !!P.ray;
   const v = viewFor(P.aim, true, attacking);
-  drawBillboard(charImage('hero', v.view), P.x, P.y, BILLBOARD_H.hero,
+  const hi = charImage('hero', v.view);
+  const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
+  if (PRESET.xray)
+    _xrayQueue.push({ img: hi, col: PAL.teal, x: hr.p.x - hr.wpx/2, y: hr.top,
+                      w: hr.wpx, h: hr.hpx, gy: P.y });
   // a soft teal aura so the captain never gets lost in a crowd
   const q = CAM.project(P.x, P.y, 46);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -291,13 +375,18 @@ function drawEnemyBillboard(e){
   if (e.slowT > 0) groundRing(e.x, e.y, e.r + 10, PAL.teal, 2.6, 0.5);
   if (e.accT > 0)  groundRing(e.x, e.y, e.r + 18, ELEMENTS.STEAM.color, 2.2, 0.32);
 
-  drawBillboard(charImage(e.type, v.view), e.x, e.y, BILLBOARD_H[e.type] || 110, {
+  const img = charImage(e.type, v.view);
+  const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {
     mirror: v.mirror,
     lift: hover + bob,
     alpha: climbing ? 0.25 + 0.75 * k : 1,
     scale: climbing ? 0.55 + 0.45 * k : 1,
     flash: e.flash > 0,
   });
+  if (!climbing && PRESET.xray){
+    _xrayQueue.push({ img, col: e.type === 'BOSS' ? PAL.danger : PAL.dangerIn,
+                      x: r.p.x - r.wpx/2, y: r.top, w: r.wpx, h: r.hpx, gy: e.y });
+  }
 
   const top = CAM.project(e.x, e.y, (BILLBOARD_H[e.type] || 110) + hover + 22);
   if (e.burnStacks > 0 && !climbing){

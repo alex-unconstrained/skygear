@@ -450,6 +450,7 @@ function drawScreenFx(){
 
 function render(){
   ctx.setTransform(View.dpr, 0, 0, View.dpr, 0, 0);
+  resetOccluders();
   ctx.save();
   // trauma shake is applied to the whole projected frame
   ctx.translate(S.shakeX, S.shakeY);
@@ -457,8 +458,8 @@ function render(){
 
   drawEnvironment();
   drawBowPiece();
-  if (!_deckCv) buildDeck();
-  ctx.drawImage(_deckCv, 0, 0, View.w, View.h);
+  if (CAM.follow) drawDeckLive();
+  else { if (!_deckCv) buildDeck(); ctx.drawImage(_deckCv, 0, 0, View.w, View.h); }
 
   // --- flat on the deck
   drawFields();
@@ -482,6 +483,8 @@ function render(){
     else drawPickupBillboard(it.o);
   }
 
+  drawXrayPass();
+
   // --- above the deck
   drawBolts();
   drawAirFx();
@@ -490,6 +493,7 @@ function render(){
   drawNums();
   drawEnvelope();
   ctx.restore();
+  if (S.mode === 'play' || S.mode === 'pause') drawObjectiveMarker();
 
   drawScreenFx();
   const ended = S.mode === 'gameover' || S.mode === 'victory';

@@ -1,23 +1,93 @@
 #!/usr/bin/env python3
-"""Assemble skygear.html (Cinderia fork) from the ported core + render layer."""
-import io, os
+"""Assemble the Storm-Dusk builds from the ported core + the render layer.
+
+One source, two outputs. The presets below are the only difference between
+them, so a gameplay or rendering fix lands in both:
+
+  storm-dusk      v2 — fixed camera over a short deck. The build the first
+                  playtest rejected; kept as the control for the v3 comparison.
+  storm-dusk-v3   v3 — bounded follow camera over a long deck, with the
+                  occlusion x-ray pass. Built in response to that playtest.
+
+Run from anywhere:  python src/storm-dusk/build.py
+"""
+import io
+import json
+import os
+
 HERE = os.path.dirname(os.path.abspath(__file__))
-def R(n): return io.open(os.path.join(HERE, n), encoding='utf-8').read()
+ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 
-core = R('_core_patched.js')
-parts = ['_render_head.js','_render_assets.js','_render_chars.js','_render_world.js',
-         '_render_entities.js','_render_fx_hud.js','_render_hud.js','_render_screens.js']
-render = '\n\n'.join(R(p) for p in parts)
 
-html = """<!doctype html>
+def R(n):
+    return io.open(os.path.join(HERE, n), encoding='utf-8').read()
+
+
+# --- presets ----------------------------------------------------------------
+# `deck` values are ground-plane units and are substituted into the core's
+# TUNING block; everything else is handed to the renderer as `PRESET`.
+PRESETS = {
+    'storm-dusk': {
+        'label': 'v2',
+        'title': 'SKYGEAR — Storm-Dusk',
+        'world_h': 1520, 'deck_cy': 760, 'deck_h': 1360, 'boiler_y': 760,
+        'js': {
+            'name': 'v2',
+            'follow': False,      # camera pinned to the deck centre
+            'xray': False,        # no see-through pass
+            'pitch': 0.72,
+            'camBack': 0,
+            'boilerH': 210,
+        },
+    },
+    'storm-dusk-v3': {
+        'label': 'v3',
+        'title': 'SKYGEAR — Storm-Dusk v3',
+        'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
+        'js': {
+            'name': 'v3',
+            'follow': True,       # bounded follow — the objective stays framed
+            'xray': True,         # silhouette anything hidden behind tall geometry
+            'pitch': 0.86,        # steeper than the spec's 0.72: less occlusion,
+                                  # less depth foreshortening on the aim
+            'camBack': 120,       # keeps the captain just below screen centre
+            'boilerH': 132,       # a flat engine block, not a tower
+        },
+    },
+}
+
+CORE_SUBS = [
+    ('  world:   { w: 1400, h: %(world_h)s },', '  world:   { w: 1400, h: 1520 },'),
+    ('  deck:    { cx: 700, cy: %(deck_cy)s, w: 900, h: %(deck_h)s, r: 150, bow: 170 },',
+     '  deck:    { cx: 700, cy: 760, w: 900, h: 1360, r: 150, bow: 170 },'),
+    ('  boiler:  { x: 700, y: %(boiler_y)s, r: 62, hp: 500 },',
+     '  boiler:  { x: 700, y: 760, r: 62, hp: 500 },'),
+]
+
+FAVICON = ("<link rel=\"icon\" href=\"data:image/svg+xml,"
+           "%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E"
+           "%3Crect width='32' height='32' rx='6' fill='%230D0B12'/%3E"
+           "%3Cg fill='none' stroke='%23E8C376' stroke-width='2.6'%3E"
+           "%3Ccircle cx='16' cy='16' r='6.5'/%3E"
+           "%3Cpath d='M16 3.5v3.5M16 25v3.5M3.5 16h3.5M25 16h3.5"
+           "M7.2 7.2l2.5 2.5M22.3 22.3l2.5 2.5M24.8 7.2l-2.5 2.5M9.7 22.3l-2.5 2.5'/%3E"
+           "%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E\">")
+
+PARTS = ['_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
+         '_render_entities.js', '_render_fx_hud.js', '_render_hud.js', '_render_screens.js']
+
+BASE_CORE = R('_core_patched.js')
+RENDER = '\n\n'.join(R(p) for p in PARTS)
+
+HEAD = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SKYGEAR \u2014 Storm-Dusk</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230D0B12'/%3E%3Cg fill='none' stroke='%23E8C376' stroke-width='2.6'%3E%3Ccircle cx='16' cy='16' r='6.5'/%3E%3Cpath d='M16 3.5v3.5M16 25v3.5M3.5 16h3.5M25 16h3.5M7.2 7.2l2.5 2.5M22.3 22.3l2.5 2.5M24.8 7.2l-2.5 2.5M9.7 22.3l-2.5 2.5'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E">
+<title>%(title)s</title>
+%(favicon)s
 <style>
-  html,body{margin:0;padding:0;width:100%;height:100%;background:#0D0B12;overflow:hidden;
+  html,body{margin:0;padding:0;width:100%%;height:100%%;background:#0D0B12;overflow:hidden;
             font-family:'Trebuchet MS',system-ui,sans-serif;-webkit-user-select:none;user-select:none;}
   canvas{display:block;width:100vw;height:100vh;cursor:none;touch-action:none;}
 </style>
@@ -27,25 +97,39 @@ html = """<!doctype html>
 <script>
 "use strict";
 /* ============================================================================
-   SKYGEAR \u2014 Cinderia-style restyle (fork)
-   Built to skygear-visual-asset-spec-v1.md.
-
-   Same game, new presentation layer:
-     \u00b7 high three-quarter pinhole camera over a projected ground plane
-     \u00b7 billboard sprites, depth-scaled, painter-sorted far -> near
-     \u00b7 storm-dusk palette: dark base, saturated gameplay pops
-     \u00b7 deck drawn as projected quads; ground art authored as circles
-     \u00b7 every \u00a74 image asset slots in by manifest path, with a procedural
-       stand-in painted to the same rules wherever a file is missing
-
-   Layout: TUNING -> data -> engine -> state -> systems -> RENDER -> boot
+   SKYGEAR %(label)s — Cinderia-style restyle
+   Built to docs/skygear-visual-asset-spec-v1.md.
+   Generated by src/storm-dusk/build.py — edit the sources, not this file.
 ============================================================================ */
+const PRESET = %(preset)s;
 
-""" + core + "\n\n" + render + """
+"""
+
+TAIL = """
 </script>
 </body>
 </html>
 """
-OUT = os.path.normpath(os.path.join(HERE, '..', '..', 'storm-dusk.html'))
-io.open(OUT, 'w', encoding='utf-8').write(html)
-print('built', OUT, '-', html.count(chr(10)), 'lines')
+
+
+def build(key):
+    spec = PRESETS[key]
+    core = BASE_CORE
+    for tmpl, original in CORE_SUBS:
+        if original not in core:
+            raise SystemExit('core substitution target missing:\n  ' + original)
+        core = core.replace(original, tmpl % spec, 1)
+
+    html = (HEAD % {'title': spec['title'], 'favicon': FAVICON, 'label': spec['label'],
+                    'preset': json.dumps(spec['js'], indent=2)}
+            + core + '\n\n' + RENDER + TAIL)
+    out = os.path.join(ROOT, key + '.html')
+    io.open(out, 'w', encoding='utf-8').write(html)
+    print('built %-24s %5d lines  (deck depth %d, pitch %.2f, follow=%s, xray=%s)' % (
+        key + '.html', html.count(chr(10)), spec['deck_h'],
+        spec['js']['pitch'], spec['js']['follow'], spec['js']['xray']))
+
+
+if __name__ == '__main__':
+    for k in PRESETS:
+        build(k)

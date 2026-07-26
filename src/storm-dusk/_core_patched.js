@@ -444,29 +444,50 @@ const WAVES = [
 /* ---------------------------------------------------------------------------
    DATA — deck props. Visual, and they block movement. Middle stays open.
 --------------------------------------------------------------------------- */
-const PROPS = [
-  // x across the deck, y = depth (small y is the far bow). Middle stays open.
-  { t:'ballista', x: 700, y: 190, r: 40, rot: 0 },
-  { t:'lantern',  x: 380, y: 250, r: 16, rot: 0 },
-  { t:'lantern',  x:1020, y: 250, r: 16, rot: 0 },
-  { t:'crate',    x: 330, y: 430, r: 34, rot: 0.14 },
-  { t:'crate',    x: 292, y: 500, r: 27, rot:-0.30 },
-  { t:'crates',   x:1076, y: 440, r: 38, rot:-0.10 },
-  { t:'barrel',   x: 452, y: 330, r: 25, rot: 0 },
-  { t:'barrel',   x: 948, y: 330, r: 25, rot: 0 },
-  { t:'cannon',   x: 262, y: 700, r: 38, rot: Math.PI },
-  { t:'cannon',   x:1138, y: 700, r: 38, rot: 0 },
-  { t:'vent',     x: 520, y: 620, r: 0,  rot: 0 },
-  { t:'vent',     x: 880, y: 620, r: 0,  rot: 0 },
-  { t:'rope',     x: 430, y: 980, r: 0,  rot: 0 },
-  { t:'rope',     x: 970, y: 980, r: 0,  rot: 0 },
-  { t:'hatch',    x: 700, y:1110, r: 0,  rot: 0 },
-  { t:'crate',    x: 336, y:1180, r: 32, rot:-0.22 },
-  { t:'barrel',   x:1064, y:1180, r: 25, rot: 0 },
-  { t:'lantern',  x: 400, y:1300, r: 16, rot: 0 },
-  { t:'lantern',  x:1000, y:1300, r: 16, rot: 0 },
-  { t:'mast',     x: 700, y: 470, r: 30, rot: 0 },
+// Deck dressing, authored in NORMALISED deck coordinates so the same table
+// dresses a short deck and a long one: u is across (-1 port .. +1 starboard),
+// v is along the keel (0 at the bow, 1 at the stern).
+const PROP_LAYOUT = [
+  ['ballista', 0.00, 0.055, 40,  0],
+  ['lantern', -0.68, 0.105, 16,  0],
+  ['lantern',  0.68, 0.105, 16,  0],
+  ['barrel',  -0.52, 0.155, 25,  0],
+  ['barrel',   0.52, 0.155, 25,  0],
+  ['mast',     0.00, 0.215, 30,  0],
+  ['crate',   -0.80, 0.260, 34,  0.14],
+  ['crate',   -0.88, 0.310, 27, -0.30],
+  ['crates',   0.82, 0.270, 38, -0.10],
+  ['vent',    -0.38, 0.375,  0,  0],
+  ['vent',     0.38, 0.375,  0,  0],
+  ['cannon',  -0.96, 0.450, 38,  Math.PI],
+  ['cannon',   0.96, 0.450, 38,  0],
+  ['crate',    0.86, 0.520, 30,  0.22],
+  ['barrel',  -0.86, 0.545, 25,  0],
+  ['lantern', -0.70, 0.600, 16,  0],
+  ['lantern',  0.70, 0.600, 16,  0],
+  ['rope',    -0.58, 0.665,  0,  0],
+  ['rope',     0.58, 0.665,  0,  0],
+  ['crates',  -0.84, 0.715, 38,  0.08],
+  ['hatch',    0.00, 0.775,  0,  0],
+  ['crate',   -0.78, 0.825, 32, -0.22],
+  ['barrel',   0.78, 0.825, 25,  0],
+  ['cannon',  -0.96, 0.870, 38,  Math.PI],
+  ['cannon',   0.96, 0.870, 38,  0],
+  ['lantern', -0.62, 0.930, 16,  0],
+  ['lantern',  0.62, 0.930, 16,  0],
 ];
+const PROPS = PROP_LAYOUT.map(function(p){
+  const D = TUNING.deck;
+  return {
+    t: p[0],
+    x: D.cx + p[1] * (D.w / 2 - 90),
+    y: (D.cy - D.h / 2) + p[2] * D.h,
+    r: p[3], rot: p[4],
+  };
+}).filter(function(p){
+  // never dress the ground the Boiler stands on
+  return dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) > 190;
+});
 const SOLID_PROPS = PROPS.filter(p => p.r > 0);
 
 /* ---------------------------------------------------------------------------
@@ -699,7 +720,7 @@ function resetGame(){
 
   S.mods = freshMods();
   S.player = {
-    x: TUNING.deck.cx, y: TUNING.deck.cy + 170, vx: 0, vy: 0, aim: -Math.PI/2,
+    x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * 0.20, vx: 0, vy: 0, aim: -Math.PI/2,
     hp: TUNING.player.hp, maxHp: TUNING.player.hp,
     dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
@@ -2059,6 +2080,7 @@ function step(dt){
 --------------------------------------------------------------------------- */
 function updateUI(rt){
   S.rt += rt;
+  CAM.step(rt);
   // rolling frame-time readout, toggled with F3
   S.ftBuf[S.ftIdx++ % S.ftBuf.length] = rt;
   if (S.ftIdx > 1e9) S.ftIdx = 0;

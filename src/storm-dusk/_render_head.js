@@ -15,26 +15,64 @@
 ============================================================================ */
 
 /* ---------------------------------------------------------------------------
-   CAMERA — one fixed pinhole. project() is the only place perspective happens.
+   CAMERA — one pinhole. project() is the only place perspective happens.
+   v3 lets it track the captain; v2 pins it to the deck centre.
 --------------------------------------------------------------------------- */
 const CAM = {
-  pitch: 0.72,           // §2 — ~41 degrees above horizontal
+  // Pitch is the most consequential dial in this renderer. The visual spec
+  // picked 0.72 rad (41°) for the look. v3 raises it: at 41° the Boiler's own
+  // billboard hid roughly a third of the deck behind it, and depth
+  // foreshortening made aiming into the distance feel inconsistent.
+  // NOTE: the art bakes this angle in (spec §2.1) — lock it before generating.
+  pitch: PRESET.pitch,
   h: 760,                // camera height above the deck, ground units
-  near: 460,             // distance from camera to the world's near edge
-  f: 1320,               // focal length at reference scale — frames the deck
+  near: 460,             // distance from the camera to its focus point
+  f: 1320,               // focal length at reference scale
   cx: 700, cy: 470,      // screen principal point
   _f: 1000, _sin: 0, _cos: 0,
+
+  // --- follow state: focusX/focusY is the ground point the camera sits behind
+  follow: PRESET.follow,
+  back: PRESET.camBack,
+  focusX: TUNING.deck.cx,
+  focusY: TUNING.world.h,
+  _init: false,
 
   recompute(){
     this._sin = Math.sin(this.pitch);
     this._cos = Math.cos(this.pitch);
     this._f = this.f * View.unit;
     this.cx = View.w * 0.5;
-    this.cy = View.h * 0.55;
+    this.cy = View.h * (this.follow ? 0.50 : 0.55);
+  },
+
+  // Where the camera wants to sit, given the captain.
+  //
+  // The leash is against the DECK, not against the Boiler. An earlier version
+  // clamped to keep the objective framed and it could shove the captain off the
+  // top of the screen at the bow — losing yourself is far worse than losing
+  // sight of the Boiler, which has an edge marker for exactly this reason.
+  target(){
+    const D = TUNING.deck, P = S.player;
+    if (!this.follow || !P) return { x: D.cx, y: TUNING.world.h };
+    const halfW = D.w * 0.22;                    // slack, not a hard rail
+    const top = D.cy - D.h / 2, bot = D.cy + D.h / 2;
+    return {
+      x: clamp(P.x, D.cx - halfW, D.cx + halfW),
+      y: clamp(P.y + this.back, top + 300, bot + 200),
+    };
+  },
+
+  step(rt){
+    const t = this.target();
+    if (!this._init){ this.focusX = t.x; this.focusY = t.y; this._init = true; return; }
+    const k = 1 - Math.pow(0.0016, rt);   // frame-rate independent smoothing
+    this.focusX += (t.x - this.focusX) * k;
+    this.focusY += (t.y - this.focusY) * k;
   },
 
   // ground depth in front of the camera for a world y (small y = far)
-  depth(y){ return this.near + (TUNING.world.h - y); },
+  depth(y){ return this.near + (this.focusY - y); },
 
   // (x, y ground, hgt above deck) -> screen. k is the billboard scale factor.
   // x is measured from the ship's centreline, so the camera looks straight
@@ -46,7 +84,7 @@ const CAM = {
     const Zc = -dy * this._sin + dz * this._cos;
     const z  = Zc < 1 ? 1 : Zc;
     const k  = this._f / z;
-    return { x: this.cx + (x - TUNING.deck.cx) * k, y: this.cy - Yc * k, k, z };
+    return { x: this.cx + (x - this.focusX) * k, y: this.cy - Yc * k, k, z };
   },
 
   // vertical squash for ground-flat circles at this depth (see spec §2.5)
@@ -68,7 +106,7 @@ const CAM = {
     else dz = (Y * this.h * this._sin + this.h * this._cos) / den;
     if (dz < 40) dz = 40;
     const Zc = this.h * this._sin + dz * this._cos;
-    return { x: X * Zc + TUNING.deck.cx, y: TUNING.world.h - (dz - this.near) };
+    return { x: X * Zc + this.focusX, y: this.focusY - (dz - this.near) };
   },
 
   horizonY(){ return this.cy - this._f * (this._sin / this._cos); },
