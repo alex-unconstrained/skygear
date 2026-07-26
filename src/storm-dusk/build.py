@@ -38,6 +38,11 @@ PRESETS = {
             'pitch': 0.72,
             'camBack': 0,
             'boilerH': 210,
+            # feel defaults = exactly how v2/v3 shipped; frozen as a record
+            'feel': { 'simHz': 60, 'inputBuffer': 0, 'killStop': None,
+                      'stopRefractory': 0, 'cdScale': 1.0, 'recoilScale': 1.0,
+                      'accel': None, 'friction': None, 'dashCd': None,
+                      'camTau': 0.155, 'autoAttack': None },
         },
     },
     'storm-dusk-v3': {
@@ -56,6 +61,48 @@ PRESETS = {
             'pitch': 0.72,
             'camBack': 120,       # keeps the captain just below screen centre
             'boilerH': 132,       # a flat engine block, not a tower
+            # feel defaults = exactly how v2/v3 shipped; frozen as a record
+            'feel': { 'simHz': 60, 'inputBuffer': 0, 'killStop': None,
+                      'stopRefractory': 0, 'cdScale': 1.0, 'recoilScale': 1.0,
+                      'accel': None, 'friction': None, 'dashCd': None,
+                      'camTau': 0.155, 'autoAttack': None },
+        },
+    },
+    'storm-dusk-v4': {
+        'label': 'v4',
+        'title': 'SKYGEAR — Storm-Dusk v4',
+        'world_h': 2400, 'deck_cy': 1200, 'deck_h': 2240, 'boiler_y': 1200,
+        'js': {
+            'name': 'v4',
+            'follow': True,
+            'xray': True,
+            'pitch': 0.72,
+            'camBack': 120,
+            'boilerH': 132,
+            # --- the responsiveness pass ------------------------------------
+            'feel': {
+                'simHz': 120,         # halves worst-case input-to-action latency
+                'inputBuffer': 0.14,  # a press just before ready still fires
+                # Per-type freeze on kill. Trash dying must not stop the world:
+                # a flat 70ms was freezing the sim ~46% of wall time at wave 11.
+                'killStop': {'SWARM': 0, 'SCRAPPER': 0.030, 'GUNNER': 0.030,
+                             'ARMORED': 0.055, 'BOSS': 0.10},
+                'stopRefractory': 0.10,
+                'cdScale': 0.80,      # spec asked to bias shorter than feels right
+                'recoilScale': 0.35,  # cast pushback fought the player's intent
+                'accel': 3100, 'friction': 2700, 'dashCd': 1.15,
+                'camTau': 0.075,      # camera keeps up instead of trailing
+                # True auto-attack, MOBA-style: the captain picks the nearest
+                # boarder, turns to face it and swings on her own cadence. The
+                # four slots stop being something you mash and become abilities.
+                'autoAttack': {
+                    'range': 195,     # comfortably past a boarder's own reach
+                    'dmg': 16,
+                    'cd': 0.55,
+                    'arc': 1.2,       # radians of slack on the facing check
+                    'turn': 12,       # radians/sec the captain re-faces
+                },
+            },
         },
     },
 }

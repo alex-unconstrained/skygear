@@ -45,7 +45,8 @@
   .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:18px}
   .card.old{opacity:.72}
   .card.old:hover{opacity:1}
-  .card.v3 .play{background:var(--teal)}
+  .card.v4 .play{background:var(--teal)}
+  .card.v3 .play{background:#8FA6C9}
   .card.old .play{background:#7E778C}
   .card{
     display:flex;flex-direction:column;background:var(--panel);
@@ -109,34 +110,46 @@
   </header>
 
   <div class="grid">
-    <a class="card v3" href="storm-dusk-v3.html">
+    <a class="card v4" href="storm-dusk-v4.html">
       <div class="shot dusk"><span class="tag">Newest &mdash; start here</span></div>
       <div class="body">
+        <h2>Storm-Dusk v4</h2>
+        <p>The responsiveness pass. True auto-attack &mdash; the captain picks her
+           own target, turns to face it and swings on her own cadence, so all four
+           slots are real abilities instead of something you mash. Doubled sim
+           rate, input buffering, and hit-stop that no longer freezes the world
+           every time a swarm dies.</p>
+        <span class="play">Play v4</span>
+      </div>
+    </a>
+    <a class="card v3" href="storm-dusk-v3.html">
+      <div class="shot dusk"><span class="tag">Camera + occlusion</span></div>
+      <div class="body">
         <h2>Storm-Dusk v3</h2>
-        <p>Built from the first playtest. Longer deck, a camera that follows the
-           captain, and boarders hidden behind the Boiler now show through as
-           outlines &mdash; the fight on its far side is no longer invisible.</p>
+        <p>Answer to the first playtest: longer deck, a camera that follows the
+           captain, and boarders hidden behind the Boiler drawn through as
+           outlines. Same feel as v2 underneath &mdash; kept so v4's snappiness can
+           be judged against it.</p>
         <span class="play">Play v3</span>
       </div>
     </a>
     <a class="card classic" href="classic.html">
-      <div class="shot classic"><span class="tag">Plays best so far</span></div>
+      <div class="shot classic"><span class="tag">The benchmark</span></div>
       <div class="body">
         <h2>Classic</h2>
         <p>Straight top-down, daylight brass-and-khaki. Nothing is ever hidden and
-           the whole deck is always on screen. The build to beat &mdash; v3 has to
-           feel at least this good before the new look is worth it.</p>
+           the whole deck is always on screen. The build the first tester
+           preferred, and still the one to beat.</p>
         <span class="play">Play the benchmark</span>
       </div>
     </a>
     <a class="card old" href="storm-dusk.html">
-      <div class="shot dusk"><span class="tag">Superseded</span></div>
+      <div class="shot dusk"><span class="tag">Where it started</span></div>
       <div class="body">
         <h2>Storm-Dusk v2</h2>
         <p>The first three-quarter attempt: fixed camera, short deck, no
-           see-through. Kept only so the v3 changes can be compared against
-           what they were fixing.</p>
-        <span class="play">Play the old one</span>
+           see-through. Kept as the record of what v3 and v4 were fixing.</p>
+        <span class="play">Play the original restyle</span>
       </div>
     </a>
   </div>

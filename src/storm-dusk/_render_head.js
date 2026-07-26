@@ -86,7 +86,7 @@ const CAM = {
   step(rt){
     const t = this.target();
     if (!this._init){ this.focusX = t.x; this.focusY = t.y; this._init = true; return; }
-    const k = 1 - Math.pow(0.0016, rt);   // frame-rate independent smoothing
+    const k = 1 - Math.exp(-rt / FEEL.camTau);   // frame-rate independent
     this.focusX += (t.x - this.focusX) * k;
     this.focusY += (t.y - this.focusY) * k;
   },

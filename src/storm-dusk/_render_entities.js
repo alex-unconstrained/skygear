@@ -350,7 +350,7 @@ function drawPlayerBillboard(){
                   { mirror: v.mirror, alpha: k * 0.32 });
   }
   const attacking = P.castFlash > 0 || !!P.ray;
-  const v = viewFor(P.aim, true, attacking);
+  const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
   const hi = charImage('hero', v.view);
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });

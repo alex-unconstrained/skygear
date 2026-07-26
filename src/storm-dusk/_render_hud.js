@@ -95,6 +95,41 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
 const SLOT_KEYS = ['LMB', 'RMB', 'SPACE', 'SHIFT'];
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
+/* The auto-attack has no key, but it still needs to be legible: you should be
+   able to see it swinging and know it is doing work without a slot of its own. */
+function drawAutoPip(x, y, size){
+  const AA = FEEL.autoAttack;
+  if (!AA) return;
+  const P = S.player, r = size * 0.34;
+  ctx.save();
+  ctx.translate(x, y);
+  circ(0, 0, r); ctx.fillStyle = PAL.base; ctx.fill();
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4; ctx.stroke();
+  gaugeRing(0, 0, r, hexToRgba(PAL.brass, 0.55), 12);
+  // sabre glyph
+  ctx.strokeStyle = P.atkTarget ? '#E8E2D2' : '#6E667A';
+  ctx.lineWidth = r * 0.20; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(-r*0.30, 0, r*0.72, -1.1, 1.1); ctx.stroke();
+  // cadence sweep
+  const frac = clamp(P.atkCd / AA.cd, 0, 1);
+  if (frac > 0){
+    ctx.save(); circ(0, 0, r - 2); ctx.clip();
+    ctx.globalAlpha = 0.7; ctx.fillStyle = '#0B0910';
+    ctx.beginPath(); ctx.moveTo(0, 0);
+    ctx.arc(0, 0, r * 2, -Math.PI/2, -Math.PI/2 + TAU * frac);
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+  if (P.atkSwing > 0){
+    ctx.globalAlpha = P.atkSwing / 0.18;
+    ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3;
+    circ(0, 0, r + 5); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  setFont(Math.round(9.5 * (size/78)), 800, true);
+  textOut('AUTO', 0, r + 12 * (size/78), P.atkTarget ? PAL.bone : '#6E667A');
+  ctx.restore();
+}
+
 function drawSkillBar(){
   const HS = hudScale();
   const size = 78 * HS, gap = 14 * HS;
@@ -102,6 +137,7 @@ function drawSkillBar(){
   const x0 = (View.w - total) / 2;
   const y0 = View.h - size - 46 * HS;
 
+  drawAutoPip(x0 - 48 * HS, y0 + size * 0.5, size);
   const frame = Assets.get('ui_frame');
   if (frame) ctx.drawImage(frame, x0 - 40*HS, y0 - 26*HS, total + 80*HS, size + 72*HS);
   else brassPanel(x0 - 16*HS, y0 - 14*HS, total + 32*HS, size + 46*HS, 12*HS, 0.94);

@@ -9,7 +9,7 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, 'skygear-itch.zip')
-PAGES = ['index.html', 'classic.html', 'storm-dusk.html', 'storm-dusk-v3.html']
+PAGES = ['index.html', 'classic.html', 'storm-dusk.html', 'storm-dusk-v3.html', 'storm-dusk-v4.html']
 
 with zipfile.ZipFile(OUT, 'w', zipfile.ZIP_DEFLATED) as z:
     for name in PAGES:

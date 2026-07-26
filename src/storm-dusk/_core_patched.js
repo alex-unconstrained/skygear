@@ -15,6 +15,14 @@
 /* ---------------------------------------------------------------------------
    1. TUNING — the whole design's numbers live here.
 --------------------------------------------------------------------------- */
+/* Responsiveness knobs, per build. Defaults reproduce v2/v3 exactly so those
+   stay frozen as a record; v4 turns them up. See docs/RESPONSIVENESS.md. */
+const FEEL = Object.assign({
+  simHz: 60, inputBuffer: 0, killStop: null, stopRefractory: 0,
+  cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
+  camTau: 0.155, autoAttack: null,
+}, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
+
 const TUNING = {
   // NOTE: these are GROUND-PLANE units now, not screen pixels. y is depth:
   // small y = far (the bow), large y = near (the stern, closest to camera).
@@ -713,7 +721,7 @@ function freshMods(){
 
 function resetGame(){
   S.t = 0; S.dtScale = 1; S.slowmo = 0; S.hitStop = 0;
-  S.trauma = 0; S.shakeX = S.shakeY = S.shakeR = 0;
+  S.trauma = 0; S.shakeX = S.shakeY = S.shakeR = 0; S.stopUntil = 0;
   S.flashWhite = 0; S.flashRed = 0;
   S.enemies.length = 0; S.bolts.length = 0; S.fx.length = 0;
   S.crew.length = 0; S.crewT = 2.5;
@@ -727,6 +735,7 @@ function resetGame(){
     dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
     stepT: 0, coatSway: 0, castFlash: 0, ray: null,
+    facing: -Math.PI/2, atkCd: 0, atkTarget: null, atkSwing: 0, dashBuf: 0,
   };
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
@@ -863,7 +872,14 @@ const _q = [];
    5. SYSTEMS — feel helpers
 --------------------------------------------------------------------------- */
 function addTrauma(v){ S.trauma = Math.min(1, S.trauma + v); }
-function hitStop(v){ S.hitStop = Math.max(S.hitStop, v); }
+function hitStop(v){
+  if (v <= 0) return;
+  // A big hit always lands; small ones respect a refractory window so that
+  // clearing a horde does not leave the sim frozen a large part of the time.
+  if (v < 0.06 && FEEL.stopRefractory > 0 && S.t < S.stopUntil) return;
+  S.hitStop = Math.max(S.hitStop, v);
+  S.stopUntil = S.t + FEEL.stopRefractory;
+}
 
 const MAX_NUMBERS = 64;
 function dmgNumber(x, y, text, col, size, crit){
@@ -885,7 +901,8 @@ function fx(o){ o.t = 0; S.fx.push(o); return o; }
 function skillStats(sk){
   const b = SHAPES[sk.shape], m = sk.mods;
   const st = { kind: b.kind, shape: sk.shape, element: sk.element,
-               dmg: b.dmg * m.dmg, cd: b.cd * m.cd, knock: (b.knock||0) * m.knock * S.mods.knockMult,
+               dmg: b.dmg * m.dmg, cd: b.cd * m.cd * FEEL.cdScale,
+               knock: (b.knock||0) * m.knock * S.mods.knockMult,
                multi: m.multi };
   switch (b.kind){
     case 'arc':
@@ -1036,7 +1053,7 @@ function killEnemy(e, ang){
   S.stats.combo++; S.stats.comboT = 2.6;
   if (S.stats.combo > S.stats.bestCombo) S.stats.bestCombo = S.stats.combo;
 
-  hitStop(TUNING.feel.hitStopKill);
+  hitStop(FEEL.killStop ? (FEEL.killStop[e.type] || 0) : TUNING.feel.hitStopKill);
   addTrauma(TUNING.feel.traumaKill * (e.type === 'BOSS' ? 3 : 1));
   SFX.death();
 
@@ -1125,7 +1142,8 @@ function castSlot(idx, opt){
 
   // recoil — small, but it sells the weight of the big shapes
   if (!opt.from && (st.kind === 'line' || st.kind === 'cone')){
-    S.player.vx -= Math.cos(aim) * 90; S.player.vy -= Math.sin(aim) * 90;
+    S.player.vx -= Math.cos(aim) * 90 * FEEL.recoilScale;
+    S.player.vy -= Math.sin(aim) * 90 * FEEL.recoilScale;
   }
   if (st.kind === 'aoe' || st.kind === 'line') addTrauma(0.10);
 
@@ -1318,7 +1336,7 @@ function slotHeld(i){
   if (i === 3) return keyDown('shift') || keyDown('4');
   return false;
 }
-function dashCdMax(){ return Math.max(0.35, TUNING.player.dashCd - S.mods.dashCdBonus); }
+function dashCdMax(){ return Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - S.mods.dashCdBonus); }
 
 function hurtPlayer(dmg, ang){
   const P = S.player;
@@ -1358,6 +1376,41 @@ function updatePlayer(dt){
 
   P.aim = Math.atan2(Input.mouse.y - P.y, Input.mouse.x - P.x);
 
+  // --- auto-attack ----------------------------------------------------------
+  // The cursor still AIMS the four abilities; the captain's basic swing picks
+  // its own target and fires on its own cadence. Facing follows that target so
+  // she reads as engaged, and falls back to the cursor when nothing is in range.
+  const AA = FEEL.autoAttack;
+  if (AA){
+    P.atkCd = Math.max(0, P.atkCd - dt);
+    P.atkSwing = Math.max(0, P.atkSwing - dt);
+    let best = null, bd = AA.range * AA.range;
+    Hash.query(P.x, P.y, AA.range + 60, _q);
+    for (const e of _q){
+      if (e.dead || e.state === 'climb') continue;
+      const d = dist2(P.x, P.y, e.x, e.y);
+      if (d < bd){ bd = d; best = e; }
+    }
+    P.atkTarget = best;
+    const want = best ? Math.atan2(best.y - P.y, best.x - P.x) : P.aim;
+    P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -AA.turn*dt, AA.turn*dt));
+    if (best && P.atkCd <= 0 && P.dashT <= 0 && Math.abs(angDiff(P.facing, want)) < AA.arc){
+      P.atkCd = AA.cd;
+      P.atkSwing = 0.18;
+      const a = Math.atan2(best.y - P.y, best.x - P.x);
+      hitEnemy(best, AA.dmg, { ang: a, knock: 110 });
+      const E = ELEMENTS[P.lastElem || 'EMBER'];
+      // a sabre flick, not a cleave — it hits one target, so it must not read
+      // as a wide AoE sweep or it will be mistaken for the slot-1 ability
+      fx({ kind:'arc', x:P.x, y:P.y, a, arc: 52*DEG, r: 92,
+           life: 0.15, col: '#8FA6C9', glow: '#E8E2D2' });
+      pSparks(P.x + Math.cos(a)*40, P.y + Math.sin(a)*40, 3, '#E8E2D2', 150, a, 0.5);
+      SFX.hit();
+    }
+  } else {
+    P.facing = P.aim;
+  }
+
   // --- input direction
   let ix = 0, iy = 0;
   if (keyDown('a') || keyDown('arrowleft'))  ix -= 1;
@@ -1374,7 +1427,11 @@ function updatePlayer(dt){
     P.dashCd = P.dashStock < S.mods.dashCharges ? dashCdMax() : 0;
     SFX.ready();
   }
-  if (keyHit('e') && P.dashT <= 0 && P.dashStock > 0){
+  // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
+  // would expire in the same step it was set and the dash would never fire
+  if (keyHit('e')) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
+    P.dashBuf = 0;
     P.dashStock--;
     if (P.dashCd <= 0) P.dashCd = dashCdMax();
     P.dashT = T.dashTime;
@@ -1394,7 +1451,7 @@ function updatePlayer(dt){
     P.vx = Math.cos(P.dashAng) * v;
     P.vy = Math.sin(P.dashAng) * v;
     if (P.trail.length === 0 || dist(P.trail[P.trail.length-1].x, P.trail[P.trail.length-1].y, P.x, P.y) > 12)
-      P.trail.push({ x:P.x, y:P.y, a:P.aim, t:0 });
+      P.trail.push({ x:P.x, y:P.y, a: P.facing !== undefined ? P.facing : P.aim, t:0 });
     if (S.mods.dashDamage > 0){
       Hash.query(P.x, P.y, 44, _q);
       for (const e of _q){
@@ -1407,12 +1464,13 @@ function updatePlayer(dt){
     }
     if (P.dashT <= 0){ P.vx *= 0.35; P.vy *= 0.35; }
   } else {
-    const ax = ix * T.accel * S.mods.moveMult, ay = iy * T.accel * S.mods.moveMult;
+    const ACC = FEEL.accel || T.accel;
+    const ax = ix * ACC * S.mods.moveMult, ay = iy * ACC * S.mods.moveMult;
     P.vx += ax * dt; P.vy += ay * dt;
     if (il === 0){
       // slide, never a dead stop
       const sp = Math.hypot(P.vx, P.vy);
-      const ns = Math.max(0, sp - T.friction * dt);
+      const ns = Math.max(0, sp - (FEEL.friction || T.friction) * dt);
       if (sp > 0.001){ P.vx = P.vx / sp * ns; P.vy = P.vy / sp * ns; }
     }
     const sp = Math.hypot(P.vx, P.vy);
@@ -1439,6 +1497,7 @@ function updatePlayer(dt){
   P.coatSway = lerp(P.coatSway, clamp(-P.vx * 0.0016, -0.5, 0.5), 1 - Math.pow(0.001, dt));
 
   // timers
+  P.dashBuf = Math.max(0, (P.dashBuf || 0) - dt);
   P.iframe = Math.max(0, P.iframe - dt);
   P.hurt = Math.max(0, P.hurt - dt);
   P.castFlash = Math.max(0, P.castFlash - dt);
@@ -1455,7 +1514,16 @@ function updatePlayer(dt){
     sk.cdLeft = Math.max(0, sk.cdLeft - dt);
     if (wasDown && sk.cdLeft <= 0){ sk.readyPulse = 0.35; SFX.ready(); }
     sk.readyPulse = Math.max(0, sk.readyPulse - dt);
-    if (slotHeld(i)) castSlot(i, {});
+    sk.blocked = Math.max(0, (sk.blocked || 0) - dt);
+    // Remember a press that arrived while blocked, and spend it the instant the
+    // skill comes up. Without this, tapping 20ms early is simply swallowed —
+    // the single biggest thing that makes an action game feel unresponsive.
+    if (slotHeld(i)) sk.buf = FEEL.inputBuffer;
+    else sk.buf = Math.max(0, (sk.buf || 0) - dt);
+    if (slotHeld(i) || sk.buf > 0){
+      if (castSlot(i, {})) sk.buf = 0;
+      else if (slotHeld(i) && sk.cdLeft > 0) sk.blocked = 0.12;
+    }
   }
   updateRay(dt);
 }
@@ -2171,10 +2239,10 @@ function handleModeInput(){
 /* ---------------------------------------------------------------------------
    7. BOOT — fixed timestep with an accumulator, render decoupled
 --------------------------------------------------------------------------- */
-const DT = 1/60;
+const DT = 1 / FEEL.simHz;
 let lastT = 0, acc = 0;
 S.rt = 0; S.titleT = 0; S.winSeq = 0; S.killT = 0; S.endT = 0; S.phase = 'idle';
-S.endReason = ''; S.endTitle = ''; S.bossSpawned = false;
+S.endReason = ''; S.endTitle = ''; S.bossSpawned = false; S.stopUntil = 0;
 S.ftBuf = new Float32Array(90); S.ftIdx = 0; S.showFps = false; S.loopIdx = 0; S.volToast = 0;
 
 function frame(now){
@@ -2194,8 +2262,8 @@ function frame(now){
       let scale = 1;
       if (S.slowmo > 0){ S.slowmo -= real; scale = TUNING.feel.waveClearSlowmo; }
       acc += real * scale;
-      while (acc >= DT && ran < 5){ step(DT); acc -= DT; ran++; }
-      if (acc > DT * 5) acc = 0;
+      while (acc >= DT && ran < 10){ step(DT); acc -= DT; ran++; }
+      if (acc > DT * 10) acc = 0;
     }
   } else {
     acc = 0;

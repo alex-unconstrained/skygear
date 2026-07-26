@@ -516,7 +516,7 @@ S.mode = 'title';
 S.phase = 'idle';
 requestAnimationFrame(frame);
 
-window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Assets,
+window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Assets, FEEL, DT,
                    startRun, startWave, spawnEnemy, openDraft, newSkill, castSlot,
                    skillStats, step, rollCards, updateRay, endRay, render, Particles,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
