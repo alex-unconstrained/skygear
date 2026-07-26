@@ -1,3 +1,45 @@
+/* The crossings are the only breaks in the cargo runs, and a gap between two
+   boxes does not read as "you may cross here" — especially at the bow, where
+   the wall ends and the deck just continues. So each passage gets painted onto
+   the deck: hazard chevrons pointing both ways across the lane boundary. Ground
+   art, so it goes through the projection and lies flat like everything else. */
+function drawLaneCrossings(){
+  if (!PRESET.lanes) return;
+  const D = TUNING.deck, laneW = D.w / LANE_N;
+  const left = D.cx - D.w / 2;
+  const gaps = [[FWD_Y0, FWD_Y1], [CROSS_Y0, CROSS_Y1]];
+  ctx.save();
+  for (const [y0, y1] of gaps){
+    const cy = (y0 + y1) / 2, half = (y1 - y0) * 0.5;
+    for (let i = 1; i < LANE_N; i++){
+      const wx = left + laneW * i;
+      // a soft pool marking the opening
+      const a = CAM.project(wx - 92, cy, 0), b = CAM.project(wx + 92, cy, 0);
+      const t = CAM.project(wx, y0 + 6, 0), u = CAM.project(wx, y1 - 6, 0);
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y); ctx.lineTo(t.x, t.y);
+      ctx.lineTo(b.x, b.y); ctx.lineTo(u.x, u.y); ctx.closePath();
+      ctx.fillStyle = 'rgba(143,166,201,0.055)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(143,166,201,0.20)'; ctx.lineWidth = 2; ctx.stroke();
+      // chevrons, one set pointing each way
+      for (const dir of [-1, 1]){
+        for (let k = 0; k < 2; k++){
+          const px = wx + dir * (26 + k * 34);
+          const p0 = CAM.project(px - dir * 16, cy - half * 0.46, 0);
+          const p1 = CAM.project(px,            cy,               0);
+          const p2 = CAM.project(px - dir * 16, cy + half * 0.46, 0);
+          ctx.beginPath();
+          ctx.moveTo(p0.x, p0.y); ctx.lineTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = 'rgba(232,226,210,' + (0.30 - k * 0.11) + ')';
+          ctx.lineWidth = 3; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.stroke();
+        }
+      }
+    }
+  }
+  ctx.restore();
+}
+
 /* ---------------------------------------------------------------------------
    LANE RENDERING — walls, cannons, crew, the enemy hulk, and the lane readout.
    All inert unless PRESET.lanes.

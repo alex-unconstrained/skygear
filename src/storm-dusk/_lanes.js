@@ -16,7 +16,7 @@
 const LANE_N = 3;
 const LANES = [];
 const LANE_WALLS = [];       // {x0,x1,y0,y1} solid cargo runs between lanes
-let BASE_Y = 0, LANE_TOP = 0, CROSS_Y0 = 0, CROSS_Y1 = 0;
+let BASE_Y = 0, LANE_TOP = 0, CROSS_Y0 = 0, CROSS_Y1 = 0, FWD_Y0 = 0, FWD_Y1 = 0;
 
 function initLanes(){
   if (!PRESET.lanes) return;
@@ -27,6 +27,13 @@ function initLanes(){
   BASE_Y   = bot - 430;                 // rear of the deck is open across lanes
   CROSS_Y0 = top + D.h * 0.44;          // mid-deck rotation passage
   CROSS_Y1 = CROSS_Y0 + 210;
+  // A second passage well forward. With only the mid-deck one, a captain who
+  // committed to the bow of a lane had to walk the length of the deck to answer
+  // a push two lanes over — the front line was three separate fights that never
+  // talked to each other. Enemies and crew are still lane-clamped, so this is
+  // the player's rotation, not a leak in the lane structure.
+  FWD_Y0 = LANE_TOP + 200;
+  FWD_Y1 = FWD_Y0 + 190;
 
   const laneW = D.w / LANE_N;
   LANES.length = 0;
@@ -42,7 +49,8 @@ function initLanes(){
   for (let i = 1; i < LANE_N; i++){
     const wx = left + laneW * i;
     // split each wall so a cross-passage opens amidships
-    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: top + 40, y1: CROSS_Y0 });
+    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: top + 40, y1: FWD_Y0 });
+    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: FWD_Y1,   y1: CROSS_Y0 });
     LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: CROSS_Y1, y1: BASE_Y });
   }
 }

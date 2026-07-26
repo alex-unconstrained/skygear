@@ -471,7 +471,7 @@ function render(){
 
   // --- flat on the deck
   drawFields();
-  if (PRESET.lanes) drawLaneWalls();
+  if (PRESET.lanes){ drawLaneCrossings(); drawLaneWalls(); }
   drawTelegraphs();
   drawAoePreview();
   drawGroundFx();

@@ -128,7 +128,13 @@ const Assets = {
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
     const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
-    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q) || !!am;
+    // Art used to be opt-in behind ?assets=1, which meant anyone opening the
+    // build from the site got the procedural stand-ins and never saw a single
+    // delivered asset. Painted art is the default now; ?assets=0 restores the
+    // all-procedural look for comparison. Missing files still fall back
+    // individually, so a part-delivered manifest degrades sprite by sprite.
+    const off = /[?&]assets=0/.test(q);
+    this.enabled = !off && (window.SKYGEAR_USE_ASSETS !== false);
     // V5+ production art is the upright billboard set under assets/. The
     // archived ?art=49 set remains available only for explicit comparison.
     this.set = am ? am[1] : 'production';
