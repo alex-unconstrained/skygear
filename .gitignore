@@ -3,3 +3,6 @@ Thumbs.db
 node_modules/
 .vercel/
 *.zip
+
+# playwright mcp scratch
+.playwright-mcp/
