@@ -1,19 +1,32 @@
 #!/usr/bin/env python3
-"""Assemble the Storm-Dusk builds from the ported core + the render layer.
+"""Assemble the live Storm-Dusk build from the ported core + the render layer.
 
-One source, two outputs. The presets below are the only difference between
-them, so a gameplay or rendering fix lands in both:
+One source, many versions — but only ONE of them is ever written. Every shipped
+version stays playable on the site as a record of how the game got here, so a
+build that has shipped is an artifact, not an output: it is pinned by hash in
+FROZEN and this script refuses to regenerate it. Only LIVE is emitted.
+
+That matters because all versions come off the same core. Without the pin, an
+engine edit aimed at the current build silently re-emits every previous one —
+which is how v2 and v3 ended up carrying lane code they never ran, and how v4's
+controls changed months after anyone played it.
 
   storm-dusk      v2 — fixed camera over a short deck. The build the first
                   playtest rejected; kept as the control for the v3 comparison.
   storm-dusk-v3   v3 — bounded follow camera over a long deck, with the
                   occlusion x-ray pass. Built in response to that playtest.
+  storm-dusk-v4   v4 — the responsiveness pass and the first auto-attack.
+  storm-dusk-v5   v5 — the MOBA lane restructure.
+  storm-dusk-v6   v6 — the Ember Cleave as the real basic attack.  [LIVE]
 
 Run from anywhere:  python src/storm-dusk/build.py
+Retiring a build:   python src/storm-dusk/build.py --freeze   (prints its pin)
 """
+import hashlib
 import io
 import json
 import os
+import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -284,6 +297,71 @@ def build(key):
         spec['js']['pitch'], spec['js']['follow'], spec['js']['xray']))
 
 
+# --- what is frozen ---------------------------------------------------------
+# A shipped build is a record of what the game was on the day it shipped, and
+# every version stays playable on the site. But all builds are emitted from one
+# shared core, so an engine edit silently re-emits every one of them — which is
+# how v2 and v3 kept getting rewritten by changes that had nothing to do with
+# them. So: only LIVE is ever written. Everything else is frozen at the bytes
+# below and the build refuses to touch it.
+#
+# To start a new version: add its preset, set LIVE to it, and move the version
+# it succeeded into FROZEN with its hash (python build.py --freeze prints it).
+LIVE = 'storm-dusk-v6'
+
+# v2, v3 and v4 are pinned to their state at 2e15353 — the commit where v4
+# shipped and the last moment all three were as their playtesters saw them.
+# They had since drifted: 650 lines of lane and keybind machinery leaked into
+# v2/v3 (inert, but not code they ever ran), and v4 had picked up the LMB/SPACE
+# rebind, so its controls were no longer the ones it shipped with.
+# v5 keeps the wave-4, ally and hotkey fixes that were asked for while it was
+# the live build.
+FROZEN = {
+    'storm-dusk':    '51744068df5e3da6a0d927efe8ee66de8cec21f469b8a9da8783a05b88839392',
+    'storm-dusk-v3': 'c378898a91a464b48c8ad08d153a6fbea2dfc32f7e71575da0e132a6c34cf251',
+    'storm-dusk-v4': '247208416ac48fffa2e3b3aba808cb26a69eaa522cb1698f838b4737078eb9f7',
+    'storm-dusk-v5': '21bb12981dbfdb9681c6632da8361c97afef7f63572b9726a371321c76f58b55',
+}
+
+
+def sha(path):
+    return hashlib.sha256(io.open(path, 'rb').read()).hexdigest()
+
+
+def verify_frozen():
+    """Frozen builds must be byte-identical to what shipped. If one has drifted,
+    say so loudly and name the command that restores it — a silently rewritten
+    old version is worse than a failed build."""
+    bad = []
+    for k, want in sorted(FROZEN.items()):
+        p = os.path.join(ROOT, k + '.html')
+        if not os.path.exists(p):
+            bad.append((k, 'MISSING'))
+        else:
+            got = sha(p)
+            if got != want:
+                bad.append((k, got))
+    for k, got in bad:
+        print('DRIFTED  %s.html  (%s)' % (k, got[:16]))
+    if bad:
+        print('')
+        print('Frozen builds must not change. Restore them with:')
+        print('  git checkout HEAD -- ' + ' '.join(k + '.html' for k, _ in bad))
+        return False
+    print('frozen   %d build(s) verified unchanged' % len(FROZEN))
+    return True
+
+
 if __name__ == '__main__':
-    for k in PRESETS:
-        build(k)
+    if '--freeze' in sys.argv:
+        # print the hash line for whichever build is being retired
+        for k in sorted(set(PRESETS) - set(FROZEN)):
+            p = os.path.join(ROOT, k + '.html')
+            if os.path.exists(p):
+                print("    '%s': '%s'," % (k, sha(p)))
+        raise SystemExit(0)
+
+    ok = verify_frozen()
+    build(LIVE)
+    if not ok:
+        raise SystemExit(1)

@@ -44,44 +44,6 @@ const PRESET = {
     "friction": 2700,
     "dashCd": 1.15,
     "camTau": 0.075,
-    "keys": {
-      "slots": [
-        {
-          "label": "LMB",
-          "mouse": 0,
-          "alt": "1"
-        },
-        {
-          "label": "RMB",
-          "mouse": 2,
-          "alt": "2"
-        },
-        {
-          "label": "Q",
-          "key": "q",
-          "alt": "3"
-        },
-        {
-          "label": "E",
-          "key": "e",
-          "alt": "4"
-        }
-      ],
-      "dash": {
-        "label": "SPACE",
-        "key": "space"
-      }
-    },
-    "loadout": [
-      [
-        "RANGED_AOE",
-        "FROST"
-      ],
-      [
-        "CLOSEHIT",
-        "EMBER"
-      ]
-    ],
     "autoAttack": {
       "range": 195,
       "dmg": 16,
@@ -114,8 +76,7 @@ const PRESET = {
 const FEEL = Object.assign({
   simHz: 60, inputBuffer: 0, killStop: null, stopRefractory: 0,
   cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
-  camTau: 0.155, autoAttack: null, basic: null, basicTurn: 12, basicArc: 1.2,
-  keys: null, loadout: null,
+  camTau: 0.155, autoAttack: null,
 }, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
 
 const TUNING = {
@@ -544,32 +505,6 @@ const WAVES = [
     loop: { every: 9.5, sets: [['SWARM',5],['SCRAPPER',4],['GUNNER',3],['SWARM',6],['ARMORED',2]] } },
 ];
 
-/* Lane campaign. Waves 4 and 8 are pushes: their hulk opens and you have to
-   leave the objective to break it. Everything else is a hold. Lane numbers are
-   0 = port, 1 = centre, 2 = starboard; 'all' hits every lane; 'rail' climbs a
-   side rail amidships as a scripted interruption. */
-const LANE_WAVE_TABLE = [
-  { batches: [[0,'SCRAPPER',2,1],[4,'SCRAPPER',2,0],[8,'SCRAPPER',2,2]] },
-  { batches: [[0,'SCRAPPER',2,'all'],[6,'GUNNER',1,1],[10,'SCRAPPER',3,1]] },
-  { batches: [[0,'SWARM',4,'all'],[5,'SCRAPPER',2,0],[9,'GUNNER',2,2],[13,'SWARM',4,1]] },
-  { push: true,
-    batches: [[0,'SCRAPPER',3,'all'],[7,'GUNNER',2,1],[13,'SWARM',5,'all'],[20,'SCRAPPER',3,'all']],
-    loop: { every: 11, sets: [['SCRAPPER',2],['SWARM',4],['GUNNER',2]] } },
-  { batches: [[0,'ARMORED',1,1],[4,'SWARM',5,'all'],[9,'GUNNER',2,0],[13,'SCRAPPER',3,2]] },
-  { batches: [[0,'SCRAPPER',3,'all'],[6,'ARMORED',1,0],[8,'ARMORED',1,2],[13,'GUNNER',2,1],[17,'SWARM',5,'all']] },
-  { batches: [[0,'SWARM',6,'all'],[5,'ARMORED',1,1],[9,'GUNNER',2,'all'],[15,'SCRAPPER',3,'all'],[19,'SCRAPPER',2,'rail']] },
-  { push: true,
-    batches: [[0,'SCRAPPER',3,'all'],[6,'ARMORED',1,'all'],[13,'GUNNER',2,'all'],[19,'SWARM',6,'all']],
-    loop: { every: 10, sets: [['SCRAPPER',3],['SWARM',5],['ARMORED',1],['GUNNER',2]] } },
-  { batches: [[0,'SWARM',6,'all'],[5,'ARMORED',2,1],[10,'SCRAPPER',3,'all'],[15,'GUNNER',2,'all'],[20,'SWARM',3,'rail']] },
-  { batches: [[0,'ARMORED',1,'all'],[6,'GUNNER',3,'all'],[12,'SCRAPPER',4,'all'],[18,'SWARM',6,'all'],[23,'ARMORED',1,'all']] },
-  { batches: [[0,'SWARM',7,'all'],[5,'SCRAPPER',4,'all'],[11,'ARMORED',2,'all'],[17,'GUNNER',3,'all'],[22,'SCRAPPER',3,'rail'],[26,'SWARM',7,'all']] },
-  { boss: true, push: true,
-    batches: [[0,'BOSS',1,1],[5,'SWARM',4,'all'],[11,'SCRAPPER',3,'all']],
-    loop: { every: 10, sets: [['SWARM',5],['SCRAPPER',3],['GUNNER',2],['ARMORED',1]] } },
-];
-if (PRESET.lanes) for (let i = 0; i < WAVES.length; i++) WAVES[i] = LANE_WAVE_TABLE[i];
-
 /* ---------------------------------------------------------------------------
    DATA — deck props. Visual, and they block movement. Middle stays open.
 --------------------------------------------------------------------------- */
@@ -615,18 +550,7 @@ const PROPS = PROP_LAYOUT.map(function(p){
   };
 }).filter(function(p){
   // never dress the ground the Boiler stands on
-  if (dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) < 190) return false;
-  // on a lane map, nothing solid may stand inside a walkable lane — a mast in
-  // the middle of the centre lane is a wall you cannot see coming
-  if (PRESET.lanes && p.r > 0){
-    const D = TUNING.deck, laneW = D.w / 3;
-    const left = D.cx - D.w / 2;
-    for (let i = 0; i < 3; i++){
-      const cx = left + laneW * (i + 0.5), inner = laneW * 0.5 - 66;
-      if (Math.abs(p.x - cx) < inner - 40 && p.y < D.cy + D.h / 2 - 430) return false;
-    }
-  }
-  return true;
+  return dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) > 190;
 });
 const SOLID_PROPS = PROPS.filter(p => p.r > 0);
 
@@ -862,8 +786,7 @@ function resetGame(){
 
   S.mods = freshMods();
   S.player = {
-    x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * (PRESET.lanes ? 0.29 : 0.20),
-    vx: 0, vy: 0, aim: -Math.PI/2,
+    x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * 0.20, vx: 0, vy: 0, aim: -Math.PI/2,
     hp: TUNING.player.hp, maxHp: TUNING.player.hp,
     dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
@@ -873,14 +796,8 @@ function resetGame(){
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
-  S.slots = [null, null, null, null];
-  const LD = FEEL.loadout || [['CLOSEHIT', 'EMBER'], ['RANGED_AOE', 'FROST']];
-  for (let i = 0; i < Math.min(4, LD.length); i++) S.slots[i] = newSkill(LD[i][0], LD[i][1]);
-  S.unlockedSlots = Math.max(2, LD.length);   // a free slot to draft into from wave 1
-  // v6: the basic attack is a real skill — the same Ember Cleave, with the same
-  // shape code, element and crit — rather than a generic sabre flick bolted on
-  // beside it. It swings itself; the four slots stay for drafted abilities.
-  S.basic = FEEL.basic ? newSkill(FEEL.basic[0], FEEL.basic[1]) : null;
+  S.slots = [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
+  S.unlockedSlots = 2;
 
   S.wave = 0; S.waveActive = false; S.waveT = 0; S.queue = []; S.loopT = 0;
   S.spawned = 0; S.remaining = 0; S.interT = 0; S.banner = null;
@@ -1170,9 +1087,6 @@ function hitEnemy(e, dmg, o){
 
 function damageArea(x, y, r, dmg, element, o){
   o = o || {};
-  if (PRESET.lanes && S.hulk && !S.hulk.dead &&
-      dist2(x, y, S.hulk.x, S.hulk.y) < (r + S.hulk.r) * (r + S.hulk.r))
-    damageHulk(dmg);
   Hash.query(x, y, r + 40, _q);
   let n = 0;
   for (const e of _q){
@@ -1233,10 +1147,10 @@ function randomLiveEnemy(skip){
 --------------------------------------------------------------------------- */
 function castSlot(idx, opt){
   opt = opt || {};
-  const sk = (typeof idx === 'number') ? S.slots[idx] : idx;
+  const sk = S.slots[idx];
   if (!sk) return false;
   const st = skillStats(sk);
-  if (st.kind === 'ray' && typeof idx === 'number') return startRay(idx, sk, st);
+  if (st.kind === 'ray') return startRay(idx, sk, st);
   if (!opt.free && sk.cdLeft > 0) return false;
 
   const P = opt.from || S.player;
@@ -1290,20 +1204,7 @@ function castSlot(idx, opt){
   if (st.kind === 'aoe' || st.kind === 'line') addTrauma(0.10);
 
   if (S.mods.residue > 0 && land) spawnField(land.x, land.y, sk.element);
-  // Every shape must be able to bite the hulk. AoE already routes through
-  // damageArea for each shot, so applying the universal splash as well would
-  // double its hulk damage.
-  if (st.kind !== 'aoe')
-    hulkSplash(land, st.dmg * dmgMult * (shots > 1 ? shots * 0.7 : 1));
   return true;
-}
-
-// a shape that lands on or near the hulk hurts it
-function hulkSplash(land, dmg){
-  if (!PRESET.lanes || !land) return;
-  const H = S.hulk;
-  if (!H || H.dead || !H.vulnerable) return;
-  if (dist(land.x, land.y, H.x, H.y) < H.r + 150) damageHulk(dmg);
 }
 
 function spawnField(x, y, elem){
@@ -1404,14 +1305,6 @@ function shapeChain(P, aim, st, sk, mult){
     if (score < best){ best = score; cur = e; }
   }
   if (!cur){
-    // nothing to arc between — but a vulnerable hulk is a perfectly good ground
-    const H = S.hulk;
-    if (PRESET.lanes && H && !H.dead && H.vulnerable &&
-        dist(P.x, P.y, H.x, H.y) < st.seekRange + H.r){
-      fx({ kind:'chain', pts: [{x:P.x, y:P.y}, {x:H.x, y:H.y}], life:0.36,
-           col:E.color, glow:E.glow });
-      return { x: H.x, y: H.y };
-    }
     fx({ kind:'fizzle', x: P.x + Math.cos(aim)*40, y: P.y + Math.sin(aim)*40, life:0.28, col:E.color });
     return null;
   }
@@ -1486,27 +1379,17 @@ function updateRay(dt){
       hitEnemy(e, st.dmg * R.dmgMult, { element: sk.element, ang: aim, knock: st.knock, silent: rnd() > 0.5 });
     }
     if (S.mods.residue > 0 && rnd() < 0.25) spawnField(ex, ey, sk.element);
-    hulkSplash({ x: ex, y: ey }, st.dmg * R.dmgMult);
   }
 }
 
 /* ---------------------------------------------------------------------------
    SYSTEMS — player
 --------------------------------------------------------------------------- */
-/* Bindings are per build. v2/v3 keep the original hand; the auto-attack builds
-   free up the left button, so the mouse carries two abilities and dash moves to
-   space where an action-game player expects it. */
-const KEYS = FEEL.keys || {
-  slots: [{ label:'LMB', mouse:0, alt:'1' }, { label:'RMB', mouse:2, alt:'2' },
-          { label:'SPACE', key:'space', alt:'3' }, { label:'SHIFT', key:'shift', alt:'4' }],
-  dash: { label:'E', key:'e' },
-};
 function slotHeld(i){
-  const k = KEYS.slots[i];
-  if (!k) return false;
-  if (k.mouse !== undefined && Input.buttons[k.mouse]) return true;
-  if (k.key && keyDown(k.key)) return true;
-  if (k.alt && keyDown(k.alt)) return true;
+  if (i === 0) return Input.buttons[0] || keyDown('1');
+  if (i === 1) return Input.buttons[2] || keyDown('2');
+  if (i === 2) return keyDown('space') || keyDown('3');
+  if (i === 3) return keyDown('shift') || keyDown('4');
   return false;
 }
 function dashCdMax(){ return Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - S.mods.dashCdBonus); }
@@ -1554,35 +1437,7 @@ function updatePlayer(dt){
   // its own target and fires on its own cadence. Facing follows that target so
   // she reads as engaged, and falls back to the cursor when nothing is in range.
   const AA = FEEL.autoAttack;
-  if (S.basic){
-    // v6 — the basic IS the Ember Cleave. Same arc, same element, same crit and
-    // knockback as when it sat on a slot; it just picks its own target and its
-    // own moment. Reach comes from the skill, so LONG REACH cards lengthen it.
-    const bst = skillStats(S.basic);
-    const reach = bst.range + 30;
-    let best = null, bd = reach * reach;
-    Hash.query(P.x, P.y, reach + 60, _q);
-    for (const e of _q){
-      if (e.dead || e.state === 'climb') continue;
-      const d = dist2(P.x, P.y, e.x, e.y);
-      if (d < bd - e.r * e.r){ bd = d; best = e; }
-    }
-    // a vulnerable hulk is a legitimate target too, or the captain stands at the
-    // boarding vessel swinging at nothing
-    const H = (PRESET.lanes && S.hulk && !S.hulk.dead && S.hulk.vulnerable) ? S.hulk : null;
-    const hIn = H && dist(P.x, P.y, H.x, H.y) < H.r + reach;
-    P.atkTarget = best;
-    const tx = best ? best.x : (hIn ? H.x : null);
-    const ty = best ? best.y : (hIn ? H.y : null);
-    const want = (tx !== null) ? Math.atan2(ty - P.y, tx - P.x) : P.aim;
-    P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -FEEL.basicTurn * dt, FEEL.basicTurn * dt));
-    P.atkSwing = Math.max(0, P.atkSwing - dt);
-    if (tx !== null && S.basic.cdLeft <= 0 && P.dashT <= 0 &&
-        Math.abs(angDiff(P.facing, want)) < FEEL.basicArc){
-      P.atkSwing = 0.18;
-      castSlot(S.basic, { atX: tx, atY: ty });
-    }
-  } else if (AA){
+  if (AA){
     P.atkCd = Math.max(0, P.atkCd - dt);
     P.atkSwing = Math.max(0, P.atkSwing - dt);
     let best = null, bd = AA.range * AA.range;
@@ -1592,17 +1447,6 @@ function updatePlayer(dt){
       const d = dist2(P.x, P.y, e.x, e.y);
       if (d < bd){ bd = d; best = e; }
     }
-    if (!best && PRESET.lanes && S.hulk && !S.hulk.dead && S.hulk.vulnerable &&
-        dist(P.x, P.y, S.hulk.x, S.hulk.y) < S.hulk.r + AA.range){
-      if (P.atkCd <= 0 && P.dashT <= 0){
-        P.atkCd = AA.cd; P.atkSwing = 0.18;
-        const a = Math.atan2(S.hulk.y - P.y, S.hulk.x - P.x);
-        damageHulk(AA.dmg);
-        fx({ kind:'arc', x:P.x, y:P.y, a, arc: 52*DEG, r: 92,
-             life: 0.15, col: '#8FA6C9', glow: '#E8E2D2' });
-        SFX.hit();
-      }
-    }
     P.atkTarget = best;
     const want = best ? Math.atan2(best.y - P.y, best.x - P.x) : P.aim;
     P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -AA.turn*dt, AA.turn*dt));
@@ -1611,7 +1455,6 @@ function updatePlayer(dt){
       P.atkSwing = 0.18;
       const a = Math.atan2(best.y - P.y, best.x - P.x);
       hitEnemy(best, AA.dmg, { ang: a, knock: 110 });
-      hulkSplash({ x: P.x + Math.cos(a) * 90, y: P.y + Math.sin(a) * 90 }, AA.dmg);
       const E = ELEMENTS[P.lastElem || 'EMBER'];
       // a sabre flick, not a cleave — it hits one target, so it must not read
       // as a wide AoE sweep or it will be mistaken for the slot-1 ability
@@ -1642,7 +1485,7 @@ function updatePlayer(dt){
   }
   // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
   // would expire in the same step it was set and the dash would never fire
-  if (keyHit(KEYS.dash.key)) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (keyHit('e')) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
   if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
     P.dashBuf = 0;
     P.dashStock--;
@@ -1719,8 +1562,6 @@ function updatePlayer(dt){
     if (P.trail[i].t > 0.32) P.trail.splice(i, 1);
   }
 
-  if (S.basic) S.basic.cdLeft = Math.max(0, S.basic.cdLeft - dt);
-
   // --- fire
   for (let i = 0; i < 4; i++){
     const sk = S.slots[i];
@@ -1756,25 +1597,11 @@ function pushOut(o, cx, cy, minD){
 /* ---------------------------------------------------------------------------
    SYSTEMS — enemies
 --------------------------------------------------------------------------- */
-function spawnEnemy(type, forced, lane){
+function spawnEnemy(type, forced){
   const def = ENEMIES[type];
   const scale = 1 + TUNING.enemyScaling * (S.wave - 1);
 
   let pt = forced;
-  if (PRESET.lanes && !pt){
-    if (lane === 'rail'){
-      // the occasional rail boarder: climbs amidships, then joins that lane
-      const side = chance(0.5) ? -1 : 1;
-      const D = TUNING.deck;
-      const y = rnd(LANE_TOP + 240, BASE_Y - 260);
-      pt = { x: D.cx + side * (D.w/2 - 26), y, side: side < 0 ? 'left' : 'right' };
-      lane = laneOf(pt.x);
-    } else {
-      if (typeof lane !== 'number') lane = rndi(0, LANE_N);
-      const L = LANES[lane];
-      pt = { x: L.cx + rnd(-L.halfW * 0.55, L.halfW * 0.55), y: LANE_TOP, side: 'bow' };
-    }
-  }
   if (!pt){
     // Never drop a boarder on top of the player.
     let best = null, bestD = -1;
@@ -1803,7 +1630,6 @@ function spawnEnemy(type, forced, lane){
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
     boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0 } : null,
   };
-  e.lane = PRESET.lanes ? (typeof lane === 'number' ? lane : laneOf(e.x)) : 0;
   S.enemies.push(e);
   if (type === 'BOSS'){ S.bossRef = e; SFX.bossRoar(); addTrauma(0.6); }
   if (!S.seenTypes[type] && type !== 'BOSS'){
@@ -2135,16 +1961,6 @@ function updateBolts(dt){
         dist2(b.x, b.y, P.x, P.y) < (b.r + TUNING.player.radius)**2){
       hurtPlayer(b.dmg, b.ang); hit = true;
     }
-    if (!hit && PRESET.lanes){
-      for (const c of S.crew){
-        if (c.dead) continue;
-        if (dist2(b.x, b.y, c.x, c.y) < (b.r + c.r)**2){ hurtCrew(c, b.dmg, b.ang); hit = true; break; }
-      }
-      if (!hit) for (const t of S.turrets){
-        if (t.dead) continue;
-        if (dist2(b.x, b.y, t.x, t.y) < (b.r + t.r)**2){ damageTurret(t, b.dmg); hit = true; break; }
-      }
-    }
     if (!hit && dist2(b.x, b.y, S.boiler.x, S.boiler.y) < (b.r + S.boiler.r)**2){
       hurtBoiler(b.dmg, Math.atan2(b.y - S.boiler.y, b.x - S.boiler.x)); hit = true;
     }
@@ -2222,18 +2038,10 @@ function updateFx(dt){
 /* ---------------------------------------------------------------------------
    SYSTEMS — waves
 --------------------------------------------------------------------------- */
-// batch = [t, type, count] or [t, type, count, lane] where lane is 0..2,
-// 'all' (that count into EVERY lane) or 'rail' (climbs a side rail amidships)
 function buildQueue(w){
   const def = WAVES[w-1], q = [];
-  for (const b of def.batches){
-    const lanes = !PRESET.lanes ? [undefined]
-      : b[3] === 'all' ? [0, 1, 2]
-      : b[3] === undefined ? [undefined] : [b[3]];
-    for (const ln of lanes)
-      for (let i = 0; i < b[2]; i++)
-        q.push({ t: b[0] + i * 0.22, type: b[1], lane: ln });
-  }
+  for (const b of def.batches)
+    for (let i = 0; i < b[2]; i++) q.push({ t: b[0] + i * 0.22, type: b[1] });
   q.sort((a,b) => a.t - b.t);
   return q;
 }
@@ -2242,14 +2050,6 @@ function pendingCount(){ return S.queue.length + countLive(); }
 
 function startWave(n){
   S.wave = n;
-  if (PRESET.lanes && S.hulk){
-    S.hulk.vulnerable = !!(WAVES[n-1] && WAVES[n-1].push);
-    if (S.hulk.vulnerable){
-      S.banner = { kind:'push', n, t:0, life: 3.0 };
-      SFX.bossRoar();
-      S.crewT = 0.5;            // send a wave with the horn, not 14s after it
-    }
-  }
   S.queue = buildQueue(n);
   S.waveT = 0; S.loopT = 0; S.loopIdx = 0;
   S.phase = 'fight';
@@ -2293,34 +2093,22 @@ function updateWave(dt){
     const def = WAVES[S.wave-1];
     let live = countLive();
     while (S.queue.length && S.queue[0].t <= S.waveT && live < TUNING.maxLiveEnemies){
-      const nx = S.queue.shift();
-      spawnEnemy(nx.type, null, nx.lane);
+      spawnEnemy(S.queue.shift().type);
       live++;
       if (S.enemies[S.enemies.length-1].type === 'BOSS') S.bossSpawned = true;
     }
-    // A push wave ends when their hulk dies, not when the deck clears, so it
-    // MUST keep feeding — this was gated on the boss and stalled wave 4 dead.
-    const loopLive = def.loop && (
-      def.boss ? (S.bossSpawned && S.bossRef)
-      : def.push ? (S.hulk && !S.hulk.dead)
-      : true);
-    if (loopLive){
+    if (def.loop && S.bossSpawned && S.bossRef){
       S.loopT += dt;
       if (S.loopT >= def.loop.every){
         S.loopT = 0;
         const set = def.loop.sets[S.loopIdx % def.loop.sets.length];
         S.loopIdx++;
-        for (let i = 0; i < set[1]; i++)
-          S.queue.push({ t: S.waveT + i*0.25, type: set[0],
-                         lane: PRESET.lanes ? rndi(0, LANE_N) : undefined });
+        for (let i = 0; i < set[1]; i++) S.queue.push({ t: S.waveT + i*0.25, type: set[0] });
         S.queue.sort((a,b) => a.t - b.t);
       }
     }
     if (def.boss){
       if (S.bossSpawned && !S.bossRef){ S.winSeq = 2.3; S.killT = 0; S.stats.waves = 12; }
-    } else if (def.push && PRESET.lanes){
-      // a push wave ends when their hulk does, not when the deck is clear
-      if (S.hulk && S.hulk.dead){ S.hulk.vulnerable = false; waveComplete(); }
     } else if (S.queue.length === 0 && live === 0){
       waveComplete();
     }
@@ -2626,18 +2414,11 @@ function pushOutWalls(o, r){
 }
 
 /* --- tuning ---------------------------------------------------------------- */
-/* Tuned down hard after the first v5 pass: the allies were doing the work.
-   Crew were arriving 9-at-a-time every 7.5s (~36 alive across a wave) at 52 HP
-   and 9 damage, and three cannons added ~68 dps between them. The lanes held
-   themselves and there was nothing to decide. */
 const LANE_TUNING = {
-  turret: { hp: 480, range: 400, dmg: 15, cd: 1.45, r: 34 },   // ~10 dps each
-  crew:   { hp: 34, dmg: 5, siege: 22, speed: 118, r: 15, reach: 52,
-            windup: 0.40, recover: 0.5, every: 14, pushEvery: 9, perWave: 2 },
-            // 6 per 14s. `siege` is what they do to the hulk: minions are
-            // supposed to break a nexus, and on the first push wave they walked
-            // to the bow and stood there while the player did all of it.
-  hulk:   { hp: 1500, r: 190 },                                 // was 3200 and unkillable
+  turret: { hp: 620, range: 430, dmg: 26, cd: 1.15, r: 34 },
+  crew:   { hp: 52, dmg: 9, speed: 118, r: 15, reach: 52, windup: 0.35, recover: 0.4,
+            every: 7.5, perWave: 3 },
+  hulk:   { hp: 3200, r: 190 },
 };
 
 /* --- turrets --------------------------------------------------------------- */
@@ -2702,7 +2483,7 @@ function spawnCrewWave(){
     for (let i = 0; i < C.perWave; i++){
       S.crew.push({
         lane: L.id,
-        x: L.cx + rnd(-70, 70), y: BASE_Y + 50 + i * 26,
+        x: L.cx + rnd(-70, 70), y: BASE_Y + 120 + i * 26,
         vx: 0, vy: 0, hp: C.hp, maxHp: C.hp, r: C.r,
         facing: -Math.PI/2, state: 'move', st: 0, anim: rnd(TAU),
         flash: 0, dead: false, atkAng: 0, target: null,
@@ -2727,43 +2508,28 @@ function updateCrew(dt){
       if (d < bd){ bd = d; tgt = e; }
     }
     const hasTgt = tgt && bd < 320 * 320;
-    // with the lane clear and their plating open, go break the hulk
-    const H = S.hulk;
-    const siege = !hasTgt && H && !H.dead && H.vulnerable;
     let gx, gy;
     if (hasTgt){ gx = tgt.x; gy = tgt.y; }
-    else if (siege){ gx = H.x + (LANES[c.lane].cx - H.x) * 0.30; gy = H.y; }
     else { gx = LANES[c.lane].cx; gy = LANE_TOP + 60; }   // else push up the lane
 
     if (c.state === 'move'){
       const d = dist(c.x, c.y, gx, gy);
       const a = Math.atan2(gy - c.y, gx - c.x);
       c.facing = angNorm(c.facing + clamp(angDiff(c.facing, a), -8*dt, 8*dt));
-      const reach = siege ? C.reach + H.r * 0.85 : C.reach;
-      if ((!hasTgt && !siege) || d > reach){
+      if (!hasTgt || d > C.reach){
         c.vx = lerp(c.vx, Math.cos(a) * C.speed, 1 - Math.pow(0.004, dt));
         c.vy = lerp(c.vy, Math.sin(a) * C.speed, 1 - Math.pow(0.004, dt));
       } else {
         c.vx *= Math.pow(0.02, dt); c.vy *= Math.pow(0.02, dt);
-        c.state = 'windup'; c.st = C.windup; c.atkAng = a;
-        c.target = tgt; c.siegeing = siege && !hasTgt;
+        c.state = 'windup'; c.st = C.windup; c.atkAng = a; c.target = tgt;
       }
     } else if (c.state === 'windup'){
       c.st -= dt;
       c.vx *= Math.pow(0.05, dt); c.vy *= Math.pow(0.05, dt);
       if (c.st <= 0){
-        if (c.siegeing){
-          const HH = S.hulk;
-          if (HH && !HH.dead && HH.vulnerable &&
-              dist(c.x, c.y, HH.x, HH.y) < C.reach + HH.r * 1.1){
-            damageHulk(C.siege);
-            pSparks(c.x, c.y - 20, 3, PAL.fireCore, 150, -Math.PI/2, 0.6);
-          }
-        } else {
-          const e = c.target;
-          if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
-            hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
-        }
+        const e = c.target;
+        if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
+          hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
         c.state = 'recover'; c.st = C.recover;
       }
     } else {
@@ -2774,7 +2540,7 @@ function updateCrew(dt){
 
     c.x += c.vx * dt; c.y += c.vy * dt;
     const p = clampToDeck(c.x, c.y, c.r + 4); c.x = p.x; c.y = p.y;
-    if (!siege) clampToLane(c, c.lane, c.r);
+    clampToLane(c, c.lane, c.r);
     pushOutWalls(c, c.r);
   }
   for (let i = S.crew.length - 1; i >= 0; i--) if (S.crew[i].dead) S.crew.splice(i, 1);
@@ -2862,15 +2628,9 @@ function updateLanes(dt){
   updateTurrets(dt);
   updateCrew(dt);
   if (S.hulk && S.hulk.flash > 0) S.hulk.flash -= dt;
-  // crew reinforcements arrive on a drumbeat, like minion waves. On a push the
-  // drumbeat quickens — they have the length of the deck to walk before they
-  // reach the hulk, and at the normal cadence the captain breaks it alone.
-  const pushing = S.hulk && !S.hulk.dead && S.hulk.vulnerable;
+  // crew reinforcements arrive on a drumbeat, like minion waves
   S.crewT -= dt;
-  if (S.crewT <= 0){
-    S.crewT = pushing ? LANE_TUNING.crew.pushEvery : LANE_TUNING.crew.every;
-    spawnCrewWave();
-  }
+  if (S.crewT <= 0){ S.crewT = LANE_TUNING.crew.every; spawnCrewWave(); }
 }
 
 
@@ -3205,7 +2965,6 @@ const ASSET_MANIFEST = {
   GUNNER_front_idle:     { file:'assets/enemies/drone_front_idle.png',       w:448, h:448 },
   GUNNER_front_attack:   { file:'assets/enemies/drone_front_attack.png',     w:448, h:448 },
   ARMORED_front_idle:    { file:'assets/enemies/furnace_knight_front_idle.png',   w:640, h:640 },
-  ARMORED_back_idle:     { file:'assets/enemies/furnace_knight_back_idle.png',    w:640, h:640 },
   ARMORED_front_attack:  { file:'assets/enemies/furnace_knight_front_attack.png', w:640, h:640 },
   BOSS_front_idle:       { file:'assets/enemies/colossus_front_idle.png',    w:1024, h:1024 },
   BOSS_back_idle:        { file:'assets/enemies/colossus_back_idle.png',     w:1024, h:1024 },
@@ -3308,16 +3067,17 @@ function measureSprite(img){
 }
 
 const Assets = {
-  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: 'production', base: 'assets/',
+  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: '40', base: 'assets/',
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
+    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q);
+    // ?art=49 swaps the whole set for the 49-degree bake, so the camera angle
+    // can be judged as a MATCHED PAIR (art and engine at the same angle)
+    // rather than by varying the engine against one fixed bake.
     const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
-    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q) || !!am;
-    // V5+ production art is the upright billboard set under assets/. The
-    // archived ?art=49 set remains available only for explicit comparison.
-    this.set = am ? am[1] : 'production';
-    this.base = this.set === '49' ? 'assets-49/' : 'assets/';
+    this.set = am ? am[1] : '40';
+    this.base = this.set === '40' ? 'assets/' : 'assets-' + this.set + '/';
     const keys = Object.keys(ASSET_MANIFEST);
     this.total = keys.length;
     if (!this.enabled) return;
@@ -3928,35 +3688,10 @@ function drawBowPiece(){
   ctx.restore();
 }
 
-/* The envelope hangs over the top of the frame, which is also where the far end
-   of the deck is — and the far end is where boarders come from. So its lower
-   edge is faded out in a cached pass rather than trusting the asset to do it:
-   the ship still frames the shot, but you can always see what is walking at you. */
-let _envCv = null, _envKey = '';
-function envelopeSprite(img, w, h){
-  const key = w + 'x' + h;
-  if (_envCv && _envKey === key) return _envCv;
-  _envKey = key;
-  _envCv = document.createElement('canvas');
-  _envCv.width = Math.max(2, Math.round(w)); _envCv.height = Math.max(2, Math.round(h));
-  const c = _envCv.getContext('2d');
-  c.drawImage(img, 0, 0, _envCv.width, _envCv.height);
-  const g = c.createLinearGradient(0, _envCv.height * 0.42, 0, _envCv.height);
-  g.addColorStop(0, 'rgba(0,0,0,1)');
-  g.addColorStop(1, 'rgba(0,0,0,0)');
-  c.globalCompositeOperation = 'destination-in';
-  c.fillStyle = g;
-  c.fillRect(0, 0, _envCv.width, _envCv.height);
-  return _envCv;
-}
 function drawEnvelope(){
   const env = Assets.get('env_envelope');
   const w = View.w, h = View.h;
-  if (env){
-    const eh = h * 0.34;
-    ctx.drawImage(envelopeSprite(env, w, eh), 0, 0, w, eh);
-    return;
-  }
+  if (env){ ctx.drawImage(env, 0, 0, w, h * 0.42); return; }
   ctx.save();
   // the underside of our own gas bag, filling the top of the frame
   const eh = h * 0.44;
@@ -4270,7 +4005,7 @@ function isOccluded(sx, top, w, h, groundY){
    is drawn as a coloured RIM around a dark interior: the outline is built from
    offset copies, then the middle is punched back out. Shapes stay countable
    even in a pile, and it never reads as a real, in-front enemy. */
-const _xrayOffsets = [[-1,0],[1,0],[0,-1],[0,1]];
+const _xrayOffsets = [[-3,0],[3,0],[0,-3],[0,3],[-2,-2],[2,-2],[-2,2],[2,2]];
 function drawXrayPass(){
   if (!_xrayQueue.length) return;
   ctx.save();
@@ -4278,16 +4013,13 @@ function drawXrayPass(){
     if (!isOccluded(q.x + q.w / 2, q.y, q.w, q.h, q.gy)) continue;
     const rim = tintVersion(q.img, q.col);
     const core = tintVersion(q.img, '#140F1A');
-    // Outline width is CAPPED in screen pixels. Scaling it with the sprite made
-    // a close-up boarder's rim spread ~18px in eight directions, which stacked
-    // into one solid orange blob instead of an outline.
-    const s = clamp(q.w * 0.012, 1.5, 4.5);
-    ctx.globalAlpha = 0.42;
+    const s = Math.max(1.5, q.w * 0.020);
+    ctx.globalAlpha = 0.5;
     for (const o of _xrayOffsets)
       ctx.drawImage(rim, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h);
-    ctx.globalAlpha = 0.88;
+    ctx.globalAlpha = 0.82;
     ctx.drawImage(core, q.x, q.y, q.w, q.h);
-    ctx.globalAlpha = 0.22;
+    ctx.globalAlpha = 0.30;
     ctx.drawImage(rim, q.x, q.y, q.w, q.h);
   }
   ctx.restore();
@@ -4562,8 +4294,9 @@ function drawPlayerBillboard(){
   const hi = charImage('hero', v.view);
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
-  // no x-ray for the captain: she is drawn above everything, so she can never
-  // be hidden and a silhouette of her would just be a teal blob over herself
+  if (PRESET.xray)
+    _xrayQueue.push({ img: hi, col: PAL.teal, x: hr.p.x - hr.wpx/2, y: hr.top,
+                      w: hr.wpx, h: hr.hpx, gy: P.y });
   // a soft teal aura so the captain never gets lost in a crowd
   const q = CAM.project(P.x, P.y, 46);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
@@ -4820,319 +4553,6 @@ function drawBolts(){
     }
     ctx.restore();
   }
-}
-
-
-/* ---------------------------------------------------------------------------
-   LANE RENDERING — walls, cannons, crew, the enemy hulk, and the lane readout.
-   All inert unless PRESET.lanes.
---------------------------------------------------------------------------- */
-
-// A cargo run drawn as a projected box: top face on the ground plane, plus the
-// near vertical face so it reads as something you cannot walk through.
-function drawLaneWalls(){
-  if (!PRESET.lanes) return;
-  const H = 96;
-  ctx.save();
-  ctx.lineJoin = 'round';
-  for (const w of LANE_WALLS){
-    const nearY = w.y1, farY = w.y0;
-    const bl = CAM.project(w.x0, nearY, 0), br = CAM.project(w.x1, nearY, 0);
-    const tl = CAM.project(w.x0, farY, 0),  tr = CAM.project(w.x1, farY, 0);
-    const BL = CAM.project(w.x0, nearY, H), BR = CAM.project(w.x1, nearY, H);
-    const TL = CAM.project(w.x0, farY, H),  TR = CAM.project(w.x1, farY, H);
-    // near face
-    ctx.beginPath();
-    ctx.moveTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
-    ctx.lineTo(BR.x, BR.y); ctx.lineTo(BL.x, BL.y); ctx.closePath();
-    fillStroke('#2A2027', PAL.ink, 4);
-    // top face
-    ctx.beginPath();
-    ctx.moveTo(BL.x, BL.y); ctx.lineTo(BR.x, BR.y);
-    ctx.lineTo(TR.x, TR.y); ctx.lineTo(TL.x, TL.y); ctx.closePath();
-    fillStroke('#3D2E30', PAL.ink, 4);
-    // lashed crates along the run, so it reads as cargo not a wall texture
-    const n = Math.max(2, Math.round((nearY - farY) / 150));
-    for (let i = 0; i < n; i++){
-      const y = lerp(farY + 40, nearY - 40, n === 1 ? 0.5 : i / (n - 1));
-      const a = CAM.project(w.x0 + 12, y, H), b = CAM.project(w.x1 - 12, y, H);
-      ctx.strokeStyle = hexToRgba(PAL.brass, 0.42); ctx.lineWidth = 3 * a.k;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
-      ctx.strokeStyle = hexToRgba(PAL.leather, 0.5); ctx.lineWidth = 2.4 * a.k;
-      ctx.beginPath(); ctx.moveTo(a.x, a.y + 5 * a.k); ctx.lineTo(b.x, b.y + 5 * b.k); ctx.stroke();
-    }
-    // brass capping rail catching the moonlight
-    ctx.strokeStyle = hexToRgba(PAL.brass, 0.55); ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(BL.x, BL.y); ctx.lineTo(TL.x, TL.y); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(BR.x, BR.y); ctx.lineTo(TR.x, TR.y); ctx.stroke();
-  }
-  ctx.restore();
-}
-
-/* --- the lane cannon ------------------------------------------------------ */
-function turretSprite(dead){
-  return cachedSprite('turret|' + (dead ? 1 : 0), 260, 260, (c2, w, h) => {
-    c2.save();
-    c2.translate(w / 2, h * ANCHOR);
-    c2.scale(h * FIG / 160, h * FIG / 160);
-    c2.lineJoin = 'round'; c2.lineCap = 'round';
-    if (dead){
-      // a broken mount: barrel dropped, still smoking
-      plate(0, -16, 96, 30, 6, '#2A2530');
-      ctx.save(); ctx.translate(6, -30); ctx.rotate(0.5);
-      plate(0, 0, 84, 24, 10, '#3A3640');
-      ctx.restore();
-      ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(-40, -6); ctx.lineTo(-24, -34); ctx.stroke();
-    } else {
-      limb(-26, -8, -26, -40, 18, '#3A2C2A');
-      limb( 26, -8,  26, -40, 18, '#3A2C2A');
-      plate(0, -54, 92, 32, 7, '#54413C');
-      rivets([[-38,-54],[38,-54]]);
-      plate(0, -84, 54, 40, 10, PAL.iron);
-      // barrel
-      ctx.save(); ctx.translate(0, -96); ctx.rotate(-0.16);
-      plate(0, 0, 112, 30, 14, PAL.brass);
-      specular(-20, -9, 30, 4, -0.16, 0.5);
-      circ(58, 0, 15); fillStroke(C(PAL.ink), ink(), OUT * 0.7);
-      ctx.strokeStyle = C(PAL.copper); ctx.lineWidth = 6;
-      ctx.beginPath(); ctx.moveTo(-34, -16); ctx.lineTo(-34, 16); ctx.stroke();
-      ctx.restore();
-      // an aether coil so it reads as friendly, not another boarder gun
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      drawGlow(0, -84, 46, PAL.teal, 0.55); ctx.restore();
-      circ(0, -84, 11); fillStroke(PAL.teal, ink(), OUT * 0.7);
-    }
-    c2.restore();
-    applyTwoSourceLight(c2, w, h);
-  });
-}
-function drawTurretBillboard(t){
-  entityShadow(t.x, t.y, t.r * 1.25, 0.55);
-  const r = drawBillboard(turretSprite(t.dead), t.x, t.y, t.dead ? 74 : 138,
-                          { flash: t.flash > 0 });
-  addOccluder(r.p.x, r.p.y, r.wpx * 0.42, r.hpx * 0.58, t.y);
-  if (t.dead) return;
-  if (t.fireFx > 0){
-    const m = CAM.project(t.x + Math.cos(t.ang) * 60, t.y + Math.sin(t.ang) * 60, 96);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    drawGlow(m.x, m.y, 34 * m.k, PAL.teal, t.fireFx / 0.14);
-    ctx.restore();
-  }
-  // health, always legible: losing a cannon opens the lane
-  const top = CAM.project(t.x, t.y, 168);
-  const frac = clamp(t.hp / t.maxHp, 0, 1);
-  const w = 76 * top.k, h = 7 * top.k;
-  ctx.fillStyle = 'rgba(13,11,18,0.85)';
-  rr(top.x - w/2 - 2, top.y - 2, w + 4, h + 4, 3); ctx.fill();
-  ctx.fillStyle = frac > 0.4 ? PAL.teal : PAL.dangerIn;
-  rr(top.x - w/2, top.y, w * frac, h, 2); ctx.fill();
-}
-
-/* --- your crew ------------------------------------------------------------ */
-function crewSprite(view){
-  return cachedSprite('crew|' + view, 190, 210, (c2, w, h) => {
-    c2.save();
-    c2.translate(w / 2, h * ANCHOR);
-    c2.scale(h * FIG / 175, h * FIG / 175);
-    c2.lineJoin = 'round'; c2.lineCap = 'round';
-    const COAT = '#3A4450', COATL = '#4C5866';
-    limb(-11, -12, -13, -2, 13, '#241C22');
-    limb( 11, -12,  13, -2, 13, '#241C22');
-    // deck-hand: shorter than the captain, teal sash so they read as friendly
-    ctx.beginPath();
-    ctx.moveTo(-16, -86); ctx.quadraticCurveTo(-30, -46, -26, -8);
-    ctx.lineTo(26, -8); ctx.quadraticCurveTo(30, -46, 16, -86);
-    ctx.closePath();
-    fillStroke(C(COAT), ink(), OUT);
-    ctx.strokeStyle = C(PAL.teal); ctx.lineWidth = 7;
-    ctx.beginPath(); ctx.moveTo(-15, -74); ctx.lineTo(14, -46); ctx.stroke();
-    blob(-18, -82, 11, 9, COATL);
-    blob( 18, -82, 11, 9, COATL);
-    if (view === 'front'){
-      // boarding pike
-      ctx.save(); ctx.translate(20, -80); ctx.rotate(-0.55);
-      limb(0, 0, 46, 0, 7, PAL.leather);
-      ctx.beginPath();
-      ctx.moveTo(46, -5); ctx.lineTo(66, 0); ctx.lineTo(46, 5); ctx.closePath();
-      fillStroke(C('#C6CBD6'), ink(), OUT * 0.6);
-      ctx.restore();
-    }
-    blob(0, -108, 21, 20, '#C89A72');
-    // watch cap
-    ctx.beginPath();
-    ctx.moveTo(-21, -114); ctx.quadraticCurveTo(0, -140, 21, -114);
-    ctx.quadraticCurveTo(0, -124, -21, -114); ctx.closePath();
-    fillStroke(C('#2A3038'), ink(), OUT);
-    if (view === 'front'){
-      ctx.fillStyle = C(PAL.ink);
-      circ(-7, -106, 2.6); ctx.fill(); circ(7, -106, 2.6); ctx.fill();
-    }
-    c2.restore();
-    applyTwoSourceLight(c2, w, h);
-  });
-}
-function drawCrewBillboard(c){
-  entityShadow(c.x, c.y, c.r * 1.1, 0.45);
-  const front = Math.sin(c.facing) > -0.15;
-  const bob = Math.sin(c.anim * 6) * 2.5;
-  drawBillboard(crewSprite(front ? 'front' : 'back'), c.x, c.y, 96,
-                { mirror: Math.cos(c.facing) > 0, lift: bob, flash: c.flash > 0 });
-  if (c.hp < c.maxHp){
-    const top = CAM.project(c.x, c.y, 112);
-    const w = 26 * top.k, h = 4 * top.k;
-    ctx.fillStyle = 'rgba(13,11,18,0.8)';
-    rr(top.x - w/2 - 1.5, top.y - 1.5, w + 3, h + 3, 2); ctx.fill();
-    ctx.fillStyle = PAL.teal;
-    rr(top.x - w/2, top.y, w * clamp(c.hp/c.maxHp, 0, 1), h, 2); ctx.fill();
-  }
-}
-
-/* --- their hulk, grappled to the bow -------------------------------------- */
-function hulkSprite(){
-  return cachedSprite('hulk', 900, 520, (c2, w, h) => {
-    c2.save();
-    c2.translate(w / 2, h * 0.96);
-    c2.scale(h / 470, h / 470);
-    c2.lineJoin = 'round'; c2.lineCap = 'round';
-    // hull
-    ctx.beginPath();
-    ctx.moveTo(-400, 0); ctx.quadraticCurveTo(-330, -230, 0, -270);
-    ctx.quadraticCurveTo(330, -230, 400, 0);
-    ctx.closePath();
-    fillStroke(C('#241C28'), ink(), 9);
-    // ribs
-    ctx.strokeStyle = hexToRgba(PAL.iron, 0.7); ctx.lineWidth = 8;
-    for (let i = -3; i <= 3; i++){
-      ctx.beginPath();
-      ctx.moveTo(i * 92, -12); ctx.lineTo(i * 76, -218 + Math.abs(i) * 26); ctx.stroke();
-    }
-    // boarding ramps clawing onto our deck
-    for (const s of [-1, 0, 1]){
-      ctx.save(); ctx.translate(s * 250, -6); ctx.rotate(s * 0.06);
-      plate(0, 20, 120, 54, 6, '#3A3038');
-      ctx.strokeStyle = C(PAL.iron); ctx.lineWidth = 6;
-      for (let i = -1; i <= 1; i++){
-        ctx.beginPath(); ctx.moveTo(-52, 20 + i * 16); ctx.lineTo(52, 20 + i * 16); ctx.stroke();
-      }
-      ctx.restore();
-    }
-    // furnace maw
-    ctx.beginPath();
-    ctx.moveTo(-120, -80); ctx.lineTo(120, -80);
-    ctx.lineTo(90, -196); ctx.lineTo(-90, -196); ctx.closePath();
-    fillStroke(C('#4A1C08'), ink(), 8);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    drawGlow(0, -140, 210, PAL.fire, 0.75); ctx.restore();
-    ctx.fillStyle = PAL.fire;
-    ctx.beginPath();
-    ctx.moveTo(-104, -90); ctx.lineTo(104, -90);
-    ctx.lineTo(80, -186); ctx.lineTo(-80, -186); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 10;
-    for (let i = 0; i < 3; i++){
-      ctx.beginPath(); ctx.moveTo(-100 + i * 4, -110 - i * 30);
-      ctx.lineTo(100 - i * 4, -110 - i * 30); ctx.stroke();
-    }
-    // gantries + lamps
-    for (const s of [-1, 1]){
-      ctx.save(); ctx.translate(s * 300, -130);
-      plate(0, 0, 60, 90, 10, '#3A3038');
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      drawGlow(0, -20, 60, PAL.danger, 0.7); ctx.restore();
-      circ(0, -20, 13); fillStroke(PAL.danger, ink(), 6);
-      ctx.restore();
-    }
-    c2.restore();
-    applyTwoSourceLight(c2, w, h);
-  });
-}
-function drawHulk(){
-  const H = S.hulk;
-  if (!H || H.dead) return;
-  const p = CAM.project(H.x, H.y, 0);
-  const img = hulkSprite();
-  const hpx = 560 * p.k, wpx = hpx * (img.width / img.height);
-  ctx.save();
-  if (H.flash > 0){
-    ctx.drawImage(img, p.x - wpx/2, p.y - hpx * 0.96, wpx, hpx);
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = clamp(H.flash / 0.1, 0, 1) * 0.5;
-    ctx.drawImage(tintVersion(img, '#FFD9A0'), p.x - wpx/2, p.y - hpx * 0.96, wpx, hpx);
-  } else {
-    ctx.drawImage(img, p.x - wpx/2, p.y - hpx * 0.96, wpx, hpx);
-  }
-  ctx.restore();
-  // sealed vs open plating — the whole push/hold read depends on this
-  if (H.vulnerable){
-    const q = CAM.project(H.x, H.y, 260);
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    drawGlow(q.x, q.y, 150 * q.k, PAL.fireCore, 0.30 + Math.sin(S.rt * 6) * 0.12);
-    ctx.restore();
-  }
-  if (rnd() < 0.3) pSmoke(H.x + rnd(-200, 200), H.y + 40, 1, 'rgba(40,36,48,0.5)', 60);
-}
-
-/* --- lane status: the minimap equivalent ---------------------------------- */
-function drawLaneStatus(){
-  if (!PRESET.lanes) return;
-  const HS = hudScale();
-  const w = 210 * HS, rowH = 40 * HS;
-  const x = View.w - w - 18 * HS;
-  const y = (S.showFps ? 96 : 22) * HS;
-  brassPanel(x, y, w, 26 * HS + LANE_N * rowH, 9 * HS, 0.92);
-  setFont(Math.round(11 * HS), 800, true);
-  textOut('LANES', x + w / 2, y + 14 * HS, PAL.brass);
-  const here = laneOf(S.player.x);
-  for (let i = 0; i < LANE_N; i++){
-    const t = laneThreat(i);
-    const ry = y + 26 * HS + i * rowH;
-    // you are here
-    if (S.player.y < BASE_Y && here === i){
-      ctx.fillStyle = hexToRgba(PAL.teal, 0.12);
-      rr(x + 6 * HS, ry, w - 12 * HS, rowH - 4 * HS, 5); ctx.fill();
-    }
-    setFont(Math.round(10.5 * HS), 800, true);
-    textOut(LANES[i].name, x + 14 * HS, ry + 12 * HS,
-            here === i ? PAL.teal : '#9C93A8', null, 0, 'left');
-    // how far they have pushed toward the Boiler
-    const bx = x + 14 * HS, bw = w - 28 * HS, by = ry + 24 * HS, bh = 6 * HS;
-    ctx.fillStyle = '#0B0910'; rr(bx, by, bw, bh, 3); ctx.fill();
-    if (t.turret){
-      ctx.fillStyle = hexToRgba(PAL.teal, 0.55);
-      rr(bx, by, bw * clamp(t.turretFrac, 0, 1) * 0.32, bh, 3); ctx.fill();
-    }
-    if (t.count){
-      const px = bx + bw * clamp(t.prog, 0, 1);
-      ctx.fillStyle = t.prog > 0.7 ? PAL.danger : PAL.dangerIn;
-      circ(px, by + bh / 2, 4.5 * HS); ctx.fill();
-      setFont(Math.round(10 * HS), 800, true);
-      textOut(t.count + '', x + w - 14 * HS, ry + 12 * HS,
-              t.prog > 0.7 ? PAL.danger : '#9C93A8', null, 0, 'right');
-    }
-    if (!t.turret){
-      setFont(Math.round(9 * HS), 800, true);
-      textOut('CANNON DOWN', x + w - 14 * HS, ry + 33 * HS, PAL.danger, null, 0, 'right');
-    }
-  }
-}
-
-// hulk health, when it is the thing you are supposed to be breaking
-function drawHulkBar(){
-  if (!PRESET.lanes || !S.hulk || S.hulk.dead || !S.hulk.vulnerable) return;
-  const HS = hudScale();
-  const w = Math.min(View.w * 0.5, 620 * HS), h = 18 * HS;
-  const x = (View.w - w) / 2, y = 132 * HS;
-  rr(x - 4, y - 4, w + 8, h + 8, 6);
-  ctx.fillStyle = 'rgba(13,11,18,0.9)'; ctx.fill();
-  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4; ctx.stroke();
-  const g = ctx.createLinearGradient(x, y, x, y + h);
-  g.addColorStop(0, PAL.fireCore); g.addColorStop(1, PAL.fire);
-  rr(x, y, w * clamp(S.hulk.hp / S.hulk.maxHp, 0, 1), h, 4);
-  ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = PAL.brass; ctx.lineWidth = 2; rr(x, y, w, h, 4); ctx.stroke();
-  setFont(Math.round(12 * HS), 800, true);
-  textOut('BOARDING HULK — PLATING OPEN', View.w / 2, y - 12 * HS, PAL.fireCore, PAL.ink, 4);
 }
 
 
@@ -5489,52 +4909,15 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
   ctx.drawImage(cn, cx - half, cy - half);
 }
 
-const SLOT_KEYS = KEYS.slots.map(function(k){ return k.label; });
+const SLOT_KEYS = ['LMB', 'RMB', 'SPACE', 'SHIFT'];
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
 /* The auto-attack has no key, but it still needs to be legible: you should be
    able to see it swinging and know it is doing work without a slot of its own. */
 function drawAutoPip(x, y, size){
   const AA = FEEL.autoAttack;
-  const B = S.basic;
-  if (!AA && !B) return;
+  if (!AA) return;
   const P = S.player, r = size * 0.34;
-  // v6: the basic is a real skill, so the pip shows that skill — its glyph, its
-  // element colour, its actual cooldown. The player asked what their auto-attack
-  // was; the HUD should answer without them having to guess.
-  if (B){
-    const E = ELEMENTS[B.element], st = skillStats(B);
-    ctx.save();
-    ctx.translate(x, y);
-    circ(0, 0, r); ctx.fillStyle = PAL.base; ctx.fill();
-    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4; ctx.stroke();
-    gaugeRing(0, 0, r, hexToRgba(PAL.brass, 0.55), 12);
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    drawGlow(0, 0, r * 1.5, E.color, P.atkTarget ? 0.26 : 0.12);
-    ctx.restore();
-    drawShapeGlyph(B.shape, 0, -1, r * 0.82, E.color, E.glow);
-    const frac = clamp(B.cdLeft / Math.max(0.001, st.cd), 0, 1);
-    if (frac > 0){
-      ctx.save(); circ(0, 0, r - 2); ctx.clip();
-      ctx.globalAlpha = 0.7; ctx.fillStyle = '#0B0910';
-      ctx.beginPath(); ctx.moveTo(0, 0);
-      ctx.arc(0, 0, r * 2, -Math.PI/2, -Math.PI/2 + TAU * frac);
-      ctx.closePath(); ctx.fill(); ctx.restore();
-    }
-    if (P.atkSwing > 0){
-      ctx.globalAlpha = P.atkSwing / 0.18;
-      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 3;
-      circ(0, 0, r + 5); ctx.stroke();
-      ctx.globalAlpha = 1;
-    }
-    const hs = size / 78;
-    setFont(Math.round(9.5 * hs), 800, true);
-    textOut('AUTO', 0, r + 12 * hs, P.atkTarget ? PAL.bone : '#6E667A');
-    setFont(Math.round(8.5 * hs), 700, true);
-    textOut(skillName(B).toUpperCase(), 0, r + 24 * hs, hexToRgba(E.color, 0.85));
-    ctx.restore();
-    return;
-  }
   ctx.save();
   ctx.translate(x, y);
   circ(0, 0, r); ctx.fillStyle = PAL.base; ctx.fill();
@@ -5697,7 +5080,7 @@ function drawHealthPanel(){
 
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
-  textOut('DASH [' + KEYS.dash.label + ']', bx, py, '#8B8296', null, 0, 'left');
+  textOut('DASH [E]', bx, py, '#8B8296', null, 0, 'left');
   for (let i = 0; i < S.mods.dashCharges; i++){
     const px = bx + 62*HS + i * 22*HS;
     const filled = i < P.dashStock;
@@ -5803,16 +5186,6 @@ function drawBanner(){
     textOut('WAVE ' + b.n + ' COMPLETE', 0, 0, PAL.crit, PAL.ink, 10);
     setFont(Math.round(17*HS), 700, true);
     textOut('DRAFT AN UPGRADE', 0, 44*HS, PAL.bone, PAL.ink, 5);
-  } else if (b.kind === 'push'){
-    setFont(Math.round(34*HS), 900, true);
-    textOut('THEIR PLATING IS OPEN', 0, -30*HS, PAL.fireCore, PAL.ink, 8);
-    setFont(Math.round(58*HS), 900, true);
-    textOut('BREAK THE HULK', 0, 14*HS, PAL.fire, PAL.ink, 10);
-    setFont(Math.round(16*HS), 700, true);
-    textOut('PUSH UP A LANE — THE BOILER STILL HAS TO HOLD', 0, 56*HS, PAL.bone, PAL.ink, 5);
-  } else if (b.kind === 'lane'){
-    setFont(Math.round(40*HS), 900, true);
-    textOut(b.text, 0, 0, PAL.danger, PAL.ink, 8);
   } else if (b.kind === 'boss'){
     setFont(Math.round(38*HS), 900, true);
     textOut('FINAL WAVE', 0, -34*HS, PAL.danger, PAL.ink, 8);
@@ -5851,10 +5224,8 @@ function drawHints(){
   const a = clamp(S.hintT / 2.5, 0, 1);
   ctx.save();
   ctx.globalAlpha = a;
-  const rows = [['W A S D','move'],['MOUSE','aim'],
-                [KEYS.dash.label,'dash — invulnerable'],
-                [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'your two abilities'],
-                ['AUTO','the captain attacks by herself']];
+  const rows = [['W A S D','move'],['MOUSE','aim'],['E','dash — invulnerable'],
+                ['LMB / RMB','fire your two skills']];
   const pw = 234*HS, ph = 30*HS + rows.length * 26*HS;
   const px = 20*HS, py = 120*HS;
   brassPanel(px, py, pw, ph, 9*HS, 0.92 * a);
@@ -6260,18 +5631,12 @@ function drawTitle(){
   brassPanel(px, py, pw, ph, 12*HS, 0.95);
   setFont(Math.round(17*HS), 800, true);
   textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const auto = !!FEEL.autoAttack;
-  const rows1 = [['W A S D','move the captain'],
-                 ['MOUSE','aim your abilities'],
-                 [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
-                 [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
-  const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
-                 [auto ? 'AUTOMATIC' : 'CLICK',
-                  auto ? 'the captain attacks the nearest boarder herself'
-                       : 'left mouse swings your first skill'],
-                 ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
-                                         : 'the Boiler amidships. If it dies, you lose.'],
-                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
+  const rows1 = [['W A S D','move the captain'],['MOUSE','aim — you always face the cursor'],
+                 ['LEFT / RIGHT MOUSE','fire skill 1 and 2'],['SPACE / SHIFT','skill 3 and 4 (unlocked later)']];
+  const rows2 = [['E','dash — invulnerable, use it constantly'],
+                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats'],
+                 ['DEFEND','the Boiler amidships. If it dies, you lose.'],
+                 ['DRAFT','a card after every wave. 12 waves to win.']];
   const draw = (rows, x) => rows.forEach((r, i) => {
     const y = py + 62*HS + i * 38*HS;
     setFont(Math.round(14*HS), 800, true);
@@ -6446,11 +5811,8 @@ function render(){
   if (CAM.follow) drawDeckLive();
   else { if (!_deckCv) buildDeck(); ctx.drawImage(_deckCv, 0, 0, View.w, View.h); }
 
-  if (PRESET.lanes) drawHulk();
-
   // --- flat on the deck
   drawFields();
-  if (PRESET.lanes) drawLaneWalls();
   drawTelegraphs();
   drawAoePreview();
   drawGroundFx();
@@ -6458,26 +5820,19 @@ function render(){
   // --- billboards, far to near
   const list = [];
   for (const p of PROPS)     list.push({ y: p.y, k: 0, o: p });
-  if (PRESET.lanes){
-    for (const t of S.turrets) list.push({ y: t.y, k: 5, o: t });
-    for (const c of S.crew)    if (!c.dead) list.push({ y: c.y, k: 6, o: c });
-  }
   for (const e of S.enemies) list.push({ y: e.y, k: 1, o: e });
   list.push({ y: S.boiler.y, k: 2 });
   for (const p of S.pickups) list.push({ y: p.y, k: 4, o: p });
+  if (S.player.hp > 0)       list.push({ y: S.player.y, k: 3 });
   list.sort((a, b) => a.y - b.y);
   for (const it of list){
     if (it.k === 0) drawPropBillboard(it.o);
     else if (it.k === 1) drawEnemyBillboard(it.o);
     else if (it.k === 2) drawBoilerBillboard();
     else if (it.k === 3) drawPlayerBillboard();
-    else if (it.k === 5) drawTurretBillboard(it.o);
-    else if (it.k === 6) drawCrewBillboard(it.o);
     else drawPickupBillboard(it.o);
   }
 
-  // the captain last, over everything — she is never allowed to be occluded
-  if (S.player.hp > 0) drawPlayerBillboard();
   drawXrayPass();
 
   // --- above the deck
@@ -6488,10 +5843,7 @@ function render(){
   drawNums();
   drawEnvelope();
   ctx.restore();
-  if (S.mode === 'play' || S.mode === 'pause'){
-    drawObjectiveMarker();
-    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); }
-  }
+  if (S.mode === 'play' || S.mode === 'pause') drawObjectiveMarker();
 
   drawScreenFx();
   const ended = S.mode === 'gameover' || S.mode === 'victory';
