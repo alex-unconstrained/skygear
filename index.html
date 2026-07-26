@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SKYGEAR — playtest</title>
+<meta name="description" content="A top-down steampunk hero-defense. Two visual builds, same game. Pick one and tell us what breaks.">
+<style>
+  :root{
+    --ink:#0D0B12; --base:#14121B; --panel:#1C1926;
+    --brass:#B0813F; --brass-lt:#E8C376; --teal:#37F0C8;
+    --fire:#FF7A2F; --moon:#8FA6C9; --bone:#E8E2D2; --mute:#8B8296;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;min-height:100%}
+  html{background:#100E1C}
+  /* fixed backdrop as its own layer — a scrolled page never runs off the gradient */
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-1;
+    background:
+      radial-gradient(120% 80% at 24% 8%, rgba(143,166,201,.20), transparent 55%),
+      radial-gradient(90% 70% at 86% 88%, rgba(255,179,71,.14), transparent 60%),
+      linear-gradient(180deg,#100E1C 0%,#1B1830 38%,#2E2A4E 72%,#3A3358 100%);
+  }
+  body{
+    color:var(--bone);
+    font:16px/1.65 'Trebuchet MS',system-ui,sans-serif;
+    padding:clamp(24px,5vw,64px) clamp(18px,5vw,32px) 72px;
+  }
+  .wrap{max-width:980px;margin:0 auto}
+  header{text-align:center;margin-bottom:clamp(28px,5vw,52px)}
+  h1{
+    font:900 clamp(56px,13vw,132px)/0.9 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
+    letter-spacing:.06em;margin:0;color:var(--brass-lt);
+    text-shadow:0 0 34px rgba(55,240,200,.28), 0 5px 0 var(--ink);
+  }
+  .kicker{color:var(--moon);letter-spacing:.34em;font-size:clamp(10px,2.2vw,13px);
+          text-transform:uppercase;margin-top:14px}
+  .lede{max-width:60ch;margin:22px auto 0;color:#C6BFD2}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px}
+  .card{
+    display:flex;flex-direction:column;background:var(--panel);
+    border:1px solid rgba(176,129,63,.45);border-radius:14px;overflow:hidden;
+    text-decoration:none;color:inherit;
+    box-shadow:0 18px 40px rgba(0,0,0,.45);
+    transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
+  }
+  .card:hover,.card:focus-visible{
+    transform:translateY(-4px);border-color:var(--teal);
+    box-shadow:0 22px 52px rgba(0,0,0,.55), 0 0 0 1px rgba(55,240,200,.25);
+    outline:none;
+  }
+  .shot{height:172px;border-bottom:1px solid rgba(176,129,63,.3);position:relative}
+  .shot.classic{background:
+    radial-gradient(70% 120% at 50% 118%, rgba(217,164,65,.30), transparent 60%),
+    linear-gradient(180deg,#5E7C97 0%,#A8C4D4 46%,#B9AE86 47%,#CFC49C 100%)}
+  .shot.dusk{background:
+    radial-gradient(60% 130% at 50% 122%, rgba(255,179,71,.34), transparent 62%),
+    radial-gradient(40% 60% at 22% 16%, rgba(143,166,201,.42), transparent 60%),
+    linear-gradient(180deg,#100E1C 0%,#2E2A4E 52%,#3D2E30 53%,#54413C 100%)}
+  .tag{position:absolute;top:12px;left:12px;font-size:11px;letter-spacing:.18em;
+       text-transform:uppercase;padding:5px 10px;border-radius:999px;
+       background:rgba(13,11,18,.78);border:1px solid rgba(176,129,63,.5);color:var(--brass-lt)}
+  .body{padding:20px 22px 24px;flex:1;display:flex;flex-direction:column}
+  .card h2{margin:0 0 6px;font:900 25px/1.15 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
+           letter-spacing:.04em;color:var(--bone)}
+  .card p{margin:0;color:var(--mute);font-size:14.5px;flex:1}
+  .play{margin-top:18px;align-self:flex-start;font:800 13px/1 'Trebuchet MS',sans-serif;
+        letter-spacing:.16em;text-transform:uppercase;color:var(--ink);
+        background:var(--teal);padding:11px 20px;border-radius:8px}
+  .card.classic .play{background:var(--brass-lt)}
+  section{margin-top:clamp(36px,6vw,60px)}
+  h3{font:800 13px/1 'Trebuchet MS',sans-serif;letter-spacing:.24em;text-transform:uppercase;
+     color:var(--brass);margin:0 0 16px}
+  .panel{background:rgba(28,25,38,.72);border:1px solid rgba(176,129,63,.28);
+         border-radius:12px;padding:22px 24px}
+  .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 26px;margin:0;padding:0}
+  .keys div{display:flex;gap:12px;align-items:baseline;font-size:14.5px}
+  kbd{font:800 12px/1.5 'Trebuchet MS',sans-serif;background:var(--ink);color:var(--teal);
+      border:1px solid rgba(176,129,63,.45);border-radius:5px;padding:3px 8px;white-space:nowrap}
+  .keys span{color:var(--mute)}
+  ol{margin:0;padding-left:20px;color:#C6BFD2}
+  ol li{margin-bottom:9px}
+  ol li b{color:var(--bone)}
+  footer{margin-top:44px;text-align:center;color:#6E667A;font-size:12.5px}
+  a.inline{color:var(--teal)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>SKYGEAR</h1>
+    <div class="kicker">Hero defense &middot; 10,000 feet &middot; playtest build</div>
+    <p class="lede">
+      You are a sky-pirate captain defending the deck of your airship. Every skill is a
+      <b>shape</b> crossed with an <b>element</b> — 24 combinations — and the draft after
+      each wave rewrites them. Twelve waves. Keep the Boiler alive.
+    </p>
+  </header>
+
+  <div class="grid">
+    <a class="card dusk" href="storm-dusk.html">
+      <div class="shot dusk"><span class="tag">New look</span></div>
+      <div class="body">
+        <h2>Storm-Dusk</h2>
+        <p>Three-quarter camera over a projected deck, dark painted world, chibi
+           billboards. The direction we want to take it. Art is still placeholder —
+           everything you see is drawn in code.</p>
+        <span class="play">Play this one first</span>
+      </div>
+    </a>
+    <a class="card classic" href="classic.html">
+      <div class="shot classic"><span class="tag">Original</span></div>
+      <div class="body">
+        <h2>Classic</h2>
+        <p>Straight top-down, daylight brass-and-khaki. Identical game underneath —
+           same skills, waves, cards and boss. Here as the control: if the new camera
+           costs you readability, this is what it cost you against.</p>
+        <span class="play">Play the control</span>
+      </div>
+    </a>
+  </div>
+
+  <section>
+    <h3>Controls</h3>
+    <div class="panel">
+      <div class="keys">
+        <div><kbd>W A S D</kbd><span>move</span></div>
+        <div><kbd>Mouse</kbd><span>aim — you always face the cursor</span></div>
+        <div><kbd>LMB</kbd> <kbd>RMB</kbd><span>skills 1 and 2</span></div>
+        <div><kbd>Space</kbd> <kbd>Shift</kbd><span>skills 3 and 4 (unlock at waves 3 and 6)</span></div>
+        <div><kbd>E</kbd><span>dash — invulnerable, use it constantly</span></div>
+        <div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd><span>pick a draft card</span></div>
+        <div><kbd>Esc</kbd><span>pause</span></div>
+        <div><kbd>M</kbd> <kbd>&minus;</kbd> <kbd>=</kbd><span>mute / volume</span></div>
+        <div><kbd>F3</kbd><span>frame-rate and entity counts</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h3>What we need to learn</h3>
+    <div class="panel">
+      <ol>
+        <li><b>Does the build-craft loop land?</b> Did you ever look forward to the
+            draft, or did you just take whatever was cheapest?</li>
+        <li><b>Where did you die, and did it feel fair?</b> Note the wave number.
+            Getting overwhelmed should feel like a crowd problem, not a numbers problem.</li>
+        <li><b>Can you read the fight?</b> Every enemy attack telegraphs for 0.4s before
+            it lands. If something hit you that you never saw, that is the bug we most want.</li>
+        <li><b>Storm-Dusk vs Classic:</b> is anything harder to track in the
+            three-quarter view — your own character, enemy facing, where a mortar will land?</li>
+        <li><b>Frame rate.</b> Hit <kbd>F3</kbd> during a busy wave and tell us the number
+            and your machine. This is the one thing we have not been able to measure properly.</li>
+      </ol>
+    </div>
+  </section>
+
+  <footer>
+    Two builds, one simulation &middot; no install, no accounts, nothing stored &middot;
+    best on desktop in Chrome or Firefox
+  </footer>
+
+</div>
+</body>
+</html>

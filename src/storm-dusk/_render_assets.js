@@ -1,0 +1,108 @@
+/* ---------------------------------------------------------------------------
+   ASSETS — the §4 manifest. Every entry names the exact file the art pipeline
+   is expected to deliver (§2.1 naming). If the file is absent — or the page was
+   opened straight off the filesystem, where browsers refuse file:// image reads
+   — the renderer falls back to the procedural painter registered beside it, in
+   the same style. The game is fully playable either way.
+--------------------------------------------------------------------------- */
+const ASSET_MANIFEST = {
+  // 4.1 hero — our captain fills the H1 Sky-Corsair slot
+  hero_front_idle:   { file:'assets/heroes/corsair_front_idle.png',   w:512,  h:512  },
+  hero_back_idle:    { file:'assets/heroes/corsair_back_idle.png',    w:512,  h:512  },
+  hero_front_attack: { file:'assets/heroes/corsair_front_attack.png', w:512,  h:512  },
+
+  // 4.2 enemies — SKYGEAR's roster mapped onto the spec archetypes (§6.1)
+  SCRAPPER_front_idle:   { file:'assets/enemies/automaton_front_idle.png',   w:512, h:512 },
+  SCRAPPER_back_idle:    { file:'assets/enemies/automaton_back_idle.png',    w:512, h:512 },
+  SCRAPPER_front_attack: { file:'assets/enemies/automaton_front_attack.png', w:512, h:512 },
+  SWARM_front_idle:      { file:'assets/enemies/gremlin_front_idle.png',     w:384, h:384 },
+  SWARM_front_attack:    { file:'assets/enemies/gremlin_front_attack.png',   w:384, h:384 },
+  GUNNER_front_idle:     { file:'assets/enemies/drone_front_idle.png',       w:448, h:448 },
+  GUNNER_front_attack:   { file:'assets/enemies/drone_front_attack.png',     w:448, h:448 },
+  ARMORED_front_idle:    { file:'assets/enemies/furnace_knight_front_idle.png',   w:640, h:640 },
+  ARMORED_front_attack:  { file:'assets/enemies/furnace_knight_front_attack.png', w:640, h:640 },
+  BOSS_front_idle:       { file:'assets/enemies/colossus_front_idle.png',    w:1024, h:1024 },
+  BOSS_back_idle:        { file:'assets/enemies/colossus_back_idle.png',     w:1024, h:1024 },
+  BOSS_front_attack:     { file:'assets/enemies/colossus_front_attack.png',  w:1024, h:1024 },
+
+  // 4.3 props
+  prop_crate:    { file:'assets/props/crate_small.png',      w:384, h:384 },
+  prop_crates:   { file:'assets/props/crate_stack.png',      w:512, h:640 },
+  prop_barrel:   { file:'assets/props/barrel.png',           w:320, h:384 },
+  prop_rope:     { file:'assets/props/rope_coil.png',        w:320, h:256 },
+  prop_cannon:   { file:'assets/props/cannon_deck.png',      w:640, h:512 },
+  prop_mast:     { file:'assets/props/mast_section.png',     w:512, h:1024 },
+  prop_railing:  { file:'assets/props/railing_segment.png',  w:512, h:384 },
+  prop_lantern:  { file:'assets/props/lantern_post.png',     w:384, h:768 },
+  prop_vent:     { file:'assets/props/steam_vent.png',       w:384, h:320 },
+  prop_hatch:    { file:'assets/props/hatch_cargo.png',      w:512, h:384 },
+  prop_ballista: { file:'assets/props/harpoon_ballista.png', w:640, h:512 },
+  prop_wreck:    { file:'assets/props/colossus_wreck.png',   w:1024, h:768 },
+
+  // 4.4 environment
+  env_sky:       { file:'assets/env/sky_backdrop.png',     w:2048, h:1024 },
+  env_clouds_far:{ file:'assets/env/clouds_far.png',       w:2048, h:512  },
+  env_clouds_near:{file:'assets/env/clouds_near.png',      w:2048, h:512  },
+  env_airship:   { file:'assets/env/airship_distant.png',  w:512,  h:256  },
+  env_envelope:  { file:'assets/env/envelope_top.png',     w:2048, h:768  },
+  env_bow:       { file:'assets/env/bow_prow.png',         w:1024, h:640  },
+
+  // 4.5 ground circles
+  rune_enemy:        { file:'assets/ground/rune_enemy.png',        w:512, h:512 },
+  rune_enemy_filled: { file:'assets/ground/rune_enemy_filled.png', w:512, h:512 },
+  rune_player:       { file:'assets/ground/rune_player.png',       w:512, h:512 },
+  decal_scorch:      { file:'assets/ground/decal_scorch.png',      w:384, h:384 },
+  decal_oil:         { file:'assets/ground/decal_oil.png',         w:384, h:384 },
+  decal_gears:       { file:'assets/ground/decal_gear_scatter.png',w:384, h:384 },
+  shadow_blob:       { file:'assets/ground/shadow_blob.png',       w:256, h:256 },
+
+  // 4.6 fx
+  fx_steam:  { file:'assets/fx/puff_steam.png',      w:256, h:256 },
+  fx_smoke:  { file:'assets/fx/puff_smoke_dark.png', w:256, h:256 },
+  fx_impact: { file:'assets/fx/burst_impact.png',    w:320, h:320 },
+  fx_bolt:   { file:'assets/fx/bolt_tesla.png',      w:256, h:128 },
+  fx_slash:  { file:'assets/fx/slash_arc.png',       w:384, h:256 },
+  fx_ember:  { file:'assets/fx/ember_particle.png',  w:64,  h:64  },
+
+  // 4.7 ui
+  ui_portrait: { file:'assets/ui/portrait_corsair.png', w:512,  h:512 },
+  ui_frame:    { file:'assets/ui/frame_hud.png',        w:1024, h:256 },
+  ui_gauge:    { file:'assets/ui/gauge_ring.png',       w:256,  h:256 },
+  // skill icons — SKYGEAR's six shapes mapped onto the spec's icon set
+  ui_icon_slash:   { file:'assets/ui/icon_skill_slash.png',   w:256, h:256 },  // CLOSEHIT
+  ui_icon_hook:    { file:'assets/ui/icon_skill_hook.png',    w:256, h:256 },  // LINE_BURST
+  ui_icon_cone:    { file:'assets/ui/icon_skill_cone.png',    w:256, h:256 },  // CONE
+  ui_icon_aoe:     { file:'assets/ui/icon_skill_aoe.png',     w:256, h:256 },  // RANGED_AOE
+  ui_icon_ult:     { file:'assets/ui/icon_skill_ult.png',     w:256, h:256 },  // CHAIN
+  ui_icon_turret:  { file:'assets/ui/icon_skill_turret.png',  w:256, h:256 },  // RAY
+  ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256 },
+  ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256 },
+  ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128 },
+};
+
+/* Loading is opt-in so that an asset-less checkout has a clean console and
+   still plays: the procedural stand-ins are complete. Turn art on with
+       skygear.html?assets=1
+   or by setting window.SKYGEAR_USE_ASSETS = true before this script runs.
+   (Note: browsers block file:// image reads, so serving over http is required
+   once real PNGs are in place — the procedural build needs no server at all.) */
+const Assets = {
+  loaded: {}, ready: 0, total: 0, enabled: false,
+
+  init(){
+    const q = (typeof location !== 'undefined' && location.search) || '';
+    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q);
+    const keys = Object.keys(ASSET_MANIFEST);
+    this.total = keys.length;
+    if (!this.enabled) return;
+    for (const k of keys){
+      const im = new Image();
+      im.onload  = () => { if (im.naturalWidth > 0){ this.loaded[k] = im; this.ready++; } };
+      im.onerror = () => {};
+      im.src = ASSET_MANIFEST[k].file;
+    }
+  },
+  get(k){ return this.loaded[k] || null; },
+  has(k){ return !!this.loaded[k]; },
+};
+Assets.init();
