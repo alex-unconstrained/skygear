@@ -138,10 +138,35 @@ function drawBowPiece(){
   ctx.restore();
 }
 
+/* The envelope hangs over the top of the frame, which is also where the far end
+   of the deck is — and the far end is where boarders come from. So its lower
+   edge is faded out in a cached pass rather than trusting the asset to do it:
+   the ship still frames the shot, but you can always see what is walking at you. */
+let _envCv = null, _envKey = '';
+function envelopeSprite(img, w, h){
+  const key = w + 'x' + h;
+  if (_envCv && _envKey === key) return _envCv;
+  _envKey = key;
+  _envCv = document.createElement('canvas');
+  _envCv.width = Math.max(2, Math.round(w)); _envCv.height = Math.max(2, Math.round(h));
+  const c = _envCv.getContext('2d');
+  c.drawImage(img, 0, 0, _envCv.width, _envCv.height);
+  const g = c.createLinearGradient(0, _envCv.height * 0.42, 0, _envCv.height);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.globalCompositeOperation = 'destination-in';
+  c.fillStyle = g;
+  c.fillRect(0, 0, _envCv.width, _envCv.height);
+  return _envCv;
+}
 function drawEnvelope(){
   const env = Assets.get('env_envelope');
   const w = View.w, h = View.h;
-  if (env){ ctx.drawImage(env, 0, 0, w, h * 0.42); return; }
+  if (env){
+    const eh = h * 0.34;
+    ctx.drawImage(envelopeSprite(env, w, eh), 0, 0, w, eh);
+    return;
+  }
   ctx.save();
   // the underside of our own gas bag, filling the top of the frame
   const eh = h * 0.44;

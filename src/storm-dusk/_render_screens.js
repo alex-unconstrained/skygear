@@ -281,12 +281,18 @@ function drawTitle(){
   brassPanel(px, py, pw, ph, 12*HS, 0.95);
   setFont(Math.round(17*HS), 800, true);
   textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const rows1 = [['W A S D','move the captain'],['MOUSE','aim — you always face the cursor'],
-                 ['LEFT / RIGHT MOUSE','fire skill 1 and 2'],['SPACE / SHIFT','skill 3 and 4 (unlocked later)']];
-  const rows2 = [['E','dash — invulnerable, use it constantly'],
-                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats'],
-                 ['DEFEND','the Boiler amidships. If it dies, you lose.'],
-                 ['DRAFT','a card after every wave. 12 waves to win.']];
+  const auto = !!FEEL.autoAttack;
+  const rows1 = [['W A S D','move the captain'],
+                 ['MOUSE','aim your abilities'],
+                 [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
+                 [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
+  const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
+                 [auto ? 'AUTOMATIC' : 'CLICK',
+                  auto ? 'the captain attacks the nearest boarder herself'
+                       : 'left mouse swings your first skill'],
+                 ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
+                                         : 'the Boiler amidships. If it dies, you lose.'],
+                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
   const draw = (rows, x) => rows.forEach((r, i) => {
     const y = py + 62*HS + i * 38*HS;
     setFont(Math.round(14*HS), 800, true);

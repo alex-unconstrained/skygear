@@ -42,7 +42,7 @@ PRESETS = {
             'feel': { 'simHz': 60, 'inputBuffer': 0, 'killStop': None,
                       'stopRefractory': 0, 'cdScale': 1.0, 'recoilScale': 1.0,
                       'accel': None, 'friction': None, 'dashCd': None,
-                      'camTau': 0.155, 'autoAttack': None },
+                      'camTau': 0.155, 'autoAttack': None, 'keys': None, 'loadout': None },
         },
     },
     'storm-dusk-v3': {
@@ -65,7 +65,7 @@ PRESETS = {
             'feel': { 'simHz': 60, 'inputBuffer': 0, 'killStop': None,
                       'stopRefractory': 0, 'cdScale': 1.0, 'recoilScale': 1.0,
                       'accel': None, 'friction': None, 'dashCd': None,
-                      'camTau': 0.155, 'autoAttack': None },
+                      'camTau': 0.155, 'autoAttack': None, 'keys': None, 'loadout': None },
         },
     },
     'storm-dusk-v4': {
@@ -95,6 +95,20 @@ PRESETS = {
                 # True auto-attack, MOBA-style: the captain picks the nearest
                 # boarder, turns to face it and swings on her own cadence. The
                 # four slots stop being something you mash and become abilities.
+                # With a real auto-attack the left button is free. Standard
+                # ARPG/MOBA hand: two abilities on the mouse, two on Q/E, dash
+                # on space where an action-game player expects to find it.
+                'keys': {
+                    'slots': [
+                        {'label': 'LMB', 'mouse': 0, 'alt': '1'},
+                        {'label': 'RMB', 'mouse': 2, 'alt': '2'},
+                        {'label': 'Q',   'key': 'q', 'alt': '3'},
+                        {'label': 'E',   'key': 'e', 'alt': '4'},
+                    ],
+                    'dash': {'label': 'SPACE', 'key': 'space'},
+                },
+                # mortar on the left button by default
+                'loadout': [['RANGED_AOE', 'FROST'], ['CLOSEHIT', 'EMBER']],
                 'autoAttack': {
                     'range': 195,     # comfortably past a boarder's own reach
                     'dmg': 16,
@@ -129,6 +143,20 @@ PRESETS = {
                 'recoilScale': 0.35,
                 'accel': 3100, 'friction': 2700, 'dashCd': 1.15,
                 'camTau': 0.075,
+                # With a real auto-attack the left button is free. Standard
+                # ARPG/MOBA hand: two abilities on the mouse, two on Q/E, dash
+                # on space where an action-game player expects to find it.
+                'keys': {
+                    'slots': [
+                        {'label': 'LMB', 'mouse': 0, 'alt': '1'},
+                        {'label': 'RMB', 'mouse': 2, 'alt': '2'},
+                        {'label': 'Q',   'key': 'q', 'alt': '3'},
+                        {'label': 'E',   'key': 'e', 'alt': '4'},
+                    ],
+                    'dash': {'label': 'SPACE', 'key': 'space'},
+                },
+                # mortar on the left button by default
+                'loadout': [['RANGED_AOE', 'FROST'], ['CLOSEHIT', 'EMBER']],
                 'autoAttack': {'range': 195, 'dmg': 16, 'cd': 0.55,
                                'arc': 1.2, 'turn': 12},
             },

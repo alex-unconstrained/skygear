@@ -78,11 +78,18 @@ function pushOutWalls(o, r){
 }
 
 /* --- tuning ---------------------------------------------------------------- */
+/* Tuned down hard after the first v5 pass: the allies were doing the work.
+   Crew were arriving 9-at-a-time every 7.5s (~36 alive across a wave) at 52 HP
+   and 9 damage, and three cannons added ~68 dps between them. The lanes held
+   themselves and there was nothing to decide. */
 const LANE_TUNING = {
-  turret: { hp: 620, range: 430, dmg: 26, cd: 1.15, r: 34 },
-  crew:   { hp: 52, dmg: 9, speed: 118, r: 15, reach: 52, windup: 0.35, recover: 0.4,
-            every: 7.5, perWave: 3 },
-  hulk:   { hp: 3200, r: 190 },
+  turret: { hp: 480, range: 400, dmg: 15, cd: 1.45, r: 34 },   // ~10 dps each
+  crew:   { hp: 34, dmg: 5, siege: 22, speed: 118, r: 15, reach: 52,
+            windup: 0.40, recover: 0.5, every: 14, pushEvery: 9, perWave: 2 },
+            // 6 per 14s. `siege` is what they do to the hulk: minions are
+            // supposed to break a nexus, and on the first push wave they walked
+            // to the bow and stood there while the player did all of it.
+  hulk:   { hp: 1500, r: 190 },                                 // was 3200 and unkillable
 };
 
 /* --- turrets --------------------------------------------------------------- */
@@ -172,28 +179,43 @@ function updateCrew(dt){
       if (d < bd){ bd = d; tgt = e; }
     }
     const hasTgt = tgt && bd < 320 * 320;
+    // with the lane clear and their plating open, go break the hulk
+    const H = S.hulk;
+    const siege = !hasTgt && H && !H.dead && H.vulnerable;
     let gx, gy;
     if (hasTgt){ gx = tgt.x; gy = tgt.y; }
+    else if (siege){ gx = H.x + (LANES[c.lane].cx - H.x) * 0.30; gy = H.y; }
     else { gx = LANES[c.lane].cx; gy = LANE_TOP + 60; }   // else push up the lane
 
     if (c.state === 'move'){
       const d = dist(c.x, c.y, gx, gy);
       const a = Math.atan2(gy - c.y, gx - c.x);
       c.facing = angNorm(c.facing + clamp(angDiff(c.facing, a), -8*dt, 8*dt));
-      if (!hasTgt || d > C.reach){
+      const reach = siege ? C.reach + H.r * 0.85 : C.reach;
+      if ((!hasTgt && !siege) || d > reach){
         c.vx = lerp(c.vx, Math.cos(a) * C.speed, 1 - Math.pow(0.004, dt));
         c.vy = lerp(c.vy, Math.sin(a) * C.speed, 1 - Math.pow(0.004, dt));
       } else {
         c.vx *= Math.pow(0.02, dt); c.vy *= Math.pow(0.02, dt);
-        c.state = 'windup'; c.st = C.windup; c.atkAng = a; c.target = tgt;
+        c.state = 'windup'; c.st = C.windup; c.atkAng = a;
+        c.target = tgt; c.siegeing = siege && !hasTgt;
       }
     } else if (c.state === 'windup'){
       c.st -= dt;
       c.vx *= Math.pow(0.05, dt); c.vy *= Math.pow(0.05, dt);
       if (c.st <= 0){
-        const e = c.target;
-        if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
-          hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+        if (c.siegeing){
+          const HH = S.hulk;
+          if (HH && !HH.dead && HH.vulnerable &&
+              dist(c.x, c.y, HH.x, HH.y) < C.reach + HH.r * 1.1){
+            damageHulk(C.siege);
+            pSparks(c.x, c.y - 20, 3, PAL.fireCore, 150, -Math.PI/2, 0.6);
+          }
+        } else {
+          const e = c.target;
+          if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
+            hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+        }
         c.state = 'recover'; c.st = C.recover;
       }
     } else {
@@ -204,7 +226,7 @@ function updateCrew(dt){
 
     c.x += c.vx * dt; c.y += c.vy * dt;
     const p = clampToDeck(c.x, c.y, c.r + 4); c.x = p.x; c.y = p.y;
-    clampToLane(c, c.lane, c.r);
+    if (!siege) clampToLane(c, c.lane, c.r);
     pushOutWalls(c, c.r);
   }
   for (let i = S.crew.length - 1; i >= 0; i--) if (S.crew[i].dead) S.crew.splice(i, 1);
@@ -292,7 +314,13 @@ function updateLanes(dt){
   updateTurrets(dt);
   updateCrew(dt);
   if (S.hulk && S.hulk.flash > 0) S.hulk.flash -= dt;
-  // crew reinforcements arrive on a drumbeat, like minion waves
+  // crew reinforcements arrive on a drumbeat, like minion waves. On a push the
+  // drumbeat quickens — they have the length of the deck to walk before they
+  // reach the hulk, and at the normal cadence the captain breaks it alone.
+  const pushing = S.hulk && !S.hulk.dead && S.hulk.vulnerable;
   S.crewT -= dt;
-  if (S.crewT <= 0){ S.crewT = LANE_TUNING.crew.every; spawnCrewWave(); }
+  if (S.crewT <= 0){
+    S.crewT = pushing ? LANE_TUNING.crew.pushEvery : LANE_TUNING.crew.every;
+    spawnCrewWave();
+  }
 }

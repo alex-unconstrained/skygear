@@ -47,38 +47,26 @@ hiding the thing you defend behind the thing you defend.
 
 v3 clears all 12 waves to victory in a headless run and holds ~82 fps.
 
-> ### ✅ RESOLVED — bake at 49°, render at 41°
+> ### ✅ RESOLVED FOR V5+ — upright billboards, 41° deck projection
 >
-> **Superseded an earlier call in this document.** I first said "keep 40°, stand
-> down the 49° set". That was wrong, and the reason is worth recording: the test
-> varied *engine pitch* against one fixed 40° bake, which could only ever favour
-> the bake being held constant. It also let pitch changes silently re-frame the
-> whole shot, so it was partly comparing composition.
+> The engine pitch remains **0.72 rad / 41°** for readable lane depth. Character
+> and prop billboards use the accepted **10–15°-above-horizontal**, nearly
+> face-on presentation. These are deliberately separate jobs: the renderer
+> projects the floor, while a billboard must remain visually upright.
 >
-> With framing made pitch-invariant and the sets compared as matched pairs, the
-> answer inverts:
->
-> | | |
-> |---|---|
-> | **Asset bake** | **49°** — reads as genuinely looked-down-at. The 40° trial reads near eye-level and sits like a standee. |
-> | **Engine pitch** | **0.72 rad / 41°** — a steeper camera badly compresses the depth *ahead* of the captain, which matters more as the design goes lane-based. |
->
-> Painting slightly steeper than the camera is the right error: figures read as
-> grounded. The reverse is what looks broken. The `production_49deg` work was
-> not wasted — it is the set to continue from.
->
-> Swap and re-judge any time: `?art=40` / `?art=49`, `?pitch=`, `[` and `]`,
-> with both shown in `F3`.
+> The latest direct player comparison and the live V5 lane composition settle
+> the production choice. Literal 40–49° figure bakes read pitched over against
+> the deck. The archived 49° set remains comparison evidence only.
 
 ### What the trial roster taught us about the pipeline
 
 Three findings, all cheap to act on and all worth fixing before 62 more arrive.
 
-**1 · The 40° trial bake was too shallow; the 49° bake is the keeper.**
-The trial assets read closer to 10–15° above horizontal — face straight on, no
-top-of-head, no foreshortening — which sits like a standee on a projected floor.
-The `production_49deg` set reads correctly looked-down-at. Reword §1.4 and §4 to
-describe the 49° pose, and note that the engine renders at 41° deliberately.
+**1 · Upright 10–15° billboard art is the V5+ keeper.**
+The accepted captain and enemies stay readable as standing figures in the live
+lane view. Their near-face-on presentation is intentional: the deck projection
+already supplies the 41° ground perspective. Do not add crown-heavy top views or
+strong body foreshortening to future billboard art.
 
 **2 · Feet anchors vary, and the engine now absorbs it.**
 Measured across the four: feet landed at 79.7%, 85.6%, 88.5% and 88.7% of
@@ -166,9 +154,9 @@ The pipeline is already built and waiting.
 
 | # | Item |
 |---|---|
-| 4.1 | Generate the 66 assets per the visual spec manifest. **External dependency — the long pole.** |
+| 4.1 | Generate the revised 75-image set: the original 66, Furnace Knight back view, and the eight V5 lane additions in `SKYGEAR_V5_LANE_ASSET_AMENDMENT.md`. **External dependency — the long pole.** |
 | 4.2 | Drop files at their spec paths under `assets/`; run with `?assets=1`. The loader already replaces stand-ins **one file at a time**, so this is incremental, not a big-bang swap. |
-| 4.3 | Run the §5 QA checklist per asset — especially the 40° angle and the "reads against `#14121B`" test. |
+| 4.3 | Run the §5 QA checklist per asset — especially the upright 10–15° billboard presentation and the "reads against `#14121B`" test. |
 | 4.4 | Style-drift check every 10 assets against `corsair_front_idle.png`. |
 | 4.5 | Re-tune billboard world-heights (`BILLBOARD_H`) once real sprites land — the stand-ins set the current proportions. |
 

@@ -20,7 +20,7 @@
 const FEEL = Object.assign({
   simHz: 60, inputBuffer: 0, killStop: null, stopRefractory: 0,
   cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
-  camTau: 0.155, autoAttack: null,
+  camTau: 0.155, autoAttack: null, keys: null, loadout: null,
 }, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
 
 const TUNING = {
@@ -778,7 +778,10 @@ function resetGame(){
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
-  S.slots = [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
+  S.slots = FEEL.loadout
+    ? [ newSkill(FEEL.loadout[0][0], FEEL.loadout[0][1]),
+        newSkill(FEEL.loadout[1][0], FEEL.loadout[1][1]), null, null ]
+    : [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
   S.unlockedSlots = 2;
 
   S.wave = 0; S.waveActive = false; S.waveT = 0; S.queue = []; S.loopT = 0;
@@ -1189,7 +1192,20 @@ function castSlot(idx, opt){
   if (st.kind === 'aoe' || st.kind === 'line') addTrauma(0.10);
 
   if (S.mods.residue > 0 && land) spawnField(land.x, land.y, sk.element);
+  // Every shape must be able to bite the hulk. AoE already routes through
+  // damageArea for each shot, so applying the universal splash as well would
+  // double its hulk damage.
+  if (st.kind !== 'aoe')
+    hulkSplash(land, st.dmg * dmgMult * (shots > 1 ? shots * 0.7 : 1));
   return true;
+}
+
+// a shape that lands on or near the hulk hurts it
+function hulkSplash(land, dmg){
+  if (!PRESET.lanes || !land) return;
+  const H = S.hulk;
+  if (!H || H.dead || !H.vulnerable) return;
+  if (dist(land.x, land.y, H.x, H.y) < H.r + 150) damageHulk(dmg);
 }
 
 function spawnField(x, y, elem){
@@ -1290,6 +1306,14 @@ function shapeChain(P, aim, st, sk, mult){
     if (score < best){ best = score; cur = e; }
   }
   if (!cur){
+    // nothing to arc between — but a vulnerable hulk is a perfectly good ground
+    const H = S.hulk;
+    if (PRESET.lanes && H && !H.dead && H.vulnerable &&
+        dist(P.x, P.y, H.x, H.y) < st.seekRange + H.r){
+      fx({ kind:'chain', pts: [{x:P.x, y:P.y}, {x:H.x, y:H.y}], life:0.36,
+           col:E.color, glow:E.glow });
+      return { x: H.x, y: H.y };
+    }
     fx({ kind:'fizzle', x: P.x + Math.cos(aim)*40, y: P.y + Math.sin(aim)*40, life:0.28, col:E.color });
     return null;
   }
@@ -1364,17 +1388,27 @@ function updateRay(dt){
       hitEnemy(e, st.dmg * R.dmgMult, { element: sk.element, ang: aim, knock: st.knock, silent: rnd() > 0.5 });
     }
     if (S.mods.residue > 0 && rnd() < 0.25) spawnField(ex, ey, sk.element);
+    hulkSplash({ x: ex, y: ey }, st.dmg * R.dmgMult);
   }
 }
 
 /* ---------------------------------------------------------------------------
    SYSTEMS — player
 --------------------------------------------------------------------------- */
+/* Bindings are per build. v2/v3 keep the original hand; the auto-attack builds
+   free up the left button, so the mouse carries two abilities and dash moves to
+   space where an action-game player expects it. */
+const KEYS = FEEL.keys || {
+  slots: [{ label:'LMB', mouse:0, alt:'1' }, { label:'RMB', mouse:2, alt:'2' },
+          { label:'SPACE', key:'space', alt:'3' }, { label:'SHIFT', key:'shift', alt:'4' }],
+  dash: { label:'E', key:'e' },
+};
 function slotHeld(i){
-  if (i === 0) return Input.buttons[0] || keyDown('1');
-  if (i === 1) return Input.buttons[2] || keyDown('2');
-  if (i === 2) return keyDown('space') || keyDown('3');
-  if (i === 3) return keyDown('shift') || keyDown('4');
+  const k = KEYS.slots[i];
+  if (!k) return false;
+  if (k.mouse !== undefined && Input.buttons[k.mouse]) return true;
+  if (k.key && keyDown(k.key)) return true;
+  if (k.alt && keyDown(k.alt)) return true;
   return false;
 }
 function dashCdMax(){ return Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - S.mods.dashCdBonus); }
@@ -1432,6 +1466,17 @@ function updatePlayer(dt){
       const d = dist2(P.x, P.y, e.x, e.y);
       if (d < bd){ bd = d; best = e; }
     }
+    if (!best && PRESET.lanes && S.hulk && !S.hulk.dead && S.hulk.vulnerable &&
+        dist(P.x, P.y, S.hulk.x, S.hulk.y) < S.hulk.r + AA.range){
+      if (P.atkCd <= 0 && P.dashT <= 0){
+        P.atkCd = AA.cd; P.atkSwing = 0.18;
+        const a = Math.atan2(S.hulk.y - P.y, S.hulk.x - P.x);
+        damageHulk(AA.dmg);
+        fx({ kind:'arc', x:P.x, y:P.y, a, arc: 52*DEG, r: 92,
+             life: 0.15, col: '#8FA6C9', glow: '#E8E2D2' });
+        SFX.hit();
+      }
+    }
     P.atkTarget = best;
     const want = best ? Math.atan2(best.y - P.y, best.x - P.x) : P.aim;
     P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -AA.turn*dt, AA.turn*dt));
@@ -1440,6 +1485,7 @@ function updatePlayer(dt){
       P.atkSwing = 0.18;
       const a = Math.atan2(best.y - P.y, best.x - P.x);
       hitEnemy(best, AA.dmg, { ang: a, knock: 110 });
+      hulkSplash({ x: P.x + Math.cos(a) * 90, y: P.y + Math.sin(a) * 90 }, AA.dmg);
       const E = ELEMENTS[P.lastElem || 'EMBER'];
       // a sabre flick, not a cleave — it hits one target, so it must not read
       // as a wide AoE sweep or it will be mistaken for the slot-1 ability
@@ -1470,7 +1516,7 @@ function updatePlayer(dt){
   }
   // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
   // would expire in the same step it was set and the dash would never fire
-  if (keyHit('e')) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (keyHit(KEYS.dash.key)) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
   if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
     P.dashBuf = 0;
     P.dashStock--;
@@ -2073,6 +2119,7 @@ function startWave(n){
     if (S.hulk.vulnerable){
       S.banner = { kind:'push', n, t:0, life: 3.0 };
       SFX.bossRoar();
+      S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     }
   }
   S.queue = buildQueue(n);
@@ -2123,7 +2170,13 @@ function updateWave(dt){
       live++;
       if (S.enemies[S.enemies.length-1].type === 'BOSS') S.bossSpawned = true;
     }
-    if (def.loop && S.bossSpawned && S.bossRef){
+    // A push wave ends when their hulk dies, not when the deck clears, so it
+    // MUST keep feeding — this was gated on the boss and stalled wave 4 dead.
+    const loopLive = def.loop && (
+      def.boss ? (S.bossSpawned && S.bossRef)
+      : def.push ? (S.hulk && !S.hulk.dead)
+      : true);
+    if (loopLive){
       S.loopT += dt;
       if (S.loopT >= def.loop.every){
         S.loopT = 0;

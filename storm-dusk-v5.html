@@ -45,6 +45,44 @@ const PRESET = {
     "friction": 2700,
     "dashCd": 1.15,
     "camTau": 0.075,
+    "keys": {
+      "slots": [
+        {
+          "label": "LMB",
+          "mouse": 0,
+          "alt": "1"
+        },
+        {
+          "label": "RMB",
+          "mouse": 2,
+          "alt": "2"
+        },
+        {
+          "label": "Q",
+          "key": "q",
+          "alt": "3"
+        },
+        {
+          "label": "E",
+          "key": "e",
+          "alt": "4"
+        }
+      ],
+      "dash": {
+        "label": "SPACE",
+        "key": "space"
+      }
+    },
+    "loadout": [
+      [
+        "RANGED_AOE",
+        "FROST"
+      ],
+      [
+        "CLOSEHIT",
+        "EMBER"
+      ]
+    ],
     "autoAttack": {
       "range": 195,
       "dmg": 16,
@@ -77,7 +115,7 @@ const PRESET = {
 const FEEL = Object.assign({
   simHz: 60, inputBuffer: 0, killStop: null, stopRefractory: 0,
   cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
-  camTau: 0.155, autoAttack: null,
+  camTau: 0.155, autoAttack: null, keys: null, loadout: null,
 }, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
 
 const TUNING = {
@@ -835,7 +873,10 @@ function resetGame(){
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
-  S.slots = [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
+  S.slots = FEEL.loadout
+    ? [ newSkill(FEEL.loadout[0][0], FEEL.loadout[0][1]),
+        newSkill(FEEL.loadout[1][0], FEEL.loadout[1][1]), null, null ]
+    : [ newSkill('CLOSEHIT', 'EMBER'), newSkill('RANGED_AOE', 'FROST'), null, null ];
   S.unlockedSlots = 2;
 
   S.wave = 0; S.waveActive = false; S.waveT = 0; S.queue = []; S.loopT = 0;
@@ -1246,7 +1287,19 @@ function castSlot(idx, opt){
   if (st.kind === 'aoe' || st.kind === 'line') addTrauma(0.10);
 
   if (S.mods.residue > 0 && land) spawnField(land.x, land.y, sk.element);
+  // Every shape must be able to bite the hulk, not just the one that happens
+  // to route through damageArea. `land` is where the shape resolved, so this
+  // works for arc, cone, line, chain and aoe alike.
+  hulkSplash(land, st.dmg * dmgMult * (shots > 1 ? shots * 0.7 : 1));
   return true;
+}
+
+// a shape that lands on or near the hulk hurts it
+function hulkSplash(land, dmg){
+  if (!PRESET.lanes || !land) return;
+  const H = S.hulk;
+  if (!H || H.dead || !H.vulnerable) return;
+  if (dist(land.x, land.y, H.x, H.y) < H.r + 150) damageHulk(dmg);
 }
 
 function spawnField(x, y, elem){
@@ -1347,6 +1400,14 @@ function shapeChain(P, aim, st, sk, mult){
     if (score < best){ best = score; cur = e; }
   }
   if (!cur){
+    // nothing to arc between — but a vulnerable hulk is a perfectly good ground
+    const H = S.hulk;
+    if (PRESET.lanes && H && !H.dead && H.vulnerable &&
+        dist(P.x, P.y, H.x, H.y) < st.seekRange + H.r){
+      fx({ kind:'chain', pts: [{x:P.x, y:P.y}, {x:H.x, y:H.y}], life:0.36,
+           col:E.color, glow:E.glow });
+      return { x: H.x, y: H.y };
+    }
     fx({ kind:'fizzle', x: P.x + Math.cos(aim)*40, y: P.y + Math.sin(aim)*40, life:0.28, col:E.color });
     return null;
   }
@@ -1421,17 +1482,27 @@ function updateRay(dt){
       hitEnemy(e, st.dmg * R.dmgMult, { element: sk.element, ang: aim, knock: st.knock, silent: rnd() > 0.5 });
     }
     if (S.mods.residue > 0 && rnd() < 0.25) spawnField(ex, ey, sk.element);
+    hulkSplash({ x: ex, y: ey }, st.dmg * R.dmgMult);
   }
 }
 
 /* ---------------------------------------------------------------------------
    SYSTEMS — player
 --------------------------------------------------------------------------- */
+/* Bindings are per build. v2/v3 keep the original hand; the auto-attack builds
+   free up the left button, so the mouse carries two abilities and dash moves to
+   space where an action-game player expects it. */
+const KEYS = FEEL.keys || {
+  slots: [{ label:'LMB', mouse:0, alt:'1' }, { label:'RMB', mouse:2, alt:'2' },
+          { label:'SPACE', key:'space', alt:'3' }, { label:'SHIFT', key:'shift', alt:'4' }],
+  dash: { label:'E', key:'e' },
+};
 function slotHeld(i){
-  if (i === 0) return Input.buttons[0] || keyDown('1');
-  if (i === 1) return Input.buttons[2] || keyDown('2');
-  if (i === 2) return keyDown('space') || keyDown('3');
-  if (i === 3) return keyDown('shift') || keyDown('4');
+  const k = KEYS.slots[i];
+  if (!k) return false;
+  if (k.mouse !== undefined && Input.buttons[k.mouse]) return true;
+  if (k.key && keyDown(k.key)) return true;
+  if (k.alt && keyDown(k.alt)) return true;
   return false;
 }
 function dashCdMax(){ return Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - S.mods.dashCdBonus); }
@@ -1489,6 +1560,17 @@ function updatePlayer(dt){
       const d = dist2(P.x, P.y, e.x, e.y);
       if (d < bd){ bd = d; best = e; }
     }
+    if (!best && PRESET.lanes && S.hulk && !S.hulk.dead && S.hulk.vulnerable &&
+        dist(P.x, P.y, S.hulk.x, S.hulk.y) < S.hulk.r + AA.range){
+      if (P.atkCd <= 0 && P.dashT <= 0){
+        P.atkCd = AA.cd; P.atkSwing = 0.18;
+        const a = Math.atan2(S.hulk.y - P.y, S.hulk.x - P.x);
+        damageHulk(AA.dmg);
+        fx({ kind:'arc', x:P.x, y:P.y, a, arc: 52*DEG, r: 92,
+             life: 0.15, col: '#8FA6C9', glow: '#E8E2D2' });
+        SFX.hit();
+      }
+    }
     P.atkTarget = best;
     const want = best ? Math.atan2(best.y - P.y, best.x - P.x) : P.aim;
     P.facing = angNorm(P.facing + clamp(angDiff(P.facing, want), -AA.turn*dt, AA.turn*dt));
@@ -1497,6 +1579,7 @@ function updatePlayer(dt){
       P.atkSwing = 0.18;
       const a = Math.atan2(best.y - P.y, best.x - P.x);
       hitEnemy(best, AA.dmg, { ang: a, knock: 110 });
+      hulkSplash({ x: P.x + Math.cos(a) * 90, y: P.y + Math.sin(a) * 90 }, AA.dmg);
       const E = ELEMENTS[P.lastElem || 'EMBER'];
       // a sabre flick, not a cleave — it hits one target, so it must not read
       // as a wide AoE sweep or it will be mistaken for the slot-1 ability
@@ -1527,7 +1610,7 @@ function updatePlayer(dt){
   }
   // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
   // would expire in the same step it was set and the dash would never fire
-  if (keyHit('e')) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (keyHit(KEYS.dash.key)) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
   if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
     P.dashBuf = 0;
     P.dashStock--;
@@ -2130,6 +2213,7 @@ function startWave(n){
     if (S.hulk.vulnerable){
       S.banner = { kind:'push', n, t:0, life: 3.0 };
       SFX.bossRoar();
+      S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     }
   }
   S.queue = buildQueue(n);
@@ -2180,7 +2264,13 @@ function updateWave(dt){
       live++;
       if (S.enemies[S.enemies.length-1].type === 'BOSS') S.bossSpawned = true;
     }
-    if (def.loop && S.bossSpawned && S.bossRef){
+    // A push wave ends when their hulk dies, not when the deck clears, so it
+    // MUST keep feeding — this was gated on the boss and stalled wave 4 dead.
+    const loopLive = def.loop && (
+      def.boss ? (S.bossSpawned && S.bossRef)
+      : def.push ? (S.hulk && !S.hulk.dead)
+      : true);
+    if (loopLive){
       S.loopT += dt;
       if (S.loopT >= def.loop.every){
         S.loopT = 0;
@@ -2502,11 +2592,18 @@ function pushOutWalls(o, r){
 }
 
 /* --- tuning ---------------------------------------------------------------- */
+/* Tuned down hard after the first v5 pass: the allies were doing the work.
+   Crew were arriving 9-at-a-time every 7.5s (~36 alive across a wave) at 52 HP
+   and 9 damage, and three cannons added ~68 dps between them. The lanes held
+   themselves and there was nothing to decide. */
 const LANE_TUNING = {
-  turret: { hp: 620, range: 430, dmg: 26, cd: 1.15, r: 34 },
-  crew:   { hp: 52, dmg: 9, speed: 118, r: 15, reach: 52, windup: 0.35, recover: 0.4,
-            every: 7.5, perWave: 3 },
-  hulk:   { hp: 3200, r: 190 },
+  turret: { hp: 480, range: 400, dmg: 15, cd: 1.45, r: 34 },   // ~10 dps each
+  crew:   { hp: 34, dmg: 5, siege: 22, speed: 118, r: 15, reach: 52,
+            windup: 0.40, recover: 0.5, every: 14, pushEvery: 9, perWave: 2 },
+            // 6 per 14s. `siege` is what they do to the hulk: minions are
+            // supposed to break a nexus, and on the first push wave they walked
+            // to the bow and stood there while the player did all of it.
+  hulk:   { hp: 1500, r: 190 },                                 // was 3200 and unkillable
 };
 
 /* --- turrets --------------------------------------------------------------- */
@@ -2596,28 +2693,43 @@ function updateCrew(dt){
       if (d < bd){ bd = d; tgt = e; }
     }
     const hasTgt = tgt && bd < 320 * 320;
+    // with the lane clear and their plating open, go break the hulk
+    const H = S.hulk;
+    const siege = !hasTgt && H && !H.dead && H.vulnerable;
     let gx, gy;
     if (hasTgt){ gx = tgt.x; gy = tgt.y; }
+    else if (siege){ gx = H.x + (LANES[c.lane].cx - H.x) * 0.30; gy = H.y; }
     else { gx = LANES[c.lane].cx; gy = LANE_TOP + 60; }   // else push up the lane
 
     if (c.state === 'move'){
       const d = dist(c.x, c.y, gx, gy);
       const a = Math.atan2(gy - c.y, gx - c.x);
       c.facing = angNorm(c.facing + clamp(angDiff(c.facing, a), -8*dt, 8*dt));
-      if (!hasTgt || d > C.reach){
+      const reach = siege ? C.reach + H.r * 0.85 : C.reach;
+      if ((!hasTgt && !siege) || d > reach){
         c.vx = lerp(c.vx, Math.cos(a) * C.speed, 1 - Math.pow(0.004, dt));
         c.vy = lerp(c.vy, Math.sin(a) * C.speed, 1 - Math.pow(0.004, dt));
       } else {
         c.vx *= Math.pow(0.02, dt); c.vy *= Math.pow(0.02, dt);
-        c.state = 'windup'; c.st = C.windup; c.atkAng = a; c.target = tgt;
+        c.state = 'windup'; c.st = C.windup; c.atkAng = a;
+        c.target = tgt; c.siegeing = siege && !hasTgt;
       }
     } else if (c.state === 'windup'){
       c.st -= dt;
       c.vx *= Math.pow(0.05, dt); c.vy *= Math.pow(0.05, dt);
       if (c.st <= 0){
-        const e = c.target;
-        if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
-          hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+        if (c.siegeing){
+          const HH = S.hulk;
+          if (HH && !HH.dead && HH.vulnerable &&
+              dist(c.x, c.y, HH.x, HH.y) < C.reach + HH.r * 1.1){
+            damageHulk(C.siege);
+            pSparks(c.x, c.y - 20, 3, PAL.fireCore, 150, -Math.PI/2, 0.6);
+          }
+        } else {
+          const e = c.target;
+          if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
+            hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+        }
         c.state = 'recover'; c.st = C.recover;
       }
     } else {
@@ -2628,7 +2740,7 @@ function updateCrew(dt){
 
     c.x += c.vx * dt; c.y += c.vy * dt;
     const p = clampToDeck(c.x, c.y, c.r + 4); c.x = p.x; c.y = p.y;
-    clampToLane(c, c.lane, c.r);
+    if (!siege) clampToLane(c, c.lane, c.r);
     pushOutWalls(c, c.r);
   }
   for (let i = S.crew.length - 1; i >= 0; i--) if (S.crew[i].dead) S.crew.splice(i, 1);
@@ -2716,9 +2828,15 @@ function updateLanes(dt){
   updateTurrets(dt);
   updateCrew(dt);
   if (S.hulk && S.hulk.flash > 0) S.hulk.flash -= dt;
-  // crew reinforcements arrive on a drumbeat, like minion waves
+  // crew reinforcements arrive on a drumbeat, like minion waves. On a push the
+  // drumbeat quickens — they have the length of the deck to walk before they
+  // reach the hulk, and at the normal cadence the captain breaks it alone.
+  const pushing = S.hulk && !S.hulk.dead && S.hulk.vulnerable;
   S.crewT -= dt;
-  if (S.crewT <= 0){ S.crewT = LANE_TUNING.crew.every; spawnCrewWave(); }
+  if (S.crewT <= 0){
+    S.crewT = pushing ? LANE_TUNING.crew.pushEvery : LANE_TUNING.crew.every;
+    spawnCrewWave();
+  }
 }
 
 
@@ -3053,6 +3171,7 @@ const ASSET_MANIFEST = {
   GUNNER_front_idle:     { file:'assets/enemies/drone_front_idle.png',       w:448, h:448 },
   GUNNER_front_attack:   { file:'assets/enemies/drone_front_attack.png',     w:448, h:448 },
   ARMORED_front_idle:    { file:'assets/enemies/furnace_knight_front_idle.png',   w:640, h:640 },
+  ARMORED_back_idle:     { file:'assets/enemies/furnace_knight_back_idle.png',    w:640, h:640 },
   ARMORED_front_attack:  { file:'assets/enemies/furnace_knight_front_attack.png', w:640, h:640 },
   BOSS_front_idle:       { file:'assets/enemies/colossus_front_idle.png',    w:1024, h:1024 },
   BOSS_back_idle:        { file:'assets/enemies/colossus_back_idle.png',     w:1024, h:1024 },
@@ -3155,17 +3274,16 @@ function measureSprite(img){
 }
 
 const Assets = {
-  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: '40', base: 'assets/',
+  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: 'production', base: 'assets/',
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
-    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q);
-    // ?art=49 swaps the whole set for the 49-degree bake, so the camera angle
-    // can be judged as a MATCHED PAIR (art and engine at the same angle)
-    // rather than by varying the engine against one fixed bake.
     const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
-    this.set = am ? am[1] : '40';
-    this.base = this.set === '40' ? 'assets/' : 'assets-' + this.set + '/';
+    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q) || !!am;
+    // V5+ production art is the upright billboard set under assets/. The
+    // archived ?art=49 set remains available only for explicit comparison.
+    this.set = am ? am[1] : 'production';
+    this.base = this.set === '49' ? 'assets-49/' : 'assets/';
     const keys = Object.keys(ASSET_MANIFEST);
     this.total = keys.length;
     if (!this.enabled) return;
@@ -3776,10 +3894,35 @@ function drawBowPiece(){
   ctx.restore();
 }
 
+/* The envelope hangs over the top of the frame, which is also where the far end
+   of the deck is — and the far end is where boarders come from. So its lower
+   edge is faded out in a cached pass rather than trusting the asset to do it:
+   the ship still frames the shot, but you can always see what is walking at you. */
+let _envCv = null, _envKey = '';
+function envelopeSprite(img, w, h){
+  const key = w + 'x' + h;
+  if (_envCv && _envKey === key) return _envCv;
+  _envKey = key;
+  _envCv = document.createElement('canvas');
+  _envCv.width = Math.max(2, Math.round(w)); _envCv.height = Math.max(2, Math.round(h));
+  const c = _envCv.getContext('2d');
+  c.drawImage(img, 0, 0, _envCv.width, _envCv.height);
+  const g = c.createLinearGradient(0, _envCv.height * 0.42, 0, _envCv.height);
+  g.addColorStop(0, 'rgba(0,0,0,1)');
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.globalCompositeOperation = 'destination-in';
+  c.fillStyle = g;
+  c.fillRect(0, 0, _envCv.width, _envCv.height);
+  return _envCv;
+}
 function drawEnvelope(){
   const env = Assets.get('env_envelope');
   const w = View.w, h = View.h;
-  if (env){ ctx.drawImage(env, 0, 0, w, h * 0.42); return; }
+  if (env){
+    const eh = h * 0.34;
+    ctx.drawImage(envelopeSprite(env, w, eh), 0, 0, w, eh);
+    return;
+  }
   ctx.save();
   // the underside of our own gas bag, filling the top of the frame
   const eh = h * 0.44;
@@ -5312,7 +5455,7 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
   ctx.drawImage(cn, cx - half, cy - half);
 }
 
-const SLOT_KEYS = ['LMB', 'RMB', 'SPACE', 'SHIFT'];
+const SLOT_KEYS = KEYS.slots.map(function(k){ return k.label; });
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
 /* The auto-attack has no key, but it still needs to be legible: you should be
@@ -5483,7 +5626,7 @@ function drawHealthPanel(){
 
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
-  textOut('DASH [E]', bx, py, '#8B8296', null, 0, 'left');
+  textOut('DASH [' + KEYS.dash.label + ']', bx, py, '#8B8296', null, 0, 'left');
   for (let i = 0; i < S.mods.dashCharges; i++){
     const px = bx + 62*HS + i * 22*HS;
     const filled = i < P.dashStock;
@@ -5637,8 +5780,10 @@ function drawHints(){
   const a = clamp(S.hintT / 2.5, 0, 1);
   ctx.save();
   ctx.globalAlpha = a;
-  const rows = [['W A S D','move'],['MOUSE','aim'],['E','dash — invulnerable'],
-                ['LMB / RMB','fire your two skills']];
+  const rows = [['W A S D','move'],['MOUSE','aim'],
+                [KEYS.dash.label,'dash — invulnerable'],
+                [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'your two abilities'],
+                ['AUTO','the captain attacks by herself']];
   const pw = 234*HS, ph = 30*HS + rows.length * 26*HS;
   const px = 20*HS, py = 120*HS;
   brassPanel(px, py, pw, ph, 9*HS, 0.92 * a);
@@ -6044,12 +6189,18 @@ function drawTitle(){
   brassPanel(px, py, pw, ph, 12*HS, 0.95);
   setFont(Math.round(17*HS), 800, true);
   textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const rows1 = [['W A S D','move the captain'],['MOUSE','aim — you always face the cursor'],
-                 ['LEFT / RIGHT MOUSE','fire skill 1 and 2'],['SPACE / SHIFT','skill 3 and 4 (unlocked later)']];
-  const rows2 = [['E','dash — invulnerable, use it constantly'],
-                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats'],
-                 ['DEFEND','the Boiler amidships. If it dies, you lose.'],
-                 ['DRAFT','a card after every wave. 12 waves to win.']];
+  const auto = !!FEEL.autoAttack;
+  const rows1 = [['W A S D','move the captain'],
+                 ['MOUSE','aim your abilities'],
+                 [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
+                 [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
+  const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
+                 [auto ? 'AUTOMATIC' : 'CLICK',
+                  auto ? 'the captain attacks the nearest boarder herself'
+                       : 'left mouse swings your first skill'],
+                 ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
+                                         : 'the Boiler amidships. If it dies, you lose.'],
+                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
   const draw = (rows, x) => rows.forEach((r, i) => {
     const y = py + 62*HS + i * 38*HS;
     setFont(Math.round(14*HS), 800, true);

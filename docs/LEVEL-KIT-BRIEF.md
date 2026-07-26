@@ -8,24 +8,20 @@ palette and lighting still come from `skygear-visual-asset-spec-v1.md`.
 
 ---
 
-## Camera bake — CORRECTED
+## Camera rule — V5+ production lock
 
-**Generate at 49°, render at 41°.** These are deliberately different and the
-combination was tested as a matched set in engine.
+**Project the deck at 41°; paint character and prop billboards upright.**
 
 | | |
 |---|---|
-| **Asset bake** | **49°** — the `production_49deg` set. It reads as genuinely looked-down-at: crown of the head visible, shoulders foreshortened, boots seen from above. The 40° trial set reads nearly eye-level and sits like a standee. |
-| **Engine pitch** | **0.72 rad (41°)** — a steeper camera compresses the depth *ahead* of the captain badly, which matters more now the design is going lane-based. You need to see down your lane. |
+| **Billboard presentation** | **10–15° above horizontal** — upright and nearly face-on, matching the accepted captain and enemy anchors. No crown-heavy top view or strong body foreshortening. |
+| **Engine pitch** | **0.72 rad (41°)** — this preserves readable depth down the V5 lanes. The engine supplies ground-plane perspective separately. |
 
-Painting a touch steeper than the camera is the right error to make: figures
-read as grounded. The reverse — eye-level art on a steep floor — is what looks
-broken. My earlier "stand down the 49° set" call was wrong; it came from a test
-that varied engine pitch against one fixed bake, which could only ever favour
-the bake it was holding constant.
-
-Re-check any time: `?art=40` / `?art=49` swaps the set, `?pitch=` or the `[` `]`
-keys move the camera, and `F3` shows both.
+The latest direct player comparison and the live V5 lane composition decide the
+pair. A literal 40–49° character bake visually pitches the figure over against
+the projected floor. Props that behave as billboards follow the same upright
+rule; screen-space layers remain flat and circular ground art remains dead
+top-down. The archived 49° set is comparison-only, not production.
 
 ---
 

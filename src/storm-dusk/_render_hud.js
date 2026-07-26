@@ -92,7 +92,7 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
   ctx.drawImage(cn, cx - half, cy - half);
 }
 
-const SLOT_KEYS = ['LMB', 'RMB', 'SPACE', 'SHIFT'];
+const SLOT_KEYS = KEYS.slots.map(function(k){ return k.label; });
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
 /* The auto-attack has no key, but it still needs to be legible: you should be
@@ -263,7 +263,7 @@ function drawHealthPanel(){
 
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
-  textOut('DASH [E]', bx, py, '#8B8296', null, 0, 'left');
+  textOut('DASH [' + KEYS.dash.label + ']', bx, py, '#8B8296', null, 0, 'left');
   for (let i = 0; i < S.mods.dashCharges; i++){
     const px = bx + 62*HS + i * 22*HS;
     const filled = i < P.dashStock;
@@ -417,8 +417,10 @@ function drawHints(){
   const a = clamp(S.hintT / 2.5, 0, 1);
   ctx.save();
   ctx.globalAlpha = a;
-  const rows = [['W A S D','move'],['MOUSE','aim'],['E','dash — invulnerable'],
-                ['LMB / RMB','fire your two skills']];
+  const rows = [['W A S D','move'],['MOUSE','aim'],
+                [KEYS.dash.label,'dash — invulnerable'],
+                [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'your two abilities'],
+                ['AUTO','the captain attacks by herself']];
   const pw = 234*HS, ph = 30*HS + rows.length * 26*HS;
   const px = 20*HS, py = 120*HS;
   brassPanel(px, py, pw, ph, 9*HS, 0.92 * a);

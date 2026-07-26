@@ -55,11 +55,11 @@ roughly a third of the deck behind it, including the far side of the objective
 that boarders attack. **v3** answers that with a see-through pass, a follow
 camera, a longer deck and a steeper pitch.
 
-**Camera bake: settled at 40°.** The first four trial assets were judged in
-engine and 41° won — the steeper 49° experiment was only ever compensating for
-occlusion, which the see-through pass now fixes properly. The remaining 62
-assets are unblocked at the briefed angle. Details and the three pipeline
-findings are in **[docs/ROADMAP.md](docs/ROADMAP.md)**.
+**V5+ camera rule: project at 41°, paint billboards upright.** The engine deck
+stays at `0.72 rad / 41°`, while character and prop billboards use the
+live-approved, nearly face-on `10–15°` presentation. Do not bake the engine pitch
+literally into sprites: the 49° comparison reads pitched over in the lane view.
+Details and the pipeline findings are in **[docs/ROADMAP.md](docs/ROADMAP.md)**.
 
 Run with art: `storm-dusk-v3.html?assets=1` (needs a server — browsers block
 `file://` image reads). Compare angles live with `?pitch=0.72` or the `[` `]`

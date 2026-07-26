@@ -20,6 +20,7 @@ const ASSET_MANIFEST = {
   GUNNER_front_idle:     { file:'assets/enemies/drone_front_idle.png',       w:448, h:448 },
   GUNNER_front_attack:   { file:'assets/enemies/drone_front_attack.png',     w:448, h:448 },
   ARMORED_front_idle:    { file:'assets/enemies/furnace_knight_front_idle.png',   w:640, h:640 },
+  ARMORED_back_idle:     { file:'assets/enemies/furnace_knight_back_idle.png',    w:640, h:640 },
   ARMORED_front_attack:  { file:'assets/enemies/furnace_knight_front_attack.png', w:640, h:640 },
   BOSS_front_idle:       { file:'assets/enemies/colossus_front_idle.png',    w:1024, h:1024 },
   BOSS_back_idle:        { file:'assets/enemies/colossus_back_idle.png',     w:1024, h:1024 },
@@ -122,17 +123,16 @@ function measureSprite(img){
 }
 
 const Assets = {
-  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: '40', base: 'assets/',
+  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: 'production', base: 'assets/',
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
-    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q);
-    // ?art=49 swaps the whole set for the 49-degree bake, so the camera angle
-    // can be judged as a MATCHED PAIR (art and engine at the same angle)
-    // rather than by varying the engine against one fixed bake.
     const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
-    this.set = am ? am[1] : '40';
-    this.base = this.set === '40' ? 'assets/' : 'assets-' + this.set + '/';
+    this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q) || !!am;
+    // V5+ production art is the upright billboard set under assets/. The
+    // archived ?art=49 set remains available only for explicit comparison.
+    this.set = am ? am[1] : 'production';
+    this.base = this.set === '49' ? 'assets-49/' : 'assets/';
     const keys = Object.keys(ASSET_MANIFEST);
     this.total = keys.length;
     if (!this.enabled) return;

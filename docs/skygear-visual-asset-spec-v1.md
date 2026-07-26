@@ -65,7 +65,7 @@ Gameplay / VFX (the "pop" colours — use nowhere else):
 
 ### 1.4 Master Style Block — prepend to every generation prompt
 
-> Dark fairytale steampunk game asset, hand-painted 2D style, flat colour fields with painterly edges, bold near-black ink outlines (#0D0B12) about 2–3% of asset height, chibi-adjacent proportions where characters appear, two-source lighting: cool steel-blue moonlight rim from upper-left (#8FA6C9) and warm amber lantern glow from lower-right (#FFB347), muted dark base tones that read against a #14121B background, saturated accents only where specified, no photorealism, no soft airbrushed gradients, no baked-in drop shadow, no ground plane or contact shadow under the subject, fully transparent background, single subject centered with 8% transparent padding on all sides.
+> Dark fairytale steampunk game asset, hand-painted 2D style, flat colour fields with painterly edges, bold near-black ink outlines (#0D0B12) about 2–3% of asset height, chibi-adjacent proportions where characters appear, billboard pose lock for characters and props: upright and nearly face-on, viewed only subtly from above at roughly 10–15 degrees above horizontal, two-source lighting: cool steel-blue moonlight rim from upper-left (#8FA6C9) and warm amber lantern glow from lower-right (#FFB347), muted dark base tones that read against a #14121B background, saturated accents only where specified, no photorealism, no soft airbrushed gradients, no baked-in drop shadow, no ground plane or contact shadow under the subject, fully transparent background, single subject centered with 8% transparent padding on all sides.
 
 ---
 
@@ -73,7 +73,7 @@ Gameplay / VFX (the "pop" colours — use nowhere else):
 
 The engine projects a flat ground plane through a fixed-yaw pinhole camera (pitch ≈ 0.72 rad / ~41°, no rotation, no zoom). Entities are 2D billboard sprites scaled by depth and sorted far-to-near. Canvas 2D can do **affine** transforms only — it can uniformly/non-uniformly scale, rotate, and translate an image, but it cannot perspective-warp one. These rules follow:
 
-1. **Baked-in viewing angle: high three-quarter.** Characters and props are painted as seen from ~40° above horizontal. For characters you see the top of the head and shoulders foreshortening the body; for props you see their top surface. Every asset in the game shares this exact angle. An asset painted at eye level or top-down will look broken in-engine and must be regenerated.
+1. **Billboard presentation: upright, subtly elevated.** Characters and prop billboards are painted nearly face-on, viewed only subtly from above at roughly 10–15° above horizontal. Avoid crown-heavy top views and strong shoulder/body foreshortening. The engine projects the deck separately at ~41°; literally baking that pitch into a billboard makes the subject read pitched over. Screen-space layers stay flat and ground circles remain dead top-down.
 2. **Two facings per character, mirrored in code.** Each character gets a **front-quarter** view (facing toward camera-lower-LEFT) and a **back-quarter** view (facing away, toward upper-LEFT). The engine mirrors horizontally for right-facing. Consequence: **no text, and no strongly asymmetric features** (eyepatch, shoulder cannon) unless the asset owner accepts them flipping sides.
 3. **No sprite sheets, no animation frames.** Image models can't hold frame-to-frame consistency, and the engine animates in code (bob, tilt, squash-and-stretch, flash). Each character = static poses only: **idle** (both facings) and **attack** (front-quarter only). Three images per character, total.
 4. **Feet on the anchor line.** The character's ground contact point sits at bottom-center of the canvas (above the 8% padding). The engine positions and shadows sprites from that anchor. No baked contact shadow — the engine draws a soft ellipse shadow itself.
@@ -113,9 +113,9 @@ The engine projects a flat ground plane through a fixed-yaw pinhole camera (pitc
 **H1 — Sky-Corsair (player character).** Chibi steampunk duellist: long weathered teal-lined greatcoat, brass-buckled harness, heavy gauntlet with pressure gauge, aviator goggles pushed up into wind-blown hair, sabre with a gear-toothed guard.
 
 - `heroes/corsair_front_idle.png` — 512×512
-  > [Master Style Block] + Chibi steampunk sky-corsair hero, 2.5 heads tall, high three-quarter view from 40 degrees above, facing toward camera lower-left, relaxed ready stance with sabre held low, [FLAVOUR: weathered dark greatcoat with oxidised-copper (#3E8F83) lining, brass buckles, goggles pushed up, heavy brass gauntlet with small pressure gauge], cool moonlight rim on the upper-left of the silhouette, warm amber underlight from lower-right, heroic and confident, feet together at bottom-center anchor.
+  > [Master Style Block] + Chibi steampunk sky-corsair hero, 2.5 heads tall, upright billboard presentation viewed only subtly from above, roughly 10–15 degrees above horizontal, facing toward camera lower-left, relaxed ready stance with sabre held low, [FLAVOUR: weathered dark greatcoat with oxidised-copper (#3E8F83) lining, brass buckles, goggles pushed up, heavy brass gauntlet with small pressure gauge], cool moonlight rim on the upper-left of the silhouette, warm amber underlight from lower-right, heroic and confident, feet together at bottom-center anchor.
 - `heroes/corsair_back_idle.png` — 512×512
-  > Same character, same style block, viewed from behind at the same 40-degree high angle, facing away toward upper-left, coat and hair pushed by wind, sabre visible at hip.
+  > Same character, same style block, viewed from behind with the same upright 10–15-degree billboard presentation, facing away toward upper-left, coat and hair pushed by wind, sabre visible at hip.
 - `heroes/corsair_front_attack.png` — 512×512
   > Same character mid horizontal sabre slash, exaggerated squash-and-stretch action pose, coat flaring, facing camera lower-left, no motion-trail VFX baked in (engine adds the teal arc).
 
@@ -125,7 +125,7 @@ Shared enemy rule: enemies skew **iron/gunmetal + ember-orange furnace glow** so
 
 **E1 — Boarding Automaton (melee grunt, the "forty converging" horde body).**
 - `enemies/automaton_front_idle.png` · `enemies/automaton_back_idle.png` · `enemies/automaton_front_attack.png` — 512×512 each
-  > [Master Style Block] + Chibi clockwork boarding automaton, squat riveted gunmetal (#4A4A55) body, single glowing ember-orange (#FF7A2F) eye-lens, exposed brass gear heart in chest, hook-blade arms, steam wisps at joints, high three-quarter view from 40 degrees above, facing camera lower-left [back variant: facing away upper-left; attack variant: both hook-blades raised mid-lunge], menacing but toylike, feet at bottom-center anchor.
+  > [Master Style Block] + Chibi clockwork boarding automaton, squat riveted gunmetal (#4A4A55) body, single glowing ember-orange (#FF7A2F) eye-lens, exposed brass gear heart in chest, hook-blade arms, steam wisps at joints, upright billboard presentation viewed only subtly from above, roughly 10–15 degrees above horizontal, facing camera lower-left [back variant: facing away upper-left; attack variant: both hook-blades raised mid-lunge], menacing but toylike, feet at bottom-center anchor.
 
 **E2 — Cog-Gremlin (fast swarmer).**
 - `enemies/gremlin_front_idle.png` · `enemies/gremlin_front_attack.png` — 384×384
@@ -146,12 +146,12 @@ Shared enemy rule: enemies skew **iron/gunmetal + ember-orange furnace glow** so
 
 **E6 — Boss: The Brass Colossus.**
 - `enemies/colossus_front_idle.png` · `enemies/colossus_back_idle.png` · `enemies/colossus_front_attack.png` — 1024×1024
-  > Colossal four-armed brass-and-iron automaton the size of six grunts, cathedral of pipes and gauges for a torso, furnace maw, two arms ending in cannon barrels and two in fists, commanding wide stance, same chibi head-heavy proportion pushed to imposing scale, same 40-degree high angle. Attack: all four arms spread, maw blazing.
+  > Colossal four-armed brass-and-iron automaton the size of six grunts, cathedral of pipes and gauges for a torso, furnace maw, two arms ending in cannon barrels and two in fists, commanding wide stance, same chibi head-heavy proportion pushed to imposing scale, same upright 10–15-degree billboard presentation. Attack: all four arms spread, maw blazing.
 - `props/colossus_wreck.png` — 1024×768 — the boss collapsed as a smoking deck wreck, for the post-fight arena.
 
 ### 4.3 Deck props (billboards, occluders in the painter's sort)
 
-All at the same 40° high three-quarter angle, lit by the standard two sources, anchored at bottom-center. These are the objects the player weaves between, so silhouettes must stay readable at 30% scale.
+All use the same upright 10–15° billboard presentation, standard two-source lighting, and bottom-center anchor. These are the objects the player weaves between, so silhouettes must stay readable at 30% scale.
 
 | File | Size | Prompt core (append to Master Style Block) |
 |---|---|---|
@@ -237,7 +237,7 @@ Icons are read at 40–64 px: one bold symbol, no interior detail smaller than 1
 ## §5 · Per-Asset QA Checklist (run before accepting any image)
 
 1. Reads correctly against `#14121B` — silhouette clear, nothing lost in darkness, nothing glowing that shouldn't.
-2. Viewing angle matches the 40° high three-quarter standard (top surfaces visible; not eye-level, not top-down) — **except** §4.5 ground circles (dead top-down) and §4.4 layers (flat).
+2. Characters and prop billboards match the upright 10–15° production anchors: nearly face-on, subtly elevated, with no crown-heavy top view or strong body foreshortening — **except** §4.5 ground circles (dead top-down) and §4.4 layers (flat).
 3. Outline present, near-black, consistent weight with previously accepted assets.
 4. Lighting: cool rim upper-left, warm fill lower-right. No other light logic.
 5. Background fully transparent (unless marked opaque), no white halo or semi-transparent fringe on outlines.
@@ -256,7 +256,7 @@ Icons are read at 40–64 px: one bold symbol, no interior detail smaller than 1
 3. **Single hero for the one-shot.** Additional heroes reuse the H1 template: 3 images + portrait + swap the `[FLAVOUR]` clause.
 4. **Facing scheme is 2-views-mirrored** (front-quarter + back-quarter). If the game later needs true 4-direction art, each character gains 2 more images — the prompts extend naturally.
 5. **All animation is code-side** (bob/squash/flash/tint). If real frame animation is ever wanted, that's a different pipeline (cut-out puppet rigs), not more image generation.
-6. Camera constants assumed per the v2 one-shot prompt (pitch ≈ 0.72 rad, fixed yaw); if those change materially, §2.1's "40°" language should be re-tuned to match.
+6. V5+ uses engine pitch ≈ 0.72 rad with fixed yaw and an intentionally separate upright 10–15° character/prop billboard presentation. Re-test the pair if the renderer changes materially.
 
 *— Prepared for handover to Codex 5.6 Sol · Skygear restyle v1 · 2026-07-26*
 
