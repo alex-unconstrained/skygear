@@ -236,7 +236,44 @@ function pathGround(pts){
   ctx.closePath();
 }
 
-let _deckCv = null;
+let _deckCv = null, _grainCv = null;
+
+/* The deck is code-drawn (spec §2.6) but it has to speak the same language as
+   the painted assets standing on it. Flat fills read as vector next to hand-
+   painted brass, so the planks get a baked grain tile, softened seams and
+   irregular wear. Same idea as the two-source light pass on the sprites: one
+   treatment applied everywhere so the layers agree. */
+function grainTile(){
+  if (_grainCv) return _grainCv;
+  const N = 256;
+  _grainCv = document.createElement('canvas');
+  _grainCv.width = _grainCv.height = N;
+  const c = _grainCv.getContext('2d');
+  // long directional strokes, like brushed timber
+  for (let i = 0; i < 900; i++){
+    const x = Math.random() * N, y = Math.random() * N;
+    const len = 12 + Math.random() * 46;
+    const a = (Math.random() - 0.5) * 0.22 + Math.PI / 2;
+    const dark = Math.random() < 0.55;
+    c.globalAlpha = 0.018 + Math.random() * 0.05;
+    c.strokeStyle = dark ? '#0D0B12' : '#8A7A6E';
+    c.lineWidth = 0.6 + Math.random() * 2.2;
+    c.beginPath();
+    c.moveTo(x, y);
+    c.lineTo(x + Math.cos(a) * len, y + Math.sin(a) * len);
+    c.stroke();
+  }
+  // knots and scuffs
+  for (let i = 0; i < 90; i++){
+    c.globalAlpha = 0.03 + Math.random() * 0.06;
+    c.fillStyle = Math.random() < 0.5 ? '#0D0B12' : '#6E4A2F';
+    c.beginPath();
+    c.ellipse(Math.random()*N, Math.random()*N, 1.5 + Math.random()*7,
+              1 + Math.random()*3, Math.random()*3.14, 0, Math.PI*2);
+    c.fill();
+  }
+  return _grainCv;
+}
 
 // With a follow camera the deck cannot be baked to a screen-space layer, so it
 // is drawn live. It is ~60 path ops — trivial next to the billboard crowd.
@@ -278,9 +315,19 @@ function paintDeck(w, h){
       ctx.closePath();
       ctx.fillStyle = v > 0.66 ? PAL.timberLite : (v > 0.33 ? PAL.timber : PAL.timberDark);
       ctx.globalAlpha = 0.55; ctx.fill(); ctx.globalAlpha = 1;
-      ctx.strokeStyle = hexToRgba(PAL.ink, 0.85); ctx.lineWidth = 2;
+      ctx.strokeStyle = hexToRgba(PAL.ink, 0.55); ctx.lineWidth = 2.6;
       ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(d.x, d.y); ctx.stroke();
+      ctx.strokeStyle = hexToRgba('#8A7A6E', 0.10); ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(a.x + 1.5, a.y); ctx.lineTo(d.x + 1.5, d.y); ctx.stroke();
     }
+    // painterly grain over the whole deck, tiled in screen space
+    const g = grainTile();
+    ctx.save();
+    ctx.globalAlpha = 0.5;
+    const pat = ctx.createPattern(g, 'repeat');
+    if (pat){ ctx.fillStyle = pat; ctx.fillRect(0, 0, w, h); }
+    ctx.restore();
+
     // butt joints
     ctx.strokeStyle = hexToRgba(PAL.ink, 0.45); ctx.lineWidth = 1.6;
     for (let y = D.cy - D.h/2; y < D.cy + D.h/2; y += 150){

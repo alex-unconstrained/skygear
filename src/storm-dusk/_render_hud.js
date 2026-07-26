@@ -425,7 +425,7 @@ function drawFps(){
   ctx.save();
   const lines = [
     Math.round(1/avg) + ' fps   ' + (avg*1000).toFixed(1) + ' ms   peak ' + (worst*1000).toFixed(0) + ' ms',
-    live + ' boarders   ' + parts + ' particles   assets ' + Assets.ready + '/' + Assets.total,
+    live + ' boarders   ' + parts + ' particles   art ' + Assets.set + ' · ' + Assets.ready + '/' + Assets.total,
     PRESET.name + '   pitch ' + CAM.pitch.toFixed(2) + '   ' +
       (CAM.follow ? 'follow' : 'fixed') + (PRESET.xray ? '   xray' : ''),
   ];

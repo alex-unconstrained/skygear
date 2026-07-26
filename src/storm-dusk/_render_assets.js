@@ -122,11 +122,17 @@ function measureSprite(img){
 }
 
 const Assets = {
-  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false,
+  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: '40', base: 'assets/',
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
     this.enabled = window.SKYGEAR_USE_ASSETS === true || /[?&]assets=1/.test(q);
+    // ?art=49 swaps the whole set for the 49-degree bake, so the camera angle
+    // can be judged as a MATCHED PAIR (art and engine at the same angle)
+    // rather than by varying the engine against one fixed bake.
+    const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
+    this.set = am ? am[1] : '40';
+    this.base = this.set === '40' ? 'assets/' : 'assets-' + this.set + '/';
     const keys = Object.keys(ASSET_MANIFEST);
     this.total = keys.length;
     if (!this.enabled) return;
@@ -141,7 +147,7 @@ const Assets = {
         }
       };
       im.onerror = () => {};
-      im.src = ASSET_MANIFEST[k].file;
+      im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
     }
   },
   get(k){ return this.loaded[k] || null; },

@@ -44,12 +44,26 @@ const CAM = {
   focusY: TUNING.world.h,
   _init: false,
 
+  // where the captain should sit on screen, as a fraction of height
+  standFrac: 0.60,
+
   recompute(){
     this._sin = Math.sin(this.pitch);
     this._cos = Math.cos(this.pitch);
     this._f = this.f * View.unit;
     this.cx = View.w * 0.5;
     this.cy = View.h * (this.follow ? 0.50 : 0.55);
+    // Solve for the camera offset that puts the captain at `standFrac`,
+    // whatever the pitch. Without this, changing pitch silently re-frames the
+    // whole fight — which made an earlier camera-angle comparison meaningless,
+    // because it was really comparing framing rather than the art's bake.
+    if (this.follow){
+      const R = (this.cy - View.h * this.standFrac) / this._f;
+      const den = this._sin - R * this._cos;
+      const d = Math.abs(den) < 1e-4 ? this.near + 200
+              : this.h * (R * this._sin + this._cos) / den;
+      this.back = clamp(d - this.near, -260, 900);
+    }
   },
 
   // Where the camera wants to sit, given the captain.
