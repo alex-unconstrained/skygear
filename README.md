@@ -55,6 +55,12 @@ roughly a third of the deck behind it, including the far side of the objective
 that boarders attack. **v3** answers that with a see-through pass, a follow
 camera, a longer deck and a steeper pitch.
 
-⚠ **v3 renders at pitch 0.86 (49°), not the visual spec's 0.72 (41°).** Assets
-bake the viewing angle in, so lock the angle before generating the 66 images —
-see the playtest section of **[docs/ROADMAP.md](docs/ROADMAP.md)**.
+**Camera bake: settled at 40°.** The first four trial assets were judged in
+engine and 41° won — the steeper 49° experiment was only ever compensating for
+occlusion, which the see-through pass now fixes properly. The remaining 62
+assets are unblocked at the briefed angle. Details and the three pipeline
+findings are in **[docs/ROADMAP.md](docs/ROADMAP.md)**.
+
+Run with art: `storm-dusk-v3.html?assets=1` (needs a server — browsers block
+`file://` image reads). Compare angles live with `?pitch=0.72` or the `[` `]`
+keys.

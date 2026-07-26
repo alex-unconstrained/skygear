@@ -47,20 +47,50 @@ hiding the thing you defend behind the thing you defend.
 
 v3 clears all 12 waves to victory in a headless run and holds ~82 fps.
 
-> ### ⚠ This blocks the art, and the art is being generated now
+> ### ✅ RESOLVED — camera bake stays at 40°
 >
-> **v3 runs at pitch 0.86 (49°), not the spec's 0.72 (41°).** Visual spec §2.1 is
-> explicit that assets bake the viewing angle in and that art painted at the
-> wrong angle "will look broken in-engine and must be regenerated."
+> The trial roster settled it in engine. **Keep 40°. Stand down the 49°
+> comparison set. The remaining 62 assets are unblocked at the angle already
+> briefed.**
 >
-> So the angle has to be locked *before* Codex generates 66 assets, or the art
-> budget gets spent twice. Both builds print their pitch in the `F3` panel, so
-> the next playtest can settle it empirically. Once it is settled, update the
-> Master Style Block in §1.4 and the "40 degrees" language throughout §4 to match
-> the number that won.
+> The 0.86 rad (49°) pitch existed for exactly one reason: to shrink the
+> Boiler's occlusion shadow. The x-ray pass and the flattened Boiler solve that
+> at the source, so the pitch was buying nothing — and with the four real
+> assets in frame, 41° is visibly better. At 49° the fight crowds the top of
+> the screen and the steeper floor fights figures painted near eye level. v3 is
+> back on `pitch: 0.72`.
 >
-> If 0.86 is kept, the brief should say **"high three-quarter view from 49
-> degrees above horizontal"** everywhere it currently says 40.
+> Override live to re-check any time: `?pitch=0.72`, or `[` / `]` to nudge a
+> degree per press while playing. `F3` shows the current value.
+
+### What the trial roster taught us about the pipeline
+
+Three findings, all cheap to act on and all worth fixing before 62 more arrive.
+
+**1 · The spec's "40 degrees" is wrong for billboards — and the art is right.**
+The delivered assets read closer to 10–15° above horizontal: you see the face
+straight on, no top-of-head, no body foreshortening. A literal 40° bake would
+show the crown of the head and squash the body, and on a billboard that reads
+as a figure lying down. What arrived looks correct in engine. **Do not "fix" it
+toward a literal 40°.** Reword §1.4 and §4 to describe the pose that was
+actually delivered — a near-front three-quarter with only slight downward tilt.
+
+**2 · Feet anchors vary, and the engine now absorbs it.**
+Measured across the four: feet landed at 79.7%, 85.6%, 88.5% and 88.7% of
+canvas height against the §2.4 target of ~92%. Rather than bounce them back,
+the loader now measures each sprite's alpha bounds and derives its own anchor,
+horizontal centre and figure height, so `worldH` sizes the *figure* rather than
+the canvas. Any crop now lands on the deck at the right size. Consistency is
+still worth aiming for, but it is no longer load-bearing.
+
+**3 · Missing back views will pop to placeholder.**
+§4.2 gives only the melee grunt a `back_idle`; the tank, ranged and swarm get
+front views only. The moment one turns away from the camera it falls back to
+the procedural stand-in, which is a completely different look. Boarders mostly
+walk *toward* camera so this is rarer than it sounds, but **ARMORED / Furnace
+Knight is big, slow and lingers on screen — it should get a `back_idle`.**
+The hero already has one specified, which is right: the captain walks away from
+camera constantly.
 
 **Still open after v3:** whether the follow camera is actually better than a
 fixed one for a *defence* game. Holding a fixed objective may simply want a

@@ -86,8 +86,43 @@ const ASSET_MANIFEST = {
    or by setting window.SKYGEAR_USE_ASSETS = true before this script runs.
    (Note: browsers block file:// image reads, so serving over http is required
    once real PNGs are in place — the procedural build needs no server at all.) */
+/* An image model will not crop 66 assets to a consistent frame, and the first
+   four proved it: the figure's feet landed anywhere from 79.7% to 88.7% down
+   the canvas. Rather than bounce them back for a re-crop, the engine measures
+   each sprite's real alpha bounds on load and derives its own anchor, centre
+   and figure height. Every asset then sits on the deck at the right size no
+   matter how it was framed. */
+function measureSprite(img){
+  const N = 96;                                  // downsample; we only need bounds
+  const cn = document.createElement('canvas');
+  cn.width = cn.height = N;
+  const c = cn.getContext('2d', { willReadFrequently: true });
+  c.drawImage(img, 0, 0, N, N);
+  let data;
+  try { data = c.getImageData(0, 0, N, N).data; }
+  catch (e) { return { anchor: 0.92, cx: 0.5, fig: 0.86 }; }   // tainted; fall back
+  let top = -1, bot = -1, minX = N, maxX = -1;
+  for (let y = 0; y < N; y++){
+    let rowHas = false;
+    for (let x = 0; x < N; x++){
+      if (data[(y * N + x) * 4 + 3] > 40){
+        rowHas = true;
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+      }
+    }
+    if (rowHas){ if (top < 0) top = y; bot = y; }
+  }
+  if (top < 0) return { anchor: 0.92, cx: 0.5, fig: 0.86 };
+  return {
+    anchor: (bot + 1) / N,                       // where the feet are
+    cx: ((minX + maxX + 1) / 2) / N,             // horizontal centre of the figure
+    fig: Math.max(0.15, (bot - top + 1) / N),    // how much canvas the figure fills
+  };
+}
+
 const Assets = {
-  loaded: {}, ready: 0, total: 0, enabled: false,
+  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false,
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
@@ -97,7 +132,14 @@ const Assets = {
     if (!this.enabled) return;
     for (const k of keys){
       const im = new Image();
-      im.onload  = () => { if (im.naturalWidth > 0){ this.loaded[k] = im; this.ready++; } };
+      im.onload = () => {
+        if (im.naturalWidth > 0){
+          this.loaded[k] = im;
+          this.meta[k] = measureSprite(im);
+          im.__meta = this.meta[k];
+          this.ready++;
+        }
+      };
       im.onerror = () => {};
       im.src = ASSET_MANIFEST[k].file;
     }

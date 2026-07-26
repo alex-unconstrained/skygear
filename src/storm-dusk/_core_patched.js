@@ -682,6 +682,7 @@ const S = {
   flashWhite: 0, flashRed: 0,
   player: null, boiler: null,
   enemies: [], bolts: [], fx: [], nums: [], pickups: [], fields: [],
+  crew: [], turrets: [], hulk: null, crewT: 0,
   slots: [null, null, null, null],
   unlockedSlots: 2,
   mods: null,
@@ -715,6 +716,7 @@ function resetGame(){
   S.trauma = 0; S.shakeX = S.shakeY = S.shakeR = 0;
   S.flashWhite = 0; S.flashRed = 0;
   S.enemies.length = 0; S.bolts.length = 0; S.fx.length = 0;
+  S.crew.length = 0; S.crewT = 2.5;
   S.nums.length = 0; S.pickups.length = 0; S.fields.length = 0;
   Particles.reset();
 
@@ -737,6 +739,9 @@ function resetGame(){
   S.draft = null; S.bossRef = null;
   S.hintT = 9; S.intro = 1;
   S.seenTypes = {};
+  initLanes();
+  spawnTurrets();
+  spawnHulk();
   S.stats = { kills: 0, damage: 0, combo: 0, comboT: 0, bestCombo: 0, waves: 0, dashes: 0, cards: [] };
 }
 
@@ -1421,6 +1426,8 @@ function updatePlayer(dt){
   if (c.x !== P.x || c.y !== P.y){ P.x = c.x; P.y = c.y; P.vx *= 0.4; P.vy *= 0.4; }
   for (const pr of SOLID_PROPS) pushOut(P, pr.x, pr.y, pr.r + T.radius);
   pushOut(P, S.boiler.x, S.boiler.y, S.boiler.r + T.radius);
+  pushOutWalls(P, T.radius);
+  if (PRESET.lanes) for (const t of S.turrets) if (!t.dead) pushOut(P, t.x, t.y, t.r + T.radius);
 
   // footfalls
   const sp = Math.hypot(P.vx, P.vy);
@@ -1509,6 +1516,7 @@ function spawnEnemy(type, forced){
 }
 
 function enemyTarget(e){
+  if (PRESET.lanes) return laneEnemyTarget(e);
   const P = S.player;
   if (e.def.ai === 'swarm' || P.hp <= 0)
     return { x: S.boiler.x, y: S.boiler.y, r: S.boiler.r, isPlayer: false };
@@ -1570,6 +1578,7 @@ function updateEnemy(e, dt){
   const slowF = e.slowT > 0 ? (1 - e.slowAmt) : 1;
   const stunned = e.stunT > 0;
   const tgt = enemyTarget(e);
+  e.tgtKind = tgt.kind; e.tgtRef = tgt.ref;
   const d = dist(e.x, e.y, tgt.x, tgt.y);
   const toT = Math.atan2(tgt.y - e.y, tgt.x - e.x);
 
@@ -1586,6 +1595,7 @@ function updateEnemy(e, dt){
   // deck + props
   const c = clampToDeck(e.x, e.y, e.r + 4);
   e.x = c.x; e.y = c.y;
+  if (PRESET.lanes){ clampToLane(e, e.lane, e.r); pushOutWalls(e, e.r); }
   if (e.type !== 'BOSS'){
     for (const pr of SOLID_PROPS) pushOut(e, pr.x, pr.y, pr.r + e.r);
   }
@@ -1619,6 +1629,7 @@ function updateMelee(e, dt, tgt, d, toT, slowF){
     if (d <= def.atkRange + tgt.r){
       e.state = 'windup'; e.st = def.windup;
       e.atkAng = toT; e.atkTarget = tgt.isPlayer ? 'player' : 'boiler';
+      e.laneTgt = { x: tgt.x, y: tgt.y, r: tgt.r };
       SFX.telegraph();
     }
   } else if (e.state === 'windup'){
@@ -1639,6 +1650,14 @@ function updateMelee(e, dt, tgt, d, toT, slowF){
 
 function resolveMelee(e){
   const def = e.def;
+  if (PRESET.lanes && e.tgtKind){
+    e.swingFx = 0.22;
+    fx({ kind:'swing', x:e.x, y:e.y, a:e.atkAng, r:def.reach, arc:def.swing, life:0.2 });
+    const t = e.laneTgt;
+    if (t && dist(e.x, e.y, t.x, t.y) <= def.reach + t.r + 10)
+      laneResolveHit(e, e.tgtKind, e.tgtRef, def.dmg, e.atkAng);
+    return;
+  }
   const T = e.atkTarget === 'player' ? S.player : S.boiler;
   const tr = e.atkTarget === 'player' ? TUNING.player.radius : S.boiler.r;
   e.swingFx = 0.22;
@@ -1685,7 +1704,7 @@ function updateRanged(e, dt, tgt, d, toT, slowF){
       const a = e.atkAng + err;
       S.bolts.push({ x: e.x + Math.cos(a)*20, y: e.y + Math.sin(a)*20,
                      vx: Math.cos(a)*def.bolt, vy: Math.sin(a)*def.bolt,
-                     dmg: def.dmg, r: 7, life: 3.2, t: 0, ang: a });
+                     dmg: def.dmg, r: 7, life: 3.2, t: 0, ang: a, lane: e.lane });
       SFX.enemyShoot();
       pSparks(e.x + Math.cos(a)*22, e.y + Math.sin(a)*22, 4, '#FFC168', 160, a, 0.4);
       e.shootT = rnd(1.5, 2.4);
@@ -2054,6 +2073,7 @@ function step(dt){
   for (let i = 0; i < S.enemies.length; i++) updateEnemy(S.enemies[i], dt);
   separate(dt);
   for (let i = S.enemies.length - 1; i >= 0; i--) if (S.enemies[i].dead) S.enemies.splice(i, 1);
+  updateLanes(dt);
   updateBolts(dt);
   updatePickups(dt);
   updateFields(dt);
@@ -2115,6 +2135,14 @@ function updateUI(rt){
 --------------------------------------------------------------------------- */
 function handleModeInput(){
   if (keyHit('f3')) S.showFps = !S.showFps;
+  // nudge the camera bake live — one degree a press
+  if (keyHit('[') || keyHit(']')){
+    CAM.pitch = clamp(CAM.pitch + (keyHit(']') ? 1 : -1) * (Math.PI / 180), 0.35, 1.35);
+    CAM.recompute();
+    if (!CAM.follow) buildDeck();
+    S.showFps = true;
+    S.volToast = 0;
+  }
   if (keyHit('m')){ Sound.toggleMute(); S.volToast = 1.6; }
   if (keyHit('-') || keyHit('_')){ Sound.setVol(Sound.vol - 0.1); S.volToast = 1.6; }
   if (keyHit('=') || keyHit('+')){ Sound.setVol(Sound.vol + 0.1); S.volToast = 1.6; }

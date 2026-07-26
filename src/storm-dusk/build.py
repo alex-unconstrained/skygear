@@ -48,8 +48,12 @@ PRESETS = {
             'name': 'v3',
             'follow': True,       # bounded follow — the objective stays framed
             'xray': True,         # silhouette anything hidden behind tall geometry
-            'pitch': 0.86,        # steeper than the spec's 0.72: less occlusion,
-                                  # less depth foreshortening on the aim
+            # Back to the spec's 0.72 (41 deg). The steeper 0.86 existed only
+            # to shrink the Boiler's occlusion shadow; the x-ray pass and the
+            # flattened Boiler solve that properly, and with the real trial art
+            # in engine 41 deg frames the fight better and sits better under
+            # figures painted near eye level. Override live with ?pitch= or [ ].
+            'pitch': 0.72,
             'camBack': 120,       # keeps the captain just below screen centre
             'boilerH': 132,       # a flat engine block, not a tower
         },
@@ -73,7 +77,7 @@ FAVICON = ("<link rel=\"icon\" href=\"data:image/svg+xml,"
            "M7.2 7.2l2.5 2.5M22.3 22.3l2.5 2.5M24.8 7.2l-2.5 2.5M9.7 22.3l-2.5 2.5'/%3E"
            "%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E\">")
 
-PARTS = ['_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
+PARTS = ['_lanes.js', '_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
          '_render_entities.js', '_render_fx_hud.js', '_render_hud.js', '_render_screens.js']
 
 BASE_CORE = R('_core_patched.js')

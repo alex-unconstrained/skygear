@@ -88,16 +88,21 @@ function drawXrayPass(){
 function drawBillboard(img, x, y, worldH, o){
   o = o || {};
   const p = CAM.project(x, y, 0);
-  const hpx = (worldH / FIG) * p.k * (o.scale || 1);
+  // Procedural sprites are authored to a known frame; delivered art is measured
+  // on load. Either way `worldH` is the height of the FIGURE, not the canvas,
+  // so a generous crop never renders smaller than a tight one.
+  const m = img.__meta;
+  const fig = m ? m.fig : FIG, anch = m ? m.anchor : ANCHOR, cxf = m ? m.cx : 0.5;
+  const hpx = (worldH / fig) * p.k * (o.scale || 1);
   const wpx = hpx * (img.width / img.height);
-  const bx = p.x - wpx / 2 + (o.dx || 0);
-  const by = p.y - hpx * ANCHOR - (o.lift || 0) * p.k;
+  const bx = p.x - wpx * cxf + (o.dx || 0);
+  const by = p.y - hpx * anch - (o.lift || 0) * p.k;
   ctx.save();
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
   if (o.mirror){
     ctx.translate(p.x + (o.dx || 0), 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(o.flash ? whiteVersion(img) : img, -wpx / 2, by, wpx, hpx);
+    ctx.drawImage(o.flash ? whiteVersion(img) : img, -wpx * (1 - cxf), by, wpx, hpx);
   } else {
     ctx.drawImage(o.flash ? whiteVersion(img) : img, bx, by, wpx, hpx);
   }

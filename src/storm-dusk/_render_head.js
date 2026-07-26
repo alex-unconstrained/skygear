@@ -24,7 +24,13 @@ const CAM = {
   // billboard hid roughly a third of the deck behind it, and depth
   // foreshortening made aiming into the distance feel inconsistent.
   // NOTE: the art bakes this angle in (spec §2.1) — lock it before generating.
-  pitch: PRESET.pitch,
+  // live-overridable so the camera bake can be judged in-engine:
+  //   ?pitch=0.72  (spec's 41 deg)   ?pitch=0.86  (v3's 49 deg)
+  //   [ and ] nudge it by 1 degree while playing; F3 shows the current value
+  pitch: (function(){
+    const m = /[?&]pitch=([0-9.]+)/.exec((typeof location !== 'undefined' && location.search) || '');
+    return m ? clamp(parseFloat(m[1]), 0.35, 1.35) : PRESET.pitch;
+  })(),
   h: 760,                // camera height above the deck, ground units
   near: 460,             // distance from the camera to its focus point
   f: 1320,               // focal length at reference scale
