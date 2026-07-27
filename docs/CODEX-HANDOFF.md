@@ -278,6 +278,41 @@ need to wait for you.
 
 ---
 
+## 5b · Next up — approved direction for v9
+
+**Animation, for the whole cast.** See `ANIMATION-BRIEF.md`. The one thing to
+read before generating anything: **deliver atlas strips, not loose frames.** The
+two existing cycles are 28 files and 3.9 MB — more than every still combined —
+and the full cast in that shape is ~270 files and ~33 MB. One PNG per cycle at
+384×384 lands 33–35% smaller, measured on your own frames.
+
+`python src/check-animations.py` validates a strip: frame count divides the
+canvas, frames are uniform, and the figure returns to where it started rather
+than sliding a little further every loop. Your two existing cycles pass.
+
+**Music — one track first, not seven.** Generate `music/combat_low` only. Live
+with it under every wave and decide whether music is helping before committing
+to the full set. Prompt is M2 in `AUDIO-SPEC.md`. The director is already built
+and will pick it up the moment it lands.
+
+**Audio stays WAV for now.** No encoding step; the loader prefers `.ogg`/`.m4a`
+if they ever appear but decodes WAV fine. Revisit when the beds and music make
+the payload heavy — which they will.
+
+**Still wanted, unchanged priority:** the stalled cues from the first batch
+(`amb_storm`, `amb_ship`, `crit`, `death_light`), regenerated versions of the
+five clipped/quiet masters, and the 39 remaining stills — `ground/` first, since
+telegraphs and AoE markers are read constantly and are still pure code.
+
+**Boundary correction.** The handoff previously said not to touch
+`src/storm-dusk/`. That was too strict — your animation system needed engine
+changes and they were good ones. The build freeze already prevents shipped
+versions from being altered, so engine edits only ever reach the live build.
+Edit what you need; tell me what you changed so I can verify rather than
+discover it.
+
+---
+
 ## 6 · What I am doing, so we do not collide
 
 - Audio engine plumbing (§9 of `AUDIO-SPEC.md`) — **no asset files touched**
