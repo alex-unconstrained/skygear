@@ -85,7 +85,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "5f7fef9"
+  "build": "f5e063a"
 };
 
 /* ============================================================================
@@ -775,6 +775,11 @@ const PROP_LAYOUT_V11 = [
   ['barrel',   0.62, 0.735, 25,  0],
   ['lantern',  0.14, 0.760, 16,  0],
   ['crate',    0.70, 0.780, 30, -0.18],
+  // braziers: the deck's other warm light, and four more things that spill fire
+  ['brazier', -0.30, 0.290, 22,  0],
+  ['brazier',  0.34, 0.455, 22,  0],
+  ['brazier', -0.34, 0.665, 22,  0],
+  ['brazier',  0.28, 0.845, 22,  0],
 ];
 if (typeof PRESET !== 'undefined' && PRESET.reactive)
   for (const p of PROP_LAYOUT_V11) PROP_LAYOUT.push(p);
@@ -782,7 +787,12 @@ if (typeof PRESET !== 'undefined' && PRESET.reactive)
    has hit points and a death; everything else (mast, cannon, hatch, vent, rope,
    ballista) is scenery and stays scenery, because a deck where every object can
    be deleted stops reading as a place. */
-const PROP_KINDS = { barrel:'keg', crate:'crate', crates:'crate', lantern:'lantern' };
+const PROP_KINDS = { barrel:'keg', crate:'crate', crates:'crate', lantern:'lantern',
+                     // v11.1 — the brazier burns like a lantern and lights like
+                     // one, but it stands in the fight rather than at the rail.
+                     // Same `kind`, so it inherits the fire-pool death with no
+                     // new behaviour; a different type, so it has its own art.
+                     brazier:'lantern' };
 
 const PROPS = PROP_LAYOUT.map(function(p){
   const D = TUNING.deck;
@@ -2669,7 +2679,20 @@ function faceToward(e, ang, dt, rate){
 }
 
 function moveTo(e, tgt, dt, slowF, stopAt){
-  const dx = tgt.x - e.x, dy = tgt.y - e.y;
+  let dx = tgt.x - e.x, dy = tgt.y - e.y;
+  const d0 = Math.hypot(dx, dy) || 1;
+  // v11.1 — approach the target's SHOULDER, not its centre. Each enemy gets a
+  // stable offset from its own spawn position, so a pack converging on the
+  // Boiler spreads across its face instead of forming a single column that
+  // separation then has to fight. Falls off as they arrive, so the offset
+  // never stops anything from reaching what it is walking at.
+  if (V11 && d0 > 60){
+    const off = Math.sin(e.spawnX * 0.031 + e.spawnY * 0.017);   // -1..1, stable per enemy
+    const spread = Math.min(1, (d0 - 60) / 340) * 46 * off;
+    const px = -dy / d0, py = dx / d0;                           // unit perpendicular
+    dx += px * spread;
+    dy += py * spread;
+  }
   const d = Math.hypot(dx, dy) || 1;
   const sp = e.def.speed * slowF;
   if (d > stopAt){
@@ -2927,25 +2950,49 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
   }
 }
 
-/* --- separation: keeps a crowd legible without turning into a shove-fest -- */
+/* --- separation: keeps a crowd legible without turning into a shove-fest ----
+
+   v11.1, from a playtest note: boarders group up too much. Two things caused
+   it and both are fixed here.
+
+   1 · Separation only ran once bodies were ALREADY overlapping (`md = a.r +
+       b.r`), so a pack could stand shoulder to shoulder indefinitely — which
+       is exactly the state that reads as one blob with several health bars.
+       There is now a `pad` of personal space outside the bodies, pushed at
+       reduced strength: hard when they are actually inside each other, gentle
+       when they are merely crowding. Gentle matters — a full-strength push over
+       a pad is a spring, and a spring oscillates.
+
+   2 · Everything walked at the same target point, so convergence stacked them
+       even when separation was pushing. `moveTo` now gives each enemy a stable
+       lateral offset derived from its own spawn, so a pack arrives as an arc
+       rather than a queue.
+
+   The Colossus is exempt as both pusher and pushed: it is the fight, and
+   nothing on the deck moves it. */
+const SEPARATION = { pad: 13, hard: 1.9, soft: 0.55 };
+
 function separate(dt){
   const list = S.enemies;
+  const PAD = SEPARATION.pad;
   for (let i = 0; i < list.length; i++){
     const a = list[i];
     if (a.dead || a.state === 'climb' || a.type === 'BOSS') continue;
-    Hash.query(a.x, a.y, a.r + 34, _q);
+    Hash.query(a.x, a.y, a.r + 34 + PAD, _q);
     for (let j = 0; j < _q.length; j++){
       const b = _q[j];
       if (b === a || b.dead || b.state === 'climb') continue;
       const dx = b.x - a.x, dy = b.y - a.y;
-      const md = a.r + b.r;
+      const body = a.r + b.r, md = body + PAD;
       const d2 = dx*dx + dy*dy;
       if (d2 >= md*md || d2 < 0.0001) continue;
       const d = Math.sqrt(d2);
-      const push = (md - d) / d * 0.5;
+      // full strength inside each other, a fraction of it inside the pad
+      const k = d < body ? SEPARATION.hard : SEPARATION.soft;
+      const push = (md - d) / d * 0.5 * k;
       const mr = b.def.mass / (a.def.mass + b.def.mass);
-      a.x -= dx * push * mr * 1.6; a.y -= dy * push * mr * 1.6;
-      if (b.type !== 'BOSS'){ b.x += dx * push * (1-mr) * 1.6; b.y += dy * push * (1-mr) * 1.6; }
+      a.x -= dx * push * mr; a.y -= dy * push * mr;
+      if (b.type !== 'BOSS'){ b.x += dx * push * (1-mr); b.y += dy * push * (1-mr); }
     }
   }
 }
@@ -3992,25 +4039,133 @@ function copyText(text){
    loader fetches only what is named here, so an undelivered cue costs
    no request and logs no 404; it simply keeps its procedural voice. */
 const AUDIO_DELIVERED = {
+  "amb_ship": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "amb_storm": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "boiler_critical": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "boiler_hurt": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "boss_roar": {
+    "ext": ".ogg",
+    "n": 1
+  },
   "cannon_down": {
-    "ext": ".wav",
+    "ext": ".ogg",
     "n": 3
   },
   "cannon_fire": {
-    "ext": ".wav",
+    "ext": ".ogg",
     "n": 3
   },
   "cannon_hurt": {
-    "ext": ".wav",
+    "ext": ".ogg",
     "n": 3
   },
-  "crew_muster": {
-    "ext": ".wav",
+  "card_deal": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "card_pick": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "climb": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "crate_break": {
+    "ext": ".ogg",
     "n": 2
   },
+  "crew_attack": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "crew_down": {
+    "ext": ".ogg",
+    "n": 2
+  },
+  "crew_muster": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "crit": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "crossing": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "dash": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "death_heavy": {
+    "ext": ".ogg",
+    "n": 2
+  },
+  "death_light": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "elem_ARC": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "elem_EMBER": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "elem_FROST": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "elem_STEAM": {
+    "ext": ".ogg",
+    "n": 1
+  },
   "hit": {
-    "ext": ".wav",
+    "ext": ".ogg",
     "n": 5
+  },
+  "hulk_break": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "hulk_grapple": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "hulk_hit": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "hurt": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "keg_blow": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "keg_fuse": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "lantern_break": {
+    "ext": ".ogg",
+    "n": 1
   },
   "m_boss": {
     "ext": ".mp3",
@@ -4022,6 +4177,162 @@ const AUDIO_DELIVERED = {
   },
   "m_combat3": {
     "ext": ".mp3",
+    "n": 1
+  },
+  "pickup": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "ready": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_beam_end": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_beam_loop": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_beam_start": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_cleave": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_gale": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_lance": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_mortar": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_mortar_land": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shape_whip": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "shoot_drone": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "slam": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "slot_unlock": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "telegraph": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "ui_click": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "ui_hover": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "vent": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "vo_boiler_low": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_boss_arrive": {
+    "ext": ".ogg",
+    "n": 2
+  },
+  "vo_boss_turn": {
+    "ext": ".ogg",
+    "n": 2
+  },
+  "vo_cannon_down": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_crew_down": {
+    "ext": ".ogg",
+    "n": 6
+  },
+  "vo_crew_muster": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_dash": {
+    "ext": ".ogg",
+    "n": 6
+  },
+  "vo_defeat": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_draft": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_first_board": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_hurt_low": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_keg": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_lane_critical": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_push": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_slot": {
+    "ext": ".ogg",
+    "n": 3
+  },
+  "vo_vent": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_victory": {
+    "ext": ".ogg",
+    "n": 2
+  },
+  "vo_wave_clear": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "vo_wave_start": {
+    "ext": ".ogg",
+    "n": 4
+  },
+  "wave_clear": {
+    "ext": ".ogg",
+    "n": 1
+  },
+  "wave_start": {
+    "ext": ".ogg",
     "n": 1
   }
 };
@@ -5631,6 +5942,7 @@ const ASSET_MANIFEST = {
   ui_icon_vent:    { file:'assets/ui/icon_vent.png',          w:256, h:256 },
   ui_icon_salvage: { file:'assets/ui/icon_salvage.png',       w:256, h:256 },
   prop_scrap:      { file:'assets/props/salvage_pile.png',    w:256, h:256 },
+  prop_brazier:    { file:'assets/props/brazier.png',         w:384, h:512 },
 
   ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256, unused:true },
   ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256, unused:true },
@@ -6768,12 +7080,14 @@ function paintDeck(w, h){
     dark.addColorStop(1, 'rgba(13,11,18,0.64)');
     ctx.fillStyle = dark; ctx.fillRect(0, 0, w, h);
     for (const p of PROPS){
-      if (p.t !== 'lantern' || p.dead) continue;
-      const g = groundEllipsePath(p.x, p.y + 30, 210);
+      const lit = LIGHT_PROPS[p.t];
+      if (!lit || p.dead) continue;
+      const g = groundEllipsePath(p.x, p.y + 30, lit);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const rg = ctx.createRadialGradient(g.p.x, g.p.y, 1, g.p.x, g.p.y, Math.max(g.rx, 1));
-      rg.addColorStop(0, hexToRgba(PAL.lantern, 0.30));
-      rg.addColorStop(1, hexToRgba(PAL.lantern, 0));
+      const warm = p.t === 'brazier' ? PAL.fire : PAL.lantern;
+      rg.addColorStop(0, hexToRgba(warm, p.t === 'brazier' ? 0.26 : 0.30));
+      rg.addColorStop(1, hexToRgba(warm, 0));
       ctx.fillStyle = rg; ctx.fill();
       ctx.restore();
     }
@@ -6974,11 +7288,15 @@ function viewFor(facing, canAttack, attacking){
 // rather than dressing, and at 82 it read as a footstool next to an 84-unit
 // crate that does far less to you.
 const PROP_H = { crate: 84, crates: 148, barrel: V11 ? 100 : 82, rope: 30, cannon: 96,
-                 mast: 340, lantern: 200, vent: 52, hatch: 44, ballista: 118 };
+                 mast: 340, lantern: 200, vent: 52, hatch: 44, ballista: 118,
+                 brazier: 116 };
 const PROP_ASSET = { crate:'prop_crate', crates:'prop_crates', barrel:'prop_barrel',
                      rope:'prop_rope', cannon:'prop_cannon', mast:'prop_mast',
                      lantern:'prop_lantern', vent:'prop_vent', hatch:'prop_hatch',
-                     ballista:'prop_ballista' };
+                     ballista:'prop_ballista', brazier:'prop_brazier' };
+// Props that throw light onto the deck. Both are destructible in v11, and the
+// deck going dark where one stood is the cheapest consequence in the game.
+const LIGHT_PROPS = { lantern: 210, brazier: 150 };
 
 function paintProp(t){
   const TIM = '#3A2C2A', TIM_L = '#54413C';
@@ -7049,6 +7367,22 @@ function paintProp(t){
     }
     ctx.fillStyle = '#FFFFFF'; ell(0, -170, 8, 13); ctx.fill();
     plate(0, -200, 46, 16, 5, PAL.brass);
+  } else if (t === 'brazier'){
+    // an iron fire-basket on three splayed legs, coals live in it
+    for (const sx of [-1, 0, 1]){
+      limb(sx * 15, -6, sx * 7, -44, 9, '#2E2A2E');
+    }
+    plate(0, -58, 62, 30, 8, PAL.iron);
+    ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 5;
+    for (const xx of [-20, -7, 7, 20]){
+      ctx.beginPath(); ctx.moveTo(xx, -72); ctx.lineTo(xx, -46); ctx.stroke();
+    }
+    ell(0, -72, 31, 10); fillStroke(C('#3A1A08'), ink(), OUT * 0.7);
+    ctx.fillStyle = PAL.fire; ell(0, -74, 24, 7); ctx.fill();
+    ctx.fillStyle = PAL.fireCore; ell(0, -76, 13, 4); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    drawGlow(0, -84, 78, PAL.fire, 0.7);
+    ctx.restore();
   } else if (t === 'vent'){
     plate(0, -22, 66, 40, 8, PAL.iron);
     ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 5;
@@ -7130,10 +7464,12 @@ function drawPropBillboard(p){
   if (sx || sy) ctx.restore();
   const box = OCCLUDE_BOX[p.t];
   if (box) addOccluder(r.p.x, r.p.y, r.wpx * box[0], r.hpx * box[1], p.y);
-  if (p.t === 'lantern'){
-    const q = CAM.project(p.x, p.y, PROP_H.lantern * 0.86);
+  if (LIGHT_PROPS[p.t]){
+    const q = CAM.project(p.x, p.y, PROP_H[p.t] * 0.86);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    drawGlow(q.x, q.y, 90 * q.k, PAL.lantern, 0.5 + Math.sin(S.rt * 3 + p.x) * 0.08);
+    drawGlow(q.x, q.y, (p.t === 'brazier' ? 74 : 90) * q.k,
+             p.t === 'brazier' ? PAL.fire : PAL.lantern,
+             0.5 + Math.sin(S.rt * 3 + p.x) * 0.08);
     ctx.restore();
   }
 }
@@ -10388,6 +10724,10 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    // collision pass both hold references into.
                    PROPS, LIVE_PROPS, hitProp, popProp, restowProps, damageArea,
                    damagePropsArea, gainPressure, ventNow, healPlayer, Voice,
+                   // the delivery layer, so the harness can assert that the
+                   // files a build claims to have are files it can actually
+                   // decode — the failure this project has already had twice
+                   AudioBank, Sound, AUDIO_MANIFEST,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
 
 </script>

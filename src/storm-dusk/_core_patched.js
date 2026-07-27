@@ -685,6 +685,11 @@ const PROP_LAYOUT_V11 = [
   ['barrel',   0.62, 0.735, 25,  0],
   ['lantern',  0.14, 0.760, 16,  0],
   ['crate',    0.70, 0.780, 30, -0.18],
+  // braziers: the deck's other warm light, and four more things that spill fire
+  ['brazier', -0.30, 0.290, 22,  0],
+  ['brazier',  0.34, 0.455, 22,  0],
+  ['brazier', -0.34, 0.665, 22,  0],
+  ['brazier',  0.28, 0.845, 22,  0],
 ];
 if (typeof PRESET !== 'undefined' && PRESET.reactive)
   for (const p of PROP_LAYOUT_V11) PROP_LAYOUT.push(p);
@@ -692,7 +697,12 @@ if (typeof PRESET !== 'undefined' && PRESET.reactive)
    has hit points and a death; everything else (mast, cannon, hatch, vent, rope,
    ballista) is scenery and stays scenery, because a deck where every object can
    be deleted stops reading as a place. */
-const PROP_KINDS = { barrel:'keg', crate:'crate', crates:'crate', lantern:'lantern' };
+const PROP_KINDS = { barrel:'keg', crate:'crate', crates:'crate', lantern:'lantern',
+                     // v11.1 — the brazier burns like a lantern and lights like
+                     // one, but it stands in the fight rather than at the rail.
+                     // Same `kind`, so it inherits the fire-pool death with no
+                     // new behaviour; a different type, so it has its own art.
+                     brazier:'lantern' };
 
 const PROPS = PROP_LAYOUT.map(function(p){
   const D = TUNING.deck;
@@ -2579,7 +2589,20 @@ function faceToward(e, ang, dt, rate){
 }
 
 function moveTo(e, tgt, dt, slowF, stopAt){
-  const dx = tgt.x - e.x, dy = tgt.y - e.y;
+  let dx = tgt.x - e.x, dy = tgt.y - e.y;
+  const d0 = Math.hypot(dx, dy) || 1;
+  // v11.1 — approach the target's SHOULDER, not its centre. Each enemy gets a
+  // stable offset from its own spawn position, so a pack converging on the
+  // Boiler spreads across its face instead of forming a single column that
+  // separation then has to fight. Falls off as they arrive, so the offset
+  // never stops anything from reaching what it is walking at.
+  if (V11 && d0 > 60){
+    const off = Math.sin(e.spawnX * 0.031 + e.spawnY * 0.017);   // -1..1, stable per enemy
+    const spread = Math.min(1, (d0 - 60) / 340) * 46 * off;
+    const px = -dy / d0, py = dx / d0;                           // unit perpendicular
+    dx += px * spread;
+    dy += py * spread;
+  }
   const d = Math.hypot(dx, dy) || 1;
   const sp = e.def.speed * slowF;
   if (d > stopAt){
@@ -2837,25 +2860,49 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
   }
 }
 
-/* --- separation: keeps a crowd legible without turning into a shove-fest -- */
+/* --- separation: keeps a crowd legible without turning into a shove-fest ----
+
+   v11.1, from a playtest note: boarders group up too much. Two things caused
+   it and both are fixed here.
+
+   1 · Separation only ran once bodies were ALREADY overlapping (`md = a.r +
+       b.r`), so a pack could stand shoulder to shoulder indefinitely — which
+       is exactly the state that reads as one blob with several health bars.
+       There is now a `pad` of personal space outside the bodies, pushed at
+       reduced strength: hard when they are actually inside each other, gentle
+       when they are merely crowding. Gentle matters — a full-strength push over
+       a pad is a spring, and a spring oscillates.
+
+   2 · Everything walked at the same target point, so convergence stacked them
+       even when separation was pushing. `moveTo` now gives each enemy a stable
+       lateral offset derived from its own spawn, so a pack arrives as an arc
+       rather than a queue.
+
+   The Colossus is exempt as both pusher and pushed: it is the fight, and
+   nothing on the deck moves it. */
+const SEPARATION = { pad: 13, hard: 1.9, soft: 0.55 };
+
 function separate(dt){
   const list = S.enemies;
+  const PAD = SEPARATION.pad;
   for (let i = 0; i < list.length; i++){
     const a = list[i];
     if (a.dead || a.state === 'climb' || a.type === 'BOSS') continue;
-    Hash.query(a.x, a.y, a.r + 34, _q);
+    Hash.query(a.x, a.y, a.r + 34 + PAD, _q);
     for (let j = 0; j < _q.length; j++){
       const b = _q[j];
       if (b === a || b.dead || b.state === 'climb') continue;
       const dx = b.x - a.x, dy = b.y - a.y;
-      const md = a.r + b.r;
+      const body = a.r + b.r, md = body + PAD;
       const d2 = dx*dx + dy*dy;
       if (d2 >= md*md || d2 < 0.0001) continue;
       const d = Math.sqrt(d2);
-      const push = (md - d) / d * 0.5;
+      // full strength inside each other, a fraction of it inside the pad
+      const k = d < body ? SEPARATION.hard : SEPARATION.soft;
+      const push = (md - d) / d * 0.5 * k;
       const mr = b.def.mass / (a.def.mass + b.def.mass);
-      a.x -= dx * push * mr * 1.6; a.y -= dy * push * mr * 1.6;
-      if (b.type !== 'BOSS'){ b.x += dx * push * (1-mr) * 1.6; b.y += dy * push * (1-mr) * 1.6; }
+      a.x -= dx * push * mr; a.y -= dy * push * mr;
+      if (b.type !== 'BOSS'){ b.x += dx * push * (1-mr); b.y += dy * push * (1-mr); }
     }
   }
 }

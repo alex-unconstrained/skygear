@@ -1040,6 +1040,116 @@ async function checkClose(page){
     '4000 damage in one frame healed ' + out.cappedBurst.toFixed(1) + ' (cap ' + out.cap + ')');
 }
 
+/* Crowding, measured (v11.1).
+
+   "Enemies group up too much" is a real playtest note and an easy one to
+   'fix' without fixing: separation strength is a number you can raise until
+   the code looks different and the deck looks the same. So this drops thirty
+   boarders into one lane, walks them at the objective for four seconds, and
+   counts how many pairs are standing inside each other. It is the only claim
+   worth making — not that separate() ran, but that the pack has gaps in it. */
+async function checkCrowd(page){
+  const out = await page.evaluate(async () => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.player.hp = S.player.maxHp = 1e9;
+    S.boiler.hp = S.boiler.maxHp = 1e9;
+    // one lane, one entry point, all walking at the same objective — the exact
+    // situation that produced the note
+    const D = G.TUNING.deck;
+    for (let i = 0; i < 30; i++){
+      const e = G.spawnEnemy('SCRAPPER', { x: D.cx + (i % 5) * 6 - 12,
+                                           y: D.cy - D.h / 2 + 190 + (i % 3) * 8,
+                                           side: 'bow' });
+      e.state = 'move'; e.st = 0; e.hp = e.maxHp = 1e6;
+    }
+    for (let i = 0; i < 480; i++) G.step(G.DT);     // four seconds of walking
+
+    const live = S.enemies.filter(e => !e.dead && e.state !== 'climb');
+    let inside = 0, pairs = 0, nearest = [];
+    for (let i = 0; i < live.length; i++){
+      let best = Infinity;
+      for (let j = 0; j < live.length; j++){
+        if (i === j) continue;
+        const a = live[i], b = live[j];
+        const d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (j > i){ pairs++; if (d < (a.r + b.r) * 0.9) inside++; }
+        if (d < best) best = d;
+      }
+      if (best < Infinity) nearest.push(best);
+    }
+    nearest.sort((a, b) => a - b);
+    return { n: live.length, inside, pairs,
+             medianGap: nearest.length ? nearest[nearest.length >> 1] : 0,
+             worstGap: nearest[0] || 0, r: live[0] ? live[0].r : 0 };
+  });
+
+  record('crowd', 'thirty boarders walking one lane do not stand inside each other',
+    out.inside === 0,
+    out.inside + ' overlapping pairs of ' + out.pairs + ', ' + out.n + ' alive');
+  record('crowd', 'the pack keeps its spacing',
+    out.medianGap > out.r * 1.8,
+    'median nearest-neighbour ' + out.medianGap.toFixed(0) +
+    'u, tightest ' + out.worstGap.toFixed(0) + 'u, body radius ' + out.r);
+}
+
+
+/* Audio delivery, end to end (v11.1).
+
+   Twice now this project has shipped audio that reported success and produced
+   nothing: `unlock()` returning early so its own `resume()` was unreachable,
+   and cues fetched under an extension nobody had delivered. Both were invisible
+   to every other check because the harness runs silent (`?audio=0`).
+
+   So this one deliberately runs with audio ON, clicks to satisfy the autoplay
+   gesture, and asserts on the numbers the loader itself keeps: how many cues
+   the index claims, how many decoded, and whether anything 404'd on the way. */
+async function checkAudio(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  const missing = [];
+  tab.on('response', r => { if (r.status() === 404 && /\/audio\//.test(r.url())) missing.push(r.url()); });
+  try {
+    await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&seed=AUDIO1`,
+                   { waitUntil: 'load' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+    await tab.evaluate(INSTALL);
+    // a real click: the AudioContext cannot exist before a user gesture
+    await tab.mouse.click(640, 360);
+    await tab.evaluate(() => window.__begin());
+    // Wait for the loader to go QUIET, not merely to start. Reading the count
+    // the moment the first buffer lands measures how fast the disk is, not
+    // whether the delivery is sound.
+    await tab.waitForFunction(() => {
+      const B = window.SKYGEAR.AudioBank;
+      if (!B) return false;
+      const now = B.ready;
+      if (window.__lastReady === now){ window.__still = (window.__still || 0) + 1; }
+      else { window.__still = 0; window.__lastReady = now; }
+      return now > 0 && window.__still > 12;
+    }, null, { timeout: 30000, polling: 250 }).catch(() => {});
+    const out = await tab.evaluate(() => {
+      const B = window.SKYGEAR.AudioBank;
+      const M = window.SKYGEAR.AUDIO_MANIFEST;
+      const claimed = Object.keys(B.delivered || {});
+      const eager = claimed.filter(k => M[k] && !M[k].lazy);
+      return { ready: B.ready, total: B.total, claimed: claimed.length,
+               eager: eager.length, enabled: B.enabled,
+               ctx: !!(window.SKYGEAR.Sound && window.SKYGEAR.Sound.ready),
+               voice: claimed.filter(k => k.startsWith('vo_')).length };
+    });
+    record('audio', 'the audio context comes up on a click', out.ctx && out.enabled,
+      'ctx=' + out.ctx + ' enabled=' + out.enabled);
+    record('audio', 'every eagerly-loaded cue in the index actually decodes',
+      out.ready >= out.eager && out.eager > 0,
+      out.ready + ' decoded of ' + out.eager + ' eager (' + out.claimed + ' delivered, ' +
+      out.voice + ' voice)');
+    record('audio', 'nothing 404s under audio/', missing.length === 0,
+      missing.slice(0, 3).map(u => u.split('/').slice(-2).join('/')).join(' | '));
+  } catch (e){
+    record('audio', 'audio loads', false, String(e.message).split(String.fromCharCode(10))[0]);
+  } finally { await tab.close(); }
+}
+
 /* ---------------------------------------------------------------------------
    main
 --------------------------------------------------------------------------- */
@@ -1062,6 +1172,8 @@ await group('waves',   () => checkWaves(page));
 await group('boss',    () => checkBoss(page));
 await group('deck',    () => checkDeck(page));
 await group('close',   () => checkClose(page));
+await group('crowd',   () => checkCrowd(page));
+await group('audio',   () => checkAudio(browser, port));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));

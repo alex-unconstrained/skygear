@@ -1018,4 +1018,8 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    // collision pass both hold references into.
                    PROPS, LIVE_PROPS, hitProp, popProp, restowProps, damageArea,
                    damagePropsArea, gainPressure, ventNow, healPlayer, Voice,
+                   // the delivery layer, so the harness can assert that the
+                   // files a build claims to have are files it can actually
+                   // decode — the failure this project has already had twice
+                   AudioBank, Sound, AUDIO_MANIFEST,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };

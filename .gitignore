@@ -8,3 +8,4 @@ node_modules/
 .playwright-mcp/
 .shots/
 *.wav.orig
+.env.local

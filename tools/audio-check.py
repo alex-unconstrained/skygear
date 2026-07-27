@@ -28,6 +28,7 @@ not have.
 from __future__ import annotations
 
 import argparse
+import re
 import array
 import math
 import shutil
@@ -122,6 +123,27 @@ def apply_gain(d, g):
     return d
 
 
+def loop_cues():
+    """Which manifest entries are loops, read from the manifest rather than
+    guessed from the filename."""
+    src = (ROOT / "src" / "storm-dusk" / "_audio.js").read_text(encoding="utf-8")
+    out = set()
+    for m in re.finditer(r"(\w+):\s*\{\s*file:'([^']+)'([^}]*)\}", src):
+        if "loop:true" in m.group(3).replace(" ", ""):
+            out.add(m.group(2).rsplit("/", 1)[-1])
+    return out
+
+
+_LOOPS = None
+
+
+def is_loop(path):
+    global _LOOPS
+    if _LOOPS is None:
+        _LOOPS = loop_cues()
+    return re.sub(r"_\d+$", "", path.stem) in _LOOPS
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fix", action="store_true")
@@ -144,7 +166,12 @@ def main():
         notes = []
         if m["runs"]:
             notes.append("CLIPS (%d flat runs, %d samples) — regenerate" % (m["runs"], m["clipped"]))
-        if m["tail"] > m["rms"] * 0.8 and m["seconds"] > 0.25:
+        # A LOOP is supposed to be at full level when it ends — that is what
+        # makes the join inaudible — so the cut-off heuristic is exactly wrong
+        # for one. It fired on amb_storm, amb_ship and boiler_critical the day
+        # they landed and all three were correct; the check was not.
+        if (m["tail"] > m["rms"] * 0.8 and m["seconds"] > 0.25
+                and not is_loop(p)):
             notes.append("cut off mid-sound — regenerate shorter")
         if abs(db(rescue)) > RESCUE_LIMIT_DB:
             notes.append("needs %+.1f dB" % db(rescue))

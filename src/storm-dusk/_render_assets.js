@@ -106,6 +106,7 @@ const ASSET_MANIFEST = {
   ui_icon_vent:    { file:'assets/ui/icon_vent.png',          w:256, h:256 },
   ui_icon_salvage: { file:'assets/ui/icon_salvage.png',       w:256, h:256 },
   prop_scrap:      { file:'assets/props/salvage_pile.png',    w:256, h:256 },
+  prop_brazier:    { file:'assets/props/brazier.png',         w:384, h:512 },
 
   ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256, unused:true },
   ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256, unused:true },

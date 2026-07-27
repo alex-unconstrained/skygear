@@ -259,6 +259,14 @@ ASSETS = [
       "needle in the red, a brass relief valve on top wisping a thread of white "
       "steam, hazard stencilling on the belly, seams weeping faint condensation. "
       "It reads as volatile, not as storage.", BILLBOARD, n=4, batch="props"),
+    A("prop_brazier", "A cast-iron deck brazier: a shallow riveted iron fire-basket "
+      "on three splayed legs, filled with glowing coals throwing warm light upward, "
+      "a few small flames and a thread of smoke, soot on the rim. Squat and heavy, "
+      "standing on its own.",
+      # Blue, not magenta — §3's rule, which the first attempt broke. A brazier
+      # is an ORANGE subject: keyed against magenta, the flame tips came back
+      # with a pink fringe the keyer cannot separate from fire.
+      BILLBOARD, "#006BFF", n=4, batch="v11"),
     A("prop_scrap", "A small heap of salvaged clockwork on the deck: loose brass cogs, "
       "a cracked pressure dial, a coiled spring and two lengths of copper pipe, "
       "piled low and catching a faint warm glint. No container, no crate.",

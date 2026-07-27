@@ -164,11 +164,15 @@ function viewFor(facing, canAttack, attacking){
 // rather than dressing, and at 82 it read as a footstool next to an 84-unit
 // crate that does far less to you.
 const PROP_H = { crate: 84, crates: 148, barrel: V11 ? 100 : 82, rope: 30, cannon: 96,
-                 mast: 340, lantern: 200, vent: 52, hatch: 44, ballista: 118 };
+                 mast: 340, lantern: 200, vent: 52, hatch: 44, ballista: 118,
+                 brazier: 116 };
 const PROP_ASSET = { crate:'prop_crate', crates:'prop_crates', barrel:'prop_barrel',
                      rope:'prop_rope', cannon:'prop_cannon', mast:'prop_mast',
                      lantern:'prop_lantern', vent:'prop_vent', hatch:'prop_hatch',
-                     ballista:'prop_ballista' };
+                     ballista:'prop_ballista', brazier:'prop_brazier' };
+// Props that throw light onto the deck. Both are destructible in v11, and the
+// deck going dark where one stood is the cheapest consequence in the game.
+const LIGHT_PROPS = { lantern: 210, brazier: 150 };
 
 function paintProp(t){
   const TIM = '#3A2C2A', TIM_L = '#54413C';
@@ -239,6 +243,22 @@ function paintProp(t){
     }
     ctx.fillStyle = '#FFFFFF'; ell(0, -170, 8, 13); ctx.fill();
     plate(0, -200, 46, 16, 5, PAL.brass);
+  } else if (t === 'brazier'){
+    // an iron fire-basket on three splayed legs, coals live in it
+    for (const sx of [-1, 0, 1]){
+      limb(sx * 15, -6, sx * 7, -44, 9, '#2E2A2E');
+    }
+    plate(0, -58, 62, 30, 8, PAL.iron);
+    ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 5;
+    for (const xx of [-20, -7, 7, 20]){
+      ctx.beginPath(); ctx.moveTo(xx, -72); ctx.lineTo(xx, -46); ctx.stroke();
+    }
+    ell(0, -72, 31, 10); fillStroke(C('#3A1A08'), ink(), OUT * 0.7);
+    ctx.fillStyle = PAL.fire; ell(0, -74, 24, 7); ctx.fill();
+    ctx.fillStyle = PAL.fireCore; ell(0, -76, 13, 4); ctx.fill();
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    drawGlow(0, -84, 78, PAL.fire, 0.7);
+    ctx.restore();
   } else if (t === 'vent'){
     plate(0, -22, 66, 40, 8, PAL.iron);
     ctx.strokeStyle = C(PAL.ink); ctx.lineWidth = 5;
@@ -320,10 +340,12 @@ function drawPropBillboard(p){
   if (sx || sy) ctx.restore();
   const box = OCCLUDE_BOX[p.t];
   if (box) addOccluder(r.p.x, r.p.y, r.wpx * box[0], r.hpx * box[1], p.y);
-  if (p.t === 'lantern'){
-    const q = CAM.project(p.x, p.y, PROP_H.lantern * 0.86);
+  if (LIGHT_PROPS[p.t]){
+    const q = CAM.project(p.x, p.y, PROP_H[p.t] * 0.86);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    drawGlow(q.x, q.y, 90 * q.k, PAL.lantern, 0.5 + Math.sin(S.rt * 3 + p.x) * 0.08);
+    drawGlow(q.x, q.y, (p.t === 'brazier' ? 74 : 90) * q.k,
+             p.t === 'brazier' ? PAL.fire : PAL.lantern,
+             0.5 + Math.sin(S.rt * 3 + p.x) * 0.08);
     ctx.restore();
   }
 }

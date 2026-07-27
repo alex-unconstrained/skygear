@@ -193,5 +193,10 @@
   "id": "9bd9a1681eed",
   "chroma": "#FF00FF",
   "n": 1
+ },
+ "prop_brazier": {
+  "id": "7004d3d845dd",
+  "chroma": "#006BFF",
+  "n": 4
  }
 }

@@ -181,6 +181,13 @@ def main():
         for p in e["src"]:
             dst = AUDIO_DIR / p.relative_to(src)
             dst.parent.mkdir(parents=True, exist_ok=True)
+            # `--from audio` is now the normal case: tools/soundforge.py writes
+            # generated cues straight into the repo's audio tree, and this step
+            # exists to rebuild the index over whatever is there. Copying a file
+            # onto itself raises SameFileError, so skip it rather than making
+            # every caller stage a duplicate tree first.
+            if dst.resolve() == p.resolve():
+                continue
             shutil.copy2(p, dst)
 
     # Delivery loudness is wildly inconsistent — the first batch spanned 37 dB

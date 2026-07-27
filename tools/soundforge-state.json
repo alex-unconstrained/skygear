@@ -1,0 +1,266 @@
+{
+ "amb_ship": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "amb_storm": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "boiler_critical": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "boiler_hurt": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "boss_roar": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "card_deal": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "card_pick": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "climb": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "crate_break": {
+  "sr": 44100,
+  "takes": 2
+ },
+ "crew_attack": {
+  "sr": 44100,
+  "takes": 3
+ },
+ "crew_down": {
+  "sr": 44100,
+  "takes": 2
+ },
+ "crit": {
+  "sr": 44100,
+  "takes": 3
+ },
+ "crossing": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "dash": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "death_heavy": {
+  "sr": 44100,
+  "takes": 2
+ },
+ "death_light": {
+  "sr": 44100,
+  "takes": 3
+ },
+ "elem_ARC": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "elem_EMBER": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "elem_FROST": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "elem_STEAM": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "hulk_break": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "hulk_grapple": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "hulk_hit": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "hurt": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "keg_blow": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "keg_fuse": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "lantern_break": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "pickup": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "ready": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_beam_end": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_beam_loop": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_beam_start": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_cleave": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_gale": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_lance": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_mortar": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_mortar_land": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shape_whip": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "shoot_drone": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "slam": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "slot_unlock": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "telegraph": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "ui_click": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "ui_hover": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "vent": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "vo_boiler_low": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_boss_arrive": {
+  "sr": 24000,
+  "takes": 2
+ },
+ "vo_boss_turn": {
+  "sr": 24000,
+  "takes": 2
+ },
+ "vo_cannon_down": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_crew_down": {
+  "sr": 24000,
+  "takes": 6
+ },
+ "vo_crew_muster": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_dash": {
+  "sr": 24000,
+  "takes": 6
+ },
+ "vo_defeat": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_draft": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_first_board": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_hurt_low": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_keg": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_lane_critical": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_push": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_slot": {
+  "sr": 24000,
+  "takes": 3
+ },
+ "vo_vent": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_victory": {
+  "sr": 24000,
+  "takes": 2
+ },
+ "vo_wave_clear": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "vo_wave_start": {
+  "sr": 24000,
+  "takes": 4
+ },
+ "wave_clear": {
+  "sr": 44100,
+  "takes": 1
+ },
+ "wave_start": {
+  "sr": 44100,
+  "takes": 1
+ }
+}
