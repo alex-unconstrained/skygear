@@ -467,6 +467,13 @@ function drawBanner(){
     textOut('BREAK THE HULK', 0, 14*HS, PAL.fire, PAL.ink, 10);
     setFont(Math.round(16*HS), 700, true);
     textOut('PUSH UP A LANE — THE BOILER STILL HAS TO HOLD', 0, 56*HS, PAL.bone, PAL.ink, 5);
+  } else if (b.kind === 'boss2'){
+    setFont(Math.round(30*HS), 900, true);
+    textOut('IT VENTS', 0, -34*HS, PAL.fireCore, PAL.ink, 7);
+    setFont(Math.round(58*HS), 900, true);
+    textOut('THE COLOSSUS OPENS UP', 0, 8*HS, PAL.fire, PAL.ink, 10);
+    setFont(Math.round(16*HS), 700, true);
+    textOut('IT CAN REACH THE WHOLE DECK NOW', 0, 52*HS, PAL.bone, PAL.ink, 5);
   } else if (b.kind === 'lane'){
     setFont(Math.round(40*HS), 900, true);
     textOut(b.text, 0, 0, PAL.danger, PAL.ink, 8);

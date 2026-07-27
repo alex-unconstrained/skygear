@@ -1218,6 +1218,9 @@ function applyElement(e, elem, ang, knock){
 // The single funnel for all damage dealt to enemies.
 function hitEnemy(e, dmg, o){
   if (!e || e.dead || e.state === 'climb') return 0;
+  // The Colossus cannot be burst through its phase turn. A phase change you can
+  // skip is not a phase change, and the second beat is the encounter's point.
+  if (e.state === 'turn'){ e.blockFlash = 0.18; return 0; }
   o = o || {};
   const M = S.mods;
   const ang = (o.ang !== undefined) ? o.ang : Math.atan2(e.y - S.player.y, e.x - S.player.x);
@@ -2027,7 +2030,7 @@ function spawnEnemy(type, forced, lane){
     flash: 0, blockFlash: 0, anim: rnd(TAU), dead: false,
     atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0, atkAnimT: -1,
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
-    boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0 } : null,
+    boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0, beat: 0 } : null,
   };
   e.lane = PRESET.lanes ? (typeof lane === 'number' ? lane : laneOf(e.x)) : 0;
   S.enemies.push(e);
@@ -2248,15 +2251,73 @@ function updateRanged(e, dt, tgt, d, toT, slowF){
 }
 
 /* --- the wave-12 boss: slam / summon / sweeping ray, all telegraphed ------- */
-const BOSS_ATTACKS = ['slam', 'summon', 'ray'];
+/* The Colossus fights in TWO BEATS, not one long rotation.
+
+   Codex proposed three phases and the plan settled on two — three is the right
+   shape and two is the version that ships, because a third phase needs a third
+   distinct threat and there isn't one. So:
+
+     Beat 1, above half health — it walks the deck and alternates SLAM and
+     SUMMON. Both are about position: the slam is how it threatens the Boiler
+     and the summon is how it stops you standing still. Nothing it does here
+     reaches across the deck, so beat 1 is a fight you win by being somewhere.
+
+     The turn, at half — it stops, vents, and roars. Everything it summoned
+     dies with the vent. This is a beat in the musical sense: a bar of nothing,
+     so that what follows reads as an escalation and not as more of the same.
+
+     Beat 2, below half — the sweeping RAY joins the rotation, it commits
+     faster, and the ray sweeps wider. Now it reaches across the deck, so the
+     fight stops being about position and starts being about timing.
+
+   `BOSS_ATTACKS` is per beat rather than one list, which is what makes the
+   turn a change in kind rather than a change in numbers. */
+const BOSS_BEATS = [
+  { attacks: ['slam', 'summon'],        cool: [2.4, 3.4], sweep: 110 },
+  { attacks: ['slam', 'ray', 'summon'], cool: [1.5, 2.3], sweep: 160 },
+];
+function bossBeat(e){ return e.hp > e.maxHp * 0.5 ? 0 : 1; }
+
 function updateBoss(e, dt, tgt, d, toT, slowF){
   const B = e.boss;
+
+  // The turn. Fired once, on the frame the second beat begins.
+  if (B.beat === 0 && bossBeat(e) === 1){
+    B.beat = 1; B.seq = 0;
+    e.state = 'turn'; e.st = 1.6;
+    e.vx = e.vy = 0;
+    // Everything it called in the first beat is vented with it, so the turn is
+    // a clear moment and not a moment spent fighting six swarmers.
+    for (const o of S.enemies)
+      if (!o.dead && o !== e && o.side === 'boss') killEnemy(o, vrnd(TAU));
+    SFX.bossRoar();
+    Sound.duck(5, 1.4);
+    addTrauma(0.9);
+    S.banner = { kind:'boss2', n: S.wave, t: 0, life: 2.6 };
+    pSmoke(e.x, e.y - 20, 26, 'rgba(160,150,135,0.55)', 220);
+    pSparks(e.x, e.y, 30, PAL.fireCore, 460);
+    fx({ kind:'pop', x:e.x, y:e.y, r:300, life:0.8, col: PAL.fireCore });
+    return;
+  }
+
+  if (e.state === 'turn'){
+    // Vents, and cannot be hurt while it does. A phase change you can burst
+    // through is not a phase change.
+    e.st -= dt;
+    e.vx = e.vy = 0;
+    if (vrnd() < dt * 26) pSmoke(e.x + vrnd(-90, 90), e.y - vrnd(0, 60), 1,
+                                 'rgba(200,190,175,0.5)', 130);
+    if (e.st <= 0){ e.state = 'move'; B.cool = 0.5; }
+    return;
+  }
+
+  const beat = BOSS_BEATS[B.beat];
   if (e.state === 'move'){
     faceToward(e, toT, dt, 2.4);
     moveTo(e, tgt, dt, slowF, 150 + tgt.r);
     B.cool -= dt;
     if (B.cool <= 0){
-      B.atk = BOSS_ATTACKS[B.seq % BOSS_ATTACKS.length];
+      B.atk = beat.attacks[B.seq % beat.attacks.length];
       B.seq++;
       e.state = 'windup';
       e.st = B.atk === 'slam' ? 0.9 : B.atk === 'summon' ? 0.7 : 0.8;
@@ -2291,7 +2352,7 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
         e.state = 'recover'; e.st = 0.7;
       } else {
         e.state = 'active'; e.st = 2.2;
-        B.sweep = -55*DEG; B.dir = chance(0.5) ? 1 : -1; B.tick = 0;
+        B.sweep = -beat.sweep * 0.5 * DEG; B.dir = chance(0.5) ? 1 : -1; B.tick = 0;
         B.baseAng = e.atkAng;
       }
     }
@@ -2299,7 +2360,7 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
     // sustained sweeping ray
     e.st -= dt;
     e.vx *= Math.pow(0.02, dt); e.vy *= Math.pow(0.02, dt);
-    B.sweep += B.dir * (110*DEG / 2.2) * dt;
+    B.sweep += B.dir * (beat.sweep*DEG / 2.2) * dt;
     const a = B.baseAng + B.sweep;
     e.facing = a;
     const len = 620;
@@ -2323,7 +2384,7 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
   } else {
     e.st -= dt;
     e.vx *= Math.pow(0.3, dt); e.vy *= Math.pow(0.3, dt);
-    if (e.st <= 0){ e.state = 'move'; B.cool = rnd(2.2, 3.4); B.atk = null; }
+    if (e.st <= 0){ e.state = 'move'; B.cool = rnd(beat.cool[0], beat.cool[1]); B.atk = null; }
   }
 }
 

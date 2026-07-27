@@ -269,6 +269,70 @@ async function checkWaves(page){
     won.length + ' runs');
 }
 
+/* The finale has two beats, and the second one has to actually arrive.
+
+   A phase change is the easiest thing in a game to write and never see: if the
+   threshold is wrong, or the turn state never exits, or the player kills it
+   through the transition, the encounter silently becomes one long first beat.
+   So this drives the Colossus down through half health and asserts the turn
+   fires, is untouchable while it lasts, exits, and unlocks the attack that was
+   not available before. */
+async function checkBoss(page){
+  const out = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.player.hp = S.player.maxHp = 1e9;
+    S.boiler.hp = S.boiler.maxHp = 1e9;
+    const e = G.spawnEnemy('BOSS');
+    if (!e) return { err: 'no boss' };
+    e.state = 'move'; e.climb = 1; e.st = 0;
+
+    const seen1 = new Set();
+    for (let i = 0; i < 30 / G.DT; i++){
+      G.step(G.DT);
+      if (e.boss.atk) seen1.add(e.boss.atk);
+    }
+    const beat1 = { beat: e.boss.beat, atks: [...seen1] };
+
+    // Bring it down through half with REAL damage, so the turn fires the way it
+    // fires in a game rather than from a poke at the state.
+    let turned = false, immune = null, guard = 0;
+    while (!turned && guard++ < 20 / G.DT){
+      if (e.hp > e.maxHp * 0.5) G.hitEnemy(e, e.maxHp * 0.02, { ang: 0 });
+      G.step(G.DT);
+      if (e.state === 'turn'){
+        turned = true;
+        // and it must not be possible to burst through the turn
+        const before = e.hp;
+        G.hitEnemy(e, e.maxHp * 0.4, { ang: 0 });
+        immune = { before, after: e.hp };
+      }
+    }
+    const seen2 = new Set();
+    for (let i = 0; i < 40 / G.DT; i++){
+      G.step(G.DT);
+      if (e.boss.atk) seen2.add(e.boss.atk);
+    }
+    return { err: null, beat1, beat2: { beat: e.boss.beat, atks: [...seen2] },
+             turned, immune, state: e.state, hp: e.hp / e.maxHp };
+  });
+  if (out.err){ record('boss', 'the Colossus fights', false, out.err); return; }
+  record('boss', 'the first beat is position, not reach',
+    out.beat1.beat === 0 && out.beat1.atks.length > 0 &&
+    out.beat1.atks.indexOf('ray') < 0,
+    'beat ' + out.beat1.beat + ', used [' + out.beat1.atks.join(',') + ']');
+  record('boss', 'it turns at half health and comes out of it',
+    out.turned && out.beat2.beat === 1 && out.state !== 'turn',
+    'turned=' + out.turned + ', beat ' + out.beat2.beat + ', state=' + out.state);
+  record('boss', 'it cannot be burst through the turn',
+    !!out.immune && out.immune.after === out.immune.before,
+    out.immune ? (out.immune.before.toFixed(0) + ' -> ' + out.immune.after.toFixed(0))
+               : 'never entered the turn');
+  record('boss', 'the second beat reaches the whole deck',
+    out.beat2.atks.indexOf('ray') >= 0,
+    'used [' + out.beat2.atks.join(',') + ']');
+}
+
 /* Both loss conditions and a clean restart. */
 async function checkEndings(page){
   // Damage must go through the game's own damage entry points. Zeroing `hp`
@@ -822,6 +886,7 @@ await page.evaluate(INSTALL);
 await group('boot',    () => checkBoot(page, errors));
 await group('matrix',  () => checkMatrix(page));
 await group('waves',   () => checkWaves(page));
+await group('boss',    () => checkBoss(page));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));
