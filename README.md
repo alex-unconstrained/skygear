@@ -18,13 +18,16 @@ Keep the Boiler alive.
 
 ## Play
 
-Open `index.html`, or a build directly. **v10 is live.**
+Open `index.html`. **v11 is live, and it is the only build the landing page
+offers** — every earlier one moved to `archive.html`, still playable, pinned at
+the bytes it shipped with.
 
 | Build | File | What it is |
 |---|---|---|
+| **v11** | `storm-dusk-v11.html` | the deck fights back: steam kegs that detonate, a pressure gauge that vents and heals, close-range healing, a wider deck, two dashes, readable enemy fire |
 | **v10** | `storm-dusk-v10.html` | the build made for someone who has never seen it: instant start, chosen opening weapon, a results screen, settings, seeded runs |
 | **v9** | `storm-dusk-v9.html` | music, and passive skills |
-| **v3–v8** | `storm-dusk-v*.html` | the record of how it got here — every shipped build stays playable |
+| **v2–v8** | `storm-dusk*.html` | the record of how it got here — every shipped build stays playable |
 | **Classic** | `classic.html` | straight top-down, daylight brass-and-khaki — the original benchmark |
 
 Every build is a single self-contained HTML file: no build step at runtime, no
@@ -33,8 +36,8 @@ if they are there, and every one of them has a procedural fallback painted or
 synthesised in code, so the game is fully playable with none of them.
 
 `W A S D` move · mouse aim · `LMB` `RMB` skills 1–2 · `Q` `E` skills 3–4 ·
-`Space` dash · `1 2 3` pick a draft card · `Esc` pause and settings ·
-`F3` frame stats. All of it rebindable in Settings.
+`Space` dash (two charges, and it lights kegs) · `1 2 3` pick a draft card ·
+`Esc` pause and settings · `F3` frame stats. All of it rebindable in Settings.
 
 Useful query parameters:
 
@@ -48,7 +51,8 @@ Useful query parameters:
 ## Layout
 
 ```
-index.html            landing page / build chooser
+index.html            landing page — the live build, and nothing else
+archive.html          every earlier build, kept playable
 classic.html          the original build (hand-written, single file)
 storm-dusk-v*.html    generated — edit src/storm-dusk/, never these
 assets/               art, by manifest path; anything missing falls back
@@ -89,15 +93,21 @@ python tools/audio-check.py              # peak, clipping, and runtime rescue pe
 
 ## Status
 
-v10 is the first build made for a stranger: someone who opens a link, reads
-nothing, is on an unknown machine, and leaves the moment it feels broken. The
-plan of record is **[docs/V10-PLAN.md](docs/V10-PLAN.md)**; a fresh session
-should start at **[docs/START-HERE.md](docs/START-HERE.md)**.
+v10 was the first build made for a stranger, and a stranger played it. What they
+said is the whole of v11: healing scaled with damage and not with risk, so the
+run had no fail state; the deck was full of kegs that did nothing; and you could
+not see what was being shot at you. The plan of record is
+**[docs/V11-PLAN.md](docs/V11-PLAN.md)**; a fresh session should start at
+**[docs/START-HERE.md](docs/START-HERE.md)**.
 
-Verified by `npm test` on every build: all 36 shape × element cells execute and
-deal damage, twelve waves start and clear, both loss conditions and victory
-resolve, restart is clean, a fixed seed reproduces a run, simulation cost with
-forty enemies on the deck stays inside budget, every screen fits and no controls
+Verified by `npm test` on every build — 53 checks: all 36 shape × element cells
+execute and deal damage, twelve waves start and clear, both loss conditions and
+victory resolve, restart is clean, a fixed seed reproduces a run, every
+destructible prop can be destroyed by a shape, a dash and enemy fire, a keg
+lights a fuse rather than detonating and chains to the next one, the deck is
+re-stowed between waves, pressure builds only inside your own reach and the vent
+cannot refill itself, healing from damage is capped per second, simulation cost
+with forty enemies stays inside budget, every screen fits and no controls
 overlap from 1280×720 to 2560×1440 at DPR 1 and 2, the build runs in Firefox as
 well as Chromium, and the frozen builds are byte-identical.
 

@@ -14,16 +14,29 @@
 
 Living status file. Read this first; the other docs are the detail behind it.
 
-**Updated:** 2026-07-27 · **Live build:** `storm-dusk-v10.html` ·
-**Art:** 65 of 67 · **Audio:** 6 cues of 55
+**Updated:** 2026-07-27 · **Live build:** `storm-dusk-v11.html` ·
+**Art:** 67 of 67 stills · **Audio:** 11 cues of 60, 3 music of 7 · **Voice:** 0 of 19, all wired
 
 ---
 
 ## Where things stand
 
-**v10 is cut and live.** v9 is frozen at the bytes it shipped and stays playable
-on the site, like every version before it. Engine blocks 1–5 and 7 of
-`V10-PLAN.md` are complete; block 6 is in progress.
+**v11 is cut and live**, and it is the only build the landing page offers — v10
+and everything before it moved to `archive.html`, frozen at the bytes they
+shipped. The plan of record is now `V11-PLAN.md`, written against one outside
+tester's notes on v10: healing that scaled with damage instead of risk, a deck
+full of kegs that did nothing, and enemy fire nobody could track. Engine blocks
+A–E are complete.
+
+**What changed that touches your work.** The deck is destructible now: barrels
+are steam kegs with hit points, a fuse and a blast; crates break into salvage;
+lanterns spill fire and the deck goes dark where they stood. `prop_barrel` has
+been re-forged as pressurised ordnance because its role changed — if you are
+reviewing prop art, that is the one that moved. There are also three new UI
+icons (`ui_icon_pressure`, `ui_icon_vent`, `ui_icon_salvage`) and a
+`prop_scrap` pile, all delivered. Enemy bolts are hostile-coloured with ground
+shadows and firing lines, which is the biggest single readability change since
+the x-ray pass.
 
 **Everything you deliver has a slot already wired and waiting** — every entry in
 the manifest is loaded, measured and drawn the moment the file exists. That now
