@@ -158,6 +158,42 @@ const ANIMATION_MANIFEST = {
   },
 };
 
+/* The rest of the cast, wired but not yet delivered. A cycle listed here is
+   requested the moment the file exists and ignored until then, exactly like a
+   still — so a strip can be dropped into assets/animations/ and appear in the
+   game on the next build with no engine change.
+
+   `once: true` marks a cycle that plays through and stops rather than looping.
+   An attack is not a loop: its readable frame lands in the first third and
+   holding the last frame is what makes the recovery read.
+
+   Frame counts are what ANIMATION-BRIEF asks for. loom-ingest writes whatever
+   the cut loop produced, and check-animations.py compares the two, so a
+   mismatch is caught at ingest rather than as a sprite that jitters in game. */
+const ANIMATION_PENDING = {
+  hero_idle:        { strip:'assets/animations/hero_idle.png',     count:12, fps:12 },
+  hero_attack:      { strip:'assets/animations/hero_attack.png',   count:10, fps:14, once:true },
+  SCRAPPER_idle:    { strip:'assets/animations/scrapper_idle.png',   count:12, fps:12 },
+  SCRAPPER_attack:  { strip:'assets/animations/scrapper_attack.png', count:10, fps:14, once:true },
+  CREW_idle:        { strip:'assets/animations/crew_idle.png',   count:12, fps:12 },
+  CREW_run:         { strip:'assets/animations/crew_run.png',    count:13, fps:12 },
+  CREW_attack:      { strip:'assets/animations/crew_attack.png', count:10, fps:14, once:true },
+  ARMORED_idle:     { strip:'assets/animations/armored_idle.png',   count:12, fps:12 },
+  ARMORED_run:      { strip:'assets/animations/armored_run.png',    count:14, fps:12 },
+  ARMORED_attack:   { strip:'assets/animations/armored_attack.png', count:10, fps:14, once:true },
+  SWARM_run:        { strip:'assets/animations/swarm_run.png',    count:12, fps:14 },
+  SWARM_attack:     { strip:'assets/animations/swarm_attack.png', count:8,  fps:16, once:true },
+  GUNNER_idle:      { strip:'assets/animations/gunner_idle.png',   count:12, fps:12 },
+  GUNNER_attack:    { strip:'assets/animations/gunner_attack.png', count:10, fps:14, once:true },
+  BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10 },
+  BOSS_attack:      { strip:'assets/animations/colossus_attack.png', count:12, fps:12, once:true },
+};
+for (const k in ANIMATION_PENDING){
+  const spec = ANIMATION_PENDING[k];
+  spec.meta = { anchor:0.920, cx:0.500, fig:0.840 };
+  ANIMATION_MANIFEST[k] = spec;
+}
+
 /* V5 loads production art by default; ?assets=0 is the clean procedural
    fallback. Older builds remain opt-in and can turn art on with
        skygear.html?assets=1
@@ -304,6 +340,7 @@ const Assets = {
       settled = true;
       if (ok && im.naturalWidth > 0){
         sequence.img = im;
+        sequence.once = !!spec.once;
         sequence.fw = Math.round(im.naturalWidth / spec.count);
         sequence.fh = im.naturalHeight;
         sequence.ready = spec.count;
@@ -325,8 +362,19 @@ const Assets = {
   animation(k, time){
     const seq = this.animations[k];
     if (!seq || !seq.img) return null;
-    const i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    let i;
+    if (seq.once){
+      // Plays through and holds its last frame. `time` is seconds since the
+      // action started, so a caller that keeps its own clock gets a one-shot;
+      // one that passes a free-running clock would get a loop, which is why
+      // every `once` caller passes an elapsed time and not S.rt.
+      i = Math.floor(Math.max(0, time) * seq.fps);
+      if (i >= seq.count) return null;          // finished — fall back to the still
+    } else {
+      i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    }
     return { strip: seq.img, sx: i * seq.fw, width: seq.fw, height: seq.fh, __meta: seq.meta };
   },
+  hasAnim(k){ const s = this.animations[k]; return !!(s && s.img); },
 };
 Assets.init();

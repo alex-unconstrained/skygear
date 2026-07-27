@@ -320,6 +320,137 @@ async function checkSeed(browser, port){
   }
 }
 
+/* The resolution and DPI matrix, and the browser matrix.
+
+   V10-PLAN §7 asks for 1280x720 through 2560x1440 at DPR 1 and 2, in Chrome and
+   Firefox. The failure this catches is not a crash — it is a HUD that is
+   correct at the developer's window size and off the bottom of the screen at
+   someone else's. So each size boots the game, opens each screen that has a
+   layout, and asserts that every drawn control is inside the viewport, that
+   nothing overlaps, and that no frame threw.
+
+   Widget rectangles come from the game itself rather than from a screenshot:
+   UI.probe already knows where every control is, so recording them costs one
+   array and is exact. */
+const SIZES = [
+  { w: 1280, h: 720,  dpr: 1 },
+  { w: 1366, h: 768,  dpr: 1 },
+  { w: 1600, h: 900,  dpr: 2 },
+  { w: 1920, h: 1080, dpr: 1 },
+  { w: 2560, h: 1440, dpr: 2 },
+];
+const SCREENS = ['title', 'settings', 'howto', 'binds', 'pause', 'results', 'draft'];
+
+async function checkLayout(browser, port){
+  const bad = [];
+  for (const s of SIZES){
+    const tab = await browser.newPage({
+      viewport: { width: s.w, height: s.h }, deviceScaleFactor: s.dpr });
+    const errs = [];
+    tab.on('pageerror', e => errs.push(e.message));
+    try {
+      await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=LAYOUT`,
+                     { waitUntil: 'domcontentloaded' });
+      await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+      await tab.evaluate(INSTALL);
+      const out = await tab.evaluate((screens) => {
+        const G = window.SKYGEAR, S = G.S;
+        // Record every control rect the next draw produces.
+        const seen = [];
+        const probe = G.UI.probe.bind(G.UI);
+        G.UI.probe = function(r){ seen.push({ ...r }); return probe(r); };
+        const res = {};
+        for (const name of screens){
+          seen.length = 0;
+          if (name === 'title'){ S.mode = 'title'; S.overlay = null; }
+          else if (name === 'settings'){ S.mode = 'title'; G.openSettings('title'); }
+          else if (name === 'howto'){ S.mode = 'title'; G.openHowTo('title'); }
+          else if (name === 'binds'){ S.mode = 'title'; G.openBinds(); }
+          else if (name === 'pause'){ window.__begin(); S.overlay = null; S.mode = 'pause'; }
+          else if (name === 'draft'){ window.__begin(); S.unlockedSlots = 4; G.openDraft(); S.draft.t = 2; }
+          else if (name === 'results'){
+            window.__begin();
+            S.result = G.RunLog.record(G.buildRunRecord(true));
+            S.mode = 'victory'; S.endTitle = 'DECK HELD';
+            S.endReason = 'Twelve waves repelled. The deck is yours.'; S.endT = 3;
+          }
+          G.render(1 / 60);
+          const W = window.innerWidth, H = window.innerHeight;
+          const off = seen.filter(r => r.x < -1 || r.y < -1 ||
+                                       r.x + r.w > W + 1 || r.y + r.h > H + 1);
+          // Overlapping hit targets mean a click lands on whichever was drawn
+          // last, which is not what the player aimed at.
+          const over = [];
+          for (let i = 0; i < seen.length; i++)
+            for (let j = i + 1; j < seen.length; j++){
+              const a = seen[i], b = seen[j];
+              if (a.x < b.x + b.w && b.x < a.x + a.w &&
+                  a.y < b.y + b.h && b.y < a.y + a.h) over.push([i, j]);
+            }
+          res[name] = { n: seen.length, off: off.length, over: over.length };
+        }
+        S.overlay = null; S.mode = 'title';
+        return res;
+      }, SCREENS);
+      for (const name of SCREENS){
+        const r = out[name];
+        if (!r) continue;
+        if (r.off) bad.push(`${s.w}x${s.h}@${s.dpr} ${name}: ${r.off} control(s) off-screen`);
+        if (r.over) bad.push(`${s.w}x${s.h}@${s.dpr} ${name}: ${r.over} overlapping control(s)`);
+        if (!r.n && name !== 'draft') bad.push(`${s.w}x${s.h}@${s.dpr} ${name}: no controls drawn`);
+      }
+      if (errs.length) bad.push(`${s.w}x${s.h}@${s.dpr}: ${errs[0].split('\n')[0]}`);
+    } catch (e){
+      bad.push(`${s.w}x${s.h}@${s.dpr}: ${e.message.split('\n')[0]}`);
+    } finally {
+      await tab.close();
+    }
+  }
+  record('layout', 'every screen fits and no controls overlap, 1280x720 to 2560x1440',
+    bad.length === 0, bad.length ? bad.slice(0, 4).join(' | ') : SIZES.length + ' sizes x ' + SCREENS.length + ' screens');
+}
+
+/* Firefox. The rule is one engine's quirks must not be the only thing the game
+   has ever run on: Gecko differs from Blink on canvas letterSpacing, on
+   AudioContext construction before a gesture, and on how it reports
+   prefers-reduced-motion. A boot plus a wave is enough to catch all three. */
+async function checkFirefox(port){
+  let fx;
+  try {
+    const { firefox } = await import('playwright');
+    fx = await firefox.launch({ headless: true });
+  } catch (e){
+    record('firefox', 'the build runs in Firefox', true,
+      'SKIPPED — no Firefox build installed (npx playwright install firefox)');
+    return;
+  }
+  const tab = await fx.newPage({ viewport: { width: 1366, height: 768 } });
+  const errs = [];
+  tab.on('pageerror', e => errs.push(e.message));
+  try {
+    await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=GECKO1`,
+                   { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 20000 });
+    await tab.evaluate(INSTALL);
+    const out = await tab.evaluate(() => {
+      const G = window.SKYGEAR, S = G.S;
+      window.__begin();
+      S.player.hp = S.player.maxHp = 1e9; S.boiler.hp = S.boiler.maxHp = 1e9;
+      for (let i = 0; i < 30 / G.DT && S.mode === 'play'; i++) G.step(G.DT);
+      G.render(1 / 60);
+      S.mode = 'title';
+      return { wave: S.wave, kills: S.stats.kills, seed: G.seedText(S.seed) };
+    });
+    record('firefox', 'the build runs in Firefox', errs.length === 0 && out.wave > 0,
+      errs.length ? errs[0].split('\n')[0] : 'reached wave ' + out.wave + ', seed ' + out.seed);
+  } catch (e){
+    record('firefox', 'the build runs in Firefox', false, e.message.split('\n')[0]);
+  } finally {
+    await tab.close();
+    await fx.close();
+  }
+}
+
 /* The frozen builds are the site's history. build.py enforces this too; the
    harness repeats it so one command answers "is the site correct". */
 async function checkFrozen(){
@@ -401,6 +532,8 @@ await group('waves',   () => checkWaves(page));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));
+await group('layout',  () => checkLayout(browser, port));
+await group('firefox', () => checkFirefox(port));
 await group('frozen',  () => checkFrozen());
 
 // Console errors are collected across every check, not just boot: a throw

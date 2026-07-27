@@ -1,0 +1,177 @@
+{
+ "rune_enemy": {
+  "id": "f372450c2b8b",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "rune_enemy_filled": {
+  "id": "06042c8436f9",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "rune_player": {
+  "id": "d681a14f54ee",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "decal_scorch": {
+  "id": "d6a903c5d60b",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "decal_oil": {
+  "id": "47feeeaae582",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "shadow_blob": {
+  "id": "3d12ef7d8d17",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "ui_icon_slash": {
+  "id": "1657d6f8aaf7",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_hook": {
+  "id": "72ae2be11ea4",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_cone": {
+  "id": "d1502ef25872",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_aoe": {
+  "id": "87ea4d5b3d92",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_ult": {
+  "id": "944e2d557327",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_turret": {
+  "id": "cc0d33910056",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_field": {
+  "id": "d6de1da70339",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_pulse": {
+  "id": "f1584b5d8f17",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_sentry": {
+  "id": "f21e4edb0a0e",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_gauge": {
+  "id": "81c89931bc88",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_portrait": {
+  "id": "466d45e7e8d7",
+  "chroma": "#00FF00",
+  "n": 4
+ },
+ "ui_frame": {
+  "id": "550e6fbf310a",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "fx_impact": {
+  "id": "8c09e1fba77e",
+  "chroma": "#006BFF",
+  "n": 1
+ },
+ "fx_slash": {
+  "id": "20faa32ee4b5",
+  "chroma": "#006BFF",
+  "n": 1
+ },
+ "fx_bolt": {
+  "id": "86020ccb8386",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "fx_steam": {
+  "id": "b10d916c15d0",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "fx_smoke": {
+  "id": "315ab366584d",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "fx_ember": {
+  "id": "b53d9018c502",
+  "chroma": "#006BFF",
+  "n": 1
+ },
+ "prop_barrel": {
+  "id": "17857182a7fa",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_crate": {
+  "id": "089832f17d83",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_rope": {
+  "id": "0af4a068a39b",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_hatch": {
+  "id": "59d810a9aeb4",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_ballista": {
+  "id": "13b8695638b4",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_railing": {
+  "id": "7d3b9abf36d4",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_mast": {
+  "id": "8dfca7e7ca32",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "env_airship": {
+  "id": "646e5234ab3a",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "env_clouds_far": {
+  "id": "d6442c49e0fe",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "env_clouds_near": {
+  "id": "a965e61cafc7",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "decal_gears": {
+  "id": "57fd9be795a1",
+  "chroma": "#FF00FF",
+  "n": 1
+ }
+}

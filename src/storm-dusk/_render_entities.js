@@ -373,9 +373,16 @@ function drawPlayerBillboard(){
   const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
   const running = !attacking && P.dashT <= 0 && v.view === 'front_idle' &&
                   Math.hypot(P.vx, P.vy) > 35;
-  const runFrame = running && Assets.animation('hero_run', S.rt);
-  const hi = runFrame || charImage('hero', v.view);
-  if (runFrame) bob = 0;
+  // Front views only. The cycles are authored facing the camera; a back-facing
+  // captain keeps her still, which is what the back still exists for.
+  const front = v.view !== 'back_idle';
+  const frame =
+      (front && P.atkAnimT !== undefined && P.atkAnimT >= 0
+        && Assets.animation('hero_attack', P.atkAnimT))
+   || (running && front && Assets.animation('hero_run', S.rt))
+   || (!running && !attacking && front && P.dashT <= 0 && Assets.animation('hero_idle', S.rt));
+  const hi = frame || charImage('hero', v.view);
+  if (frame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
   // no x-ray for the captain: she is drawn above everything, so she can never
@@ -403,12 +410,18 @@ function drawEnemyBillboard(e){
   if (e.slowT > 0) groundRing(e.x, e.y, e.r + 10, PAL.teal, 2.6, 0.5);
   if (e.accT > 0)  groundRing(e.x, e.y, e.r + 18, ELEMENTS.STEAM.color, 2.2, 0.32);
 
-  const running = e.type === 'SCRAPPER' && !climbing && !attacking &&
-                  e.state === 'move' && v.view === 'front_idle' &&
-                  Math.hypot(e.vx, e.vy) > 15;
-  const runFrame = running && Assets.animation('SCRAPPER_run', S.rt + e.anim * 0.137);
-  const img = runFrame || charImage(e.type, v.view);
-  if (runFrame) bob = 0;
+  // Same three states for every enemy type, so a delivered cycle for any of
+  // them drops in without another branch here. `e.anim` offsets the clock per
+  // entity, so six Scrappers do not march in lockstep.
+  const front = v.view !== 'back_idle';
+  const moving = e.state === 'move' && Math.hypot(e.vx, e.vy) > 15;
+  const t = S.rt + e.anim * 0.137;
+  const frame = climbing ? null : (
+      (front && attacking && e.atkAnimT >= 0 && Assets.animation(e.type + '_attack', e.atkAnimT))
+   || (front && moving && Assets.animation(e.type + '_run', t))
+   || (front && !moving && !attacking && Assets.animation(e.type + '_idle', t)));
+  const img = frame || charImage(e.type, v.view);
+  if (frame) bob = 0;
   const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {
     mirror: v.mirror,
     lift: hover + bob,

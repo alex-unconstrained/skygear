@@ -5,28 +5,23 @@
 const AUDIO_DELIVERED = {
   "cannon_down": {
     "ext": ".wav",
-    "n": 3,
-    "g": 0.399
+    "n": 3
   },
   "cannon_fire": {
     "ext": ".wav",
-    "n": 3,
-    "g": 0.471
+    "n": 3
   },
   "cannon_hurt": {
     "ext": ".wav",
-    "n": 3,
-    "g": 8.0
+    "n": 3
   },
   "crew_muster": {
     "ext": ".wav",
-    "n": 2,
-    "g": 0.398
+    "n": 2
   },
   "hit": {
     "ext": ".wav",
-    "n": 5,
-    "g": 4.405
+    "n": 5
   },
   "m_combat1": {
     "ext": ".mp3",

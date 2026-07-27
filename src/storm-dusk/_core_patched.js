@@ -903,6 +903,7 @@ function resetGame(){
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
     stepT: 0, coatSway: 0, castFlash: 0, ray: null,
     facing: -Math.PI/2, atkCd: 0, atkTarget: null, atkSwing: 0, dashBuf: 0,
+    atkAnimT: -1,
   };
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
@@ -1433,7 +1434,7 @@ function castSlot(idx, opt){
 
   let aim = (opt.atX !== undefined) ? Math.atan2(opt.atY - P.y, opt.atX - P.x) : S.player.aim;
 
-  if (!opt.from){ S.player.castFlash = 0.12; S.player.lastElem = sk.element; }
+  if (!opt.from){ S.player.castFlash = 0.12; S.player.lastElem = sk.element; S.player.atkAnimT = 0; }
   SFX.fire[sk.element]();
 
   const mx = P.x + Math.cos(aim) * 20, my = P.y + Math.sin(aim) * 20 - 4;
@@ -1628,6 +1629,7 @@ function startRay(idx, sk, st){
   S.player.ray = { slot: idx, t: 0, tick: 0, dmgMult, free, len: 0 };
   S.player.lastElem = sk.element;
   S.player.castFlash = 0.12;
+  S.player.atkAnimT = 0;
   SFX.fire[sk.element]();
   return true;
 }
@@ -1933,6 +1935,10 @@ function updatePlayer(dt){
   P.iframe = Math.max(0, P.iframe - dt);
   P.hurt = Math.max(0, P.hurt - dt);
   P.castFlash = Math.max(0, P.castFlash - dt);
+  // Elapsed time since the swing started, for a one-shot attack strip. -1 once
+  // it has run past any plausible cycle length, so the still takes over rather
+  // than the strip looping on its last frame forever.
+  if (P.atkAnimT >= 0){ P.atkAnimT += dt; if (P.atkAnimT > 1.6) P.atkAnimT = -1; }
   for (let i = P.trail.length - 1; i >= 0; i--){
     P.trail[i].t += dt;
     if (P.trail[i].t > 0.32) P.trail.splice(i, 1);
@@ -2019,7 +2025,7 @@ function spawnEnemy(type, forced, lane){
     state: 'climb', st: TUNING.spawnClimb, climb: 0,
     burnStacks: 0, burnT: 0, burnTick: 0, slowT: 0, slowAmt: 0, stunT: 0, accT: 0, scaldT: 0, scaldTick: 0,
     flash: 0, blockFlash: 0, anim: rnd(TAU), dead: false,
-    atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0,
+    atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0, atkAnimT: -1,
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
     boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0 } : null,
   };
@@ -2053,6 +2059,9 @@ function tickDamage(e, dmg, col){
 }
 
 function updateEnemy(e, dt){
+  // Same one-shot clock as the captain's: counts up from the wind-up and stops
+  // once no plausible attack cycle could still be playing.
+  if (e.atkAnimT >= 0){ e.atkAnimT += dt; if (e.atkAnimT > 1.6) e.atkAnimT = -1; }
   const def = e.def;
 
   // --- status effects (these run even mid-climb so nothing feels cheated)
@@ -2148,7 +2157,7 @@ function updateMelee(e, dt, tgt, d, toT, slowF){
     faceToward(e, toT, dt, 7);
     moveTo(e, tgt, dt, slowF, def.atkRange + tgt.r - e.r);
     if (d <= def.atkRange + tgt.r){
-      e.state = 'windup'; e.st = def.windup;
+      e.state = 'windup'; e.st = def.windup; e.atkAnimT = 0;
       e.atkAng = toT; e.atkTarget = tgt.isPlayer ? 'player' : 'boiler';
       e.laneTgt = { x: tgt.x, y: tgt.y, r: tgt.r };
       SFX.telegraph();
@@ -2210,7 +2219,7 @@ function updateRanged(e, dt, tgt, d, toT, slowF){
     }
     e.shootT -= dt;
     if (e.shootT <= 0 && d < def.atkRange + 60){
-      e.state = 'windup'; e.st = def.windup; e.atkAng = toT;
+      e.state = 'windup'; e.st = def.windup; e.atkAng = toT; e.atkAnimT = 0;
       e.atkTarget = tgt.isPlayer ? 'player' : 'boiler';
       SFX.telegraph();
     }

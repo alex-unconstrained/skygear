@@ -27,6 +27,9 @@ const arg = (n, d) => { const i = argv.indexOf('--' + n); return i >= 0 && argv[
 const SIZE = arg('size', '1366x768').split('x').map(Number);
 const DPR = Number(arg('dpr', 1));
 const ONLY = (arg('only', '') || '').split(',').filter(Boolean);
+// Procedural by default: a shot that is meant to show a layout should not
+// change every time an asset lands. --art turns the delivered art on.
+const ART = argv.includes('--art');
 const OUT = path.join(ROOT, '.shots');
 const BUILD = (() => {
   const m = /^LIVE = '([^']+)'/m.exec(fs.readFileSync(path.join(ROOT, 'src/storm-dusk/build.py'), 'utf8'));
@@ -138,7 +141,7 @@ const page = await browser.newPage({
 const errs = [];
 page.on('pageerror', e => errs.push(e.message));
 
-await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=SHOT01`,
+await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?${ART ? '' : 'assets=0&'}audio=0&seed=SHOT01`,
                 { waitUntil: 'domcontentloaded' });
 await page.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
 // A seam for scenes that need to end a run without pretending to be the sim.
@@ -166,7 +169,7 @@ for (const name of names){
   // here (software raster) so this is deliberately patient.
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
             .catch(() => {});
-  const file = path.join(OUT, `${name}-${SIZE[0]}x${SIZE[1]}${DPR > 1 ? '@' + DPR + 'x' : ''}.png`);
+  const file = path.join(OUT, `${name}-${SIZE[0]}x${SIZE[1]}${DPR > 1 ? '@' + DPR + 'x' : ''}${ART ? '-art' : ''}.png`);
   await page.screenshot({ path: file });
   console.log((errs.length > before ? 'ERR  ' : 'shot ') + path.relative(ROOT, file) +
               (errs.length > before ? '   ' + errs[before].split('\n')[0] : ''));

@@ -82,7 +82,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "a5b56b8"
+  "build": "125b7ee"
 };
 
 /* ============================================================================
@@ -990,6 +990,7 @@ function resetGame(){
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
     stepT: 0, coatSway: 0, castFlash: 0, ray: null,
     facing: -Math.PI/2, atkCd: 0, atkTarget: null, atkSwing: 0, dashBuf: 0,
+    atkAnimT: -1,
   };
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
@@ -1520,7 +1521,7 @@ function castSlot(idx, opt){
 
   let aim = (opt.atX !== undefined) ? Math.atan2(opt.atY - P.y, opt.atX - P.x) : S.player.aim;
 
-  if (!opt.from){ S.player.castFlash = 0.12; S.player.lastElem = sk.element; }
+  if (!opt.from){ S.player.castFlash = 0.12; S.player.lastElem = sk.element; S.player.atkAnimT = 0; }
   SFX.fire[sk.element]();
 
   const mx = P.x + Math.cos(aim) * 20, my = P.y + Math.sin(aim) * 20 - 4;
@@ -1715,6 +1716,7 @@ function startRay(idx, sk, st){
   S.player.ray = { slot: idx, t: 0, tick: 0, dmgMult, free, len: 0 };
   S.player.lastElem = sk.element;
   S.player.castFlash = 0.12;
+  S.player.atkAnimT = 0;
   SFX.fire[sk.element]();
   return true;
 }
@@ -2020,6 +2022,10 @@ function updatePlayer(dt){
   P.iframe = Math.max(0, P.iframe - dt);
   P.hurt = Math.max(0, P.hurt - dt);
   P.castFlash = Math.max(0, P.castFlash - dt);
+  // Elapsed time since the swing started, for a one-shot attack strip. -1 once
+  // it has run past any plausible cycle length, so the still takes over rather
+  // than the strip looping on its last frame forever.
+  if (P.atkAnimT >= 0){ P.atkAnimT += dt; if (P.atkAnimT > 1.6) P.atkAnimT = -1; }
   for (let i = P.trail.length - 1; i >= 0; i--){
     P.trail[i].t += dt;
     if (P.trail[i].t > 0.32) P.trail.splice(i, 1);
@@ -2106,7 +2112,7 @@ function spawnEnemy(type, forced, lane){
     state: 'climb', st: TUNING.spawnClimb, climb: 0,
     burnStacks: 0, burnT: 0, burnTick: 0, slowT: 0, slowAmt: 0, stunT: 0, accT: 0, scaldT: 0, scaldTick: 0,
     flash: 0, blockFlash: 0, anim: rnd(TAU), dead: false,
-    atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0,
+    atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0, atkAnimT: -1,
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
     boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0 } : null,
   };
@@ -2140,6 +2146,9 @@ function tickDamage(e, dmg, col){
 }
 
 function updateEnemy(e, dt){
+  // Same one-shot clock as the captain's: counts up from the wind-up and stops
+  // once no plausible attack cycle could still be playing.
+  if (e.atkAnimT >= 0){ e.atkAnimT += dt; if (e.atkAnimT > 1.6) e.atkAnimT = -1; }
   const def = e.def;
 
   // --- status effects (these run even mid-climb so nothing feels cheated)
@@ -2235,7 +2244,7 @@ function updateMelee(e, dt, tgt, d, toT, slowF){
     faceToward(e, toT, dt, 7);
     moveTo(e, tgt, dt, slowF, def.atkRange + tgt.r - e.r);
     if (d <= def.atkRange + tgt.r){
-      e.state = 'windup'; e.st = def.windup;
+      e.state = 'windup'; e.st = def.windup; e.atkAnimT = 0;
       e.atkAng = toT; e.atkTarget = tgt.isPlayer ? 'player' : 'boiler';
       e.laneTgt = { x: tgt.x, y: tgt.y, r: tgt.r };
       SFX.telegraph();
@@ -2297,7 +2306,7 @@ function updateRanged(e, dt, tgt, d, toT, slowF){
     }
     e.shootT -= dt;
     if (e.shootT <= 0 && d < def.atkRange + 60){
-      e.state = 'windup'; e.st = def.windup; e.atkAng = toT;
+      e.state = 'windup'; e.st = def.windup; e.atkAng = toT; e.atkAnimT = 0;
       e.atkTarget = tgt.isPlayer ? 'player' : 'boiler';
       SFX.telegraph();
     }
@@ -3437,28 +3446,23 @@ function copyText(text){
 const AUDIO_DELIVERED = {
   "cannon_down": {
     "ext": ".wav",
-    "n": 3,
-    "g": 0.399
+    "n": 3
   },
   "cannon_fire": {
     "ext": ".wav",
-    "n": 3,
-    "g": 0.471
+    "n": 3
   },
   "cannon_hurt": {
     "ext": ".wav",
-    "n": 3,
-    "g": 8.0
+    "n": 3
   },
   "crew_muster": {
     "ext": ".wav",
-    "n": 2,
-    "g": 0.398
+    "n": 2
   },
   "hit": {
     "ext": ".wav",
-    "n": 5,
-    "g": 4.405
+    "n": 5
   },
   "m_combat1": {
     "ext": ".mp3",
@@ -4957,6 +4961,42 @@ const ANIMATION_MANIFEST = {
   },
 };
 
+/* The rest of the cast, wired but not yet delivered. A cycle listed here is
+   requested the moment the file exists and ignored until then, exactly like a
+   still — so a strip can be dropped into assets/animations/ and appear in the
+   game on the next build with no engine change.
+
+   `once: true` marks a cycle that plays through and stops rather than looping.
+   An attack is not a loop: its readable frame lands in the first third and
+   holding the last frame is what makes the recovery read.
+
+   Frame counts are what ANIMATION-BRIEF asks for. loom-ingest writes whatever
+   the cut loop produced, and check-animations.py compares the two, so a
+   mismatch is caught at ingest rather than as a sprite that jitters in game. */
+const ANIMATION_PENDING = {
+  hero_idle:        { strip:'assets/animations/hero_idle.png',     count:12, fps:12 },
+  hero_attack:      { strip:'assets/animations/hero_attack.png',   count:10, fps:14, once:true },
+  SCRAPPER_idle:    { strip:'assets/animations/scrapper_idle.png',   count:12, fps:12 },
+  SCRAPPER_attack:  { strip:'assets/animations/scrapper_attack.png', count:10, fps:14, once:true },
+  CREW_idle:        { strip:'assets/animations/crew_idle.png',   count:12, fps:12 },
+  CREW_run:         { strip:'assets/animations/crew_run.png',    count:13, fps:12 },
+  CREW_attack:      { strip:'assets/animations/crew_attack.png', count:10, fps:14, once:true },
+  ARMORED_idle:     { strip:'assets/animations/armored_idle.png',   count:12, fps:12 },
+  ARMORED_run:      { strip:'assets/animations/armored_run.png',    count:14, fps:12 },
+  ARMORED_attack:   { strip:'assets/animations/armored_attack.png', count:10, fps:14, once:true },
+  SWARM_run:        { strip:'assets/animations/swarm_run.png',    count:12, fps:14 },
+  SWARM_attack:     { strip:'assets/animations/swarm_attack.png', count:8,  fps:16, once:true },
+  GUNNER_idle:      { strip:'assets/animations/gunner_idle.png',   count:12, fps:12 },
+  GUNNER_attack:    { strip:'assets/animations/gunner_attack.png', count:10, fps:14, once:true },
+  BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10 },
+  BOSS_attack:      { strip:'assets/animations/colossus_attack.png', count:12, fps:12, once:true },
+};
+for (const k in ANIMATION_PENDING){
+  const spec = ANIMATION_PENDING[k];
+  spec.meta = { anchor:0.920, cx:0.500, fig:0.840 };
+  ANIMATION_MANIFEST[k] = spec;
+}
+
 /* V5 loads production art by default; ?assets=0 is the clean procedural
    fallback. Older builds remain opt-in and can turn art on with
        skygear.html?assets=1
@@ -5103,6 +5143,7 @@ const Assets = {
       settled = true;
       if (ok && im.naturalWidth > 0){
         sequence.img = im;
+        sequence.once = !!spec.once;
         sequence.fw = Math.round(im.naturalWidth / spec.count);
         sequence.fh = im.naturalHeight;
         sequence.ready = spec.count;
@@ -5124,9 +5165,20 @@ const Assets = {
   animation(k, time){
     const seq = this.animations[k];
     if (!seq || !seq.img) return null;
-    const i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    let i;
+    if (seq.once){
+      // Plays through and holds its last frame. `time` is seconds since the
+      // action started, so a caller that keeps its own clock gets a one-shot;
+      // one that passes a free-running clock would get a loop, which is why
+      // every `once` caller passes an elapsed time and not S.rt.
+      i = Math.floor(Math.max(0, time) * seq.fps);
+      if (i >= seq.count) return null;          // finished — fall back to the still
+    } else {
+      i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    }
     return { strip: seq.img, sx: i * seq.fw, width: seq.fw, height: seq.fh, __meta: seq.meta };
   },
+  hasAnim(k){ const s = this.animations[k]; return !!(s && s.img); },
 };
 Assets.init();
 
@@ -6368,9 +6420,16 @@ function drawPlayerBillboard(){
   const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
   const running = !attacking && P.dashT <= 0 && v.view === 'front_idle' &&
                   Math.hypot(P.vx, P.vy) > 35;
-  const runFrame = running && Assets.animation('hero_run', S.rt);
-  const hi = runFrame || charImage('hero', v.view);
-  if (runFrame) bob = 0;
+  // Front views only. The cycles are authored facing the camera; a back-facing
+  // captain keeps her still, which is what the back still exists for.
+  const front = v.view !== 'back_idle';
+  const frame =
+      (front && P.atkAnimT !== undefined && P.atkAnimT >= 0
+        && Assets.animation('hero_attack', P.atkAnimT))
+   || (running && front && Assets.animation('hero_run', S.rt))
+   || (!running && !attacking && front && P.dashT <= 0 && Assets.animation('hero_idle', S.rt));
+  const hi = frame || charImage('hero', v.view);
+  if (frame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
   // no x-ray for the captain: she is drawn above everything, so she can never
@@ -6398,12 +6457,18 @@ function drawEnemyBillboard(e){
   if (e.slowT > 0) groundRing(e.x, e.y, e.r + 10, PAL.teal, 2.6, 0.5);
   if (e.accT > 0)  groundRing(e.x, e.y, e.r + 18, ELEMENTS.STEAM.color, 2.2, 0.32);
 
-  const running = e.type === 'SCRAPPER' && !climbing && !attacking &&
-                  e.state === 'move' && v.view === 'front_idle' &&
-                  Math.hypot(e.vx, e.vy) > 15;
-  const runFrame = running && Assets.animation('SCRAPPER_run', S.rt + e.anim * 0.137);
-  const img = runFrame || charImage(e.type, v.view);
-  if (runFrame) bob = 0;
+  // Same three states for every enemy type, so a delivered cycle for any of
+  // them drops in without another branch here. `e.anim` offsets the clock per
+  // entity, so six Scrappers do not march in lockstep.
+  const front = v.view !== 'back_idle';
+  const moving = e.state === 'move' && Math.hypot(e.vx, e.vy) > 15;
+  const t = S.rt + e.anim * 0.137;
+  const frame = climbing ? null : (
+      (front && attacking && e.atkAnimT >= 0 && Assets.animation(e.type + '_attack', e.atkAnimT))
+   || (front && moving && Assets.animation(e.type + '_run', t))
+   || (front && !moving && !attacking && Assets.animation(e.type + '_idle', t)));
+  const img = frame || charImage(e.type, v.view);
+  if (frame) bob = 0;
   const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {
     mirror: v.mirror,
     lift: hover + bob,
