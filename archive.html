@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SKYGEAR — archive</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230D0B12'/%3E%3Cg fill='none' stroke='%23E8C376' stroke-width='2.6'%3E%3Ccircle cx='16' cy='16' r='6.5'/%3E%3Cpath d='M16 3.5v3.5M16 25v3.5M3.5 16h3.5M25 16h3.5M7.2 7.2l2.5 2.5M22.3 22.3l2.5 2.5M24.8 7.2l-2.5 2.5M9.7 22.3l-2.5 2.5'/%3E%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E">
+<meta name="description" content="Every build of SKYGEAR, kept playable at the bytes it shipped.">
+<meta name="robots" content="noindex">
+<style>
+  :root{
+    --ink:#0D0B12; --panel:#1C1926;
+    --brass:#B0813F; --brass-lt:#E8C376; --teal:#37F0C8;
+    --moon:#8FA6C9; --bone:#E8E2D2; --mute:#8B8296;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;min-height:100%}
+  html{background:#100E1C}
+  body::before{
+    content:"";position:fixed;inset:0;z-index:-1;
+    background:
+      radial-gradient(120% 80% at 24% 8%, rgba(143,166,201,.14), transparent 55%),
+      linear-gradient(180deg,#100E1C 0%,#181530 46%,#241F42 100%);
+  }
+  body{color:var(--bone);font:16px/1.65 'Trebuchet MS',system-ui,sans-serif;
+       padding:clamp(24px,5vw,56px) clamp(18px,5vw,32px) 72px;}
+  .wrap{max-width:980px;margin:0 auto}
+  header{margin-bottom:clamp(24px,5vw,42px)}
+  .back{color:var(--teal);text-decoration:none;font:800 12px/1 'Trebuchet MS',sans-serif;
+        letter-spacing:.2em;text-transform:uppercase}
+  .back:hover{text-decoration:underline}
+  h1{font:900 clamp(38px,8vw,72px)/0.95 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
+     letter-spacing:.05em;margin:18px 0 0;color:var(--brass-lt)}
+  .lede{max-width:66ch;margin:16px 0 0;color:#C6BFD2}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:18px;margin-top:32px}
+  .card{
+    display:flex;flex-direction:column;background:var(--panel);
+    border:1px solid rgba(176,129,63,.35);border-radius:14px;overflow:hidden;
+    text-decoration:none;color:inherit;opacity:.86;
+    box-shadow:0 16px 36px rgba(0,0,0,.42);
+    transition:transform .16s ease, border-color .16s ease, opacity .16s ease;
+  }
+  .card:hover,.card:focus-visible{transform:translateY(-4px);border-color:var(--teal);opacity:1;outline:none}
+  .shot{height:132px;border-bottom:1px solid rgba(176,129,63,.28);position:relative}
+  .shot.classic{background:
+    radial-gradient(70% 120% at 50% 118%, rgba(217,164,65,.30), transparent 60%),
+    linear-gradient(180deg,#5E7C97 0%,#A8C4D4 46%,#B9AE86 47%,#CFC49C 100%)}
+  .shot.dusk{background:
+    radial-gradient(60% 130% at 50% 122%, rgba(255,179,71,.34), transparent 62%),
+    radial-gradient(40% 60% at 22% 16%, rgba(143,166,201,.42), transparent 60%),
+    linear-gradient(180deg,#100E1C 0%,#2E2A4E 52%,#3D2E30 53%,#54413C 100%)}
+  .tag{position:absolute;top:12px;left:12px;font-size:11px;letter-spacing:.18em;
+       text-transform:uppercase;padding:5px 10px;border-radius:999px;
+       background:rgba(13,11,18,.78);border:1px solid rgba(176,129,63,.5);color:var(--brass-lt)}
+  .body{padding:18px 20px 22px;flex:1;display:flex;flex-direction:column}
+  .card h2{margin:0 0 6px;font:900 23px/1.15 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
+           letter-spacing:.04em;color:var(--bone)}
+  .card p{margin:0;color:var(--mute);font-size:14px;flex:1}
+  .play{margin-top:16px;align-self:flex-start;font:800 12px/1 'Trebuchet MS',sans-serif;
+        letter-spacing:.16em;text-transform:uppercase;color:var(--ink);
+        background:#7E778C;padding:10px 18px;border-radius:8px}
+  .card.v10 .play{background:#45D8BE}
+  .card.classic .play{background:var(--brass-lt)}
+  .note{margin-top:38px;background:rgba(28,25,38,.7);border:1px solid rgba(176,129,63,.24);
+        border-radius:12px;padding:20px 22px;color:#C6BFD2;font-size:14.5px}
+  .note b{color:var(--bone)}
+  footer{margin-top:40px;text-align:center;color:#6E667A;font-size:12.5px}
+  footer a{color:var(--moon)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <a class="back" href="index.html">&larr; back to the current build</a>
+    <h1>The archive</h1>
+    <p class="lede">
+      Every version of SKYGEAR that has ever been playable, kept at exactly the
+      bytes it shipped with. They are a record of how the game got here, not
+      alternatives to the current one — <b>if you are here to play, play
+      <a class="back" style="letter-spacing:0;text-transform:none;font-size:16px" href="index.html">v11</a></b>.
+      Each build is pinned by hash and the build script refuses to regenerate
+      it, so v4's controls are still the controls its playtesters had.
+    </p>
+  </header>
+
+  <div class="grid">
+    <a class="card v10" href="storm-dusk-v10.html">
+      <div class="shot dusk"><span class="tag">Previous</span></div>
+      <div class="body">
+        <h2>v10 &middot; For a stranger</h2>
+        <p>The first build made for someone who had never seen it: instant start
+           on procedural art, an opening weapon you choose, a results screen, a
+           settings menu, and seeded runs you can replay from a link. The build
+           that got its first outside playtest — and the notes from it are what
+           v11 is.</p>
+        <span class="play">Play v10</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v9.html">
+      <div class="shot dusk"><span class="tag">Score &amp; passives</span></div>
+      <div class="body">
+        <h2>v9 &middot; Score &amp; passives</h2>
+        <p>Music — a brass-and-storm theme, crossfade-looped from its sustained
+           middle so it never drops to silence. And passive skills: a Field that
+           burns everything near you, a Pulse that detonates on its own, a Sentry
+           you plant and forget.</p>
+        <span class="play">Play v9</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v8.html">
+      <div class="shot dusk"><span class="tag">Builds</span></div>
+      <div class="body">
+        <h2>v8 &middot; Builds</h2>
+        <p>A playtester finished all twelve waves using exactly one ability. Now
+           a slot unlocking gives you a draft of three <i>weapons</i> — you pick
+           which, not whether — and element-wide cards make committing to one
+           colour a build rather than a dilution.</p>
+        <span class="play">Play v8</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v7.html">
+      <div class="shot dusk"><span class="tag">Sound</span></div>
+      <div class="body">
+        <h2>v7 &middot; Sound</h2>
+        <p>The audio pass. Recorded cues layered over the synth that was always
+           there — and six sounds that were plain wrong are fixed: your own deck
+           cannon no longer fires the <i>enemy</i> gunshot.</p>
+        <span class="play">Play v7</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v6.html">
+      <div class="shot dusk"><span class="tag">Real basic attack</span></div>
+      <div class="body">
+        <h2>v6 &middot; Real basic</h2>
+        <p>Your auto-attack <i>is</i> the Ember Cleave — the actual 140&deg;
+           sweep, element and crit, swung on its own at whatever you are facing.
+           Both mouse buttons freed for abilities, and a second cargo passage
+           opens forward.</p>
+        <span class="play">Play v6</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v5.html">
+      <div class="shot dusk"><span class="tag">MOBA lanes</span></div>
+      <div class="body">
+        <h2>v5 &middot; Lanes</h2>
+        <p>The MOBA restructure. Three hard-separated lanes, a deck cannon gating
+           each one, your own crew pushing up them, and the Boiler moved to the
+           stern like a nexus.</p>
+        <span class="play">Play v5</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v4.html">
+      <div class="shot dusk"><span class="tag">Responsiveness</span></div>
+      <div class="body">
+        <h2>v4 &middot; Snappy</h2>
+        <p>Open deck, rebuilt for feel: true auto-attack, doubled sim rate, input
+           buffering, and hit-stop that stopped freezing the world every time a
+           swarmer died.</p>
+        <span class="play">Play v4</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk-v3.html">
+      <div class="shot dusk"><span class="tag">Camera + occlusion</span></div>
+      <div class="body">
+        <h2>v3 &middot; See-through</h2>
+        <p>The answer to the first playtest: longer deck, following camera, and
+           boarders hidden behind the Boiler drawn through as outlines. Still on
+           the old click-to-swing controls.</p>
+        <span class="play">Play v3</span>
+      </div>
+    </a>
+    <a class="card classic" href="classic.html">
+      <div class="shot classic"><span class="tag">The benchmark</span></div>
+      <div class="body">
+        <h2>Classic</h2>
+        <p>Where it started. Straight top-down, daylight brass-and-khaki, whole
+           deck always visible. The build the first tester preferred.</p>
+        <span class="play">Play the benchmark</span>
+      </div>
+    </a>
+    <a class="card" href="storm-dusk.html">
+      <div class="shot dusk"><span class="tag">Superseded</span></div>
+      <div class="body">
+        <h2>v2 &middot; First restyle</h2>
+        <p>The first three-quarter attempt: fixed camera, short deck, no
+           see-through. Kept as the record of what everything after it fixed.</p>
+        <span class="play">Play v2</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="note">
+    <b>Why the old ones are still here.</b> Every build comes off one shared
+    core, so an engine edit aimed at the current version silently re-emits all
+    the older ones — which is how v2 and v3 ended up carrying lane code they
+    never ran, and how v4's controls changed months after anyone played it. Each
+    shipped build is now pinned by hash and the build script writes only the
+    live one. A version you played is the version you played.
+  </div>
+
+  <footer>
+    <a href="index.html">SKYGEAR v11</a> &middot; single HTML files, no install,
+    nothing leaves your machine
+  </footer>
+
+</div>
+</body>
+</html>

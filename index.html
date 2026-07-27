@@ -9,12 +9,13 @@
 <meta property="og:title" content="SKYGEAR">
 <meta property="og:description" content="A steampunk hero-defense. Every skill is a shape crossed with an element — 32 combinations — and the draft after each wave rewrites them. Twelve waves. Keep the Boiler alive.">
 <meta name="twitter:card" content="summary">
-<meta name="description" content="A top-down steampunk hero-defense. Two visual builds, same game. Pick one and tell us what breaks.">
+<meta name="description" content="A top-down steampunk hero-defense. One build, twelve waves, no install. Play it and tell us where it broke.">
 <style>
   :root{
     --ink:#0D0B12; --base:#14121B; --panel:#1C1926;
     --brass:#B0813F; --brass-lt:#E8C376; --teal:#37F0C8;
     --fire:#FF7A2F; --moon:#8FA6C9; --bone:#E8E2D2; --mute:#8B8296;
+    --steam:#C9B6E8;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;min-height:100%}
@@ -32,8 +33,8 @@
     font:16px/1.65 'Trebuchet MS',system-ui,sans-serif;
     padding:clamp(24px,5vw,64px) clamp(18px,5vw,32px) 72px;
   }
-  .wrap{max-width:980px;margin:0 auto}
-  header{text-align:center;margin-bottom:clamp(28px,5vw,52px)}
+  .wrap{max-width:900px;margin:0 auto}
+  header{text-align:center;margin-bottom:clamp(28px,5vw,48px)}
   h1{
     font:900 clamp(56px,13vw,132px)/0.9 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
     letter-spacing:.06em;margin:0;color:var(--brass-lt);
@@ -41,55 +42,47 @@
   }
   .kicker{color:var(--moon);letter-spacing:.34em;font-size:clamp(10px,2.2vw,13px);
           text-transform:uppercase;margin-top:14px}
-  .lede{max-width:60ch;margin:22px auto 0;color:#C6BFD2}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(268px,1fr));gap:18px}
-  .card.old{opacity:.72}
-  .card.old:hover{opacity:1}
-  .card.v10 .play{background:var(--teal)}
-  .card.v9 .play{background:#45D8BE}
-  .card.v8 .play{background:#45D8BE}
-  .card.v7 .play{background:#4FDCC4}
-  .card.v6 .play{background:#5FE0C0}
-  .card.v5 .play{background:#7FD8C4}
-  .card.v4 .play{background:#9BE8D2}
-  .card.v3 .play{background:#8FA6C9}
-  .card.old .play{background:#7E778C}
-  .card{
-    display:flex;flex-direction:column;background:var(--panel);
-    border:1px solid rgba(176,129,63,.45);border-radius:14px;overflow:hidden;
-    text-decoration:none;color:inherit;
-    box-shadow:0 18px 40px rgba(0,0,0,.45);
+  .lede{max-width:62ch;margin:22px auto 0;color:#C6BFD2}
+
+  /* the one card */
+  .hero{
+    display:block;background:var(--panel);text-decoration:none;color:inherit;
+    border:1px solid rgba(176,129,63,.5);border-radius:16px;overflow:hidden;
+    box-shadow:0 22px 54px rgba(0,0,0,.5);
     transition:transform .16s ease, border-color .16s ease, box-shadow .16s ease;
   }
-  .card:hover,.card:focus-visible{
+  .hero:hover,.hero:focus-visible{
     transform:translateY(-4px);border-color:var(--teal);
-    box-shadow:0 22px 52px rgba(0,0,0,.55), 0 0 0 1px rgba(55,240,200,.25);
+    box-shadow:0 26px 62px rgba(0,0,0,.58), 0 0 0 1px rgba(55,240,200,.28);
     outline:none;
   }
-  .shot{height:172px;border-bottom:1px solid rgba(176,129,63,.3);position:relative}
-  .shot.classic{background:
-    radial-gradient(70% 120% at 50% 118%, rgba(217,164,65,.30), transparent 60%),
-    linear-gradient(180deg,#5E7C97 0%,#A8C4D4 46%,#B9AE86 47%,#CFC49C 100%)}
-  .shot.dusk{background:
-    radial-gradient(60% 130% at 50% 122%, rgba(255,179,71,.34), transparent 62%),
-    radial-gradient(40% 60% at 22% 16%, rgba(143,166,201,.42), transparent 60%),
-    linear-gradient(180deg,#100E1C 0%,#2E2A4E 52%,#3D2E30 53%,#54413C 100%)}
-  .tag{position:absolute;top:12px;left:12px;font-size:11px;letter-spacing:.18em;
-       text-transform:uppercase;padding:5px 10px;border-radius:999px;
-       background:rgba(13,11,18,.78);border:1px solid rgba(176,129,63,.5);color:var(--brass-lt)}
-  .body{padding:20px 22px 24px;flex:1;display:flex;flex-direction:column}
-  .card h2{margin:0 0 6px;font:900 25px/1.15 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
+  .shot{height:clamp(150px,26vw,230px);border-bottom:1px solid rgba(176,129,63,.32);position:relative;
+    background:
+      radial-gradient(45% 90% at 50% 118%, rgba(201,182,232,.34), transparent 62%),
+      radial-gradient(60% 130% at 50% 122%, rgba(255,179,71,.30), transparent 62%),
+      radial-gradient(40% 60% at 22% 16%, rgba(143,166,201,.42), transparent 60%),
+      linear-gradient(180deg,#100E1C 0%,#2E2A4E 52%,#3D2E30 53%,#54413C 100%)}
+  .tag{position:absolute;top:14px;left:14px;font-size:11px;letter-spacing:.18em;
+       text-transform:uppercase;padding:6px 12px;border-radius:999px;
+       background:rgba(13,11,18,.8);border:1px solid rgba(176,129,63,.55);color:var(--brass-lt)}
+  .body{padding:24px clamp(20px,4vw,30px) 28px}
+  .hero h2{margin:0 0 10px;font:900 clamp(26px,5vw,34px)/1.1 Impact,Haettenschweiler,'Arial Narrow',sans-serif;
            letter-spacing:.04em;color:var(--bone)}
-  .card p{margin:0;color:var(--mute);font-size:14.5px;flex:1}
-  .play{margin-top:18px;align-self:flex-start;font:800 13px/1 'Trebuchet MS',sans-serif;
+  .hero p{margin:0 0 6px;color:#C6BFD2}
+  .play{margin-top:20px;display:inline-block;font:800 14px/1 'Trebuchet MS',sans-serif;
         letter-spacing:.16em;text-transform:uppercase;color:var(--ink);
-        background:var(--teal);padding:11px 20px;border-radius:8px}
-  .card.classic .play{background:var(--brass-lt)}
-  section{margin-top:clamp(36px,6vw,60px)}
+        background:var(--teal);padding:14px 26px;border-radius:9px}
+
+  section{margin-top:clamp(32px,6vw,52px)}
   h3{font:800 13px/1 'Trebuchet MS',sans-serif;letter-spacing:.24em;text-transform:uppercase;
      color:var(--brass);margin:0 0 16px}
   .panel{background:rgba(28,25,38,.72);border:1px solid rgba(176,129,63,.28);
          border-radius:12px;padding:22px 24px}
+  .new{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:18px 26px;margin:0;padding:0;list-style:none}
+  .new li{margin:0}
+  .new b{display:block;color:var(--bone);font-size:15px;letter-spacing:.02em}
+  .new span{color:var(--mute);font-size:14.5px}
+  .new .k{color:var(--steam)}
   .keys{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:10px 26px;margin:0;padding:0}
   .keys div{display:flex;gap:12px;align-items:baseline;font-size:14.5px}
   kbd{font:800 12px/1.5 'Trebuchet MS',sans-serif;background:var(--ink);color:var(--teal);
@@ -99,6 +92,7 @@
   ol li{margin-bottom:9px}
   ol li b{color:var(--bone)}
   footer{margin-top:44px;text-align:center;color:#6E667A;font-size:12.5px}
+  footer a{color:var(--moon)}
   a.inline{color:var(--teal)}
 </style>
 </head>
@@ -115,116 +109,35 @@
     </p>
   </header>
 
-  <div class="grid">
-    <a class="card v10" href="storm-dusk-v10.html?b=b20a48b">
-      <div class="shot dusk"><span class="tag">Newest &mdash; start here</span></div>
-      <div class="body">
-        <h2>v10 &middot; For a stranger</h2>
-        <p>The first build made for someone who has never seen it: it starts
-           instantly instead of waiting on 24&nbsp;MB of art, you choose your
-           opening weapon instead of being handed one, the run ends on a
-           results screen you can read, and everything is reachable from a
-           settings menu. Same twelve waves, same Boiler, far less to explain.</p>
-        <span class="play">Play v10</span>
-      </div>
-    </a>
-    <a class="card v9" href="storm-dusk-v9.html?b=411a566">
-      <div class="shot dusk"><span class="tag">Score &amp; passives</span></div>
-      <div class="body">
-        <h2>v9 &middot; Score &amp; passives</h2>
-        <p>Music &mdash; a brass-and-storm theme, looped from its sustained middle with a crossfade so it never drops to silence. And passive skills: a Field that burns everything near you, a Pulse that detonates on its own, a Sentry you plant and forget. They take a slot and cross with all four elements like anything else, so a four-skill build no longer has to mean four buttons to press.</p>
-        <span class="play">Play v9</span>
-      </div>
-    </a>
-    <a class="card v8" href="storm-dusk-v8.html?b=c3d9554">
-      <div class="shot dusk"><span class="tag">Builds</span></div>
-      <div class="body">
-        <h2>v8 &middot; Builds</h2>
-        <p>A playtester finished all twelve waves using exactly one ability,
-           because every upgrade card funnelled into it and taking a second
-           skill halved that. Now a slot unlocking gives you a draft of three
-           <i>weapons</i> &mdash; you pick which, not whether &mdash; and new
-           element-wide cards mean committing to Frost across four shapes is a
-           build rather than a dilution.</p>
-        <span class="play">Play v8</span>
-      </div>
-    </a>
-    <a class="card v7" href="storm-dusk-v7.html?b=acd8a3a">
-      <div class="shot dusk"><span class="tag">Sound</span></div>
-      <div class="body">
-        <h2>v7 &middot; Sound</h2>
-        <p>The audio pass. Real recorded cues layered over the synth that has
-           always been there &mdash; and six sounds that were plain wrong are
-           fixed: your own deck cannon no longer fires the <i>enemy</i> gunshot,
-           reinforcements no longer arrive on a UI blip, and the boarding hulk
-           taking damage, your crew dying and a turret being worn down are all
-           audible for the first time. Turn it up.</p>
-        <span class="play">Play v7</span>
-      </div>
-    </a>
-    <a class="card v6" href="storm-dusk-v6.html">
-      <div class="shot dusk"><span class="tag">Real basic attack</span></div>
-      <div class="body">
-        <h2>v6 &middot; Real basic</h2>
-        <p>Your auto-attack <i>is</i> the Ember Cleave now — the actual 140&deg;
-           sweep, element and crit, swung on its own at whatever you're facing,
-           not a weaker generic flick beside it. Both mouse buttons are free for
-           abilities. A second cargo-run passage opens up forward, so you can
-           rotate between lanes at the front line instead of walking the deck.
-           First build with the painted art on by default.</p>
-        <span class="play">Play v6</span>
-      </div>
-    </a>
-    <a class="card v5" href="storm-dusk-v5.html">
-      <div class="shot dusk"><span class="tag">MOBA lanes</span></div>
-      <div class="body">
-        <h2>v5 &middot; Lanes</h2>
-        <p>The MOBA restructure. Three hard-separated lanes, a deck cannon
-           gating each one, your own crew pushing up them, and the Boiler moved
-           to the stern like a nexus. Two waves are pushes: their boarding hulk
-           opens and you have to leave the objective to break it.</p>
-        <span class="play">Play v5</span>
-      </div>
-    </a>
-    <a class="card v4" href="storm-dusk-v4.html">
-      <div class="shot dusk"><span class="tag">Responsiveness</span></div>
-      <div class="body">
-        <h2>v4 &middot; Snappy</h2>
-        <p>Open deck, but rebuilt for feel: true auto-attack, doubled sim rate,
-           input buffering, and hit-stop that stopped freezing the world every
-           time a swarm died. The build where it started feeling like an ARPG.</p>
-        <span class="play">Play v4</span>
-      </div>
-    </a>
-    <a class="card v3" href="storm-dusk-v3.html">
-      <div class="shot dusk"><span class="tag">Camera + occlusion</span></div>
-      <div class="body">
-        <h2>v3 &middot; See-through</h2>
-        <p>Answer to the first playtest: longer deck, following camera, and
-           boarders hidden behind the Boiler drawn through as outlines. Still on
-           the old click-to-swing controls.</p>
-        <span class="play">Play v3</span>
-      </div>
-    </a>
-    <a class="card classic" href="classic.html">
-      <div class="shot classic"><span class="tag">The benchmark</span></div>
-      <div class="body">
-        <h2>Classic</h2>
-        <p>Where it started. Straight top-down, daylight brass-and-khaki, whole
-           deck always visible. The build the first tester preferred.</p>
-        <span class="play">Play the benchmark</span>
-      </div>
-    </a>
-    <a class="card old" href="storm-dusk.html">
-      <div class="shot dusk"><span class="tag">Superseded</span></div>
-      <div class="body">
-        <h2>v2 &middot; First restyle</h2>
-        <p>The first three-quarter attempt: fixed camera, short deck, no
-           see-through. Kept as the record of what everything after it fixed.</p>
-        <span class="play">Play v2</span>
-      </div>
-    </a>
-  </div>
+  <a class="hero" href="storm-dusk-v11.html?b=589f8bf">
+    <div class="shot"><span class="tag">v11 &mdash; the current build</span></div>
+    <div class="body">
+      <h2>v11 &middot; The deck fights back</h2>
+      <p>The last build was won by standing at maximum range and healing faster
+         than three lanes of boarders could hurt you. This one pays you for
+         closing instead: fighting inside your own reach builds pressure, and a
+         full gauge <b>vents</b> — scalding steam, everything thrown off you,
+         and you close up.</p>
+      <p>The kegs stacked on the deck are live now. So are the crates and the
+         lanterns. And there is more deck to fight over, two dashes to cross it
+         with, and enemy fire you can actually see coming.</p>
+      <span class="play">Play v11</span>
+    </div>
+  </a>
+
+  <section>
+    <h3>What is new</h3>
+    <div class="panel">
+      <ul class="new">
+        <li><b class="k">Pressure &amp; vent</b><span>Land hits inside your own reach and the gauge under your health fills. Full, it vents: 40 damage in a ring, everything knocked off you, and 15 health back.</span></li>
+        <li><b class="k">Live ordnance</b><span>Shoot a steam keg and it lights a fuse, shakes, and detonates — on boarders, on you, and on the next keg. Crates spill salvage. Lanterns spill fire.</span></li>
+        <li><b class="k">Healing that costs something</b><span>Bloodsteam only heals from damage dealt up close, and no amount of stacking can out-heal the deck any more.</span></li>
+        <li><b class="k">More deck, more dash</b><span>A wider deck, thinner cargo runs, a third cross-passage, two dash charges from the start, and a dash that hurts what it goes through.</span></li>
+        <li><b class="k">Fire you can read</b><span>Enemy bolts are hostile-coloured, slower, trailed, shadowed on the deck — and a shooter now draws its firing line before it fires.</span></li>
+        <li><b class="k">More sound</b><span>A boss theme and a track for the last three waves, plus the deck's own voices: fuses, blasts, breaking crates, the vent.</span></li>
+      </ul>
+    </div>
+  </section>
 
   <section>
     <h3>Controls</h3>
@@ -234,9 +147,9 @@
         <div><kbd>Mouse</kbd><span>aim — you always face the cursor</span></div>
         <div><kbd>LMB</kbd> <kbd>RMB</kbd><span>skills 1 and 2</span></div>
         <div><kbd>Q</kbd> <kbd>E</kbd><span>skills 3 and 4 (unlocked later in the run)</span></div>
-        <div><kbd>Space</kbd><span>dash — invulnerable, use it constantly</span></div>
+        <div><kbd>Space</kbd><span>dash — two charges, invulnerable, lights kegs</span></div>
         <div><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd><span>pick a draft card</span></div>
-        <div><kbd>Esc</kbd><span>pause</span></div>
+        <div><kbd>Esc</kbd><span>pause and settings</span></div>
         <div><kbd>M</kbd> <kbd>&minus;</kbd> <kbd>=</kbd><span>mute / volume</span></div>
         <div><kbd>F3</kbd><span>frame-rate and entity counts</span></div>
       </div>
@@ -247,23 +160,27 @@
     <h3>What we need to learn</h3>
     <div class="panel">
       <ol>
-        <li><b>Does the build-craft loop land?</b> Did you ever look forward to the
-            draft, or did you just take whatever was cheapest?</li>
-        <li><b>Where did you die, and did it feel fair?</b> Note the wave number.
-            Getting overwhelmed should feel like a crowd problem, not a numbers problem.</li>
-        <li><b>Can you read the fight?</b> Every enemy attack telegraphs for 0.4s before
-            it lands. If something hit you that you never saw, that is the bug we most want.</li>
-        <li><b>Storm-Dusk vs Classic:</b> is anything harder to track in the
-            three-quarter view — your own character, enemy facing, where a mortar will land?</li>
-        <li><b>Frame rate.</b> Hit <kbd>F3</kbd> during a busy wave and tell us the number
-            and your machine. This is the one thing we have not been able to measure properly.</li>
+        <li><b>Did you fight up close?</b> The whole build is an argument that
+            close range is now the better way to play. If you still won by
+            kiting at max range, that argument lost and we want to know.</li>
+        <li><b>Did you notice the gauge?</b> Under your health, filling as you
+            fight. Did you work out what it did before it went off?</li>
+        <li><b>Did you use the kegs on purpose,</b> or did they just go off near
+            you? Did one ever kill you?</li>
+        <li><b>Can you see what is shot at you?</b> If something hit you that
+            you never saw, that is still the bug we most want.</li>
+        <li><b>Where did you die, and did it feel fair?</b> Note the wave. Being
+            overwhelmed should feel like a crowd problem, not a numbers one.</li>
+        <li><b>Frame rate.</b> Hit <kbd>F3</kbd> during a busy wave and tell us
+            the number and your machine.</li>
       </ol>
     </div>
   </section>
 
   <footer>
-    Two builds, one simulation &middot; no install, no accounts, nothing stored &middot;
-    best on desktop in Chrome or Firefox
+    Single HTML file &middot; no install, no accounts, nothing leaves your machine &middot;
+    best on desktop in Chrome or Firefox<br>
+    Every earlier build is still playable in the <a href="archive.html">archive</a>.
   </footer>
 
 </div>
