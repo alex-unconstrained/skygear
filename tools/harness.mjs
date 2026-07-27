@@ -239,9 +239,12 @@ async function checkWaves(page){
         if (S.queue.length === 0 && S.enemies.length)
           for (const e of S.enemies) if (!e.dead) e.hp = -1;
       }
-      let n = 0, elems = {};
-      for (let i = 0; i < 4; i++) if (S.slots[i]){ n++; elems[S.slots[i].element] = 1; }
-      out.push({ won: S.mode === 'victory', n, elems: Object.keys(elems).length });
+      let n = 0; const elems = {}, shapes = {};
+      for (let i = 0; i < 4; i++) if (S.slots[i]){
+        n++; elems[S.slots[i].element] = 1; shapes[S.slots[i].shape] = 1;
+      }
+      out.push({ won: S.mode === 'victory', n,
+                 elems: Object.keys(elems), shapes: Object.keys(shapes) });
     }
     return out;
   });
@@ -251,12 +254,19 @@ async function checkWaves(page){
     won.length > 0 && good.length / won.length >= 0.9,
     good.length + '/' + won.length + ' runs, slot counts [' +
     won.map(b => b.n).join(',') + ']');
-  // A build that is always one element is a matrix nobody is using.
-  const multi = won.filter(b => b.elems >= 2);
-  record('waves', 'a drafted build spans more than one element',
-    won.length > 0 && multi.length / won.length >= 0.8,
-    multi.length + '/' + won.length + ' runs, element counts [' +
-    won.map(b => b.elems).join(',') + ']');
+
+  /* NOT "every build spans two elements". Committing to one colour across
+     several shapes is a deliberate, available build — V10-PLAN §1 says so — and
+     a check that forbids it would be asserting against the design. What is
+     worth asserting is that the matrix is actually being used: across a set of
+     runs the draft reaches all four elements and a good spread of shapes.
+     Anything less means the offering is narrow, whatever the player picks. */
+  const el = new Set(), sh = new Set();
+  for (const b of won){ b.elems.forEach(e => el.add(e)); b.shapes.forEach(s => sh.add(s)); }
+  record('waves', 'the draft reaches every element and most shapes across runs',
+    el.size === 4 && sh.size >= 6,
+    el.size + '/4 elements, ' + sh.size + '/8 draftable shapes over ' +
+    won.length + ' runs');
 }
 
 /* Both loss conditions and a clean restart. */
