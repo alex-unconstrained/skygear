@@ -219,6 +219,44 @@ async function checkWaves(page){
     out.mode === 'victory', 'ended in mode=' + out.mode + ' at wave ' + out.wave);
   record('waves', 'the run terminates well inside the step budget',
     out.steps < out.max, out.steps + ' steps');
+
+  /* "90% of completed runs finish with 3-4 skills" is an acceptance criterion
+     (V10-PLAN §5) and it is checkable without a tester: the draft decides it,
+     not the player's aim. Ten seeds, each played to victory taking whatever the
+     draft offers first — if the slots do not fill, the schedule is wrong. */
+  const builds = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    const out = [];
+    for (let r = 0; r < 10; r++){
+      window.__begin(r % 3);
+      S.player.hp = S.player.maxHp = 1e9;
+      S.boiler.hp = S.boiler.maxHp = 1e9;
+      let guard = 0;
+      while (S.mode !== 'victory' && S.mode !== 'gameover' && guard < 60 * 60 * 12 / G.DT){
+        if (S.mode === 'draft'){ window.__take(r % 3); continue; }
+        if (S.mode !== 'play') break;
+        G.step(G.DT); guard++;
+        if (S.queue.length === 0 && S.enemies.length)
+          for (const e of S.enemies) if (!e.dead) e.hp = -1;
+      }
+      let n = 0, elems = {};
+      for (let i = 0; i < 4; i++) if (S.slots[i]){ n++; elems[S.slots[i].element] = 1; }
+      out.push({ won: S.mode === 'victory', n, elems: Object.keys(elems).length });
+    }
+    return out;
+  });
+  const won = builds.filter(b => b.won);
+  const good = won.filter(b => b.n >= 3 && b.n <= 4);
+  record('waves', 'completed runs finish holding 3 or 4 skills',
+    won.length > 0 && good.length / won.length >= 0.9,
+    good.length + '/' + won.length + ' runs, slot counts [' +
+    won.map(b => b.n).join(',') + ']');
+  // A build that is always one element is a matrix nobody is using.
+  const multi = won.filter(b => b.elems >= 2);
+  record('waves', 'a drafted build spans more than one element',
+    won.length > 0 && multi.length / won.length >= 0.8,
+    multi.length + '/' + won.length + ' runs, element counts [' +
+    won.map(b => b.elems).join(',') + ']');
 }
 
 /* Both loss conditions and a clean restart. */
