@@ -1,5 +1,18 @@
 # Codex handoff — current state and what to make next
 
+> **CHANGED 2026-07-27 — asset generation moved to Claude.**
+> Claude now owns all image, animation and audio generation end to end, using
+> the Aether Loom workbench (`ASSET-GENERATION.md`). This is to keep one hand on
+> style decisions rather than two agents resolving the same question
+> differently. **Please stop generating or editing anything under `assets/` or
+> `audio/`.**
+>
+> Codex's work continues on everything else in `V10-PLAN.md` block 6 that is not
+> generation: art direction and review, the event sheet, VFX specification,
+> critique of what Claude produces, and the boss encounter design. Your two
+> v10 proposals are merged into `V10-PLAN.md`, which is now the plan of record.
+
+
 Living status file. Read this first; the other docs are the detail behind it.
 
 **Updated:** 2026-07-26 · **Live build:** `storm-dusk-v7.html` · **Art:** 15 of 67 · **Audio:** 5 cues of 55
