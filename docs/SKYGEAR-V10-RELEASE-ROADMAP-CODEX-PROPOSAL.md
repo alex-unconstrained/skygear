@@ -54,7 +54,7 @@ This proposal is grounded in the repository at clean `main`, with V9 at commit
 | Enemy roster | Scrapper, Gunner drone, Armoured Furnace Knight, Gremlin swarm, Colossus boss |
 | Skill shapes | 9 engine shapes: Cleave, Lance, Gale, Mortar, Whip, Beam, Field, Pulse and Sentry |
 | Elements | Ember, Frost, Arc and Steam |
-| Matrix | 9 × 4 = 36 engine combinations; the duplicate slotted Cleave is deliberately excluded from normal skill drafts because Ember Cleave is the fixed auto-attack |
+| Matrix | 8 draftable shapes × 4 elements = 32 player-buildable combinations, plus the fixed Ember Cleave basic; the engine contains 9 shape definitions in total |
 | Draft content | 36 card definitions in code, despite older documentation still saying 34 |
 | Starting combat | Automatic Ember Cleave plus Frost Mortar; later slots are armed through mandatory weapon drafts |
 | Passive shapes | Field, Pulse and Sentry occupy slots and use `AUTO` HUD treatment |
@@ -70,7 +70,8 @@ This proposal is grounded in the repository at clean `main`, with V9 at commit
 ### 1.1 Documentation drift is already a product risk
 
 The current README still describes a 6 × 4 matrix, 24 combinations and 34
-cards. V9 has nine shapes and 36 card definitions. Several handoff and roadmap
+cards. V9 has eight draftable shapes across four elements, a separate fixed
+Ember Cleave basic, and 36 card definitions. Several handoff and roadmap
 sections also describe older asset counts and earlier live versions.
 
 V10 must establish one generated or verified source of truth for:
@@ -243,7 +244,7 @@ first public run is complete.
 
 ## 4. Gameplay and combat deliverables
 
-### 4.1 Make the 9 × 4 system truthful and legible
+### 4.1 Make the 8 × 4 draft system and fixed basic truthful and legible
 
 V10 should treat the expanded shape set as a design system, not merely more
 entries in an object.
@@ -259,10 +260,8 @@ Required:
   cells.
 - Verify Twin Cast, Residue, Fifth Gear and kill-trigger cards do not create
   recursion, unbounded sentries or excessive particles.
-- Decide the canonical public claim:
-  - “36 engineered combinations,” with an explanation that Ember Cleave is the
-    fixed basic; or
-  - a more conservative “eight weapons × four elements, plus Ember Cleave.”
+- Use one canonical public claim: **32 weapon-element combinations, plus the
+  captain's fixed Ember Cleave basic.**
 - Update title, README, help copy and results reporting to use the same claim.
 
 ### 4.2 Active/passive trade
