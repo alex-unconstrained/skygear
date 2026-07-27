@@ -48,6 +48,7 @@ rewrite. Full scope means **finishing what exists**, not adding systems.
 | 1b | `docs/V11-PLAN.md` | The version before. The tester message, the diagnosis, every number, the acceptance criteria, and the browser-vs-engine-port answer. `V10-PLAN.md` is the record behind it. |
 | 2 | `docs/ASSET-GENERATION.md` | **How to make art.** The Aether Loom tool, its API, chroma rules, the prompt constraints that are load-bearing, the ingest bridge, the queue, and a failure table. |
 | 3 | `docs/AUDIO-SPEC.md` | **How to make sound.** Mix architecture, per-cue length budgets, ElevenLabs prompts, the shape × element layering trick. |
+| 3b | `docs/FEEDBACK.md` | **What testers actually hit**, with the diagnosis kept separate from the report. Read before deciding what to build. |
 | 4 | `docs/VOICE-BRIEF.md` | **How to make the voice.** The cast, the settings, the full line sheet, and what not to record. Engine side is done; every cue key is wired. |
 
 Then as needed: `ANIMATION-BRIEF.md` (strip format contract),

@@ -9,8 +9,10 @@ The rule for an entry: **what changed, and what it was an answer to.** A change
 nobody asked for and no measurement demanded is worth writing down as exactly
 that, so the next person can tell taste from evidence.
 
-Live: <https://alex-unconstrained.github.io/skygear/> · **v11** (build v11.1) ·
+Live: <https://alex-unconstrained.github.io/skygear/> · **v11** (build `d27b694`) ·
 earlier builds at `archive.html`, pinned to the bytes they shipped.
+
+Playtest reports and open bugs: **[FEEDBACK.md](FEEDBACK.md)**.
 
 ---
 
