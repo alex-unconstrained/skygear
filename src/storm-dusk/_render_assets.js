@@ -94,8 +94,23 @@ const ASSET_MANIFEST = {
   ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128 },
 };
 
-/* Loading is opt-in so that an asset-less checkout has a clean console and
-   still plays: the procedural stand-ins are complete. Turn art on with
+/* Generated motion is deliberately narrower than the still-art manifest:
+   these are proven front-facing run cycles, not substitutes for attack/back
+   states. All frames share one measured crop so the figure cannot jitter as
+   its silhouette changes. */
+const ANIMATION_MANIFEST = {
+  hero_front_run: {
+    dir:'assets/animations/hero_front_run', count:13, fps:12,
+    meta:{ anchor:0.920, cx:0.500, fig:0.840 },
+  },
+  SCRAPPER_front_run: {
+    dir:'assets/animations/scrapper_front_run', count:15, fps:12,
+    meta:{ anchor:0.920, cx:0.500, fig:0.840 },
+  },
+};
+
+/* V5 loads production art by default; ?assets=0 is the clean procedural
+   fallback. Older builds remain opt-in and can turn art on with
        skygear.html?assets=1
    or by setting window.SKYGEAR_USE_ASSETS = true before this script runs.
    (Note: browsers block file:// image reads, so serving over http is required
@@ -136,7 +151,8 @@ function measureSprite(img){
 }
 
 const Assets = {
-  loaded: {}, meta: {}, ready: 0, total: 0, enabled: false, set: 'production', base: 'assets/',
+  loaded: {}, meta: {}, animations: {}, ready: 0, total: 0,
+  enabled: false, set: 'production', base: 'assets/',
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
@@ -153,7 +169,8 @@ const Assets = {
     this.set = am ? am[1] : 'production';
     this.base = this.set === '49' ? 'assets-49/' : 'assets/';
     const keys = Object.keys(ASSET_MANIFEST);
-    this.total = keys.length;
+    const animKeys = this.set === 'production' ? Object.keys(ANIMATION_MANIFEST) : [];
+    this.total = keys.length + animKeys.reduce((n, k) => n + ANIMATION_MANIFEST[k].count, 0);
     if (!this.enabled) return;
     for (const k of keys){
       const im = new Image();
@@ -168,8 +185,34 @@ const Assets = {
       im.onerror = () => {};
       im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
     }
+    for (const k of animKeys) this.loadAnimation(k, ANIMATION_MANIFEST[k]);
+  },
+  loadAnimation(k, spec){
+    const sequence = this.animations[k] = {
+      frames: new Array(spec.count), count: spec.count, fps: spec.fps,
+      ready: 0,
+    };
+    for (let i = 0; i < spec.count; i++){
+      const im = new Image();
+      im.onload = () => {
+        if (im.naturalWidth > 0){
+          im.__meta = spec.meta;
+          sequence.frames[i] = im;
+          sequence.ready++;
+          this.ready++;
+        }
+      };
+      im.onerror = () => {};
+      im.src = spec.dir + '/frame_' + String(i).padStart(3, '0') + '.png';
+    }
   },
   get(k){ return this.loaded[k] || null; },
   has(k){ return !!this.loaded[k]; },
+  animation(k, time){
+    const sequence = this.animations[k];
+    if (!sequence || sequence.ready !== sequence.count) return null;
+    const i = Math.floor(Math.max(0, time) * sequence.fps) % sequence.count;
+    return sequence.frames[i] || null;
+  },
 };
 Assets.init();

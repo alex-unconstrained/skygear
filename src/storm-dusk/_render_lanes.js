@@ -52,7 +52,7 @@ function drawLaneCrossings(){
 // is authored 120 world units wide and 150 deep — the engine steps by MODULE_D
 // and draws each at MODULE_H tall, alternating mirror so a single module does
 // not read as a repeating stamp. Falls back to the code-drawn box below.
-const WALL_MODULE_W = 120, WALL_MODULE_D = 150, WALL_MODULE_H = 118;
+const WALL_MODULE_W = 120, WALL_MODULE_D = 100, WALL_MODULE_H = 125;
 function drawLaneWallsArt(art){
   for (const w of LANE_WALLS){
     const cx = (w.x0 + w.x1) / 2;
@@ -60,6 +60,7 @@ function drawLaneWallsArt(art){
     for (let i = 0; i < n; i++){
       const y = lerp(w.y0 + WALL_MODULE_D * 0.5, w.y1 - WALL_MODULE_D * 0.5,
                      n === 1 ? 0.5 : i / (n - 1));
+      entityShadow(cx, y, 62, 0.5);     // without this the run floats off the deck
       const r = drawBillboard(art, cx, y, WALL_MODULE_H, { mirror: (i & 1) === 1 });
       addOccluder(r.p.x, r.p.y, r.wpx * 0.46, r.hpx * 0.52, y);
     }

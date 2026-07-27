@@ -169,9 +169,15 @@ function drawDraft(){
   ctx.save();
   ctx.globalAlpha = clamp(S.draft.t / 0.35, 0, 1);
   setFont(Math.round(46*HS), 900, true);
-  textOut('DRAFT AN UPGRADE', View.w/2, rects[0].y - 74*HS, PAL.bone, PAL.ink, 8);
+  const isSkill = S.draft.kind === 'skill';
+  textOut(isSkill ? 'ARM A NEW SLOT' : 'DRAFT AN UPGRADE',
+          View.w/2, rects[0].y - 74*HS, PAL.bone, PAL.ink, 8);
   setFont(Math.round(15*HS), 700, true);
-  textOut('PICK ONE  —  CLICK OR PRESS 1 / 2 / 3', View.w/2, rects[0].y - 42*HS, PAL.teal, PAL.ink, 4);
+  const sub = isSkill
+    ? (SLOT_KEYS[S.draft.slot] || ('SLOT ' + (S.draft.slot + 1))) +
+      '  —  WHICH WEAPON, NOT WHETHER'
+    : 'PICK ONE  —  CLICK OR PRESS 1 / 2 / 3';
+  textOut(sub, View.w/2, rects[0].y - 42*HS, PAL.teal, PAL.ink, 4);
   ctx.restore();
 
   for (let i = 0; i < S.draft.cards.length; i++){

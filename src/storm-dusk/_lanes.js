@@ -49,7 +49,11 @@ function initLanes(){
   for (let i = 1; i < LANE_N; i++){
     const wx = left + laneW * i;
     // split each wall so a cross-passage opens amidships
-    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: top + 40, y1: FWD_Y0 });
+    // Runs start at the boarding line, not the deck's far edge: modules placed
+    // out there hung over the bow with no deck behind them. It also opens the
+    // bow strip as a third crossing, which is the player's alone — enemies and
+    // crew are lane-clamped either way.
+    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: LANE_TOP + 10, y1: FWD_Y0 });
     LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: FWD_Y1,   y1: CROSS_Y0 });
     LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: CROSS_Y1, y1: BASE_Y });
   }

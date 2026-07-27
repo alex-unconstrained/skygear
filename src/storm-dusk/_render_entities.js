@@ -342,7 +342,7 @@ function drawBoilerBillboard(){
 function drawPlayerBillboard(){
   const P = S.player;
   if (P.hp <= 0) return;
-  const bob = Math.sin(P.walk * 2.2) * 3;
+  let bob = Math.sin(P.walk * 2.2) * 3;
   const inv = P.iframe > 0 && Math.floor(S.rt * 24) % 2 === 0;
   entityShadow(P.x, P.y, 34, 0.55);
   // dash afterimages
@@ -354,7 +354,11 @@ function drawPlayerBillboard(){
   }
   const attacking = P.castFlash > 0 || !!P.ray;
   const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
-  const hi = charImage('hero', v.view);
+  const running = !attacking && P.dashT <= 0 && v.view === 'front_idle' &&
+                  Math.hypot(P.vx, P.vy) > 35;
+  const runFrame = running && Assets.animation('hero_front_run', S.rt);
+  const hi = runFrame || charImage('hero', v.view);
+  if (runFrame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
   // no x-ray for the captain: she is drawn above everything, so she can never
@@ -376,13 +380,18 @@ function drawEnemyBillboard(e){
                     (e.type === 'BOSS' && e.state === 'active');
   const v = viewFor(e.facing, true, attacking);
   const hover = e.type === 'GUNNER' ? 26 + Math.sin(S.rt * 3 + e.anim) * 5 : 0;
-  const bob = Math.sin(e.anim * (e.def.speed / 26)) * (e.type === 'SWARM' ? 4 : 2.4);
+  let bob = Math.sin(e.anim * (e.def.speed / 26)) * (e.type === 'SWARM' ? 4 : 2.4);
 
   if (!climbing) entityShadow(e.x, e.y, e.r * 1.15, 0.5 - (hover ? 0.18 : 0));
   if (e.slowT > 0) groundRing(e.x, e.y, e.r + 10, PAL.teal, 2.6, 0.5);
   if (e.accT > 0)  groundRing(e.x, e.y, e.r + 18, ELEMENTS.STEAM.color, 2.2, 0.32);
 
-  const img = charImage(e.type, v.view);
+  const running = e.type === 'SCRAPPER' && !climbing && !attacking &&
+                  e.state === 'move' && v.view === 'front_idle' &&
+                  Math.hypot(e.vx, e.vy) > 15;
+  const runFrame = running && Assets.animation('SCRAPPER_front_run', S.rt + e.anim * 0.137);
+  const img = runFrame || charImage(e.type, v.view);
+  if (runFrame) bob = 0;
   const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {
     mirror: v.mirror,
     lift: hover + bob,

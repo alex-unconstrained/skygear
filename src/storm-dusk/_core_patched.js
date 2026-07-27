@@ -663,13 +663,32 @@ const CARDS = [
                      SHAPES[nxt].noun + ' — ' + SHAPES[nxt].desc + '.', slot:i,
                apply:S => { S.slots[i].shape = nxt; S.slots[i].mods = newSkill(nxt, S.slots[i].element).mods; } }; } },
 
-  { id:'newskill', rarity:'epic', weight:S => 200,   // always want to fill an empty slot
-    can:S => emptyUnlocked(S).length > 0,
+  // Superseded by the slot-unlock skill draft, which fills empty slots directly.
+  // Kept unreachable rather than deleted so the card ids stay stable.
+  { id:'newskill', rarity:'epic', weight:S => 200,
+    can:S => false && emptyUnlocked(S).length > 0,
     make:S => { const i = emptyUnlocked(S)[0];
       const sk = randomSkill();
       return { title:'SALVAGED GEAR', text:'Slot ' + (i+1) + ': ' + skillName(sk) + ' — ' +
                      SHAPES[sk.shape].desc + ', ' + ELEMENTS[sk.element].blurb + '.', slot:i,
                apply:S => { S.slots[i] = sk; } }; } },
+
+  // ---- element-wide: the reward for building down a colour ------------------
+  { id:'elemdmg', rarity:'rare', weight:S => 9 * (slotsWhere(S, sk => true).length > 1 ? 2 : 1),
+    can:S => ELEMENT_KEYS.some(e => hasElement(S, e)),
+    make:S => { const e = pick(ELEMENT_KEYS.filter(k => hasElement(S, k)));
+      const n = slotsWhere(S, sk => sk.element === e).length;
+      return { title: ELEMENTS[e].name.toUpperCase() + ' CONVERGENCE',
+               text: '+30% damage on every ' + ELEMENTS[e].name + ' skill' +
+                     (n > 1 ? ' — you run ' + n + '.' : '.'),
+               apply:S => { S.mods.elemDmg[e] *= 1.30; } }; } },
+
+  { id:'elemcd', rarity:'rare', weight:S => 7 * (slotsWhere(S, sk => true).length > 1 ? 2 : 1),
+    can:S => ELEMENT_KEYS.some(e => hasElement(S, e)),
+    make:S => { const e = pick(ELEMENT_KEYS.filter(k => hasElement(S, k)));
+      return { title: ELEMENTS[e].name.toUpperCase() + ' CADENCE',
+               text: '-20% cooldown on every ' + ELEMENTS[e].name + ' skill.',
+               apply:S => { S.mods.elemCd[e] *= 0.80; } }; } },
 
   // ---- player ---------------------------------------------------------------
   { id:'hp', rarity:'common', weight:S => 10, can:S => true,
@@ -749,6 +768,12 @@ const S = {
 
 function freshMods(){
   return {
+    // Per-element multipliers. The game is a shape x element matrix, so the
+    // interesting way to specialise is down a colour across several shapes —
+    // Frost Mortar and Frost Lance as one build — rather than pouring every
+    // upgrade into a single ability because that is where they all land.
+    elemDmg: { EMBER: 1, FROST: 1, ARC: 1, STEAM: 1 },
+    elemCd:  { EMBER: 1, FROST: 1, ARC: 1, STEAM: 1 },
     burnDmg: 1, burnDur: 0,
     slowAmt: 0.40, slowDmg: 0,
     stunChance: 0.20,
@@ -950,8 +975,10 @@ function fx(o){ o.t = 0; S.fx.push(o); return o; }
 --------------------------------------------------------------------------- */
 function skillStats(sk){
   const b = SHAPES[sk.shape], m = sk.mods;
+  const eD = (S.mods.elemDmg && S.mods.elemDmg[sk.element]) || 1;
+  const eC = (S.mods.elemCd && S.mods.elemCd[sk.element]) || 1;
   const st = { kind: b.kind, shape: sk.shape, element: sk.element,
-               dmg: b.dmg * m.dmg, cd: b.cd * m.cd * FEEL.cdScale,
+               dmg: b.dmg * m.dmg * eD, cd: b.cd * m.cd * eC * FEEL.cdScale,
                knock: (b.knock||0) * m.knock * S.mods.knockMult,
                multi: m.multi };
   switch (b.kind){
@@ -2278,9 +2305,52 @@ function rollCards(n){
   }
   return out;
 }
+/* Three skills for one empty slot. The player picks WHICH, never WHETHER.
+   Before this, a new skill was a card competing against upgrades — and losing,
+   correctly: every upgrade card targets a random FILLED slot, so with one skill
+   100% of upgrades landed on it and taking a second halved that while handing
+   you something unupgraded. Passing was the dominant line, and a whole run
+   could be played with a single ability out of a 24-combination matrix. */
+function rollSkillCards(slot, n){
+  const have = filledSlots(S).map(i => S.slots[i].shape);
+  // never offer the shape she already swings automatically — a Cleave in a slot
+  // beside the auto-attacking Cleave reads as a duplicate, not a choice
+  if (S.basic) have.push(S.basic.shape);
+  const shapes = SHAPE_KEYS.filter(k => have.indexOf(k) < 0);
+  const pool = (shapes.length >= n ? shapes : SHAPE_KEYS).slice();
+  // one option deliberately matches the element you have most of, so committing
+  // to a colour across several shapes is an available build rather than a
+  // consolation prize
+  const counts = {};
+  for (const i of filledSlots(S)) counts[S.slots[i].element] = (counts[S.slots[i].element] || 0) + 1;
+  const fav = ELEMENT_KEYS.slice().sort((a, b) => (counts[b] || 0) - (counts[a] || 0))[0];
+  const out = [];
+  for (let k = 0; k < n && pool.length; k++){
+    const shape = pool.splice((Math.random() * pool.length) | 0, 1)[0];
+    const element = (k === 0 && counts[fav]) ? fav : pick(ELEMENT_KEYS);
+    const sk = newSkill(shape, element);
+    out.push({ id:'skillpick', rarity: k === 0 && counts[fav] ? 'rare' : 'common',
+               title: skillName(sk).toUpperCase(), slot: slot, skill: sk,
+               text: SHAPES[shape].desc + ', ' + ELEMENTS[element].blurb + '.',
+               apply: (S) => { S.slots[slot] = sk; } });
+  }
+  // Shuffle: the themed option is generated first, and leaving it first would
+  // mean anyone who habitually takes the left-hand card ends up mono-element by
+  // accident rather than by choosing it.
+  for (let i = out.length - 1; i > 0; i--){
+    const j = (Math.random() * (i + 1)) | 0;
+    const t = out[i]; out[i] = out[j]; out[j] = t;
+  }
+  return out;
+}
+
 function openDraft(){
   S.mode = 'draft';
-  S.draft = { cards: rollCards(3), hover: -1, t: 0, chosen: -1, chooseT: 0 };
+  const empty = emptyUnlocked(S);
+  const skillDraft = empty.length > 0;
+  S.draft = { cards: skillDraft ? rollSkillCards(empty[0], 3) : rollCards(3),
+              hover: -1, t: 0, chosen: -1, chooseT: 0,
+              kind: skillDraft ? 'skill' : 'upgrade', slot: skillDraft ? empty[0] : -1 };
   SFX.cardDeal();
 }
 function pickCard(i){
