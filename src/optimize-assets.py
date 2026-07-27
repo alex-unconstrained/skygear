@@ -60,6 +60,11 @@ def process(asset_set: str, write: bool, allow_upscale: bool, targets: dict[str,
     for path in sorted(root.rglob("*.png")):
         relative = path.relative_to(root).as_posix()
         if relative not in targets:
+            # Animation frames are declared per sequence in ANIMATION_MANIFEST,
+            # not per file in ASSET_MANIFEST, and there are dozens of them. They
+            # are validated by the sequence check below instead.
+            if relative.startswith("animations/"):
+                continue
             raise ValueError(f"runtime PNG is missing from ASSET_MANIFEST: {path}")
         target = targets[relative]
         with Image.open(path) as source:
