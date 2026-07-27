@@ -358,6 +358,96 @@ async function checkSeed(browser, port){
   }
 }
 
+/* Settings, prompts and the run log survive a reload.
+
+   "Everything persists" is a promise the settings screen makes implicitly, and
+   before v10 it was false of the volume keys — they changed the session and the
+   game came back loud every time. It is also the promise most likely to break
+   silently, because nothing in the game reads a setting back except the setting
+   itself. So: change everything, reload, and check.
+
+   The storage is also checked for being absent-safe, because localStorage
+   throws rather than returning null in Safari private browsing and on file://,
+   and neither is a reason for the game not to run. */
+async function checkPersistence(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const errs = [];
+  tab.on('pageerror', e => errs.push(e.message));
+  const url = `http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=STORE1`;
+  try {
+    await tab.goto(url, { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+    await tab.evaluate(INSTALL);
+    await tab.evaluate(() => {
+      const G = window.SKYGEAR;
+      G.Settings.reset();
+      G.Settings.set('volMusic', 0.15);
+      G.Settings.set('vfx', 0.25);
+      G.Settings.set('hudScale', 1.2);
+      G.Settings.set('reducedMotion', true);
+      G.Settings.set('keys', { dash: 'f', slot3: 'r' });
+      G.Settings.markSeen('boarder');
+      // finish a run so there is something in the log to come back to
+      window.__begin();
+      G.hurtBoiler(1e9, 0);
+      for (let i = 0; i < 10 && G.S.mode === 'play'; i++) G.step(G.DT);
+    });
+
+    await tab.goto(url, { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+    const back = await tab.evaluate(() => {
+      const G = window.SKYGEAR;
+      return {
+        music: G.Settings.get('volMusic'),
+        vfx: G.Settings.get('vfx'),
+        hud: G.Settings.get('hudScale'),
+        motion: G.Settings.motionReduced(),
+        dash: G.Settings.get('keys') && G.Settings.get('keys').dash,
+        seen: G.Settings.hintSeen('boarder'),
+        runs: G.RunLog.all().length,
+        best: !!G.RunLog.best(),
+      };
+    });
+    record('store', 'settings survive a reload',
+      back.music === 0.15 && back.vfx === 0.25 && back.hud === 1.2 && back.motion === true,
+      JSON.stringify({ music: back.music, vfx: back.vfx, hud: back.hud, motion: back.motion }));
+    record('store', 'key bindings survive a reload', back.dash === 'f', 'dash=' + back.dash);
+    record('store', 'a prompt already seen stays seen', back.seen === true);
+    record('store', 'the finished run is in the log', back.runs >= 1 && back.best,
+      back.runs + ' run(s) recorded');
+
+    // Storage refused. The game must boot, play and simply forget.
+    const denied = await browser.newContext();
+    await denied.addInitScript(() => {
+      Object.defineProperty(window, 'localStorage', {
+        get(){ throw new DOMException('denied', 'SecurityError'); },
+      });
+    });
+    const t2 = await denied.newPage();
+    const derr = [];
+    t2.on('pageerror', e => derr.push(e.message));
+    await t2.goto(url, { waitUntil: 'domcontentloaded' });
+    await t2.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+    await t2.evaluate(INSTALL);
+    const survived = await t2.evaluate(() => {
+      const G = window.SKYGEAR;
+      window.__begin();
+      for (let i = 0; i < 600; i++) G.step(G.DT);
+      G.Settings.set('volMusic', 0.5);        // must not throw
+      return { mode: G.S.mode, wave: G.S.wave, ok: G.Store.ok };
+    });
+    record('store', 'the game runs with storage denied',
+      derr.length === 0 && survived.mode === 'play',
+      'mode=' + survived.mode + ', Store.ok=' + survived.ok +
+      (derr.length ? ' · ' + derr[0].split('\n')[0] : ''));
+    await denied.close();
+  } catch (e){
+    record('store', 'persistence works', false, e.message.split('\n')[0]);
+  } finally {
+    await tab.close();
+  }
+}
+
 /* A cold cache on a slow line.
 
    "Interactive in under 2 s on a cold cache" is an acceptance criterion, and
@@ -726,6 +816,7 @@ await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));
 await group('input',   () => checkInput(browser, port));
+await group('store',   () => checkPersistence(browser, port));
 await group('slow',    () => checkSlowStart(browser, port));
 await group('layout',  () => checkLayout(browser, port));
 await group('firefox', () => checkFirefox(port));
