@@ -82,7 +82,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "125b7ee"
+  "build": "8350248"
 };
 
 /* ============================================================================
@@ -6432,15 +6432,26 @@ function drawPlayerBillboard(){
   if (frame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
                 { mirror: v.mirror, lift: bob, alpha: inv ? 0.55 : 1, flash: P.hurt > 0.18 });
-  // no x-ray for the captain: she is drawn above everything, so she can never
-  // be hidden and a silhouette of her would just be a teal blob over herself
-  // a soft teal aura so the captain never gets lost in a crowd
+  // No x-ray for the captain: she is drawn above everything, so she can never
+  // be hidden and a silhouette of her would just be a teal blob over herself.
+  //
+  // She does need to be findable in a crowd, and "she is the teal one" fails
+  // exactly when it matters — a greyscale capture of a wave-5 fight had her
+  // standing directly in front of an Armoured and the two were one shape. So
+  // the mark under her feet is permanent, bright, and in the player language:
+  // a continuous rim with ticks pointing inward, the same grammar as her own
+  // ability areas and the opposite of every hostile mark on the deck. That
+  // reads as value and shape, not as hue.
+  playerRing(P.x, P.y, 30, PAL.bone, 2.2, 0.5, 10);
+  playerRing(P.x, P.y, 34, PAL.teal, 2.6, 0.75, 10);
   const q = CAM.project(P.x, P.y, 46);
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
-  drawGlow(q.x, q.y, 62 * q.k, PAL.teal, 0.16);
+  drawGlow(q.x, q.y, 62 * q.k, PAL.teal, 0.22);
   ctx.restore();
+  // A second, wider ring while a dash is banked — so the ring says both "this
+  // is you" and "you can still get out of this".
   if (P.dashStock > 0 && P.dashT <= 0)
-    groundRing(P.x, P.y, 34, PAL.teal, 2.4, 0.20 + Math.sin(S.rt * 5) * 0.06);
+    playerRing(P.x, P.y, 44, PAL.teal, 1.8, 0.24 + Math.sin(S.rt * 5) * 0.07, 16);
 }
 
 /* --- enemies ------------------------------------------------------------- */
@@ -7108,14 +7119,19 @@ function drawLaneStatus(){
     // critical, hollow when not
     if (t.count){
       const px = bx + bw * clamp(t.prog, 0, 1);
-      const cy = by + bh / 2, s2 = 5 * HS;
+      const cy = by + bh / 2, s2 = 5.5 * HS;
       ctx.beginPath();
       ctx.moveTo(px + s2, cy);
       ctx.lineTo(px - s2, cy - s2);
       ctx.lineTo(px - s2, cy + s2);
       ctx.closePath();
+      // Outlined in ink first. Against the dark track a mid-value orange
+      // triangle is nearly the same value as the track itself — checked on a
+      // greyscale capture, where the whole readout went flat.
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.4 * HS; ctx.stroke();
       if (t.critical){ ctx.fillStyle = PAL.danger; ctx.fill(); }
-      else { ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
+      else { ctx.fillStyle = PAL.base; ctx.fill();
+             ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
     }
   }
 

@@ -30,6 +30,10 @@ const ONLY = (arg('only', '') || '').split(',').filter(Boolean);
 // Procedural by default: a shot that is meant to show a layout should not
 // change every time an asset lands. --art turns the delivered art on.
 const ART = argv.includes('--art');
+// "A greyscale screenshot still separates captain, crew and hostiles" is an
+// acceptance criterion, and it is one only a person can judge. This makes the
+// artefact to judge: the real frame, desaturated, so colour carries nothing.
+const GREY = argv.includes('--grey');
 const OUT = path.join(ROOT, '.shots');
 const BUILD = (() => {
   const m = /^LIVE = '([^']+)'/m.exec(fs.readFileSync(path.join(ROOT, 'src/storm-dusk/build.py'), 'utf8'));
@@ -169,7 +173,9 @@ for (const name of names){
   // here (software raster) so this is deliberately patient.
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
             .catch(() => {});
-  const file = path.join(OUT, `${name}-${SIZE[0]}x${SIZE[1]}${DPR > 1 ? '@' + DPR + 'x' : ''}${ART ? '-art' : ''}.png`);
+  if (GREY) await page.addStyleTag({ content: 'canvas{filter:grayscale(1) contrast(1.05)}' })
+                      .catch(() => {});
+  const file = path.join(OUT, `${name}-${SIZE[0]}x${SIZE[1]}${DPR > 1 ? '@' + DPR + 'x' : ''}${ART ? '-art' : ''}${GREY ? '-grey' : ''}.png`);
   await page.screenshot({ path: file });
   console.log((errs.length > before ? 'ERR  ' : 'shot ') + path.relative(ROOT, file) +
               (errs.length > before ? '   ' + errs[before].split('\n')[0] : ''));

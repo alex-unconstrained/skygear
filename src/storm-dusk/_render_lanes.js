@@ -407,14 +407,19 @@ function drawLaneStatus(){
     // critical, hollow when not
     if (t.count){
       const px = bx + bw * clamp(t.prog, 0, 1);
-      const cy = by + bh / 2, s2 = 5 * HS;
+      const cy = by + bh / 2, s2 = 5.5 * HS;
       ctx.beginPath();
       ctx.moveTo(px + s2, cy);
       ctx.lineTo(px - s2, cy - s2);
       ctx.lineTo(px - s2, cy + s2);
       ctx.closePath();
+      // Outlined in ink first. Against the dark track a mid-value orange
+      // triangle is nearly the same value as the track itself — checked on a
+      // greyscale capture, where the whole readout went flat.
+      ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3.4 * HS; ctx.stroke();
       if (t.critical){ ctx.fillStyle = PAL.danger; ctx.fill(); }
-      else { ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
+      else { ctx.fillStyle = PAL.base; ctx.fill();
+             ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
     }
   }
 
