@@ -86,7 +86,7 @@ const PRESET = {
       ]
     ]
   },
-  "build": "397abb1"
+  "build": "a03c0d4"
 };
 
 /* ============================================================================
@@ -196,11 +196,59 @@ const dist  = (ax,ay,bx,by) => Math.hypot(bx-ax, by-ay);
 const dist2 = (ax,ay,bx,by) => { const dx=bx-ax, dy=by-ay; return dx*dx+dy*dy; };
 function angNorm(a){ a %= TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; }
 function angDiff(a,b){ return angNorm(b - a); }
-function rnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Math.random()*(b-a); }
+/* --- randomness, in two streams ---------------------------------------------
+   `Rng` is the gameplay stream: wave composition, spawn positions, card rolls,
+   crit rolls, stun rolls, boss attack choice. It is seeded, so a seed replays a
+   run. `?seed=` forces one; the results screen and the run report print it, so
+   a player can hand someone else the exact run they just had.
+
+   `vrnd` and friends are the visual stream: spark angles, gib velocities, smoke
+   jitter, screen-shake direction, ambient steam. That stream is deliberately
+   NOT seeded, because it is also the one that thins under load and under a
+   low-VFX setting — if visuals drew from the gameplay stream, turning particles
+   down would change which cards you were offered. Rule of thumb: if the number
+   of calls can vary with a graphics setting, it belongs in the visual stream.
+
+   mulberry32: one multiply-xorshift round, uniform enough for a game and short
+   enough to read. */
+function mulberry32(a){
+  return function(){
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const Rng = {
+  seed: 0, calls: 0, _n: mulberry32(1),
+  set(seed){ this.seed = seed >>> 0; this._n = mulberry32(this.seed); this.calls = 0; },
+  next(){ this.calls++; return this._n(); },
+};
+/* Seeds are shown and typed as base-36, which keeps them short enough to read
+   aloud (7 characters at most) and round-trips through parseInt cleanly. */
+function seedText(s){ return (s >>> 0).toString(36).toUpperCase(); }
+function parseSeed(s){
+  const v = parseInt(String(s).trim(), 36);
+  return isFinite(v) && v >= 0 ? (v >>> 0) : null;
+}
+const FORCED_SEED = (function(){
+  const m = /[?&]seed=([0-9a-zA-Z]+)/.exec((typeof location !== 'undefined' && location.search) || '');
+  return m ? parseSeed(m[1]) : null;
+})();
+function nextRunSeed(){
+  return FORCED_SEED !== null ? FORCED_SEED : (Math.random() * 4294967296) >>> 0;
+}
+
+function rnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Rng.next()*(b-a); }
 function rndi(a,b){ return Math.floor(rnd(a,b)); }
 function pick(arr){ return arr[rndi(0,arr.length)]; }
-function chance(p){ return Math.random() < p; }
+function chance(p){ return Rng.next() < p; }
 function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j=rndi(0,i+1); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+function vrnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Math.random()*(b-a); }
+function vrndi(a,b){ return Math.floor(vrnd(a,b)); }
+function vpick(arr){ return arr[vrndi(0,arr.length)]; }
+function vchance(p){ return Math.random() < p; }
 const easeOut = t => 1 - Math.pow(1-t, 3);
 const easeIn  = t => t*t*t;
 function approach(cur, target, delta){ return cur < target ? Math.min(cur+delta, target) : Math.max(cur-delta, target); }
@@ -330,13 +378,18 @@ const Sound = {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   },
 
+  // The volume keys and the settings menu are two views of one value, so both
+  // write through to storage. Before v10 the keys changed the session only and
+  // the game came back loud every time.
   setVol(v){
     this.vol = clamp(v, 0, 1);
     if (this.master) this.master.gain.value = this.muted ? 0 : this.vol;
+    if (typeof Settings !== 'undefined' && Settings.v) Settings.set('volMaster', this.vol);
   },
   toggleMute(){
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : this.vol;
+    if (typeof Settings !== 'undefined' && Settings.v) Settings.set('muted', this.muted);
   },
 
   // Bus routing. _audio.js installs master-fed buses (music/sfx/ui/voice) and
@@ -1000,43 +1053,61 @@ const Particles = {
 };
 Particles.init();
 
+/* How many of a decorative burst actually get spawned. The low-VFX setting
+   thins texture-tier effects; gameplay boundaries never scale with it, which is
+   why this only ever touches particles and never a radius, a duration or a
+   damage number. A burst that asked for at least one particle still gets one. */
+function vfxCount(n){
+  const q = (typeof Settings !== 'undefined') ? Settings.get('vfx') : 1;
+  if (q >= 1) return n;
+  return n > 0 ? Math.max(1, Math.round(n * q)) : 0;
+}
+
 // --- shorthand emitters -----------------------------------------------------
+// All of these draw from the VISUAL stream (vrnd), never the gameplay one.
+// Particle counts are thinned by load and by the low-VFX setting, so drawing
+// them from the seeded stream would make graphics settings change the run.
 function pSparks(x, y, n, col, spd, ang, spread){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = ang === undefined ? rnd(TAU) : ang + rnd(-(spread||TAU/2), (spread||TAU/2));
-    const v = rnd(spd*0.35, spd);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v, life: rnd(0.16,0.42),
-                      size: rnd(1.6,3.4), col, kind:'spark', drag:0.82, add:true, w: rnd(4,11) });
+    const a = ang === undefined ? vrnd(TAU) : ang + vrnd(-(spread||TAU/2), (spread||TAU/2));
+    const v = vrnd(spd*0.35, spd);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v, life: vrnd(0.16,0.42),
+                      size: vrnd(1.6,3.4), col, kind:'spark', drag:0.82, add:true, w: vrnd(4,11) });
   }
 }
 function pGibs(x, y, n, col, col2){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(70, 320);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(20,90), life: rnd(0.45,0.95),
-                      size: rnd(3,7.5), col: chance(0.5)?col:col2, kind:'shard',
-                      grav: 620, drag: 0.965, rot: rnd(TAU), vr: rnd(-11,11) });
+    const a = vrnd(TAU), v = vrnd(70, 320);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(20,90), life: vrnd(0.45,0.95),
+                      size: vrnd(3,7.5), col: vchance(0.5)?col:col2, kind:'shard',
+                      grav: 620, drag: 0.965, rot: vrnd(TAU), vr: vrnd(-11,11) });
   }
 }
 function pSmoke(x, y, n, col, spd){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(6, spd||45);
-    Particles.spawn({ x, y: y - rnd(0,6), vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(8,30),
-                      life: rnd(0.5,1.1), size: rnd(7,17), col: col||'rgba(190,180,170,0.5)',
+    const a = vrnd(TAU), v = vrnd(6, spd||45);
+    Particles.spawn({ x, y: y - vrnd(0,6), vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(8,30),
+                      life: vrnd(0.5,1.1), size: vrnd(7,17), col: col||'rgba(190,180,170,0.5)',
                       kind:'smoke', drag: 0.94 });
   }
 }
 function pDust(x, y, n){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(8, 46);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*0.5, life: rnd(0.22,0.5),
-                      size: rnd(2.5,6), col:'rgba(196,186,152,0.55)', kind:'smoke', drag:0.9 });
+    const a = vrnd(TAU), v = vrnd(8, 46);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*0.5, life: vrnd(0.22,0.5),
+                      size: vrnd(2.5,6), col:'rgba(196,186,152,0.55)', kind:'smoke', drag:0.9 });
   }
 }
 function pGold(x, y, n){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(60, 300);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(40,150), life: rnd(0.7,1.5),
-                      size: rnd(2.5,5.5), col: chance(0.4)? PAL.bone : PAL.brass, kind:'glow',
+    const a = vrnd(TAU), v = vrnd(60, 300);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(40,150), life: vrnd(0.7,1.5),
+                      size: vrnd(2.5,5.5), col: vchance(0.4)? PAL.bone : PAL.brass, kind:'glow',
                       grav: 240, drag: 0.97, add:true });
   }
 }
@@ -1078,6 +1149,11 @@ const _q = [];
 function addTrauma(v){ S.trauma = Math.min(1, S.trauma + v); }
 function hitStop(v){
   if (v <= 0) return;
+  // Reduced motion shortens hit-stop rather than removing it: it is feedback,
+  // not decoration, and a hit that stops nothing reads as a hit that missed.
+  // Scaled here rather than at the twenty call sites, so the setting cannot be
+  // half-applied.
+  v *= Settings.stopScale();
   // A big hit always lands; small ones respect a refractory window so that
   // clearing a horde does not leave the sim frozen a large part of the time.
   if (v < 0.06 && FEEL.stopRefractory > 0 && S.t < S.stopUntil) return;
@@ -2591,6 +2667,11 @@ function closeDraft(){
    SYSTEMS — run lifecycle
 --------------------------------------------------------------------------- */
 function startRun(){
+  // Seed FIRST. resetGame lays out the lanes, the turrets and the boarding
+  // hulk, and all three draw from the gameplay stream — seeding after them
+  // would make the seed reproduce the waves but not the map.
+  S.seed = nextRunSeed();
+  Rng.set(S.seed);
   resetGame();
   S.mode = 'play';
   S.phase = 'ready';
@@ -2598,6 +2679,8 @@ function startRun(){
   S.winSeq = 0; S.killT = 0;
   S.wave = 0;
   S.endT = 0;
+  S.result = null;
+  S.copyToast = null;
   Sound.unlock();
 }
 function endGame(win, reason, title){
@@ -2607,8 +2690,13 @@ function endGame(win, reason, title){
   S.endTitle = title || (win ? 'DECK HELD' : 'BOARDED');
   S.endT = 0;
   S.player.ray = null;
-  if (win){ SFX.victory(); for (let i=0;i<8;i++) pGold(rnd(300,1100), rnd(250,700), 20); }
-  else { SFX.defeat(); addTrauma(0.8); S.flashRed = 0.7; }
+  endRay();
+  // The record is built and stored here, not on the results screen, so the
+  // screen renders a value rather than computing one every frame — and so a
+  // run still counts if the player closes the tab before reading it.
+  S.result = RunLog.record(buildRunRecord(win));
+  if (win){ SFX.victory(); for (let i=0;i<8;i++) pGold(vrnd(300,1100), vrnd(250,700), 20); }
+  else { SFX.defeat(); addTrauma(0.8); S.flashRed = 0.7 * Settings.flashScale(); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -2630,9 +2718,10 @@ function step(dt){
   Particles.step(dt);
   updateWave(dt);
 
-  // ambient life on deck: idle steam from the vents
-  if (rnd() < dt * 1.6){
-    const v = pick(PROPS.filter(p => p.t === 'vent' || p.t === 'lantern'));
+  // ambient life on deck: idle steam from the vents. Visual stream — its call
+  // count changes with the VFX setting, and the run must not.
+  if (vrnd() < dt * 1.6 * (typeof Settings !== 'undefined' ? Settings.get('vfx') : 1)){
+    const v = vpick(PROPS.filter(p => p.t === 'vent' || p.t === 'lantern'));
     if (v) pSmoke(v.x, v.y, 1, 'rgba(220,215,210,0.35)', 22);
   }
   S.boiler.flash = Math.max(0, S.boiler.flash - dt);
@@ -2653,12 +2742,12 @@ function updateUI(rt){
   // rolling frame-time readout, toggled with F3
   S.ftBuf[S.ftIdx++ % S.ftBuf.length] = rt;
   if (S.ftIdx > 1e9) S.ftIdx = 0;
-  // trauma-based screen shake
+  // Trauma-based screen shake. Visual stream, and halved under reduced motion.
   S.trauma = Math.max(0, S.trauma - TUNING.feel.traumaDecay * rt);
-  const amp = S.trauma * S.trauma * TUNING.feel.shakeMax;
-  const a = rnd(TAU);
+  const amp = S.trauma * S.trauma * TUNING.feel.shakeMax * Settings.shakeScale();
+  const a = vrnd(TAU);
   S.shakeX = Math.cos(a) * amp; S.shakeY = Math.sin(a) * amp;
-  S.shakeR = (rnd(-1,1)) * S.trauma * S.trauma * 0.018;
+  S.shakeR = (vrnd(-1,1)) * S.trauma * S.trauma * 0.018 * Settings.shakeScale();
 
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
@@ -2714,7 +2803,13 @@ function handleModeInput(){
       if (Input.clicked && S.draft.hover >= 0) pickCard(S.draft.hover);
     }
   } else if (S.mode === 'gameover' || S.mode === 'victory'){
-    if (S.endT > 0.8 && (keyHit('r') || keyHit('enter') || keyHit('space') || Input.clicked)) startRun();
+    // The buttons on the results screen own the mouse now, so a bare click no
+    // longer restarts: clicking Copy Run Report and being thrown into a new run
+    // is exactly the kind of thing that makes a screen feel hostile.
+    if (S.endT > 0.6){
+      if (keyHit('r')) startRun();
+      if (keyHit('c') && S.result) copyText(runReportText(S.result));
+    }
   }
 }
 
@@ -2757,6 +2852,247 @@ function frame(now){
   if (ran > 0 || S.mode !== 'play') Input.pressed.clear();
   Input.clicked = false;
   Input.rightClicked = false;
+}
+
+
+/* ============================================================================
+   PERSISTENCE — settings, first-run prompts, and the run log
+   ----------------------------------------------------------------------------
+   One key in localStorage holding one JSON object. Several keys would be
+   tidier to read in devtools and worse everywhere else: a partial write leaves
+   the settings and the run history disagreeing about which version of the game
+   wrote them, and clearing "just the hints" becomes three call sites.
+
+   Every access is wrapped. localStorage throws rather than returns null in a
+   few real situations — Safari private browsing, a file:// origin, storage
+   disabled by policy — and none of them are a reason for the game not to run.
+   If storage is unavailable the game keeps working with defaults and simply
+   forgets between sessions.
+============================================================================ */
+const Store = {
+  KEY: 'skygear.v10',
+  data: null,
+  ok: true,
+
+  load(){
+    if (this.data) return this.data;
+    this.data = {};
+    try {
+      const raw = window.localStorage.getItem(this.KEY);
+      if (raw) this.data = JSON.parse(raw) || {};
+    } catch (e){ this.ok = false; }
+    return this.data;
+  },
+  save(){
+    if (!this.ok) return;
+    try { window.localStorage.setItem(this.KEY, JSON.stringify(this.data)); }
+    catch (e){ this.ok = false; }
+  },
+  get(k, dflt){
+    const d = this.load();
+    return (k in d) ? d[k] : dflt;
+  },
+  set(k, v){ this.load()[k] = v; this.save(); return v; },
+  clear(){
+    this.data = {};
+    try { window.localStorage.removeItem(this.KEY); } catch (e){}
+  },
+};
+
+/* ---------------------------------------------------------------------------
+   SETTINGS
+   Defaults are chosen so that a stranger who never opens this menu gets the
+   right experience: full volume, full effects, and reduced motion already on if
+   their operating system says they want it.
+--------------------------------------------------------------------------- */
+const SETTING_DEFAULTS = {
+  volMaster: 0.85,
+  volMusic: 0.55,
+  volSfx: 1.0,
+  volUi: 0.85,
+  muted: false,
+  vfx: 1,                 // 1 full · 0.5 fewer · 0.25 fewest
+  reducedMotion: null,    // null = follow the OS; true/false = the player chose
+  hudScale: 1,            // multiplies the resolution-derived scale
+  hints: true,            // contextual first-run prompts
+  seen: {},               // which prompts have fired
+  keys: null,             // remaps, { action: 'key' }
+};
+
+const Settings = {
+  v: null,
+
+  init(){
+    this.v = Object.assign({}, SETTING_DEFAULTS, Store.get('settings', {}));
+    // seen/keys are objects; a stale shape from an older build must not throw
+    if (!this.v.seen || typeof this.v.seen !== 'object') this.v.seen = {};
+    return this;
+  },
+  get(k){ return this.v ? this.v[k] : SETTING_DEFAULTS[k]; },
+  set(k, val){
+    this.v[k] = val;
+    Store.set('settings', this.v);
+    this.apply(k);
+    return val;
+  },
+  reset(){
+    this.v = Object.assign({}, SETTING_DEFAULTS);
+    this.v.seen = {};
+    Store.set('settings', this.v);
+    this.applyAll();
+  },
+
+  /* The OS preference is the default, not the law: a player who explicitly
+     turns motion back on keeps it on even though their system asks for less. */
+  motionReduced(){
+    if (this.v.reducedMotion !== null) return !!this.v.reducedMotion;
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }
+    catch (e){ return false; }
+  },
+  // Trauma shake, full-screen flashes and hit-stop all read these rather than
+  // testing the flag themselves, so there is one place to change the strength.
+  shakeScale(){ return this.motionReduced() ? 0.5 : 1; },
+  flashScale(){ return this.motionReduced() ? 0 : 1; },
+  stopScale(){ return this.motionReduced() ? 0.5 : 1; },
+
+  apply(k){
+    if (k === undefined || /^vol|^muted/.test(k)) this.applyAudio();
+  },
+  applyAll(){ this.applyAudio(); },
+  applyAudio(){
+    if (typeof Sound === 'undefined') return;
+    Sound.muted = !!this.v.muted;
+    Sound.vol = this.v.volMaster;
+    if (Sound.master) Sound.master.gain.value = this.v.muted ? 0 : this.v.volMaster;
+    if (Sound.bus){
+      Sound.bus.music.gain.value = this.v.volMusic;
+      Sound.bus.sfx.gain.value   = this.v.volSfx;
+      Sound.bus.ui.gain.value    = this.v.volUi;
+      Sound.bus.voice.gain.value = this.v.volSfx;
+    }
+  },
+
+  /* First-run prompts. `fire` is idempotent per id and per player, so a call
+     site can simply say "this just happened" every time it happens. */
+  hintSeen(id){ return !!this.v.seen[id]; },
+  markSeen(id){ this.v.seen[id] = 1; Store.set('settings', this.v); },
+  forgetHints(){ this.v.seen = {}; Store.set('settings', this.v); },
+};
+Settings.init();
+
+/* ---------------------------------------------------------------------------
+   RUN LOG
+   The last ten runs and a personal best, kept locally. No account, no server,
+   nothing leaves the machine — which is also why the run report is a block of
+   text the player copies themselves rather than anything that gets sent.
+--------------------------------------------------------------------------- */
+const RunLog = {
+  MAX: 10,
+
+  all(){
+    const a = Store.get('runs', []);
+    return Array.isArray(a) ? a : [];
+  },
+  best(){
+    let b = null;
+    for (const r of this.all()) if (!b || this.better(r, b)) b = r;
+    return b;
+  },
+  /* Furthest wave first, then kills. Duration is deliberately not a tiebreak:
+     rewarding a faster run would push toward skipping the draft, and the draft
+     is the game. */
+  better(a, b){
+    if (!b) return true;
+    if (a.won !== b.won) return !!a.won;
+    if (a.wave !== b.wave) return a.wave > b.wave;
+    return a.kills > b.kills;
+  },
+
+  record(run){
+    const prev = this.best();
+    run.pb = this.better(run, prev);
+    const list = this.all();
+    list.unshift(run);
+    Store.set('runs', list.slice(0, this.MAX));
+    return run;
+  },
+};
+
+function fmtDuration(sec){
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60), s = sec % 60;
+  return m + ':' + (s < 10 ? '0' : '') + s;
+}
+
+/* Build the record of a finished run. Reads the live state rather than being
+   handed a summary, so it cannot drift from what the results screen shows. */
+function buildRunRecord(win){
+  const build = [];
+  if (S.basic) build.push(skillName(S.basic) + ' (auto)');
+  for (let i = 0; i < 4; i++) if (S.slots[i]) build.push(skillName(S.slots[i]));
+  return {
+    v: PRESET.name,
+    build: PRESET.build || 'dev',
+    won: !!win,
+    title: S.endTitle,
+    cause: S.endReason,
+    wave: win ? TUNING.totalWaves : Math.max(0, S.wave - 1),
+    waves: TUNING.totalWaves,
+    time: S.t,
+    kills: S.stats.kills,
+    damage: Math.round(S.stats.damage),
+    chain: S.stats.bestCombo,
+    dashes: S.stats.dashes,
+    seed: seedText(S.seed),
+    loadout: build,
+    cards: S.stats.cards.slice(),
+  };
+}
+
+/* One block of text a player can paste into a message. Everything needed to
+   reproduce and to argue about is in it: the build id, the seed, the cause of
+   death and the whole draft. */
+function runReportText(r){
+  const L = [];
+  L.push('SKYGEAR ' + r.v + ' · build ' + r.build);
+  L.push((r.title || (r.won ? 'DECK HELD' : 'BOARDED')) + ' — ' + (r.cause || ''));
+  L.push('wave ' + r.wave + '/' + r.waves + ' · ' + fmtDuration(r.time) + ' · seed ' + r.seed);
+  L.push('kills ' + r.kills + ' · damage ' + r.damage.toLocaleString() +
+         ' · best chain ' + r.chain + ' · dashes ' + r.dashes);
+  L.push('build: ' + (r.loadout.length ? r.loadout.join('  /  ') : '—'));
+  if (r.cards.length) L.push('draft: ' + r.cards.join(', '));
+  L.push('replay: ' + location.origin + location.pathname + '?seed=' + r.seed);
+  return L.join('\n');
+}
+
+/* Clipboard, with a fallback. navigator.clipboard is unavailable on insecure
+   origins, which includes the http://127.0.0.1 the game is developed on and
+   any playtester served over plain http — exactly the people most likely to be
+   asked for a run report. */
+function copyText(text){
+  const legacy = () => {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e){ return false; }
+  };
+  try {
+    if (navigator.clipboard && window.isSecureContext){
+      navigator.clipboard.writeText(text).then(
+        () => { S.copyToast = { t: 0, ok: true }; },
+        () => { S.copyToast = { t: 0, ok: legacy() }; });
+      return true;
+    }
+  } catch (e){}
+  const ok = legacy();
+  S.copyToast = { t: 0, ok };
+  return ok;
 }
 
 
@@ -2961,9 +3297,15 @@ Sound.unlock = function(){
   const c = this.ctx, mk = (v) => { const g = c.createGain(); g.gain.value = v; g.connect(this.master); return g; };
   this.bus = { music: mk(0.55), sfx: mk(1.0), ui: mk(0.85), voice: mk(1.0) };
   this.duckT = 0;
+  // The buses do not exist until the first gesture, so stored volumes have had
+  // nowhere to land until now. Push them in the moment the graph appears —
+  // otherwise a player who turned the music down last session gets one loud
+  // bar of it before the settings screen is ever opened.
+  Settings.applyAudio();
   AudioBank.start();
   Music.onUnlock();
 };
+Settings.applyAudio();   // master gain and mute, which do exist before unlock
 Sound.dest = function(name){
   return (this.bus && this.bus[name || 'sfx']) || this.master;
 };
@@ -4093,22 +4435,67 @@ const ASSET_MANIFEST = {
   ui_icon_field:   { file:'assets/ui/icon_skill_field.png',   w:256, h:256 },  // AURA
   ui_icon_pulse:   { file:'assets/ui/icon_skill_pulse.png',   w:256, h:256 },  // PULSE
   ui_icon_sentry:  { file:'assets/ui/icon_skill_sentry.png',  w:256, h:256 },  // SENTRY
-  ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256 },
-  ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256 },
-  ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128 },
+  // These three have no draw site. `dash` and `barrier` were speculative icons
+  // for a UI that never used them, and `cog` was for a currency v10 explicitly
+  // does not have. They stayed in the manifest, loaded, and counted toward the
+  // "32/67 art" badge on the title — which is how that badge came to overstate
+  // how much of the game was painted. `unused` keeps the slot documented and
+  // keeps it out of the count; delete the flag the day something draws them.
+  ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256, unused:true },
+  ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256, unused:true },
+  ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128, unused:true },
 };
 
+/* Load order. Everything has a procedural fallback, so nothing here decides
+   whether the game runs — it decides what a player on a slow line sees painted
+   first. The order is by how much of the screen the asset owns and how early it
+   is on screen: the captain before the enemies she is fighting, the fight
+   before the deck it happens on, the deck before the props scattered on it.
+
+   Anything not named falls into the last tier, so a new manifest entry loads
+   late rather than silently jumping the queue. */
+const ASSET_PRIORITY = [
+  // 1 · the captain. On screen from the first frame and never off it.
+  ['hero_front_idle', 'hero_front_attack', 'hero_back_idle'],
+  // 2 · what wave 1 sends at her, plus the crew standing beside her.
+  ['SCRAPPER_front_idle', 'SCRAPPER_front_attack', 'SCRAPPER_back_idle',
+   'CREW_front_idle', 'CREW_front_attack', 'CREW_back_idle'],
+  // 3 · the structures that make the map readable.
+  ['prop_cargo_wall', 'prop_cannon', 'prop_cannon_dead',
+   'prop_hulk_sealed', 'prop_hulk_open', 'prop_hulk_wreck'],
+  // 4 · ground marks. Telegraphs are read every second of every fight.
+  ['rune_enemy', 'rune_enemy_filled', 'rune_player', 'shadow_blob',
+   'decal_scorch', 'decal_oil', 'decal_gears'],
+  // 5 · the rest of the roster, in the order the waves introduce it.
+  ['SWARM_front_idle', 'SWARM_front_attack',
+   'GUNNER_front_idle', 'GUNNER_front_attack',
+   'ARMORED_front_idle', 'ARMORED_front_attack', 'ARMORED_back_idle',
+   'BOSS_front_idle', 'BOSS_front_attack', 'BOSS_back_idle'],
+  // 6 · the HUD.
+  ['ui_portrait', 'ui_frame', 'ui_gauge',
+   'ui_icon_slash', 'ui_icon_hook', 'ui_icon_cone', 'ui_icon_aoe',
+   'ui_icon_ult', 'ui_icon_turret', 'ui_icon_field', 'ui_icon_pulse', 'ui_icon_sentry'],
+  // 7 · the sky. Big files, and the procedural sky is good.
+  ['env_sky', 'env_clouds_far', 'env_clouds_near', 'env_envelope', 'env_bow', 'env_airship'],
+];
+
 /* Generated motion is deliberately narrower than the still-art manifest:
-   these are proven front-facing run cycles, not substitutes for attack/back
-   states. All frames share one measured crop so the figure cannot jitter as
-   its silhouette changes. */
+   these are proven cycles, not substitutes for every attack/back state. All
+   frames of a cycle share one measured crop so the figure cannot jitter as its
+   silhouette changes — which is why `meta` is authored per cycle rather than
+   measured per frame the way stills are.
+
+   One horizontal strip per cycle, not loose frames. The two delivered cycles
+   were 28 files and 3.9 MB, more than every still in the game combined; packed
+   they are 33-35% smaller (measured) and one request instead of thirteen.
+   `python src/pack-animations.py` produces them. */
 const ANIMATION_MANIFEST = {
-  hero_front_run: {
-    dir:'assets/animations/hero_front_run', count:13, fps:12,
+  hero_run: {
+    strip:'assets/animations/hero_run.png', count:13, fps:12,
     meta:{ anchor:0.920, cx:0.500, fig:0.840 },
   },
-  SCRAPPER_front_run: {
-    dir:'assets/animations/scrapper_front_run', count:15, fps:12,
+  SCRAPPER_run: {
+    strip:'assets/animations/scrapper_run.png', count:15, fps:12,
     meta:{ anchor:0.920, cx:0.500, fig:0.840 },
   },
 };
@@ -4154,69 +4541,134 @@ function measureSprite(img){
   };
 }
 
+/* The loader.
+
+   The game has always booted instantly — every asset has a procedural painter
+   beside it, so a missing file degrades one sprite. What it did not do was
+   *arrive* instantly: it fired sixty-odd image requests in one go, and the
+   browser served them in manifest order over whatever bandwidth was going. On
+   a 3 Mbit line that means the 2048x512 cloud plates and a currency icon
+   nobody draws compete with the captain, and the thing the player is looking
+   at is among the last to appear.
+
+   So requests are issued in priority order, a few at a time, and each one swaps
+   in the moment it decodes. Nothing waits for anything else, there is no
+   loading screen, and the first thing to stop being a stand-in is the captain.
+
+   The window is small on purpose. Browsers cap connections per origin anyway;
+   the point of the cap here is that the queue stays a queue — with all of them
+   in flight at once, priority is a suggestion. */
 const Assets = {
   loaded: {}, meta: {}, animations: {}, ready: 0, total: 0,
-  enabled: false, set: 'production', base: 'assets/',
+  enabled: false, base: 'assets/',
+  queue: [], inflight: 0, WINDOW: 6, requested: 0,
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
-    const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
     // Art used to be opt-in behind ?assets=1, which meant anyone opening the
     // build from the site got the procedural stand-ins and never saw a single
     // delivered asset. Painted art is the default now; ?assets=0 restores the
     // all-procedural look for comparison. Missing files still fall back
     // individually, so a part-delivered manifest degrades sprite by sprite.
-    const off = /[?&]assets=0/.test(q);
-    this.enabled = !off && (window.SKYGEAR_USE_ASSETS !== false);
-    // V5+ production art is the upright billboard set under assets/. The
-    // archived ?art=49 set remains available only for explicit comparison.
-    this.set = am ? am[1] : 'production';
-    this.base = this.set === '49' ? 'assets-49/' : 'assets/';
-    const keys = Object.keys(ASSET_MANIFEST);
-    const animKeys = this.set === 'production' ? Object.keys(ANIMATION_MANIFEST) : [];
-    this.total = keys.length + animKeys.reduce((n, k) => n + ANIMATION_MANIFEST[k].count, 0);
+    this.enabled = !/[?&]assets=0/.test(q) && (window.SKYGEAR_USE_ASSETS !== false);
+
+    // Only assets that something actually draws are counted. The badge on the
+    // title is a claim about how finished the game looks, and three icons that
+    // load and are never drawn made that claim wrong in the flattering
+    // direction.
+    const keys = Object.keys(ASSET_MANIFEST).filter(k => !ASSET_MANIFEST[k].unused);
+    const animKeys = Object.keys(ANIMATION_MANIFEST);
+    this.total = keys.length + animKeys.length;
     if (!this.enabled) return;
-    for (const k of keys){
-      const im = new Image();
-      im.onload = () => {
-        if (im.naturalWidth > 0){
-          this.loaded[k] = im;
-          this.meta[k] = measureSprite(im);
-          im.__meta = this.meta[k];
-          this.ready++;
-        }
-      };
-      im.onerror = () => {};
-      im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
-    }
-    for (const k of animKeys) this.loadAnimation(k, ANIMATION_MANIFEST[k]);
+
+    // ordered: everything named in ASSET_PRIORITY, then everything else
+    const named = [];
+    for (const tier of ASSET_PRIORITY)
+      for (const k of tier) if (ASSET_MANIFEST[k] && !ASSET_MANIFEST[k].unused) named.push(k);
+    const rest = keys.filter(k => named.indexOf(k) < 0);
+
+    for (const k of named.concat(rest)) this.queue.push({ kind: 'still', key: k });
+    // Strips are one request each and land behind the stills they replace,
+    // because a still is what draws until its cycle decodes.
+    for (const k of animKeys) this.queue.push({ kind: 'anim', key: k });
+    this.pump();
   },
+
+  pump(){
+    while (this.inflight < this.WINDOW && this.queue.length){
+      const job = this.queue.shift();
+      this.requested++;
+      this.inflight++;
+      if (job.kind === 'still') this.loadStill(job.key);
+      else this.loadAnimation(job.key, ANIMATION_MANIFEST[job.key]);
+    }
+  },
+  // One slot, released exactly once whether the image arrived or 404'd. A
+  // handler that forgets to release stalls the whole queue behind it.
+  done(){ this.inflight--; this.pump(); },
+
+  loadStill(k){
+    const im = new Image();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok && im.naturalWidth > 0){
+        this.loaded[k] = im;
+        this.meta[k] = measureSprite(im);
+        im.__meta = this.meta[k];
+        this.ready++;
+      }
+      this.done();
+    };
+    im.onload = () => finish(true);
+    im.onerror = () => finish(false);
+    im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
+  },
+
+  /* Strips, not loose frames: one PNG per cycle, sliced on demand. The two
+     delivered cycles were 28 separate files and 3.9 MB — more than every still
+     in the game combined — and the full cast in that shape would have been ~270
+     requests. A strip is one request and one decode.
+
+     `frames` is left empty until the strip has loaded; `animation()` returns
+     null until then and the caller draws the still, which is exactly the
+     behaviour that makes a part-delivered manifest safe. */
   loadAnimation(k, spec){
     const sequence = this.animations[k] = {
-      frames: new Array(spec.count), count: spec.count, fps: spec.fps,
-      ready: 0,
+      img: null, frames: null, count: spec.count, fps: spec.fps,
+      ready: 0, meta: spec.meta,
     };
-    for (let i = 0; i < spec.count; i++){
-      const im = new Image();
-      im.onload = () => {
-        if (im.naturalWidth > 0){
-          im.__meta = spec.meta;
-          sequence.frames[i] = im;
-          sequence.ready++;
-          this.ready++;
-        }
-      };
-      im.onerror = () => {};
-      im.src = spec.dir + '/frame_' + String(i).padStart(3, '0') + '.png';
-    }
+    const im = new Image();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok && im.naturalWidth > 0){
+        sequence.img = im;
+        sequence.fw = Math.round(im.naturalWidth / spec.count);
+        sequence.fh = im.naturalHeight;
+        sequence.ready = spec.count;
+        this.ready++;
+      }
+      this.done();
+    };
+    im.onload = () => finish(true);
+    im.onerror = () => finish(false);
+    im.src = spec.strip;
   },
   get(k){ return this.loaded[k] || null; },
   has(k){ return !!this.loaded[k]; },
+
+  /* Returns a frame descriptor into the strip, or null if the cycle has not
+     arrived. Null is the normal case for most of a session's first seconds and
+     every caller already handles it by drawing the still — which is the whole
+     reason stills are never deleted once a cycle exists. */
   animation(k, time){
-    const sequence = this.animations[k];
-    if (!sequence || sequence.ready !== sequence.count) return null;
-    const i = Math.floor(Math.max(0, time) * sequence.fps) % sequence.count;
-    return sequence.frames[i] || null;
+    const seq = this.animations[k];
+    if (!seq || !seq.img) return null;
+    const i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    return { strip: seq.img, sx: i * seq.fw, width: seq.fw, height: seq.fh, __meta: seq.meta };
   },
 };
 Assets.init();
@@ -5108,6 +5560,24 @@ function tintVersion(img, col){
 }
 function whiteVersion(img){ return tintVersion(img, '#FFFFFF'); }
 
+/* A "sprite" here is either a whole image (a still, or a procedural canvas) or
+   one cell of an animation strip. Strips are kept whole — one decoded image
+   per cycle rather than thirteen — so a frame is described by a source rect
+   into it. Slicing the frames into their own canvases instead would cost about
+   7 MB of RAM per cycle and there are nineteen of them.
+
+   `width`/`height` on a frame are the FRAME's, not the strip's, so every
+   aspect-ratio and anchor calculation downstream is unchanged. */
+function spriteSrc(s){ return s.strip ? s.strip : s; }
+function drawSprite(s, dx, dy, dw, dh, tint){
+  if (s.strip){
+    const img = tint ? tintVersion(s.strip, tint) : s.strip;
+    ctx.drawImage(img, s.sx, 0, s.width, s.height, dx, dy, dw, dh);
+  } else {
+    ctx.drawImage(tint ? tintVersion(s, tint) : s, dx, dy, dw, dh);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    OCCLUSION X-RAY
    The first playtest killed v2 on exactly this: the Boiler you are defending
@@ -5157,19 +5627,17 @@ function drawXrayPass(){
   ctx.save();
   for (const q of _xrayQueue){
     if (!isOccluded(q.x + q.w / 2, q.y, q.w, q.h, q.gy)) continue;
-    const rim = tintVersion(q.img, q.col);
-    const core = tintVersion(q.img, '#140F1A');
     // Outline width is CAPPED in screen pixels. Scaling it with the sprite made
     // a close-up boarder's rim spread ~18px in eight directions, which stacked
     // into one solid orange blob instead of an outline.
     const s = clamp(q.w * 0.012, 1.5, 4.5);
     ctx.globalAlpha = 0.42;
     for (const o of _xrayOffsets)
-      ctx.drawImage(rim, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h);
+      drawSprite(q.img, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h, q.col);
     ctx.globalAlpha = 0.88;
-    ctx.drawImage(core, q.x, q.y, q.w, q.h);
+    drawSprite(q.img, q.x, q.y, q.w, q.h, '#140F1A');
     ctx.globalAlpha = 0.22;
-    ctx.drawImage(rim, q.x, q.y, q.w, q.h);
+    drawSprite(q.img, q.x, q.y, q.w, q.h, q.col);
   }
   ctx.restore();
 }
@@ -5188,12 +5656,13 @@ function drawBillboard(img, x, y, worldH, o){
   const by = p.y - hpx * anch - (o.lift || 0) * p.k;
   ctx.save();
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
+  const tint = o.flash ? '#FFFFFF' : null;
   if (o.mirror){
     ctx.translate(p.x + (o.dx || 0), 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(o.flash ? whiteVersion(img) : img, -wpx * (1 - cxf), by, wpx, hpx);
+    drawSprite(img, -wpx * (1 - cxf), by, wpx, hpx, tint);
   } else {
-    ctx.drawImage(o.flash ? whiteVersion(img) : img, bx, by, wpx, hpx);
+    drawSprite(img, bx, by, wpx, hpx, tint);
   }
   ctx.restore();
   return { p, wpx, hpx, top: by };
@@ -5442,7 +5911,7 @@ function drawPlayerBillboard(){
   const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
   const running = !attacking && P.dashT <= 0 && v.view === 'front_idle' &&
                   Math.hypot(P.vx, P.vy) > 35;
-  const runFrame = running && Assets.animation('hero_front_run', S.rt);
+  const runFrame = running && Assets.animation('hero_run', S.rt);
   const hi = runFrame || charImage('hero', v.view);
   if (runFrame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
@@ -5475,7 +5944,7 @@ function drawEnemyBillboard(e){
   const running = e.type === 'SCRAPPER' && !climbing && !attacking &&
                   e.state === 'move' && v.view === 'front_idle' &&
                   Math.hypot(e.vx, e.vy) > 15;
-  const runFrame = running && Assets.animation('SCRAPPER_front_run', S.rt + e.anim * 0.137);
+  const runFrame = running && Assets.animation('SCRAPPER_run', S.rt + e.anim * 0.137);
   const img = runFrame || charImage(e.type, v.view);
   if (runFrame) bob = 0;
   const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {
@@ -6408,7 +6877,13 @@ function drawNums(){
 /* ---------------------------------------------------------------------------
    HUD — brass gauge plate over the dark base (§4.7)
 --------------------------------------------------------------------------- */
-function hudScale(){ return clamp(Math.min(View.w / 1400, View.h / 860), 0.6, 1.4); }
+/* Derived from the viewport, then multiplied by the player's own preference.
+   Deriving it alone is not enough: 1366x768 is a common laptop panel and the
+   HUD it produces is legible at arm's length and not from a sofa. */
+function hudScale(){
+  const fit = clamp(Math.min(View.w / 1400, View.h / 860), 0.6, 1.4);
+  return fit * (Settings.get('hudScale') || 1);
+}
 
 function brassPanel(x, y, w, h, r, alpha){
   ctx.save();
@@ -7025,6 +7500,236 @@ function drawHUD(){
 }
 
 
+/* ============================================================================
+   WIDGETS — an immediate-mode layer for the screens that have controls
+   ----------------------------------------------------------------------------
+   Everything before v10 was a screen you dismissed with any key, so there was
+   nothing to click and no need for this. v10 has a results screen, a pause
+   menu, a settings panel and a key rebinder, and those need buttons that can
+   be hovered, clicked, focused and reached from the keyboard.
+
+   Immediate mode rather than retained: a widget is a function call inside the
+   draw pass, identified by where it is on screen. There is no widget tree to
+   keep in step with game state, which is the whole class of bug this avoids —
+   a menu can never show a stale value because there is nowhere to cache one.
+
+   Keyboard focus is the one piece of state that has to persist between frames,
+   because "which control is selected" is not derivable from the mouse. It is
+   stored per screen id and reset when the screen changes, so opening settings
+   and coming back does not land you on a control you cannot see.
+============================================================================ */
+const UI = {
+  screen: null,        // id of the screen currently drawing
+  focus: 0,            // index of the keyboard-focused control on this screen
+  count: 0,            // controls drawn so far this frame
+  lastCount: 0,        // how many the previous frame had, for wrapping
+  hot: -1,             // index the mouse is over
+  activated: -1,       // index activated this frame (click or Enter)
+  usingKeys: false,    // hides the focus ring until the keyboard is used
+  _hoverWas: -1,
+
+  /* Call once at the top of a screen's draw. Changing screens resets focus. */
+  begin(id){
+    if (this.screen !== id){ this.screen = id; this.focus = 0; this.usingKeys = false; }
+    this.count = 0;
+    this.hot = -1;
+    this.activated = -1;
+    // Arrow keys and Tab move focus; Enter and Space fire it. Mouse users never
+    // see any of this because the ring only appears once a key has been used.
+    const dn = keyHit('arrowdown') || keyHit('s') || (keyHit('tab') && !keyDown('shift'));
+    const up = keyHit('arrowup')   || keyHit('w') || (keyHit('tab') &&  keyDown('shift'));
+    if (dn || up){
+      this.usingKeys = true;
+      const n = Math.max(1, this.lastCount);
+      this.focus = ((this.focus + (dn ? 1 : -1)) % n + n) % n;
+      SFX.uiHover();
+    }
+    this._fire = keyHit('enter') || keyHit(' ') || keyHit('space');
+    this._left = keyHit('arrowleft') || keyHit('a');
+    this._right = keyHit('arrowright') || keyHit('d');
+  },
+  end(){
+    this.lastCount = this.count;
+    if (this.hot !== this._hoverWas){
+      if (this.hot >= 0) SFX.uiHover();
+      this._hoverWas = this.hot;
+    }
+  },
+  /* Reserve an index without drawing anything — used by controls that draw
+     themselves, like the volume rows. */
+  next(){ return this.count++; },
+
+  inside(r){
+    return Input.mouse.sx >= r.x && Input.mouse.sx <= r.x + r.w &&
+           Input.mouse.sy >= r.y && Input.mouse.sy <= r.y + r.h;
+  },
+  /* Returns { hover, focused, fired } for a rect. `fired` is true on the frame
+     the control is activated by either device. */
+  probe(r){
+    const i = this.count++;
+    const hover = this.inside(r);
+    if (hover){
+      this.hot = i;
+      // Moving the mouse takes focus back from the keyboard, so Enter always
+      // fires whatever is visibly highlighted.
+      if (Input.mouse.sx !== this._mx || Input.mouse.sy !== this._my){
+        this.focus = i; this.usingKeys = false;
+      }
+    }
+    const focused = this.focus === i;
+    const fired = (hover && Input.clicked) || (focused && this.usingKeys && this._fire);
+    if (fired) this.activated = i;
+    return { i, hover, focused, fired };
+  },
+  frameEnd(){ this._mx = Input.mouse.sx; this._my = Input.mouse.sy; },
+};
+
+/* A button. `kind` picks the weight: 'primary' is the one thing the screen
+   wants you to do, and there is never more than one on a screen. */
+function uiButton(x, y, w, h, label, kind, opt){
+  opt = opt || {};
+  const HS = hudScale();
+  const st = UI.probe({ x, y, w, h });
+  const primary = kind === 'primary';
+  const disabled = !!opt.disabled;
+  const lit = (st.hover || (st.focused && UI.usingKeys)) && !disabled;
+
+  const edge = disabled ? '#4A4655' : primary ? PAL.crit : PAL.brass;
+  const fill = primary ? (lit ? '#3A2E14' : '#241D0F') : (lit ? '#241F30' : '#171522');
+
+  ctx.save();
+  if (lit){ ctx.shadowColor = edge; ctx.shadowBlur = 18; }
+  rr(x, y, w, h, 9 * HS);
+  ctx.fillStyle = fill; ctx.fill();
+  ctx.restore();
+  rr(x, y, w, h, 9 * HS);
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 4 * HS; ctx.stroke();
+  rr(x + 3 * HS, y + 3 * HS, w - 6 * HS, h - 6 * HS, 7 * HS);
+  ctx.strokeStyle = edge; ctx.lineWidth = (primary ? 2.6 : 2) * HS; ctx.stroke();
+
+  setFont(Math.round((primary ? 20 : 17) * HS), primary ? 900 : 800, true);
+  textOut(label, x + w / 2, y + h / 2,
+          disabled ? '#6A6478' : primary ? PAL.crit : PAL.bone, PAL.ink, 4 * HS);
+  if (opt.hint){
+    setFont(Math.round(11 * HS), 700, false);
+    textOut(opt.hint, x + w / 2, y + h - 9 * HS, '#7E778C');
+  }
+  if (st.fired && !disabled) SFX.uiClick();
+  return st.fired && !disabled;
+}
+
+/* A labelled row that steps through a list of choices with < >. Used for every
+   setting that is not a volume: VFX level, HUD scale, reduced motion. Discrete
+   steps rather than a slider because they are the values worth having and a
+   slider invites hunting for a value that does not exist. */
+function uiChoice(x, y, w, label, values, current, onPick){
+  const HS = hudScale();
+  const h = 34 * HS;
+  const st = UI.probe({ x, y, w, h });
+  const lit = st.hover || (st.focused && UI.usingKeys);
+  let idx = Math.max(0, values.findIndex(v => v.value === current));
+
+  setFont(Math.round(14.5 * HS), 700, false);
+  textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
+
+  const bw = 26 * HS, vx = x + w - 150 * HS;
+  const step = (d) => {
+    const n = (idx + d + values.length) % values.length;
+    onPick(values[n].value);
+    SFX.uiClick();
+  };
+  // < and > are their own hit targets; the row itself cycles forward, so a
+  // click anywhere on it still does the obvious thing.
+  const lHit = { x: vx - bw, y, w: bw, h }, rHit = { x: x + w - bw, y, w: bw, h };
+  setFont(Math.round(17 * HS), 800, true);
+  textOut('‹', lHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
+  textOut('›', rHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
+  setFont(Math.round(15 * HS), 800, true);
+  textOut(values[idx].label, (vx + x + w - bw) / 2, y + h / 2, PAL.teal, PAL.ink, 3 * HS);
+
+  if (st.hover && Input.clicked) step(UI.inside(lHit) ? -1 : 1);
+  else if (st.focused && UI.usingKeys){
+    if (UI._left) step(-1);
+    else if (UI._right || UI._fire) step(1);
+  }
+  return h;
+}
+
+/* A volume row: a bar you can click or drag, with the percentage beside it.
+   Dragging matters — setting a mix by clicking one point at a time is how you
+   end up never touching it. */
+function uiSlider(x, y, w, label, value, onSet){
+  const HS = hudScale();
+  const h = 34 * HS;
+  const st = UI.probe({ x, y, w, h });
+  const lit = st.hover || (st.focused && UI.usingKeys);
+
+  setFont(Math.round(14.5 * HS), 700, false);
+  textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
+
+  const bx = x + w - 210 * HS, bw = 160 * HS, by = y + h / 2 - 5 * HS, bh = 10 * HS;
+  rr(bx, by, bw, bh, bh / 2);
+  ctx.fillStyle = '#100E17'; ctx.fill();
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2 * HS; ctx.stroke();
+  rr(bx, by, Math.max(bh, bw * value), bh, bh / 2);
+  ctx.fillStyle = lit ? PAL.teal : '#2E9E8A'; ctx.fill();
+  circ(bx + bw * value, by + bh / 2, 7 * HS);
+  ctx.fillStyle = PAL.bone; ctx.fill();
+  ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2.4 * HS; ctx.stroke();
+
+  setFont(Math.round(13 * HS), 800, true);
+  textOut(Math.round(value * 100) + '%', x + w - 20 * HS, y + h / 2, PAL.bone, null, 0, 'right');
+
+  // Held, not clicked: this is the drag.
+  if (st.hover && Input.buttons[0]){
+    onSet(clamp((Input.mouse.sx - bx) / bw, 0, 1));
+  } else if (st.focused && UI.usingKeys){
+    if (UI._left) onSet(clamp(value - 0.05, 0, 1));
+    else if (UI._right) onSet(clamp(value + 0.05, 0, 1));
+  }
+  return h;
+}
+
+/* A checkbox row. */
+function uiToggle(x, y, w, label, value, onSet){
+  const HS = hudScale();
+  const h = 34 * HS;
+  const st = UI.probe({ x, y, w, h });
+  const lit = st.hover || (st.focused && UI.usingKeys);
+  setFont(Math.round(14.5 * HS), 700, false);
+  textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
+  const bs = 20 * HS, bx = x + w - bs - 8 * HS, by = y + h / 2 - bs / 2;
+  rr(bx, by, bs, bs, 5 * HS);
+  ctx.fillStyle = '#100E17'; ctx.fill();
+  ctx.strokeStyle = value ? PAL.teal : '#5A5366'; ctx.lineWidth = 2.4 * HS; ctx.stroke();
+  if (value){
+    ctx.strokeStyle = PAL.teal; ctx.lineWidth = 3 * HS; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(bx + bs * 0.24, by + bs * 0.52);
+    ctx.lineTo(bx + bs * 0.44, by + bs * 0.74);
+    ctx.lineTo(bx + bs * 0.78, by + bs * 0.26);
+    ctx.stroke();
+  }
+  if (st.fired){ onSet(!value); SFX.uiClick(); }
+  return h;
+}
+
+/* Section heading inside a panel. Not a control — it takes no focus index. */
+function uiHeading(x, y, w, text){
+  const HS = hudScale();
+  setFont(Math.round(12 * HS), 800, true);
+  ctx.letterSpacing = '2px';
+  textOut(text, x, y + 12 * HS, PAL.brass, null, 0, 'left');
+  ctx.letterSpacing = '0px';
+  ctx.strokeStyle = hexToRgba(PAL.brass, 0.28); ctx.lineWidth = 1.5 * HS;
+  ctx.beginPath();
+  ctx.moveTo(x + ctx.measureText(text).width + 14 * HS, y + 12 * HS);
+  ctx.lineTo(x + w, y + 12 * HS);
+  ctx.stroke();
+  return 28 * HS;
+}
+
+
 /* ---------------------------------------------------------------------------
    SCREENS — draft, title, pause, endings
 --------------------------------------------------------------------------- */
@@ -7389,68 +8094,148 @@ function drawPause(){
   });
 }
 
+/* The results screen.
+
+   A run used to end on six numbers and "press R". That is enough for someone
+   who already knows the game and nothing at all for a stranger: it never said
+   what killed them, never showed what they had built, and gave them no way to
+   tell anyone else about the run. This screen answers, in order: what happened,
+   why, how far you got, what you were holding when it ended, and what to do
+   next. Play Again is the primary action and it is a real button. */
 function drawEndScreen(){
   const HS = hudScale();
   const win = S.mode === 'victory';
   const k = clamp(S.endT / 0.8, 0, 1);
-  dimScreen(0.55 + 0.26 * k);
+  const r = S.result;
+  dimScreen(0.55 + 0.3 * k);
+  UI.begin('results');
+
   ctx.save();
   ctx.globalAlpha = k;
-  ctx.translate(View.w/2, View.h * 0.22);
-  ctx.scale(lerp(1.7, 1, easeOut(k)), lerp(1.7, 1, easeOut(k)));
-  setFont(Math.round(84*HS), 900, true);
+  ctx.translate(View.w/2, View.h * 0.135);
+  const pop = Settings.motionReduced() ? 1 : lerp(1.7, 1, easeOut(k));
+  ctx.scale(pop, pop);
+  setFont(Math.round(72*HS), 900, true);
   ctx.shadowColor = win ? PAL.crit : PAL.danger; ctx.shadowBlur = 30;
   textOut(S.endTitle || (win ? 'DECK HELD' : 'BOARDED'), 0, 0,
           win ? PAL.crit : PAL.danger, PAL.ink, 12);
   ctx.restore();
-  setFont(Math.round(19*HS), 700, true);
-  textOut(S.endReason || '', View.w/2, View.h * 0.22 + 62*HS, PAL.bone, PAL.ink, 5);
+  setFont(Math.round(18*HS), 700, true);
+  textOut(S.endReason || '', View.w/2, View.h * 0.135 + 52*HS, PAL.bone, PAL.ink, 5);
+
   const stats = [
-    ['WAVES SURVIVED', (win ? TUNING.totalWaves : Math.max(0, S.wave - 1)) + ' / ' + TUNING.totalWaves],
-    ['BOARDERS DESTROYED', S.stats.kills + ''],
-    ['DAMAGE DEALT', Math.round(S.stats.damage).toLocaleString()],
-    ['BEST CHAIN', S.stats.bestCombo + ''],
-    ['DASHES', S.stats.dashes + ''],
-    ['UPGRADES DRAFTED', S.stats.cards.length + ''],
+    ['WAVES SURVIVED', (r ? r.wave : 0) + ' / ' + TUNING.totalWaves],
+    ['TIME ON DECK', fmtDuration(r ? r.time : S.t)],
+    ['BOARDERS DESTROYED', (r ? r.kills : S.stats.kills) + ''],
+    ['DAMAGE DEALT', (r ? r.damage : Math.round(S.stats.damage)).toLocaleString()],
+    ['BEST CHAIN', (r ? r.chain : S.stats.bestCombo) + ''],
+    ['DASHES', (r ? r.dashes : S.stats.dashes) + ''],
   ];
-  const pw = Math.min(View.w - 60, 640*HS), ph = 60*HS + stats.length * 34*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.38;
+  // The build is the thing a player most wants to look at afterwards, and the
+  // thing that makes the shape x element pitch land in hindsight — so it gets
+  // named rows, not six anonymous glyphs.
+  const loadout = [];
+  if (S.basic) loadout.push({ sk: S.basic, tag: 'AUTO' });
+  for (let i = 0; i < 4; i++) if (S.slots[i]) loadout.push({ sk: S.slots[i], tag: SLOT_KEYS[i] || ('SLOT ' + (i+1)) });
+
+  const pw = Math.min(View.w - 48, 760*HS);
+  const rows = Math.max(stats.length, loadout.length);
+  const ph = 74*HS + rows * 31*HS;
+  const px = (View.w - pw)/2, py = View.h * 0.265;
+
   ctx.save();
-  ctx.globalAlpha = clamp((S.endT - 0.3) / 0.5, 0, 1);
+  ctx.globalAlpha = clamp((S.endT - 0.25) / 0.5, 0, 1);
   brassPanel(px, py, pw, ph, 12*HS, 0.96);
-  setFont(Math.round(15*HS), 800, true);
-  textOut('AFTER ACTION', px + pw/2, py + 26*HS, PAL.brass);
+  const colW = (pw - 68*HS) / 2, cx1 = px + 34*HS, cx2 = px + pw/2 + 6*HS;
+
+  setFont(Math.round(12*HS), 800, true);
+  textOut('AFTER ACTION', cx1, py + 26*HS, PAL.brass, null, 0, 'left');
+  textOut('THE BUILD YOU ENDED WITH', cx2, py + 26*HS, PAL.brass, null, 0, 'left');
+
   stats.forEach((s, i) => {
-    const y = py + 60*HS + i * 34*HS;
-    setFont(Math.round(14.5*HS), 700, true);
-    textOut(s[0], px + 34*HS, y, '#9C93A8', null, 0, 'left');
-    setFont(Math.round(19*HS), 900, true);
-    textOut(s[1], px + pw - 34*HS, y, PAL.bone, PAL.ink, 3, 'right');
+    const y = py + 58*HS + i * 31*HS;
+    setFont(Math.round(13*HS), 700, true);
+    textOut(s[0], cx1, y, '#9C93A8', null, 0, 'left');
+    setFont(Math.round(17*HS), 900, true);
+    textOut(s[1], cx1 + colW - 10*HS, y, PAL.bone, PAL.ink, 3, 'right');
   });
-  const ly = py + ph + 26*HS;
-  let n = 0;
-  for (let i = 0; i < 4; i++) if (S.slots[i]) n++;
-  const gw = 58*HS, gx = View.w/2 - (n * gw)/2;
-  let gi = 0;
-  for (let i = 0; i < 4; i++){
-    const sk = S.slots[i];
-    if (!sk) continue;
-    const E = ELEMENTS[sk.element];
-    const cx = gx + gi * gw + gw/2;
-    circ(cx, ly, 24*HS);
-    ctx.fillStyle = PAL.base; ctx.fill();
-    ctx.strokeStyle = E.color; ctx.lineWidth = 2.4; ctx.stroke();
-    drawShapeGlyph(sk.shape, cx, ly, 15*HS, E.color, E.glow);
-    gi++;
+
+  loadout.forEach((L, i) => {
+    const y = py + 58*HS + i * 31*HS;
+    const E = ELEMENTS[L.sk.element];
+    drawShapeGlyph(L.sk.shape, cx2 + 11*HS, y, 11*HS, E.color, E.glow);
+    setFont(Math.round(14*HS), 800, true);
+    textOut(skillName(L.sk).toUpperCase(), cx2 + 28*HS, y, E.color, PAL.ink, 3, 'left');
+    setFont(Math.round(11*HS), 800, true);
+    textOut(L.tag, cx2 + colW - 6*HS, y, '#7E778C', null, 0, 'right');
+  });
+  if (!loadout.length){
+    setFont(Math.round(13*HS), 600, false);
+    textOut('nothing drafted', cx2, py + 58*HS, '#6E667A', null, 0, 'left');
+  }
+
+  // Seed and personal best, on one line under the panel. The seed is the whole
+  // point of the determinism work: it is what lets one player hand another the
+  // exact run they just had.
+  const sy = py + ph - 22*HS;
+  setFont(Math.round(12.5*HS), 700, false);
+  const seedLine = 'SEED ' + (r ? r.seed : seedText(S.seed)) +
+                   (FORCED_SEED !== null ? '  (fixed by ?seed=)' : '');
+  textOut(seedLine, cx1, sy, '#7E778C', null, 0, 'left');
+  const best = RunLog.best();
+  if (r && r.pb){
+    setFont(Math.round(12.5*HS), 800, true);
+    textOut('NEW PERSONAL BEST', px + pw - 34*HS, sy, PAL.crit, PAL.ink, 3, 'right');
+  } else if (best){
+    setFont(Math.round(12.5*HS), 700, false);
+    textOut('BEST: wave ' + best.wave + ' · ' + best.kills + ' kills',
+            px + pw - 34*HS, sy, '#7E778C', null, 0, 'right');
   }
   ctx.restore();
-  if (S.endT > 0.8){
+
+  // What the draft actually gave you, in the order you took it. Without this
+  // the run summary describes an outcome and never the choices behind it.
+  let cardsH = 0;
+  if (r && r.cards.length){
     ctx.save();
-    ctx.globalAlpha = 0.65 + Math.sin(S.rt * 3.6) * 0.35;
-    setFont(Math.round(26*HS), 900, true);
-    textOut('CLICK  OR  PRESS  R  TO  SAIL  AGAIN', View.w/2, View.h * 0.92, PAL.crit, PAL.ink, 7);
+    ctx.globalAlpha = clamp((S.endT - 0.4) / 0.5, 0, 1);
+    setFont(Math.round(12.5*HS), 600, false);
+    const lines = wrapText(r.cards.join('  ·  '), pw - 40*HS);
+    setFont(Math.round(11*HS), 800, true);
+    textOut('DRAFTED', View.w/2, py + ph + 16*HS, PAL.brass);
+    setFont(Math.round(12.5*HS), 600, false);
+    lines.forEach((ln, i) => textOut(ln, View.w/2, py + ph + 36*HS + i * 18*HS, '#A79EB4'));
+    cardsH = 30*HS + lines.length * 18*HS;
     ctx.restore();
   }
+
+  if (S.endT > 0.6){
+    ctx.save();
+    ctx.globalAlpha = clamp((S.endT - 0.6) / 0.4, 0, 1);
+    const by = py + ph + cardsH + 26*HS;
+    const bw = 232*HS, bh = 54*HS, gap = 14*HS;
+    const bx = View.w/2 - (bw * 2 + gap) / 2;
+    if (uiButton(bx, by, bw, bh, 'PLAY AGAIN', 'primary', { hint: 'ENTER  ·  R' })) startRun();
+    if (uiButton(bx + bw + gap, by, bw, bh, 'COPY RUN REPORT', null, { hint: 'C' }) && r)
+      copyText(runReportText(r));
+    ctx.restore();
+  }
+
+  // Confirmation that the copy actually happened. Clipboard writes fail
+  // silently on insecure origins, which is most playtest setups, so "did that
+  // work" must not be a guess.
+  if (S.copyToast){
+    S.copyToast.t += 1/60;
+    const a = clamp(2.2 - S.copyToast.t, 0, 1);
+    if (a > 0){
+      setFont(Math.round(14*HS), 800, true);
+      textOut(S.copyToast.ok ? 'run report copied to clipboard'
+                             : 'could not reach the clipboard — press C again after clicking the page',
+              View.w/2, View.h - 26*HS,
+              S.copyToast.ok ? PAL.teal : PAL.dangerIn, PAL.ink, 4);
+    } else S.copyToast = null;
+  }
+  UI.end();
 }
 
 function drawCursor(){
@@ -7484,19 +8269,27 @@ function drawScreenFx(){
   if (!_vigCv) buildSky();
   const hpFrac = S.player ? S.player.hp / S.player.maxHp : 1;
   if (S.mode !== 'title' && hpFrac < 0.3 && S.player.hp > 0){
-    const pulse = 0.35 + Math.sin(S.rt * 5.5) * 0.22;
+    // The low-health vignette stays — it is the only warning that you are one
+    // hit from the end — but reduced motion holds it steady instead of pulsing.
+    const pulse = Settings.motionReduced() ? 0.32 : 0.35 + Math.sin(S.rt * 5.5) * 0.22;
     ctx.save();
     ctx.globalAlpha = clamp(pulse * (1 - hpFrac/0.3) * 0.9, 0, 1);
     ctx.drawImage(_redCv, 0, 0, w, h);
     ctx.restore();
   }
   ctx.drawImage(_vigCv, 0, 0, w, h);
-  if (S.flashRed > 0){
-    ctx.fillStyle = 'rgba(255,61,46,' + (S.flashRed * 0.3).toFixed(3) + ')';
+  // Full-screen flashes are gated in one place. Reduced motion removes them
+  // entirely — this is the photosensitivity-relevant effect in the game, and a
+  // setting that removes it only from the call sites someone remembered is
+  // worse than none. The simulation still sets the values; they simply do not
+  // reach the screen.
+  const fs = Settings.flashScale();
+  if (S.flashRed > 0 && fs > 0){
+    ctx.fillStyle = 'rgba(255,61,46,' + (S.flashRed * 0.3 * fs).toFixed(3) + ')';
     ctx.fillRect(0, 0, w, h);
   }
-  if (S.flashWhite > 0){
-    ctx.fillStyle = 'rgba(255,236,200,' + (S.flashWhite * 0.7).toFixed(3) + ')';
+  if (S.flashWhite > 0 && fs > 0){
+    ctx.fillStyle = 'rgba(255,236,200,' + (S.flashWhite * 0.7 * fs).toFixed(3) + ')';
     ctx.fillRect(0, 0, w, h);
   }
 }
@@ -7571,6 +8364,9 @@ function render(){
   if (ended) drawEndScreen();
   if (S.showFps) drawFps();
   drawCursor();
+  // Remember where the mouse was, so a widget can tell "the pointer moved onto
+  // me" from "the pointer happens to be resting on me while I use the keyboard".
+  UI.frameEnd();
 }
 
 /* ---------------------------------------------------------------------------
@@ -7591,8 +8387,9 @@ requestAnimationFrame(frame);
    test that does that is asserting about a state the game never reaches. */
 window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Assets, FEEL, DT,
                    startRun, startWave, spawnEnemy, openDraft, newSkill, castSlot,
-                   skillStats, step, rollCards, updateRay, endRay, render, Particles,
-                   hurtPlayer, hurtBoiler, pickCard, closeDraft,
+                   skillStats, step, rollCards, rollSkillCards, updateRay, endRay,
+                   render, Particles, hurtPlayer, hurtBoiler, pickCard, closeDraft,
+                   Rng, Settings, Store, RunLog, runReportText, seedText, buildRunRecord, UI,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
 
 </script>

@@ -162,9 +162,15 @@ Sound.unlock = function(){
   const c = this.ctx, mk = (v) => { const g = c.createGain(); g.gain.value = v; g.connect(this.master); return g; };
   this.bus = { music: mk(0.55), sfx: mk(1.0), ui: mk(0.85), voice: mk(1.0) };
   this.duckT = 0;
+  // The buses do not exist until the first gesture, so stored volumes have had
+  // nowhere to land until now. Push them in the moment the graph appears —
+  // otherwise a player who turned the music down last session gets one loud
+  // bar of it before the settings screen is ever opened.
+  Settings.applyAudio();
   AudioBank.start();
   Music.onUnlock();
 };
+Settings.applyAudio();   // master gain and mute, which do exist before unlock
 Sound.dest = function(name){
   return (this.bus && this.bus[name || 'sfx']) || this.master;
 };

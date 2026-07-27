@@ -362,68 +362,148 @@ function drawPause(){
   });
 }
 
+/* The results screen.
+
+   A run used to end on six numbers and "press R". That is enough for someone
+   who already knows the game and nothing at all for a stranger: it never said
+   what killed them, never showed what they had built, and gave them no way to
+   tell anyone else about the run. This screen answers, in order: what happened,
+   why, how far you got, what you were holding when it ended, and what to do
+   next. Play Again is the primary action and it is a real button. */
 function drawEndScreen(){
   const HS = hudScale();
   const win = S.mode === 'victory';
   const k = clamp(S.endT / 0.8, 0, 1);
-  dimScreen(0.55 + 0.26 * k);
+  const r = S.result;
+  dimScreen(0.55 + 0.3 * k);
+  UI.begin('results');
+
   ctx.save();
   ctx.globalAlpha = k;
-  ctx.translate(View.w/2, View.h * 0.22);
-  ctx.scale(lerp(1.7, 1, easeOut(k)), lerp(1.7, 1, easeOut(k)));
-  setFont(Math.round(84*HS), 900, true);
+  ctx.translate(View.w/2, View.h * 0.135);
+  const pop = Settings.motionReduced() ? 1 : lerp(1.7, 1, easeOut(k));
+  ctx.scale(pop, pop);
+  setFont(Math.round(72*HS), 900, true);
   ctx.shadowColor = win ? PAL.crit : PAL.danger; ctx.shadowBlur = 30;
   textOut(S.endTitle || (win ? 'DECK HELD' : 'BOARDED'), 0, 0,
           win ? PAL.crit : PAL.danger, PAL.ink, 12);
   ctx.restore();
-  setFont(Math.round(19*HS), 700, true);
-  textOut(S.endReason || '', View.w/2, View.h * 0.22 + 62*HS, PAL.bone, PAL.ink, 5);
+  setFont(Math.round(18*HS), 700, true);
+  textOut(S.endReason || '', View.w/2, View.h * 0.135 + 52*HS, PAL.bone, PAL.ink, 5);
+
   const stats = [
-    ['WAVES SURVIVED', (win ? TUNING.totalWaves : Math.max(0, S.wave - 1)) + ' / ' + TUNING.totalWaves],
-    ['BOARDERS DESTROYED', S.stats.kills + ''],
-    ['DAMAGE DEALT', Math.round(S.stats.damage).toLocaleString()],
-    ['BEST CHAIN', S.stats.bestCombo + ''],
-    ['DASHES', S.stats.dashes + ''],
-    ['UPGRADES DRAFTED', S.stats.cards.length + ''],
+    ['WAVES SURVIVED', (r ? r.wave : 0) + ' / ' + TUNING.totalWaves],
+    ['TIME ON DECK', fmtDuration(r ? r.time : S.t)],
+    ['BOARDERS DESTROYED', (r ? r.kills : S.stats.kills) + ''],
+    ['DAMAGE DEALT', (r ? r.damage : Math.round(S.stats.damage)).toLocaleString()],
+    ['BEST CHAIN', (r ? r.chain : S.stats.bestCombo) + ''],
+    ['DASHES', (r ? r.dashes : S.stats.dashes) + ''],
   ];
-  const pw = Math.min(View.w - 60, 640*HS), ph = 60*HS + stats.length * 34*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.38;
+  // The build is the thing a player most wants to look at afterwards, and the
+  // thing that makes the shape x element pitch land in hindsight — so it gets
+  // named rows, not six anonymous glyphs.
+  const loadout = [];
+  if (S.basic) loadout.push({ sk: S.basic, tag: 'AUTO' });
+  for (let i = 0; i < 4; i++) if (S.slots[i]) loadout.push({ sk: S.slots[i], tag: SLOT_KEYS[i] || ('SLOT ' + (i+1)) });
+
+  const pw = Math.min(View.w - 48, 760*HS);
+  const rows = Math.max(stats.length, loadout.length);
+  const ph = 74*HS + rows * 31*HS;
+  const px = (View.w - pw)/2, py = View.h * 0.265;
+
   ctx.save();
-  ctx.globalAlpha = clamp((S.endT - 0.3) / 0.5, 0, 1);
+  ctx.globalAlpha = clamp((S.endT - 0.25) / 0.5, 0, 1);
   brassPanel(px, py, pw, ph, 12*HS, 0.96);
-  setFont(Math.round(15*HS), 800, true);
-  textOut('AFTER ACTION', px + pw/2, py + 26*HS, PAL.brass);
+  const colW = (pw - 68*HS) / 2, cx1 = px + 34*HS, cx2 = px + pw/2 + 6*HS;
+
+  setFont(Math.round(12*HS), 800, true);
+  textOut('AFTER ACTION', cx1, py + 26*HS, PAL.brass, null, 0, 'left');
+  textOut('THE BUILD YOU ENDED WITH', cx2, py + 26*HS, PAL.brass, null, 0, 'left');
+
   stats.forEach((s, i) => {
-    const y = py + 60*HS + i * 34*HS;
-    setFont(Math.round(14.5*HS), 700, true);
-    textOut(s[0], px + 34*HS, y, '#9C93A8', null, 0, 'left');
-    setFont(Math.round(19*HS), 900, true);
-    textOut(s[1], px + pw - 34*HS, y, PAL.bone, PAL.ink, 3, 'right');
+    const y = py + 58*HS + i * 31*HS;
+    setFont(Math.round(13*HS), 700, true);
+    textOut(s[0], cx1, y, '#9C93A8', null, 0, 'left');
+    setFont(Math.round(17*HS), 900, true);
+    textOut(s[1], cx1 + colW - 10*HS, y, PAL.bone, PAL.ink, 3, 'right');
   });
-  const ly = py + ph + 26*HS;
-  let n = 0;
-  for (let i = 0; i < 4; i++) if (S.slots[i]) n++;
-  const gw = 58*HS, gx = View.w/2 - (n * gw)/2;
-  let gi = 0;
-  for (let i = 0; i < 4; i++){
-    const sk = S.slots[i];
-    if (!sk) continue;
-    const E = ELEMENTS[sk.element];
-    const cx = gx + gi * gw + gw/2;
-    circ(cx, ly, 24*HS);
-    ctx.fillStyle = PAL.base; ctx.fill();
-    ctx.strokeStyle = E.color; ctx.lineWidth = 2.4; ctx.stroke();
-    drawShapeGlyph(sk.shape, cx, ly, 15*HS, E.color, E.glow);
-    gi++;
+
+  loadout.forEach((L, i) => {
+    const y = py + 58*HS + i * 31*HS;
+    const E = ELEMENTS[L.sk.element];
+    drawShapeGlyph(L.sk.shape, cx2 + 11*HS, y, 11*HS, E.color, E.glow);
+    setFont(Math.round(14*HS), 800, true);
+    textOut(skillName(L.sk).toUpperCase(), cx2 + 28*HS, y, E.color, PAL.ink, 3, 'left');
+    setFont(Math.round(11*HS), 800, true);
+    textOut(L.tag, cx2 + colW - 6*HS, y, '#7E778C', null, 0, 'right');
+  });
+  if (!loadout.length){
+    setFont(Math.round(13*HS), 600, false);
+    textOut('nothing drafted', cx2, py + 58*HS, '#6E667A', null, 0, 'left');
+  }
+
+  // Seed and personal best, on one line under the panel. The seed is the whole
+  // point of the determinism work: it is what lets one player hand another the
+  // exact run they just had.
+  const sy = py + ph - 22*HS;
+  setFont(Math.round(12.5*HS), 700, false);
+  const seedLine = 'SEED ' + (r ? r.seed : seedText(S.seed)) +
+                   (FORCED_SEED !== null ? '  (fixed by ?seed=)' : '');
+  textOut(seedLine, cx1, sy, '#7E778C', null, 0, 'left');
+  const best = RunLog.best();
+  if (r && r.pb){
+    setFont(Math.round(12.5*HS), 800, true);
+    textOut('NEW PERSONAL BEST', px + pw - 34*HS, sy, PAL.crit, PAL.ink, 3, 'right');
+  } else if (best){
+    setFont(Math.round(12.5*HS), 700, false);
+    textOut('BEST: wave ' + best.wave + ' · ' + best.kills + ' kills',
+            px + pw - 34*HS, sy, '#7E778C', null, 0, 'right');
   }
   ctx.restore();
-  if (S.endT > 0.8){
+
+  // What the draft actually gave you, in the order you took it. Without this
+  // the run summary describes an outcome and never the choices behind it.
+  let cardsH = 0;
+  if (r && r.cards.length){
     ctx.save();
-    ctx.globalAlpha = 0.65 + Math.sin(S.rt * 3.6) * 0.35;
-    setFont(Math.round(26*HS), 900, true);
-    textOut('CLICK  OR  PRESS  R  TO  SAIL  AGAIN', View.w/2, View.h * 0.92, PAL.crit, PAL.ink, 7);
+    ctx.globalAlpha = clamp((S.endT - 0.4) / 0.5, 0, 1);
+    setFont(Math.round(12.5*HS), 600, false);
+    const lines = wrapText(r.cards.join('  ·  '), pw - 40*HS);
+    setFont(Math.round(11*HS), 800, true);
+    textOut('DRAFTED', View.w/2, py + ph + 16*HS, PAL.brass);
+    setFont(Math.round(12.5*HS), 600, false);
+    lines.forEach((ln, i) => textOut(ln, View.w/2, py + ph + 36*HS + i * 18*HS, '#A79EB4'));
+    cardsH = 30*HS + lines.length * 18*HS;
     ctx.restore();
   }
+
+  if (S.endT > 0.6){
+    ctx.save();
+    ctx.globalAlpha = clamp((S.endT - 0.6) / 0.4, 0, 1);
+    const by = py + ph + cardsH + 26*HS;
+    const bw = 232*HS, bh = 54*HS, gap = 14*HS;
+    const bx = View.w/2 - (bw * 2 + gap) / 2;
+    if (uiButton(bx, by, bw, bh, 'PLAY AGAIN', 'primary', { hint: 'ENTER  ·  R' })) startRun();
+    if (uiButton(bx + bw + gap, by, bw, bh, 'COPY RUN REPORT', null, { hint: 'C' }) && r)
+      copyText(runReportText(r));
+    ctx.restore();
+  }
+
+  // Confirmation that the copy actually happened. Clipboard writes fail
+  // silently on insecure origins, which is most playtest setups, so "did that
+  // work" must not be a guess.
+  if (S.copyToast){
+    S.copyToast.t += 1/60;
+    const a = clamp(2.2 - S.copyToast.t, 0, 1);
+    if (a > 0){
+      setFont(Math.round(14*HS), 800, true);
+      textOut(S.copyToast.ok ? 'run report copied to clipboard'
+                             : 'could not reach the clipboard — press C again after clicking the page',
+              View.w/2, View.h - 26*HS,
+              S.copyToast.ok ? PAL.teal : PAL.dangerIn, PAL.ink, 4);
+    } else S.copyToast = null;
+  }
+  UI.end();
 }
 
 function drawCursor(){
@@ -457,19 +537,27 @@ function drawScreenFx(){
   if (!_vigCv) buildSky();
   const hpFrac = S.player ? S.player.hp / S.player.maxHp : 1;
   if (S.mode !== 'title' && hpFrac < 0.3 && S.player.hp > 0){
-    const pulse = 0.35 + Math.sin(S.rt * 5.5) * 0.22;
+    // The low-health vignette stays — it is the only warning that you are one
+    // hit from the end — but reduced motion holds it steady instead of pulsing.
+    const pulse = Settings.motionReduced() ? 0.32 : 0.35 + Math.sin(S.rt * 5.5) * 0.22;
     ctx.save();
     ctx.globalAlpha = clamp(pulse * (1 - hpFrac/0.3) * 0.9, 0, 1);
     ctx.drawImage(_redCv, 0, 0, w, h);
     ctx.restore();
   }
   ctx.drawImage(_vigCv, 0, 0, w, h);
-  if (S.flashRed > 0){
-    ctx.fillStyle = 'rgba(255,61,46,' + (S.flashRed * 0.3).toFixed(3) + ')';
+  // Full-screen flashes are gated in one place. Reduced motion removes them
+  // entirely — this is the photosensitivity-relevant effect in the game, and a
+  // setting that removes it only from the call sites someone remembered is
+  // worse than none. The simulation still sets the values; they simply do not
+  // reach the screen.
+  const fs = Settings.flashScale();
+  if (S.flashRed > 0 && fs > 0){
+    ctx.fillStyle = 'rgba(255,61,46,' + (S.flashRed * 0.3 * fs).toFixed(3) + ')';
     ctx.fillRect(0, 0, w, h);
   }
-  if (S.flashWhite > 0){
-    ctx.fillStyle = 'rgba(255,236,200,' + (S.flashWhite * 0.7).toFixed(3) + ')';
+  if (S.flashWhite > 0 && fs > 0){
+    ctx.fillStyle = 'rgba(255,236,200,' + (S.flashWhite * 0.7 * fs).toFixed(3) + ')';
     ctx.fillRect(0, 0, w, h);
   }
 }
@@ -544,6 +632,9 @@ function render(){
   if (ended) drawEndScreen();
   if (S.showFps) drawFps();
   drawCursor();
+  // Remember where the mouse was, so a widget can tell "the pointer moved onto
+  // me" from "the pointer happens to be resting on me while I use the keyboard".
+  UI.frameEnd();
 }
 
 /* ---------------------------------------------------------------------------
@@ -564,6 +655,7 @@ requestAnimationFrame(frame);
    test that does that is asserting about a state the game never reaches. */
 window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Assets, FEEL, DT,
                    startRun, startWave, spawnEnemy, openDraft, newSkill, castSlot,
-                   skillStats, step, rollCards, updateRay, endRay, render, Particles,
-                   hurtPlayer, hurtBoiler, pickCard, closeDraft,
+                   skillStats, step, rollCards, rollSkillCards, updateRay, endRay,
+                   render, Particles, hurtPlayer, hurtBoiler, pickCard, closeDraft,
+                   Rng, Settings, Store, RunLog, runReportText, seedText, buildRunRecord, UI,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };

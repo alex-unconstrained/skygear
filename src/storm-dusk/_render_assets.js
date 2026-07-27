@@ -93,22 +93,67 @@ const ASSET_MANIFEST = {
   ui_icon_field:   { file:'assets/ui/icon_skill_field.png',   w:256, h:256 },  // AURA
   ui_icon_pulse:   { file:'assets/ui/icon_skill_pulse.png',   w:256, h:256 },  // PULSE
   ui_icon_sentry:  { file:'assets/ui/icon_skill_sentry.png',  w:256, h:256 },  // SENTRY
-  ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256 },
-  ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256 },
-  ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128 },
+  // These three have no draw site. `dash` and `barrier` were speculative icons
+  // for a UI that never used them, and `cog` was for a currency v10 explicitly
+  // does not have. They stayed in the manifest, loaded, and counted toward the
+  // "32/67 art" badge on the title — which is how that badge came to overstate
+  // how much of the game was painted. `unused` keeps the slot documented and
+  // keeps it out of the count; delete the flag the day something draws them.
+  ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256, unused:true },
+  ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256, unused:true },
+  ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128, unused:true },
 };
 
+/* Load order. Everything has a procedural fallback, so nothing here decides
+   whether the game runs — it decides what a player on a slow line sees painted
+   first. The order is by how much of the screen the asset owns and how early it
+   is on screen: the captain before the enemies she is fighting, the fight
+   before the deck it happens on, the deck before the props scattered on it.
+
+   Anything not named falls into the last tier, so a new manifest entry loads
+   late rather than silently jumping the queue. */
+const ASSET_PRIORITY = [
+  // 1 · the captain. On screen from the first frame and never off it.
+  ['hero_front_idle', 'hero_front_attack', 'hero_back_idle'],
+  // 2 · what wave 1 sends at her, plus the crew standing beside her.
+  ['SCRAPPER_front_idle', 'SCRAPPER_front_attack', 'SCRAPPER_back_idle',
+   'CREW_front_idle', 'CREW_front_attack', 'CREW_back_idle'],
+  // 3 · the structures that make the map readable.
+  ['prop_cargo_wall', 'prop_cannon', 'prop_cannon_dead',
+   'prop_hulk_sealed', 'prop_hulk_open', 'prop_hulk_wreck'],
+  // 4 · ground marks. Telegraphs are read every second of every fight.
+  ['rune_enemy', 'rune_enemy_filled', 'rune_player', 'shadow_blob',
+   'decal_scorch', 'decal_oil', 'decal_gears'],
+  // 5 · the rest of the roster, in the order the waves introduce it.
+  ['SWARM_front_idle', 'SWARM_front_attack',
+   'GUNNER_front_idle', 'GUNNER_front_attack',
+   'ARMORED_front_idle', 'ARMORED_front_attack', 'ARMORED_back_idle',
+   'BOSS_front_idle', 'BOSS_front_attack', 'BOSS_back_idle'],
+  // 6 · the HUD.
+  ['ui_portrait', 'ui_frame', 'ui_gauge',
+   'ui_icon_slash', 'ui_icon_hook', 'ui_icon_cone', 'ui_icon_aoe',
+   'ui_icon_ult', 'ui_icon_turret', 'ui_icon_field', 'ui_icon_pulse', 'ui_icon_sentry'],
+  // 7 · the sky. Big files, and the procedural sky is good.
+  ['env_sky', 'env_clouds_far', 'env_clouds_near', 'env_envelope', 'env_bow', 'env_airship'],
+];
+
 /* Generated motion is deliberately narrower than the still-art manifest:
-   these are proven front-facing run cycles, not substitutes for attack/back
-   states. All frames share one measured crop so the figure cannot jitter as
-   its silhouette changes. */
+   these are proven cycles, not substitutes for every attack/back state. All
+   frames of a cycle share one measured crop so the figure cannot jitter as its
+   silhouette changes — which is why `meta` is authored per cycle rather than
+   measured per frame the way stills are.
+
+   One horizontal strip per cycle, not loose frames. The two delivered cycles
+   were 28 files and 3.9 MB, more than every still in the game combined; packed
+   they are 33-35% smaller (measured) and one request instead of thirteen.
+   `python src/pack-animations.py` produces them. */
 const ANIMATION_MANIFEST = {
-  hero_front_run: {
-    dir:'assets/animations/hero_front_run', count:13, fps:12,
+  hero_run: {
+    strip:'assets/animations/hero_run.png', count:13, fps:12,
     meta:{ anchor:0.920, cx:0.500, fig:0.840 },
   },
-  SCRAPPER_front_run: {
-    dir:'assets/animations/scrapper_front_run', count:15, fps:12,
+  SCRAPPER_run: {
+    strip:'assets/animations/scrapper_run.png', count:15, fps:12,
     meta:{ anchor:0.920, cx:0.500, fig:0.840 },
   },
 };
@@ -154,69 +199,134 @@ function measureSprite(img){
   };
 }
 
+/* The loader.
+
+   The game has always booted instantly — every asset has a procedural painter
+   beside it, so a missing file degrades one sprite. What it did not do was
+   *arrive* instantly: it fired sixty-odd image requests in one go, and the
+   browser served them in manifest order over whatever bandwidth was going. On
+   a 3 Mbit line that means the 2048x512 cloud plates and a currency icon
+   nobody draws compete with the captain, and the thing the player is looking
+   at is among the last to appear.
+
+   So requests are issued in priority order, a few at a time, and each one swaps
+   in the moment it decodes. Nothing waits for anything else, there is no
+   loading screen, and the first thing to stop being a stand-in is the captain.
+
+   The window is small on purpose. Browsers cap connections per origin anyway;
+   the point of the cap here is that the queue stays a queue — with all of them
+   in flight at once, priority is a suggestion. */
 const Assets = {
   loaded: {}, meta: {}, animations: {}, ready: 0, total: 0,
-  enabled: false, set: 'production', base: 'assets/',
+  enabled: false, base: 'assets/',
+  queue: [], inflight: 0, WINDOW: 6, requested: 0,
 
   init(){
     const q = (typeof location !== 'undefined' && location.search) || '';
-    const am = /[?&]art=([a-z0-9-]+)/i.exec(q);
     // Art used to be opt-in behind ?assets=1, which meant anyone opening the
     // build from the site got the procedural stand-ins and never saw a single
     // delivered asset. Painted art is the default now; ?assets=0 restores the
     // all-procedural look for comparison. Missing files still fall back
     // individually, so a part-delivered manifest degrades sprite by sprite.
-    const off = /[?&]assets=0/.test(q);
-    this.enabled = !off && (window.SKYGEAR_USE_ASSETS !== false);
-    // V5+ production art is the upright billboard set under assets/. The
-    // archived ?art=49 set remains available only for explicit comparison.
-    this.set = am ? am[1] : 'production';
-    this.base = this.set === '49' ? 'assets-49/' : 'assets/';
-    const keys = Object.keys(ASSET_MANIFEST);
-    const animKeys = this.set === 'production' ? Object.keys(ANIMATION_MANIFEST) : [];
-    this.total = keys.length + animKeys.reduce((n, k) => n + ANIMATION_MANIFEST[k].count, 0);
+    this.enabled = !/[?&]assets=0/.test(q) && (window.SKYGEAR_USE_ASSETS !== false);
+
+    // Only assets that something actually draws are counted. The badge on the
+    // title is a claim about how finished the game looks, and three icons that
+    // load and are never drawn made that claim wrong in the flattering
+    // direction.
+    const keys = Object.keys(ASSET_MANIFEST).filter(k => !ASSET_MANIFEST[k].unused);
+    const animKeys = Object.keys(ANIMATION_MANIFEST);
+    this.total = keys.length + animKeys.length;
     if (!this.enabled) return;
-    for (const k of keys){
-      const im = new Image();
-      im.onload = () => {
-        if (im.naturalWidth > 0){
-          this.loaded[k] = im;
-          this.meta[k] = measureSprite(im);
-          im.__meta = this.meta[k];
-          this.ready++;
-        }
-      };
-      im.onerror = () => {};
-      im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
-    }
-    for (const k of animKeys) this.loadAnimation(k, ANIMATION_MANIFEST[k]);
+
+    // ordered: everything named in ASSET_PRIORITY, then everything else
+    const named = [];
+    for (const tier of ASSET_PRIORITY)
+      for (const k of tier) if (ASSET_MANIFEST[k] && !ASSET_MANIFEST[k].unused) named.push(k);
+    const rest = keys.filter(k => named.indexOf(k) < 0);
+
+    for (const k of named.concat(rest)) this.queue.push({ kind: 'still', key: k });
+    // Strips are one request each and land behind the stills they replace,
+    // because a still is what draws until its cycle decodes.
+    for (const k of animKeys) this.queue.push({ kind: 'anim', key: k });
+    this.pump();
   },
+
+  pump(){
+    while (this.inflight < this.WINDOW && this.queue.length){
+      const job = this.queue.shift();
+      this.requested++;
+      this.inflight++;
+      if (job.kind === 'still') this.loadStill(job.key);
+      else this.loadAnimation(job.key, ANIMATION_MANIFEST[job.key]);
+    }
+  },
+  // One slot, released exactly once whether the image arrived or 404'd. A
+  // handler that forgets to release stalls the whole queue behind it.
+  done(){ this.inflight--; this.pump(); },
+
+  loadStill(k){
+    const im = new Image();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok && im.naturalWidth > 0){
+        this.loaded[k] = im;
+        this.meta[k] = measureSprite(im);
+        im.__meta = this.meta[k];
+        this.ready++;
+      }
+      this.done();
+    };
+    im.onload = () => finish(true);
+    im.onerror = () => finish(false);
+    im.src = this.base + ASSET_MANIFEST[k].file.replace(/^assets\//, '');
+  },
+
+  /* Strips, not loose frames: one PNG per cycle, sliced on demand. The two
+     delivered cycles were 28 separate files and 3.9 MB — more than every still
+     in the game combined — and the full cast in that shape would have been ~270
+     requests. A strip is one request and one decode.
+
+     `frames` is left empty until the strip has loaded; `animation()` returns
+     null until then and the caller draws the still, which is exactly the
+     behaviour that makes a part-delivered manifest safe. */
   loadAnimation(k, spec){
     const sequence = this.animations[k] = {
-      frames: new Array(spec.count), count: spec.count, fps: spec.fps,
-      ready: 0,
+      img: null, frames: null, count: spec.count, fps: spec.fps,
+      ready: 0, meta: spec.meta,
     };
-    for (let i = 0; i < spec.count; i++){
-      const im = new Image();
-      im.onload = () => {
-        if (im.naturalWidth > 0){
-          im.__meta = spec.meta;
-          sequence.frames[i] = im;
-          sequence.ready++;
-          this.ready++;
-        }
-      };
-      im.onerror = () => {};
-      im.src = spec.dir + '/frame_' + String(i).padStart(3, '0') + '.png';
-    }
+    const im = new Image();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      if (ok && im.naturalWidth > 0){
+        sequence.img = im;
+        sequence.fw = Math.round(im.naturalWidth / spec.count);
+        sequence.fh = im.naturalHeight;
+        sequence.ready = spec.count;
+        this.ready++;
+      }
+      this.done();
+    };
+    im.onload = () => finish(true);
+    im.onerror = () => finish(false);
+    im.src = spec.strip;
   },
   get(k){ return this.loaded[k] || null; },
   has(k){ return !!this.loaded[k]; },
+
+  /* Returns a frame descriptor into the strip, or null if the cycle has not
+     arrived. Null is the normal case for most of a session's first seconds and
+     every caller already handles it by drawing the still — which is the whole
+     reason stills are never deleted once a cycle exists. */
   animation(k, time){
-    const sequence = this.animations[k];
-    if (!sequence || sequence.ready !== sequence.count) return null;
-    const i = Math.floor(Math.max(0, time) * sequence.fps) % sequence.count;
-    return sequence.frames[i] || null;
+    const seq = this.animations[k];
+    if (!seq || !seq.img) return null;
+    const i = Math.floor(Math.max(0, time) * seq.fps) % seq.count;
+    return { strip: seq.img, sx: i * seq.fw, width: seq.fw, height: seq.fh, __meta: seq.meta };
   },
 };
 Assets.init();

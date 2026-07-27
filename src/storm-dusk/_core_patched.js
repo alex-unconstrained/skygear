@@ -105,11 +105,59 @@ const dist  = (ax,ay,bx,by) => Math.hypot(bx-ax, by-ay);
 const dist2 = (ax,ay,bx,by) => { const dx=bx-ax, dy=by-ay; return dx*dx+dy*dy; };
 function angNorm(a){ a %= TAU; if (a > Math.PI) a -= TAU; if (a < -Math.PI) a += TAU; return a; }
 function angDiff(a,b){ return angNorm(b - a); }
-function rnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Math.random()*(b-a); }
+/* --- randomness, in two streams ---------------------------------------------
+   `Rng` is the gameplay stream: wave composition, spawn positions, card rolls,
+   crit rolls, stun rolls, boss attack choice. It is seeded, so a seed replays a
+   run. `?seed=` forces one; the results screen and the run report print it, so
+   a player can hand someone else the exact run they just had.
+
+   `vrnd` and friends are the visual stream: spark angles, gib velocities, smoke
+   jitter, screen-shake direction, ambient steam. That stream is deliberately
+   NOT seeded, because it is also the one that thins under load and under a
+   low-VFX setting — if visuals drew from the gameplay stream, turning particles
+   down would change which cards you were offered. Rule of thumb: if the number
+   of calls can vary with a graphics setting, it belongs in the visual stream.
+
+   mulberry32: one multiply-xorshift round, uniform enough for a game and short
+   enough to read. */
+function mulberry32(a){
+  return function(){
+    a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const Rng = {
+  seed: 0, calls: 0, _n: mulberry32(1),
+  set(seed){ this.seed = seed >>> 0; this._n = mulberry32(this.seed); this.calls = 0; },
+  next(){ this.calls++; return this._n(); },
+};
+/* Seeds are shown and typed as base-36, which keeps them short enough to read
+   aloud (7 characters at most) and round-trips through parseInt cleanly. */
+function seedText(s){ return (s >>> 0).toString(36).toUpperCase(); }
+function parseSeed(s){
+  const v = parseInt(String(s).trim(), 36);
+  return isFinite(v) && v >= 0 ? (v >>> 0) : null;
+}
+const FORCED_SEED = (function(){
+  const m = /[?&]seed=([0-9a-zA-Z]+)/.exec((typeof location !== 'undefined' && location.search) || '');
+  return m ? parseSeed(m[1]) : null;
+})();
+function nextRunSeed(){
+  return FORCED_SEED !== null ? FORCED_SEED : (Math.random() * 4294967296) >>> 0;
+}
+
+function rnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Rng.next()*(b-a); }
 function rndi(a,b){ return Math.floor(rnd(a,b)); }
 function pick(arr){ return arr[rndi(0,arr.length)]; }
-function chance(p){ return Math.random() < p; }
+function chance(p){ return Rng.next() < p; }
 function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j=rndi(0,i+1); const t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+
+function vrnd(a,b){ if (b === undefined) { b = a === undefined ? 1 : a; a = 0; } return a + Math.random()*(b-a); }
+function vrndi(a,b){ return Math.floor(vrnd(a,b)); }
+function vpick(arr){ return arr[vrndi(0,arr.length)]; }
+function vchance(p){ return Math.random() < p; }
 const easeOut = t => 1 - Math.pow(1-t, 3);
 const easeIn  = t => t*t*t;
 function approach(cur, target, delta){ return cur < target ? Math.min(cur+delta, target) : Math.max(cur-delta, target); }
@@ -239,13 +287,18 @@ const Sound = {
     if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
   },
 
+  // The volume keys and the settings menu are two views of one value, so both
+  // write through to storage. Before v10 the keys changed the session only and
+  // the game came back loud every time.
   setVol(v){
     this.vol = clamp(v, 0, 1);
     if (this.master) this.master.gain.value = this.muted ? 0 : this.vol;
+    if (typeof Settings !== 'undefined' && Settings.v) Settings.set('volMaster', this.vol);
   },
   toggleMute(){
     this.muted = !this.muted;
     if (this.master) this.master.gain.value = this.muted ? 0 : this.vol;
+    if (typeof Settings !== 'undefined' && Settings.v) Settings.set('muted', this.muted);
   },
 
   // Bus routing. _audio.js installs master-fed buses (music/sfx/ui/voice) and
@@ -909,43 +962,61 @@ const Particles = {
 };
 Particles.init();
 
+/* How many of a decorative burst actually get spawned. The low-VFX setting
+   thins texture-tier effects; gameplay boundaries never scale with it, which is
+   why this only ever touches particles and never a radius, a duration or a
+   damage number. A burst that asked for at least one particle still gets one. */
+function vfxCount(n){
+  const q = (typeof Settings !== 'undefined') ? Settings.get('vfx') : 1;
+  if (q >= 1) return n;
+  return n > 0 ? Math.max(1, Math.round(n * q)) : 0;
+}
+
 // --- shorthand emitters -----------------------------------------------------
+// All of these draw from the VISUAL stream (vrnd), never the gameplay one.
+// Particle counts are thinned by load and by the low-VFX setting, so drawing
+// them from the seeded stream would make graphics settings change the run.
 function pSparks(x, y, n, col, spd, ang, spread){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = ang === undefined ? rnd(TAU) : ang + rnd(-(spread||TAU/2), (spread||TAU/2));
-    const v = rnd(spd*0.35, spd);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v, life: rnd(0.16,0.42),
-                      size: rnd(1.6,3.4), col, kind:'spark', drag:0.82, add:true, w: rnd(4,11) });
+    const a = ang === undefined ? vrnd(TAU) : ang + vrnd(-(spread||TAU/2), (spread||TAU/2));
+    const v = vrnd(spd*0.35, spd);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v, life: vrnd(0.16,0.42),
+                      size: vrnd(1.6,3.4), col, kind:'spark', drag:0.82, add:true, w: vrnd(4,11) });
   }
 }
 function pGibs(x, y, n, col, col2){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(70, 320);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(20,90), life: rnd(0.45,0.95),
-                      size: rnd(3,7.5), col: chance(0.5)?col:col2, kind:'shard',
-                      grav: 620, drag: 0.965, rot: rnd(TAU), vr: rnd(-11,11) });
+    const a = vrnd(TAU), v = vrnd(70, 320);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(20,90), life: vrnd(0.45,0.95),
+                      size: vrnd(3,7.5), col: vchance(0.5)?col:col2, kind:'shard',
+                      grav: 620, drag: 0.965, rot: vrnd(TAU), vr: vrnd(-11,11) });
   }
 }
 function pSmoke(x, y, n, col, spd){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(6, spd||45);
-    Particles.spawn({ x, y: y - rnd(0,6), vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(8,30),
-                      life: rnd(0.5,1.1), size: rnd(7,17), col: col||'rgba(190,180,170,0.5)',
+    const a = vrnd(TAU), v = vrnd(6, spd||45);
+    Particles.spawn({ x, y: y - vrnd(0,6), vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(8,30),
+                      life: vrnd(0.5,1.1), size: vrnd(7,17), col: col||'rgba(190,180,170,0.5)',
                       kind:'smoke', drag: 0.94 });
   }
 }
 function pDust(x, y, n){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(8, 46);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*0.5, life: rnd(0.22,0.5),
-                      size: rnd(2.5,6), col:'rgba(196,186,152,0.55)', kind:'smoke', drag:0.9 });
+    const a = vrnd(TAU), v = vrnd(8, 46);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v*0.5, life: vrnd(0.22,0.5),
+                      size: vrnd(2.5,6), col:'rgba(196,186,152,0.55)', kind:'smoke', drag:0.9 });
   }
 }
 function pGold(x, y, n){
+  n = vfxCount(n);
   for (let i = 0; i < n; i++){
-    const a = rnd(TAU), v = rnd(60, 300);
-    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - rnd(40,150), life: rnd(0.7,1.5),
-                      size: rnd(2.5,5.5), col: chance(0.4)? PAL.bone : PAL.brass, kind:'glow',
+    const a = vrnd(TAU), v = vrnd(60, 300);
+    Particles.spawn({ x, y, vx: Math.cos(a)*v, vy: Math.sin(a)*v - vrnd(40,150), life: vrnd(0.7,1.5),
+                      size: vrnd(2.5,5.5), col: vchance(0.4)? PAL.bone : PAL.brass, kind:'glow',
                       grav: 240, drag: 0.97, add:true });
   }
 }
@@ -987,6 +1058,11 @@ const _q = [];
 function addTrauma(v){ S.trauma = Math.min(1, S.trauma + v); }
 function hitStop(v){
   if (v <= 0) return;
+  // Reduced motion shortens hit-stop rather than removing it: it is feedback,
+  // not decoration, and a hit that stops nothing reads as a hit that missed.
+  // Scaled here rather than at the twenty call sites, so the setting cannot be
+  // half-applied.
+  v *= Settings.stopScale();
   // A big hit always lands; small ones respect a refractory window so that
   // clearing a horde does not leave the sim frozen a large part of the time.
   if (v < 0.06 && FEEL.stopRefractory > 0 && S.t < S.stopUntil) return;
@@ -2500,6 +2576,11 @@ function closeDraft(){
    SYSTEMS — run lifecycle
 --------------------------------------------------------------------------- */
 function startRun(){
+  // Seed FIRST. resetGame lays out the lanes, the turrets and the boarding
+  // hulk, and all three draw from the gameplay stream — seeding after them
+  // would make the seed reproduce the waves but not the map.
+  S.seed = nextRunSeed();
+  Rng.set(S.seed);
   resetGame();
   S.mode = 'play';
   S.phase = 'ready';
@@ -2507,6 +2588,8 @@ function startRun(){
   S.winSeq = 0; S.killT = 0;
   S.wave = 0;
   S.endT = 0;
+  S.result = null;
+  S.copyToast = null;
   Sound.unlock();
 }
 function endGame(win, reason, title){
@@ -2516,8 +2599,13 @@ function endGame(win, reason, title){
   S.endTitle = title || (win ? 'DECK HELD' : 'BOARDED');
   S.endT = 0;
   S.player.ray = null;
-  if (win){ SFX.victory(); for (let i=0;i<8;i++) pGold(rnd(300,1100), rnd(250,700), 20); }
-  else { SFX.defeat(); addTrauma(0.8); S.flashRed = 0.7; }
+  endRay();
+  // The record is built and stored here, not on the results screen, so the
+  // screen renders a value rather than computing one every frame — and so a
+  // run still counts if the player closes the tab before reading it.
+  S.result = RunLog.record(buildRunRecord(win));
+  if (win){ SFX.victory(); for (let i=0;i<8;i++) pGold(vrnd(300,1100), vrnd(250,700), 20); }
+  else { SFX.defeat(); addTrauma(0.8); S.flashRed = 0.7 * Settings.flashScale(); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -2539,9 +2627,10 @@ function step(dt){
   Particles.step(dt);
   updateWave(dt);
 
-  // ambient life on deck: idle steam from the vents
-  if (rnd() < dt * 1.6){
-    const v = pick(PROPS.filter(p => p.t === 'vent' || p.t === 'lantern'));
+  // ambient life on deck: idle steam from the vents. Visual stream — its call
+  // count changes with the VFX setting, and the run must not.
+  if (vrnd() < dt * 1.6 * (typeof Settings !== 'undefined' ? Settings.get('vfx') : 1)){
+    const v = vpick(PROPS.filter(p => p.t === 'vent' || p.t === 'lantern'));
     if (v) pSmoke(v.x, v.y, 1, 'rgba(220,215,210,0.35)', 22);
   }
   S.boiler.flash = Math.max(0, S.boiler.flash - dt);
@@ -2562,12 +2651,12 @@ function updateUI(rt){
   // rolling frame-time readout, toggled with F3
   S.ftBuf[S.ftIdx++ % S.ftBuf.length] = rt;
   if (S.ftIdx > 1e9) S.ftIdx = 0;
-  // trauma-based screen shake
+  // Trauma-based screen shake. Visual stream, and halved under reduced motion.
   S.trauma = Math.max(0, S.trauma - TUNING.feel.traumaDecay * rt);
-  const amp = S.trauma * S.trauma * TUNING.feel.shakeMax;
-  const a = rnd(TAU);
+  const amp = S.trauma * S.trauma * TUNING.feel.shakeMax * Settings.shakeScale();
+  const a = vrnd(TAU);
   S.shakeX = Math.cos(a) * amp; S.shakeY = Math.sin(a) * amp;
-  S.shakeR = (rnd(-1,1)) * S.trauma * S.trauma * 0.018;
+  S.shakeR = (vrnd(-1,1)) * S.trauma * S.trauma * 0.018 * Settings.shakeScale();
 
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
@@ -2623,7 +2712,13 @@ function handleModeInput(){
       if (Input.clicked && S.draft.hover >= 0) pickCard(S.draft.hover);
     }
   } else if (S.mode === 'gameover' || S.mode === 'victory'){
-    if (S.endT > 0.8 && (keyHit('r') || keyHit('enter') || keyHit('space') || Input.clicked)) startRun();
+    // The buttons on the results screen own the mouse now, so a bare click no
+    // longer restarts: clicking Copy Run Report and being thrown into a new run
+    // is exactly the kind of thing that makes a screen feel hostile.
+    if (S.endT > 0.6){
+      if (keyHit('r')) startRun();
+      if (keyHit('c') && S.result) copyText(runReportText(S.result));
+    }
   }
 }
 

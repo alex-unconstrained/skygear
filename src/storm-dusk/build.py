@@ -428,8 +428,10 @@ FAVICON = ("<link rel=\"icon\" href=\"data:image/svg+xml,"
            "M7.2 7.2l2.5 2.5M22.3 22.3l2.5 2.5M24.8 7.2l-2.5 2.5M9.7 22.3l-2.5 2.5'/%3E"
            "%3C/g%3E%3Ccircle cx='16' cy='16' r='2.4' fill='%2337F0C8'/%3E%3C/svg%3E\">")
 
-PARTS = ['_audio_index.js', '_audio.js', '_lanes.js', '_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
-         '_render_entities.js', '_render_lanes.js', '_render_fx_hud.js', '_render_hud.js', '_render_screens.js']
+# _store.js first: settings and the run log are referenced by the audio layer
+# and by the renderer, and nothing in them depends on either.
+PARTS = ['_store.js', '_audio_index.js', '_audio.js', '_lanes.js', '_render_head.js', '_render_assets.js', '_render_chars.js', '_render_world.js',
+         '_render_entities.js', '_render_lanes.js', '_render_fx_hud.js', '_render_hud.js', '_render_ui.js', '_render_screens.js']
 
 BASE_CORE = R('_core_patched.js')
 RENDER = '\n\n'.join(R(p) for p in PARTS)

@@ -1,7 +1,13 @@
 /* ---------------------------------------------------------------------------
    HUD — brass gauge plate over the dark base (§4.7)
 --------------------------------------------------------------------------- */
-function hudScale(){ return clamp(Math.min(View.w / 1400, View.h / 860), 0.6, 1.4); }
+/* Derived from the viewport, then multiplied by the player's own preference.
+   Deriving it alone is not enough: 1366x768 is a common laptop panel and the
+   HUD it produces is legible at arm's length and not from a sofa. */
+function hudScale(){
+  const fit = clamp(Math.min(View.w / 1400, View.h / 860), 0.6, 1.4);
+  return fit * (Settings.get('hudScale') || 1);
+}
 
 function brassPanel(x, y, w, h, r, alpha){
   ctx.save();

@@ -22,6 +22,24 @@ function tintVersion(img, col){
 }
 function whiteVersion(img){ return tintVersion(img, '#FFFFFF'); }
 
+/* A "sprite" here is either a whole image (a still, or a procedural canvas) or
+   one cell of an animation strip. Strips are kept whole — one decoded image
+   per cycle rather than thirteen — so a frame is described by a source rect
+   into it. Slicing the frames into their own canvases instead would cost about
+   7 MB of RAM per cycle and there are nineteen of them.
+
+   `width`/`height` on a frame are the FRAME's, not the strip's, so every
+   aspect-ratio and anchor calculation downstream is unchanged. */
+function spriteSrc(s){ return s.strip ? s.strip : s; }
+function drawSprite(s, dx, dy, dw, dh, tint){
+  if (s.strip){
+    const img = tint ? tintVersion(s.strip, tint) : s.strip;
+    ctx.drawImage(img, s.sx, 0, s.width, s.height, dx, dy, dw, dh);
+  } else {
+    ctx.drawImage(tint ? tintVersion(s, tint) : s, dx, dy, dw, dh);
+  }
+}
+
 /* ---------------------------------------------------------------------------
    OCCLUSION X-RAY
    The first playtest killed v2 on exactly this: the Boiler you are defending
@@ -71,19 +89,17 @@ function drawXrayPass(){
   ctx.save();
   for (const q of _xrayQueue){
     if (!isOccluded(q.x + q.w / 2, q.y, q.w, q.h, q.gy)) continue;
-    const rim = tintVersion(q.img, q.col);
-    const core = tintVersion(q.img, '#140F1A');
     // Outline width is CAPPED in screen pixels. Scaling it with the sprite made
     // a close-up boarder's rim spread ~18px in eight directions, which stacked
     // into one solid orange blob instead of an outline.
     const s = clamp(q.w * 0.012, 1.5, 4.5);
     ctx.globalAlpha = 0.42;
     for (const o of _xrayOffsets)
-      ctx.drawImage(rim, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h);
+      drawSprite(q.img, q.x + o[0] * s, q.y + o[1] * s, q.w, q.h, q.col);
     ctx.globalAlpha = 0.88;
-    ctx.drawImage(core, q.x, q.y, q.w, q.h);
+    drawSprite(q.img, q.x, q.y, q.w, q.h, '#140F1A');
     ctx.globalAlpha = 0.22;
-    ctx.drawImage(rim, q.x, q.y, q.w, q.h);
+    drawSprite(q.img, q.x, q.y, q.w, q.h, q.col);
   }
   ctx.restore();
 }
@@ -102,12 +118,13 @@ function drawBillboard(img, x, y, worldH, o){
   const by = p.y - hpx * anch - (o.lift || 0) * p.k;
   ctx.save();
   if (o.alpha !== undefined) ctx.globalAlpha = o.alpha;
+  const tint = o.flash ? '#FFFFFF' : null;
   if (o.mirror){
     ctx.translate(p.x + (o.dx || 0), 0);
     ctx.scale(-1, 1);
-    ctx.drawImage(o.flash ? whiteVersion(img) : img, -wpx * (1 - cxf), by, wpx, hpx);
+    drawSprite(img, -wpx * (1 - cxf), by, wpx, hpx, tint);
   } else {
-    ctx.drawImage(o.flash ? whiteVersion(img) : img, bx, by, wpx, hpx);
+    drawSprite(img, bx, by, wpx, hpx, tint);
   }
   ctx.restore();
   return { p, wpx, hpx, top: by };
@@ -356,7 +373,7 @@ function drawPlayerBillboard(){
   const v = viewFor(P.facing !== undefined ? P.facing : P.aim, true, attacking);
   const running = !attacking && P.dashT <= 0 && v.view === 'front_idle' &&
                   Math.hypot(P.vx, P.vy) > 35;
-  const runFrame = running && Assets.animation('hero_front_run', S.rt);
+  const runFrame = running && Assets.animation('hero_run', S.rt);
   const hi = runFrame || charImage('hero', v.view);
   if (runFrame) bob = 0;
   const hr = drawBillboard(hi, P.x, P.y, BILLBOARD_H.hero,
@@ -389,7 +406,7 @@ function drawEnemyBillboard(e){
   const running = e.type === 'SCRAPPER' && !climbing && !attacking &&
                   e.state === 'move' && v.view === 'front_idle' &&
                   Math.hypot(e.vx, e.vy) > 15;
-  const runFrame = running && Assets.animation('SCRAPPER_front_run', S.rt + e.anim * 0.137);
+  const runFrame = running && Assets.animation('SCRAPPER_run', S.rt + e.anim * 0.137);
   const img = runFrame || charImage(e.type, v.view);
   if (runFrame) bob = 0;
   const r = drawBillboard(img, e.x, e.y, BILLBOARD_H[e.type] || 110, {

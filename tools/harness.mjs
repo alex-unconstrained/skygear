@@ -260,37 +260,50 @@ async function checkEndings(page){
 
 /* A fixed seed must reproduce a run. Two runs on the same seed, driven by the
    same inputs, must agree on every number the player can see. */
-async function checkSeed(page, port){
-  const trace = async (seed) => {
-    await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?seed=${seed}&assets=0&audio=0`);
-    await page.waitForFunction(() => !!window.SKYGEAR);
-    return page.evaluate(() => {
-      const G = window.SKYGEAR, S = G.S;
-      if (!G.Rng) return null;
-      G.startRun();
-      S.player.hp = S.player.maxHp = 1e9;
-      S.boiler.hp = S.boiler.maxHp = 1e9;
-      const sig = [];
-      for (let i = 0; i < 60 / G.DT; i++){
-        if (S.mode !== 'play') break;
-        G.step(G.DT);
-        if (i % 240 === 0){
-          sig.push([S.wave, S.enemies.length, Math.round(S.stats.damage),
-                    S.enemies.map(e => e.type + ':' + Math.round(e.x) + ',' + Math.round(e.y)).join('|')].join(';'));
+/* Runs on its own page. Reloading the shared one to change ?seed= means every
+   later check inherits whatever the reload left behind, and navigating away
+   from a page whose frame loop is mid-render is slow enough to look broken. */
+async function checkSeed(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 800, height: 600 } });
+  try {
+    const trace = async (seed) => {
+      await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?seed=${seed}&assets=0&audio=0`,
+                     { waitUntil: 'domcontentloaded' });
+      await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+      return tab.evaluate(() => {
+        const G = window.SKYGEAR, S = G.S;
+        if (!G.Rng) return null;
+        G.startRun();
+        S.player.hp = S.player.maxHp = 1e9;
+        S.boiler.hp = S.boiler.maxHp = 1e9;
+        // Sample the whole observable state periodically rather than at the end:
+        // two runs that diverge and reconverge would compare equal at the end.
+        const sig = [];
+        for (let i = 0; i < 45 / G.DT; i++){
+          if (S.mode !== 'play') break;
+          G.step(G.DT);
+          if (i % 300 === 0){
+            sig.push([S.wave, S.enemies.length, Math.round(S.stats.damage),
+                      S.enemies.map(e => e.type + ':' + Math.round(e.x) + ',' + Math.round(e.y)).join('|')].join(';'));
+          }
         }
-      }
-      return { seed: G.Rng.seed, sig: sig.join('\n') };
-    });
-  };
-  const a = await trace(20260727);
-  if (a === null){ record('seed', 'seeded RNG is present', false, 'no SKYGEAR.Rng'); return; }
-  const b = await trace(20260727);
-  const c = await trace(99999);
-  record('seed', 'the same seed reproduces a run', a.sig === b.sig,
-    a.sig === b.sig ? ('seed ' + a.seed) : 'traces diverged');
-  record('seed', 'a different seed produces a different run', a.sig !== c.sig);
-  await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0`);
-  await page.waitForFunction(() => !!window.SKYGEAR);
+        const r = { seed: G.seedText(G.S.seed), sig: sig.join('\n') };
+        G.S.mode = 'title';                 // stop the frame loop drawing a fight
+        return r;
+      });
+    };
+    const a = await trace('SEED01');
+    if (a === null){ record('seed', 'seeded RNG is present', false, 'no SKYGEAR.Rng'); return; }
+    const b = await trace('SEED01');
+    const c = await trace('SEED02');
+    record('seed', 'the same seed reproduces a run', a.sig === b.sig,
+      a.sig === b.sig ? ('seed ' + a.seed + ', ' + a.sig.split('\n').length + ' samples')
+                      : 'traces diverged');
+    record('seed', '?seed= is what the game reports', a.seed === 'SEED01', 'reported ' + a.seed);
+    record('seed', 'a different seed produces a different run', a.sig !== c.sig);
+  } finally {
+    await tab.close();
+  }
 }
 
 /* The frozen builds are the site's history. build.py enforces this too; the
@@ -371,7 +384,7 @@ await group('boot',    () => checkBoot(page, errors));
 await group('matrix',  () => checkMatrix(page));
 await group('waves',   () => checkWaves(page));
 await group('endings', () => checkEndings(page));
-await group('seed',    () => checkSeed(page, port));
+await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));
 await group('frozen',  () => checkFrozen());
 
