@@ -85,7 +85,8 @@ const PRESET = {
         "FROST"
       ]
     ]
-  }
+  },
+  "build": "49cfc25"
 };
 
 /* ============================================================================
@@ -6312,15 +6313,18 @@ function drawTitle(){
   brassPanel(px, py, pw, ph, 12*HS, 0.95);
   setFont(Math.round(17*HS), 800, true);
   textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const auto = !!FEEL.autoAttack;
+  const auto = !!(FEEL.autoAttack || FEEL.basic);
   const rows1 = [['W A S D','move the captain'],
                  ['MOUSE','aim your abilities'],
                  [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
                  [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
   const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
                  [auto ? 'AUTOMATIC' : 'CLICK',
-                  auto ? 'the captain attacks the nearest boarder herself'
-                       : 'left mouse swings your first skill'],
+                  FEEL.basic
+                    ? 'she swings her ' + ELEMENTS[FEEL.basic[1]].name + ' ' +
+                      SHAPES[FEEL.basic[0]].noun + ' at the nearest boarder herself'
+                    : auto ? 'the captain attacks the nearest boarder herself'
+                           : 'left mouse swings your first skill'],
                  ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
                                          : 'the Boiler amidships. If it dies, you lose.'],
                  ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
@@ -6341,6 +6345,14 @@ function drawTitle(){
   setFont(Math.round(12.5*HS), 600, false);
   textOut('every skill is a SHAPE × an ELEMENT — 24 combinations, and the draft rewrites them',
           View.w/2, View.h * 0.93, '#6E667A');
+  // Build stamp. The site is served with a ten-minute cache, so "is this the
+  // change I just shipped?" needs an answer that does not depend on trusting
+  // the browser. Also reports how much painted art actually resolved.
+  setFont(Math.round(11*HS), 700, false);
+  const art = Assets.enabled ? (Assets.ready + '/' + Assets.total + ' art')
+                             : 'procedural';
+  textOut(PRESET.name + ' · ' + (PRESET.build || 'dev') + ' · ' + art,
+          View.w - 14*HS, View.h - 12*HS, '#5A5366', null, 0, 'right');
 }
 
 function drawPause(){

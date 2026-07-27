@@ -26,6 +26,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -246,6 +247,17 @@ PARTS = ['_lanes.js', '_render_head.js', '_render_assets.js', '_render_chars.js'
 BASE_CORE = R('_core_patched.js')
 RENDER = '\n\n'.join(R(p) for p in PARTS)
 
+# A short, deterministic id for the assembled sources. GitHub Pages serves HTML
+# with max-age=600, so a returning player can be handed a ten-minute-old build
+# and reasonably conclude a change never shipped. This stamps the build into the
+# page and into the index link, so the URL changes whenever the sources do and
+# "which build am I actually running" is answerable from the title screen.
+# Derived from content, never the clock, so rebuilding unchanged sources stays a
+# no-op and the frozen-hash check keeps its meaning.
+BUILD_ID = hashlib.sha256(
+    (BASE_CORE + RENDER + repr(sorted(PRESETS.items()))).encode('utf-8')
+).hexdigest()[:7]
+
 HEAD = """<!doctype html>
 <html lang="en">
 <head>
@@ -279,6 +291,24 @@ TAIL = """
 """
 
 
+def stamp_index():
+    """Point the landing page at the live build with its current stamp. Without
+    it the index can be fresh while the build it links to is served from a
+    ten-minute-old cache."""
+    p = os.path.join(ROOT, 'index.html')
+    if not os.path.exists(p):
+        return
+    src = io.open(p, encoding='utf-8').read()
+    pat = re.compile(r'href="' + re.escape(LIVE) + r'\.html(?:\?b=[0-9a-f]+)?"')
+    if not pat.search(src):
+        print('note: index.html has no link to %s.html' % LIVE)
+        return
+    new = pat.sub('href="%s.html?b=%s"' % (LIVE, BUILD_ID), src)
+    if new != src:
+        io.open(p, 'w', encoding='utf-8').write(new)
+        print('stamped   index.html -> %s.html?b=%s' % (LIVE, BUILD_ID))
+
+
 def build(key):
     spec = PRESETS[key]
     core = BASE_CORE
@@ -287,8 +317,10 @@ def build(key):
             raise SystemExit('core substitution target missing:\n  ' + original)
         core = core.replace(original, tmpl % spec, 1)
 
+    js = dict(spec['js'])
+    js['build'] = BUILD_ID
     html = (HEAD % {'title': spec['title'], 'favicon': FAVICON, 'label': spec['label'],
-                    'preset': json.dumps(spec['js'], indent=2)}
+                    'preset': json.dumps(js, indent=2)}
             + core + '\n\n' + RENDER + TAIL)
     out = os.path.join(ROOT, key + '.html')
     io.open(out, 'w', encoding='utf-8').write(html)
@@ -363,5 +395,6 @@ if __name__ == '__main__':
 
     ok = verify_frozen()
     build(LIVE)
+    stamp_index()
     if not ok:
         raise SystemExit(1)
