@@ -37,7 +37,7 @@ bad ideas — they are ways to postpone the moment this game becomes excellent.
 | Question | Resolution | Why |
 |---|---|---|
 | Endless mode | **Cut.** | I proposed it; both Codex documents excluded it. Their argument is better. Replay value comes from the opening-skill choice and the run summary instead. |
-| Scope of "must ship" | **Trimmed.** A 32-cell balance pass, style-snapping removal on *every* unit, a browser matrix beyond Chrome/Firefox and an authored multi-phase finale move to *should*. | Both Codex docs name uncontrolled scope as the top risk, then make months of work mandatory. A stranger notices the captain changing style mid-swing; they do not notice the Gunner's idle. |
+| Scope of "must ship" | **REVERSED 2026-07-27 — go for all of it.** Everything is in scope: the full 32-cell pass, every animation cycle, every still, the complete audio manifest, the browser matrix, the authored finale. | I proposed trimming and was overruled. The trim assumed a deadline nobody had set. With no deadline and generation now owned end to end by one agent, the argument for cutting was weaker than the argument for shipping the whole thing once. **The cut list in §0 still stands** — full scope means finishing what exists, not adding heroes or endless mode. |
 | Opening skill | **In, as P0.** | Neither Codex doc proposes it. Every run still opens with Frost Mortar. It puts the shape × element pitch in the player's hands in ten seconds instead of by wave 6, and reuses `rollSkillCards()` wholesale. |
 | Load time | **Promoted to first.** | 24 MB today; ~34 MB with the approved animation scope. Every asset already has a procedural fallback, so this is a *not needing a loading screen* problem, and everything else is judged through it. |
 | Rigging Wraith | **Cut from v10.** | Codex's own condition — "do not add it merely because concept art exists" — is not met. Revisit in v11. |
@@ -249,7 +249,28 @@ block 6's output safe to produce in bulk.
 
 ---
 
-## 7 · The two questions nobody has answered
+## 7 · Full scope — what that actually commits to
+
+Decided 2026-07-27: v10 ships complete rather than staged.
+
+| | Volume | Notes |
+|---|---|---|
+| Stills | 35 | ~20 at 4 candidates, ~15 at 1 = **~95 image generations** |
+| Animation | 17 cycles | 1 video generation each, plus reruns for weak loops. Historically 3 of 5 loops scored weak, so budget **~27 video generations** |
+| SFX | 48 cues | 3–5 takes each ≈ 180 generations ≈ 20k characters, well inside the 300k quota |
+| Music | 6 more tracks | one identity with layers, not six unrelated |
+| Engine | blocks 1–5, 7 | unchanged |
+
+**Video generation is the dominant cost** and the only one worth pacing. Forge
+one candidate for props and four only for things a player looks at; animate only
+after a still is approved, because regenerating a cycle from a bad source pays
+the expensive call twice.
+
+Ship **incrementally** into v10 as each asset lands. Every asset has a
+procedural fallback, so a partial batch degrades one sprite rather than breaking
+anything, and a broken asset is found the same day it is made.
+
+## 8 · The two questions nobody has answered
 
 1. **How long is v10 allowed to take?** Blocks 1–4 are days. All seven is weeks.
    This number decides how much of §1's scope trimming is enough.
