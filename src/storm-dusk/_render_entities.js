@@ -283,9 +283,38 @@ function propSprite(t){
 // Anything not listed here does not occlude at all.
 const OCCLUDE_BOX = { mast: [0.20, 0.86], crates: [0.52, 0.66], ballista: [0.44, 0.50] };
 function drawPropBillboard(p){
+  if (p.dead) return;
   if (p.r > 0) entityShadow(p.x, p.y, p.r * 1.15, 0.5);
   else entityShadow(p.x, p.y, 34, 0.34);
-  const r = drawBillboard(propSprite(p.t), p.x, p.y, PROP_H[p.t] || 80, {});
+  /* v11 — a keg has to look like ordnance before it goes off, and like it is
+     going off while the fuse burns. Three states, all cheap: intact, hurt
+     (white flash on the hit), and lit (shaking, rimmed in steam-violet, with a
+     ring on the deck showing exactly how much of the floor the blast owns). */
+  let sx = 0, sy = 0;
+  if (p.fuse > 0){
+    const K = TUNING.props.keg;
+    const f = 1 - p.fuse / K.fuse;                 // 0 -> 1 across the fuse
+    sx = Math.sin(S.rt * 46) * (2 + f * 7);
+    sy = Math.cos(S.rt * 39) * (1 + f * 3);
+    const g = groundEllipsePath(p.x, p.y, K.radius);
+    ctx.save();
+    ctx.globalAlpha = 0.20 + 0.28 * f + Math.sin(S.rt * 22) * 0.06;
+    ctx.strokeStyle = '#F2EAFF';
+    ctx.lineWidth = (3 + f * 4) * g.p.k;
+    ctx.stroke();
+    ctx.globalAlpha = 0.06 + 0.10 * f;
+    ctx.fillStyle = '#C9B6E8'; ctx.fill();
+    ctx.restore();
+    const q = CAM.project(p.x, p.y, 40);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    drawGlow(q.x + sx, q.y, (30 + f * 44) * q.k, '#F2EAFF', 0.5 + f * 0.4);
+    ctx.restore();
+  }
+  if (sx || sy){ ctx.save(); ctx.translate(sx, sy); }
+  // the same white hit-flash every damageable thing in the game already gets
+  const r = drawBillboard(propSprite(p.t), p.x, p.y, PROP_H[p.t] || 80,
+                          { flash: p.flash > 0 || (p.fuse > 0 && Math.sin(S.rt * 44) > 0) });
+  if (sx || sy) ctx.restore();
   const box = OCCLUDE_BOX[p.t];
   if (box) addOccluder(r.p.x, r.p.y, r.wpx * box[0], r.hpx * box[1], p.y);
   if (p.t === 'lantern'){
@@ -362,6 +391,37 @@ function drawPlayerBillboard(){
   let bob = Math.sin(P.walk * 2.2) * 3;
   const inv = P.iframe > 0 && Math.floor(S.rt * 24) % 2 === 0;
   entityShadow(P.x, P.y, 34, 0.55);
+  /* v11 — the vent, on the deck. The ring travels out at the speed the damage
+     did, so what you see is exactly what was hit; it is drawn under the captain
+     rather than over her because she is the one thing never allowed to be
+     obscured, and because steam leaving her reads better from below. */
+  if (V11 && P.ventFlash > 0){
+    const V = TUNING.close.vent;
+    const k = 1 - P.ventFlash / 0.42;
+    const g = groundEllipsePath(P.x, P.y, V.radius * S.mods.ventRadius * (0.32 + k * 0.68));
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = (1 - k) * 0.8;
+    ctx.strokeStyle = '#F2EAFF';
+    ctx.lineWidth = (10 - k * 7) * g.p.k;
+    ctx.stroke();
+    ctx.globalAlpha = (1 - k) * 0.16;
+    ctx.fillStyle = '#C9B6E8'; ctx.fill();
+    ctx.restore();
+  }
+  // and the pressure itself, as a tightening ring at her feet — the only place
+  // a player looking at the fight will actually see it
+  if (V11 && P.pressure > 12 && P.hp > 0){
+    const pf = clamp(P.pressure / 100, 0, 1);
+    const g = groundEllipsePath(P.x, P.y, 46 - pf * 12);
+    ctx.save();
+    ctx.globalAlpha = 0.10 + pf * 0.40;
+    ctx.strokeStyle = pf >= 1 ? '#F2EAFF' : '#C9B6E8';
+    ctx.lineWidth = (1.5 + pf * 3) * g.p.k;
+    ctx.setLineDash([]);
+    ctx.stroke();
+    ctx.restore();
+  }
   // dash afterimages
   for (const t of P.trail){
     const k = 1 - t.t / 0.32;
@@ -612,13 +672,25 @@ function drawFields(){
 function drawPickupBillboard(p){
   const bob = Math.sin(p.bob) * 5;
   const fade = p.life < 3 ? (0.4 + 0.6 * Math.abs(Math.sin(p.life * 8))) : 1;
+  // v11 salvage reads green-brass rather than the relic violet of a card drop:
+  // it is a small, common, walk-over-it heal and must not promise a card.
+  const col = p.salvage ? '#8CE07A' : PAL.relic;
   entityShadow(p.x, p.y, 16, 0.35 * fade);
   const q = CAM.project(p.x, p.y, 26 + bob);
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.globalCompositeOperation = 'lighter';
-  drawGlow(q.x, q.y, 40 * q.k, PAL.relic, 0.7);
+  drawGlow(q.x, q.y, (p.salvage ? 30 : 40) * q.k, col, 0.7);
   ctx.restore();
+  const pile = p.salvage ? Assets.get('prop_scrap') : null;
+  if (pile){
+    // a real heap of clockwork on the deck, when the art is there
+    ctx.save();
+    ctx.globalAlpha = fade;
+    drawBillboard(pile, p.x, p.y, 46, { lift: bob });
+    ctx.restore();
+    return;
+  }
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.translate(q.x, q.y);
@@ -634,30 +706,101 @@ function drawPickupBillboard(p){
     ctx.lineTo(Math.cos(a) * 15, Math.sin(a) * 15); ctx.stroke();
   }
   ctx.rotate(-S.rt * 1.4);
-  ctx.fillStyle = PAL.relic;
+  ctx.fillStyle = col;
   ctx.fillRect(-6, -2.2, 12, 4.4); ctx.fillRect(-2.2, -6, 4.4, 12);
   ctx.restore();
 }
 
+/* v11 — enemy fire you can actually read.
+
+   Reported by the v10 tester: "enemy projectiles feel hard to track and avoid".
+   Three separate reasons, all fixed here rather than by slowing the game down:
+
+     1. It was drawn in tesla blue — the same family as the player's own teal.
+        Everything hostile in this game is supposed to be oxblood-to-orange, and
+        this was the one thing shooting at you that wasn't.
+     2. It had no ground shadow. In a three-quarter view an unshadowed sprite
+        has no position on the deck: you cannot tell whether it passes in front
+        of you or through you until it has.
+     3. It had no history. A dot moving at 300 u/s reads as a flicker; the same
+        dot with nine samples of tail reads as a direction you can step out of.
+
+   The bolt's speed (−18%) and hitbox are the core's business; this is the read.
+*/
 function drawBolts(){
+  const HOT = '#FFD08A', BODY = PAL.dangerIn, EDGE = PAL.danger;
   for (const b of S.bolts){
     const q = CAM.project(b.x, b.y, 60);
     const img = Assets.get('fx_bolt');
+    if (b.trail){
+      // where it is ON THE DECK, not where it is in the air
+      const g = groundEllipsePath(b.x, b.y, 15);
+      ctx.save();
+      ctx.globalAlpha = 0.42; ctx.fillStyle = PAL.ink; ctx.fill();
+      ctx.restore();
+      if (b.trail.length > 1){
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineCap = 'round';
+        for (let i = 1; i < b.trail.length; i++){
+          const a = CAM.project(b.trail[i-1].x, b.trail[i-1].y, 60);
+          const c = CAM.project(b.trail[i].x, b.trail[i].y, 60);
+          const f = i / b.trail.length;
+          ctx.globalAlpha = 0.10 + f * 0.42;
+          ctx.strokeStyle = f > 0.7 ? HOT : BODY;
+          ctx.lineWidth = (1.5 + f * 4.5) * q.k;
+          ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+        }
+        ctx.restore();
+      }
+    }
     ctx.save();
+    // a hard dark rim first, so the bolt keeps its silhouette over fire and steam
+    if (b.trail){
+      ctx.strokeStyle = PAL.ink;
+      ctx.lineWidth = 2.6 * q.k;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 7.5 * q.k, 0, TAU); ctx.stroke();
+      ctx.fillStyle = EDGE;
+      ctx.beginPath(); ctx.arc(q.x, q.y, 7 * q.k, 0, TAU); ctx.fill();
+    }
     ctx.globalCompositeOperation = 'lighter';
-    drawGlow(q.x, q.y, 26 * q.k, PAL.tesla, 1);
+    drawGlow(q.x, q.y, (b.trail ? 34 : 26) * q.k, b.trail ? BODY : PAL.tesla, 1);
     if (img){
       ctx.translate(q.x, q.y); ctx.rotate(b.ang);
-      const w = 60 * q.k;
+      const w = (b.trail ? 72 : 60) * q.k;
       ctx.drawImage(img, -w/2, -w/4, w, w/2);
     } else {
       ctx.translate(q.x, q.y); ctx.rotate(b.ang);
-      ctx.strokeStyle = PAL.tesla; ctx.lineWidth = 3.4 * q.k;
+      ctx.strokeStyle = b.trail ? BODY : PAL.tesla; ctx.lineWidth = (b.trail ? 4.6 : 3.4) * q.k;
       ctx.beginPath();
       ctx.moveTo(-22*q.k, 0); ctx.lineTo(-9*q.k, -5*q.k); ctx.lineTo(1*q.k, 4*q.k); ctx.lineTo(14*q.k, 0);
       ctx.stroke();
-      ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 1.6 * q.k; ctx.stroke();
+      ctx.strokeStyle = b.trail ? HOT : '#FFFFFF'; ctx.lineWidth = 1.8 * q.k; ctx.stroke();
     }
     ctx.restore();
   }
+}
+
+/* The other half of the same note. A shooter already stands still for its
+   windup, but nothing on screen said where the shot was going to go. This is
+   the firing line, drawn only while the windup runs, dashed and broken the way
+   every hostile telegraph in the game is. */
+function drawAimLines(){
+  if (!V11) return;
+  ctx.save();
+  for (const e of S.enemies){
+    if (e.dead || e.state !== 'windup' || !e.def.bolt) continue;
+    const f = e.def.windup > 0 ? 1 - clamp(e.st / e.def.windup, 0, 1) : 1;
+    const len = e.def.atkRange + 80;
+    const a = CAM.project(e.x, e.y, 46);
+    const c = CAM.project(e.x + Math.cos(e.atkAng) * len, e.y + Math.sin(e.atkAng) * len, 46);
+    ctx.globalAlpha = 0.16 + f * 0.42;
+    ctx.strokeStyle = PAL.danger;
+    ctx.lineWidth = (1.6 + f * 2.2) * a.k;
+    ctx.setLineDash([14 * a.k, 12 * a.k]);
+    ctx.lineDashOffset = -S.rt * 90;
+    ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); ctx.stroke();
+  }
+  ctx.setLineDash([]);
+  ctx.restore();
 }

@@ -21,7 +21,8 @@ controls changed months after anyone played it.
   storm-dusk-v7   v7 — the audio pass: sample layer over the synth.
   storm-dusk-v8   v8 — skills guaranteed, elements as builds.
   storm-dusk-v9   v9 — music, and content.
-  storm-dusk-v10  v10 — the build made for a stranger.  [LIVE]
+  storm-dusk-v10  v10 — the build made for a stranger.
+  storm-dusk-v11  v11 — the deck fights back.  [LIVE]
 
 Run from anywhere:  python src/storm-dusk/build.py
 Retiring a build:   python src/storm-dusk/build.py --freeze   (prints its pin)
@@ -414,6 +415,57 @@ PRESETS = {
             },
         },
     },
+    'storm-dusk-v11': {
+        'label': 'v11',
+        'title': 'SKYGEAR — Storm-Dusk',
+        # v11 widens the deck. The playtest note was "I wish it was more open",
+        # and the lane skeleton is not what was cramped — the walkable width
+        # was. 1560 -> 1680 across, which after the thinner cargo runs
+        # (_lanes.js) is a lane 226 units wide where v10's was 194.
+        'world_w': 1900, 'deck_cx': 950, 'deck_r': 120,
+        'deck_w': 1680, 'world_h': 2560, 'deck_cy': 1240, 'deck_h': 2320, 'boiler_y': 2090,
+        'js': {
+            'name': 'v11',
+            'follow': True,
+            'xray': True,
+            'pitch': 0.72,
+            'camBack': 120,
+            'boilerH': 150,
+            'lanes': True,
+            'openingDraft': True,
+            # The v11 layer: reactive deck props, the pressure gauge and vent,
+            # salvage, close-range lifesteal, readable enemy fire. One flag, so
+            # every build before this one still describes what it shipped as.
+            'reactive': True,
+            'feel': {
+                'simHz': 120,
+                'inputBuffer': 0.14,
+                'killStop': {'SWARM': 0, 'SCRAPPER': 0.030, 'GUNNER': 0.030,
+                             'ARMORED': 0.055, 'BOSS': 0.10},
+                'stopRefractory': 0.10,
+                'cdScale': 0.80,
+                'recoilScale': 0.35,
+                'accel': 3100, 'friction': 2700,
+                # "more dashing". Two charges from the first second of the run
+                # rather than one bought with an epic card, a shorter refill, and
+                # a dash that always does something when it lands on a body.
+                'dashCd': 1.00, 'dashCharges': 2, 'dashDamage': 30,
+                'camTau': 0.075,
+                'keys': {
+                    'slots': [
+                        {'label': 'LMB', 'mouse': 0, 'alt': '1'},
+                        {'label': 'RMB', 'mouse': 2, 'alt': '2'},
+                        {'label': 'Q',   'key': 'q', 'alt': '3'},
+                        {'label': 'E',   'key': 'e', 'alt': '4'},
+                    ],
+                    'dash': {'label': 'SPACE', 'key': 'space'},
+                },
+                'basic': ['CLOSEHIT', 'EMBER'],
+                'basicTurn': 12, 'basicArc': 1.2,
+                'loadout': [],
+            },
+        },
+    },
 }
 
 CORE_SUBS = [
@@ -533,7 +585,7 @@ def build(key):
 #
 # To start a new version: add its preset, set LIVE to it, and move the version
 # it succeeded into FROZEN with its hash (python build.py --freeze prints it).
-LIVE = 'storm-dusk-v10'
+LIVE = 'storm-dusk-v11'
 
 # v2, v3 and v4 are pinned to their state at 2e15353 — the commit where v4
 # shipped and the last moment all three were as their playtesters saw them.
@@ -554,6 +606,10 @@ FROZEN = {
     # actually playing while v10 was being built, so it is pinned at exactly
     # the bytes that were live.
     'storm-dusk-v9': '4030c9c74ac9c3c8cc6f8f9972ff96303a7823c425ebdc98a877aae31a82f69f',
+    # v10 retired 2026-07-27 when v11 was cut, pinned at the bytes the first
+    # public tester played — the run that produced the note this version is an
+    # answer to. It stays on the archive page.
+    'storm-dusk-v10': 'd023e211970dad3e3a031b1f76fa7bb289b7e9e3383e1bbd1efa7cc89828e3c8',
 }
 
 

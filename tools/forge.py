@@ -248,8 +248,29 @@ ASSETS = [
       BILLBOARD, "#FF00FF", n=4, batch="colossus"),
 
     # --- 5 · props ------------------------------------------------------------
-    A("prop_barrel", "A single squat wooden powder barrel with brass hoops and a "
-      "stencilled brass plate, lightly weathered.", BILLBOARD, batch="props"),
+    # v11 — re-forged. The barrel used to be scenery and was painted as scenery;
+    # it is now live ordnance that a player is expected to shoot on purpose, and
+    # the first tester's note was literally "the kegs are there but dont do
+    # anything". So the art has to say "pressurised, volatile, aim here" from
+    # across the deck, and it gets four candidates because it is now something
+    # a player looks at rather than walks past.
+    A("prop_barrel", "A squat riveted STEAM KEG: an iron pressure vessel banded with "
+      "heavy brass hoops, a small round pressure gauge on the shoulder with its "
+      "needle in the red, a brass relief valve on top wisping a thread of white "
+      "steam, hazard stencilling on the belly, seams weeping faint condensation. "
+      "It reads as volatile, not as storage.", BILLBOARD, n=4, batch="props"),
+    A("prop_scrap", "A small heap of salvaged clockwork on the deck: loose brass cogs, "
+      "a cracked pressure dial, a coiled spring and two lengths of copper pipe, "
+      "piled low and catching a faint warm glint. No container, no crate.",
+      BILLBOARD, batch="v11"),
+    A("ui_icon_pressure", "A pressure gauge read straight on: a brass bezel, a plain "
+      "dial face with graduation ticks, and a single needle swung hard over into "
+      "the red at the top right.", ICON, batch="v11"),
+    A("ui_icon_vent", "A brass relief valve venting: a short pipe elbow at the bottom "
+      "throwing one broad plume of pressurised steam upward and outward, drawn as "
+      "three stacked billowing arcs with a bright core.", ICON, batch="v11"),
+    A("ui_icon_salvage", "Three brass cogs of different sizes overlapping, with a small "
+      "bright spark glint at the top right, read straight on.", ICON, batch="v11"),
     A("prop_crate", "A single small wooden cargo crate with iron corner brackets and "
       "a lashing strap across it.", BILLBOARD, batch="props"),
     A("prop_rope", "A neat coil of thick tarred rope lying on its side, one loose end "
@@ -296,7 +317,7 @@ ASSETS = [
       "#FF00FF", fill=1.0, anchor=0.5, batch="env"),
 ]
 
-BATCHES = ["ground", "ui", "fx", "colossus", "props", "env"]
+BATCHES = ["ground", "ui", "fx", "colossus", "props", "env", "v11"]
 
 
 # --- plumbing ---------------------------------------------------------------
@@ -358,10 +379,13 @@ def cmd_list(a):
 
 def cmd_run(a):
     st = load_state()
+    # --force re-forges something already delivered. It exists for the case that
+    # actually came up: a prop whose ROLE changed (the barrel became live
+    # ordnance in v11) and whose old art is now wrong rather than missing.
     todo = [x for x in ASSETS
             if (a.batch == "all" or x["batch"] == a.batch)
-            and not existing(x["key"])
-            and not st.get(x["key"], {}).get("id")]
+            and (a.force or (not existing(x["key"])
+                             and not st.get(x["key"], {}).get("id")))]
     if a.only:
         todo = [x for x in todo if x["key"] in a.only.split(",")]
     if not todo:
@@ -451,6 +475,7 @@ def main():
     r.add_argument("batch", choices=BATCHES + ["all"])
     r.add_argument("--dry", action="store_true")
     r.add_argument("--only", default="")
+    r.add_argument("--force", action="store_true")
     r.add_argument("--gap", type=float, default=1.5, help="seconds between submissions")
     r.set_defaults(fn=cmd_run)
     i = sub.add_parser("ingest")

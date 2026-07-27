@@ -17,6 +17,20 @@ const LANE_N = 3;
 const LANES = [];
 const LANE_WALLS = [];       // {x0,x1,y0,y1} solid cargo runs between lanes
 let BASE_Y = 0, LANE_TOP = 0, CROSS_Y0 = 0, CROSS_Y1 = 0, FWD_Y0 = 0, FWD_Y1 = 0;
+let AFT_Y0 = 0, AFT_Y1 = 0;
+
+/* v11 — "I wish it was more open."
+
+   The lane skeleton is not the problem and is not being touched: three lanes,
+   lane-locked boarders, cannons gating each one. What was cramped is the
+   player's half of it. The cargo runs were 120 units thick with two gaps in
+   2320 units of deck, so a captain who wanted to rotate had one decision point
+   every 40 metres and spent the rest of the fight in a corridor.
+
+   Two numbers move. The runs go from 120 thick to 96, which widens every lane
+   by 24 either side, and a third passage opens aft. Boarders and crew are still
+   lane-clamped, so this is the player's mobility budget and nobody else's. */
+const WALL_HALF = 48, WALL_HALF_V10 = 60;
 
 function initLanes(){
   if (!PRESET.lanes) return;
@@ -33,15 +47,22 @@ function initLanes(){
   // talked to each other. Enemies and crew are still lane-clamped, so this is
   // the player's rotation, not a leak in the lane structure.
   FWD_Y0 = LANE_TOP + 200;
-  FWD_Y1 = FWD_Y0 + 190;
+  FWD_Y1 = FWD_Y0 + (V11 ? 230 : 190);
+  if (V11){ CROSS_Y1 = CROSS_Y0 + 250; }
+  // v11's third passage, between the cross-passage and the open base. It is the
+  // one that matters when a lane collapses late: from amidships you can now
+  // answer a stern-side break without walking the whole deck.
+  AFT_Y0 = CROSS_Y1 + 230;
+  AFT_Y1 = AFT_Y0 + 210;
 
+  const half = V11 ? WALL_HALF : WALL_HALF_V10;
   const laneW = D.w / LANE_N;
   LANES.length = 0;
   for (let i = 0; i < LANE_N; i++){
     LANES.push({
       id: i,
       cx: left + laneW * (i + 0.5),
-      halfW: laneW * 0.5 - 66,          // walls eat the rest
+      halfW: laneW * 0.5 - (half + 6),   // walls eat the rest
       name: ['PORT', 'CENTRE', 'STARBOARD'][i],
     });
   }
@@ -53,9 +74,14 @@ function initLanes(){
     // out there hung over the bow with no deck behind them. It also opens the
     // bow strip as a third crossing, which is the player's alone — enemies and
     // crew are lane-clamped either way.
-    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: LANE_TOP + 10, y1: FWD_Y0 });
-    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: FWD_Y1,   y1: CROSS_Y0 });
-    LANE_WALLS.push({ x0: wx - 60, x1: wx + 60, y0: CROSS_Y1, y1: BASE_Y });
+    LANE_WALLS.push({ x0: wx - half, x1: wx + half, y0: LANE_TOP + 10, y1: FWD_Y0 });
+    LANE_WALLS.push({ x0: wx - half, x1: wx + half, y0: FWD_Y1,   y1: CROSS_Y0 });
+    if (V11 && AFT_Y1 < BASE_Y - 40){
+      LANE_WALLS.push({ x0: wx - half, x1: wx + half, y0: CROSS_Y1, y1: AFT_Y0 });
+      LANE_WALLS.push({ x0: wx - half, x1: wx + half, y0: AFT_Y1,   y1: BASE_Y });
+    } else {
+      LANE_WALLS.push({ x0: wx - half, x1: wx + half, y0: CROSS_Y1, y1: BASE_Y });
+    }
   }
 }
 
@@ -149,6 +175,7 @@ function damageTurret(t, dmg){
   if (t.hp <= 0){
     t.hp = 0; t.dead = true;
     SFX.turretDown({ x: t.x, y: t.y });
+    Voice.say('vo_cannon_down', 2, { x: t.x, y: t.y });
     addTrauma(0.4); SFX.slam();
     pGibs(t.x, t.y, 22, PAL.brass, PAL.iron);
     pSmoke(t.x, t.y, 10, 'rgba(40,36,48,0.65)', 90);
@@ -176,6 +203,7 @@ function spawnCrewWave(){
     }
   }
   SFX.crewMuster();
+  Voice.say('vo_crew_muster', 0);
 }
 function updateCrew(dt){
   if (!PRESET.lanes) return;
@@ -254,6 +282,7 @@ function hurtCrew(c, dmg, ang){
   if (c.hp <= 0){
     c.dead = true;
     SFX.crewDown({ x: c.x, y: c.y });
+    if (chance(0.25)) Voice.say('vo_crew_down', 0, { x: c.x, y: c.y });
     pGibs(c.x, c.y, 8, '#7A6E5A', PAL.iron);
     pSparks(c.x, c.y, 5, PAL.bone, 160);
   }
@@ -345,10 +374,14 @@ function laneThreat(i){
 
 /* Where the crossings are, as fractions down the same 0..1 axis the lane bar
    uses, so the readout can mark them in the same space as the threat pip. */
+function crossingGaps(){
+  const g = [[FWD_Y0, FWD_Y1], [CROSS_Y0, CROSS_Y1]];
+  if (V11 && AFT_Y1 < BASE_Y - 40) g.push([AFT_Y0, AFT_Y1]);
+  return g;
+}
 function crossingMarks(){
   const span = Math.max(1, S.boiler.y - LANE_TOP);
-  return [((FWD_Y0 + FWD_Y1) / 2 - LANE_TOP) / span,
-          ((CROSS_Y0 + CROSS_Y1) / 2 - LANE_TOP) / span];
+  return crossingGaps().map(g => ((g[0] + g[1]) / 2 - LANE_TOP) / span);
 }
 
 function updateLanes(dt){

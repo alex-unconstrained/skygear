@@ -120,9 +120,9 @@
   "n": 1
  },
  "prop_barrel": {
-  "id": "17857182a7fa",
+  "id": "619be20a1b03",
   "chroma": "#FF00FF",
-  "n": 1
+  "n": 4
  },
  "prop_crate": {
   "id": "089832f17d83",
@@ -161,6 +161,36 @@
  },
  "decal_gears": {
   "id": "57fd9be795a1",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "env_clouds_far": {
+  "id": "444551e2a8ef",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "env_clouds_near": {
+  "id": "46c842c0ef56",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "prop_scrap": {
+  "id": "9b3a8e9410a2",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_pressure": {
+  "id": "750cc7d11830",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_vent": {
+  "id": "2331a3f258b4",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_icon_salvage": {
+  "id": "9bd9a1681eed",
   "chroma": "#FF00FF",
   "n": 1
  }

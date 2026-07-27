@@ -156,6 +156,17 @@ const HINTS = {
               key: null, hold: 7 },
   crossing: { text: 'The gaps in the cargo runs are the only way between lanes. Learn where they are.',
               key: null, hold: 6 },
+  // v11 — the close-quarters loop. Each one fires the first time the thing
+  // happens to you, which for pressure is within about fifteen seconds of the
+  // first boarder reaching the deck.
+  keg:      { text: 'A steam keg is lit. It hurts whatever is standing near it — including you.',
+              key: null, hold: 6 },
+  pressure: { text: 'Fighting inside your own reach builds pressure. Full, she vents — and it heals.',
+              key: null, hold: 7 },
+  vent:     { text: 'That was a vent: scalding steam, everything thrown off you, and you closed up.',
+              key: null, hold: 6 },
+  salvage:  { text: 'Salvage. Walk over it. Close kills and broken crates leave it behind.',
+              key: null, hold: 6 },
 };
 
 const Hints = {

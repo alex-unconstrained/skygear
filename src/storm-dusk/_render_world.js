@@ -373,7 +373,7 @@ function paintDeck(w, h){
     dark.addColorStop(1, 'rgba(13,11,18,0.64)');
     ctx.fillStyle = dark; ctx.fillRect(0, 0, w, h);
     for (const p of PROPS){
-      if (p.t !== 'lantern') continue;
+      if (p.t !== 'lantern' || p.dead) continue;
       const g = groundEllipsePath(p.x, p.y + 30, 210);
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       const rg = ctx.createRadialGradient(g.p.x, g.p.y, 1, g.p.x, g.p.y, Math.max(g.rx, 1));

@@ -22,7 +22,16 @@ const FEEL = Object.assign({
   cdScale: 1, recoilScale: 1, accel: null, friction: null, dashCd: null,
   camTau: 0.155, autoAttack: null, basic: null, basicTurn: 12, basicArc: 1.2,
   keys: null, loadout: null,
+  // v11. null means "use the TUNING default", so every earlier preset keeps the
+  // dash it shipped with and only the live build moves.
+  dashCharges: null, dashDamage: null,
 }, (typeof PRESET !== 'undefined' && PRESET.feel) || {});
+
+/* v11 gate. The whole close-quarters layer — reactive deck props, the pressure
+   gauge, vent, salvage, the readable enemy bolt — hangs off this one flag, so
+   the ten builds before it still describe exactly what they were when they
+   shipped even though they are emitted from this same file. */
+const V11 = !!(typeof PRESET !== 'undefined' && PRESET.reactive);
 
 const TUNING = {
   // NOTE: these are GROUND-PLANE units now, not screen pixels. y is depth:
@@ -50,6 +59,37 @@ const TUNING = {
     dmgNumberLife: 0.7,
     waveClearSlowmo: 0.35, waveClearSlowmoTime: 0.8,
     maxParticles: 400,
+  },
+
+  /* v11 — the close-quarters loop.
+
+     The v10 tester finished the game on a Steam Mortar with ~12% lifesteal and
+     described being unkillable: healing scaled with damage, damage did not care
+     about distance, so the optimal play was to stand at maximum range and never
+     be touched. Every number here exists to make the opposite true — the deck
+     pays you for closing, and the payment is health.
+
+     `range` is the band that counts as close. It is deliberately the same reach
+     as the Cleave (SHAPES.CLOSEHIT.range = 190) plus a little slack, so "close"
+     means exactly "inside your own sword" and needs no separate explanation. */
+  close: {
+    range: 210,
+    pressurePerDmg: 0.85,      // gauge points per point of damage dealt close in
+    pressureIdle: 6,           // per second while two or more boarders crowd you
+    pressureDecay: 14,         // per second, once you have been out of it a beat
+    pressureGrace: 1.2,
+    vent: { heal: 15, dmg: 40, radius: 215, knock: 340, cd: 1.1 },
+    scrapChance: 0.16,         // a close kill drops salvage this often, no card
+    scrapHeal: 8,
+    dashRefund: 0.30,          // seconds off the dash cooldown per close kill
+    lifestealCapPerSec: 9,     // hard ceiling on healing from damage, in hp/s
+  },
+
+  /* v11 — the deck itself. "The kegs are there but don't do anything." */
+  props: {
+    keg:   { hp: 34, fuse: 0.45, dmg: 78, radius: 175, knock: 380, selfDmg: 26 },
+    crate: { hp: 26 },
+    lantern: { hp: 12, fireDps: 30, fireR: 78, fireLife: 6 },
   },
 
   enemyScaling: 0.06,          // hp multiplier per wave beyond the first
@@ -611,30 +651,259 @@ const PROP_LAYOUT = [
   ['lantern', -0.62, 0.930, 16,  0],
   ['lantern',  0.62, 0.930, 16,  0],
 ];
+/* v11 — ordnance stowed IN the lanes, which is a thing v10 could not do.
+
+   Under v10's rule nothing solid was allowed to stand inside a walkable lane,
+   and it was the right rule: a crate in the middle of the centre lane was a
+   wall you could not see coming. A keg is not a wall. It has 34 hit points and
+   anything on the deck can remove it, so putting it where the fight is means
+   breakable cover in the fight rather than scenery beside it — which is the
+   whole of "the kegs are there but dont do anything", answered with position
+   as well as behaviour.
+
+   Placed by hand against the lane centres at u = -0.75, 0, +0.75, deliberately
+   NOT symmetric: three identical lanes with three identical keg pairs read as a
+   test level. Each lane gets its own arrangement and its own reason to move. */
+const PROP_LAYOUT_V11 = [
+  // bow third — the first thing a boarder walks past
+  ['barrel',  -0.62, 0.185, 25,  0],
+  ['barrel',  -0.50, 0.215, 25,  0],
+  ['crate',    0.06, 0.230, 30,  0.18],
+  ['barrel',   0.66, 0.175, 25,  0],
+  // amidships, either side of the forward passage
+  ['crate',   -0.10, 0.330, 28, -0.12],
+  ['barrel',   0.58, 0.345, 25,  0],
+  ['lantern', -0.80, 0.415, 16,  0],
+  ['barrel',  -0.72, 0.470, 25,  0],
+  // the cross-passage shoulders, where a rotation is decided
+  ['barrel',   0.10, 0.505, 25,  0],
+  ['crates',  -0.06, 0.585, 38,  0.10],
+  ['barrel',   0.74, 0.615, 25,  0],
+  ['crate',   -0.66, 0.640, 30,  0.26],
+  // the last stretch before the base, where a lane that breaks breaks here
+  ['barrel',  -0.14, 0.705, 25,  0],
+  ['barrel',   0.62, 0.735, 25,  0],
+  ['lantern',  0.14, 0.760, 16,  0],
+  ['crate',    0.70, 0.780, 30, -0.18],
+];
+if (typeof PRESET !== 'undefined' && PRESET.reactive)
+  for (const p of PROP_LAYOUT_V11) PROP_LAYOUT.push(p);
+/* v11 — which dressing is furniture and which is ordnance. A prop with a `kind`
+   has hit points and a death; everything else (mast, cannon, hatch, vent, rope,
+   ballista) is scenery and stays scenery, because a deck where every object can
+   be deleted stops reading as a place. */
+const PROP_KINDS = { barrel:'keg', crate:'crate', crates:'crate', lantern:'lantern' };
+
 const PROPS = PROP_LAYOUT.map(function(p){
   const D = TUNING.deck;
+  const kind = PROP_KINDS[p[0]] || null;
   return {
     t: p[0],
-    x: D.cx + p[1] * (D.w / 2 - 90),
+    // v11's deck is 120 units wider and its lanes are wider still, so dressing
+    // laid out against v10's rails ended up sitting inside a lane and being
+    // filtered out below — the wider deck arrived nearly bare. The rail margin
+    // goes 90 -> 50 so the hard props (cannons, crates against the gunwale)
+    // clear the lane edge the way they used to.
+    x: D.cx + p[1] * (D.w / 2 - (V11 ? 50 : 90)),
     y: (D.cy - D.h / 2) + p[2] * D.h,
     r: p[3], rot: p[4],
+    // v11 runtime state. Mutated in place rather than cloned into S, because
+    // the renderer, the collision pass and the spatial queries all already hold
+    // references to these objects.
+    kind, maxHp: 0, hp: 0, dead: false, fuse: 0, flash: 0, shake: 0, hitT: 0,
   };
 }).filter(function(p){
   // never dress the ground the Boiler stands on
   if (dist(p.x, p.y, TUNING.boiler.x, TUNING.boiler.y) < 190) return false;
-  // on a lane map, nothing solid may stand inside a walkable lane — a mast in
-  // the middle of the centre lane is a wall you cannot see coming
-  if (PRESET.lanes && p.r > 0){
+  // On a lane map, nothing solid may stand inside a walkable lane — a mast in
+  // the middle of the centre lane is a wall you cannot see coming.
+  // v11 exempts anything destructible: a keg standing in the lane is cover you
+  // can remove, not geometry you have to learn.
+  if (PRESET.lanes && p.r > 0 && !(V11 && PROP_KINDS[p.t])){
     const D = TUNING.deck, laneW = D.w / 3;
     const left = D.cx - D.w / 2;
     for (let i = 0; i < 3; i++){
-      const cx = left + laneW * (i + 0.5), inner = laneW * 0.5 - 66;
+      // Must match LANES[i].halfW in _lanes.js — written out rather than shared,
+      // because this runs at module load and that constant is declared further
+      // down the concatenated build. 66 = the v10 wall (60) + 6; 54 = v11's.
+      const cx = left + laneW * (i + 0.5), inner = laneW * 0.5 - (V11 ? 54 : 66);
       if (Math.abs(p.x - cx) < inner - 40 && p.y < D.cy + D.h / 2 - 430) return false;
     }
   }
   return true;
 });
 const SOLID_PROPS = PROPS.filter(p => p.r > 0);
+const LIVE_PROPS = PROPS.filter(p => p.kind);      // the ones with hit points
+
+/* ---------------------------------------------------------------------------
+   SYSTEMS — the deck fights back (v11)
+
+   A steam keg detonates, a crate breaks into salvage, a lantern spills its
+   flame. Three verbs, chosen because the deck already had all three objects
+   standing on it doing nothing: the first tester's note was "the kegs are there
+   but dont do anything", and the cheapest honest answer is to make the thing
+   already in frame behave the way it looks like it should.
+
+   A keg does NOT explode the instant it dies. It hisses, shakes and throws a
+   plume for `fuse` seconds first. That buys three things at once: a chain
+   reaction that resolves without recursion, a fair warning for a player who is
+   standing next to it, and the best dash in the game.
+--------------------------------------------------------------------------- */
+function propHitR(pr){ return (pr.r > 0 ? pr.r : 20) + 10; }
+
+function resetProps(){
+  for (const pr of LIVE_PROPS){
+    const T = TUNING.props[pr.kind];
+    pr.maxHp = (T && T.hp) || 20;
+    pr.hp = pr.maxHp;
+    pr.dead = false; pr.fuse = 0; pr.flash = 0; pr.shake = 0; pr.hitT = 0;
+  }
+}
+
+/* Between waves the crew re-stow the deck. Without this the deck is stripped
+   bare by wave 4 and the whole system is a one-off novelty in the first fight
+   rather than a thing you plan around every wave. */
+function restowProps(){
+  if (!V11) return;
+  let n = 0;
+  for (const pr of LIVE_PROPS){
+    if (!pr.dead && pr.fuse <= 0) continue;
+    pr.dead = false; pr.fuse = 0; pr.hp = pr.maxHp; pr.flash = 0; pr.shake = 0;
+    n++;
+  }
+  return n;
+}
+
+function hitProp(pr, dmg, ang){
+  if (!V11 || !pr || pr.dead || pr.fuse > 0) return 0;
+  pr.hp -= dmg;
+  pr.flash = 0.10;
+  pr.hitT = 0.18;
+  pSparks(pr.x, pr.y - 20, 3, PAL.brass, 130, ang, 0.7);
+  if (pr.hp > 0) return dmg;
+  if (pr.kind === 'keg'){
+    // lit, not gone: the fuse is the whole point
+    pr.fuse = TUNING.props.keg.fuse;
+    pr.shake = 1;
+    SFX.kegFuse({ x: pr.x, y: pr.y });
+    Voice.say('vo_keg', 0, { x: pr.x, y: pr.y });
+    pSmoke(pr.x, pr.y - 30, 6, 'rgba(230,225,240,0.7)', 90);
+  } else {
+    popProp(pr, ang);
+  }
+  return dmg;
+}
+
+function popProp(pr, ang){
+  if (pr.dead) return;
+  pr.dead = true; pr.fuse = 0;
+  const T = TUNING.props;
+  if (pr.kind === 'keg'){
+    const K = T.keg;
+    fx({ kind:'aoe', x:pr.x, y:pr.y, r:K.radius, life:0.42, col:'#C9B6E8', glow:'#F2EAFF' });
+    pSmoke(pr.x, pr.y - 20, 22, 'rgba(226,220,240,0.75)', 190);
+    pSparks(pr.x, pr.y - 10, 18, PAL.brassLite, 380);
+    pGibs(pr.x, pr.y, 14, PAL.iron, PAL.brass);
+    addTrauma(0.45);
+    hitStop(0.045);
+    SFX.kegBlow({ x: pr.x, y: pr.y });
+    // Everything in the radius, friend and enemy. A weapon you can stand in
+    // front of is a weapon worth aiming.
+    const kd = K.dmg * S.mods.kegDmg;
+    damageArea(pr.x, pr.y, K.radius, kd, 'STEAM',
+                { noCrit:true, knock:K.knock, noProps:true, pressure:0.25 });
+    damagePropsArea(pr.x, pr.y, K.radius, kd * 0.8);
+    const P = S.player;
+    const self = K.selfDmg * (1 - S.mods.kegSafe);
+    if (P.hp > 0 && self > 0 && dist(P.x, P.y, pr.x, pr.y) < K.radius)
+      hurtPlayer(self, Math.atan2(P.y - pr.y, P.x - pr.x));
+    if (PRESET.lanes){
+      for (const c of S.crew){
+        if (c.dead) continue;
+        if (dist(c.x, c.y, pr.x, pr.y) < K.radius)
+          hurtCrew(c, K.dmg * 0.5, Math.atan2(c.y - pr.y, c.x - pr.x));
+      }
+      const H = S.hulk;
+      if (H && !H.dead && H.vulnerable && dist(H.x, H.y, pr.x, pr.y) < K.radius + H.r)
+        damageHulk(K.dmg);
+    }
+  } else if (pr.kind === 'lantern'){
+    const L = T.lantern;
+    S.fields.push({ x:pr.x, y:pr.y, r:L.fireR, life:L.fireLife, t:0,
+                    elem:'EMBER', dps:L.fireDps, tick:0, seed:rnd(TAU) });
+    pGibs(pr.x, pr.y, 8, PAL.brass, PAL.lantern);
+    pSmoke(pr.x, pr.y - 40, 8, 'rgba(120,110,100,0.55)', 70);
+    SFX.lanternBreak({ x: pr.x, y: pr.y });
+    addTrauma(0.10);
+  } else {
+    pGibs(pr.x, pr.y, 12, PAL.timber, PAL.brass);
+    pSmoke(pr.x, pr.y - 10, 4, 'rgba(120,110,100,0.45)', 60);
+    SFX.crateBreak({ x: pr.x, y: pr.y });
+    addTrauma(0.08);
+    // Salvage. Slow, reliable healing that is lying on the floor of the fight
+    // rather than attached to your damage — you have to go and stand on it.
+    dropSalvage(pr.x, pr.y, 12);
+    if (chance(0.5)) dropSalvage(pr.x + rnd(-26, 26), pr.y + rnd(-18, 18), 8);
+  }
+}
+
+function dropSalvage(x, y, heal){
+  S.pickups.push({ x, y, vx:rnd(-70,70), vy:rnd(-100,-30), t:0, life:14,
+                   heal, bob:rnd(TAU), salvage:true });
+}
+
+function updateProps(dt){
+  if (!V11) return;
+  for (const pr of LIVE_PROPS){
+    if (pr.flash > 0) pr.flash = Math.max(0, pr.flash - dt);
+    if (pr.hitT > 0) pr.hitT = Math.max(0, pr.hitT - dt);
+    if (pr.fuse > 0){
+      pr.fuse -= dt;
+      pr.shake = 1;
+      if (rnd() < dt * 26)
+        Particles.spawn({ x: pr.x + rnd(-10,10), y: pr.y - 40 + rnd(-8,8),
+                          vx: rnd(-24,24), vy: rnd(-90,-40), life: rnd(0.3,0.6),
+                          size: rnd(3,7), col:'#F2EAFF', kind:'glow', add:true, drag:0.93 });
+      if (pr.fuse <= 0) popProp(pr, 0);
+    }
+  }
+}
+
+/* The three ways damage reaches a prop. Every player shape already resolves as
+   an arc, a line or a circle, so these mirror the enemy passes exactly rather
+   than inventing a fourth geometry the player would have to learn. */
+function damagePropsArea(x, y, r, dmg){
+  if (!V11) return;
+  for (const pr of LIVE_PROPS){
+    if (pr.dead || pr.fuse > 0) continue;
+    const hr = propHitR(pr);
+    if (dist2(x, y, pr.x, pr.y) > (r + hr) * (r + hr)) continue;
+    hitProp(pr, dmg, Math.atan2(pr.y - y, pr.x - x) || 0);
+  }
+}
+function damagePropsArc(P, aim, range, half, dmg){
+  if (!V11) return;
+  for (const pr of LIVE_PROPS){
+    if (pr.dead || pr.fuse > 0) continue;
+    const d = dist(P.x, P.y, pr.x, pr.y), hr = propHitR(pr);
+    if (d > range + hr) continue;
+    const a = Math.atan2(pr.y - P.y, pr.x - P.x);
+    if (Math.abs(angDiff(aim, a)) > half + Math.atan2(hr, Math.max(24, d))) continue;
+    hitProp(pr, dmg, a);
+  }
+}
+function damagePropsLine(P, aim, len, width, dmg){
+  if (!V11) return;
+  const dx = Math.cos(aim), dy = Math.sin(aim);
+  for (const pr of LIVE_PROPS){
+    if (pr.dead || pr.fuse > 0) continue;
+    const rx = pr.x - P.x, ry = pr.y - P.y, hr = propHitR(pr);
+    const t = rx*dx + ry*dy;
+    if (t < -hr || t > len + hr) continue;
+    if (Math.abs(-rx*dy + ry*dx) > width/2 + hr) continue;
+    hitProp(pr, dmg, aim);
+  }
+}
 
 /* ---------------------------------------------------------------------------
    DATA — DRAFT CARDS. 34 of them. Every one has a visible effect in play.
@@ -810,9 +1079,30 @@ const CARDS = [
   { id:'scrap', rarity:'common', weight:S => 9, can:S => S.mods.scrapChance < 0.5,
     make:S => ({ title:"SCRAPPER'S LUCK", text:'Kills have a 15% chance to drop 15 health.',
                  apply:S => { S.mods.scrapChance += 0.15; } }) },
-  { id:'lifesteal', rarity:'rare', weight:S => 8, can:S => S.mods.lifesteal < 0.09,
-    make:S => ({ title:'BLOODSTEAM', text:'Heal for 3% of the damage you deal.',
-                 apply:S => { S.mods.lifesteal += 0.03; } }) },
+  { id:'lifesteal', rarity:'rare', weight:S => 8, can:S => S.mods.lifesteal < 0.13,
+    make:S => ({ title:'BLOODSTEAM',
+                 text: V11 ? 'Heal for 4.5% of damage you deal INSIDE your own reach.'
+                           : 'Heal for 3% of the damage you deal.',
+                 apply:S => { S.mods.lifesteal += V11 ? 0.045 : 0.03; } }) },
+
+  // ---- v11 · the close-quarters loop ---------------------------------------
+  // Five cards, all of them levers on systems that already run without a card,
+  // so a run that never sees one still plays the same game.
+  { id:'ventheal', rarity:'rare', weight:S => V11 ? 10 : 0, can:S => V11 && S.mods.ventHeal < 24,
+    make:S => ({ title:'SAFETY VALVE', text:'Venting heals 8 more.',
+                 apply:S => { S.mods.ventHeal += 8; } }) },
+  { id:'ventdmg', rarity:'rare', weight:S => V11 ? 9 : 0, can:S => V11 && S.mods.ventDmg < 2.5,
+    make:S => ({ title:'OVERPRESSURE', text:'+50% vent damage and +15% vent radius.',
+                 apply:S => { S.mods.ventDmg += 0.5; S.mods.ventRadius += 0.15; } }) },
+  { id:'pressrate', rarity:'common', weight:S => V11 ? 10 : 0, can:S => V11 && S.mods.pressureRate < 2.2,
+    make:S => ({ title:'HAIR TRIGGER', text:'Pressure builds 30% faster.',
+                 apply:S => { S.mods.pressureRate += 0.30; } }) },
+  { id:'dressing', rarity:'common', weight:S => V11 ? 9 : 0, can:S => V11 && S.mods.dressing < 4,
+    make:S => ({ title:'FIELD DRESSING', text:'Heal 1.5/s while your pressure is above half.',
+                 apply:S => { S.mods.dressing += 1.5; } }) },
+  { id:'kegs', rarity:'epic', weight:S => V11 ? 8 : 0, can:S => V11 && S.mods.kegSafe < 1,
+    make:S => ({ title:'POWDER MONKEY', text:'+40% keg damage, and their blast no longer hurts you.',
+                 apply:S => { S.mods.kegDmg += 0.4; S.mods.kegSafe = 1; } }) },
 
   // ---- the Boiler -----------------------------------------------------------
   { id:'boilerhp', rarity:'common', weight:S => S.boiler.hp < S.boiler.maxHp * 0.8 ? 22 : 9, can:S => true,
@@ -878,8 +1168,13 @@ function freshMods(){
     knockMult: 1, scald: 0,
     critChance: TUNING.player.critChance, critExplode: 0,
     moveMult: 1,
-    dashCdBonus: 0, dashCharges: TUNING.player.dashCharges, dashDamage: 0,
+    dashCdBonus: 0,
+    dashCharges: (FEEL.dashCharges != null ? FEEL.dashCharges : TUNING.player.dashCharges),
+    dashDamage: (FEEL.dashDamage != null ? FEEL.dashDamage : 0),
     scrapChance: 0, lifesteal: 0,
+    // v11 — the close-quarters mods. All 1/0 until a card moves them.
+    pressureRate: 1, ventHeal: 0, ventDmg: 1, ventRadius: 1, dressing: 0,
+    kegDmg: 1, kegSafe: 0,
     fifthGear: false, residue: 0, killAutoFire: 0, killExplode: 0,
     boilerDR: 0,
   };
@@ -899,12 +1194,17 @@ function resetGame(){
     x: TUNING.deck.cx, y: TUNING.deck.cy + TUNING.deck.h * (PRESET.lanes ? 0.29 : 0.20),
     vx: 0, vy: 0, aim: -Math.PI/2,
     hp: TUNING.player.hp, maxHp: TUNING.player.hp,
-    dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
+    dashT: 0, dashAng: 0, dashCd: 0,
+    dashStock: (FEEL.dashCharges != null ? FEEL.dashCharges : TUNING.player.dashCharges),
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [],
     stepT: 0, coatSway: 0, castFlash: 0, ray: null,
     facing: -Math.PI/2, atkCd: 0, atkTarget: null, atkSwing: 0, dashBuf: 0,
     atkAnimT: -1,
+    // v11
+    pressure: 0, pressureT: 0, ventCd: 0, ventFlash: 0,
+    stealBudget: TUNING.close.lifestealCapPerSec, crowd: 0,
   };
+  resetProps();
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
@@ -1243,8 +1543,31 @@ function hitEnemy(e, dmg, o){
   e.flash = TUNING.feel.flashTime;
   S.stats.damage += dmg;
 
-  if (M.lifesteal > 0 && S.player.hp > 0)
+  /* v11 — the one place every point of damage in the game passes through, so
+     the one place worth measuring distance. Everything the close-quarters loop
+     pays out is decided on this line. */
+  if (V11){
+    const R = TUNING.close.range;
+    if (dist2(S.player.x, S.player.y, e.x, e.y) < R * R){
+      /* `o.pressure` scales what this hit is worth to the gauge, and exists
+         because two sources would otherwise pay for themselves:
+
+           · the vent (0) — its own steam refilling the gauge makes venting
+             self-sustaining in a crowd, which is the v10 lifesteal failure
+             wearing a different hat. The vent is the payout, never the input.
+           · a keg blast (0.25) — you lit it, so it counts, but a keg that
+             catches six boarders would otherwise fill the gauge on its own. */
+      const ps = (o.pressure === undefined) ? 1 : o.pressure;
+      if (ps > 0) gainPressure(dmg * TUNING.close.pressurePerDmg * ps);
+      // Lifesteal is close-range now, and rate-limited. In v10 it scaled with
+      // damage at any distance: a tester finished the campaign at ~12% and
+      // described being unkillable, because the safest possible play — stand at
+      // maximum range, never be touched — was also the one that healed most.
+      if (M.lifesteal > 0) healPlayer(dmg * M.lifesteal, 'steal');
+    }
+  } else if (M.lifesteal > 0 && S.player.hp > 0){
     S.player.hp = Math.min(S.player.maxHp, S.player.hp + dmg * M.lifesteal);
+  }
 
   const col = o.element ? ELEMENTS[o.element].glow : PAL.bone;
   if (!o.silent){
@@ -1277,11 +1600,78 @@ function hitEnemy(e, dmg, o){
   return dmg;
 }
 
+/* ---------------------------------------------------------------------------
+   SYSTEMS — pressure, the vent, and healing (v11)
+
+   One gauge, filled by hitting things inside your own reach and emptied by
+   backing off. Full, it vents: a ring of scalding steam that throws the deck
+   off you and closes your wounds. It is the answer to two notes from the same
+   playtest — that the game rewards sniping from safety, and that there is no
+   way to heal that does not come attached to a damage stat.
+--------------------------------------------------------------------------- */
+function healPlayer(amt, src){
+  const P = S.player;
+  if (P.hp <= 0 || amt <= 0) return 0;
+  if (src === 'steal'){
+    // A per-second budget rather than a stack cap. Stacking cards is supposed
+    // to be how you get stronger; healing faster than the deck can hurt you is
+    // where it stops being a build and starts being an off switch.
+    amt = Math.min(amt, P.stealBudget);
+    P.stealBudget -= amt;
+  }
+  const before = P.hp;
+  P.hp = Math.min(P.maxHp, P.hp + amt);
+  return P.hp - before;
+}
+
+function gainPressure(n){
+  const P = S.player;
+  if (!V11 || P.hp <= 0 || n <= 0) return;
+  P.pressure = Math.min(100, P.pressure + n * S.mods.pressureRate);
+  P.pressureT = TUNING.close.pressureGrace;
+  if (P.pressure >= 100 && P.ventCd <= 0) ventNow();
+}
+
+function ventNow(){
+  const P = S.player, M = S.mods, V = TUNING.close.vent;
+  P.pressure = 0;
+  P.pressureT = 0;
+  P.ventCd = V.cd;
+  P.ventFlash = 0.42;
+  const r = V.radius * M.ventRadius;
+  const healed = healPlayer(V.heal + M.ventHeal, 'vent');
+  damageArea(P.x, P.y, r, V.dmg * M.ventDmg, 'STEAM',
+             { noCrit:true, knock:V.knock, pressure:0 });
+  fx({ kind:'aoe', x:P.x, y:P.y, r, life:0.42, col:'#C9B6E8', glow:'#F2EAFF' });
+  pSmoke(P.x, P.y - 10, 20, 'rgba(226,220,240,0.70)', 200);
+  pSparks(P.x, P.y, 12, '#F2EAFF', 300);
+  addTrauma(0.24);
+  SFX.vent();
+  Voice.say('vo_vent', 1);
+  if (healed >= 1) dmgNumber(P.x, P.y - 34, '+' + Math.round(healed), '#8CE07A', 22);
+  Hints.fire('vent');
+}
+
+// how crowded is it right here — drives the idle build and the HUD's read
+function crowdCount(){
+  const P = S.player, R = TUNING.close.range * 0.85;
+  let n = 0;
+  Hash.query(P.x, P.y, R + 40, _q);
+  for (const e of _q){
+    if (e.dead || e.state === 'climb') continue;
+    if (dist2(P.x, P.y, e.x, e.y) < R * R) n++;
+  }
+  return n;
+}
+
 function damageArea(x, y, r, dmg, element, o){
   o = o || {};
   if (PRESET.lanes && S.hulk && !S.hulk.dead &&
       dist2(x, y, S.hulk.x, S.hulk.y) < (r + S.hulk.r) * (r + S.hulk.r))
     damageHulk(dmg);
+  // A keg's own blast runs its prop pass at a reduced rate, so it opts out here
+  // rather than paying twice for the chain reaction.
+  if (!o.noProps) damagePropsArea(x, y, r, dmg);
   Hash.query(x, y, r + 40, _q);
   let n = 0;
   for (const e of _q){
@@ -1290,6 +1680,7 @@ function damageArea(x, y, r, dmg, element, o){
     const ang = Math.atan2(e.y - y, e.x - x) || 0;
     // past a dozen targets the numbers are noise anyway — keep the hits, drop the chatter
     hitEnemy(e, dmg, { element, ang, knock: o.knock || 0, noCrit: o.noCrit,
+                       pressure: o.pressure,
                        silent: o.silent || n >= 12 });
     n++;
   }
@@ -1316,6 +1707,17 @@ function killEnemy(e, ang){
   if (M.killExplode > 0){
     fx({ kind:'aoe', x:e.x, y:e.y, r:80, life:0.32, col:'#E2691E' });
     damageArea(e.x, e.y, 80, M.killExplode, 'EMBER', { skip:e, noCrit:true, knock:70 });
+  }
+  /* v11 — what a close kill is worth. All three payouts are deliberately small:
+     the point is a steady pull toward the fight, not a burst that makes closing
+     mandatory. A kill at range still counts for everything else in the game. */
+  if (V11){
+    const R = TUNING.close.range;
+    if (dist2(S.player.x, S.player.y, e.x, e.y) < R * R && S.player.hp > 0){
+      S.player.dashCd = Math.max(0, S.player.dashCd - TUNING.close.dashRefund);
+      gainPressure(9);
+      if (chance(TUNING.close.scrapChance)) dropSalvage(e.x, e.y, TUNING.close.scrapHeal);
+    }
   }
   if (M.scrapChance > 0 && chance(M.scrapChance)){
     S.pickups.push({ x:e.x, y:e.y, vx:rnd(-60,60), vy:rnd(-90,-30), t:0, life:14, heal:15, bob:rnd(TAU) });
@@ -1512,6 +1914,7 @@ function shapeArc(P, aim, st, sk, mult){
     hitEnemy(e, st.dmg * mult, { element: sk.element, ang: a, knock: st.knock, silent: n >= 12 });
     n++;
   }
+  damagePropsArc(P, aim, st.range, half, st.dmg * mult);
   const E = ELEMENTS[sk.element];
   fx({ kind:'arc', x:P.x, y:P.y, a:aim, arc:st.arc, r:st.range, life:0.28, col:E.color, glow:E.glow, follow:true });
   return { x: P.x + Math.cos(aim)*st.range*0.62, y: P.y + Math.sin(aim)*st.range*0.62 };
@@ -1534,6 +1937,7 @@ function shapeLine(P, aim, st, sk, mult){
   const n = Math.min(cand.length, st.pierce);
   for (let i = 0; i < n; i++)
     hitEnemy(cand[i].e, st.dmg * mult, { element: sk.element, ang: aim, knock: st.knock });
+  damagePropsLine(P, aim, st.len, st.width, st.dmg * mult);
   const E = ELEMENTS[sk.element];
   fx({ kind:'line', x:P.x, y:P.y, a:aim, len:st.len, w:st.width, life:0.26, col:E.color, glow:E.glow });
   return { x: P.x + dx*st.len*0.5, y: P.y + dy*st.len*0.5 };
@@ -1554,6 +1958,7 @@ function shapeCone(P, aim, st, sk, mult){
     hitEnemy(e, st.dmg * mult, { element: sk.element, ang: a, knock: st.knock, silent: n >= 12 });
     n++;
   }
+  damagePropsArc(P, aim, st.range, half, st.dmg * mult);
   const E = ELEMENTS[sk.element];
   fx({ kind:'cone', x:P.x, y:P.y, a:aim, arc:st.arc, r:st.range, life:0.34, col:E.color, glow:E.glow });
   return { x: P.x + Math.cos(aim)*st.range*0.55, y: P.y + Math.sin(aim)*st.range*0.55 };
@@ -1745,6 +2150,7 @@ function hurtPlayer(dmg, ang){
   S.flashRed = 0.5;
   S.stats.combo = 0;
   SFX.hurt();
+  if (P.hp > 0 && P.hp < P.maxHp * 0.30) Voice.say('vo_hurt_low', 2);
   pSparks(P.x, P.y, 12, PAL.oxblood, 300);
   dmgNumber(P.x, P.y - 26, '-' + Math.round(dmg), '#FF6B6B', 22);
   if (P.hp <= 0){ P.hp = 0; endGame(false, 'Cut down on your own deck.', 'CAPTAIN DOWN'); }
@@ -1763,7 +2169,7 @@ function hurtBoiler(dmg, ang){
   pSmoke(B.x, B.y - 20, 4, 'rgba(60,55,50,0.6)', 60);
   dmgNumber(B.x, B.y - B.r, '-' + Math.round(dmg), '#FF9A5B', 18);
   if (B.hp <= 0){ B.hp = 0; endGame(false, 'The engine core is gone. The ship falls.', 'BOILER LOST'); }
-  else if (B.hp < B.maxHp * 0.5) Hints.fire('boiler');
+  else if (B.hp < B.maxHp * 0.5){ Hints.fire('boiler'); Voice.say('vo_boiler_low', 2); }
 }
 
 function updatePlayer(dt){
@@ -1877,6 +2283,7 @@ function updatePlayer(dt){
     S.stats.dashes++;
     Hints.did('dash');
     SFX.dash();
+    if (chance(0.17)) Voice.say('vo_dash', 0);
     pDust(P.x, P.y, 10);
     addTrauma(0.06);
   }
@@ -1896,6 +2303,18 @@ function updatePlayer(dt){
         if (dist2(P.x, P.y, e.x, e.y) < (30 + e.r)*(30 + e.r)){
           P.hitList.push(e);
           hitEnemy(e, S.mods.dashDamage, { ang: P.dashAng, knock: 240 });
+        }
+      }
+    }
+    // v11 — dashing through a keg lights it. The fuse means you are already
+    // past it when it goes, which is the trick the whole system is built to
+    // teach: the deck is a weapon if you are moving.
+    if (V11){
+      for (const pr of LIVE_PROPS){
+        if (pr.dead || pr.fuse > 0) continue;
+        if (dist2(P.x, P.y, pr.x, pr.y) < (34 + propHitR(pr)) * (34 + propHitR(pr))){
+          hitProp(pr, pr.hp + 1, P.dashAng);
+          if (pr.kind === 'keg') Hints.fire('keg');
         }
       }
     }
@@ -1919,7 +2338,7 @@ function updatePlayer(dt){
   // deck + props
   const c = clampToDeck(P.x, P.y, T.radius + 8);
   if (c.x !== P.x || c.y !== P.y){ P.x = c.x; P.y = c.y; P.vx *= 0.4; P.vy *= 0.4; }
-  for (const pr of SOLID_PROPS) pushOut(P, pr.x, pr.y, pr.r + T.radius);
+  for (const pr of SOLID_PROPS) if (!pr.dead) pushOut(P, pr.x, pr.y, pr.r + T.radius);
   pushOut(P, S.boiler.x, S.boiler.y, S.boiler.r + T.radius);
   pushOutWalls(P, T.radius);
   if (PRESET.lanes) for (const t of S.turrets) if (!t.dead) pushOut(P, t.x, t.y, t.r + T.radius);
@@ -1938,6 +2357,25 @@ function updatePlayer(dt){
   P.iframe = Math.max(0, P.iframe - dt);
   P.hurt = Math.max(0, P.hurt - dt);
   P.castFlash = Math.max(0, P.castFlash - dt);
+
+  /* --- v11: the pressure gauge -------------------------------------------
+     Fills from hits landed inside your reach (hitEnemy) and from simply being
+     crowded; bleeds off a beat after you leave. The idle build exists so that
+     wading in with a cooldown-locked hand is still worth something, and so the
+     gauge is legible before a new player has connected it to their own hits. */
+  if (V11){
+    const C = TUNING.close;
+    P.ventCd = Math.max(0, P.ventCd - dt);
+    P.ventFlash = Math.max(0, P.ventFlash - dt);
+    P.stealBudget = Math.min(C.lifestealCapPerSec, P.stealBudget + C.lifestealCapPerSec * dt);
+    P.crowd = crowdCount();
+    if (P.crowd >= 2) gainPressure(C.pressureIdle * dt * (1 + (P.crowd - 2) * 0.25));
+    if (P.pressureT > 0) P.pressureT -= dt;
+    else if (P.pressure > 0) P.pressure = Math.max(0, P.pressure - C.pressureDecay * dt);
+    if (P.pressure >= 45) Hints.fire('pressure');
+    // FIELD DRESSING and anything else that heals over time rather than per hit
+    if (S.mods.dressing > 0 && P.pressure >= 50) healPlayer(S.mods.dressing * dt, 'regen');
+  }
   // Elapsed time since the swing started, for a one-shot attack strip. -1 once
   // it has run past any plausible cycle length, so the still takes over rather
   // than the strip looping on its last frame forever.
@@ -2034,7 +2472,7 @@ function spawnEnemy(type, forced, lane){
   };
   e.lane = PRESET.lanes ? (typeof lane === 'number' ? lane : laneOf(e.x)) : 0;
   S.enemies.push(e);
-  if (type === 'BOSS'){ S.bossRef = e; SFX.bossRoar(); addTrauma(0.6); }
+  if (type === 'BOSS'){ S.bossRef = e; SFX.bossRoar(); addTrauma(0.6); Voice.say('vo_boss_arrive', 2); }
   if (!S.seenTypes[type] && type !== 'BOSS'){
     S.seenTypes[type] = true;
     S.banner = { kind:'type', type, t: 0, life: 3.2 };
@@ -2104,6 +2542,7 @@ function updateEnemy(e, dt){
     if (e.st <= 0){
       e.state = 'move'; e.climb = 1;
       Hints.fire('boarder');       // the first one to finish climbing is on your deck
+      Voice.say('vo_first_board', 1);
     }
     return;
   }
@@ -2130,7 +2569,7 @@ function updateEnemy(e, dt){
   e.x = c.x; e.y = c.y;
   if (PRESET.lanes){ clampToLane(e, e.lane, e.r); pushOutWalls(e, e.r); }
   if (e.type !== 'BOSS'){
-    for (const pr of SOLID_PROPS) pushOut(e, pr.x, pr.y, pr.r + e.r);
+    for (const pr of SOLID_PROPS) if (!pr.dead) pushOut(e, pr.x, pr.y, pr.r + e.r);
   }
   pushOut(e, S.boiler.x, S.boiler.y, S.boiler.r + e.r);
 }
@@ -2235,9 +2674,18 @@ function updateRanged(e, dt, tgt, d, toT, slowF){
       // STEAM's accuracy debuff shows up right here
       const err = e.accT > 0 ? rnd(-0.30, 0.30) : rnd(-0.045, 0.045);
       const a = e.atkAng + err;
+      /* v11 — a readable bolt. The playtest note was that enemy fire is hard to
+         track and hard to avoid, and three things were wrong at once: it flew
+         at 100% of its authored speed, it was the same 7px it had been since
+         the deck was half this size, and it was drawn in tesla blue — the
+         player's own colour family. It is now slower, fatter, hostile-coloured,
+         and it carries a trail and a ground shadow so its position on the deck
+         is readable in a three-quarter view. Damage is unchanged. */
+      const sp = def.bolt * (V11 ? 0.82 : 1);
       S.bolts.push({ x: e.x + Math.cos(a)*20, y: e.y + Math.sin(a)*20,
-                     vx: Math.cos(a)*def.bolt, vy: Math.sin(a)*def.bolt,
-                     dmg: def.dmg, r: 7, life: 3.2, t: 0, ang: a, lane: e.lane });
+                     vx: Math.cos(a)*sp, vy: Math.sin(a)*sp,
+                     dmg: def.dmg, r: V11 ? 10 : 7, life: 3.2, t: 0, ang: a,
+                     lane: e.lane, trail: V11 ? [] : null });
       SFX.enemyShoot();
       pSparks(e.x + Math.cos(a)*22, e.y + Math.sin(a)*22, 4, '#FFC168', 160, a, 0.4);
       e.shootT = rnd(1.5, 2.4);
@@ -2291,6 +2739,7 @@ function updateBoss(e, dt, tgt, d, toT, slowF){
     for (const o of S.enemies)
       if (!o.dead && o !== e && o.side === 'boss') killEnemy(o, vrnd(TAU));
     SFX.bossRoar();
+    Voice.say('vo_boss_turn', 2);
     Sound.duck(5, 1.4);
     addTrauma(0.9);
     S.banner = { kind:'boss2', n: S.wave, t: 0, life: 2.6 };
@@ -2423,7 +2872,21 @@ function updateBolts(dt){
     if (rnd() < dt * 26)
       Particles.spawn({ x:b.x, y:b.y, vx:rnd(-12,12), vy:rnd(-12,12), life:0.22, size:2.4,
                         col:'#FFC168', kind:'glow', add:true, drag:0.9 });
+    if (b.trail){
+      b.trail.push({ x:b.x, y:b.y });
+      if (b.trail.length > 9) b.trail.shift();
+    }
     let hit = false;
+    // v11 — enemy fire lights the deck's ordnance. Their own gunners will blow
+    // a keg you are standing next to, which is the system arguing both ways.
+    if (V11){
+      for (const pr of LIVE_PROPS){
+        if (pr.dead || pr.fuse > 0) continue;
+        if (dist2(b.x, b.y, pr.x, pr.y) < (b.r + propHitR(pr))**2){
+          hitProp(pr, b.dmg, b.ang); hit = true; break;
+        }
+      }
+    }
     if (P.hp > 0 && P.dashT <= 0 && P.iframe <= 0 &&
         dist2(b.x, b.y, P.x, P.y) < (b.r + TUNING.player.radius)**2){
       hurtPlayer(b.dmg, b.ang); hit = true;
@@ -2535,6 +2998,10 @@ function pendingCount(){ return S.queue.length + countLive(); }
 
 function startWave(n){
   S.wave = n;
+  // v11 — the crew re-stow the deck between waves. Without it the ordnance is a
+  // first-wave novelty: by wave 4 every keg is gone and the deck is furniture
+  // again, which is the state the whole system exists to get away from.
+  restowProps();
   if (PRESET.lanes && S.hulk){
     const isPush = !!(WAVES[n-1] && WAVES[n-1].push);
     if (isPush){
@@ -2549,6 +3016,7 @@ function startWave(n){
       S.hulk.vulnerable = true;
       S.banner = { kind:'push', n, t:0, life: 3.0 };
       Hints.fire('push');
+      Voice.say('vo_push', 1);
       SFX.hulkGrapple();
       S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     } else {
@@ -2556,6 +3024,7 @@ function startWave(n){
     }
   }
   SFX.waveStart();
+  Voice.say('vo_wave_start', 1);
   S.queue = buildQueue(n);
   S.waveT = 0; S.loopT = 0; S.loopIdx = 0;
   S.phase = 'fight';
@@ -2571,13 +3040,14 @@ function waveComplete(){
   S.stats.waves = S.wave;
   S.banner = { kind:'clear', n:S.wave, t:0, life: 2.2 };
   SFX.waveClear();
+  Voice.say('vo_wave_clear', 1);
   pGold(S.player.x, S.player.y, 30);
   pGold(S.boiler.x, S.boiler.y, 24);
   S.player.hp = Math.min(S.player.maxHp, S.player.hp + TUNING.player.regenPerWave);
   S.bolts.length = 0;
   // slots open up as the run escalates
-  if (S.wave >= 2 && S.unlockedSlots < 3){ S.unlockedSlots = 3; Hints.fire('slot'); }
-  if (S.wave >= 5 && S.unlockedSlots < 4){ S.unlockedSlots = 4; Hints.fire('slot'); }
+  if (S.wave >= 2 && S.unlockedSlots < 3){ S.unlockedSlots = 3; Hints.fire('slot'); Voice.say('vo_slot', 0); }
+  if (S.wave >= 5 && S.unlockedSlots < 4){ S.unlockedSlots = 4; Hints.fire('slot'); Voice.say('vo_slot', 0); }
 }
 
 function updateWave(dt){
@@ -2841,6 +3311,7 @@ function openDraft(kind){
   S.draft = { cards, hover: -1, t: 0, chosen: -1, chooseT: 0,
               kind: opening ? 'opening' : skillDraft ? 'skill' : 'upgrade', slot };
   Hints.fire('draft');
+  Voice.say('vo_draft', 0);
   SFX.cardDeal();
 }
 function pickCard(i){
@@ -2883,6 +3354,7 @@ function startRun(){
   Rng.set(S.seed);
   resetGame();
   Hints.reset();
+  Voice.reset();
   // Restart from the pause menu can be pressed with the settings panel open.
   S.overlay = null;
   S.mode = 'play';
@@ -2913,8 +3385,8 @@ function endGame(win, reason, title){
   // screen renders a value rather than computing one every frame — and so a
   // run still counts if the player closes the tab before reading it.
   S.result = RunLog.record(buildRunRecord(win));
-  if (win){ SFX.victory(); for (let i=0;i<8;i++) pGold(vrnd(300,1100), vrnd(250,700), 20); }
-  else { SFX.defeat(); addTrauma(0.8); S.flashRed = 0.7 * Settings.flashScale(); }
+  if (win){ SFX.victory(); Voice.say('vo_victory', 2); for (let i=0;i<8;i++) pGold(vrnd(300,1100), vrnd(250,700), 20); }
+  else { SFX.defeat(); Voice.say('vo_defeat', 2); addTrauma(0.8); S.flashRed = 0.7 * Settings.flashScale(); }
 }
 
 /* ---------------------------------------------------------------------------
@@ -2932,6 +3404,7 @@ function step(dt){
   updateBolts(dt);
   updatePickups(dt);
   updateFields(dt);
+  updateProps(dt);
   updateFx(dt);
   Particles.step(dt);
   updateWave(dt);

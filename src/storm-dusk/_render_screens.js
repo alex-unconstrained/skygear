@@ -7,6 +7,8 @@ const CARD_ICON = {
   dashchg:'dash', crit:'crit', critx:'crit', scrap:'scrap', lifesteal:'scrap',
   boilerhp:'boiler', boilerdr:'boiler', fifth:'gear', residue:'burst', autofire:'burst',
   killboom:'burst',
+  // v11
+  ventheal:'heart', ventdmg:'steam', pressrate:'steam', dressing:'heart', kegs:'burst',
 };
 function paintCardIcon(kind, r, col, glow){
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
@@ -927,13 +929,14 @@ function render(){
   drawFields();
   if (PRESET.lanes){ drawLaneCrossings(); drawLaneWalls(); }
   drawTelegraphs();
+  drawAimLines();
   drawAoePreview();
   drawGroundFx();
   drawSentries();
 
   // --- billboards, far to near
   const list = [];
-  for (const p of PROPS)     list.push({ y: p.y, k: 0, o: p });
+  for (const p of PROPS)     if (!p.dead) list.push({ y: p.y, k: 0, o: p });
   if (PRESET.lanes){
     for (const t of S.turrets) list.push({ y: t.y, k: 5, o: t });
     for (const c of S.crew)    if (!c.dead) list.push({ y: c.y, k: 6, o: c });
@@ -1009,4 +1012,10 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    render, Particles, hurtPlayer, hurtBoiler, hitEnemy, pickCard, closeDraft,
                    Rng, Settings, Store, RunLog, runReportText, seedText, buildRunRecord, UI,
                    Hints, openSettings, openHowTo, openBinds, closeOverlay,
+                   // v11 — the close-quarters layer, exposed so the harness can
+                   // assert against the real systems rather than a re-implementation
+                   // of them. PROPS is the live array the renderer and the
+                   // collision pass both hold references into.
+                   PROPS, LIVE_PROPS, hitProp, popProp, restowProps, damageArea,
+                   damagePropsArea, gainPressure, ventNow, healPlayer, Voice,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };

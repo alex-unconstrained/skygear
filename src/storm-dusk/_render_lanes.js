@@ -7,7 +7,7 @@ function drawLaneCrossings(){
   if (!PRESET.lanes) return;
   const D = TUNING.deck, laneW = D.w / LANE_N;
   const left = D.cx - D.w / 2;
-  const gaps = [[FWD_Y0, FWD_Y1], [CROSS_Y0, CROSS_Y1]];
+  const gaps = crossingGaps();
   ctx.save();
   for (const [y0, y1] of gaps){
     const cy = (y0 + y1) / 2, half = (y1 - y0) * 0.5;
@@ -446,6 +446,9 @@ function updateLaneAlerts(rt){
     if (crit && !LANE_ALERT.was[i] && LANE_ALERT.cool <= 0){
       LANE_ALERT.lane = i; LANE_ALERT.t = 2.4; LANE_ALERT.cool = 7;
       SFX.laneCritical();
+      // The alert already says which lane, in text, on screen. The line is
+      // colour on top of it — hence tier 2 but a 24s cooldown of its own.
+      Voice.say('vo_lane_critical', 2);
     }
     LANE_ALERT.was[i] = crit;
   }

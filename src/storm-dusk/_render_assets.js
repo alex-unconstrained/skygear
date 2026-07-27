@@ -99,6 +99,14 @@ const ASSET_MANIFEST = {
   // "32/67 art" badge on the title — which is how that badge came to overstate
   // how much of the game was painted. `unused` keeps the slot documented and
   // keeps it out of the count; delete the flag the day something draws them.
+  // v11 — the close-quarters loop's own art. The gauge and the vent are new
+  // verbs, so they get icons rather than borrowing a shape glyph, and salvage
+  // gets a real pile on the deck instead of the spinning procedural cog.
+  ui_icon_pressure:{ file:'assets/ui/icon_pressure.png',      w:256, h:256 },
+  ui_icon_vent:    { file:'assets/ui/icon_vent.png',          w:256, h:256 },
+  ui_icon_salvage: { file:'assets/ui/icon_salvage.png',       w:256, h:256 },
+  prop_scrap:      { file:'assets/props/salvage_pile.png',    w:256, h:256 },
+
   ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256, unused:true },
   ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256, unused:true },
   ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128, unused:true },

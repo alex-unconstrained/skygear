@@ -65,6 +65,15 @@ const AUDIO_MANIFEST = {
   hulk_hit:         { file:'sfx/lane/hulk_hit',    bus:'sfx', vary:0.06, max:3, gap:0.050 },
   hulk_break:       { file:'sfx/lane/hulk_break',  bus:'sfx', max:1 },
   crossing:         { file:'sfx/lane/crossing',    bus:'sfx', vary:0.07, max:1, gap:0.500 },
+  // --- deck ordnance and the vent (v11) --------------------------------------
+  // Tier 0 by the event sheet: a lit keg is survival information and must be
+  // audible with the camera two lanes away, which is why the fuse is a loop-shaped
+  // hiss rather than a one-shot tick.
+  keg_fuse:         { file:'sfx/prop/keg_fuse',      bus:'sfx', vary:0.05, max:3, gap:0.080 },
+  keg_blow:         { file:'sfx/prop/keg_blow',      bus:'sfx', vary:0.04, max:3, gap:0.040 },
+  crate_break:      { file:'sfx/prop/crate_break',   bus:'sfx', vary:0.07, max:3, gap:0.050, variants:2 },
+  lantern_break:    { file:'sfx/prop/lantern_break', bus:'sfx', vary:0.07, max:2, gap:0.060 },
+  vent:             { file:'sfx/player/vent',        bus:'sfx', vary:0.03, max:2 },
   // --- world ----------------------------------------------------------------
   boiler_hurt:      { file:'sfx/world/boiler_hurt',     bus:'sfx', vary:0.04, max:2, gap:0.100 },
   boiler_critical:  { file:'sfx/world/boiler_critical', bus:'sfx', loop:true },
@@ -86,11 +95,50 @@ const AUDIO_MANIFEST = {
   m_combat1:  { file:'music/combat_low',    bus:'music', loop:true, lazy:true,
                 loopStart:1.0, loopEnd:164.5 },
   m_combat2:  { file:'music/combat_mid',    bus:'music', loop:true, lazy:true },
-  m_combat3:  { file:'music/combat_high',   bus:'music', loop:true, lazy:true },
+  // Delivered 2026-07-27. Same treatment as combat_low and for the same reason:
+  // both tracks are authored with an ending, so the loop is lifted out of the
+  // sustained middle and the join is crossfaded. Measured, not guessed —
+  // combat_high runs 88.7s and boss_loop 113.0s, and schedule() reads
+  // loopEnd + 2s of crossfade out of the buffer, so neither may sit at the tail.
+  m_combat3:  { file:'music/combat_high',   bus:'music', loop:true, lazy:true,
+                loopStart:1.0, loopEnd:85.5 },
   m_push:     { file:'music/push_loop',     bus:'music', loop:true, lazy:true },
-  m_boss:     { file:'music/boss_loop',     bus:'music', loop:true, lazy:true },
+  m_boss:     { file:'music/boss_loop',     bus:'music', loop:true, lazy:true,
+                loopStart:1.0, loopEnd:109.5 },
   m_victory:  { file:'music/victory_sting', bus:'music', lazy:true },
   m_defeat:   { file:'music/defeat_sting',  bus:'music', lazy:true },
+
+  /* --- voice (v11) ---------------------------------------------------------
+     The captain, her crew, and the thing that boards you. Written to be spoken,
+     specified line by line in VOICE-BRIEF.md, and wired here first so a
+     delivered file is live the moment ingest sees it.
+
+     Voice cues have NO procedural fallback, on purpose. A synthesised human
+     voice is worse than silence, and every one of these is flavour on top of a
+     mechanical cue that already fires — the wave banner, the lane alert, the
+     hurt sound. Nothing in the game is only announced by a voice line.
+
+     `n` variants per key come from the delivery, not from here; the director
+     below picks between them and refuses to repeat the last one. */
+  vo_wave_start:    { file:'voice/captain/wave_start',    bus:'voice', max:1, gain:1.0 },
+  vo_wave_clear:    { file:'voice/captain/wave_clear',    bus:'voice', max:1, gain:1.0 },
+  vo_first_board:   { file:'voice/captain/first_board',   bus:'voice', max:1 },
+  vo_hurt_low:      { file:'voice/captain/hurt_low',      bus:'voice', max:1 },
+  vo_vent:          { file:'voice/captain/vent',          bus:'voice', max:1, gain:0.9 },
+  vo_keg:           { file:'voice/captain/keg',           bus:'voice', max:1 },
+  vo_dash:          { file:'voice/captain/dash_effort',   bus:'voice', max:2, gain:0.7 },
+  vo_draft:         { file:'voice/captain/draft',         bus:'voice', max:1 },
+  vo_slot:          { file:'voice/captain/slot_unlock',   bus:'voice', max:1 },
+  vo_boiler_low:    { file:'voice/captain/boiler_low',    bus:'voice', max:1 },
+  vo_lane_critical: { file:'voice/captain/lane_critical', bus:'voice', max:1 },
+  vo_push:          { file:'voice/captain/push',          bus:'voice', max:1 },
+  vo_victory:       { file:'voice/captain/victory',       bus:'voice', max:1 },
+  vo_defeat:        { file:'voice/captain/defeat',        bus:'voice', max:1 },
+  vo_crew_muster:   { file:'voice/crew/muster',           bus:'voice', max:1, gain:0.8 },
+  vo_crew_down:     { file:'voice/crew/down',             bus:'voice', max:1, gain:0.8 },
+  vo_cannon_down:   { file:'voice/crew/cannon_down',      bus:'voice', max:1, gain:0.9 },
+  vo_boss_arrive:   { file:'voice/boss/arrive',           bus:'voice', max:1, gain:1.0 },
+  vo_boss_turn:     { file:'voice/boss/turn',             bus:'voice', max:1, gain:1.0 },
 };
 
 /* 2 ------------------------------------------------------------------------ */
@@ -384,6 +432,39 @@ _newCue('hulkBreak', 'hulk_break', () => {
     Sound.tone({ type:'sine', f0:110, f1:44, dur:0.4, gain:0.16, delay:d, bus:'sfx' }));
   Sound.duck(4, 1.2);
 });
+/* v11 — the deck's own voices. Same rule as everything above: a procedural
+   stand-in now, a sample slot for when ElevenLabs delivers (VOICE-BRIEF.md §4).
+   A lit keg has to be heard before it is seen, so the fuse is bright and rises;
+   the blast is deliberately duller and lower than the player's own STEAM cue so
+   the two never compete when a Steam build sets off a chain. */
+_newCue('kegFuse', 'keg_fuse', (o) => {
+  Sound.noise({ dur:0.42, ff0:1800, ff1:5200, q:3.2, gain:0.13, filter:'bandpass', bus:'sfx' });
+  Sound.tone({ type:'triangle', f0:640, f1:1180, dur:0.40, gain:0.06, bus:'sfx' });
+});
+_newCue('kegBlow', 'keg_blow', (o) => {
+  Sound.tone({ type:'sine', f0:150, f1:42, dur:0.52, gain:0.28, bus:'sfx' });
+  Sound.noise({ dur:0.60, ff0:3200, ff1:260, q:0.6, gain:0.26, filter:'lowpass', bus:'sfx' });
+  Sound.noise({ dur:0.90, ff0:900, ff1:300, q:0.8, gain:0.10, filter:'bandpass', delay:0.10, bus:'sfx' });
+  Sound.duck(3, 0.5);
+});
+_newCue('crateBreak', 'crate_break', () => {
+  Sound.noise({ dur:0.22, ff0:2600, ff1:700, q:1.1, gain:0.16, filter:'lowpass', bus:'sfx' });
+  [0, 0.06, 0.13].forEach(d =>
+    Sound.tone({ type:'square', f0:300 - d*400, f1:120, dur:0.10, gain:0.07, delay:d, bus:'sfx' }));
+});
+_newCue('lanternBreak', 'lantern_break', () => {
+  Sound.noise({ dur:0.16, ff0:5200, ff1:2200, q:2.6, gain:0.12, filter:'bandpass', bus:'sfx' });
+  Sound.noise({ dur:0.55, ff0:700, ff1:1500, q:0.7, gain:0.09, filter:'bandpass', delay:0.08, bus:'sfx' });
+});
+// The vent is the player's reward cue and sits in tier 1: it must cut through a
+// wave-11 crowd, so it gets a rising body and its own small duck.
+_newCue('vent', 'vent', () => {
+  Sound.noise({ dur:0.55, ff0:600, ff1:4200, q:1.1, gain:0.24, filter:'bandpass', bus:'sfx' });
+  Sound.tone({ type:'triangle', f0:220, f1:660, dur:0.36, gain:0.14, bus:'sfx' });
+  Sound.tone({ type:'sine', f0:110, f1:70, dur:0.5, gain:0.16, bus:'sfx' });
+  Sound.duck(2, 0.35);
+});
+
 _newCue('waveStart', 'wave_start', () => {
   Sound.tone({ type:'square', f0:420, f1:300, dur:0.42, gain:0.12, bus:'ui' });
   Sound.tone({ type:'square', f0:315, f1:225, dur:0.42, gain:0.10, delay:0.20, bus:'ui' });
@@ -546,4 +627,56 @@ const Music = {
     src.stop(at + len + 0.05);
     this.nextAt = at + len - XF;
   },
+};
+
+/* 8 ------------------------------------------------------------------------ */
+/* The voice director (v11).
+
+   Voice is the one layer where more is worse. A line that fires on every wave,
+   every draft and every dash stops being character and becomes a notification
+   sound with words in it, and there is no volume slider for "say less".
+
+   So three rules, and they are the whole system:
+
+     1. **One line at a time.** A line in flight blocks anything of equal or
+        lower priority for its own length plus a gap. Higher priority cuts in.
+     2. **Every key has its own cooldown**, and the noisy ones have long ones.
+        `vo_dash` is 1-in-6 with an 8s floor, so effort grunts stay incidental.
+     3. **Nothing is ever announced only by voice.** Every call site below sits
+        on top of a mechanical cue that already fires. Delete the whole layer
+        and the game loses flavour, not information.
+
+   No procedural fallback, deliberately: an absent line is silence, not a synth
+   impression of a human being. See docs/VOICE-BRIEF.md for the line sheet. */
+const Voice = {
+  busyUntil: 0, prio: -1, last: {},
+  // seconds before the same key may fire again
+  CD: {
+    vo_wave_start: 20, vo_wave_clear: 20, vo_first_board: 999, vo_hurt_low: 26,
+    vo_vent: 22, vo_keg: 30, vo_dash: 8, vo_draft: 30, vo_slot: 20,
+    vo_boiler_low: 45, vo_lane_critical: 24, vo_push: 40,
+    vo_crew_muster: 30, vo_crew_down: 22, vo_cannon_down: 18,
+    vo_boss_arrive: 999, vo_boss_turn: 999, vo_victory: 999, vo_defeat: 999,
+  },
+  // rough spoken length per key, used to hold the channel without needing the
+  // buffer — the director must behave identically before the files land
+  LEN: { vo_boss_arrive: 3.0, vo_boss_turn: 2.4, vo_victory: 3.0, vo_defeat: 3.0,
+         vo_dash: 0.6, vo_hurt_low: 1.2 },
+
+  say(key, prio, at){
+    if (!Sound.ready || Sound.muted) return false;
+    if (!AudioBank.has(key)) return false;             // nothing delivered yet
+    const t = Sound.ctx.currentTime;
+    prio = prio || 0;
+    if (t < this.busyUntil && prio <= this.prio) return false;
+    const cd = this.CD[key] || 12;
+    if (this.last[key] !== undefined && t - this.last[key] < cd) return false;
+    const played = Sound.sample(key, at || {});
+    if (!played) return false;
+    this.last[key] = t;
+    this.busyUntil = t + (this.LEN[key] || 1.6) + 0.35;
+    this.prio = prio;
+    return true;
+  },
+  reset(){ this.busyUntil = 0; this.prio = -1; this.last = {}; },
 };

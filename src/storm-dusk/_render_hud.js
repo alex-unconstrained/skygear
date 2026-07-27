@@ -352,6 +352,54 @@ function drawHealthPanel(){
   setFont(Math.round(14*HS), 800, true);
   textOut(Math.ceil(P.hp) + ' / ' + Math.round(P.maxHp), bx + bw, y + 12*HS, PAL.bone, PAL.ink, 3, 'right');
 
+  /* v11 — the pressure gauge. It sits directly under the health bar because it
+     IS a health mechanic: full, it vents, and venting heals. Fitted into the
+     24px of slack that was already inside the panel rather than growing it, so
+     nothing else in the HUD moves at any scale. */
+  if (V11){
+    const gy = by + bh + 5*HS, gh = 9*HS;
+    const pf = clamp(P.pressure / 100, 0, 1);
+    const full = P.pressure >= 100 || P.ventFlash > 0;
+    rr(bx, gy, bw, gh, 3*HS);
+    ctx.fillStyle = '#0B0910'; ctx.fill();
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2.4; ctx.stroke();
+    if (pf > 0){
+      const gg = ctx.createLinearGradient(bx, gy, bx, gy + gh);
+      gg.addColorStop(0, '#F2EAFF');
+      gg.addColorStop(1, pf > 0.5 ? '#9E86D6' : '#6E5F92');
+      rr(bx + 1, gy + 1, Math.max(0, (bw - 2) * pf), gh - 2, 2*HS);
+      ctx.fillStyle = gg; ctx.fill();
+    }
+    // the needle bites at half, which is where FIELD DRESSING starts paying
+    ctx.strokeStyle = hexToRgba(PAL.brass, 0.65); ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(bx + bw * 0.5, gy); ctx.lineTo(bx + bw * 0.5, gy + gh); ctx.stroke();
+    if (full){
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalAlpha = 0.35 + Math.sin(S.rt * 12) * 0.22;
+      rr(bx, gy, bw, gh, 3*HS); ctx.fillStyle = '#F2EAFF'; ctx.fill();
+      ctx.restore();
+    }
+    setFont(Math.round(9*HS), 800, true);
+    textOut(full ? 'VENTING' : 'PRESSURE', bx + bw - 3*HS, gy + gh - 1.5*HS,
+            full ? '#F2EAFF' : '#7E7392', PAL.ink, 3, 'right');
+    /* The gauge's own icon, watermarked INSIDE the left end of the bar and
+       swapping to the relief valve the moment it blows. Inside rather than
+       beside it because the panel has no spare width at any HUD scale — the
+       portrait is immediately to the left — and a HUD element that fits at
+       1280x720 but collides at 2560x1440 is exactly what the layout check in
+       the harness exists to catch. */
+    const ic = Assets.get(full ? 'ui_icon_vent' : 'ui_icon_pressure');
+    if (ic){
+      const s = gh * 1.7;
+      ctx.save();
+      ctx.globalAlpha = full ? 0.95 : 0.5;
+      ctx.drawImage(ic, bx + 2*HS, gy + gh/2 - s/2, s, s);
+      ctx.restore();
+    }
+  }
+
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
   textOut('DASH [' + bindLabel('dash') + ']', bx, py, '#8B8296', null, 0, 'left');

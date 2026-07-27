@@ -867,6 +867,179 @@ async function checkPerf(page, errorLog){
     errorLog.length > before ? errorLog[before] : '');
 }
 
+/* The deck is a weapon now (v11), and every part of that claim is checkable.
+
+   The failure this guards against is specific and has already happened once in
+   this project: a system that is wired, renders, and does nothing. The kegs sat
+   on the deck for eleven versions looking like ordnance while being walls. So
+   these do not assert that the code runs — they assert that a keg kills things,
+   that it chains, that it hurts the player who stands in it, and that the deck
+   is re-stowed for the next wave. */
+async function checkDeck(page){
+  const out = await page.evaluate(async () => {
+    const G = window.SKYGEAR, S = G.S, T = G.TUNING;
+    window.__begin();
+    const live = G.LIVE_PROPS;
+    const kinds = {};
+    for (const p of live) kinds[p.kind] = (kinds[p.kind] || 0) + 1;
+
+    // 1 · a player shape damages a prop, and a keg lights rather than detonates
+    const keg = live.find(p => p.kind === 'keg' && !p.dead);
+    const hp0 = keg.hp;
+    G.damageArea(keg.x, keg.y, 40, 10, null, { noCrit: true, silent: true });
+    const chipped = keg.hp < hp0 && !keg.dead && keg.fuse === 0;
+    G.damageArea(keg.x, keg.y, 40, 999, null, { noCrit: true, silent: true });
+    const lit = keg.fuse > 0 && !keg.dead;
+
+    // 2 · the blast: an enemy beside it dies, the captain beside it is hurt,
+    //     and a second keg inside the radius lights its own fuse
+    const e = G.spawnEnemy('SCRAPPER', { x: keg.x + 40, y: keg.y, side: 'bow' });
+    e.state = 'move'; e.st = 0; e.hp = 30;
+    S.player.x = keg.x + 60; S.player.y = keg.y;
+    S.player.iframe = 0; S.player.dashT = 0;
+    const php0 = S.player.hp;
+    const other = { x: keg.x + 90, y: keg.y };
+    const near = live.filter(p => p !== keg && !p.dead &&
+                  Math.hypot(p.x - keg.x, p.y - keg.y) < T.props.keg.radius);
+    let guard = 0;
+    while (keg.fuse > 0 && guard++ < 200) G.step(G.DT);
+    const blew = keg.dead;
+    const killed = e.dead || e.hp <= 0;
+    const hurtMe = S.player.hp < php0;
+    const chained = near.length ? near.some(p => p.dead || p.fuse > 0) : true;
+
+    // 3 · a lantern spills fire, a crate spills salvage
+    const fields0 = S.fields.length, picks0 = S.pickups.length;
+    const lamp = live.find(p => p.kind === 'lantern' && !p.dead);
+    G.popProp(lamp, 0);
+    const burned = S.fields.length > fields0;
+    const crate = live.find(p => p.kind === 'crate' && !p.dead);
+    G.popProp(crate, 0);
+    const dropped = S.pickups.length > picks0;
+
+    // 4 · a dead prop stops blocking. Stand the captain where the crate was and
+    //     step: if it still collides she is pushed out of it.
+    S.player.x = crate.x; S.player.y = crate.y;
+    S.player.vx = S.player.vy = 0;
+    G.step(G.DT);
+    const walkThrough = Math.hypot(S.player.x - crate.x, S.player.y - crate.y) < 20;
+
+    // 5 · the crew re-stow the deck between waves
+    const deadBefore = live.filter(p => p.dead).length;
+    G.startWave(S.wave + 1);
+    const deadAfter = live.filter(p => p.dead).length;
+
+    return { kinds, chipped, lit, blew, killed, hurtMe, chained,
+             burned, dropped, walkThrough, deadBefore, deadAfter,
+             n: live.length };
+  });
+
+  record('deck', 'the deck carries live ordnance',
+    out.n >= 12 && out.kinds.keg >= 4 && out.kinds.crate >= 4 && out.kinds.lantern >= 4,
+    out.n + ' destructible props ' + JSON.stringify(out.kinds));
+  record('deck', 'a shape damages a keg, and killing it lights a fuse rather than detonating',
+    out.chipped && out.lit, 'chipped=' + out.chipped + ' lit=' + out.lit);
+  record('deck', 'the blast kills, hurts the captain standing in it, and chains',
+    out.blew && out.killed && out.hurtMe && out.chained,
+    'blew=' + out.blew + ' killed=' + out.killed + ' hurt=' + out.hurtMe + ' chained=' + out.chained);
+  record('deck', 'a lantern spills fire and a crate spills salvage',
+    out.burned && out.dropped, 'fire=' + out.burned + ' salvage=' + out.dropped);
+  record('deck', 'a destroyed prop stops blocking movement',
+    out.walkThrough, 'captain ' + (out.walkThrough ? 'stands in it' : 'is pushed out'));
+  record('deck', 'the deck is re-stowed for the next wave',
+    out.deadBefore > 0 && out.deadAfter === 0,
+    out.deadBefore + ' destroyed -> ' + out.deadAfter + ' after the wave turned over');
+}
+
+/* The close-quarters loop (v11), which exists because of one tester sentence:
+   "i had like 12% healing of damage and was unkillable". Distance is now the
+   condition on both healing paths and there is a hard ceiling on the rate, so
+   both of those are asserted here — a regression in either one puts the run
+   back to having no fail state, and nothing else in the harness would notice. */
+async function checkClose(page){
+  const out = await page.evaluate(async () => {
+    const G = window.SKYGEAR, S = G.S, C = G.TUNING.close;
+    window.__begin();
+    const P = S.player;
+    const spawn = (dx) => {
+      const e = G.spawnEnemy('SCRAPPER', { x: P.x + dx, y: P.y, side: 'bow' });
+      e.state = 'move'; e.st = 0; e.hp = e.maxHp = 1e6;
+      return e;
+    };
+
+    // 1 · a hit inside your reach builds pressure; the same hit at range does not
+    P.pressure = 0;
+    const near = spawn(C.range * 0.5);
+    G.hitEnemy(near, 40, { noCrit: true, silent: true });
+    const gained = P.pressure;
+    P.pressure = 0;
+    const far = spawn(C.range * 3);
+    G.hitEnemy(far, 40, { noCrit: true, silent: true });
+    const gainedFar = P.pressure;
+
+    // 2 · it decays once you are out of it. 60 points at 14/s is 4.3 seconds,
+    //     so this steps six — the first version stepped one and read 46, which
+    //     is the decay working, not failing.
+    P.pressure = 60; P.pressureT = 0;
+    for (const e of S.enemies) e.dead = true;
+    for (let i = 0; i < 720; i++) G.step(G.DT);
+    const decayed = P.pressure;
+
+    // 3 · full vents: it heals, it damages, it resets.
+    //     Step once after spawning: damageArea reads the spatial hash and the
+    //     hash is only rebuilt inside step(), so a victim spawned and vented on
+    //     in the same frame is invisible to the blast. That is the harness
+    //     being wrong about the engine, not the vent missing.
+    const victim = spawn(C.vent.radius * 0.5);
+    victim.hp = victim.maxHp = 1e6;
+    G.step(G.DT);
+    P.hp = 40; P.pressure = 0; P.ventCd = 0;
+    const vhp0 = victim.hp;
+    G.gainPressure(200);
+    const healed = P.hp - 40, hitThem = vhp0 - victim.hp, reset = P.pressure;
+
+    // 4 · lifesteal is close-range only
+    S.mods.lifesteal = 0.5;
+    P.hp = 100; P.maxHp = 400; P.stealBudget = 999;
+    const closeT = spawn(C.range * 0.5); closeT.hp = closeT.maxHp = 1e6;
+    G.hitEnemy(closeT, 100, { noCrit: true, silent: true });
+    const stoleClose = P.hp - 100;
+    P.hp = 100; P.stealBudget = 999;
+    const farT = spawn(C.range * 3); farT.hp = farT.maxHp = 1e6;
+    G.hitEnemy(farT, 100, { noCrit: true, silent: true });
+    const stoleFar = P.hp - 100;
+
+    // 5 · and it cannot out-heal the deck: one second of budget, then nothing
+    P.hp = 100; P.stealBudget = C.lifestealCapPerSec;
+    const t = spawn(C.range * 0.5); t.hp = t.maxHp = 1e9;
+    for (let i = 0; i < 20; i++) G.hitEnemy(t, 200, { noCrit: true, silent: true });
+    const cappedBurst = P.hp - 100;
+
+    return { gained, gainedFar, decayed, healed, hitThem, reset,
+             stoleClose, stoleFar, cappedBurst, cap: C.lifestealCapPerSec };
+  });
+
+  record('close', 'pressure builds from a hit inside your reach, and only there',
+    out.gained > 0 && out.gainedFar === 0,
+    'close +' + out.gained.toFixed(1) + ', at range +' + out.gainedFar.toFixed(1));
+  record('close', 'pressure bleeds off when you disengage',
+    out.decayed === 0, '60 -> ' + out.decayed.toFixed(1) + ' over one second');
+  /* `reset === 0` is the load-bearing third of this check. The vent's own
+     damage lands inside its own radius, so before `pressure:0` it refilled the
+     gauge by 34 the instant it fired — vent, refill, vent, at 15hp a time. That
+     is the v10 "unkillable" bug rebuilt out of new parts, and it is exactly the
+     kind of thing that is invisible while playing and obvious to an assertion. */
+  record('close', 'a full gauge vents: it heals, it hits, and it does not refill itself',
+    out.healed > 0 && out.hitThem > 0 && out.reset === 0,
+    '+' + out.healed.toFixed(0) + 'hp, ' + out.hitThem.toFixed(0) + ' dealt, gauge ' + out.reset);
+  record('close', 'lifesteal heals in close and heals nothing at range',
+    out.stoleClose > 0 && out.stoleFar === 0,
+    'close +' + out.stoleClose.toFixed(1) + ', at range +' + out.stoleFar.toFixed(1));
+  record('close', 'healing from damage is capped per second',
+    out.cappedBurst <= out.cap + 0.001,
+    '4000 damage in one frame healed ' + out.cappedBurst.toFixed(1) + ' (cap ' + out.cap + ')');
+}
+
 /* ---------------------------------------------------------------------------
    main
 --------------------------------------------------------------------------- */
@@ -887,6 +1060,8 @@ await group('boot',    () => checkBoot(page, errors));
 await group('matrix',  () => checkMatrix(page));
 await group('waves',   () => checkWaves(page));
 await group('boss',    () => checkBoss(page));
+await group('deck',    () => checkDeck(page));
+await group('close',   () => checkClose(page));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));

@@ -23,7 +23,15 @@ const AUDIO_DELIVERED = {
     "ext": ".wav",
     "n": 5
   },
+  "m_boss": {
+    "ext": ".mp3",
+    "n": 1
+  },
   "m_combat1": {
+    "ext": ".mp3",
+    "n": 1
+  },
+  "m_combat3": {
     "ext": ".mp3",
     "n": 1
   }
