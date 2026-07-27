@@ -86,7 +86,7 @@ const PRESET = {
       ]
     ]
   },
-  "build": "dc9bef8"
+  "build": "6f84338"
 };
 
 /* ============================================================================
@@ -268,6 +268,11 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { Input.keys.delete(keyName(e)); });
 window.addEventListener('blur', () => { Input.keys.clear(); Input.buttons = [false,false,false]; });
+// Coming back to the tab must bring the sound back with it.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) Sound.unlock();
+});
+window.addEventListener('focus', () => Sound.unlock());
 
 cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('mousemove', e => {
@@ -296,6 +301,13 @@ const Sound = {
   vol: 0.65, muted: false, ready: false,
 
   unlock(){
+    // Resume FIRST and unconditionally. Browsers suspend the AudioContext when
+    // the tab is backgrounded, and the early return below meant the resume at
+    // the end of this function became unreachable the moment audio had ever
+    // started — so one alt-tab killed all sound for the rest of the session,
+    // silently, because every cue still reported success while producing
+    // nothing. Cheap to call when already running.
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     if (this.ready) return;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -2956,6 +2968,22 @@ Sound.dest = function(name){
   return (this.bus && this.bus[name || 'sfx']) || this.master;
 };
 
+/* Belt and braces on suspension. visibilitychange and focus cover the normal
+   case, but browsers suspend for reasons beyond tab switching and a resume()
+   issued too close to a suspend() can be swallowed. Since a suspended context
+   fails silently — every cue still reports success while producing nothing —
+   the loop checks once a second rather than trusting any single event. */
+Sound._wakeT = 0;
+Sound.keepAwake = function(){
+  if (!this.ctx) return;
+  // NOT ctx.currentTime — that clock stops while the context is suspended, so
+  // using it to decide when to un-suspend can never fire. Wall clock only.
+  const now = performance.now();
+  if (now - this._wakeT < 1000) return;
+  this._wakeT = now;
+  if (this.ctx.state === 'suspended') this.ctx.resume();
+};
+
 /* Music ducks under the big moments, and only those — per-hit ducking pumps. */
 Sound.duck = function(db, secs){
   if (!this.bus) return;
@@ -3276,6 +3304,7 @@ const Music = {
 
   update(){
     if (!Sound.ready) return;
+    Sound.keepAwake();
     this.want();
     this.reloop();
   },

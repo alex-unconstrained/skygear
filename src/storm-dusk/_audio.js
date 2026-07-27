@@ -169,6 +169,22 @@ Sound.dest = function(name){
   return (this.bus && this.bus[name || 'sfx']) || this.master;
 };
 
+/* Belt and braces on suspension. visibilitychange and focus cover the normal
+   case, but browsers suspend for reasons beyond tab switching and a resume()
+   issued too close to a suspend() can be swallowed. Since a suspended context
+   fails silently — every cue still reports success while producing nothing —
+   the loop checks once a second rather than trusting any single event. */
+Sound._wakeT = 0;
+Sound.keepAwake = function(){
+  if (!this.ctx) return;
+  // NOT ctx.currentTime — that clock stops while the context is suspended, so
+  // using it to decide when to un-suspend can never fire. Wall clock only.
+  const now = performance.now();
+  if (now - this._wakeT < 1000) return;
+  this._wakeT = now;
+  if (this.ctx.state === 'suspended') this.ctx.resume();
+};
+
 /* Music ducks under the big moments, and only those — per-hit ducking pumps. */
 Sound.duck = function(db, secs){
   if (!this.bus) return;
@@ -489,6 +505,7 @@ const Music = {
 
   update(){
     if (!Sound.ready) return;
+    Sound.keepAwake();
     this.want();
     this.reloop();
   },

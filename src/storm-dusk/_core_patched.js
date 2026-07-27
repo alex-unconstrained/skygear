@@ -177,6 +177,11 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { Input.keys.delete(keyName(e)); });
 window.addEventListener('blur', () => { Input.keys.clear(); Input.buttons = [false,false,false]; });
+// Coming back to the tab must bring the sound back with it.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) Sound.unlock();
+});
+window.addEventListener('focus', () => Sound.unlock());
 
 cv.addEventListener('contextmenu', e => e.preventDefault());
 window.addEventListener('mousemove', e => {
@@ -205,6 +210,13 @@ const Sound = {
   vol: 0.65, muted: false, ready: false,
 
   unlock(){
+    // Resume FIRST and unconditionally. Browsers suspend the AudioContext when
+    // the tab is backgrounded, and the early return below meant the resume at
+    // the end of this function became unreachable the moment audio had ever
+    // started — so one alt-tab killed all sound for the rest of the session,
+    // silently, because every cue still reported success while producing
+    // nothing. Cheap to call when already running.
+    if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume();
     if (this.ready) return;
     try {
       const AC = window.AudioContext || window.webkitAudioContext;
