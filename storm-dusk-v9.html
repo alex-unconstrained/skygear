@@ -86,7 +86,7 @@ const PRESET = {
       ]
     ]
   },
-  "build": "6f84338"
+  "build": "1913de1"
 };
 
 /* ============================================================================
@@ -7309,7 +7309,10 @@ function drawTitle(){
   textOut('CLICK  TO  BOARD', View.w/2, View.h * 0.86, PAL.crit, PAL.ink, 8);
   ctx.restore();
   setFont(Math.round(12.5*HS), 600, false);
-  textOut('every skill is a SHAPE × an ELEMENT — 24 combinations, and the draft rewrites them',
+  // Counted, not written down. This read "24 combinations" for three versions
+  // after passives took the roster to eight draftable shapes.
+  const _combos = (SHAPE_KEYS.length - (FEEL.basic ? 1 : 0)) * ELEMENT_KEYS.length;
+  textOut('every skill is a SHAPE × an ELEMENT — ' + _combos + ' combinations, and the draft rewrites them',
           View.w/2, View.h * 0.93, '#6E667A');
   // Build stamp. The site is served with a ten-minute cache, so "is this the
   // change I just shipped?" needs an answer that does not depend on trusting
