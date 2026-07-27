@@ -40,6 +40,7 @@ function gaugeRing(cx, cy, r, col, teeth){
 const SKILL_ICON_ASSET = {
   CLOSEHIT:'ui_icon_slash', LINE_BURST:'ui_icon_hook', CONE:'ui_icon_cone',
   RANGED_AOE:'ui_icon_aoe', CHAIN:'ui_icon_ult', RAY:'ui_icon_turret',
+  AURA:'ui_icon_field', PULSE:'ui_icon_pulse', SENTRY:'ui_icon_sentry',
 };
 function paintGlyph(shape, r, col, glow){
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -72,7 +73,37 @@ function paintGlyph(shape, r, col, glow){
     ctx.lineTo(r*0.15, r*0.25); ctx.lineTo(r*0.95, -r*0.55);
     ctx.stroke();
     ctx.strokeStyle = glow; ctx.lineWidth = r * 0.08; ctx.stroke();
+  } else if (shape === 'AURA'){
+    // a field: concentric rings, nothing pointed — it has no direction
+    ctx.lineWidth = r * 0.15;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.92, 0, TAU); ctx.stroke();
+    ctx.globalAlpha = 0.30;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.92, 0, TAU); ctx.fill();
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = glow; ctx.lineWidth = r * 0.11;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, TAU); ctx.stroke();
+    ctx.fillStyle = glow; circ(0, 0, r * 0.16); ctx.fill();
+  } else if (shape === 'PULSE'){
+    // a detonation: a filled core throwing three expanding arcs outward
+    ctx.fillStyle = col; circ(0, 0, r * 0.30); ctx.fill();
+    ctx.lineWidth = r * 0.13;
+    for (let i = 0; i < 3; i++){
+      ctx.globalAlpha = 0.85 - i * 0.22;
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.52 + i * 0.22), -0.85, 0.85); ctx.stroke();
+      ctx.beginPath(); ctx.arc(0, 0, r * (0.52 + i * 0.22), Math.PI - 0.85, Math.PI + 0.85); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+  } else if (shape === 'SENTRY'){
+    // a planted gun: a base, a post and a barrel that clearly points
+    ctx.lineWidth = r * 0.17;
+    ctx.beginPath(); ctx.moveTo(-r*0.62, r*0.72); ctx.lineTo(r*0.62, r*0.72); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r*0.34, r*0.72); ctx.lineTo(0, r*0.06);
+    ctx.lineTo(r*0.34, r*0.72); ctx.stroke();
+    ctx.fillStyle = col; circ(0, -r*0.10, r * 0.30); ctx.fill();
+    ctx.strokeStyle = glow; ctx.lineWidth = r * 0.20;
+    ctx.beginPath(); ctx.moveTo(0, -r*0.10); ctx.lineTo(r*0.92, -r*0.40); ctx.stroke();
   } else {
+    // RAY — a sustained beam: a wide soft body with a bright core and an emitter
     ctx.globalAlpha = 0.5; ctx.lineWidth = r * 0.42;
     ctx.beginPath(); ctx.moveTo(-r*0.8, 0); ctx.lineTo(r*0.95, 0); ctx.stroke();
     ctx.globalAlpha = 1; ctx.strokeStyle = glow; ctx.lineWidth = r * 0.16;

@@ -89,6 +89,10 @@ const ASSET_MANIFEST = {
   ui_icon_aoe:     { file:'assets/ui/icon_skill_aoe.png',     w:256, h:256 },  // RANGED_AOE
   ui_icon_ult:     { file:'assets/ui/icon_skill_ult.png',     w:256, h:256 },  // CHAIN
   ui_icon_turret:  { file:'assets/ui/icon_skill_turret.png',  w:256, h:256 },  // RAY
+  // The three passive shapes had no icon slot, so painted art had nowhere to go.
+  ui_icon_field:   { file:'assets/ui/icon_skill_field.png',   w:256, h:256 },  // AURA
+  ui_icon_pulse:   { file:'assets/ui/icon_skill_pulse.png',   w:256, h:256 },  // PULSE
+  ui_icon_sentry:  { file:'assets/ui/icon_skill_sentry.png',  w:256, h:256 },  // SENTRY
   ui_icon_dash:    { file:'assets/ui/icon_skill_dash.png',    w:256, h:256 },
   ui_icon_barrier: { file:'assets/ui/icon_skill_barrier.png', w:256, h:256 },
   ui_icon_cog:     { file:'assets/ui/icon_currency_cog.png',  w:128, h:128 },
