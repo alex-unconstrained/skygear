@@ -378,6 +378,10 @@ PRESETS = {
             'camBack': 120,
             'boilerH': 150,
             'lanes': True,
+            # v10 is the first build made for someone who has never seen the
+            # game. The opening weapon is chosen rather than issued, so the
+            # loadout starts empty and startRun opens a draft for slot 0.
+            'openingDraft': True,
             'feel': {
                 'simHz': 120,
                 'inputBuffer': 0.14,
@@ -404,8 +408,9 @@ PRESETS = {
                 # captain is facing.
                 'basic': ['CLOSEHIT', 'EMBER'],
                 'basicTurn': 12, 'basicArc': 1.2,
-                # mortar on the left button; RMB/Q/E fill from the draft
-                'loadout': [['RANGED_AOE', 'FROST']],
+                # Empty: v9 issued a Frost Mortar to everyone. The opening
+                # draft fills slot 0 before the first wave.
+                'loadout': [],
             },
         },
     },

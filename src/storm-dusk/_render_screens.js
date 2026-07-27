@@ -169,20 +169,34 @@ function drawDraft(){
   ctx.save();
   ctx.globalAlpha = clamp(S.draft.t / 0.35, 0, 1);
   setFont(Math.round(46*HS), 900, true);
-  const isSkill = S.draft.kind === 'skill';
-  textOut(isSkill ? 'ARM A NEW SLOT' : 'DRAFT AN UPGRADE',
+  const opening = S.draft.kind === 'opening';
+  const isSkill = opening || S.draft.kind === 'skill';
+  textOut(opening ? 'CHOOSE YOUR OPENING WEAPON'
+                  : isSkill ? 'ARM A NEW SLOT' : 'DRAFT AN UPGRADE',
           View.w/2, rects[0].y - 74*HS, PAL.bone, PAL.ink, 8);
   setFont(Math.round(15*HS), 700, true);
-  const sub = isSkill
-    ? (SLOT_KEYS[S.draft.slot] || ('SLOT ' + (S.draft.slot + 1))) +
-      '  —  WHICH WEAPON, NOT WHETHER'
-    : 'PICK ONE  —  CLICK OR PRESS 1 / 2 / 3';
+  // The opening draft is the one place the game gets to state its premise while
+  // the player is looking directly at three examples of it.
+  const sub = opening
+    ? 'EVERY SKILL IS A SHAPE × AN ELEMENT  —  CLICK OR PRESS 1 / 2 / 3'
+    : isSkill
+      ? (SLOT_KEYS[S.draft.slot] || ('SLOT ' + (S.draft.slot + 1))) +
+        '  —  WHICH WEAPON, NOT WHETHER'
+      : 'PICK ONE  —  CLICK OR PRESS 1 / 2 / 3';
   textOut(sub, View.w/2, rects[0].y - 42*HS, PAL.teal, PAL.ink, 4);
   ctx.restore();
 
   for (let i = 0; i < S.draft.cards.length; i++){
     const c = S.draft.cards[i], r = rects[i];
-    const R = RARITY_UI[c.rarity] || RARITY_UI.common;
+    // A weapon card is edged in its element's colour rather than its rarity's.
+    // Rarity is the wrong axis for a card whose entire point is which element
+    // it is, and three identically grey cards is what made the opening choice
+    // read as "pick one" instead of "pick a colour".
+    const R = c.skill
+      ? { name: ELEMENTS[c.skill.element].name.toUpperCase(),
+          edge: ELEMENTS[c.skill.element].color,
+          fill: hexToRgba(ELEMENTS[c.skill.element].color, 0.10) }
+      : (RARITY_UI[c.rarity] || RARITY_UI.common);
     const hov = S.draft.hover === i, chosen = S.draft.chosen === i;
     const rejected = S.draft.chosen >= 0 && !chosen;
     const s = r.s;
@@ -216,7 +230,20 @@ function drawDraft(){
 
     const iconY = 84*s;
     gaugeRing(r.w/2, iconY, 40*s, hexToRgba(PAL.brass, 0.55), 16);
-    if (c.slot !== undefined && S.slots[c.slot]){
+    // A skill card draws its OWN shape and element. It used to look up whatever
+    // was already in the target slot — which is null for every skill draft,
+    // since a skill draft only ever fires for an EMPTY slot — so every weapon
+    // card in the game fell through to the generic gear icon. The one screen
+    // whose whole job is to show that a skill is a shape crossed with an
+    // element was showing neither.
+    if (c.skill){
+      const E = ELEMENTS[c.skill.element];
+      drawShapeGlyph(c.skill.shape, r.w/2, iconY, 25*s, E.color, E.glow);
+      setFont(Math.round(10.5*s), 800, true);
+      textOut(SHAPES[c.skill.shape].passive ? 'AUTO — NO BUTTON'
+                                            : (SLOT_KEYS[c.slot] || ('SLOT ' + (c.slot + 1))),
+              r.w/2, iconY + 56*s, E.color, PAL.ink, 3);
+    } else if (c.slot !== undefined && S.slots[c.slot]){
       const sk = S.slots[c.slot], E = ELEMENTS[sk.element];
       drawShapeGlyph(sk.shape, r.w/2, iconY, 25*s, E.color, E.glow);
       setFont(Math.round(11*s), 700, true);
@@ -282,46 +309,41 @@ function drawTitle(){
   textOut('S T O R M - D U S K   ·   1 0 , 0 0 0   F E E T', 0, 74*HS, PAL.moon, PAL.ink, 5);
   ctx.restore();
 
-  const pw = Math.min(View.w - 60, 860*HS), ph = 224*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.44;
-  brassPanel(px, py, pw, ph, 12*HS, 0.95);
-  setFont(Math.round(17*HS), 800, true);
-  textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const auto = !!(FEEL.autoAttack || FEEL.basic);
-  const rows1 = [['W A S D','move the captain'],
-                 ['MOUSE','aim your abilities'],
-                 [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
-                 [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
-  const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
-                 [auto ? 'AUTOMATIC' : 'CLICK',
-                  FEEL.basic
-                    ? 'she swings her ' + ELEMENTS[FEEL.basic[1]].name + ' ' +
-                      SHAPES[FEEL.basic[0]].noun + ' at the nearest boarder herself'
-                    : auto ? 'the captain attacks the nearest boarder herself'
-                           : 'left mouse swings your first skill'],
-                 ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
-                                         : 'the Boiler amidships. If it dies, you lose.'],
-                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
-  const draw = (rows, x) => rows.forEach((r, i) => {
-    const y = py + 62*HS + i * 38*HS;
-    setFont(Math.round(14*HS), 800, true);
-    textOut(r[0], x, y, PAL.teal, null, 0, 'left');
-    setFont(Math.round(13.5*HS), 600, false);
-    textOut(r[1], x, y + 17*HS, '#9C93A8', null, 0, 'left');
-  });
-  draw(rows1, px + 34*HS); draw(rows2, px + pw * 0.54);
-
-  ctx.save();
-  ctx.globalAlpha = 0.7 + Math.sin(t * 3.4) * 0.3;
-  setFont(Math.round(34*HS), 900, true);
-  textOut('CLICK  TO  BOARD', View.w/2, View.h * 0.86, PAL.crit, PAL.ink, 8);
-  ctx.restore();
-  setFont(Math.round(12.5*HS), 600, false);
+  // The promise, in one line, above the fold. A title screen that opens with a
+  // four-column control reference is telling a stranger how before it has told
+  // them what — and the controls are two of them anyway, since the captain
+  // attacks by herself.
+  setFont(Math.round(17*HS), 600, false);
+  textOut('Twelve waves board your airship. Keep the Boiler alive.',
+          View.w/2, View.h * 0.40, '#C6BFD2');
+  setFont(Math.round(14*HS), 700, false);
   // Counted, not written down. This read "24 combinations" for three versions
   // after passives took the roster to eight draftable shapes.
-  const _combos = (SHAPE_KEYS.length - (FEEL.basic ? 1 : 0)) * ELEMENT_KEYS.length;
-  textOut('every skill is a SHAPE × an ELEMENT — ' + _combos + ' combinations, and the draft rewrites them',
-          View.w/2, View.h * 0.93, '#6E667A');
+  textOut('Every skill is a SHAPE × an ELEMENT — ' + comboCount() +
+          ' combinations, and the draft after each wave rewrites them.',
+          View.w/2, View.h * 0.40 + 26*HS, '#7E778C');
+
+  const bw = 300*HS, bh = 62*HS, gap = 12*HS;
+  let by = View.h * 0.53;
+  if (uiButton(View.w/2 - bw/2, by, bw, bh, 'START RUN', 'primary')) startRun();
+  by += bh + gap;
+  const half = (bw - gap) / 2;
+  if (uiButton(View.w/2 - bw/2, by, half, 46*HS, 'HOW TO PLAY')) openHowTo();
+  if (uiButton(View.w/2 + gap/2, by, half, 46*HS, 'SETTINGS')) openSettings('title');
+  by += 46*HS + gap;
+
+  const best = RunLog.best();
+  if (best){
+    setFont(Math.round(12.5*HS), 700, false);
+    textOut('your best: wave ' + best.wave + ' of ' + best.waves + ' · ' +
+            best.kills + ' boarders · ' + fmtDuration(best.time),
+            View.w/2, by + 16*HS, '#6E667A');
+  }
+  if (FORCED_SEED !== null){
+    setFont(Math.round(12*HS), 800, true);
+    textOut('FIXED SEED ' + seedText(FORCED_SEED), View.w/2, by + 38*HS, PAL.teal, PAL.ink, 3);
+  }
+
   // Build stamp. The site is served with a ten-minute cache, so "is this the
   // change I just shipped?" needs an answer that does not depend on trusting
   // the browser. Also reports how much painted art actually resolved.
@@ -332,34 +354,306 @@ function drawTitle(){
           View.w - 14*HS, View.h - 12*HS, '#5A5366', null, 0, 'right');
 }
 
+/* Derived, never written down. The title said "24 combinations" for three
+   versions after passives took the roster to nine shapes, because it was a
+   string. Cleave is the fixed basic and is excluded from drafts, so it is the
+   draftable shapes that count. */
+function comboCount(){
+  return (SHAPE_KEYS.length - (FEEL.basic ? 1 : 0)) * ELEMENT_KEYS.length;
+}
+
+/* ---------------------------------------------------------------------------
+   OVERLAYS — settings, how to play, key binding
+   These are not modes. Making them modes would mean every piece of code that
+   asks "are we playing?" has to learn two more answers, and the pause menu and
+   the title screen would each need their own copy of the settings panel.
+   They are a layer on top of whatever is already there, and they remember
+   where they were opened from so Back goes somewhere sensible.
+--------------------------------------------------------------------------- */
+function openSettings(from){ S.overlay = { kind:'settings', from, t:0 }; SFX.uiClick(); }
+function openHowTo(from){ S.overlay = { kind:'howto', from: from || 'title', t:0 }; SFX.uiClick(); }
+function openBinds(){ S.overlay = { kind:'binds', from:'settings', t:0, listen:null }; SFX.uiClick(); }
+function closeOverlay(){
+  const o = S.overlay;
+  if (!o) return;
+  // Back from the rebinder returns to settings, not to the game underneath it.
+  if (o.from === 'settings') S.overlay = { kind:'settings', from:'pause-or-title', t:0 };
+  else S.overlay = null;
+  SFX.uiClick();
+}
+
 function drawPause(){
   const HS = hudScale();
-  dimScreen(0.7);
-  setFont(Math.round(70*HS), 900, true);
-  textOut('PAUSED', View.w/2, View.h * 0.34, PAL.bone, PAL.ink, 10);
-  setFont(Math.round(17*HS), 700, true);
-  textOut('ESC  RESUME        Q  QUIT TO TITLE', View.w/2, View.h * 0.34 + 56*HS, PAL.teal, PAL.ink, 5);
+  dimScreen(0.72);
+  UI.begin('pause');
+  setFont(Math.round(58*HS), 900, true);
+  textOut('PAUSED', View.w/2, View.h * 0.17, PAL.bone, PAL.ink, 10);
+
+  const bw = 280*HS, bh = 52*HS, gap = 10*HS;
+  let by = View.h * 0.25;
+  if (uiButton(View.w/2 - bw/2, by, bw, bh, 'RESUME', 'primary', { hint: 'ESC' })) S.mode = 'play';
+  by += bh + gap;
+  const half = (bw - gap) / 2;
+  if (uiButton(View.w/2 - bw/2, by, half, 42*HS, 'SETTINGS')) openSettings('pause');
+  if (uiButton(View.w/2 + gap/2, by, half, 42*HS, 'HOW TO PLAY')) openHowTo('pause');
+  by += 42*HS + gap;
+  if (uiButton(View.w/2 - bw/2, by, half, 42*HS, 'RESTART RUN')) startRun();
+  if (uiButton(View.w/2 + gap/2, by, half, 42*HS, 'QUIT TO TITLE')){ S.mode = 'title'; S.overlay = null; }
+  by += 42*HS + 26*HS;
+
+  // The loadout, with its real numbers. This is the only place in the game a
+  // player can read what their build actually does without being shot at.
   const rows = [];
-  for (let i = 0; i < 4; i++){
-    const sk = S.slots[i];
-    if (!sk) continue;
-    const st = skillStats(sk);
-    rows.push([(i+1) + '.  ' + skillName(sk).toUpperCase(),
-               SHAPES[sk.shape].desc + '  ·  ' + ELEMENTS[sk.element].blurb + '  ·  ' + st.cd.toFixed(2) + 's cd',
-               ELEMENTS[sk.element].color]);
+  if (S.basic) rows.push([S.basic, 'AUTO']);
+  for (let i = 0; i < 4; i++) if (S.slots[i]) rows.push([S.slots[i], SLOT_KEYS[i]]);
+  if (rows.length){
+    const pw = Math.min(View.w - 60, 720*HS), ph = 40*HS + rows.length * 44*HS;
+    const px = (View.w - pw)/2;
+    brassPanel(px, by, pw, ph, 12*HS, 0.95);
+    setFont(Math.round(13*HS), 800, true);
+    textOut('LOADOUT', px + pw/2, by + 19*HS, PAL.brass);
+    rows.forEach((row, i) => {
+      const sk = row[0], E = ELEMENTS[sk.element], st = skillStats(sk);
+      const y = by + 48*HS + i * 44*HS;
+      drawShapeGlyph(sk.shape, px + 30*HS, y + 6*HS, 13*HS, E.color, E.glow);
+      setFont(Math.round(15*HS), 800, true);
+      textOut(skillName(sk).toUpperCase(), px + 52*HS, y, E.color, PAL.ink, 3, 'left');
+      setFont(Math.round(12.5*HS), 600, false);
+      textOut(SHAPES[sk.shape].desc + '  ·  ' + ELEMENTS[sk.element].blurb,
+              px + 52*HS, y + 18*HS, '#9C93A8', null, 0, 'left');
+      setFont(Math.round(12*HS), 800, true);
+      textOut(row[1], px + pw - 26*HS, y, PAL.bone, null, 0, 'right');
+      setFont(Math.round(11.5*HS), 700, false);
+      textOut(SHAPES[sk.shape].passive ? 'no button' : st.cd.toFixed(2) + 's cooldown',
+              px + pw - 26*HS, y + 18*HS, '#7E778C', null, 0, 'right');
+    });
   }
-  const pw = Math.min(View.w - 60, 760*HS), ph = 44*HS + rows.length * 46*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.50;
-  brassPanel(px, py, pw, ph, 12*HS, 0.95);
-  setFont(Math.round(14*HS), 800, true);
-  textOut('LOADOUT', px + pw/2, py + 20*HS, PAL.brass);
-  rows.forEach((r, i) => {
-    const y = py + 52*HS + i * 46*HS;
-    setFont(Math.round(16*HS), 800, true);
-    textOut(r[0], px + 28*HS, y, r[2], PAL.ink, 3, 'left');
-    setFont(Math.round(13*HS), 600, false);
-    textOut(r[1], px + 28*HS, y + 19*HS, '#9C93A8', null, 0, 'left');
+  UI.end();
+}
+
+/* One scrollless panel that fits on a 1366x768 laptop, because that is the
+   machine the acceptance criteria name. Nothing here is behind a submenu
+   except rebinding, which needs a whole screen to itself. */
+function drawSettings(){
+  const HS = hudScale();
+  dimScreen(0.82);
+  UI.begin('settings');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('SETTINGS', View.w/2, View.h * 0.10, PAL.bone, PAL.ink, 8);
+
+  const pw = Math.min(View.w - 48, 700*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.10 + 40*HS;
+  const iw = pw - 56*HS, ix = px + 28*HS;
+  // Height from content, not from a fraction of the viewport: a panel sized to
+  // the window has to be sized for the tallest window, and on every other one
+  // it is mostly empty. 5 sound rows, 3 display rows, 2 button rows, three
+  // headings and the padding around them.
+  const ph = 38*HS + (28*HS + 5*34*HS + 10*HS)
+                   + (28*HS + 3*34*HS + 10*HS)
+                   + (28*HS + 34*HS + 8*HS + 34*HS);
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  y += 18*HS;
+
+  y += uiHeading(ix, y, iw, 'SOUND');
+  y += uiSlider(ix, y, iw, 'Master volume', Settings.get('volMaster'),
+                v => { Settings.set('volMaster', v); Sound.vol = v; });
+  y += uiSlider(ix, y, iw, 'Music', Settings.get('volMusic'), v => Settings.set('volMusic', v));
+  y += uiSlider(ix, y, iw, 'Effects', Settings.get('volSfx'), v => Settings.set('volSfx', v));
+  y += uiSlider(ix, y, iw, 'Interface', Settings.get('volUi'), v => Settings.set('volUi', v));
+  y += uiToggle(ix, y, iw, 'Mute everything', Settings.get('muted'),
+                v => { Settings.set('muted', v); Sound.muted = v; });
+  y += 10*HS;
+
+  y += uiHeading(ix, y, iw, 'DISPLAY');
+  y += uiChoice(ix, y, iw, 'Effects', [
+    { value: 1,    label: 'FULL' },
+    { value: 0.5,  label: 'FEWER' },
+    { value: 0.25, label: 'FEWEST' },
+  ], Settings.get('vfx'), v => Settings.set('vfx', v));
+  // Three states, not two: "follow the system" is the honest default and a
+  // player who has never opened this menu is already in it.
+  y += uiChoice(ix, y, iw, 'Reduced motion', [
+    { value: null,  label: Settings.motionReduced() ? 'SYSTEM (ON)' : 'SYSTEM (OFF)' },
+    { value: true,  label: 'ON' },
+    { value: false, label: 'OFF' },
+  ], Settings.get('reducedMotion'), v => Settings.set('reducedMotion', v));
+  y += uiChoice(ix, y, iw, 'Interface size', [
+    { value: 0.85, label: 'SMALL' },
+    { value: 1,    label: 'NORMAL' },
+    { value: 1.2,  label: 'LARGE' },
+    { value: 1.45, label: 'LARGEST' },
+  ], Settings.get('hudScale'), v => Settings.set('hudScale', v));
+  y += 10*HS;
+
+  y += uiHeading(ix, y, iw, 'CONTROLS AND PROMPTS');
+  const bh = 34*HS;
+  if (uiButton(ix, y, iw * 0.48, bh, 'REBIND KEYS')) openBinds();
+  if (uiButton(ix + iw * 0.52, y, iw * 0.48, bh,
+               Settings.get('hints') ? 'PROMPTS: ON' : 'PROMPTS: OFF'))
+    Settings.set('hints', !Settings.get('hints'));
+  y += bh + 8*HS;
+  if (uiButton(ix, y, iw * 0.48, bh, 'SHOW PROMPTS AGAIN')){ Settings.forgetHints(); Hints.reset(); }
+  if (uiButton(ix + iw * 0.52, y, iw * 0.48, bh, 'RESET EVERYTHING')){ Settings.reset(); Hints.reset(); }
+
+  const byy = View.h * 0.10 + 40*HS + ph + 18*HS;
+  if (uiButton(View.w/2 - 130*HS, byy, 260*HS, 46*HS, 'BACK', 'primary', { hint: 'ESC' }))
+    closeOverlay();
+  UI.end();
+}
+
+function drawHowTo(){
+  const HS = hudScale();
+  dimScreen(0.86);
+  UI.begin('howto');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('HOW TO PLAY', View.w/2, View.h * 0.10, PAL.bone, PAL.ink, 8);
+
+  const pw = Math.min(View.w - 48, 860*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.10 + 36*HS;
+  const ph = View.h * 0.66;
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  const ix = px + 30*HS, iw = pw - 60*HS;
+  y += 20*HS;
+
+  y += uiHeading(ix, y, iw, 'THE JOB');
+  setFont(Math.round(14.5*HS), 600, false);
+  const intro = [
+    'Twelve waves of boarders climb your rails. They are heading for the Boiler at ' +
+    'the stern. If the Boiler dies, the ship falls and the run is over.',
+    'Your captain swings her ' + (FEEL.basic ? ELEMENTS[FEEL.basic[1]].name + ' ' +
+      SHAPES[FEEL.basic[0]].noun : 'weapon') + ' by herself at whatever is nearest — ' +
+    'you never click to attack. Your job is where to stand and when to spend an ability.',
+  ];
+  intro.forEach(p => {
+    wrapText(p, iw).forEach(ln => { textOut(ln, ix, y + 8*HS, '#C6BFD2', null, 0, 'left'); y += 19*HS; });
+    y += 7*HS;
   });
+  y += 6*HS;
+
+  y += uiHeading(ix, y, iw, 'CONTROLS');
+  const rows = [
+    ['W A S D', 'move'],
+    ['MOUSE', 'aim — abilities go where the cursor is'],
+    [bindLabel('dash'), 'dash. Invulnerable while it lasts. Use it constantly.'],
+    [SLOT_KEYS[0] + '  ·  ' + SLOT_KEYS[1], 'abilities 1 and 2'],
+    [SLOT_KEYS[2] + '  ·  ' + SLOT_KEYS[3], 'abilities 3 and 4, once those slots open'],
+    ['1 2 3', 'pick a card in the draft'],
+    ['ESC', 'pause, settings, and this screen again'],
+  ];
+  rows.forEach((r) => {
+    setFont(Math.round(13.5*HS), 800, true);
+    textOut(r[0], ix, y + 9*HS, PAL.teal, null, 0, 'left');
+    setFont(Math.round(13.5*HS), 600, false);
+    textOut(r[1], ix + 150*HS, y + 9*HS, '#9C93A8', null, 0, 'left');
+    y += 24*HS;
+  });
+  y += 8*HS;
+
+  y += uiHeading(ix, y, iw, 'SHAPE × ELEMENT');
+  setFont(Math.round(14.5*HS), 600, false);
+  const matrix = 'Every skill is a shape crossed with an element: the shape is where the ' +
+    'damage lands, the element is what it does when it gets there. ' + comboCount() +
+    ' combinations. After each wave the draft offers three, and taking a second ' +
+    'skill in an element you already have is a build, not a dilution.';
+  wrapText(matrix, iw).forEach(ln => { textOut(ln, ix, y + 8*HS, '#C6BFD2', null, 0, 'left'); y += 19*HS; });
+  y += 12*HS;
+
+  // Show the two axes rather than describing them. Four elements down one row,
+  // the shapes across — the same glyphs and colours used everywhere else, so
+  // this screen teaches the vocabulary the HUD then uses.
+  const gx = ix, gy = y + 4*HS, cell = Math.min(38*HS, iw / (SHAPE_KEYS.length + 1));
+  SHAPE_KEYS.forEach((sh, i) => {
+    const E = ELEMENTS[ELEMENT_KEYS[i % ELEMENT_KEYS.length]];
+    drawShapeGlyph(sh, gx + i * cell + cell/2, gy + cell/2, cell * 0.30, E.color, E.glow);
+    setFont(Math.round(9.5*HS), 700, true);
+    textOut(SHAPES[sh].noun.toUpperCase(), gx + i * cell + cell/2, gy + cell + 2*HS, '#7E778C');
+  });
+  ELEMENT_KEYS.forEach((el, i) => {
+    const E = ELEMENTS[el];
+    const cx2 = gx + iw * 0.62 + i * (iw * 0.095);
+    circ(cx2, gy + cell/2, cell * 0.22);
+    ctx.fillStyle = hexToRgba(E.color, 0.28); ctx.fill();
+    ctx.strokeStyle = E.color; ctx.lineWidth = 2*HS; ctx.stroke();
+    setFont(Math.round(9.5*HS), 700, true);
+    textOut(E.name.toUpperCase(), cx2, gy + cell + 2*HS, E.color);
+  });
+
+  const byy = View.h * 0.10 + 36*HS + ph + 18*HS;
+  if (uiButton(View.w/2 - 130*HS, byy, 260*HS, 46*HS, 'BACK', 'primary', { hint: 'ESC' }))
+    closeOverlay();
+  UI.end();
+}
+
+/* Rebinding. Click a row, press a key. The defaults stay printed beside the
+   current binding, because "what was this before I changed it" is the question
+   every remap screen that hides them makes unanswerable. */
+const BIND_ROWS = [
+  ['slot1', 'Ability 1', 'also LEFT MOUSE'],
+  ['slot2', 'Ability 2', 'also RIGHT MOUSE'],
+  ['slot3', 'Ability 3', ''],
+  ['slot4', 'Ability 4', ''],
+  ['dash',  'Dash', ''],
+];
+function drawBinds(){
+  const HS = hudScale();
+  dimScreen(0.86);
+  UI.begin('binds');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('KEYS', View.w/2, View.h * 0.14, PAL.bone, PAL.ink, 8);
+  setFont(Math.round(13.5*HS), 600, false);
+  textOut(S.overlay.listen ? 'press a key  ·  ESC to cancel'
+                           : 'click a binding, then press the key you want',
+          View.w/2, View.h * 0.14 + 32*HS, S.overlay.listen ? PAL.crit : '#9C93A8');
+
+  const pw = Math.min(View.w - 48, 560*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.25;
+  const ph = 30*HS + BIND_ROWS.length * 44*HS;
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  y += 20*HS;
+
+  const custom = Settings.get('keys') || {};
+  for (const row of BIND_ROWS){
+    const rh = 40*HS;
+    const listening = S.overlay.listen === row[0];
+    const st = UI.probe({ x: px + 20*HS, y, w: pw - 40*HS, h: rh });
+    if (st.hover || (st.focused && UI.usingKeys) || listening){
+      rr(px + 20*HS, y, pw - 40*HS, rh, 7*HS);
+      ctx.fillStyle = listening ? 'rgba(255,213,46,0.12)' : 'rgba(55,240,200,0.07)'; ctx.fill();
+    }
+    setFont(Math.round(14.5*HS), 700, false);
+    textOut(row[1], px + 34*HS, y + rh/2, PAL.bone, null, 0, 'left');
+    if (row[2]){
+      setFont(Math.round(11*HS), 600, false);
+      textOut(row[2], px + 34*HS + 110*HS, y + rh/2, '#6E667A', null, 0, 'left');
+    }
+    setFont(Math.round(14*HS), 800, true);
+    textOut(listening ? '…' : keyLabel(bindKey(row[0])),
+            px + pw - 34*HS, y + rh/2, listening ? PAL.crit : PAL.teal, PAL.ink, 3, 'right');
+    if (custom[row[0]]){
+      setFont(Math.round(10.5*HS), 600, false);
+      textOut('default ' + keyLabel(row[0] === 'dash' ? KEYS.dash.key
+                 : (KEYS.slots[BINDS.indexOf(row[0])].key || KEYS.slots[BINDS.indexOf(row[0])].alt)),
+              px + pw - 34*HS, y + rh/2 + 14*HS, '#6E667A', null, 0, 'right');
+    }
+    if (st.fired && !S.overlay.listen){ S.overlay.listen = row[0]; SFX.uiClick(); }
+    y += 44*HS;
+  }
+
+  y += 18*HS;
+  const bw = (pw - 12*HS) / 2;
+  if (uiButton(px, y, bw, 46*HS, 'RESET TO DEFAULTS')) Settings.set('keys', null);
+  if (uiButton(px + bw + 12*HS, y, bw, 46*HS, 'BACK', 'primary', { hint: 'ESC' })) closeOverlay();
+  UI.end();
+}
+
+function drawOverlay(){
+  if (!S.overlay) return;
+  if (S.overlay.kind === 'settings') drawSettings();
+  else if (S.overlay.kind === 'howto') drawHowTo();
+  else if (S.overlay.kind === 'binds') drawBinds();
 }
 
 /* The results screen.
@@ -626,10 +920,14 @@ function render(){
   drawScreenFx();
   const ended = S.mode === 'gameover' || S.mode === 'victory';
   if (S.mode !== 'title' && !ended) drawHUD();
-  if (S.mode === 'draft') drawDraft();
-  if (S.mode === 'pause') drawPause();
-  if (S.mode === 'title') drawTitle();
-  if (ended) drawEndScreen();
+  // An overlay replaces the screen underneath rather than stacking on it: two
+  // panels of controls at once is two sets of hit targets, and the one you
+  // cannot see still takes clicks.
+  if (S.overlay) drawOverlay();
+  else if (S.mode === 'draft') drawDraft();
+  else if (S.mode === 'pause') drawPause();
+  else if (S.mode === 'title') drawTitle();
+  else if (ended) drawEndScreen();
   if (S.showFps) drawFps();
   drawCursor();
   // Remember where the mouse was, so a widget can tell "the pointer moved onto
@@ -658,4 +956,5 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    skillStats, step, rollCards, rollSkillCards, updateRay, endRay,
                    render, Particles, hurtPlayer, hurtBoiler, pickCard, closeDraft,
                    Rng, Settings, Store, RunLog, runReportText, seedText, buildRunRecord, UI,
+                   Hints, openSettings, openHowTo, openBinds, closeOverlay,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };

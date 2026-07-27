@@ -130,18 +130,28 @@ function uiChoice(x, y, w, label, values, current, onPick){
   setFont(Math.round(14.5 * HS), 700, false);
   textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
 
-  const bw = 26 * HS, vx = x + w - 150 * HS;
+  const bw = 26 * HS, vx = x + w - 190 * HS;
   const step = (d) => {
     const n = (idx + d + values.length) % values.length;
     onPick(values[n].value);
     SFX.uiClick();
   };
-  // < and > are their own hit targets; the row itself cycles forward, so a
-  // click anywhere on it still does the obvious thing.
+  // The arrows are their own hit targets; the row itself cycles forward, so a
+  // click anywhere on it still does the obvious thing. Drawn as triangles
+  // rather than typed as < > — the condensed display face renders those as
+  // something much closer to brackets.
   const lHit = { x: vx - bw, y, w: bw, h }, rHit = { x: x + w - bw, y, w: bw, h };
-  setFont(Math.round(17 * HS), 800, true);
-  textOut('‹', lHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
-  textOut('›', rHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
+  const arrow = (cx, dir) => {
+    const s2 = 5 * HS;
+    ctx.fillStyle = lit ? PAL.teal : '#6E667A';
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * s2, y + h / 2 - s2);
+    ctx.lineTo(cx + dir * s2, y + h / 2 + s2);
+    ctx.lineTo(cx - dir * s2 * 0.9, y + h / 2);
+    ctx.closePath(); ctx.fill();
+  };
+  arrow(lHit.x + bw / 2, 1);
+  arrow(rHit.x + bw / 2, -1);
   setFont(Math.round(15 * HS), 800, true);
   textOut(values[idx].label, (vx + x + w - bw) / 2, y + h / 2, PAL.teal, PAL.ink, 3 * HS);
 
@@ -165,7 +175,7 @@ function uiSlider(x, y, w, label, value, onSet){
   setFont(Math.round(14.5 * HS), 700, false);
   textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
 
-  const bx = x + w - 210 * HS, bw = 160 * HS, by = y + h / 2 - 5 * HS, bh = 10 * HS;
+  const bx = x + w - 232 * HS, bw = 160 * HS, by = y + h / 2 - 5 * HS, bh = 10 * HS;
   rr(bx, by, bw, bh, bh / 2);
   ctx.fillStyle = '#100E17'; ctx.fill();
   ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2 * HS; ctx.stroke();

@@ -124,6 +124,76 @@ const Settings = {
 Settings.init();
 
 /* ---------------------------------------------------------------------------
+   FIRST-RUN PROMPTS
+
+   The old tutorial was a five-row control panel that appeared on wave 1 and
+   faded on a timer whether or not it had been read, and a permanent
+   "DEFEND THE BOILER" arrow. Both are the same mistake: teaching everything
+   before anything has happened, at a moment when the player is busy.
+
+   These fire at the moment the thing they explain first occurs, say one
+   sentence, and are dismissed by doing the thing rather than by a timer. Each
+   one fires once per player, ever — the game is twelve waves long and a prompt
+   the second time is noise.
+
+   `fire` is idempotent, so a call site can simply announce that something
+   happened, every time it happens, without tracking whether it is the first.
+--------------------------------------------------------------------------- */
+const HINTS = {
+  boarder:  { text: 'Boarders are climbing the rails. She swings on her own — get her close.',
+              key: 'W A S D', hold: 6 },
+  dash:     { text: 'Dash goes through anything and cannot be hit while it lasts. Use it constantly.',
+              key: 'SPACE', hold: 7 },
+  draft:    { text: 'Pick a weapon. Every skill is a SHAPE crossed with an ELEMENT.',
+              key: '1 · 2 · 3', hold: 8 },
+  slot:     { text: 'A new slot is open. A second element opens combinations the first cannot reach.',
+              key: null, hold: 6 },
+  passive:  { text: 'That one has no button — it works on its own while it holds the slot.',
+              key: null, hold: 6 },
+  push:     { text: 'They have grappled a hulk to the hull. Break it, or they keep coming.',
+              key: null, hold: 7 },
+  boiler:   { text: 'The Boiler is under half. It does not heal. Hold the lanes, not the Boiler.',
+              key: null, hold: 7 },
+  crossing: { text: 'The gaps in the cargo runs are the only way between lanes. Learn where they are.',
+              key: null, hold: 6 },
+};
+
+const Hints = {
+  live: null,     // { id, t, hold }
+  queue: [],
+
+  /* Announce that something happened. Shows the prompt if this player has never
+     seen it and prompts are on. Safe to call every frame. */
+  fire(id){
+    if (!Settings.get('hints') || !HINTS[id]) return;
+    if (Settings.hintSeen(id)) return;
+    if (this.live && this.live.id === id) return;
+    if (this.queue.indexOf(id) >= 0) return;
+    // Marked seen on FIRING, not on dismissal. A player who dies with a prompt
+    // on screen has still had it; showing it again next run is the behaviour
+    // that makes tutorials feel like they are nagging.
+    Settings.markSeen(id);
+    if (this.live) this.queue.push(id);
+    else this.live = { id, t: 0, hold: HINTS[id].hold };
+  },
+  /* The player did the thing. Dismiss it early — that is the reward. */
+  did(id){
+    if (this.live && this.live.id === id) this.dismiss();
+  },
+  dismiss(){
+    this.live = null;
+    const next = this.queue.shift();
+    if (next) this.live = { id: next, t: 0, hold: HINTS[next].hold };
+  },
+  update(rt){
+    if (!this.live) return;
+    this.live.t += rt;
+    if (this.live.t >= this.live.hold) this.dismiss();
+  },
+  reset(){ this.live = null; this.queue.length = 0; },
+};
+
+/* ---------------------------------------------------------------------------
    RUN LOG
    The last ten runs and a personal best, kept locally. No account, no server,
    nothing leaves the machine — which is also why the run report is a block of

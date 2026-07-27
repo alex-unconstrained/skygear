@@ -129,7 +129,9 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
   ctx.drawImage(cn, cx - half, cy - half);
 }
 
-const SLOT_KEYS = KEYS.slots.map(function(k){ return k.label; });
+/* Read through bindLabel every time rather than captured once: a rebind has
+   to reach the HUD, and a constant computed at load never will. */
+const SLOT_KEYS = new Proxy({}, { get: (_, i) => bindLabel(BINDS[Number(i)]) });
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
 /* The auto-attack has no key, but it still needs to be legible: you should be
@@ -344,7 +346,7 @@ function drawHealthPanel(){
 
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
-  textOut('DASH [' + KEYS.dash.label + ']', bx, py, '#8B8296', null, 0, 'left');
+  textOut('DASH [' + bindLabel('dash') + ']', bx, py, '#8B8296', null, 0, 'left');
   for (let i = 0; i < S.mods.dashCharges; i++){
     const px = bx + 62*HS + i * 22*HS;
     const filled = i < P.dashStock;
@@ -492,35 +494,50 @@ function drawBanner(){
   }
 }
 
+/* One line, low on the screen, above the ability bar and out of the fight.
+   Deliberately not a panel in the corner: a corner is where a player who is
+   busy will never look, and this only ever appears at a moment when they are
+   busy. It fades in fast and out slowly, and never covers the deck. */
 function drawHints(){
-  if (S.hintT <= 0 || S.wave > 1) return;
+  const L = Hints.live;
+  if (!L) return;
+  const H = HINTS[L.id];
+  if (!H) return;
   const HS = hudScale();
-  const a = clamp(S.hintT / 2.5, 0, 1);
+  const inA = clamp(L.t / 0.22, 0, 1);
+  const outA = clamp((L.hold - L.t) / 0.6, 0, 1);
+  const a = Math.min(inA, outA);
+  if (a <= 0) return;
+
   ctx.save();
   ctx.globalAlpha = a;
-  const rows = [['W A S D','move'],['MOUSE','aim'],
-                [KEYS.dash.label,'dash — invulnerable'],
-                [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'your two abilities'],
-                ['AUTO','the captain attacks by herself']];
-  const pw = 234*HS, ph = 30*HS + rows.length * 26*HS;
-  const px = 20*HS, py = 120*HS;
-  brassPanel(px, py, pw, ph, 9*HS, 0.92 * a);
-  rows.forEach((r, i) => {
-    const y = py + 26*HS + i * 26*HS;
+  setFont(Math.round(15.5*HS), 700, false);
+  const tw = ctx.measureText(H.text).width;
+  let kw = 0;
+  if (H.key){
     setFont(Math.round(13*HS), 800, true);
-    textOut(r[0], px + 16*HS, y, PAL.teal, null, 0, 'left');
-    setFont(Math.round(13*HS), 600, false);
-    textOut(r[1], px + 108*HS, y, '#9C93A8', null, 0, 'left');
-  });
-  const b = CAM.project(S.boiler.x, S.boiler.y, PRESET.boilerH + 90);
-  const bob = Math.sin(S.rt * 4) * 4;
-  ctx.globalAlpha = a * (0.72 + Math.sin(S.rt * 4) * 0.2);
-  setFont(Math.round(17*HS), 800, true);
-  textOut('DEFEND THE BOILER', b.x, b.y - 26*HS + bob, PAL.fireCore, PAL.ink, 6);
-  ctx.fillStyle = PAL.fireCore;
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y - 4*HS + bob); ctx.lineTo(b.x - 9*HS, b.y - 17*HS + bob);
-  ctx.lineTo(b.x + 9*HS, b.y - 17*HS + bob); ctx.closePath(); ctx.fill();
+    kw = ctx.measureText(H.key).width + 26*HS;
+  }
+  const pw = tw + kw + 44*HS, ph = 42*HS;
+  const px = View.w/2 - pw/2, py = View.h - 152*HS;
+  brassPanel(px, py, pw, ph, 9*HS, 0.94);
+  // The teal left edge is the same mark the tutorial prompts always use, so a
+  // second one is recognisable as "the game explaining itself" and not as a
+  // new piece of HUD.
+  ctx.fillStyle = PAL.teal;
+  rr(px, py + 7*HS, 3.5*HS, ph - 14*HS, 2*HS); ctx.fill();
+  let tx = px + 20*HS;
+  if (H.key){
+    setFont(Math.round(13*HS), 800, true);
+    const bw = ctx.measureText(H.key).width + 16*HS;
+    rr(tx, py + ph/2 - 11*HS, bw, 22*HS, 5*HS);
+    ctx.fillStyle = '#0B0910'; ctx.fill();
+    ctx.strokeStyle = PAL.teal; ctx.lineWidth = 1.6*HS; ctx.stroke();
+    textOut(H.key, tx + bw/2, py + ph/2, PAL.teal);
+    tx += bw + 12*HS;
+  }
+  setFont(Math.round(15.5*HS), 700, false);
+  textOut(H.text, tx, py + ph/2, PAL.bone, null, 0, 'left');
   ctx.restore();
 }
 

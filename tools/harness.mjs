@@ -98,18 +98,29 @@ async function group(name, fn){
    the checks. Each takes the page and asserts against the live sim.
 --------------------------------------------------------------------------- */
 
-/* Drive the simulation from the harness rather than waiting on wall-clock. The
-   game's own rAF loop only advances while the tab is foregrounded and only at
-   the display's rate; pumping step() directly makes a twelve-wave run take
-   seconds and makes it deterministic. */
-const PUMP = `(seconds, opts) => {
-  const G = window.SKYGEAR;
-  const n = Math.round(seconds / G.DT);
-  for (let i = 0; i < n; i++){
-    if (G.S.mode === 'play') G.step(G.DT);
-    if (opts && opts.stopWhen && opts.stopWhen()) break;
-  }
-}`;
+/* Installed into the page once, and used by every check that needs a run.
+
+   `startRun` no longer lands in 'play': v10 opens on a draft for the first
+   weapon, so a check that starts a run and then steps the simulation is
+   stepping a paused game. Resolving the draft here rather than in each check
+   means the harness has one idea of what "begin a run" means, and a future
+   change to the opening flow breaks one function instead of six. */
+const INSTALL = () => {
+  window.__take = (i) => {
+    const G = window.SKYGEAR, S = G.S;
+    if (S.mode !== 'draft' || !S.draft || S.draft.chosen >= 0) return null;
+    const c = S.draft.cards[i || 0];
+    G.pickCard(i || 0);
+    G.closeDraft();
+    return c ? c.title : null;
+  };
+  window.__begin = (pick) => {
+    const G = window.SKYGEAR;
+    G.startRun();
+    window.__take(pick || 0);
+    return G.S.mode;
+  };
+};
 
 async function checkBoot(page, errors){
   record('boot', 'page has a SKYGEAR global',
@@ -136,7 +147,7 @@ async function checkMatrix(page){
     const shapes = Object.keys(G.SHAPES), elements = Object.keys(G.ELEMENTS);
     for (const shape of shapes){
       for (const element of elements){
-        G.startRun();
+        window.__begin();
         S.slots[0] = G.newSkill(shape, element);
         S.slots[0].cd = 0;
         // A stationary target well inside every shape's reach. spawnEnemy's
@@ -170,7 +181,7 @@ async function checkMatrix(page){
 async function checkWaves(page){
   const out = await page.evaluate(async () => {
     const G = window.SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.player.hp = S.player.maxHp = 1e9;      // the harness is testing waves, not balance
     S.boiler.hp = S.boiler.maxHp = 1e9;
     const seen = [], hulks = [];
@@ -216,7 +227,7 @@ async function checkEndings(page){
   // directly never reaches the code that decides a run is over.
   const boiler = await page.evaluate(() => {
     const G = window.SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     for (let i = 0; i < 40; i++) G.step(G.DT);
     G.hurtBoiler(S.boiler.maxHp * 2, 0);
     for (let i = 0; i < 10 && S.mode === 'play'; i++) G.step(G.DT);
@@ -227,7 +238,7 @@ async function checkEndings(page){
 
   const player = await page.evaluate(() => {
     const G = window.SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     for (let i = 0; i < 40; i++) G.step(G.DT);
     S.player.iframe = 0; S.player.dashT = 0;
     G.hurtPlayer(S.player.maxHp * 2, 0);
@@ -239,10 +250,10 @@ async function checkEndings(page){
 
   const restart = await page.evaluate(() => {
     const G = window.SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     for (let i = 0; i < 600; i++) G.step(G.DT);
     const dirty = { enemies: S.enemies.length, fx: S.fx.length, nums: S.nums.length };
-    G.startRun();
+    window.__begin();
     return { dirty, clean: {
       mode: S.mode, wave: S.wave, enemies: S.enemies.length, bolts: S.bolts.length,
       fx: S.fx.length, nums: S.nums.length, fields: S.fields.length,
@@ -251,10 +262,12 @@ async function checkEndings(page){
     }};
   });
   const c = restart.clean;
+  // One card, not none: the opening weapon is a real draft pick and is recorded
+  // as one. Anything above one would be a card surviving from the run before.
   record('endings', 'restart is clean',
     c.mode === 'play' && c.wave === 0 && c.enemies === 0 && c.bolts === 0 &&
     c.fx === 0 && c.nums === 0 && c.kills === 0 && c.damage === 0 &&
-    c.cards === 0 && c.t === 0,
+    c.cards === 1 && c.t === 0,
     JSON.stringify(c));
 }
 
@@ -270,10 +283,11 @@ async function checkSeed(browser, port){
       await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?seed=${seed}&assets=0&audio=0`,
                      { waitUntil: 'domcontentloaded' });
       await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+      await tab.evaluate(INSTALL);
       return tab.evaluate(() => {
         const G = window.SKYGEAR, S = G.S;
         if (!G.Rng) return null;
-        G.startRun();
+        window.__begin();
         S.player.hp = S.player.maxHp = 1e9;
         S.boiler.hp = S.boiler.maxHp = 1e9;
         // Sample the whole observable state periodically rather than at the end:
@@ -340,7 +354,7 @@ async function checkPerf(page, errorLog){
   const before = errorLog.length;
   const sim = await page.evaluate(() => {
     const G = window.SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.player.hp = S.player.maxHp = 1e9; S.boiler.hp = S.boiler.maxHp = 1e9;
     for (let i = 0; i < 40; i++){
       const e = G.spawnEnemy(['SCRAPPER','SWARM','GUNNER','ARMORED'][i % 4]);
@@ -354,7 +368,7 @@ async function checkPerf(page, errorLog){
       t.push(performance.now() - t0);
     }
     t.sort((a, b) => a - b);
-    G.startRun();                       // clear the deck before yielding
+    window.__begin();                   // clear the deck before yielding
     return { n, med: t[N >> 1], p95: t[Math.floor(N * 0.95)] };
   });
   // 120 Hz sim: two steps per displayed frame, so one step must fit in half a
@@ -379,6 +393,7 @@ page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 console.log('harness · ' + BUILD + ' · http://127.0.0.1:' + port);
 await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0`);
 await page.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+await page.evaluate(INSTALL);
 
 await group('boot',    () => checkBoot(page, errors));
 await group('matrix',  () => checkMatrix(page));

@@ -850,6 +850,9 @@ const S = {
   interT: 0, banner: null,
   draft: null,
   stats: null,
+  overlay: null,
+  result: null,
+  seed: 0,
   hintT: 0,
   intro: 0,
   bossRef: null,
@@ -1641,11 +1644,47 @@ const KEYS = FEEL.keys || {
           { label:'SPACE', key:'space', alt:'3' }, { label:'SHIFT', key:'shift', alt:'4' }],
   dash: { label:'E', key:'e' },
 };
+
+/* Rebinding. The preset's bindings are the defaults and stay visible as such;
+   a remap overrides the KEYBOARD half only. The mouse buttons on slots 1 and 2
+   are left alone deliberately — the aim cursor and the two ability buttons are
+   the same hand, and letting someone move "cast" onto the button they aim with
+   produces a build that cannot be played rather than one they prefer. */
+const BINDS = ['slot1', 'slot2', 'slot3', 'slot4', 'dash'];
+function bindKey(action){
+  const custom = Settings.get('keys');
+  if (custom && custom[action]) return custom[action];
+  if (action === 'dash') return KEYS.dash.key;
+  const k = KEYS.slots[BINDS.indexOf(action)];
+  return k ? (k.key || k.alt) : null;
+}
+// What the HUD prints. A slot with a mouse button keeps showing the mouse
+// button, because that is what the player actually presses most of the time.
+function bindLabel(action){
+  const custom = Settings.get('keys');
+  const i = BINDS.indexOf(action);
+  if (action === 'dash') return keyLabel(bindKey('dash'));
+  const k = KEYS.slots[i];
+  if (!k) return '';
+  if (custom && custom[action]) return keyLabel(custom[action]);
+  return k.label;
+}
+function keyLabel(k){
+  if (!k) return '—';
+  if (k === 'space') return 'SPACE';
+  if (k === 'shift') return 'SHIFT';
+  if (k === 'control') return 'CTRL';
+  if (k.length === 1) return k.toUpperCase();
+  return k.toUpperCase();
+}
 function slotHeld(i){
   const k = KEYS.slots[i];
   if (!k) return false;
   if (k.mouse !== undefined && Input.buttons[k.mouse]) return true;
-  if (k.key && keyDown(k.key)) return true;
+  const b = bindKey(BINDS[i]);
+  if (b && keyDown(b)) return true;
+  // The preset's alt binding stays live alongside a remap: 1/2/3/4 are what a
+  // player reaches for by reflex and taking them away buys nothing.
   if (k.alt && keyDown(k.alt)) return true;
   return false;
 }
@@ -1681,6 +1720,7 @@ function hurtBoiler(dmg, ang){
   pSmoke(B.x, B.y - 20, 4, 'rgba(60,55,50,0.6)', 60);
   dmgNumber(B.x, B.y - B.r, '-' + Math.round(dmg), '#FF9A5B', 18);
   if (B.hp <= 0){ B.hp = 0; endGame(false, 'The engine core is gone. The ship falls.', 'BOILER LOST'); }
+  else if (B.hp < B.maxHp * 0.5) Hints.fire('boiler');
 }
 
 function updatePlayer(dt){
@@ -1782,7 +1822,7 @@ function updatePlayer(dt){
   }
   // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
   // would expire in the same step it was set and the dash would never fire
-  if (keyHit(KEYS.dash.key)) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (keyHit(bindKey('dash'))) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
   if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
     P.dashBuf = 0;
     P.dashStock--;
@@ -1792,6 +1832,7 @@ function updatePlayer(dt){
     P.hitList = [];
     P.trail.length = 0;
     S.stats.dashes++;
+    Hints.did('dash');
     SFX.dash();
     pDust(P.x, P.y, 10);
     addTrauma(0.06);
@@ -2010,7 +2051,10 @@ function updateEnemy(e, dt){
   if (e.state === 'climb'){
     e.st -= dt;
     e.climb = 1 - Math.max(0, e.st) / TUNING.spawnClimb;
-    if (e.st <= 0){ e.state = 'move'; e.climb = 1; }
+    if (e.st <= 0){
+      e.state = 'move'; e.climb = 1;
+      Hints.fire('boarder');       // the first one to finish climbing is on your deck
+    }
     return;
   }
 
@@ -2396,6 +2440,7 @@ function startWave(n){
       spawnHulk(1 + idx * 0.20);
       S.hulk.vulnerable = true;
       S.banner = { kind:'push', n, t:0, life: 3.0 };
+      Hints.fire('push');
       SFX.hulkGrapple();
       S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     } else {
@@ -2423,8 +2468,8 @@ function waveComplete(){
   S.player.hp = Math.min(S.player.maxHp, S.player.hp + TUNING.player.regenPerWave);
   S.bolts.length = 0;
   // slots open up as the run escalates
-  if (S.wave >= 2 && S.unlockedSlots < 3) S.unlockedSlots = 3;
-  if (S.wave >= 5 && S.unlockedSlots < 4) S.unlockedSlots = 4;
+  if (S.wave >= 2 && S.unlockedSlots < 3){ S.unlockedSlots = 3; Hints.fire('slot'); }
+  if (S.wave >= 5 && S.unlockedSlots < 4){ S.unlockedSlots = 4; Hints.fire('slot'); }
 }
 
 function updateWave(dt){
@@ -2514,7 +2559,7 @@ function rollCards(n){
    100% of upgrades landed on it and taking a second halved that while handing
    you something unupgraded. Passing was the dominant line, and a whole run
    could be played with a single ability out of a 24-combination matrix. */
-function rollSkillCards(slot, n){
+function rollSkillCards(slot, n, opening){
   const have = filledSlots(S).map(i => S.slots[i].shape);
   // never offer the shape she already swings automatically — a Cleave in a slot
   // beside the auto-attacking Cleave reads as a duplicate, not a choice
@@ -2527,33 +2572,47 @@ function rollSkillCards(slot, n){
   const counts = {};
   for (const i of filledSlots(S)) counts[S.slots[i].element] = (counts[S.slots[i].element] || 0) + 1;
   const fav = ELEMENT_KEYS.slice().sort((a, b) => (counts[b] || 0) - (counts[a] || 0))[0];
+  // The opening draft is the whole pitch in ten seconds, so its three cards are
+  // three different shapes AND three different elements. Two Frost options
+  // would read as "pick a weapon"; one Frost, one Ember and one Arc reads as
+  // "these are two axes", which is the thing the game is about and the thing
+  // it has never said out loud.
+  const elemPool = opening ? shuffle(ELEMENT_KEYS.slice()) : null;
+  // Passives explain themselves badly with nothing to compare them to, so the
+  // opening draft offers actives only.
+  const openPool = opening ? pool.filter(k => !SHAPES[k].passive) : pool;
+  const use = openPool.length >= n ? openPool : pool;
   const out = [];
-  for (let k = 0; k < n && pool.length; k++){
-    const shape = pool.splice((Math.random() * pool.length) | 0, 1)[0];
-    const element = (k === 0 && counts[fav]) ? fav : pick(ELEMENT_KEYS);
+  for (let k = 0; k < n && use.length; k++){
+    const shape = use.splice(rndi(0, use.length), 1)[0];
+    const element = opening ? elemPool[k % elemPool.length]
+                            : ((k === 0 && counts[fav]) ? fav : pick(ELEMENT_KEYS));
     const sk = newSkill(shape, element);
-    out.push({ id:'skillpick', rarity: k === 0 && counts[fav] ? 'rare' : 'common',
+    out.push({ id:'skillpick', rarity: (!opening && k === 0 && counts[fav]) ? 'rare' : 'common',
                title: skillName(sk).toUpperCase(), slot: slot, skill: sk,
                text: SHAPES[shape].desc + ', ' + ELEMENTS[element].blurb + '.',
-               apply: (S) => { S.slots[slot] = sk; } });
+               apply: (S) => { S.slots[slot] = sk; noteEquipped(sk); } });
   }
   // Shuffle: the themed option is generated first, and leaving it first would
   // mean anyone who habitually takes the left-hand card ends up mono-element by
   // accident rather than by choosing it.
   for (let i = out.length - 1; i > 0; i--){
-    const j = (Math.random() * (i + 1)) | 0;
+    const j = rndi(0, i + 1);
     const t = out[i]; out[i] = out[j]; out[j] = t;
   }
   return out;
 }
 
-function openDraft(){
+function openDraft(kind){
   S.mode = 'draft';
+  const opening = kind === 'opening';
   const empty = emptyUnlocked(S);
-  const skillDraft = empty.length > 0;
-  S.draft = { cards: skillDraft ? rollSkillCards(empty[0], 3) : rollCards(3),
+  const skillDraft = opening || empty.length > 0;
+  const slot = opening ? 0 : (skillDraft ? empty[0] : -1);
+  S.draft = { cards: skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3),
               hover: -1, t: 0, chosen: -1, chooseT: 0,
-              kind: skillDraft ? 'skill' : 'upgrade', slot: skillDraft ? empty[0] : -1 };
+              kind: opening ? 'opening' : skillDraft ? 'skill' : 'upgrade', slot };
+  Hints.fire('draft');
   SFX.cardDeal();
 }
 function pickCard(i){
@@ -2563,18 +2622,31 @@ function pickCard(i){
   S.draft.chosen = i; S.draft.chooseT = 0.45;
   c.apply(S);
   S.stats.cards.push(c.title);
+  Hints.did('draft');
   SFX.cardPick();
 }
 function closeDraft(){
+  const wasOpening = S.draft && S.draft.kind === 'opening';
   S.draft = null;
   S.mode = 'play';
   S.phase = 'ready';
-  S.interT = 0.9;
+  // The opening draft happens before the first wave rather than between two,
+  // so it gets a longer beat: the player has just been handed a weapon and has
+  // not yet seen the deck.
+  S.interT = wasOpening ? 2.2 : 0.9;
+  if (wasOpening) Hints.fire('boarder');
 }
 
 /* ---------------------------------------------------------------------------
    SYSTEMS — run lifecycle
 --------------------------------------------------------------------------- */
+/* A passive holds a slot and has no button, which is the one thing about them
+   that has to be said out loud. Checked on equip rather than on draw, so it
+   fires the moment the card is taken and not the next time the HUD redraws. */
+function noteEquipped(sk){
+  if (sk && SHAPES[sk.shape] && SHAPES[sk.shape].passive) Hints.fire('passive');
+}
+
 function startRun(){
   // Seed FIRST. resetGame lays out the lanes, the turrets and the boarding
   // hulk, and all three draw from the gameplay stream — seeding after them
@@ -2582,6 +2654,9 @@ function startRun(){
   S.seed = nextRunSeed();
   Rng.set(S.seed);
   resetGame();
+  Hints.reset();
+  // Restart from the pause menu can be pressed with the settings panel open.
+  S.overlay = null;
   S.mode = 'play';
   S.phase = 'ready';
   S.interT = 1.0;
@@ -2591,6 +2666,12 @@ function startRun(){
   S.result = null;
   S.copyToast = null;
   Sound.unlock();
+  // Every run before v10 opened with the same Frost Mortar, handed over
+  // without comment. Choosing between three shapes AND three elements in the
+  // first ten seconds is the fastest way to say what this game is, and it
+  // reuses the draft the player will meet again after every wave — so the
+  // first thing they learn is the thing they will keep doing.
+  if (PRESET.openingDraft) openDraft('opening');
 }
 function endGame(win, reason, title){
   if (S.mode === 'gameover' || S.mode === 'victory') return;
@@ -2660,8 +2741,8 @@ function updateUI(rt){
 
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
-  S.hintT = Math.max(0, S.hintT - rt);
   S.intro  = Math.max(0, S.intro - rt * 0.7);
+  if (S.mode === 'play') Hints.update(rt);
   if (S.banner){
     S.banner.t += rt;
     if (S.banner.t >= S.banner.life) S.banner = null;
@@ -2682,6 +2763,34 @@ function updateUI(rt){
    SYSTEMS — top-level input handling per mode
 --------------------------------------------------------------------------- */
 function handleModeInput(){
+  // An overlay owns the keyboard while it is up. Without this, rebinding a key
+  // to Q would quit to the title on the very press that bound it, and typing
+  // in the settings screen would nudge the camera pitch.
+  if (S.overlay){
+    if (S.overlay.kind === 'binds' && S.overlay.listen){
+      // Capture the next key. Escape cancels rather than binding, because a
+      // player who has changed their mind has exactly one key they will reach
+      // for and it must not become the binding.
+      for (const k of Input.pressed){
+        if (k === 'escape'){ S.overlay.listen = null; break; }
+        if (k === 'tab' || k === 'f3') continue;
+        const keys = Object.assign({}, Settings.get('keys') || {});
+        // A key can only do one thing. Taking it from whatever held it before
+        // is better than two actions on one key, which is unrecoverable
+        // without a reset.
+        for (const other of BINDS) if (keys[other] === k) delete keys[other];
+        keys[S.overlay.listen] = k;
+        Settings.set('keys', keys);
+        S.overlay.listen = null;
+        SFX.uiClick();
+        break;
+      }
+      Input.pressed.clear();
+      return;
+    }
+    if (keyHit('escape')) closeOverlay();
+    return;
+  }
   if (keyHit('f3')) S.showFps = !S.showFps;
   // nudge the camera bake live — one degree a press
   if (keyHit('[') || keyHit(']')){
@@ -2697,12 +2806,13 @@ function handleModeInput(){
   S.volToast = Math.max(0, (S.volToast || 0) - 0.016);
 
   if (S.mode === 'title'){
-    if (keyHit('enter') || keyHit('space') || Input.clicked) startRun();
+    // The title screen has real buttons now, so a bare click starts nothing —
+    // it would fire whichever button happened to be under the cursor as well.
+    if (keyHit('r')) startRun();
   } else if (S.mode === 'play'){
     if (keyHit('escape') || keyHit('p')){ S.mode = 'pause'; endRay(); }
   } else if (S.mode === 'pause'){
     if (keyHit('escape') || keyHit('p')) S.mode = 'play';
-    if (keyHit('q')){ S.mode = 'title'; }
   } else if (S.mode === 'draft'){
     updateDraftHover();
     if (S.draft && S.draft.chosen < 0){

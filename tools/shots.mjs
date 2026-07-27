@@ -119,16 +119,14 @@ const SCENES = {
     S.mode = 'pause';
   },
 
-  settings: () => {
-    const G = SKYGEAR, S = G.S;
-    S.mode = 'title';
-    if (G.openSettings) G.openSettings('title');
-  },
+  settings: () => { SKYGEAR.S.mode = 'title'; SKYGEAR.openSettings('title'); },
+  howto:    () => { SKYGEAR.S.mode = 'title'; SKYGEAR.openHowTo('title'); },
+  binds:    () => { SKYGEAR.S.mode = 'title'; SKYGEAR.openBinds(); },
 
-  howto: () => {
+  opening: () => {
     const G = SKYGEAR, S = G.S;
-    S.mode = 'title';
-    if (G.openHowTo) G.openHowTo();
+    G.startRun();
+    S.draft.t = 2;
   },
 };
 

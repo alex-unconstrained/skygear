@@ -28,6 +28,7 @@ const PRESET = {
   "camBack": 120,
   "boilerH": 150,
   "lanes": true,
+  "openingDraft": true,
   "feel": {
     "simHz": 120,
     "inputBuffer": 0.14,
@@ -79,14 +80,9 @@ const PRESET = {
     ],
     "basicTurn": 12,
     "basicArc": 1.2,
-    "loadout": [
-      [
-        "RANGED_AOE",
-        "FROST"
-      ]
-    ]
+    "loadout": []
   },
-  "build": "a03c0d4"
+  "build": "dd1d989"
 };
 
 /* ============================================================================
@@ -941,6 +937,9 @@ const S = {
   interT: 0, banner: null,
   draft: null,
   stats: null,
+  overlay: null,
+  result: null,
+  seed: 0,
   hintT: 0,
   intro: 0,
   bossRef: null,
@@ -1732,11 +1731,47 @@ const KEYS = FEEL.keys || {
           { label:'SPACE', key:'space', alt:'3' }, { label:'SHIFT', key:'shift', alt:'4' }],
   dash: { label:'E', key:'e' },
 };
+
+/* Rebinding. The preset's bindings are the defaults and stay visible as such;
+   a remap overrides the KEYBOARD half only. The mouse buttons on slots 1 and 2
+   are left alone deliberately — the aim cursor and the two ability buttons are
+   the same hand, and letting someone move "cast" onto the button they aim with
+   produces a build that cannot be played rather than one they prefer. */
+const BINDS = ['slot1', 'slot2', 'slot3', 'slot4', 'dash'];
+function bindKey(action){
+  const custom = Settings.get('keys');
+  if (custom && custom[action]) return custom[action];
+  if (action === 'dash') return KEYS.dash.key;
+  const k = KEYS.slots[BINDS.indexOf(action)];
+  return k ? (k.key || k.alt) : null;
+}
+// What the HUD prints. A slot with a mouse button keeps showing the mouse
+// button, because that is what the player actually presses most of the time.
+function bindLabel(action){
+  const custom = Settings.get('keys');
+  const i = BINDS.indexOf(action);
+  if (action === 'dash') return keyLabel(bindKey('dash'));
+  const k = KEYS.slots[i];
+  if (!k) return '';
+  if (custom && custom[action]) return keyLabel(custom[action]);
+  return k.label;
+}
+function keyLabel(k){
+  if (!k) return '—';
+  if (k === 'space') return 'SPACE';
+  if (k === 'shift') return 'SHIFT';
+  if (k === 'control') return 'CTRL';
+  if (k.length === 1) return k.toUpperCase();
+  return k.toUpperCase();
+}
 function slotHeld(i){
   const k = KEYS.slots[i];
   if (!k) return false;
   if (k.mouse !== undefined && Input.buttons[k.mouse]) return true;
-  if (k.key && keyDown(k.key)) return true;
+  const b = bindKey(BINDS[i]);
+  if (b && keyDown(b)) return true;
+  // The preset's alt binding stays live alongside a remap: 1/2/3/4 are what a
+  // player reaches for by reflex and taking them away buys nothing.
   if (k.alt && keyDown(k.alt)) return true;
   return false;
 }
@@ -1772,6 +1807,7 @@ function hurtBoiler(dmg, ang){
   pSmoke(B.x, B.y - 20, 4, 'rgba(60,55,50,0.6)', 60);
   dmgNumber(B.x, B.y - B.r, '-' + Math.round(dmg), '#FF9A5B', 18);
   if (B.hp <= 0){ B.hp = 0; endGame(false, 'The engine core is gone. The ship falls.', 'BOILER LOST'); }
+  else if (B.hp < B.maxHp * 0.5) Hints.fire('boiler');
 }
 
 function updatePlayer(dt){
@@ -1873,7 +1909,7 @@ function updatePlayer(dt){
   }
   // buffer must be tested BEFORE it decays, or a zero-length buffer (v2/v3)
   // would expire in the same step it was set and the dash would never fire
-  if (keyHit(KEYS.dash.key)) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
+  if (keyHit(bindKey('dash'))) P.dashBuf = Math.max(FEEL.inputBuffer, DT * 2);
   if (P.dashBuf > 0 && P.dashT <= 0 && P.dashStock > 0){
     P.dashBuf = 0;
     P.dashStock--;
@@ -1883,6 +1919,7 @@ function updatePlayer(dt){
     P.hitList = [];
     P.trail.length = 0;
     S.stats.dashes++;
+    Hints.did('dash');
     SFX.dash();
     pDust(P.x, P.y, 10);
     addTrauma(0.06);
@@ -2101,7 +2138,10 @@ function updateEnemy(e, dt){
   if (e.state === 'climb'){
     e.st -= dt;
     e.climb = 1 - Math.max(0, e.st) / TUNING.spawnClimb;
-    if (e.st <= 0){ e.state = 'move'; e.climb = 1; }
+    if (e.st <= 0){
+      e.state = 'move'; e.climb = 1;
+      Hints.fire('boarder');       // the first one to finish climbing is on your deck
+    }
     return;
   }
 
@@ -2487,6 +2527,7 @@ function startWave(n){
       spawnHulk(1 + idx * 0.20);
       S.hulk.vulnerable = true;
       S.banner = { kind:'push', n, t:0, life: 3.0 };
+      Hints.fire('push');
       SFX.hulkGrapple();
       S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     } else {
@@ -2514,8 +2555,8 @@ function waveComplete(){
   S.player.hp = Math.min(S.player.maxHp, S.player.hp + TUNING.player.regenPerWave);
   S.bolts.length = 0;
   // slots open up as the run escalates
-  if (S.wave >= 2 && S.unlockedSlots < 3) S.unlockedSlots = 3;
-  if (S.wave >= 5 && S.unlockedSlots < 4) S.unlockedSlots = 4;
+  if (S.wave >= 2 && S.unlockedSlots < 3){ S.unlockedSlots = 3; Hints.fire('slot'); }
+  if (S.wave >= 5 && S.unlockedSlots < 4){ S.unlockedSlots = 4; Hints.fire('slot'); }
 }
 
 function updateWave(dt){
@@ -2605,7 +2646,7 @@ function rollCards(n){
    100% of upgrades landed on it and taking a second halved that while handing
    you something unupgraded. Passing was the dominant line, and a whole run
    could be played with a single ability out of a 24-combination matrix. */
-function rollSkillCards(slot, n){
+function rollSkillCards(slot, n, opening){
   const have = filledSlots(S).map(i => S.slots[i].shape);
   // never offer the shape she already swings automatically — a Cleave in a slot
   // beside the auto-attacking Cleave reads as a duplicate, not a choice
@@ -2618,33 +2659,47 @@ function rollSkillCards(slot, n){
   const counts = {};
   for (const i of filledSlots(S)) counts[S.slots[i].element] = (counts[S.slots[i].element] || 0) + 1;
   const fav = ELEMENT_KEYS.slice().sort((a, b) => (counts[b] || 0) - (counts[a] || 0))[0];
+  // The opening draft is the whole pitch in ten seconds, so its three cards are
+  // three different shapes AND three different elements. Two Frost options
+  // would read as "pick a weapon"; one Frost, one Ember and one Arc reads as
+  // "these are two axes", which is the thing the game is about and the thing
+  // it has never said out loud.
+  const elemPool = opening ? shuffle(ELEMENT_KEYS.slice()) : null;
+  // Passives explain themselves badly with nothing to compare them to, so the
+  // opening draft offers actives only.
+  const openPool = opening ? pool.filter(k => !SHAPES[k].passive) : pool;
+  const use = openPool.length >= n ? openPool : pool;
   const out = [];
-  for (let k = 0; k < n && pool.length; k++){
-    const shape = pool.splice((Math.random() * pool.length) | 0, 1)[0];
-    const element = (k === 0 && counts[fav]) ? fav : pick(ELEMENT_KEYS);
+  for (let k = 0; k < n && use.length; k++){
+    const shape = use.splice(rndi(0, use.length), 1)[0];
+    const element = opening ? elemPool[k % elemPool.length]
+                            : ((k === 0 && counts[fav]) ? fav : pick(ELEMENT_KEYS));
     const sk = newSkill(shape, element);
-    out.push({ id:'skillpick', rarity: k === 0 && counts[fav] ? 'rare' : 'common',
+    out.push({ id:'skillpick', rarity: (!opening && k === 0 && counts[fav]) ? 'rare' : 'common',
                title: skillName(sk).toUpperCase(), slot: slot, skill: sk,
                text: SHAPES[shape].desc + ', ' + ELEMENTS[element].blurb + '.',
-               apply: (S) => { S.slots[slot] = sk; } });
+               apply: (S) => { S.slots[slot] = sk; noteEquipped(sk); } });
   }
   // Shuffle: the themed option is generated first, and leaving it first would
   // mean anyone who habitually takes the left-hand card ends up mono-element by
   // accident rather than by choosing it.
   for (let i = out.length - 1; i > 0; i--){
-    const j = (Math.random() * (i + 1)) | 0;
+    const j = rndi(0, i + 1);
     const t = out[i]; out[i] = out[j]; out[j] = t;
   }
   return out;
 }
 
-function openDraft(){
+function openDraft(kind){
   S.mode = 'draft';
+  const opening = kind === 'opening';
   const empty = emptyUnlocked(S);
-  const skillDraft = empty.length > 0;
-  S.draft = { cards: skillDraft ? rollSkillCards(empty[0], 3) : rollCards(3),
+  const skillDraft = opening || empty.length > 0;
+  const slot = opening ? 0 : (skillDraft ? empty[0] : -1);
+  S.draft = { cards: skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3),
               hover: -1, t: 0, chosen: -1, chooseT: 0,
-              kind: skillDraft ? 'skill' : 'upgrade', slot: skillDraft ? empty[0] : -1 };
+              kind: opening ? 'opening' : skillDraft ? 'skill' : 'upgrade', slot };
+  Hints.fire('draft');
   SFX.cardDeal();
 }
 function pickCard(i){
@@ -2654,18 +2709,31 @@ function pickCard(i){
   S.draft.chosen = i; S.draft.chooseT = 0.45;
   c.apply(S);
   S.stats.cards.push(c.title);
+  Hints.did('draft');
   SFX.cardPick();
 }
 function closeDraft(){
+  const wasOpening = S.draft && S.draft.kind === 'opening';
   S.draft = null;
   S.mode = 'play';
   S.phase = 'ready';
-  S.interT = 0.9;
+  // The opening draft happens before the first wave rather than between two,
+  // so it gets a longer beat: the player has just been handed a weapon and has
+  // not yet seen the deck.
+  S.interT = wasOpening ? 2.2 : 0.9;
+  if (wasOpening) Hints.fire('boarder');
 }
 
 /* ---------------------------------------------------------------------------
    SYSTEMS — run lifecycle
 --------------------------------------------------------------------------- */
+/* A passive holds a slot and has no button, which is the one thing about them
+   that has to be said out loud. Checked on equip rather than on draw, so it
+   fires the moment the card is taken and not the next time the HUD redraws. */
+function noteEquipped(sk){
+  if (sk && SHAPES[sk.shape] && SHAPES[sk.shape].passive) Hints.fire('passive');
+}
+
 function startRun(){
   // Seed FIRST. resetGame lays out the lanes, the turrets and the boarding
   // hulk, and all three draw from the gameplay stream — seeding after them
@@ -2673,6 +2741,9 @@ function startRun(){
   S.seed = nextRunSeed();
   Rng.set(S.seed);
   resetGame();
+  Hints.reset();
+  // Restart from the pause menu can be pressed with the settings panel open.
+  S.overlay = null;
   S.mode = 'play';
   S.phase = 'ready';
   S.interT = 1.0;
@@ -2682,6 +2753,12 @@ function startRun(){
   S.result = null;
   S.copyToast = null;
   Sound.unlock();
+  // Every run before v10 opened with the same Frost Mortar, handed over
+  // without comment. Choosing between three shapes AND three elements in the
+  // first ten seconds is the fastest way to say what this game is, and it
+  // reuses the draft the player will meet again after every wave — so the
+  // first thing they learn is the thing they will keep doing.
+  if (PRESET.openingDraft) openDraft('opening');
 }
 function endGame(win, reason, title){
   if (S.mode === 'gameover' || S.mode === 'victory') return;
@@ -2751,8 +2828,8 @@ function updateUI(rt){
 
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
-  S.hintT = Math.max(0, S.hintT - rt);
   S.intro  = Math.max(0, S.intro - rt * 0.7);
+  if (S.mode === 'play') Hints.update(rt);
   if (S.banner){
     S.banner.t += rt;
     if (S.banner.t >= S.banner.life) S.banner = null;
@@ -2773,6 +2850,34 @@ function updateUI(rt){
    SYSTEMS — top-level input handling per mode
 --------------------------------------------------------------------------- */
 function handleModeInput(){
+  // An overlay owns the keyboard while it is up. Without this, rebinding a key
+  // to Q would quit to the title on the very press that bound it, and typing
+  // in the settings screen would nudge the camera pitch.
+  if (S.overlay){
+    if (S.overlay.kind === 'binds' && S.overlay.listen){
+      // Capture the next key. Escape cancels rather than binding, because a
+      // player who has changed their mind has exactly one key they will reach
+      // for and it must not become the binding.
+      for (const k of Input.pressed){
+        if (k === 'escape'){ S.overlay.listen = null; break; }
+        if (k === 'tab' || k === 'f3') continue;
+        const keys = Object.assign({}, Settings.get('keys') || {});
+        // A key can only do one thing. Taking it from whatever held it before
+        // is better than two actions on one key, which is unrecoverable
+        // without a reset.
+        for (const other of BINDS) if (keys[other] === k) delete keys[other];
+        keys[S.overlay.listen] = k;
+        Settings.set('keys', keys);
+        S.overlay.listen = null;
+        SFX.uiClick();
+        break;
+      }
+      Input.pressed.clear();
+      return;
+    }
+    if (keyHit('escape')) closeOverlay();
+    return;
+  }
   if (keyHit('f3')) S.showFps = !S.showFps;
   // nudge the camera bake live — one degree a press
   if (keyHit('[') || keyHit(']')){
@@ -2788,12 +2893,13 @@ function handleModeInput(){
   S.volToast = Math.max(0, (S.volToast || 0) - 0.016);
 
   if (S.mode === 'title'){
-    if (keyHit('enter') || keyHit('space') || Input.clicked) startRun();
+    // The title screen has real buttons now, so a bare click starts nothing —
+    // it would fire whichever button happened to be under the cursor as well.
+    if (keyHit('r')) startRun();
   } else if (S.mode === 'play'){
     if (keyHit('escape') || keyHit('p')){ S.mode = 'pause'; endRay(); }
   } else if (S.mode === 'pause'){
     if (keyHit('escape') || keyHit('p')) S.mode = 'play';
-    if (keyHit('q')){ S.mode = 'title'; }
   } else if (S.mode === 'draft'){
     updateDraftHover();
     if (S.draft && S.draft.chosen < 0){
@@ -2979,6 +3085,76 @@ const Settings = {
   forgetHints(){ this.v.seen = {}; Store.set('settings', this.v); },
 };
 Settings.init();
+
+/* ---------------------------------------------------------------------------
+   FIRST-RUN PROMPTS
+
+   The old tutorial was a five-row control panel that appeared on wave 1 and
+   faded on a timer whether or not it had been read, and a permanent
+   "DEFEND THE BOILER" arrow. Both are the same mistake: teaching everything
+   before anything has happened, at a moment when the player is busy.
+
+   These fire at the moment the thing they explain first occurs, say one
+   sentence, and are dismissed by doing the thing rather than by a timer. Each
+   one fires once per player, ever — the game is twelve waves long and a prompt
+   the second time is noise.
+
+   `fire` is idempotent, so a call site can simply announce that something
+   happened, every time it happens, without tracking whether it is the first.
+--------------------------------------------------------------------------- */
+const HINTS = {
+  boarder:  { text: 'Boarders are climbing the rails. She swings on her own — get her close.',
+              key: 'W A S D', hold: 6 },
+  dash:     { text: 'Dash goes through anything and cannot be hit while it lasts. Use it constantly.',
+              key: 'SPACE', hold: 7 },
+  draft:    { text: 'Pick a weapon. Every skill is a SHAPE crossed with an ELEMENT.',
+              key: '1 · 2 · 3', hold: 8 },
+  slot:     { text: 'A new slot is open. A second element opens combinations the first cannot reach.',
+              key: null, hold: 6 },
+  passive:  { text: 'That one has no button — it works on its own while it holds the slot.',
+              key: null, hold: 6 },
+  push:     { text: 'They have grappled a hulk to the hull. Break it, or they keep coming.',
+              key: null, hold: 7 },
+  boiler:   { text: 'The Boiler is under half. It does not heal. Hold the lanes, not the Boiler.',
+              key: null, hold: 7 },
+  crossing: { text: 'The gaps in the cargo runs are the only way between lanes. Learn where they are.',
+              key: null, hold: 6 },
+};
+
+const Hints = {
+  live: null,     // { id, t, hold }
+  queue: [],
+
+  /* Announce that something happened. Shows the prompt if this player has never
+     seen it and prompts are on. Safe to call every frame. */
+  fire(id){
+    if (!Settings.get('hints') || !HINTS[id]) return;
+    if (Settings.hintSeen(id)) return;
+    if (this.live && this.live.id === id) return;
+    if (this.queue.indexOf(id) >= 0) return;
+    // Marked seen on FIRING, not on dismissal. A player who dies with a prompt
+    // on screen has still had it; showing it again next run is the behaviour
+    // that makes tutorials feel like they are nagging.
+    Settings.markSeen(id);
+    if (this.live) this.queue.push(id);
+    else this.live = { id, t: 0, hold: HINTS[id].hold };
+  },
+  /* The player did the thing. Dismiss it early — that is the reward. */
+  did(id){
+    if (this.live && this.live.id === id) this.dismiss();
+  },
+  dismiss(){
+    this.live = null;
+    const next = this.queue.shift();
+    if (next) this.live = { id: next, t: 0, hold: HINTS[next].hold };
+  },
+  update(rt){
+    if (!this.live) return;
+    this.live.t += rt;
+    if (this.live.t >= this.live.hold) this.dismiss();
+  },
+  reset(){ this.live = null; this.queue.length = 0; },
+};
 
 /* ---------------------------------------------------------------------------
    RUN LOG
@@ -7005,7 +7181,9 @@ function drawShapeGlyph(shape, cx, cy, r, col, glow){
   ctx.drawImage(cn, cx - half, cy - half);
 }
 
-const SLOT_KEYS = KEYS.slots.map(function(k){ return k.label; });
+/* Read through bindLabel every time rather than captured once: a rebind has
+   to reach the HUD, and a constant computed at load never will. */
+const SLOT_KEYS = new Proxy({}, { get: (_, i) => bindLabel(BINDS[Number(i)]) });
 const SLOT_UNLOCK_WAVE = [1, 1, 3, 6];
 
 /* The auto-attack has no key, but it still needs to be legible: you should be
@@ -7220,7 +7398,7 @@ function drawHealthPanel(){
 
   const py = y + h - 18*HS;
   setFont(Math.round(11*HS), 700, true);
-  textOut('DASH [' + KEYS.dash.label + ']', bx, py, '#8B8296', null, 0, 'left');
+  textOut('DASH [' + bindLabel('dash') + ']', bx, py, '#8B8296', null, 0, 'left');
   for (let i = 0; i < S.mods.dashCharges; i++){
     const px = bx + 62*HS + i * 22*HS;
     const filled = i < P.dashStock;
@@ -7368,35 +7546,50 @@ function drawBanner(){
   }
 }
 
+/* One line, low on the screen, above the ability bar and out of the fight.
+   Deliberately not a panel in the corner: a corner is where a player who is
+   busy will never look, and this only ever appears at a moment when they are
+   busy. It fades in fast and out slowly, and never covers the deck. */
 function drawHints(){
-  if (S.hintT <= 0 || S.wave > 1) return;
+  const L = Hints.live;
+  if (!L) return;
+  const H = HINTS[L.id];
+  if (!H) return;
   const HS = hudScale();
-  const a = clamp(S.hintT / 2.5, 0, 1);
+  const inA = clamp(L.t / 0.22, 0, 1);
+  const outA = clamp((L.hold - L.t) / 0.6, 0, 1);
+  const a = Math.min(inA, outA);
+  if (a <= 0) return;
+
   ctx.save();
   ctx.globalAlpha = a;
-  const rows = [['W A S D','move'],['MOUSE','aim'],
-                [KEYS.dash.label,'dash — invulnerable'],
-                [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'your two abilities'],
-                ['AUTO','the captain attacks by herself']];
-  const pw = 234*HS, ph = 30*HS + rows.length * 26*HS;
-  const px = 20*HS, py = 120*HS;
-  brassPanel(px, py, pw, ph, 9*HS, 0.92 * a);
-  rows.forEach((r, i) => {
-    const y = py + 26*HS + i * 26*HS;
+  setFont(Math.round(15.5*HS), 700, false);
+  const tw = ctx.measureText(H.text).width;
+  let kw = 0;
+  if (H.key){
     setFont(Math.round(13*HS), 800, true);
-    textOut(r[0], px + 16*HS, y, PAL.teal, null, 0, 'left');
-    setFont(Math.round(13*HS), 600, false);
-    textOut(r[1], px + 108*HS, y, '#9C93A8', null, 0, 'left');
-  });
-  const b = CAM.project(S.boiler.x, S.boiler.y, PRESET.boilerH + 90);
-  const bob = Math.sin(S.rt * 4) * 4;
-  ctx.globalAlpha = a * (0.72 + Math.sin(S.rt * 4) * 0.2);
-  setFont(Math.round(17*HS), 800, true);
-  textOut('DEFEND THE BOILER', b.x, b.y - 26*HS + bob, PAL.fireCore, PAL.ink, 6);
-  ctx.fillStyle = PAL.fireCore;
-  ctx.beginPath();
-  ctx.moveTo(b.x, b.y - 4*HS + bob); ctx.lineTo(b.x - 9*HS, b.y - 17*HS + bob);
-  ctx.lineTo(b.x + 9*HS, b.y - 17*HS + bob); ctx.closePath(); ctx.fill();
+    kw = ctx.measureText(H.key).width + 26*HS;
+  }
+  const pw = tw + kw + 44*HS, ph = 42*HS;
+  const px = View.w/2 - pw/2, py = View.h - 152*HS;
+  brassPanel(px, py, pw, ph, 9*HS, 0.94);
+  // The teal left edge is the same mark the tutorial prompts always use, so a
+  // second one is recognisable as "the game explaining itself" and not as a
+  // new piece of HUD.
+  ctx.fillStyle = PAL.teal;
+  rr(px, py + 7*HS, 3.5*HS, ph - 14*HS, 2*HS); ctx.fill();
+  let tx = px + 20*HS;
+  if (H.key){
+    setFont(Math.round(13*HS), 800, true);
+    const bw = ctx.measureText(H.key).width + 16*HS;
+    rr(tx, py + ph/2 - 11*HS, bw, 22*HS, 5*HS);
+    ctx.fillStyle = '#0B0910'; ctx.fill();
+    ctx.strokeStyle = PAL.teal; ctx.lineWidth = 1.6*HS; ctx.stroke();
+    textOut(H.key, tx + bw/2, py + ph/2, PAL.teal);
+    tx += bw + 12*HS;
+  }
+  setFont(Math.round(15.5*HS), 700, false);
+  textOut(H.text, tx, py + ph/2, PAL.bone, null, 0, 'left');
   ctx.restore();
 }
 
@@ -7632,18 +7825,28 @@ function uiChoice(x, y, w, label, values, current, onPick){
   setFont(Math.round(14.5 * HS), 700, false);
   textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
 
-  const bw = 26 * HS, vx = x + w - 150 * HS;
+  const bw = 26 * HS, vx = x + w - 190 * HS;
   const step = (d) => {
     const n = (idx + d + values.length) % values.length;
     onPick(values[n].value);
     SFX.uiClick();
   };
-  // < and > are their own hit targets; the row itself cycles forward, so a
-  // click anywhere on it still does the obvious thing.
+  // The arrows are their own hit targets; the row itself cycles forward, so a
+  // click anywhere on it still does the obvious thing. Drawn as triangles
+  // rather than typed as < > — the condensed display face renders those as
+  // something much closer to brackets.
   const lHit = { x: vx - bw, y, w: bw, h }, rHit = { x: x + w - bw, y, w: bw, h };
-  setFont(Math.round(17 * HS), 800, true);
-  textOut('‹', lHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
-  textOut('›', rHit.x + bw / 2, y + h / 2, lit ? PAL.teal : '#6E667A');
+  const arrow = (cx, dir) => {
+    const s2 = 5 * HS;
+    ctx.fillStyle = lit ? PAL.teal : '#6E667A';
+    ctx.beginPath();
+    ctx.moveTo(cx + dir * s2, y + h / 2 - s2);
+    ctx.lineTo(cx + dir * s2, y + h / 2 + s2);
+    ctx.lineTo(cx - dir * s2 * 0.9, y + h / 2);
+    ctx.closePath(); ctx.fill();
+  };
+  arrow(lHit.x + bw / 2, 1);
+  arrow(rHit.x + bw / 2, -1);
   setFont(Math.round(15 * HS), 800, true);
   textOut(values[idx].label, (vx + x + w - bw) / 2, y + h / 2, PAL.teal, PAL.ink, 3 * HS);
 
@@ -7667,7 +7870,7 @@ function uiSlider(x, y, w, label, value, onSet){
   setFont(Math.round(14.5 * HS), 700, false);
   textOut(label, x, y + h / 2, lit ? PAL.bone : '#A79EB4', null, 0, 'left');
 
-  const bx = x + w - 210 * HS, bw = 160 * HS, by = y + h / 2 - 5 * HS, bh = 10 * HS;
+  const bx = x + w - 232 * HS, bw = 160 * HS, by = y + h / 2 - 5 * HS, bh = 10 * HS;
   rr(bx, by, bw, bh, bh / 2);
   ctx.fillStyle = '#100E17'; ctx.fill();
   ctx.strokeStyle = PAL.ink; ctx.lineWidth = 2 * HS; ctx.stroke();
@@ -7901,20 +8104,34 @@ function drawDraft(){
   ctx.save();
   ctx.globalAlpha = clamp(S.draft.t / 0.35, 0, 1);
   setFont(Math.round(46*HS), 900, true);
-  const isSkill = S.draft.kind === 'skill';
-  textOut(isSkill ? 'ARM A NEW SLOT' : 'DRAFT AN UPGRADE',
+  const opening = S.draft.kind === 'opening';
+  const isSkill = opening || S.draft.kind === 'skill';
+  textOut(opening ? 'CHOOSE YOUR OPENING WEAPON'
+                  : isSkill ? 'ARM A NEW SLOT' : 'DRAFT AN UPGRADE',
           View.w/2, rects[0].y - 74*HS, PAL.bone, PAL.ink, 8);
   setFont(Math.round(15*HS), 700, true);
-  const sub = isSkill
-    ? (SLOT_KEYS[S.draft.slot] || ('SLOT ' + (S.draft.slot + 1))) +
-      '  —  WHICH WEAPON, NOT WHETHER'
-    : 'PICK ONE  —  CLICK OR PRESS 1 / 2 / 3';
+  // The opening draft is the one place the game gets to state its premise while
+  // the player is looking directly at three examples of it.
+  const sub = opening
+    ? 'EVERY SKILL IS A SHAPE × AN ELEMENT  —  CLICK OR PRESS 1 / 2 / 3'
+    : isSkill
+      ? (SLOT_KEYS[S.draft.slot] || ('SLOT ' + (S.draft.slot + 1))) +
+        '  —  WHICH WEAPON, NOT WHETHER'
+      : 'PICK ONE  —  CLICK OR PRESS 1 / 2 / 3';
   textOut(sub, View.w/2, rects[0].y - 42*HS, PAL.teal, PAL.ink, 4);
   ctx.restore();
 
   for (let i = 0; i < S.draft.cards.length; i++){
     const c = S.draft.cards[i], r = rects[i];
-    const R = RARITY_UI[c.rarity] || RARITY_UI.common;
+    // A weapon card is edged in its element's colour rather than its rarity's.
+    // Rarity is the wrong axis for a card whose entire point is which element
+    // it is, and three identically grey cards is what made the opening choice
+    // read as "pick one" instead of "pick a colour".
+    const R = c.skill
+      ? { name: ELEMENTS[c.skill.element].name.toUpperCase(),
+          edge: ELEMENTS[c.skill.element].color,
+          fill: hexToRgba(ELEMENTS[c.skill.element].color, 0.10) }
+      : (RARITY_UI[c.rarity] || RARITY_UI.common);
     const hov = S.draft.hover === i, chosen = S.draft.chosen === i;
     const rejected = S.draft.chosen >= 0 && !chosen;
     const s = r.s;
@@ -7948,7 +8165,20 @@ function drawDraft(){
 
     const iconY = 84*s;
     gaugeRing(r.w/2, iconY, 40*s, hexToRgba(PAL.brass, 0.55), 16);
-    if (c.slot !== undefined && S.slots[c.slot]){
+    // A skill card draws its OWN shape and element. It used to look up whatever
+    // was already in the target slot — which is null for every skill draft,
+    // since a skill draft only ever fires for an EMPTY slot — so every weapon
+    // card in the game fell through to the generic gear icon. The one screen
+    // whose whole job is to show that a skill is a shape crossed with an
+    // element was showing neither.
+    if (c.skill){
+      const E = ELEMENTS[c.skill.element];
+      drawShapeGlyph(c.skill.shape, r.w/2, iconY, 25*s, E.color, E.glow);
+      setFont(Math.round(10.5*s), 800, true);
+      textOut(SHAPES[c.skill.shape].passive ? 'AUTO — NO BUTTON'
+                                            : (SLOT_KEYS[c.slot] || ('SLOT ' + (c.slot + 1))),
+              r.w/2, iconY + 56*s, E.color, PAL.ink, 3);
+    } else if (c.slot !== undefined && S.slots[c.slot]){
       const sk = S.slots[c.slot], E = ELEMENTS[sk.element];
       drawShapeGlyph(sk.shape, r.w/2, iconY, 25*s, E.color, E.glow);
       setFont(Math.round(11*s), 700, true);
@@ -8014,46 +8244,41 @@ function drawTitle(){
   textOut('S T O R M - D U S K   ·   1 0 , 0 0 0   F E E T', 0, 74*HS, PAL.moon, PAL.ink, 5);
   ctx.restore();
 
-  const pw = Math.min(View.w - 60, 860*HS), ph = 224*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.44;
-  brassPanel(px, py, pw, ph, 12*HS, 0.95);
-  setFont(Math.round(17*HS), 800, true);
-  textOut('HOW TO PLAY', px + pw/2, py + 24*HS, PAL.brass, PAL.ink, 3);
-  const auto = !!(FEEL.autoAttack || FEEL.basic);
-  const rows1 = [['W A S D','move the captain'],
-                 ['MOUSE','aim your abilities'],
-                 [SLOT_KEYS[0] + ' / ' + SLOT_KEYS[1],'ability 1 and 2'],
-                 [SLOT_KEYS[2] + ' / ' + SLOT_KEYS[3],'ability 3 and 4 (unlocked later)']];
-  const rows2 = [[KEYS.dash.label,'dash — invulnerable, use it constantly'],
-                 [auto ? 'AUTOMATIC' : 'CLICK',
-                  FEEL.basic
-                    ? 'she swings her ' + ELEMENTS[FEEL.basic[1]].name + ' ' +
-                      SHAPES[FEEL.basic[0]].noun + ' at the nearest boarder herself'
-                    : auto ? 'the captain attacks the nearest boarder herself'
-                           : 'left mouse swings your first skill'],
-                 ['DEFEND', PRESET.lanes ? 'the Boiler at the stern. If it dies, you lose.'
-                                         : 'the Boiler amidships. If it dies, you lose.'],
-                 ['ESC','pause  ·  M mute  ·  − / = volume  ·  F3 stats']];
-  const draw = (rows, x) => rows.forEach((r, i) => {
-    const y = py + 62*HS + i * 38*HS;
-    setFont(Math.round(14*HS), 800, true);
-    textOut(r[0], x, y, PAL.teal, null, 0, 'left');
-    setFont(Math.round(13.5*HS), 600, false);
-    textOut(r[1], x, y + 17*HS, '#9C93A8', null, 0, 'left');
-  });
-  draw(rows1, px + 34*HS); draw(rows2, px + pw * 0.54);
-
-  ctx.save();
-  ctx.globalAlpha = 0.7 + Math.sin(t * 3.4) * 0.3;
-  setFont(Math.round(34*HS), 900, true);
-  textOut('CLICK  TO  BOARD', View.w/2, View.h * 0.86, PAL.crit, PAL.ink, 8);
-  ctx.restore();
-  setFont(Math.round(12.5*HS), 600, false);
+  // The promise, in one line, above the fold. A title screen that opens with a
+  // four-column control reference is telling a stranger how before it has told
+  // them what — and the controls are two of them anyway, since the captain
+  // attacks by herself.
+  setFont(Math.round(17*HS), 600, false);
+  textOut('Twelve waves board your airship. Keep the Boiler alive.',
+          View.w/2, View.h * 0.40, '#C6BFD2');
+  setFont(Math.round(14*HS), 700, false);
   // Counted, not written down. This read "24 combinations" for three versions
   // after passives took the roster to eight draftable shapes.
-  const _combos = (SHAPE_KEYS.length - (FEEL.basic ? 1 : 0)) * ELEMENT_KEYS.length;
-  textOut('every skill is a SHAPE × an ELEMENT — ' + _combos + ' combinations, and the draft rewrites them',
-          View.w/2, View.h * 0.93, '#6E667A');
+  textOut('Every skill is a SHAPE × an ELEMENT — ' + comboCount() +
+          ' combinations, and the draft after each wave rewrites them.',
+          View.w/2, View.h * 0.40 + 26*HS, '#7E778C');
+
+  const bw = 300*HS, bh = 62*HS, gap = 12*HS;
+  let by = View.h * 0.53;
+  if (uiButton(View.w/2 - bw/2, by, bw, bh, 'START RUN', 'primary')) startRun();
+  by += bh + gap;
+  const half = (bw - gap) / 2;
+  if (uiButton(View.w/2 - bw/2, by, half, 46*HS, 'HOW TO PLAY')) openHowTo();
+  if (uiButton(View.w/2 + gap/2, by, half, 46*HS, 'SETTINGS')) openSettings('title');
+  by += 46*HS + gap;
+
+  const best = RunLog.best();
+  if (best){
+    setFont(Math.round(12.5*HS), 700, false);
+    textOut('your best: wave ' + best.wave + ' of ' + best.waves + ' · ' +
+            best.kills + ' boarders · ' + fmtDuration(best.time),
+            View.w/2, by + 16*HS, '#6E667A');
+  }
+  if (FORCED_SEED !== null){
+    setFont(Math.round(12*HS), 800, true);
+    textOut('FIXED SEED ' + seedText(FORCED_SEED), View.w/2, by + 38*HS, PAL.teal, PAL.ink, 3);
+  }
+
   // Build stamp. The site is served with a ten-minute cache, so "is this the
   // change I just shipped?" needs an answer that does not depend on trusting
   // the browser. Also reports how much painted art actually resolved.
@@ -8064,34 +8289,306 @@ function drawTitle(){
           View.w - 14*HS, View.h - 12*HS, '#5A5366', null, 0, 'right');
 }
 
+/* Derived, never written down. The title said "24 combinations" for three
+   versions after passives took the roster to nine shapes, because it was a
+   string. Cleave is the fixed basic and is excluded from drafts, so it is the
+   draftable shapes that count. */
+function comboCount(){
+  return (SHAPE_KEYS.length - (FEEL.basic ? 1 : 0)) * ELEMENT_KEYS.length;
+}
+
+/* ---------------------------------------------------------------------------
+   OVERLAYS — settings, how to play, key binding
+   These are not modes. Making them modes would mean every piece of code that
+   asks "are we playing?" has to learn two more answers, and the pause menu and
+   the title screen would each need their own copy of the settings panel.
+   They are a layer on top of whatever is already there, and they remember
+   where they were opened from so Back goes somewhere sensible.
+--------------------------------------------------------------------------- */
+function openSettings(from){ S.overlay = { kind:'settings', from, t:0 }; SFX.uiClick(); }
+function openHowTo(from){ S.overlay = { kind:'howto', from: from || 'title', t:0 }; SFX.uiClick(); }
+function openBinds(){ S.overlay = { kind:'binds', from:'settings', t:0, listen:null }; SFX.uiClick(); }
+function closeOverlay(){
+  const o = S.overlay;
+  if (!o) return;
+  // Back from the rebinder returns to settings, not to the game underneath it.
+  if (o.from === 'settings') S.overlay = { kind:'settings', from:'pause-or-title', t:0 };
+  else S.overlay = null;
+  SFX.uiClick();
+}
+
 function drawPause(){
   const HS = hudScale();
-  dimScreen(0.7);
-  setFont(Math.round(70*HS), 900, true);
-  textOut('PAUSED', View.w/2, View.h * 0.34, PAL.bone, PAL.ink, 10);
-  setFont(Math.round(17*HS), 700, true);
-  textOut('ESC  RESUME        Q  QUIT TO TITLE', View.w/2, View.h * 0.34 + 56*HS, PAL.teal, PAL.ink, 5);
+  dimScreen(0.72);
+  UI.begin('pause');
+  setFont(Math.round(58*HS), 900, true);
+  textOut('PAUSED', View.w/2, View.h * 0.17, PAL.bone, PAL.ink, 10);
+
+  const bw = 280*HS, bh = 52*HS, gap = 10*HS;
+  let by = View.h * 0.25;
+  if (uiButton(View.w/2 - bw/2, by, bw, bh, 'RESUME', 'primary', { hint: 'ESC' })) S.mode = 'play';
+  by += bh + gap;
+  const half = (bw - gap) / 2;
+  if (uiButton(View.w/2 - bw/2, by, half, 42*HS, 'SETTINGS')) openSettings('pause');
+  if (uiButton(View.w/2 + gap/2, by, half, 42*HS, 'HOW TO PLAY')) openHowTo('pause');
+  by += 42*HS + gap;
+  if (uiButton(View.w/2 - bw/2, by, half, 42*HS, 'RESTART RUN')) startRun();
+  if (uiButton(View.w/2 + gap/2, by, half, 42*HS, 'QUIT TO TITLE')){ S.mode = 'title'; S.overlay = null; }
+  by += 42*HS + 26*HS;
+
+  // The loadout, with its real numbers. This is the only place in the game a
+  // player can read what their build actually does without being shot at.
   const rows = [];
-  for (let i = 0; i < 4; i++){
-    const sk = S.slots[i];
-    if (!sk) continue;
-    const st = skillStats(sk);
-    rows.push([(i+1) + '.  ' + skillName(sk).toUpperCase(),
-               SHAPES[sk.shape].desc + '  ·  ' + ELEMENTS[sk.element].blurb + '  ·  ' + st.cd.toFixed(2) + 's cd',
-               ELEMENTS[sk.element].color]);
+  if (S.basic) rows.push([S.basic, 'AUTO']);
+  for (let i = 0; i < 4; i++) if (S.slots[i]) rows.push([S.slots[i], SLOT_KEYS[i]]);
+  if (rows.length){
+    const pw = Math.min(View.w - 60, 720*HS), ph = 40*HS + rows.length * 44*HS;
+    const px = (View.w - pw)/2;
+    brassPanel(px, by, pw, ph, 12*HS, 0.95);
+    setFont(Math.round(13*HS), 800, true);
+    textOut('LOADOUT', px + pw/2, by + 19*HS, PAL.brass);
+    rows.forEach((row, i) => {
+      const sk = row[0], E = ELEMENTS[sk.element], st = skillStats(sk);
+      const y = by + 48*HS + i * 44*HS;
+      drawShapeGlyph(sk.shape, px + 30*HS, y + 6*HS, 13*HS, E.color, E.glow);
+      setFont(Math.round(15*HS), 800, true);
+      textOut(skillName(sk).toUpperCase(), px + 52*HS, y, E.color, PAL.ink, 3, 'left');
+      setFont(Math.round(12.5*HS), 600, false);
+      textOut(SHAPES[sk.shape].desc + '  ·  ' + ELEMENTS[sk.element].blurb,
+              px + 52*HS, y + 18*HS, '#9C93A8', null, 0, 'left');
+      setFont(Math.round(12*HS), 800, true);
+      textOut(row[1], px + pw - 26*HS, y, PAL.bone, null, 0, 'right');
+      setFont(Math.round(11.5*HS), 700, false);
+      textOut(SHAPES[sk.shape].passive ? 'no button' : st.cd.toFixed(2) + 's cooldown',
+              px + pw - 26*HS, y + 18*HS, '#7E778C', null, 0, 'right');
+    });
   }
-  const pw = Math.min(View.w - 60, 760*HS), ph = 44*HS + rows.length * 46*HS;
-  const px = (View.w - pw)/2, py = View.h * 0.50;
-  brassPanel(px, py, pw, ph, 12*HS, 0.95);
-  setFont(Math.round(14*HS), 800, true);
-  textOut('LOADOUT', px + pw/2, py + 20*HS, PAL.brass);
-  rows.forEach((r, i) => {
-    const y = py + 52*HS + i * 46*HS;
-    setFont(Math.round(16*HS), 800, true);
-    textOut(r[0], px + 28*HS, y, r[2], PAL.ink, 3, 'left');
-    setFont(Math.round(13*HS), 600, false);
-    textOut(r[1], px + 28*HS, y + 19*HS, '#9C93A8', null, 0, 'left');
+  UI.end();
+}
+
+/* One scrollless panel that fits on a 1366x768 laptop, because that is the
+   machine the acceptance criteria name. Nothing here is behind a submenu
+   except rebinding, which needs a whole screen to itself. */
+function drawSettings(){
+  const HS = hudScale();
+  dimScreen(0.82);
+  UI.begin('settings');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('SETTINGS', View.w/2, View.h * 0.10, PAL.bone, PAL.ink, 8);
+
+  const pw = Math.min(View.w - 48, 700*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.10 + 40*HS;
+  const iw = pw - 56*HS, ix = px + 28*HS;
+  // Height from content, not from a fraction of the viewport: a panel sized to
+  // the window has to be sized for the tallest window, and on every other one
+  // it is mostly empty. 5 sound rows, 3 display rows, 2 button rows, three
+  // headings and the padding around them.
+  const ph = 38*HS + (28*HS + 5*34*HS + 10*HS)
+                   + (28*HS + 3*34*HS + 10*HS)
+                   + (28*HS + 34*HS + 8*HS + 34*HS);
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  y += 18*HS;
+
+  y += uiHeading(ix, y, iw, 'SOUND');
+  y += uiSlider(ix, y, iw, 'Master volume', Settings.get('volMaster'),
+                v => { Settings.set('volMaster', v); Sound.vol = v; });
+  y += uiSlider(ix, y, iw, 'Music', Settings.get('volMusic'), v => Settings.set('volMusic', v));
+  y += uiSlider(ix, y, iw, 'Effects', Settings.get('volSfx'), v => Settings.set('volSfx', v));
+  y += uiSlider(ix, y, iw, 'Interface', Settings.get('volUi'), v => Settings.set('volUi', v));
+  y += uiToggle(ix, y, iw, 'Mute everything', Settings.get('muted'),
+                v => { Settings.set('muted', v); Sound.muted = v; });
+  y += 10*HS;
+
+  y += uiHeading(ix, y, iw, 'DISPLAY');
+  y += uiChoice(ix, y, iw, 'Effects', [
+    { value: 1,    label: 'FULL' },
+    { value: 0.5,  label: 'FEWER' },
+    { value: 0.25, label: 'FEWEST' },
+  ], Settings.get('vfx'), v => Settings.set('vfx', v));
+  // Three states, not two: "follow the system" is the honest default and a
+  // player who has never opened this menu is already in it.
+  y += uiChoice(ix, y, iw, 'Reduced motion', [
+    { value: null,  label: Settings.motionReduced() ? 'SYSTEM (ON)' : 'SYSTEM (OFF)' },
+    { value: true,  label: 'ON' },
+    { value: false, label: 'OFF' },
+  ], Settings.get('reducedMotion'), v => Settings.set('reducedMotion', v));
+  y += uiChoice(ix, y, iw, 'Interface size', [
+    { value: 0.85, label: 'SMALL' },
+    { value: 1,    label: 'NORMAL' },
+    { value: 1.2,  label: 'LARGE' },
+    { value: 1.45, label: 'LARGEST' },
+  ], Settings.get('hudScale'), v => Settings.set('hudScale', v));
+  y += 10*HS;
+
+  y += uiHeading(ix, y, iw, 'CONTROLS AND PROMPTS');
+  const bh = 34*HS;
+  if (uiButton(ix, y, iw * 0.48, bh, 'REBIND KEYS')) openBinds();
+  if (uiButton(ix + iw * 0.52, y, iw * 0.48, bh,
+               Settings.get('hints') ? 'PROMPTS: ON' : 'PROMPTS: OFF'))
+    Settings.set('hints', !Settings.get('hints'));
+  y += bh + 8*HS;
+  if (uiButton(ix, y, iw * 0.48, bh, 'SHOW PROMPTS AGAIN')){ Settings.forgetHints(); Hints.reset(); }
+  if (uiButton(ix + iw * 0.52, y, iw * 0.48, bh, 'RESET EVERYTHING')){ Settings.reset(); Hints.reset(); }
+
+  const byy = View.h * 0.10 + 40*HS + ph + 18*HS;
+  if (uiButton(View.w/2 - 130*HS, byy, 260*HS, 46*HS, 'BACK', 'primary', { hint: 'ESC' }))
+    closeOverlay();
+  UI.end();
+}
+
+function drawHowTo(){
+  const HS = hudScale();
+  dimScreen(0.86);
+  UI.begin('howto');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('HOW TO PLAY', View.w/2, View.h * 0.10, PAL.bone, PAL.ink, 8);
+
+  const pw = Math.min(View.w - 48, 860*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.10 + 36*HS;
+  const ph = View.h * 0.66;
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  const ix = px + 30*HS, iw = pw - 60*HS;
+  y += 20*HS;
+
+  y += uiHeading(ix, y, iw, 'THE JOB');
+  setFont(Math.round(14.5*HS), 600, false);
+  const intro = [
+    'Twelve waves of boarders climb your rails. They are heading for the Boiler at ' +
+    'the stern. If the Boiler dies, the ship falls and the run is over.',
+    'Your captain swings her ' + (FEEL.basic ? ELEMENTS[FEEL.basic[1]].name + ' ' +
+      SHAPES[FEEL.basic[0]].noun : 'weapon') + ' by herself at whatever is nearest — ' +
+    'you never click to attack. Your job is where to stand and when to spend an ability.',
+  ];
+  intro.forEach(p => {
+    wrapText(p, iw).forEach(ln => { textOut(ln, ix, y + 8*HS, '#C6BFD2', null, 0, 'left'); y += 19*HS; });
+    y += 7*HS;
   });
+  y += 6*HS;
+
+  y += uiHeading(ix, y, iw, 'CONTROLS');
+  const rows = [
+    ['W A S D', 'move'],
+    ['MOUSE', 'aim — abilities go where the cursor is'],
+    [bindLabel('dash'), 'dash. Invulnerable while it lasts. Use it constantly.'],
+    [SLOT_KEYS[0] + '  ·  ' + SLOT_KEYS[1], 'abilities 1 and 2'],
+    [SLOT_KEYS[2] + '  ·  ' + SLOT_KEYS[3], 'abilities 3 and 4, once those slots open'],
+    ['1 2 3', 'pick a card in the draft'],
+    ['ESC', 'pause, settings, and this screen again'],
+  ];
+  rows.forEach((r) => {
+    setFont(Math.round(13.5*HS), 800, true);
+    textOut(r[0], ix, y + 9*HS, PAL.teal, null, 0, 'left');
+    setFont(Math.round(13.5*HS), 600, false);
+    textOut(r[1], ix + 150*HS, y + 9*HS, '#9C93A8', null, 0, 'left');
+    y += 24*HS;
+  });
+  y += 8*HS;
+
+  y += uiHeading(ix, y, iw, 'SHAPE × ELEMENT');
+  setFont(Math.round(14.5*HS), 600, false);
+  const matrix = 'Every skill is a shape crossed with an element: the shape is where the ' +
+    'damage lands, the element is what it does when it gets there. ' + comboCount() +
+    ' combinations. After each wave the draft offers three, and taking a second ' +
+    'skill in an element you already have is a build, not a dilution.';
+  wrapText(matrix, iw).forEach(ln => { textOut(ln, ix, y + 8*HS, '#C6BFD2', null, 0, 'left'); y += 19*HS; });
+  y += 12*HS;
+
+  // Show the two axes rather than describing them. Four elements down one row,
+  // the shapes across — the same glyphs and colours used everywhere else, so
+  // this screen teaches the vocabulary the HUD then uses.
+  const gx = ix, gy = y + 4*HS, cell = Math.min(38*HS, iw / (SHAPE_KEYS.length + 1));
+  SHAPE_KEYS.forEach((sh, i) => {
+    const E = ELEMENTS[ELEMENT_KEYS[i % ELEMENT_KEYS.length]];
+    drawShapeGlyph(sh, gx + i * cell + cell/2, gy + cell/2, cell * 0.30, E.color, E.glow);
+    setFont(Math.round(9.5*HS), 700, true);
+    textOut(SHAPES[sh].noun.toUpperCase(), gx + i * cell + cell/2, gy + cell + 2*HS, '#7E778C');
+  });
+  ELEMENT_KEYS.forEach((el, i) => {
+    const E = ELEMENTS[el];
+    const cx2 = gx + iw * 0.62 + i * (iw * 0.095);
+    circ(cx2, gy + cell/2, cell * 0.22);
+    ctx.fillStyle = hexToRgba(E.color, 0.28); ctx.fill();
+    ctx.strokeStyle = E.color; ctx.lineWidth = 2*HS; ctx.stroke();
+    setFont(Math.round(9.5*HS), 700, true);
+    textOut(E.name.toUpperCase(), cx2, gy + cell + 2*HS, E.color);
+  });
+
+  const byy = View.h * 0.10 + 36*HS + ph + 18*HS;
+  if (uiButton(View.w/2 - 130*HS, byy, 260*HS, 46*HS, 'BACK', 'primary', { hint: 'ESC' }))
+    closeOverlay();
+  UI.end();
+}
+
+/* Rebinding. Click a row, press a key. The defaults stay printed beside the
+   current binding, because "what was this before I changed it" is the question
+   every remap screen that hides them makes unanswerable. */
+const BIND_ROWS = [
+  ['slot1', 'Ability 1', 'also LEFT MOUSE'],
+  ['slot2', 'Ability 2', 'also RIGHT MOUSE'],
+  ['slot3', 'Ability 3', ''],
+  ['slot4', 'Ability 4', ''],
+  ['dash',  'Dash', ''],
+];
+function drawBinds(){
+  const HS = hudScale();
+  dimScreen(0.86);
+  UI.begin('binds');
+  setFont(Math.round(40*HS), 900, true);
+  textOut('KEYS', View.w/2, View.h * 0.14, PAL.bone, PAL.ink, 8);
+  setFont(Math.round(13.5*HS), 600, false);
+  textOut(S.overlay.listen ? 'press a key  ·  ESC to cancel'
+                           : 'click a binding, then press the key you want',
+          View.w/2, View.h * 0.14 + 32*HS, S.overlay.listen ? PAL.crit : '#9C93A8');
+
+  const pw = Math.min(View.w - 48, 560*HS);
+  const px = (View.w - pw)/2;
+  let y = View.h * 0.25;
+  const ph = 30*HS + BIND_ROWS.length * 44*HS;
+  brassPanel(px, y, pw, ph, 12*HS, 0.96);
+  y += 20*HS;
+
+  const custom = Settings.get('keys') || {};
+  for (const row of BIND_ROWS){
+    const rh = 40*HS;
+    const listening = S.overlay.listen === row[0];
+    const st = UI.probe({ x: px + 20*HS, y, w: pw - 40*HS, h: rh });
+    if (st.hover || (st.focused && UI.usingKeys) || listening){
+      rr(px + 20*HS, y, pw - 40*HS, rh, 7*HS);
+      ctx.fillStyle = listening ? 'rgba(255,213,46,0.12)' : 'rgba(55,240,200,0.07)'; ctx.fill();
+    }
+    setFont(Math.round(14.5*HS), 700, false);
+    textOut(row[1], px + 34*HS, y + rh/2, PAL.bone, null, 0, 'left');
+    if (row[2]){
+      setFont(Math.round(11*HS), 600, false);
+      textOut(row[2], px + 34*HS + 110*HS, y + rh/2, '#6E667A', null, 0, 'left');
+    }
+    setFont(Math.round(14*HS), 800, true);
+    textOut(listening ? '…' : keyLabel(bindKey(row[0])),
+            px + pw - 34*HS, y + rh/2, listening ? PAL.crit : PAL.teal, PAL.ink, 3, 'right');
+    if (custom[row[0]]){
+      setFont(Math.round(10.5*HS), 600, false);
+      textOut('default ' + keyLabel(row[0] === 'dash' ? KEYS.dash.key
+                 : (KEYS.slots[BINDS.indexOf(row[0])].key || KEYS.slots[BINDS.indexOf(row[0])].alt)),
+              px + pw - 34*HS, y + rh/2 + 14*HS, '#6E667A', null, 0, 'right');
+    }
+    if (st.fired && !S.overlay.listen){ S.overlay.listen = row[0]; SFX.uiClick(); }
+    y += 44*HS;
+  }
+
+  y += 18*HS;
+  const bw = (pw - 12*HS) / 2;
+  if (uiButton(px, y, bw, 46*HS, 'RESET TO DEFAULTS')) Settings.set('keys', null);
+  if (uiButton(px + bw + 12*HS, y, bw, 46*HS, 'BACK', 'primary', { hint: 'ESC' })) closeOverlay();
+  UI.end();
+}
+
+function drawOverlay(){
+  if (!S.overlay) return;
+  if (S.overlay.kind === 'settings') drawSettings();
+  else if (S.overlay.kind === 'howto') drawHowTo();
+  else if (S.overlay.kind === 'binds') drawBinds();
 }
 
 /* The results screen.
@@ -8358,10 +8855,14 @@ function render(){
   drawScreenFx();
   const ended = S.mode === 'gameover' || S.mode === 'victory';
   if (S.mode !== 'title' && !ended) drawHUD();
-  if (S.mode === 'draft') drawDraft();
-  if (S.mode === 'pause') drawPause();
-  if (S.mode === 'title') drawTitle();
-  if (ended) drawEndScreen();
+  // An overlay replaces the screen underneath rather than stacking on it: two
+  // panels of controls at once is two sets of hit targets, and the one you
+  // cannot see still takes clicks.
+  if (S.overlay) drawOverlay();
+  else if (S.mode === 'draft') drawDraft();
+  else if (S.mode === 'pause') drawPause();
+  else if (S.mode === 'title') drawTitle();
+  else if (ended) drawEndScreen();
   if (S.showFps) drawFps();
   drawCursor();
   // Remember where the mouse was, so a widget can tell "the pointer moved onto
@@ -8390,6 +8891,7 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    skillStats, step, rollCards, rollSkillCards, updateRay, endRay,
                    render, Particles, hurtPlayer, hurtBoiler, pickCard, closeDraft,
                    Rng, Settings, Store, RunLog, runReportText, seedText, buildRunRecord, UI,
+                   Hints, openSettings, openHowTo, openBinds, closeOverlay,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
 
 </script>
