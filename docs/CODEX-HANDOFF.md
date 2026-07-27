@@ -15,7 +15,7 @@
 Living status file. Read this first; the other docs are the detail behind it.
 
 **Updated:** 2026-07-27 · **Live build:** `storm-dusk-v10.html` ·
-**Art:** 50 of 67 and climbing · **Audio:** 6 cues of 55
+**Art:** 65 of 67 · **Audio:** 6 cues of 55
 
 ---
 
@@ -32,7 +32,7 @@ the cast, so a strip dropped into `assets/animations/` appears on the next build
 with no engine change.
 
 **The title screen reports what actually resolved**, bottom-right:
-`v10 · 673a9e0 · 50/67 art`. If that count does not go up after you push files,
+`v10 · <build> · 60/85 art` — of stills AND animation cycles. If that count does not go up after you push files,
 something is wrong with a filename or a dimension — check §4 before anything
 else. Note the count is now of assets something actually *draws*: three UI icons
 that loaded and were never drawn used to inflate it.
@@ -64,26 +64,24 @@ that loaded and were never drawn used to inflate it.
 
 ---
 
-## 2 · The gap — 17 files
+## 2 · The gap — 2 stills, 16 cycles
 
-Generated from the manifest, so it cannot drift. Anything here has a live slot.
-The prompts for all of them are already written, in `tools/forge.py`, in version
-control — run `python tools/forge.py list` for the current state.
+Generated from the manifest, so it cannot drift. Run `python tools/forge.py
+list` for the current state; every prompt is already written and in version
+control.
 
-| Batch | Missing |
-|---|---|
-| `props/` | `crate_small`, `barrel`, `rope_coil`, `mast_section`, `railing_segment`, `hatch_cargo`, `harpoon_ballista` |
-| `fx/` | `puff_steam`, `puff_smoke_dark`, `burst_impact`, `bolt_tesla`, `slash_arc`, `ember_particle` |
-| `env/` | `clouds_far`, `clouds_near`, `airship_distant` |
-| `ui/` | `frame_hud` |
+**Stills: `env_clouds_far` and `env_clouds_near`.** Nothing else. Both are
+blocked on the image account's hard billing limit, and both are the assets with
+the strongest procedural fallback in the game, which is why the priority order
+put them last.
 
-Everything in `ground/` and the rest of `ui/` — including the three passive
-icons — is delivered.
-
-### Animation — 17 cycles outstanding
-
-Priority order is in `ASSET-GENERATION.md` §6. Captain first: her attack is the
-most-seen frame in the game since the cleave became the auto-attack.
+**Animation: 16 cycles.** Delivered: `hero_run`, `scrapper_run`, `hero_idle`.
+Priority order in `ASSET-GENERATION.md` §6 — but read **§6b first**. Five video
+calls went on the captain and four were unusable, and the reasons are
+structural rather than bad luck: run cycles close their loops and idles never
+do (so idles are `pingpong` and their match score is meaningless), the attack
+came back with no strike in it, and the chroma guidance is wrong for her —
+green in both stages, not magenta for the animate pass.
 
 ---
 
@@ -145,7 +143,7 @@ python src/storm-dusk/build.py         # fold into the live build
 
 - The engine: blocks 1–5 and 7, all landed. Nothing under `assets/` or `audio/`
   except through `loom-ingest.py` and `ingest-audio.py`.
-- `tools/harness.mjs` — 27 checks against the real build in a real browser,
+- `tools/harness.mjs` — 42 checks against the real build in a real browser,
   including a matrix from 1280×720 to 2560×1440 and a Firefox pass. Run it
   before pushing: `npm test`.
 - `tools/shots.mjs` — photographs every screen, procedural or `--art`.

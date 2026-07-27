@@ -110,22 +110,39 @@ Verified 2026-07-27 by running it, not remembered.
 | | |
 |---|---|
 | Engine | **Blocks 1–5 and 7 complete.** Seeded runs, streaming art, opening draft, contextual prompts, title screen, settings, rebindable keys, reduced motion, results screen, run report, lane readout, before→after cards |
-| Harness | 21 checks, all passing: matrix, waves, endings, seed, perf, layout matrix, Firefox, frozen hashes |
-| Stills | **50 of 67** delivered and climbing — 17 outstanding: props 7, fx 6, env 3, `ui_frame` |
-| Animation | 2 run cycles as packed strips; idle/run/attack wired for the whole cast, 17 cycles outstanding |
+| Harness | **42 checks, all passing**: matrix, waves, boss beats, endings, seed, storage, slow start, real input, perf, layout matrix, Firefox, frozen hashes |
+| Stills | **65 of 67** delivered — 2 outstanding, both background cloud bands |
+| Animation | 3 strips: two run cycles and the captain's idle. 16 cycles outstanding, all wired |
 | Audio | 6 of 55 cues. **All 16 delivered masters now at −8 dBFS with no runtime rescue**; one (`crew_muster_1`) is cut mid-sound and needs regenerating |
-| First load | **25 MB** of art and audio, but streamed in priority order behind a playable procedural game — there is no loading screen at any speed |
+| Boss | Two beats and a real turn at half health, per the plan |
+| First load | **27 MB** of art and audio, but streamed in priority order behind a playable procedural game. Measured: title screen up in **210 ms** on a throttled 3 Mbit line, run starts while the art is still arriving |
 | Determinism | done — `?seed=`, seed on the results screen and in the run report |
 
-### The one thing that is blocked
+### The three things that are blocked
 
-**Audio generation needs a key this machine does not have.** `OPENAI_API_KEY`
-and `GOOGLE_API_KEY` are set; there is no ElevenLabs or Suno key, so the 49
-remaining SFX cues and 6 music tracks cannot be generated here. Everything
-around them is ready: every cue has a procedural voice, a sample slot, a bus, a
-voice cap and positional panning, so a delivered file is live the moment
-`src/ingest-audio.py` sees it. Set `ELEVENLABS_API_KEY` and the queue in
-`AUDIO-SPEC.md` §7 can be worked straight through.
+**1 · Image generation has hit the account's hard billing limit.** The last two
+stills — `env_clouds_far` and `env_clouds_near` — failed with
+`billing_hard_limit_reached`. They are the two assets with the best procedural
+fallback in the whole manifest, which is why the priority order put them last.
+Their prompts are written and committed in `tools/forge.py`, and their job
+state is cleared, so raising the limit makes this one command:
+`python tools/forge.py run env && python tools/forge.py ingest env`.
+
+**2 · Audio generation needs a key this machine does not have.**
+`OPENAI_API_KEY` and `GOOGLE_API_KEY` are set; there is no ElevenLabs or Suno
+key, so the 49 remaining SFX cues and 6 music tracks cannot be generated here.
+Everything around them is ready: every cue has a procedural voice, a sample
+slot, a bus, a voice cap and positional panning, so a delivered file is live
+the moment `src/ingest-audio.py` sees it. Set `ELEVENLABS_API_KEY` and the
+queue in `AUDIO-SPEC.md` §7 can be worked straight through.
+
+**3 · Video generation works, but stopped on purpose.** Five calls went on the
+captain and one shipped. What the other four taught is in
+`ASSET-GENERATION.md` §6b and is worth reading before spending another: run
+cycles close their loops and idles never do, so idles are `pingpong` in the
+manifest and their match score is irrelevant; the attack came back with no
+attack in it; and the chroma guidance is wrong for her — green in both stages,
+not magenta for the animate pass.
 
 ---
 
@@ -144,11 +161,13 @@ than burning generations at it.
 
 ## 7 · What is left
 
-1. **Finish the stills** — `python tools/forge.py run props` etc., then
-   `ingest`. The prompts are already written and in version control.
-2. **Animation** — the queue in `ASSET-GENERATION.md` §6, captain first. The
-   engine already draws idle/run/attack strips for every character, so a
-   delivered strip needs no code.
+1. **Two cloud bands** — blocked on the billing limit, one command once it is
+   raised. See §5.
+2. **Animation** — 16 cycles, the queue in `ASSET-GENERATION.md` §6. Read §6b
+   first. The engine draws idle/run/attack strips for every character already,
+   so a delivered strip needs no code at all.
 3. **Audio** — blocked on a key. See §5.
 4. **The human work**, which no agent can do: five cold playtests, a slow
-   laptop, loudness on three output systems, photosensitivity review.
+   laptop, loudness on three output systems, photosensitivity review. This is
+   now the largest remaining item by some distance — everything the engine can
+   assert about itself, it asserts.
