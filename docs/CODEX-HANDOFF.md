@@ -2,7 +2,7 @@
 
 Living status file. Read this first; the other docs are the detail behind it.
 
-**Updated:** 2026-07-26 · **Live build:** `storm-dusk-v6.html` · **Art:** 15 of 67
+**Updated:** 2026-07-26 · **Live build:** `storm-dusk-v7.html` · **Art:** 15 of 67 · **Audio:** 5 cues of 55
 
 ---
 
@@ -191,6 +191,69 @@ In order of likelihood:
 
 Assets are fetched relative to the page, so they must live under `assets/` in
 the repo root, committed and pushed. There is no build step for art.
+
+---
+
+## 4b · Audio delivery — how files get in
+
+Different from art, and the difference matters. The loader cannot guess: probing
+every manifest entry would mean a request and a 404 for every cue nobody has
+made. So delivered audio is named in a generated index, and the step that copies
+files also writes it:
+
+```
+python src/ingest-audio.py --check     # validate, touch nothing
+python src/ingest-audio.py             # copy into audio/, write the index
+python src/storm-dusk/build.py         # fold into the live build
+```
+
+Drop masters anywhere under the staging folder (`C:/Users/alexr/Dev/skygear-audio/out`
+by default, `--from` to override) in the manifest's directory layout. The script
+matches by path against `AUDIO_MANIFEST`, counts `_1.._N` takes on its own, and
+reports anything that does not match a manifest key — so a misnamed file is loud
+rather than silent.
+
+**It also normalises delivery loudness.** The first batch spanned 37 dB of RMS,
+with the most-heard cue 30 dB below the loudest, so the script measures each cue
+and writes a correction factor to bring it to a common peak. That is a delivery
+correction only; how loud a cue sits *relative to the others* is design intent
+and lives in `AUDIO_MANIFEST.gain`. As deliveries get closer to spec the
+correction converges on 1.0 and can be dropped.
+
+### First batch — what the measurements said
+
+Five cues, 16 takes, all distinct, all correctly mono 44.1k/16-bit. Findings
+that are worth acting on:
+
+| Finding | Detail |
+|---|---|
+| **Everything landed exactly on its cap** | All 16. The length limiter is doing real work, but nothing ended on its own terms — every one was cut to fit. |
+| **`crew_muster` is cut mid-sound** | Still at 97% of its average energy when it stops. A 5 ms fade prevents a click, not the impression of a hard stop. Regenerate shorter rather than trimming longer. |
+| **Real clipping in 5 files** | Runs of up to 10 consecutive samples at full scale — distortion baked into the master, which attenuation cannot undo. `crew_muster_2` has 124 full-scale samples. Generate with headroom. |
+| **`cannon_hurt` needed +18 dB** | It hit the correction clamp. Amplifying that far lifts the generation noise floor with it; better regenerated louder than rescued in software. |
+| **`hit` needed +13 dB** | Same, less severe. |
+
+Nothing here blocks shipping — v7 is live with all five — but the level spread
+and the clipping are worth fixing at the source in the next batch.
+
+### Spec corrections
+
+- **§3 says 48 kHz / 24-bit masters. Drop it to 44.1 kHz / 16-bit.** That is the
+  generator's ceiling and it is immaterial for generative material; the
+  requirement was written assuming recorded sources.
+- **`amb_storm` at 22 s instead of 30 s is fine.** It loops on wind, which has no
+  event structure to preserve. Take the 22 s.
+
+### The RAY question — answered
+
+`elem_*` does **not** need looping variants yet. The beam is one shape of six and
+only when drafted, so four more files buy very little. The engine layers
+`shape_beam_start` → `shape_beam_loop` → `shape_beam_end`, with the one-shot
+element tail at onset to colour it. That reads correctly for a two-second beam.
+
+If the beam later feels elementally colourless while held, the fix is four
+looping element beds — not retriggering the one-shot, which would pulse.
+Park it; it is not in the top three batches.
 
 ---
 

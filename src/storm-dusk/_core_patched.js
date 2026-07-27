@@ -236,6 +236,11 @@ const Sound = {
     if (this.master) this.master.gain.value = this.muted ? 0 : this.vol;
   },
 
+  // Bus routing. _audio.js installs master-fed buses (music/sfx/ui/voice) and
+  // overrides this; before that, and if audio assets are off, every cue lands
+  // on master exactly as it always did.
+  dest(){ return this.master; },
+
   // --- primitives -----------------------------------------------------------
   tone(o){
     if (!this.ready || this.muted) return;
@@ -255,7 +260,7 @@ const Sound = {
       f.type = o.filter; f.frequency.value = o.ff || 1200; f.Q.value = o.q || 1;
       node.connect(f); node = f;
     }
-    node.connect(g); g.connect(this.master);
+    node.connect(g); g.connect(o.out || this.dest(o.bus));
     osc.start(t); osc.stop(t + o.dur + 0.02);
   },
 
@@ -275,7 +280,7 @@ const Sound = {
     g.gain.setValueAtTime(0.0001, t);
     g.gain.exponentialRampToValueAtTime(peak, t + Math.min(0.01, o.dur*0.25));
     g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
-    src.connect(f); f.connect(g); g.connect(this.master);
+    src.connect(f); f.connect(g); g.connect(o.out || this.dest(o.bus));
     src.start(t, rnd(0, 0.4)); src.stop(t + o.dur + 0.02);
   },
 };
@@ -2161,12 +2166,13 @@ function startWave(n){
       spawnHulk(1 + idx * 0.20);
       S.hulk.vulnerable = true;
       S.banner = { kind:'push', n, t:0, life: 3.0 };
-      SFX.bossRoar();
+      SFX.hulkGrapple();
       S.crewT = 0.5;            // send a wave with the horn, not 14s after it
     } else {
       S.hulk.vulnerable = false;
     }
   }
+  SFX.waveStart();
   S.queue = buildQueue(n);
   S.waveT = 0; S.loopT = 0; S.loopIdx = 0;
   S.phase = 'fight';
@@ -2275,6 +2281,7 @@ function rollCards(n){
 function openDraft(){
   S.mode = 'draft';
   S.draft = { cards: rollCards(3), hover: -1, t: 0, chosen: -1, chooseT: 0 };
+  SFX.cardDeal();
 }
 function pickCard(i){
   if (!S.draft || S.draft.chosen >= 0) return;
@@ -2379,6 +2386,7 @@ function updateUI(rt){
       if (S.draft.chooseT <= 0) closeDraft();
     }
   }
+  if (typeof Ambience !== 'undefined'){ Ambience.update(rt); Music.update(); }
   if (S.mode === 'gameover' || S.mode === 'victory') S.endT += rt;
   if (S.mode === 'title') S.titleT = (S.titleT || 0) + rt;
 }

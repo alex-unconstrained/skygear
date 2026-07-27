@@ -132,7 +132,7 @@ function updateTurrets(dt){
       t.cd = T.cd;
       t.fireFx = 0.14;
       hitEnemy(best, T.dmg, { ang: t.ang, knock: 90, noCrit: true });
-      SFX.enemyShoot();
+      SFX.cannonFire({ x: t.x, y: t.y });
       pSparks(t.x + Math.cos(t.ang) * 30, t.y + Math.sin(t.ang) * 30, 5, PAL.teal, 200, t.ang, 0.4);
     }
   }
@@ -140,9 +140,11 @@ function updateTurrets(dt){
 function damageTurret(t, dmg){
   if (t.dead) return;
   t.hp -= dmg;
+  SFX.turretHurt({ x: t.x, y: t.y });
   t.flash = 0.12;
   if (t.hp <= 0){
     t.hp = 0; t.dead = true;
+    SFX.turretDown({ x: t.x, y: t.y });
     addTrauma(0.4); SFX.slam();
     pGibs(t.x, t.y, 22, PAL.brass, PAL.iron);
     pSmoke(t.x, t.y, 10, 'rgba(40,36,48,0.65)', 90);
@@ -169,7 +171,7 @@ function spawnCrewWave(){
       });
     }
   }
-  SFX.ready();
+  SFX.crewMuster();
 }
 function updateCrew(dt){
   if (!PRESET.lanes) return;
@@ -221,8 +223,10 @@ function updateCrew(dt){
           }
         } else {
           const e = c.target;
-          if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r)
+          if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r){
             hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+            SFX.crewAttack({ x: c.x, y: c.y });
+          }
         }
         c.state = 'recover'; c.st = C.recover;
       }
@@ -245,6 +249,7 @@ function hurtCrew(c, dmg, ang){
   c.flash = 0.06;
   if (c.hp <= 0){
     c.dead = true;
+    SFX.crewDown({ x: c.x, y: c.y });
     pGibs(c.x, c.y, 8, '#7A6E5A', PAL.iron);
     pSparks(c.x, c.y, 5, PAL.bone, 160);
   }
@@ -263,10 +268,11 @@ function damageHulk(dmg){
   if (!H || H.dead) return 0;
   if (!H.vulnerable) return 0;                 // plating sealed on hold waves
   H.hp -= dmg; H.flash = 0.1;
+  SFX.hulkHit({ x: H.x, y: H.y });
   S.stats.damage += dmg;
   if (H.hp <= 0){
     H.hp = 0; H.dead = true;
-    addTrauma(1); S.flashWhite = 0.9; SFX.bossRoar();
+    addTrauma(1); S.flashWhite = 0.9; SFX.hulkBreak();
     for (let i = 0; i < 10; i++)
       fx({ kind:'delayPop', x: H.x + rnd(-190,190), y: H.y + rnd(-70,70),
            life: 0.5, delay: i * 0.12, r: rnd(50,110), col: i%2 ? PAL.fire : PAL.fireCore });
