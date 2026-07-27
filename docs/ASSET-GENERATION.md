@@ -224,6 +224,68 @@ partial name.
 
 ---
 
+## 6b · What five video generations on the captain actually taught
+
+Recorded 2026-07-27 after spending five video calls on `hero_idle` and
+`hero_attack` and shipping one of them. §8 says to stop and write down why
+rather than burning generations at a single asset; this is that.
+
+### Run cycles close. Idles do not.
+
+Loop match is first-frame-versus-last-frame agreement, and the threshold in §5
+is 0.05. Measured:
+
+| Cycle | Match | |
+|---|---|---|
+| `scrapper_run` | **0.0143** | shipped |
+| `hero_run` | **0.0390** | shipped |
+| `hero_idle` attempt 1 | 0.194 | |
+| `hero_idle` attempt 2 (test prompt) | 0.205 | |
+| `hero_attack` | 0.372 | |
+| `hero_idle` attempt 3 (loop clause hardened, amplitude reduced) | **0.413** | worse |
+
+Hardening the loop language made it *worse*, twice. This is not a prompt
+problem. A run has a period the model can land on — two contacts and a passing
+pose, and the shape of the motion tells it where the cycle ends. A breath does
+not. It drifts, and asking it more firmly not to drift does not give it a
+structure to return to.
+
+**The fix is in the engine, not the prompt.** `ANIMATION_MANIFEST` entries can
+be marked `pingpong: true`, which plays 0..n-1..0. The boundary is then exact
+by construction and the match score stops being meaningful. It is also what an
+idle *is* — a breath in and a breath out — so this is right for the content
+rather than a way around a bad take. Every idle in the manifest is marked that
+way. **Do not spend reruns chasing a loop score on an idle.**
+
+### The attack came back with no attack in it
+
+Twelve frames of the captain holding her sabre raised in a ready pose. No
+wind-up, no strike, no recovery — the model read "one sabre attack" as a
+combat-ready idle. It is not shippable and was not shipped.
+
+If this is attempted again: describe the strike as a change in the *blade's
+position across the frame* rather than as an action. "The blade starts high on
+her right and finishes low across her left hip" is a thing a video model can
+aim at; "performs one sabre attack" is not.
+
+### Chroma: the guidance in §3 is wrong for the captain's animation
+
+§3 says forge her on green and animate on magenta. Animating on magenta puts a
+magenta plate behind an **oxblood coat and red-brown hair**, and every take
+came back with a magenta fringe along the hair tips and coat edges that the
+keyer cannot separate — exactly the failure §9 describes for a chroma too close
+to a subject colour. Green is the right plate for her in *both* stages. The
+fringe is visible in the delivered `hero_idle` and is the main thing wrong
+with it.
+
+### Figure height is per cycle, not shared
+
+`check-animations.py` measured 71% for the captain's run and 78% for her idle.
+With one shared `fig` she grew about ten percent the moment she stopped
+running. Copy the measured number into that cycle's `meta.fig` after ingest.
+
+---
+
 ## 7 · Standing rules
 
 - **Camera is locked.** Billboards upright, 10–15° above horizontal; the engine

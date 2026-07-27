@@ -147,14 +147,25 @@ const ASSET_PRIORITY = [
    were 28 files and 3.9 MB, more than every still in the game combined; packed
    they are 33-35% smaller (measured) and one request instead of thirteen.
    `python src/pack-animations.py` produces them. */
+/* `fig` is how much of the frame the FIGURE fills, and it is per cycle rather
+   than one shared constant because the takes are not framed identically:
+   python src/check-animations.py measures 71% for the captain's run and 78%
+   for her idle. Sharing one number would have drawn the idle about ten percent
+   larger, so she would visibly grow the moment she stopped running. The number
+   below is the measured one — run check-animations.py after ingesting a cycle
+   and copy what it reports. */
 const ANIMATION_MANIFEST = {
   hero_run: {
     strip:'assets/animations/hero_run.png', count:13, fps:12,
-    meta:{ anchor:0.920, cx:0.500, fig:0.840 },
+    meta:{ anchor:0.920, cx:0.500, fig:0.710 },
+  },
+  hero_idle: {
+    strip:'assets/animations/hero_idle.png', count:12, fps:12, pingpong:true,
+    meta:{ anchor:0.920, cx:0.500, fig:0.780 },
   },
   SCRAPPER_run: {
     strip:'assets/animations/scrapper_run.png', count:15, fps:12,
-    meta:{ anchor:0.920, cx:0.500, fig:0.840 },
+    meta:{ anchor:0.920, cx:0.500, fig:0.660 },
   },
 };
 
@@ -171,21 +182,20 @@ const ANIMATION_MANIFEST = {
    the cut loop produced, and check-animations.py compares the two, so a
    mismatch is caught at ingest rather than as a sprite that jitters in game. */
 const ANIMATION_PENDING = {
-  hero_idle:        { strip:'assets/animations/hero_idle.png',     count:12, fps:12 },
   hero_attack:      { strip:'assets/animations/hero_attack.png',   count:10, fps:14, once:true },
-  SCRAPPER_idle:    { strip:'assets/animations/scrapper_idle.png',   count:12, fps:12 },
+  SCRAPPER_idle:    { strip:'assets/animations/scrapper_idle.png',   count:12, fps:12, pingpong:true },
   SCRAPPER_attack:  { strip:'assets/animations/scrapper_attack.png', count:10, fps:14, once:true },
-  CREW_idle:        { strip:'assets/animations/crew_idle.png',   count:12, fps:12 },
+  CREW_idle:        { strip:'assets/animations/crew_idle.png',   count:12, fps:12, pingpong:true },
   CREW_run:         { strip:'assets/animations/crew_run.png',    count:13, fps:12 },
   CREW_attack:      { strip:'assets/animations/crew_attack.png', count:10, fps:14, once:true },
-  ARMORED_idle:     { strip:'assets/animations/armored_idle.png',   count:12, fps:12 },
+  ARMORED_idle:     { strip:'assets/animations/armored_idle.png',   count:12, fps:12, pingpong:true },
   ARMORED_run:      { strip:'assets/animations/armored_run.png',    count:14, fps:12 },
   ARMORED_attack:   { strip:'assets/animations/armored_attack.png', count:10, fps:14, once:true },
   SWARM_run:        { strip:'assets/animations/swarm_run.png',    count:12, fps:14 },
   SWARM_attack:     { strip:'assets/animations/swarm_attack.png', count:8,  fps:16, once:true },
-  GUNNER_idle:      { strip:'assets/animations/gunner_idle.png',   count:12, fps:12 },
+  GUNNER_idle:      { strip:'assets/animations/gunner_idle.png',   count:12, fps:12, pingpong:true },
   GUNNER_attack:    { strip:'assets/animations/gunner_attack.png', count:10, fps:14, once:true },
-  BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10 },
+  BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10, pingpong:true },
   BOSS_attack:      { strip:'assets/animations/colossus_attack.png', count:12, fps:12, once:true },
 };
 for (const k in ANIMATION_PENDING){
@@ -341,6 +351,7 @@ const Assets = {
       if (ok && im.naturalWidth > 0){
         sequence.img = im;
         sequence.once = !!spec.once;
+        sequence.pingpong = !!spec.pingpong;
         sequence.fw = Math.round(im.naturalWidth / spec.count);
         sequence.fh = im.naturalHeight;
         sequence.ready = spec.count;
@@ -359,11 +370,33 @@ const Assets = {
      arrived. Null is the normal case for most of a session's first seconds and
      every caller already handles it by drawing the still — which is the whole
      reason stills are never deleted once a cycle exists. */
+  /* `time` is seconds. Three playback modes, and which one a cycle uses is a
+     fact about how the cycle was authored, not a preference:
+
+       loop      frame 0..n-1, wrapping. For anything with a natural period.
+       once      plays through and holds, then hands back to the still.
+       pingpong  0..n-1..0. For anything with NO natural period.
+
+     Ping-pong exists because of a measured failure. Gemini Omni closes a RUN
+     cycle reliably — the two shipped run strips score 0.014 and 0.039 on
+     first-versus-last-frame agreement — and does not close an IDLE at all:
+     four attempts at the captain's idle scored 0.19, 0.20, 0.37 and 0.41,
+     against a 0.05 threshold. That is not a prompt problem, it is structural.
+     A run has a period the model can land on; a breath does not, so it drifts.
+
+     Under ping-pong the metric stops mattering: the sequence returns through
+     the frames it came from, so the boundary is exact by construction. It is
+     also what an idle actually is — a breath in and a breath out — so this is
+     the right playback for the content and not a way around a bad take. */
   animation(k, time){
     const seq = this.animations[k];
     if (!seq || !seq.img) return null;
     let i;
-    if (seq.once){
+    if (seq.pingpong){
+      const span = seq.count * 2 - 2;                 // 0..n-1..1
+      const j = Math.floor(Math.max(0, time) * seq.fps) % Math.max(1, span);
+      i = j < seq.count ? j : span - j;
+    } else if (seq.once){
       // Plays through and holds its last frame. `time` is seconds since the
       // action started, so a caller that keeps its own clock gets a one-shot;
       // one that passes a free-running clock would get a loop, which is why

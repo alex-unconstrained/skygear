@@ -159,16 +159,6 @@
   "chroma": "#FF00FF",
   "n": 1
  },
- "env_clouds_far": {
-  "id": "d6442c49e0fe",
-  "chroma": "#FF00FF",
-  "n": 1
- },
- "env_clouds_near": {
-  "id": "a965e61cafc7",
-  "chroma": "#FF00FF",
-  "n": 1
- },
  "decal_gears": {
   "id": "57fd9be795a1",
   "chroma": "#FF00FF",

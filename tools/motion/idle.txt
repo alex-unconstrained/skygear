@@ -3,14 +3,16 @@
 Create one single, continuous, unbroken, locked-off shot of this exact character standing at rest. No scene cuts. Preserve the exact face, hair, proportions, ornate outfit, materials, weapon, ink outline, painterly rendering, colors, lighting, three-quarter viewing angle, and scale from the source.
 
 Motion:
-- A calm idle of approximately 2.0 seconds: slow breathing, one small shift of weight from one foot to the other and back, and one restrained equipment tic such as the gauntlet's pressure gauge twitching or a single blink.
+- A calm idle of approximately 2.0 seconds. Keep the amplitude SMALL: a slow breath that rises and falls once, and one restrained equipment tic such as the gauntlet's pressure gauge twitching or a single blink. Do not shift the stance, do not open or close the coat, do not change the arm position. The silhouette should barely change; this is breathing, not a pose change.
 - Use crisp, hand-authored 12 fps timing rather than cinematic interpolation.
 - Hair, coat tails and belts follow with restrained one- to two-frame overlap and settle.
 - The weapon hand stays low and stable. The blade must not wobble, bend, morph, or pass through the body.
 - Keep both feet planted. The feet's average ground-contact point is fixed. No drifting, no foot sliding, no stepping.
 
-Loop:
-Return exactly to the source pose on the final beat at normal speed. Do not pause, settle, or hold at either boundary. The boundary poses must match in silhouette, foot placement, blade angle, hair, coat position and lighting, with no jump, acceleration, speed ramp, or crossfade.
+Loop — this is the most important requirement in this prompt:
+The FINAL FRAME must be pixel-for-pixel as close to the FIRST FRAME as you can
+make it. Plan the whole motion around returning: go out, and come all the way
+back. Return exactly to the source pose on the final beat at normal speed. Do not pause, settle, or hold at either boundary. The boundary poses must match in silhouette, foot placement, blade angle, hair, coat position and lighting, with no jump, acceleration, speed ramp, or crossfade.
 
 Camera and framing:
 - Use a 16:9 landscape canvas and a static locked camera.
