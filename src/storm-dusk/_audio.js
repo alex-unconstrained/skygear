@@ -80,7 +80,11 @@ const AUDIO_MANIFEST = {
   slot_unlock:      { file:'sfx/ui/slot_unlock', bus:'ui', max:1 },
   // --- music ----------------------------------------------------------------
   m_title:    { file:'music/title_loop',    bus:'music', loop:true, lazy:true },
-  m_combat1:  { file:'music/combat_low',    bus:'music', loop:true, lazy:true },
+  // Measured in-engine: the track fades in over ~1s and fades to silence in
+  // its last ~2s. Looping the whole file would drop the music out entirely
+  // every 2:48, so the loop is taken from the sustained middle.
+  m_combat1:  { file:'music/combat_low',    bus:'music', loop:true, lazy:true,
+                loopStart:1.0, loopEnd:164.5 },
   m_combat2:  { file:'music/combat_mid',    bus:'music', loop:true, lazy:true },
   m_combat3:  { file:'music/combat_high',   bus:'music', loop:true, lazy:true },
   m_push:     { file:'music/push_loop',     bus:'music', loop:true, lazy:true },
@@ -427,11 +431,32 @@ const Music = {
     return 'm_combat1';
   },
 
+  /* With a partial score, asking for a track that does not exist must not mean
+     silence. Each state falls back along a chain to whatever has been
+     delivered, so a single combat loop covers the whole game and every new
+     track slots into its own tier without any other change. */
+  resolve(k){
+    const chain = {
+      m_combat3: ['m_combat3', 'm_combat2', 'm_combat1'],
+      m_combat2: ['m_combat2', 'm_combat1', 'm_combat3'],
+      m_combat1: ['m_combat1', 'm_combat2', 'm_combat3'],
+      m_push:    ['m_push', 'm_combat3', 'm_combat2', 'm_combat1'],
+      m_boss:    ['m_boss', 'm_push', 'm_combat3', 'm_combat2', 'm_combat1'],
+      m_title:   ['m_title', 'm_combat1'],
+    }[k] || [k];
+    for (const c of chain){ if (AudioBank.get(c)) return c; }
+    return chain[0];
+  },
+
   want(){
-    const k = this.trackFor();
+    const k = this.resolve(this.trackFor());
     if (k === this.cur) return;
     const buf = AudioBank.get(k);          // triggers the lazy fetch
-    if (!buf) { this.cur = k; return; }    // nothing to play yet; remember intent
+    // Do NOT record the intent here. Setting cur to a track that has not
+    // finished downloading makes the next call think it is already playing, so
+    // the moment the buffer arrives it is skipped and the music never starts.
+    // Leave cur alone and let the next frame retry; get() will not re-fetch.
+    if (!buf) return;
     this.cur = k;
     const c = Sound.ctx, t = c.currentTime, XF = 2.0;
     if (this.gain){
@@ -441,6 +466,20 @@ const Music = {
       og.gain.linearRampToValueAtTime(0.0001, t + XF);
       try { on.stop(t + XF + 0.1); } catch (e) {}
     }
+    const m = AUDIO_MANIFEST[k];
+    if (m.loop && m.loopStart !== undefined){
+      // crossfade-looped: scheduled in passes rather than handed to src.loop
+      this.loopSpec = { key: k, buf, start: m.loopStart, end: m.loopEnd };
+      const bus = c.createGain();
+      bus.gain.setValueAtTime(0.0001, t);
+      bus.gain.linearRampToValueAtTime(1, t + XF);
+      bus.connect(Sound.dest('music'));
+      this.gain = bus; this.node = null;
+      this.nextAt = t;
+      this.schedule(t);
+      return;
+    }
+    this.loopSpec = null;
     const rec = Sound.sample(k, { gain: 0.0001 });
     if (!rec) { this.gain = null; this.node = null; return; }
     this.gain = rec.g; this.node = rec.src;
@@ -448,5 +487,40 @@ const Music = {
     rec.g.gain.linearRampToValueAtTime(1, t + XF);
   },
 
-  update(){ if (Sound.ready) this.want(); },
+  update(){
+    if (!Sound.ready) return;
+    this.want();
+    this.reloop();
+  },
+
+  /* Web Audio's own looping is a hard splice, which on generated music lands as
+     an audible cut — and these tracks are not authored to loop. So each pass is
+     scheduled as its own source with a crossfade over the join: the next one
+     starts before the current ends and they trade gain. Costs one extra voice
+     for the length of the fade and makes any track loop acceptably, which
+     matters with six more still to come. */
+  XF: 2.0,
+
+  reloop(){
+    if (!this.loopSpec || !this.gain) return;
+    const c = Sound.ctx;
+    if (c.currentTime < this.nextAt - 0.5) return;
+    this.schedule(this.nextAt);
+  },
+
+  schedule(at){
+    const { key, buf, start, end } = this.loopSpec;
+    const c = Sound.ctx, XF = this.XF, len = end - start;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.linearRampToValueAtTime(1, at + XF);
+    g.gain.setValueAtTime(1, at + len - XF);
+    g.gain.linearRampToValueAtTime(0.0001, at + len);
+    src.connect(g); g.connect(Sound.dest('music'));
+    src.start(at, start, len + XF);
+    src.stop(at + len + 0.05);
+    this.nextAt = at + len - XF;
+  },
 };

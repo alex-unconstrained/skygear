@@ -19,7 +19,8 @@ controls changed months after anyone played it.
   storm-dusk-v5   v5 — the MOBA lane restructure.
   storm-dusk-v6   v6 — the Ember Cleave as the real basic attack.
   storm-dusk-v7   v7 — the audio pass: sample layer over the synth.
-  storm-dusk-v8   v8 — skills guaranteed, elements as builds.  [LIVE]
+  storm-dusk-v8   v8 — skills guaranteed, elements as builds.
+  storm-dusk-v9   v9 — music, and content.  [LIVE]
 
 Run from anywhere:  python src/storm-dusk/build.py
 Retiring a build:   python src/storm-dusk/build.py --freeze   (prints its pin)
@@ -316,6 +317,52 @@ PRESETS = {
             },
         },
     },
+    'storm-dusk-v9': {
+        'label': 'v9',
+        'title': 'SKYGEAR — Storm-Dusk v9 · Lanes',
+        # a lane map: wider, and the objective sits at the STERN, not amidships
+        'world_w': 1780, 'deck_cx': 890, 'deck_r': 120,
+        'deck_w': 1560, 'world_h': 2560, 'deck_cy': 1240, 'deck_h': 2320, 'boiler_y': 2090,
+        'js': {
+            'name': 'v9',
+            'follow': True,
+            'xray': True,
+            'pitch': 0.72,
+            'camBack': 120,
+            'boilerH': 150,
+            'lanes': True,
+            'feel': {
+                'simHz': 120,
+                'inputBuffer': 0.14,
+                'killStop': {'SWARM': 0, 'SCRAPPER': 0.030, 'GUNNER': 0.030,
+                             'ARMORED': 0.055, 'BOSS': 0.10},
+                'stopRefractory': 0.10,
+                'cdScale': 0.80,
+                'recoilScale': 0.35,
+                'accel': 3100, 'friction': 2700, 'dashCd': 1.15,
+                'camTau': 0.075,
+                # The basic swings itself, so both mouse buttons are free
+                # for abilities: two on the mouse, two on Q/E, dash on space.
+                'keys': {
+                    'slots': [
+                        {'label': 'LMB', 'mouse': 0, 'alt': '1'},
+                        {'label': 'RMB', 'mouse': 2, 'alt': '2'},
+                        {'label': 'Q',   'key': 'q', 'alt': '3'},
+                        {'label': 'E',   'key': 'e', 'alt': '4'},
+                    ],
+                    'dash': {'label': 'SPACE', 'key': 'space'},
+                },
+                # The basic attack is the Ember Cleave itself — the real
+                # shape, element and crit, swung automatically at whatever the
+                # captain is facing. v4/v5 used a generic sabre flick alongside
+                # it, which read as a second, weaker weapon.
+                'basic': ['CLOSEHIT', 'EMBER'],
+                'basicTurn': 12, 'basicArc': 1.2,
+                # mortar on the left button; RMB/Q/E fill from the draft
+                'loadout': [['RANGED_AOE', 'FROST']],
+            },
+        },
+    },
 }
 
 CORE_SUBS = [
@@ -433,7 +480,7 @@ def build(key):
 #
 # To start a new version: add its preset, set LIVE to it, and move the version
 # it succeeded into FROZEN with its hash (python build.py --freeze prints it).
-LIVE = 'storm-dusk-v8'
+LIVE = 'storm-dusk-v9'
 
 # v2, v3 and v4 are pinned to their state at 2e15353 — the commit where v4
 # shipped and the last moment all three were as their playtesters saw them.
@@ -447,6 +494,7 @@ FROZEN = {
     'storm-dusk-v3': 'c378898a91a464b48c8ad08d153a6fbea2dfc32f7e71575da0e132a6c34cf251',
     'storm-dusk-v4': '247208416ac48fffa2e3b3aba808cb26a69eaa522cb1698f838b4737078eb9f7',
     'storm-dusk-v5': '21bb12981dbfdb9681c6632da8361c97afef7f63572b9726a371321c76f58b55',
+    'storm-dusk-v8': 'd66417f911f8c78bf2a143edb5a91cfc18b56ccbc2bda1a86a6685937cb99afc',
     'storm-dusk-v7': 'fcd1e50f8e24321833c50dc9e6b66b89be4adce4e15b81accc55d416871baa5e',
     'storm-dusk-v6': '9eec030eaa2dc100c74b5f93aa866bc7838d2951c112f97d4af65c2d2d91e5db',
 }

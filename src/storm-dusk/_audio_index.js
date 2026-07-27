@@ -27,5 +27,9 @@ const AUDIO_DELIVERED = {
     "ext": ".wav",
     "n": 5,
     "g": 4.405
+  },
+  "m_combat1": {
+    "ext": ".mp3",
+    "n": 1
   }
 };

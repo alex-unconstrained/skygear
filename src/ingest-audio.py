@@ -32,7 +32,10 @@ MANIFEST_SRC = ROOT / "src" / "storm-dusk" / "_audio.js"
 INDEX_OUT = ROOT / "src" / "storm-dusk" / "_audio_index.js"
 AUDIO_DIR = ROOT / "audio"
 DEFAULT_SRC = Path(r"C:/Users/alexr/Dev/skygear-audio/out")
-EXTS = (".ogg", ".m4a", ".wav")
+# Preference order: encoded first, raw last. mp3 sits with the encoded formats
+# because that is what the music generator emits and re-encoding it would only
+# lose another generation.
+EXTS = (".ogg", ".m4a", ".mp3", ".wav")
 
 # Spec §7 length budgets. A cue landing exactly on its cap was cut to fit, which
 # is the pipeline working — but it also means nothing ended on its own terms, so
@@ -189,6 +192,12 @@ def main():
     TARGET_PEAK_DB = -8.0
     index = {}
     for k, e in sorted(found.items()):
+        # Music is mixed, not a one-shot: it already sits at a deliberate level
+        # and its own bus fader controls it. Peak-normalising a five-minute
+        # track against a 120ms impact is meaningless.
+        if e["stem"].startswith("music/"):
+            index[k] = {"ext": e["ext"], "n": len(e["takes"])}
+            continue
         gains = []
         for p in e["src"]:
             m = measure(p)
