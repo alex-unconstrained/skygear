@@ -85,7 +85,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "589f8bf"
+  "build": "5f7fef9"
 };
 
 /* ============================================================================
@@ -6970,7 +6970,10 @@ function viewFor(facing, canAttack, attacking){
 }
 
 /* --- props --------------------------------------------------------------- */
-const PROP_H = { crate: 84, crates: 148, barrel: 82, rope: 30, cannon: 96,
+// v11 stands the keg up: 82 -> 100. It is tier-0 survival information now
+// rather than dressing, and at 82 it read as a footstool next to an 84-unit
+// crate that does far less to you.
+const PROP_H = { crate: 84, crates: 148, barrel: V11 ? 100 : 82, rope: 30, cannon: 96,
                  mast: 340, lantern: 200, vent: 52, hatch: 44, ballista: 118 };
 const PROP_ASSET = { crate:'prop_crate', crates:'prop_crates', barrel:'prop_barrel',
                      rope:'prop_rope', cannon:'prop_cannon', mast:'prop_mast',
