@@ -320,6 +320,161 @@ async function checkSeed(browser, port){
   }
 }
 
+/* A cold cache on a slow line.
+
+   "Interactive in under 2 s on a cold cache" is an acceptance criterion, and
+   the whole point of streaming art in priority order is that it holds at any
+   speed. So this serves the page with every asset request throttled to roughly
+   3 Mbit — the figure the plan uses for a bad connection — and measures when
+   the game is actually playable rather than when the network goes quiet.
+
+   Playable means: the title screen is up, START RUN works, and a run reaches
+   the fight. Whether the art has arrived is deliberately not part of it; that
+   is what the procedural fallback is for. What IS asserted is that the art
+   keeps arriving afterwards, because a loader that stalls once the game starts
+   would pass a naive timing test and leave the player on stand-ins forever. */
+async function checkSlowStart(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const errs = [];
+  tab.on('pageerror', e => errs.push(e.message));
+  try {
+    // ~3 Mbit: 375 KB/s. Delay each asset response in proportion to its size.
+    // Read the file directly rather than round-tripping through route.fetch():
+    // the harness's own server answers with chunked transfer-encoding, and
+    // replaying that response through fulfill() fails. A route handler that
+    // throws is an unhandled rejection, not a failed check, so it catches.
+    await tab.route('**/assets/**', async (route) => {
+      try {
+        const u = new URL(route.request().url());
+        const file = path.join(ROOT, decodeURIComponent(u.pathname));
+        if (!file.startsWith(ROOT)){ await route.abort(); return; }
+        const body = fs.readFileSync(file);
+        await new Promise(r => setTimeout(r, Math.min(4000, body.length / 375)));
+        await route.fulfill({ status: 200, body,
+          headers: { 'content-type': MIME[path.extname(file)] || 'application/octet-stream' } });
+      } catch (e){
+        try { await route.abort(); } catch (e2) {}
+      }
+    });
+    const t0 = Date.now();
+    await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?audio=0&seed=SLOW01`,
+                   { waitUntil: 'commit' });
+    await tab.waitForFunction(() => !!window.SKYGEAR && SKYGEAR.S.mode === 'title',
+                              null, { timeout: 20000 });
+    const titleMs = Date.now() - t0;
+    record('slow', 'the title screen is up in under 2 s on a 3 Mbit line',
+      titleMs < 2000, titleMs + ' ms');
+
+    await tab.evaluate(INSTALL);
+    const t1 = Date.now();
+    const mode = await tab.evaluate(() => window.__begin());
+    record('slow', 'a run starts while the art is still downloading',
+      mode === 'play', 'mode=' + mode + ' after ' + (Date.now() - t1) + ' ms');
+
+    const early = await tab.evaluate(() => ({ ready: SKYGEAR.Assets.ready,
+                                              total: SKYGEAR.Assets.total }));
+    await tab.waitForTimeout(4000);
+    const later = await tab.evaluate(() => ({ ready: SKYGEAR.Assets.ready,
+                                              total: SKYGEAR.Assets.total }));
+    record('slow', 'art keeps arriving after the run has started',
+      later.ready > early.ready || later.ready === later.total,
+      early.ready + '/' + early.total + ' -> ' + later.ready + '/' + later.total);
+    record('slow', 'nothing threw while loading slowly', errs.length === 0,
+      errs.slice(0, 2).join(' | '));
+  } catch (e){
+    record('slow', 'the game is playable on a slow line', false, e.message.split('\n')[0]);
+  } finally {
+    await tab.close();
+  }
+}
+
+/* Play it the way a person does.
+
+   Every other check reaches into window.SKYGEAR and moves the state itself,
+   which is the only way to test twelve waves in a second — but it means none of
+   them ever presses a key. This one uses real mouse and keyboard events through
+   the browser, so it exercises the parts nothing else touches: that the title
+   button is where the click lands, that a draft card responds to a click, that
+   WASD reaches the captain, that Escape opens the pause menu and Escape closes
+   it again. A stranger who cannot get past the title screen has no opinion
+   about wave balance. */
+async function checkInput(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 1366, height: 768 } });
+  const errs = [];
+  tab.on('pageerror', e => errs.push(e.message));
+  try {
+    await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=INPUT1`,
+                   { waitUntil: 'domcontentloaded' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+
+    // Where is the primary button? Ask the game, do not guess: the answer is
+    // whatever hudScale and the viewport produced, which is the point.
+    const startBtn = await tab.evaluate(() => {
+      const G = window.SKYGEAR;
+      const seen = [];
+      const probe = G.UI.probe.bind(G.UI);
+      G.UI.probe = function(r){ seen.push({ ...r }); return probe(r); };
+      G.S.mode = 'title';
+      G.render(1 / 60);
+      G.UI.probe = probe;
+      return seen[0] || null;
+    });
+    record('input', 'the title screen has a button to press', !!startBtn,
+      startBtn ? Math.round(startBtn.w) + 'x' + Math.round(startBtn.h) + ' at ' +
+                 Math.round(startBtn.x) + ',' + Math.round(startBtn.y) : 'none drawn');
+    if (!startBtn) return;
+
+    // Move first, then click. UI.probe only takes focus when the pointer has
+    // actually moved, which is exactly the behaviour being tested.
+    await tab.mouse.move(startBtn.x + startBtn.w / 2, startBtn.y + startBtn.h / 2);
+    await tab.mouse.move(startBtn.x + startBtn.w / 2, startBtn.y + startBtn.h / 2 + 1);
+    await tab.mouse.down(); await tab.mouse.up();
+    await tab.waitForFunction(() => SKYGEAR.S.mode !== 'title', null, { timeout: 5000 })
+             .catch(() => {});
+    const afterStart = await tab.evaluate(() => SKYGEAR.S.mode);
+    record('input', 'clicking START RUN starts a run',
+      afterStart === 'draft' || afterStart === 'play', 'mode=' + afterStart);
+
+    // The opening draft, by keyboard.
+    await tab.keyboard.press('2');
+    await tab.waitForFunction(() => SKYGEAR.S.mode === 'play', null, { timeout: 5000 })
+             .catch(() => {});
+    const armed = await tab.evaluate(() => ({
+      mode: SKYGEAR.S.mode,
+      slot0: SKYGEAR.S.slots[0] ? SKYGEAR.S.slots[0].shape + '/' + SKYGEAR.S.slots[0].element : null,
+    }));
+    record('input', 'pressing 2 takes the middle card and starts the fight',
+      armed.mode === 'play' && !!armed.slot0, armed.slot0 || ('mode=' + armed.mode));
+
+    // WASD has to reach the captain.
+    const before = await tab.evaluate(() => ({ x: SKYGEAR.S.player.x, y: SKYGEAR.S.player.y }));
+    await tab.keyboard.down('a');
+    await tab.waitForTimeout(500);
+    await tab.keyboard.up('a');
+    const after = await tab.evaluate(() => ({ x: SKYGEAR.S.player.x, y: SKYGEAR.S.player.y }));
+    record('input', 'holding A moves the captain to port',
+      after.x < before.x - 20,
+      'moved ' + Math.round(after.x - before.x) + ' units in x');
+
+    // Escape opens the pause menu, and closes it.
+    await tab.keyboard.press('Escape');
+    await tab.waitForTimeout(120);
+    const paused = await tab.evaluate(() => SKYGEAR.S.mode);
+    await tab.keyboard.press('Escape');
+    await tab.waitForTimeout(120);
+    const resumed = await tab.evaluate(() => SKYGEAR.S.mode);
+    record('input', 'Escape pauses and Escape resumes',
+      paused === 'pause' && resumed === 'play', paused + ' -> ' + resumed);
+
+    record('input', 'nothing threw while a person played it', errs.length === 0,
+      errs.slice(0, 2).join(' | '));
+  } catch (e){
+    record('input', 'the game is playable with real input', false, e.message.split('\n')[0]);
+  } finally {
+    await tab.close();
+  }
+}
+
 /* The resolution and DPI matrix, and the browser matrix.
 
    V10-PLAN §7 asks for 1280x720 through 2560x1440 at DPR 1 and 2, in Chrome and
@@ -532,6 +687,8 @@ await group('waves',   () => checkWaves(page));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));
+await group('input',   () => checkInput(browser, port));
+await group('slow',    () => checkSlowStart(browser, port));
 await group('layout',  () => checkLayout(browser, port));
 await group('firefox', () => checkFirefox(port));
 await group('frozen',  () => checkFrozen());

@@ -1,0 +1,21 @@
+<FIRST_FRAME> Use the supplied character PNG as the sole visual reference and first-frame identity.
+
+Create one single, continuous, unbroken, locked-off shot of this exact character performing ONE sabre attack. No scene cuts. Preserve the exact face, hair, proportions, ornate outfit, materials, weapon, ink outline, painterly rendering, colors, lighting, three-quarter viewing angle, and scale from the source.
+
+Motion:
+- One complete attack in approximately 0.7 seconds: wind-up, strike, recovery. It plays ONCE and does not loop.
+- The readable strike — the blade at full extension across the body — must land within the first third of the shot. Wind-up is short; the recovery is the longest part.
+- Use crisp, hand-authored 14 fps timing rather than cinematic interpolation.
+- The sabre sweeps in a single clean arc. The blade must not wobble, bend, morph, or pass through the body.
+- Hair, coat tails and belts follow the swing with restrained one- to two-frame overlap and settle by the final frame.
+- The stance braces and then returns. Keep the feet's average ground-contact point fixed. No drifting, no foot sliding, no stepping forward.
+- End on a settled recovery pose close to the source pose, held for the final two frames.
+
+Camera and framing:
+- Use a 16:9 landscape canvas and a static locked camera.
+- Before motion begins, zoom out until the entire source silhouette and the full arc of the blade are visible.
+- Keep the character no larger than 58% of frame height and centered horizontally.
+- Maintain at least 15% empty neon magenta chroma space above the highest hair or goggle point, below the lowest foot, and beyond the blade's furthest reach in every frame.
+- Preserve the same scale and placement for the complete shot.
+
+Ban list: no redesign, no face drift, no costume change, no duplicate limbs, no style drift, no camera drift, no motion blur, no sparkles, no added weapon glow, no impact effects, no text, no audio.
