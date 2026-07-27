@@ -57,6 +57,19 @@ const ASSET_MANIFEST = {
   decal_gears:       { file:'assets/ground/decal_gear_scatter.png',w:384, h:384 },
   shadow_blob:       { file:'assets/ground/shadow_blob.png',       w:256, h:256 },
 
+  // V5 lane amendment — the systems that were still wholly procedural: the
+  // cargo runs that make lane commitment real, your own crew, and the boarding
+  // hulk with its sealed/open/destroyed states. Wired here first so the art
+  // drops straight in; until the files exist every one falls back as usual.
+  prop_cargo_wall:    { file:'assets/props/cargo_wall_module.png',      w:512,  h:512 },
+  prop_hulk_sealed:   { file:'assets/props/boarding_hulk_sealed.png',   w:1024, h:640 },
+  prop_hulk_open:     { file:'assets/props/boarding_hulk_open.png',     w:1024, h:640 },
+  prop_hulk_wreck:    { file:'assets/props/boarding_hulk_destroyed.png',w:1024, h:640 },
+  prop_cannon_dead:   { file:'assets/props/cannon_deck_destroyed.png',  w:640,  h:512 },
+  CREW_front_idle:    { file:'assets/allies/crew_front_idle.png',       w:384,  h:384 },
+  CREW_back_idle:     { file:'assets/allies/crew_back_idle.png',        w:384,  h:384 },
+  CREW_front_attack:  { file:'assets/allies/crew_front_attack.png',     w:384,  h:384 },
+
   // 4.6 fx
   fx_steam:  { file:'assets/fx/puff_steam.png',      w:256, h:256 },
   fx_smoke:  { file:'assets/fx/puff_smoke_dark.png', w:256, h:256 },

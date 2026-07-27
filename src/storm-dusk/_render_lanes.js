@@ -47,8 +47,29 @@ function drawLaneCrossings(){
 
 // A cargo run drawn as a projected box: top face on the ground plane, plus the
 // near vertical face so it reads as something you cannot walk through.
+// Painted cargo runs: the wall module is tiled as billboards down the run,
+// far to near, so the painter's sort and the projection do the work. The module
+// is authored 120 world units wide and 150 deep — the engine steps by MODULE_D
+// and draws each at MODULE_H tall, alternating mirror so a single module does
+// not read as a repeating stamp. Falls back to the code-drawn box below.
+const WALL_MODULE_W = 120, WALL_MODULE_D = 150, WALL_MODULE_H = 118;
+function drawLaneWallsArt(art){
+  for (const w of LANE_WALLS){
+    const cx = (w.x0 + w.x1) / 2;
+    const n = Math.max(1, Math.round((w.y1 - w.y0) / WALL_MODULE_D));
+    for (let i = 0; i < n; i++){
+      const y = lerp(w.y0 + WALL_MODULE_D * 0.5, w.y1 - WALL_MODULE_D * 0.5,
+                     n === 1 ? 0.5 : i / (n - 1));
+      const r = drawBillboard(art, cx, y, WALL_MODULE_H, { mirror: (i & 1) === 1 });
+      addOccluder(r.p.x, r.p.y, r.wpx * 0.46, r.hpx * 0.52, y);
+    }
+  }
+}
+
 function drawLaneWalls(){
   if (!PRESET.lanes) return;
+  const art = Assets.get('prop_cargo_wall');
+  if (art){ drawLaneWallsArt(art); return; }
   const H = 96;
   ctx.save();
   ctx.lineJoin = 'round';
@@ -88,6 +109,8 @@ function drawLaneWalls(){
 
 /* --- the lane cannon ------------------------------------------------------ */
 function turretSprite(dead){
+  const art = Assets.get(dead ? 'prop_cannon_dead' : 'prop_cannon');
+  if (art) return art;
   return cachedSprite('turret|' + (dead ? 1 : 0), 260, 260, (c2, w, h) => {
     c2.save();
     c2.translate(w / 2, h * ANCHOR);
@@ -147,7 +170,9 @@ function drawTurretBillboard(t){
 }
 
 /* --- your crew ------------------------------------------------------------ */
-function crewSprite(view){
+function crewSprite(view, attacking){
+  const art = Assets.get(attacking ? 'CREW_front_attack' : 'CREW_' + view + '_idle');
+  if (art) return art;
   return cachedSprite('crew|' + view, 190, 210, (c2, w, h) => {
     c2.save();
     c2.translate(w / 2, h * ANCHOR);
@@ -193,7 +218,8 @@ function drawCrewBillboard(c){
   entityShadow(c.x, c.y, c.r * 1.1, 0.45);
   const front = Math.sin(c.facing) > -0.15;
   const bob = Math.sin(c.anim * 6) * 2.5;
-  drawBillboard(crewSprite(front ? 'front' : 'back'), c.x, c.y, 96,
+  const swinging = c.state === 'windup' || c.state === 'recover';
+  drawBillboard(crewSprite(front ? 'front' : 'back', swinging && front), c.x, c.y, 96,
                 { mirror: Math.cos(c.facing) > 0, lift: bob, flash: c.flash > 0 });
   if (c.hp < c.maxHp){
     const top = CAM.project(c.x, c.y, 112);
@@ -207,6 +233,10 @@ function drawCrewBillboard(c){
 
 /* --- their hulk, grappled to the bow -------------------------------------- */
 function hulkSprite(){
+  const H = S.hulk;
+  const art = Assets.get(H && H.dead ? 'prop_hulk_wreck'
+                       : H && H.vulnerable ? 'prop_hulk_open' : 'prop_hulk_sealed');
+  if (art) return art;
   return cachedSprite('hulk', 900, 520, (c2, w, h) => {
     c2.save();
     c2.translate(w / 2, h * 0.96);
