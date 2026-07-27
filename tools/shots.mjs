@@ -53,7 +53,7 @@ const SCENES = {
 
   fight: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.slots[1] = G.newSkill('LINE_BURST', 'ARC');
     S.slots[2] = G.newSkill('AURA', 'STEAM');
     S.unlockedSlots = 4;
@@ -69,7 +69,7 @@ const SCENES = {
 
   draft: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.unlockedSlots = 4;
     G.openDraft();
     S.draft.t = 2;
@@ -77,7 +77,8 @@ const SCENES = {
 
   upgrades: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
+    S.slots[0] = G.newSkill('RANGED_AOE', 'EMBER');
     S.slots[1] = G.newSkill('CONE', 'FROST');
     S.slots[2] = G.newSkill('CHAIN', 'ARC');
     S.slots[3] = G.newSkill('SENTRY', 'STEAM');
@@ -88,7 +89,7 @@ const SCENES = {
 
   victory: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.slots[1] = G.newSkill('LINE_BURST', 'ARC');
     S.slots[2] = G.newSkill('AURA', 'STEAM');
     S.stats.kills = 214; S.stats.damage = 18402; S.stats.bestCombo = 19; S.stats.dashes = 41;
@@ -100,7 +101,7 @@ const SCENES = {
 
   defeat: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.slots[1] = G.newSkill('CONE', 'FROST');
     S.stats.kills = 63; S.stats.damage = 4120; S.stats.bestCombo = 7; S.stats.dashes = 11;
     S.stats.cards = ['DEEPER BURN', 'BRITTLE ICE'];
@@ -111,7 +112,7 @@ const SCENES = {
 
   pause: () => {
     const G = SKYGEAR, S = G.S;
-    G.startRun();
+    window.__begin();
     S.slots[1] = G.newSkill('CONE', 'FROST');
     S.slots[2] = G.newSkill('PULSE', 'ARC');
     S.unlockedSlots = 4;
@@ -142,6 +143,12 @@ await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&audio=0&seed=SH
 await page.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
 // A seam for scenes that need to end a run without pretending to be the sim.
 await page.evaluate(() => {
+  // v10 opens every run on a draft for the first weapon; a scene that wants to
+  // photograph the fight has to get past it first.
+  window.__begin = (pick) => {
+    SKYGEAR.startRun();
+    if (SKYGEAR.S.mode === 'draft'){ SKYGEAR.pickCard(pick || 0); SKYGEAR.closeDraft(); }
+  };
   window.__endRun = (win, title, reason) => {
     const S = SKYGEAR.S;
     S.mode = win ? 'victory' : 'gameover';

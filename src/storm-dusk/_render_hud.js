@@ -283,6 +283,14 @@ function drawSkillBar(){
         ctx.strokeStyle = E.glow; ctx.lineWidth = 3;
         circ(0, 0, size * 0.42); ctx.stroke();
       }
+      // The element's motif, on the ring, four times. Four coloured rings are
+      // four colours; four silhouettes are a vocabulary, and it is the same one
+      // the cards and the ground areas use.
+      for (let m = 0; m < 4; m++){
+        const a = m / 4 * TAU - Math.PI / 4;
+        elementMotif(sk.element, Math.cos(a) * size * 0.52, Math.sin(a) * size * 0.52,
+                     3.6 * HS, E.color, true);
+      }
       setFont(Math.round(11.5*HS), 700, true);
       textOut(skillName(sk).toUpperCase(), 0, size/2 + 14*HS, E.color, PAL.ink, 3.5);
     }

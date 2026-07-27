@@ -82,7 +82,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "dd1d989"
+  "build": "a5b56b8"
 };
 
 /* ============================================================================
@@ -461,6 +461,11 @@ const SFX = {
   boiler(){     Sound.tone({type:'sine', f0:120, f1:44, dur:0.36, gain:0.26});
                 Sound.noise({dur:0.16, ff0:500, ff1:110, q:0.6, gain:0.14, filter:'lowpass'}); },
   waveClear(){  [0,1,2,3].forEach((i)=> Sound.tone({type:'triangle', f0:[523,659,784,1047][i], dur:0.42, gain:0.16, delay:i*0.085})); },
+  // Two falling notes, quiet. A lane going critical is tier 0 — never culled,
+  // audible with the camera elsewhere — but it fires at most every seven
+  // seconds, so it does not need to be loud to be heard.
+  laneCritical(){ Sound.tone({type:'triangle', f0:660, f1:520, dur:0.16, gain:0.13});
+                  Sound.tone({type:'triangle', f0:494, f1:392, dur:0.26, gain:0.13, delay:0.13}); },
   cardPick(){   Sound.tone({type:'square', f0:620, dur:0.06, gain:0.14});
                 Sound.tone({type:'square', f0:940, dur:0.10, gain:0.14, delay:0.06}); },
   uiHover(){    Sound.tone({type:'sine', f0:520, dur:0.04, gain:0.05}); },
@@ -1161,16 +1166,49 @@ function hitStop(v){
 }
 
 const MAX_NUMBERS = 64;
+/* Damage numbers, aggregated.
+
+   A burning Field ticking four times a second into six boarders is 24 numbers a
+   second within one sprite's width of each other. Individually they are all
+   correct and together they are a smear you cannot read a single value out of.
+   So a new number lands ON an existing one when it is close in space, recent,
+   and the same colour — the colour carries the element, so merging across
+   colours would be merging across meanings.
+
+   Crits never merge. A crit is a discrete event with its own weight and its own
+   sound, and folding it into a running total is exactly the information the
+   number exists to carry. */
+const NUM_MERGE_R2 = 34 * 34;     // squared world radius
+const NUM_MERGE_T  = 0.30;        // and only while it is still young
 function dmgNumber(x, y, text, col, size, crit){
+  col = col || PAL.bone;
+  const n = parseInt(text, 10);
+  if (!crit && isFinite(n)){
+    for (let i = S.nums.length - 1; i >= 0; i--){
+      const o = S.nums[i];
+      if (o.crit || o.col !== col || o.t > NUM_MERGE_T || !isFinite(o.n)) continue;
+      if (dist2(o.x, o.y, x, y) > NUM_MERGE_R2) continue;
+      o.n += n;
+      o.text = (o.text[0] === '-' ? '-' : '') + Math.abs(o.n);
+      // Restart the rise so a growing total keeps drawing the eye, and grow it
+      // a little so a big accumulation reads as bigger than a single hit.
+      o.t = 0;
+      o.size = Math.min(o.size + 1.1, (size || 17) * 1.7);
+      return o;
+    }
+  }
   // Hard cap. A 95° cone into forty boarders would otherwise queue forty
   // strokeText calls a frame, and readability dies long before the frame does.
   if (S.nums.length >= MAX_NUMBERS){
     if (!crit) return;
     S.nums.shift();
   }
-  S.nums.push({ x: x + rnd(-8,8), y: y - 10, vx: rnd(-26,26), vy: rnd(-92,-64),
-                t: 0, life: TUNING.feel.dmgNumberLife * (crit ? 1.25 : 1),
-                text, col: col || PAL.bone, size: size || 17, crit: !!crit });
+  const o = { x: x + vrnd(-8,8), y: y - 10, vx: vrnd(-26,26), vy: vrnd(-92,-64),
+              t: 0, life: TUNING.feel.dmgNumberLife * (crit ? 1.25 : 1),
+              text, n: isFinite(n) ? n : NaN,
+              col, size: size || 17, crit: !!crit };
+  S.nums.push(o);
+  return o;
 }
 function fx(o){ o.t = 0; S.fx.push(o); return o; }
 
@@ -2690,14 +2728,134 @@ function rollSkillCards(slot, n, opening){
   return out;
 }
 
+/* ---------------------------------------------------------------------------
+   CARD PREVIEW — before → after
+
+   "Burn deals +50% damage" is a sentence about a modifier, not about the game:
+   it does not say what the number is now, what it becomes, or whether that is
+   worth more than "+2 pierce". So every card is applied to a copy of the state
+   and the two are diffed. Nothing is hand-authored per card — a card added
+   later gets a preview for free, and a preview can never disagree with what the
+   card actually does, because it IS what the card does.
+
+   The copy is narrow on purpose: cards only ever touch the mod block, the
+   skills in the slots, and the two health pools. Cloning the whole of S would
+   mean cloning the enemy list every time a card is hovered.
+--------------------------------------------------------------------------- */
+function cloneSkill(sk){
+  return sk ? { shape: sk.shape, element: sk.element, cdLeft: sk.cdLeft,
+                casts: sk.casts, mods: Object.assign({}, sk.mods) } : null;
+}
+function saveForPreview(){
+  return {
+    mods: JSON.parse(JSON.stringify(S.mods)),
+    slots: S.slots.map(cloneSkill),
+    basic: cloneSkill(S.basic),
+    unlocked: S.unlockedSlots,
+    pmax: S.player.maxHp, php: S.player.hp,
+    bmax: S.boiler.maxHp, bhp: S.boiler.hp,
+  };
+}
+function restoreFromPreview(sav){
+  S.mods = sav.mods;
+  for (let i = 0; i < 4; i++) S.slots[i] = sav.slots[i];
+  S.basic = sav.basic;
+  S.unlockedSlots = sav.unlocked;
+  S.player.maxHp = sav.pmax; S.player.hp = sav.php;
+  S.boiler.maxHp = sav.bmax; S.boiler.hp = sav.bhp;
+}
+
+/* One flat vector of everything a player could notice. Per-slot entries are
+   keyed by slot so a card that upgrades slot 3 does not read as a change to
+   slot 1. */
+function previewVector(){
+  const v = {};
+  const add = (tag, sk) => {
+    if (!sk) return;
+    const st = skillStats(sk);
+    v[tag + ' damage'] = { n: st.dmg * (st.multi > 1 ? st.multi * 0.7 : 1), d: 0 };
+    if (!SHAPES[sk.shape].passive) v[tag + ' cooldown'] = { n: st.cd, d: 2, unit: 's', lower: true };
+    const reach = st.range || st.len || st.radius || 0;
+    if (reach) v[tag + ' reach'] = { n: reach, d: 0 };
+    if (st.pierce) v[tag + ' pierce'] = { n: st.pierce, d: 0 };
+    if (st.jumps) v[tag + ' jumps'] = { n: st.jumps, d: 0 };
+  };
+  // Labelled by the key that fires it, not by an index. "slot1 cooldown"
+  // makes the player count buttons; "LMB cooldown" is the thing they press.
+  for (let i = 0; i < 4; i++) if (S.slots[i]) add(bindLabel(BINDS[i]), S.slots[i]);
+  const M = S.mods;
+  v['captain HP']   = { n: S.player.maxHp, d: 0 };
+  v['Boiler HP']    = { n: S.boiler.maxHp, d: 0 };
+  v['crit chance']  = { n: M.critChance * 100, d: 0, unit: '%' };
+  v['move speed']   = { n: M.moveMult * 100, d: 0, unit: '%' };
+  v['dash charges'] = { n: M.dashCharges, d: 0 };
+  v['dash cooldown'] = { n: Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - M.dashCdBonus),
+                         d: 2, unit: 's', lower: true };
+  v['burn damage']  = { n: M.burnDmg * 100, d: 0, unit: '%' };
+  v['burn time']    = { n: 3 + M.burnDur, d: 0, unit: 's' };
+  v['frost slow']   = { n: M.slowAmt * 100, d: 0, unit: '%' };
+  v['damage to slowed'] = { n: M.slowDmg * 100, d: 0, unit: '%' };
+  v['stun chance']  = { n: M.stunChance * 100, d: 0, unit: '%' };
+  v['knockback']    = { n: M.knockMult * 100, d: 0, unit: '%' };
+  v['Boiler armour'] = { n: M.boilerDR * 100, d: 0, unit: '%' };
+  v['dash damage']  = { n: M.dashDamage, d: 0 };
+  v['lifesteal']    = { n: M.lifesteal * 100, d: 0, unit: '%' };
+  v['scrap chance'] = { n: M.scrapChance * 100, d: 0, unit: '%' };
+  v['residue']      = { n: M.residue, d: 0 };
+  v['scald']        = { n: M.scald * 8, d: 0 };
+  for (const el of ELEMENT_KEYS){
+    v[ELEMENTS[el].name + ' damage'] = { n: M.elemDmg[el] * 100, d: 0, unit: '%' };
+    v[ELEMENTS[el].name + ' cooldown'] = { n: M.elemCd[el] * 100, d: 0, unit: '%', lower: true };
+  }
+  return v;
+}
+
+const PREVIEW_MAX = 3;
+function previewCard(card){
+  if (!card || !card.apply) return [];
+  const sav = saveForPreview();
+  let before, after;
+  try {
+    before = previewVector();
+    card.apply(S);
+    after = previewVector();
+  } catch (e){
+    restoreFromPreview(sav);
+    return [];
+  }
+  restoreFromPreview(sav);
+  const out = [];
+  for (const k in after){
+    const a = after[k], b = before[k];
+    // A stat that did not exist before is a new capability, not a change; the
+    // card's own text covers those, and listing "slot2 damage — → 40" reads as
+    // a bug.
+    if (!b || Math.abs(a.n - b.n) < 0.005) continue;
+    const fmt = (x) => x.toFixed(a.d) + (a.unit || '');
+    out.push({ label: k, from: fmt(b.n), to: fmt(a.n),
+               better: a.lower ? a.n < b.n : a.n > b.n });
+  }
+  // Most-changed first, so a card with six small effects still leads with its
+  // biggest one.
+  out.sort((p, q) => Math.abs(parseFloat(q.to) - parseFloat(q.from)) /
+                     Math.max(1, Math.abs(parseFloat(q.from))) -
+                     Math.abs(parseFloat(p.to) - parseFloat(p.from)) /
+                     Math.max(1, Math.abs(parseFloat(p.from))));
+  return out.slice(0, PREVIEW_MAX);
+}
+
 function openDraft(kind){
   S.mode = 'draft';
   const opening = kind === 'opening';
   const empty = emptyUnlocked(S);
   const skillDraft = opening || empty.length > 0;
   const slot = opening ? 0 : (skillDraft ? empty[0] : -1);
-  S.draft = { cards: skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3),
-              hover: -1, t: 0, chosen: -1, chooseT: 0,
+  const cards = skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3);
+  // Computed once, when the draft opens, not per frame while hovering: each
+  // preview applies the card to a copy of the state and diffing three cards
+  // sixty times a second to draw the same three rows would be silly.
+  for (const c of cards) c.preview = previewCard(c);
+  S.draft = { cards, hover: -1, t: 0, chosen: -1, chooseT: 0,
               kind: opening ? 'opening' : skillDraft ? 'skill' : 'upgrade', slot };
   Hints.fire('draft');
   SFX.cardDeal();
@@ -2829,7 +2987,7 @@ function updateUI(rt){
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
   S.intro  = Math.max(0, S.intro - rt * 0.7);
-  if (S.mode === 'play') Hints.update(rt);
+  if (S.mode === 'play'){ Hints.update(rt); updateLaneAlerts(rt); }
   if (S.banner){
     S.banner.t += rt;
     if (S.banner.t >= S.banner.life) S.banner = null;
@@ -4176,18 +4334,41 @@ function laneResolveHit(e, tgtKind, ref, dmg, ang){
 }
 
 /* --- lane status, and the hulk's wave loop --------------------------------- */
+/* Everything the lane readout needs, measured in one pass.
+
+   `prog` — the DEEPEST boarder, not the average and not the count. How far in
+   the worst one has got is the number that decides where you go next; a lane
+   with nine at the rail is safer than a lane with one at the Boiler.
+   `heavy`  — is any of them an Armoured or the boss, which changes what you
+   need to bring rather than how fast you need to get there.
+   `crew`   — your own side holding it. A lane with crew in it is one you can
+   leave for a few seconds and one you cannot is not. */
 function laneThreat(i){
-  let n = 0, nearest = -Infinity;
+  let n = 0, nearest = -Infinity, heavy = false, crew = 0;
   for (const e of S.enemies){
     if (e.dead || e.lane !== i) continue;
     n++;
+    if (e.type === 'ARMORED' || e.type === 'BOSS') heavy = true;
     if (e.y > nearest) nearest = e.y;
   }
+  for (const c of S.crew) if (!c.dead && laneOf(c.x) === i && c.y < BASE_Y) crew++;
   const t = turretInLane(i);
   // 0..1, how far the lane has been pushed toward the Boiler
   const prog = nearest === -Infinity ? 0
     : clamp((nearest - LANE_TOP) / Math.max(1, S.boiler.y - LANE_TOP), 0, 1);
-  return { count: n, prog, turret: t, turretFrac: t ? t.hp / t.maxHp : 0 };
+  return { count: n, prog, heavy, crew,
+           turret: t, turretFrac: t ? t.hp / t.maxHp : 0,
+           // Critical is about depth, not headcount: past the cannon line and
+           // closing on the objective.
+           critical: prog > 0.72 || (!t && prog > 0.45) };
+}
+
+/* Where the crossings are, as fractions down the same 0..1 axis the lane bar
+   uses, so the readout can mark them in the same space as the threat pip. */
+function crossingMarks(){
+  const span = Math.max(1, S.boiler.y - LANE_TOP);
+  return [((FWD_Y0 + FWD_Y1) / 2 - LANE_TOP) / span,
+          ((CROSS_Y0 + CROSS_Y1) / 2 - LANE_TOP) / span];
 }
 
 function updateLanes(dt){
@@ -4368,6 +4549,106 @@ function groundDisc(x, y, r, fill, alpha){
   ctx.fillStyle = fill; ctx.fill();
   ctx.globalAlpha = 1;
   return g;
+}
+
+/* --- whose area is this? -----------------------------------------------------
+   Red for "this will hurt you" and teal for "this is yours" is the whole system
+   in v9, and it fails for the one in twelve men who cannot separate those two
+   hues, in a greyscale screenshot, and on a washed-out laptop panel in daylight
+   — which is most of the machines this build is aimed at.
+
+   So the edge carries it as well. A hostile area has a BROKEN rim with teeth
+   pointing outward: it is reaching for you, and the gaps make it read as
+   unfinished and unsafe. A player area has a CONTINUOUS rim with ticks pointing
+   inward: closed, contained, yours. Both still get their colour; the colour is
+   just no longer the only thing carrying it.
+
+   Everything that marks ground goes through one of these two. --------------- */
+function hostileRing(x, y, r, col, lw, alpha, teeth){
+  const g = groundEllipsePath(x, y, r);
+  const a = alpha === undefined ? 1 : alpha;
+  const n = teeth || 14;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw * g.p.k;
+  // broken rim: draw every other arc segment
+  for (let i = 0; i < n; i++){
+    const a0 = i / n * TAU, a1 = a0 + (TAU / n) * 0.58;
+    ctx.beginPath();
+    ctx.ellipse(g.p.x, g.p.y, g.rx, g.ry, 0, a0, a1);
+    ctx.stroke();
+  }
+  // teeth, outward
+  ctx.lineWidth = Math.max(1, lw * 0.8) * g.p.k;
+  for (let i = 0; i < n; i++){
+    const t = (i + 0.29) / n * TAU;
+    const cxp = Math.cos(t), syp = Math.sin(t);
+    ctx.beginPath();
+    ctx.moveTo(g.p.x + cxp * g.rx, g.p.y + syp * g.ry);
+    ctx.lineTo(g.p.x + cxp * g.rx * 1.14, g.p.y + syp * g.ry * 1.14);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return g;
+}
+function playerRing(x, y, r, col, lw, alpha, ticks){
+  const g = groundEllipsePath(x, y, r);
+  const a = alpha === undefined ? 1 : alpha;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw * g.p.k;
+  ctx.beginPath();
+  ctx.ellipse(g.p.x, g.p.y, g.rx, g.ry, 0, 0, TAU);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, lw * 0.6) * g.p.k;
+  const n = ticks || 12;
+  for (let i = 0; i < n; i++){
+    const t = i / n * TAU;
+    const cxp = Math.cos(t), syp = Math.sin(t);
+    ctx.beginPath();
+    ctx.moveTo(g.p.x + cxp * g.rx, g.p.y + syp * g.ry);
+    ctx.lineTo(g.p.x + cxp * g.rx * 0.86, g.p.y + syp * g.ry * 0.86);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return g;
+}
+
+/* --- element motifs ----------------------------------------------------------
+   The four elements are four colours, and the same argument applies: a build is
+   supposed to be readable as "three Frost and one Ember" at a glance, and a
+   glance at four coloured circles is not that for everyone. Each element gets a
+   silhouette it keeps everywhere — on cards, on the HUD ring, on its own areas
+   — so the vocabulary is learnable and survives greyscale.
+
+     EMBER  upward triangle   — rising, a flame
+     FROST  diamond           — a crystal, four flat faces
+     ARC    zigzag chevron    — a discharge
+     STEAM  circle            — pressure, no direction
+--------------------------------------------------------------------------- */
+function elementMotif(el, cx, cy, r, col, filled){
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = Math.max(1, r * 0.34);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (el === 'EMBER'){
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r * 0.92, cy + r * 0.72);
+    ctx.lineTo(cx - r * 0.92, cy + r * 0.72); ctx.closePath();
+  } else if (el === 'FROST'){
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
+  } else if (el === 'ARC'){
+    ctx.moveTo(cx - r, cy + r * 0.55); ctx.lineTo(cx - r * 0.15, cy - r * 0.2);
+    ctx.lineTo(cx + r * 0.15, cy + r * 0.2); ctx.lineTo(cx + r, cy - r * 0.55);
+    filled = false;   // a stroke, always: a filled zigzag is a blob
+  } else {
+    ctx.arc(cx, cy, r * 0.86, 0, TAU);
+  }
+  if (filled) ctx.fill(); else ctx.stroke();
+  ctx.restore();
 }
 // A ground wedge (cone / arc telegraph) built from projected points — the
 // projection of a straight ground line is straight, so a fan of segments is exact.
@@ -6185,8 +6466,8 @@ function drawTelegraphs(){
     if (e.state !== 'climb') continue;
     const pulse = 0.4 + 0.35 * Math.sin(S.rt * 12);
     if (!groundRuneImage('rune_enemy', e.spawnX, e.spawnY, 40, pulse)){
-      groundRing(e.spawnX, e.spawnY, 38, PAL.danger, 3, pulse);
-      groundRing(e.spawnX, e.spawnY, 26, PAL.dangerIn, 2, pulse * 0.7);
+      hostileRing(e.spawnX, e.spawnY, 38, PAL.danger, 3, pulse, 12);
+      hostileRing(e.spawnX, e.spawnY, 26, PAL.dangerIn, 2, pulse * 0.7, 9);
     }
     const g = groundEllipsePath(e.spawnX, e.spawnY, 38);
     ctx.save();
@@ -6210,11 +6491,11 @@ function drawTelegraphs(){
       if (e.type === 'BOSS' && e.boss.atk === 'slam'){
         if (!groundRuneImage('rune_enemy_filled', e.x, e.y, 260, flick))
           groundDisc(e.x, e.y, 260 * kk, PAL.danger, flick * 0.4);
-        groundRing(e.x, e.y, 260, PAL.danger, 6, 0.9);
-        groundRing(e.x, e.y, 260 * kk, PAL.dangerIn, 4, 0.8);
+        hostileRing(e.x, e.y, 260, PAL.danger, 6, 0.9, 22);
+        hostileRing(e.x, e.y, 260 * kk, PAL.dangerIn, 4, 0.8, 22);
       } else if (e.type === 'BOSS' && e.boss.atk === 'summon'){
-        groundRing(e.x, e.y, 150, PAL.danger, 6, flick);
-        groundRing(e.x, e.y, 150 * (0.4 + 0.6 * kk), PAL.dangerIn, 3, flick);
+        hostileRing(e.x, e.y, 150, PAL.danger, 6, flick, 16);
+        hostileRing(e.x, e.y, 150 * (0.4 + 0.6 * kk), PAL.dangerIn, 3, flick, 16);
       } else if (e.type === 'BOSS'){
         groundBandPath(e.x, e.y, e.atkAng, 660, 60, 0);
         ctx.fillStyle = hexToRgba(PAL.danger, flick * 0.45); ctx.fill();
@@ -6266,22 +6547,17 @@ function drawAoePreview(){
     }
     const c = clampToDeck(tx, ty, 6);
     const ready = sk.cdLeft <= 0;
+    // Yours: a closed rim with inward ticks, in the skill's own element colour
+    // and carrying that element's motif at the centre. A hostile area is the
+    // same idea inverted — broken rim, teeth outward — so which is which
+    // survives greyscale and a colour-blind eye.
+    const E = ELEMENTS[sk.element];
     if (!groundRuneImage('rune_player', c.x, c.y, st.radius, ready ? 0.55 : 0.2)){
-      groundRing(c.x, c.y, st.radius, PAL.teal, 2.6, ready ? 0.45 : 0.16);
-      groundRing(c.x, c.y, st.radius * 0.24, PAL.teal, 2, ready ? 0.35 : 0.12);
-      const g = groundEllipsePath(c.x, c.y, st.radius);
-      ctx.save();
-      ctx.globalAlpha = ready ? 0.30 : 0.10;
-      ctx.strokeStyle = PAL.teal; ctx.lineWidth = 1.6 * g.p.k;
-      for (let t = 0; t < 12; t++){
-        const a = t / 12 * TAU;
-        ctx.beginPath();
-        ctx.moveTo(g.p.x + Math.cos(a) * g.rx * 0.88, g.p.y + Math.sin(a) * g.ry * 0.88);
-        ctx.lineTo(g.p.x + Math.cos(a) * g.rx, g.p.y + Math.sin(a) * g.ry);
-        ctx.stroke();
-      }
-      ctx.restore();
+      playerRing(c.x, c.y, st.radius, E.color, 2.6, ready ? 0.5 : 0.18, 14);
+      playerRing(c.x, c.y, st.radius * 0.24, E.color, 2, ready ? 0.35 : 0.12, 6);
     }
+    const gm = CAM.project(c.x, c.y, 0);
+    elementMotif(sk.element, gm.x, gm.y, 9 * gm.k, E.glow, true);
     return;
   }
 }
@@ -6681,48 +6957,151 @@ function drawHulk(){
   if (rnd() < 0.3) pSmoke(H.x + rnd(-200, 200), H.y + 40, 1, 'rgba(40,36,48,0.5)', 60);
 }
 
-/* --- lane status: the minimap equivalent ---------------------------------- */
+/* --- lane status: the minimap equivalent ----------------------------------
+   Three lanes, and the decision the player makes over and over is which one to
+   be in. The v9 readout answered it with a headcount and a coloured dot, which
+   is the wrong question twice: a lane with nine boarders at the rail is safer
+   than a lane with one at the Boiler, and a red dot is invisible to about one
+   man in twelve.
+
+   So: depth is a position on the bar, count is a number, heavy boarders get a
+   filled marker rather than a darker one, your crew get their own tick, and
+   every colour is carried by a shape as well. Nothing here is colour alone.
+--------------------------------------------------------------------------- */
 function drawLaneStatus(){
   if (!PRESET.lanes) return;
   const HS = hudScale();
-  const w = 210 * HS, rowH = 40 * HS;
+  const w = 244 * HS, rowH = 46 * HS;
   const x = View.w - w - 18 * HS;
   const y = (S.showFps ? 96 : 22) * HS;
-  brassPanel(x, y, w, 26 * HS + LANE_N * rowH, 9 * HS, 0.92);
+  brassPanel(x, y, w, 30 * HS + LANE_N * rowH, 9 * HS, 0.92);
   setFont(Math.round(11 * HS), 800, true);
-  textOut('LANES', x + w / 2, y + 14 * HS, PAL.brass);
+  textOut('LANES', x + w / 2, y + 15 * HS, PAL.brass);
+  // Which end of the bar is which. Without this the bar is an abstraction.
+  setFont(Math.round(8.5 * HS), 700, false);
+  textOut('BOW', x + 16 * HS, y + 15 * HS, '#5A5366', null, 0, 'left');
+  textOut('BOILER', x + w - 16 * HS, y + 15 * HS, '#5A5366', null, 0, 'right');
+
   const here = laneOf(S.player.x);
+  const marks = crossingMarks();
   for (let i = 0; i < LANE_N; i++){
     const t = laneThreat(i);
-    const ry = y + 26 * HS + i * rowH;
-    // you are here
+    const ry = y + 30 * HS + i * rowH;
+    // you are here — a bracket as well as a wash, so it survives greyscale
     if (S.player.y < BASE_Y && here === i){
       ctx.fillStyle = hexToRgba(PAL.teal, 0.12);
       rr(x + 6 * HS, ry, w - 12 * HS, rowH - 4 * HS, 5); ctx.fill();
+      ctx.fillStyle = PAL.teal;
+      rr(x + 6 * HS, ry + 4 * HS, 3 * HS, rowH - 12 * HS, 1.5 * HS); ctx.fill();
     }
     setFont(Math.round(10.5 * HS), 800, true);
-    textOut(LANES[i].name, x + 14 * HS, ry + 12 * HS,
+    textOut(LANES[i].name, x + 16 * HS, ry + 13 * HS,
             here === i ? PAL.teal : '#9C93A8', null, 0, 'left');
-    // how far they have pushed toward the Boiler
-    const bx = x + 14 * HS, bw = w - 28 * HS, by = ry + 24 * HS, bh = 6 * HS;
-    ctx.fillStyle = '#0B0910'; rr(bx, by, bw, bh, 3); ctx.fill();
-    if (t.turret){
-      ctx.fillStyle = hexToRgba(PAL.teal, 0.55);
-      rr(bx, by, bw * clamp(t.turretFrac, 0, 1) * 0.32, bh, 3); ctx.fill();
+
+    // headcount, and a filled square when something armoured is in there
+    if (t.count){
+      setFont(Math.round(10 * HS), 800, true);
+      const col = t.critical ? PAL.danger : '#9C93A8';
+      textOut(t.count + '', x + w - 16 * HS, ry + 13 * HS, col, null, 0, 'right');
+      if (t.heavy){
+        ctx.fillStyle = col;
+        const hx = x + w - 34 * HS;
+        ctx.fillRect(hx - 4 * HS, ry + 9 * HS, 8 * HS, 8 * HS);
+      }
     }
+    // crew holding the lane, as ticks
+    for (let c = 0; c < Math.min(4, t.crew); c++){
+      ctx.fillStyle = hexToRgba(PAL.teal, 0.85);
+      ctx.fillRect(x + 62 * HS + c * 6 * HS, ry + 9 * HS, 2.5 * HS, 8 * HS);
+    }
+
+    const bx = x + 16 * HS, bw = w - 32 * HS, by = ry + 26 * HS, bh = 7 * HS;
+    ctx.fillStyle = '#0B0910'; rr(bx, by, bw, bh, 3); ctx.fill();
+    // the crossings, as notches in the track — the same two gaps that are
+    // painted on the deck, in the same relative place
+    for (const m of marks){
+      ctx.fillStyle = 'rgba(143,166,201,0.5)';
+      ctx.fillRect(bx + bw * m - 1 * HS, by - 3 * HS, 2 * HS, bh + 6 * HS);
+    }
+    // the cannon, as a segment of the track it actually gates
+    if (t.turret){
+      ctx.fillStyle = hexToRgba(t.turretFrac > 0.4 ? PAL.teal : PAL.dangerIn, 0.6);
+      rr(bx, by, bw * clamp(t.turretFrac, 0, 1) * 0.32, bh, 3); ctx.fill();
+    } else {
+      // A gap in the track, plus the words. A lane with no cannon is the single
+      // most important fact on this panel and it used to be red text alone.
+      ctx.strokeStyle = PAL.danger; ctx.lineWidth = 1.6 * HS;
+      ctx.setLineDash([3 * HS, 3 * HS]);
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh / 2); ctx.lineTo(bx + bw * 0.32, by + bh / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      setFont(Math.round(8.5 * HS), 800, true);
+      textOut('NO CANNON', x + w - 16 * HS, ry + 39 * HS, PAL.danger, null, 0, 'right');
+    }
+    // the deepest boarder — a triangle pointing at the Boiler, filled when
+    // critical, hollow when not
     if (t.count){
       const px = bx + bw * clamp(t.prog, 0, 1);
-      ctx.fillStyle = t.prog > 0.7 ? PAL.danger : PAL.dangerIn;
-      circ(px, by + bh / 2, 4.5 * HS); ctx.fill();
-      setFont(Math.round(10 * HS), 800, true);
-      textOut(t.count + '', x + w - 14 * HS, ry + 12 * HS,
-              t.prog > 0.7 ? PAL.danger : '#9C93A8', null, 0, 'right');
-    }
-    if (!t.turret){
-      setFont(Math.round(9 * HS), 800, true);
-      textOut('CANNON DOWN', x + w - 14 * HS, ry + 33 * HS, PAL.danger, null, 0, 'right');
+      const cy = by + bh / 2, s2 = 5 * HS;
+      ctx.beginPath();
+      ctx.moveTo(px + s2, cy);
+      ctx.lineTo(px - s2, cy - s2);
+      ctx.lineTo(px - s2, cy + s2);
+      ctx.closePath();
+      if (t.critical){ ctx.fillStyle = PAL.danger; ctx.fill(); }
+      else { ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
     }
   }
+
+  // The push, when there is one. It belongs on this panel because it is the
+  // reason to leave a lane you would otherwise hold.
+  if (S.hulk && !S.hulk.dead && S.hulk.vulnerable){
+    const py = y + 30 * HS + LANE_N * rowH - 2 * HS;
+    setFont(Math.round(9.5 * HS), 800, true);
+    textOut('PUSH — HULK OPEN AT THE BOW', x + w / 2, py + 6 * HS,
+            PAL.fireCore, PAL.ink, 3);
+  }
+}
+
+/* One alert, and only when a lane crosses into critical. A HUD that shouts
+   every time a number changes is a HUD nobody reads; this fires on the edge,
+   not on the state, and holds its tongue for a while afterwards. */
+const LANE_ALERT = { lane: -1, t: 0, cool: 0, was: [false, false, false] };
+function updateLaneAlerts(rt){
+  if (!PRESET.lanes || S.mode !== 'play') return;
+  LANE_ALERT.t = Math.max(0, LANE_ALERT.t - rt);
+  LANE_ALERT.cool = Math.max(0, LANE_ALERT.cool - rt);
+  for (let i = 0; i < LANE_N; i++){
+    const crit = laneThreat(i).critical;
+    if (crit && !LANE_ALERT.was[i] && LANE_ALERT.cool <= 0){
+      LANE_ALERT.lane = i; LANE_ALERT.t = 2.4; LANE_ALERT.cool = 7;
+      SFX.laneCritical();
+    }
+    LANE_ALERT.was[i] = crit;
+  }
+}
+function drawLaneAlert(){
+  if (LANE_ALERT.t <= 0 || LANE_ALERT.lane < 0) return;
+  const HS = hudScale();
+  const a = Math.min(1, LANE_ALERT.t / 0.4) * Math.min(1, (2.4 - LANE_ALERT.t) / 0.18 + 0.2);
+  ctx.save();
+  ctx.globalAlpha = clamp(a, 0, 1);
+  setFont(Math.round(20 * HS), 900, true);
+  const name = LANES[LANE_ALERT.lane].name;
+  textOut(name + '  LANE  BREAKING', View.w / 2, View.h * 0.30, PAL.danger, PAL.ink, 6);
+  // an arrow toward the lane, so the words are not the only carrier
+  const dir = LANE_ALERT.lane === 0 ? -1 : LANE_ALERT.lane === LANE_N - 1 ? 1 : 0;
+  if (dir){
+    const ax = View.w / 2 + dir * (ctx.measureText(name + '  LANE  BREAKING').width / 2 + 26 * HS);
+    ctx.fillStyle = PAL.danger;
+    ctx.beginPath();
+    ctx.moveTo(ax + dir * 10 * HS, View.h * 0.30);
+    ctx.lineTo(ax - dir * 6 * HS, View.h * 0.30 - 9 * HS);
+    ctx.lineTo(ax - dir * 6 * HS, View.h * 0.30 + 9 * HS);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
 }
 
 // hulk health, when it is the thing you are supposed to be breaking
@@ -7334,6 +7713,14 @@ function drawSkillBar(){
       if (slotHeld(i) && sk.cdLeft <= 0){
         ctx.strokeStyle = E.glow; ctx.lineWidth = 3;
         circ(0, 0, size * 0.42); ctx.stroke();
+      }
+      // The element's motif, on the ring, four times. Four coloured rings are
+      // four colours; four silhouettes are a vocabulary, and it is the same one
+      // the cards and the ground areas use.
+      for (let m = 0; m < 4; m++){
+        const a = m / 4 * TAU - Math.PI / 4;
+        elementMotif(sk.element, Math.cos(a) * size * 0.52, Math.sin(a) * size * 0.52,
+                     3.6 * HS, E.color, true);
       }
       setFont(Math.round(11.5*HS), 700, true);
       textOut(skillName(sk).toUpperCase(), 0, size/2 + 14*HS, E.color, PAL.ink, 3.5);
@@ -8071,9 +8458,13 @@ const RARITY_UI = {
 };
 function cardRects(){
   const HS = hudScale();
-  const cw = 286*HS, ch = 384*HS, gap = 26*HS;
+  // Taller than v9's 384: the cards now carry a before -> after block above
+  // the badge, and at the width three of them fit into on a 1366 laptop the
+  // description was running into it. Scaled down to fit the viewport in both
+  // axes, so a short window shrinks them rather than clipping them.
+  const cw = 286*HS, ch = 432*HS, gap = 26*HS;
   const total = cw*3 + gap*2;
-  const scale = Math.min(1, (View.w - 60) / total);
+  const scale = Math.min(1, (View.w - 60) / total, (View.h - 210*HS) / ch);
   const cw2 = cw*scale, ch2 = ch*scale, gap2 = gap*scale;
   const t2 = cw2*3 + gap2*2;
   const x0 = (View.w - t2)/2, y0 = (View.h - ch2)/2 + 22*HS;
@@ -8161,7 +8552,15 @@ function drawDraft(){
     ctx.fillStyle = R.edge; ctx.fill();
     ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3*s; ctx.stroke();
     setFont(Math.round(12*s), 800, true);
-    textOut(R.name, r.w/2, 2*s, PAL.ink);
+    if (c.skill){
+      // The element's motif rides its own ribbon. Four coloured labels are four
+      // colours; four silhouettes are learnable and survive greyscale.
+      const lw = ctx.measureText(R.name).width;
+      textOut(R.name, r.w/2 + 8*s, 2*s, PAL.ink);
+      elementMotif(c.skill.element, r.w/2 - lw/2 - 3*s, 2*s, 6*s, PAL.ink, true);
+    } else {
+      textOut(R.name, r.w/2, 2*s, PAL.ink);
+    }
 
     const iconY = 84*s;
     gaugeRing(r.w/2, iconY, 40*s, hexToRgba(PAL.brass, 0.55), 16);
@@ -8198,8 +8597,48 @@ function drawDraft(){
     ctx.moveTo(34*s, 174*s + tl.length*27*s + 6*s);
     ctx.lineTo(r.w - 34*s, 174*s + tl.length*27*s + 6*s); ctx.stroke();
     setFont(Math.round(15.5*s), 600, false);
+    let ty = 174*s + tl.length*27*s + 32*s;
     wrapText(c.text, r.w - 46*s).forEach((ln, j) =>
-      textOut(ln, r.w/2, 174*s + tl.length*27*s + 32*s + j*22*s, '#B8B0C4'));
+      textOut(ln, r.w/2, ty + j*22*s, '#B8B0C4'));
+    ty += wrapText(c.text, r.w - 46*s).length * 22*s + 10*s;
+
+    // Before → after, anchored to the bottom of the card rather than flowing
+    // after the prose. Flowing put a three-row preview under a three-line
+    // description straight through the card's number badge — and how many rows
+    // a card has is not something the layout should have to know.
+    // The prose says what the card does; these say what it is worth. Without
+    // them "+2 pierce" and "burn +50%" are two sentences with no way to compare
+    // them, which is how a draft becomes a coin toss.
+    if (c.preview && c.preview.length){
+      ty = r.h - 104*s - (c.preview.length - 1) * 18*s;
+      for (const p of c.preview){
+        setFont(Math.round(11*s), 700, false);
+        textOut(p.label, 24*s, ty, '#7E778C', null, 0, 'left');
+        setFont(Math.round(12.5*s), 800, true);
+        const tw = ctx.measureText(p.to).width;
+        textOut(p.to, r.w - 24*s, ty, p.better ? PAL.teal : PAL.dangerIn, PAL.ink, 3*s, 'right');
+        setFont(Math.round(11.5*s), 700, false);
+        const aw = ctx.measureText(' → ').width;
+        textOut('→', r.w - 26*s - tw - aw/2, ty, '#5A5366');
+        textOut(p.from, r.w - 26*s - tw - aw, ty, '#6E667A', null, 0, 'right');
+        ty += 18*s;
+      }
+    }
+
+    // Whether it is something you press. A passive in a slot is the single
+    // thing new players misread, and the card is where to say so.
+    if (c.skill){
+      const passive = SHAPES[c.skill.shape].passive;
+      setFont(Math.round(10.5*s), 800, true);
+      const tag = passive ? 'AUTO' : 'ACTIVE';
+      const tw = ctx.measureText(tag).width + 16*s;
+      rr(r.w/2 - tw/2, r.h - 78*s, tw, 18*s, 4*s);
+      ctx.fillStyle = passive ? hexToRgba(PAL.relic, 0.22) : hexToRgba(PAL.teal, 0.16);
+      ctx.fill();
+      ctx.strokeStyle = passive ? PAL.relic : PAL.teal; ctx.lineWidth = 1.4*s; ctx.stroke();
+      textOut(tag, r.w/2, r.h - 69*s, passive ? PAL.relic : PAL.teal);
+    }
+
     rr(r.w/2 - 20*s, r.h - 44*s, 40*s, 30*s, 6*s);
     ctx.fillStyle = '#0B0910'; ctx.fill();
     ctx.strokeStyle = R.edge; ctx.lineWidth = 2.4*s; ctx.stroke();
@@ -8849,7 +9288,7 @@ function render(){
   ctx.restore();
   if (S.mode === 'play' || S.mode === 'pause'){
     drawObjectiveMarker();
-    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); }
+    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); drawLaneAlert(); }
   }
 
   drawScreenFx();

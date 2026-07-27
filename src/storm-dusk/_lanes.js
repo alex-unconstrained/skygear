@@ -314,18 +314,41 @@ function laneResolveHit(e, tgtKind, ref, dmg, ang){
 }
 
 /* --- lane status, and the hulk's wave loop --------------------------------- */
+/* Everything the lane readout needs, measured in one pass.
+
+   `prog` — the DEEPEST boarder, not the average and not the count. How far in
+   the worst one has got is the number that decides where you go next; a lane
+   with nine at the rail is safer than a lane with one at the Boiler.
+   `heavy`  — is any of them an Armoured or the boss, which changes what you
+   need to bring rather than how fast you need to get there.
+   `crew`   — your own side holding it. A lane with crew in it is one you can
+   leave for a few seconds and one you cannot is not. */
 function laneThreat(i){
-  let n = 0, nearest = -Infinity;
+  let n = 0, nearest = -Infinity, heavy = false, crew = 0;
   for (const e of S.enemies){
     if (e.dead || e.lane !== i) continue;
     n++;
+    if (e.type === 'ARMORED' || e.type === 'BOSS') heavy = true;
     if (e.y > nearest) nearest = e.y;
   }
+  for (const c of S.crew) if (!c.dead && laneOf(c.x) === i && c.y < BASE_Y) crew++;
   const t = turretInLane(i);
   // 0..1, how far the lane has been pushed toward the Boiler
   const prog = nearest === -Infinity ? 0
     : clamp((nearest - LANE_TOP) / Math.max(1, S.boiler.y - LANE_TOP), 0, 1);
-  return { count: n, prog, turret: t, turretFrac: t ? t.hp / t.maxHp : 0 };
+  return { count: n, prog, heavy, crew,
+           turret: t, turretFrac: t ? t.hp / t.maxHp : 0,
+           // Critical is about depth, not headcount: past the cannon line and
+           // closing on the objective.
+           critical: prog > 0.72 || (!t && prog > 0.45) };
+}
+
+/* Where the crossings are, as fractions down the same 0..1 axis the lane bar
+   uses, so the readout can mark them in the same space as the threat pip. */
+function crossingMarks(){
+  const span = Math.max(1, S.boiler.y - LANE_TOP);
+  return [((FWD_Y0 + FWD_Y1) / 2 - LANE_TOP) / span,
+          ((CROSS_Y0 + CROSS_Y1) / 2 - LANE_TOP) / span];
 }
 
 function updateLanes(dt){

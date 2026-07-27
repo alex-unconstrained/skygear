@@ -321,48 +321,151 @@ function drawHulk(){
   if (rnd() < 0.3) pSmoke(H.x + rnd(-200, 200), H.y + 40, 1, 'rgba(40,36,48,0.5)', 60);
 }
 
-/* --- lane status: the minimap equivalent ---------------------------------- */
+/* --- lane status: the minimap equivalent ----------------------------------
+   Three lanes, and the decision the player makes over and over is which one to
+   be in. The v9 readout answered it with a headcount and a coloured dot, which
+   is the wrong question twice: a lane with nine boarders at the rail is safer
+   than a lane with one at the Boiler, and a red dot is invisible to about one
+   man in twelve.
+
+   So: depth is a position on the bar, count is a number, heavy boarders get a
+   filled marker rather than a darker one, your crew get their own tick, and
+   every colour is carried by a shape as well. Nothing here is colour alone.
+--------------------------------------------------------------------------- */
 function drawLaneStatus(){
   if (!PRESET.lanes) return;
   const HS = hudScale();
-  const w = 210 * HS, rowH = 40 * HS;
+  const w = 244 * HS, rowH = 46 * HS;
   const x = View.w - w - 18 * HS;
   const y = (S.showFps ? 96 : 22) * HS;
-  brassPanel(x, y, w, 26 * HS + LANE_N * rowH, 9 * HS, 0.92);
+  brassPanel(x, y, w, 30 * HS + LANE_N * rowH, 9 * HS, 0.92);
   setFont(Math.round(11 * HS), 800, true);
-  textOut('LANES', x + w / 2, y + 14 * HS, PAL.brass);
+  textOut('LANES', x + w / 2, y + 15 * HS, PAL.brass);
+  // Which end of the bar is which. Without this the bar is an abstraction.
+  setFont(Math.round(8.5 * HS), 700, false);
+  textOut('BOW', x + 16 * HS, y + 15 * HS, '#5A5366', null, 0, 'left');
+  textOut('BOILER', x + w - 16 * HS, y + 15 * HS, '#5A5366', null, 0, 'right');
+
   const here = laneOf(S.player.x);
+  const marks = crossingMarks();
   for (let i = 0; i < LANE_N; i++){
     const t = laneThreat(i);
-    const ry = y + 26 * HS + i * rowH;
-    // you are here
+    const ry = y + 30 * HS + i * rowH;
+    // you are here — a bracket as well as a wash, so it survives greyscale
     if (S.player.y < BASE_Y && here === i){
       ctx.fillStyle = hexToRgba(PAL.teal, 0.12);
       rr(x + 6 * HS, ry, w - 12 * HS, rowH - 4 * HS, 5); ctx.fill();
+      ctx.fillStyle = PAL.teal;
+      rr(x + 6 * HS, ry + 4 * HS, 3 * HS, rowH - 12 * HS, 1.5 * HS); ctx.fill();
     }
     setFont(Math.round(10.5 * HS), 800, true);
-    textOut(LANES[i].name, x + 14 * HS, ry + 12 * HS,
+    textOut(LANES[i].name, x + 16 * HS, ry + 13 * HS,
             here === i ? PAL.teal : '#9C93A8', null, 0, 'left');
-    // how far they have pushed toward the Boiler
-    const bx = x + 14 * HS, bw = w - 28 * HS, by = ry + 24 * HS, bh = 6 * HS;
-    ctx.fillStyle = '#0B0910'; rr(bx, by, bw, bh, 3); ctx.fill();
-    if (t.turret){
-      ctx.fillStyle = hexToRgba(PAL.teal, 0.55);
-      rr(bx, by, bw * clamp(t.turretFrac, 0, 1) * 0.32, bh, 3); ctx.fill();
+
+    // headcount, and a filled square when something armoured is in there
+    if (t.count){
+      setFont(Math.round(10 * HS), 800, true);
+      const col = t.critical ? PAL.danger : '#9C93A8';
+      textOut(t.count + '', x + w - 16 * HS, ry + 13 * HS, col, null, 0, 'right');
+      if (t.heavy){
+        ctx.fillStyle = col;
+        const hx = x + w - 34 * HS;
+        ctx.fillRect(hx - 4 * HS, ry + 9 * HS, 8 * HS, 8 * HS);
+      }
     }
+    // crew holding the lane, as ticks
+    for (let c = 0; c < Math.min(4, t.crew); c++){
+      ctx.fillStyle = hexToRgba(PAL.teal, 0.85);
+      ctx.fillRect(x + 62 * HS + c * 6 * HS, ry + 9 * HS, 2.5 * HS, 8 * HS);
+    }
+
+    const bx = x + 16 * HS, bw = w - 32 * HS, by = ry + 26 * HS, bh = 7 * HS;
+    ctx.fillStyle = '#0B0910'; rr(bx, by, bw, bh, 3); ctx.fill();
+    // the crossings, as notches in the track — the same two gaps that are
+    // painted on the deck, in the same relative place
+    for (const m of marks){
+      ctx.fillStyle = 'rgba(143,166,201,0.5)';
+      ctx.fillRect(bx + bw * m - 1 * HS, by - 3 * HS, 2 * HS, bh + 6 * HS);
+    }
+    // the cannon, as a segment of the track it actually gates
+    if (t.turret){
+      ctx.fillStyle = hexToRgba(t.turretFrac > 0.4 ? PAL.teal : PAL.dangerIn, 0.6);
+      rr(bx, by, bw * clamp(t.turretFrac, 0, 1) * 0.32, bh, 3); ctx.fill();
+    } else {
+      // A gap in the track, plus the words. A lane with no cannon is the single
+      // most important fact on this panel and it used to be red text alone.
+      ctx.strokeStyle = PAL.danger; ctx.lineWidth = 1.6 * HS;
+      ctx.setLineDash([3 * HS, 3 * HS]);
+      ctx.beginPath();
+      ctx.moveTo(bx, by + bh / 2); ctx.lineTo(bx + bw * 0.32, by + bh / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      setFont(Math.round(8.5 * HS), 800, true);
+      textOut('NO CANNON', x + w - 16 * HS, ry + 39 * HS, PAL.danger, null, 0, 'right');
+    }
+    // the deepest boarder — a triangle pointing at the Boiler, filled when
+    // critical, hollow when not
     if (t.count){
       const px = bx + bw * clamp(t.prog, 0, 1);
-      ctx.fillStyle = t.prog > 0.7 ? PAL.danger : PAL.dangerIn;
-      circ(px, by + bh / 2, 4.5 * HS); ctx.fill();
-      setFont(Math.round(10 * HS), 800, true);
-      textOut(t.count + '', x + w - 14 * HS, ry + 12 * HS,
-              t.prog > 0.7 ? PAL.danger : '#9C93A8', null, 0, 'right');
-    }
-    if (!t.turret){
-      setFont(Math.round(9 * HS), 800, true);
-      textOut('CANNON DOWN', x + w - 14 * HS, ry + 33 * HS, PAL.danger, null, 0, 'right');
+      const cy = by + bh / 2, s2 = 5 * HS;
+      ctx.beginPath();
+      ctx.moveTo(px + s2, cy);
+      ctx.lineTo(px - s2, cy - s2);
+      ctx.lineTo(px - s2, cy + s2);
+      ctx.closePath();
+      if (t.critical){ ctx.fillStyle = PAL.danger; ctx.fill(); }
+      else { ctx.strokeStyle = PAL.dangerIn; ctx.lineWidth = 2 * HS; ctx.stroke(); }
     }
   }
+
+  // The push, when there is one. It belongs on this panel because it is the
+  // reason to leave a lane you would otherwise hold.
+  if (S.hulk && !S.hulk.dead && S.hulk.vulnerable){
+    const py = y + 30 * HS + LANE_N * rowH - 2 * HS;
+    setFont(Math.round(9.5 * HS), 800, true);
+    textOut('PUSH — HULK OPEN AT THE BOW', x + w / 2, py + 6 * HS,
+            PAL.fireCore, PAL.ink, 3);
+  }
+}
+
+/* One alert, and only when a lane crosses into critical. A HUD that shouts
+   every time a number changes is a HUD nobody reads; this fires on the edge,
+   not on the state, and holds its tongue for a while afterwards. */
+const LANE_ALERT = { lane: -1, t: 0, cool: 0, was: [false, false, false] };
+function updateLaneAlerts(rt){
+  if (!PRESET.lanes || S.mode !== 'play') return;
+  LANE_ALERT.t = Math.max(0, LANE_ALERT.t - rt);
+  LANE_ALERT.cool = Math.max(0, LANE_ALERT.cool - rt);
+  for (let i = 0; i < LANE_N; i++){
+    const crit = laneThreat(i).critical;
+    if (crit && !LANE_ALERT.was[i] && LANE_ALERT.cool <= 0){
+      LANE_ALERT.lane = i; LANE_ALERT.t = 2.4; LANE_ALERT.cool = 7;
+      SFX.laneCritical();
+    }
+    LANE_ALERT.was[i] = crit;
+  }
+}
+function drawLaneAlert(){
+  if (LANE_ALERT.t <= 0 || LANE_ALERT.lane < 0) return;
+  const HS = hudScale();
+  const a = Math.min(1, LANE_ALERT.t / 0.4) * Math.min(1, (2.4 - LANE_ALERT.t) / 0.18 + 0.2);
+  ctx.save();
+  ctx.globalAlpha = clamp(a, 0, 1);
+  setFont(Math.round(20 * HS), 900, true);
+  const name = LANES[LANE_ALERT.lane].name;
+  textOut(name + '  LANE  BREAKING', View.w / 2, View.h * 0.30, PAL.danger, PAL.ink, 6);
+  // an arrow toward the lane, so the words are not the only carrier
+  const dir = LANE_ALERT.lane === 0 ? -1 : LANE_ALERT.lane === LANE_N - 1 ? 1 : 0;
+  if (dir){
+    const ax = View.w / 2 + dir * (ctx.measureText(name + '  LANE  BREAKING').width / 2 + 26 * HS);
+    ctx.fillStyle = PAL.danger;
+    ctx.beginPath();
+    ctx.moveTo(ax + dir * 10 * HS, View.h * 0.30);
+    ctx.lineTo(ax - dir * 6 * HS, View.h * 0.30 - 9 * HS);
+    ctx.lineTo(ax - dir * 6 * HS, View.h * 0.30 + 9 * HS);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
 }
 
 // hulk health, when it is the thing you are supposed to be breaking

@@ -136,9 +136,13 @@ const RARITY_UI = {
 };
 function cardRects(){
   const HS = hudScale();
-  const cw = 286*HS, ch = 384*HS, gap = 26*HS;
+  // Taller than v9's 384: the cards now carry a before -> after block above
+  // the badge, and at the width three of them fit into on a 1366 laptop the
+  // description was running into it. Scaled down to fit the viewport in both
+  // axes, so a short window shrinks them rather than clipping them.
+  const cw = 286*HS, ch = 432*HS, gap = 26*HS;
   const total = cw*3 + gap*2;
-  const scale = Math.min(1, (View.w - 60) / total);
+  const scale = Math.min(1, (View.w - 60) / total, (View.h - 210*HS) / ch);
   const cw2 = cw*scale, ch2 = ch*scale, gap2 = gap*scale;
   const t2 = cw2*3 + gap2*2;
   const x0 = (View.w - t2)/2, y0 = (View.h - ch2)/2 + 22*HS;
@@ -226,7 +230,15 @@ function drawDraft(){
     ctx.fillStyle = R.edge; ctx.fill();
     ctx.strokeStyle = PAL.ink; ctx.lineWidth = 3*s; ctx.stroke();
     setFont(Math.round(12*s), 800, true);
-    textOut(R.name, r.w/2, 2*s, PAL.ink);
+    if (c.skill){
+      // The element's motif rides its own ribbon. Four coloured labels are four
+      // colours; four silhouettes are learnable and survive greyscale.
+      const lw = ctx.measureText(R.name).width;
+      textOut(R.name, r.w/2 + 8*s, 2*s, PAL.ink);
+      elementMotif(c.skill.element, r.w/2 - lw/2 - 3*s, 2*s, 6*s, PAL.ink, true);
+    } else {
+      textOut(R.name, r.w/2, 2*s, PAL.ink);
+    }
 
     const iconY = 84*s;
     gaugeRing(r.w/2, iconY, 40*s, hexToRgba(PAL.brass, 0.55), 16);
@@ -263,8 +275,48 @@ function drawDraft(){
     ctx.moveTo(34*s, 174*s + tl.length*27*s + 6*s);
     ctx.lineTo(r.w - 34*s, 174*s + tl.length*27*s + 6*s); ctx.stroke();
     setFont(Math.round(15.5*s), 600, false);
+    let ty = 174*s + tl.length*27*s + 32*s;
     wrapText(c.text, r.w - 46*s).forEach((ln, j) =>
-      textOut(ln, r.w/2, 174*s + tl.length*27*s + 32*s + j*22*s, '#B8B0C4'));
+      textOut(ln, r.w/2, ty + j*22*s, '#B8B0C4'));
+    ty += wrapText(c.text, r.w - 46*s).length * 22*s + 10*s;
+
+    // Before → after, anchored to the bottom of the card rather than flowing
+    // after the prose. Flowing put a three-row preview under a three-line
+    // description straight through the card's number badge — and how many rows
+    // a card has is not something the layout should have to know.
+    // The prose says what the card does; these say what it is worth. Without
+    // them "+2 pierce" and "burn +50%" are two sentences with no way to compare
+    // them, which is how a draft becomes a coin toss.
+    if (c.preview && c.preview.length){
+      ty = r.h - 104*s - (c.preview.length - 1) * 18*s;
+      for (const p of c.preview){
+        setFont(Math.round(11*s), 700, false);
+        textOut(p.label, 24*s, ty, '#7E778C', null, 0, 'left');
+        setFont(Math.round(12.5*s), 800, true);
+        const tw = ctx.measureText(p.to).width;
+        textOut(p.to, r.w - 24*s, ty, p.better ? PAL.teal : PAL.dangerIn, PAL.ink, 3*s, 'right');
+        setFont(Math.round(11.5*s), 700, false);
+        const aw = ctx.measureText(' → ').width;
+        textOut('→', r.w - 26*s - tw - aw/2, ty, '#5A5366');
+        textOut(p.from, r.w - 26*s - tw - aw, ty, '#6E667A', null, 0, 'right');
+        ty += 18*s;
+      }
+    }
+
+    // Whether it is something you press. A passive in a slot is the single
+    // thing new players misread, and the card is where to say so.
+    if (c.skill){
+      const passive = SHAPES[c.skill.shape].passive;
+      setFont(Math.round(10.5*s), 800, true);
+      const tag = passive ? 'AUTO' : 'ACTIVE';
+      const tw = ctx.measureText(tag).width + 16*s;
+      rr(r.w/2 - tw/2, r.h - 78*s, tw, 18*s, 4*s);
+      ctx.fillStyle = passive ? hexToRgba(PAL.relic, 0.22) : hexToRgba(PAL.teal, 0.16);
+      ctx.fill();
+      ctx.strokeStyle = passive ? PAL.relic : PAL.teal; ctx.lineWidth = 1.4*s; ctx.stroke();
+      textOut(tag, r.w/2, r.h - 69*s, passive ? PAL.relic : PAL.teal);
+    }
+
     rr(r.w/2 - 20*s, r.h - 44*s, 40*s, 30*s, 6*s);
     ctx.fillStyle = '#0B0910'; ctx.fill();
     ctx.strokeStyle = R.edge; ctx.lineWidth = 2.4*s; ctx.stroke();
@@ -914,7 +966,7 @@ function render(){
   ctx.restore();
   if (S.mode === 'play' || S.mode === 'pause'){
     drawObjectiveMarker();
-    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); }
+    if (PRESET.lanes && S.mode === 'play'){ drawLaneStatus(); drawHulkBar(); drawLaneAlert(); }
   }
 
   drawScreenFx();

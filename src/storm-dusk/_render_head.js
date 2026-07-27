@@ -160,6 +160,106 @@ function groundDisc(x, y, r, fill, alpha){
   ctx.globalAlpha = 1;
   return g;
 }
+
+/* --- whose area is this? -----------------------------------------------------
+   Red for "this will hurt you" and teal for "this is yours" is the whole system
+   in v9, and it fails for the one in twelve men who cannot separate those two
+   hues, in a greyscale screenshot, and on a washed-out laptop panel in daylight
+   — which is most of the machines this build is aimed at.
+
+   So the edge carries it as well. A hostile area has a BROKEN rim with teeth
+   pointing outward: it is reaching for you, and the gaps make it read as
+   unfinished and unsafe. A player area has a CONTINUOUS rim with ticks pointing
+   inward: closed, contained, yours. Both still get their colour; the colour is
+   just no longer the only thing carrying it.
+
+   Everything that marks ground goes through one of these two. --------------- */
+function hostileRing(x, y, r, col, lw, alpha, teeth){
+  const g = groundEllipsePath(x, y, r);
+  const a = alpha === undefined ? 1 : alpha;
+  const n = teeth || 14;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw * g.p.k;
+  // broken rim: draw every other arc segment
+  for (let i = 0; i < n; i++){
+    const a0 = i / n * TAU, a1 = a0 + (TAU / n) * 0.58;
+    ctx.beginPath();
+    ctx.ellipse(g.p.x, g.p.y, g.rx, g.ry, 0, a0, a1);
+    ctx.stroke();
+  }
+  // teeth, outward
+  ctx.lineWidth = Math.max(1, lw * 0.8) * g.p.k;
+  for (let i = 0; i < n; i++){
+    const t = (i + 0.29) / n * TAU;
+    const cxp = Math.cos(t), syp = Math.sin(t);
+    ctx.beginPath();
+    ctx.moveTo(g.p.x + cxp * g.rx, g.p.y + syp * g.ry);
+    ctx.lineTo(g.p.x + cxp * g.rx * 1.14, g.p.y + syp * g.ry * 1.14);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return g;
+}
+function playerRing(x, y, r, col, lw, alpha, ticks){
+  const g = groundEllipsePath(x, y, r);
+  const a = alpha === undefined ? 1 : alpha;
+  ctx.save();
+  ctx.globalAlpha = a;
+  ctx.strokeStyle = col;
+  ctx.lineWidth = lw * g.p.k;
+  ctx.beginPath();
+  ctx.ellipse(g.p.x, g.p.y, g.rx, g.ry, 0, 0, TAU);
+  ctx.stroke();
+  ctx.lineWidth = Math.max(1, lw * 0.6) * g.p.k;
+  const n = ticks || 12;
+  for (let i = 0; i < n; i++){
+    const t = i / n * TAU;
+    const cxp = Math.cos(t), syp = Math.sin(t);
+    ctx.beginPath();
+    ctx.moveTo(g.p.x + cxp * g.rx, g.p.y + syp * g.ry);
+    ctx.lineTo(g.p.x + cxp * g.rx * 0.86, g.p.y + syp * g.ry * 0.86);
+    ctx.stroke();
+  }
+  ctx.restore();
+  return g;
+}
+
+/* --- element motifs ----------------------------------------------------------
+   The four elements are four colours, and the same argument applies: a build is
+   supposed to be readable as "three Frost and one Ember" at a glance, and a
+   glance at four coloured circles is not that for everyone. Each element gets a
+   silhouette it keeps everywhere — on cards, on the HUD ring, on its own areas
+   — so the vocabulary is learnable and survives greyscale.
+
+     EMBER  upward triangle   — rising, a flame
+     FROST  diamond           — a crystal, four flat faces
+     ARC    zigzag chevron    — a discharge
+     STEAM  circle            — pressure, no direction
+--------------------------------------------------------------------------- */
+function elementMotif(el, cx, cy, r, col, filled){
+  ctx.save();
+  ctx.strokeStyle = col; ctx.fillStyle = col;
+  ctx.lineWidth = Math.max(1, r * 0.34);
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  if (el === 'EMBER'){
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r * 0.92, cy + r * 0.72);
+    ctx.lineTo(cx - r * 0.92, cy + r * 0.72); ctx.closePath();
+  } else if (el === 'FROST'){
+    ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy);
+    ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath();
+  } else if (el === 'ARC'){
+    ctx.moveTo(cx - r, cy + r * 0.55); ctx.lineTo(cx - r * 0.15, cy - r * 0.2);
+    ctx.lineTo(cx + r * 0.15, cy + r * 0.2); ctx.lineTo(cx + r, cy - r * 0.55);
+    filled = false;   // a stroke, always: a filled zigzag is a blob
+  } else {
+    ctx.arc(cx, cy, r * 0.86, 0, TAU);
+  }
+  if (filled) ctx.fill(); else ctx.stroke();
+  ctx.restore();
+}
 // A ground wedge (cone / arc telegraph) built from projected points — the
 // projection of a straight ground line is straight, so a fan of segments is exact.
 function groundWedgePath(x, y, r0, r1, a0, a1, steps){

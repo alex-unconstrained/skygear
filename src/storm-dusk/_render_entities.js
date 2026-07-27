@@ -471,8 +471,8 @@ function drawTelegraphs(){
     if (e.state !== 'climb') continue;
     const pulse = 0.4 + 0.35 * Math.sin(S.rt * 12);
     if (!groundRuneImage('rune_enemy', e.spawnX, e.spawnY, 40, pulse)){
-      groundRing(e.spawnX, e.spawnY, 38, PAL.danger, 3, pulse);
-      groundRing(e.spawnX, e.spawnY, 26, PAL.dangerIn, 2, pulse * 0.7);
+      hostileRing(e.spawnX, e.spawnY, 38, PAL.danger, 3, pulse, 12);
+      hostileRing(e.spawnX, e.spawnY, 26, PAL.dangerIn, 2, pulse * 0.7, 9);
     }
     const g = groundEllipsePath(e.spawnX, e.spawnY, 38);
     ctx.save();
@@ -496,11 +496,11 @@ function drawTelegraphs(){
       if (e.type === 'BOSS' && e.boss.atk === 'slam'){
         if (!groundRuneImage('rune_enemy_filled', e.x, e.y, 260, flick))
           groundDisc(e.x, e.y, 260 * kk, PAL.danger, flick * 0.4);
-        groundRing(e.x, e.y, 260, PAL.danger, 6, 0.9);
-        groundRing(e.x, e.y, 260 * kk, PAL.dangerIn, 4, 0.8);
+        hostileRing(e.x, e.y, 260, PAL.danger, 6, 0.9, 22);
+        hostileRing(e.x, e.y, 260 * kk, PAL.dangerIn, 4, 0.8, 22);
       } else if (e.type === 'BOSS' && e.boss.atk === 'summon'){
-        groundRing(e.x, e.y, 150, PAL.danger, 6, flick);
-        groundRing(e.x, e.y, 150 * (0.4 + 0.6 * kk), PAL.dangerIn, 3, flick);
+        hostileRing(e.x, e.y, 150, PAL.danger, 6, flick, 16);
+        hostileRing(e.x, e.y, 150 * (0.4 + 0.6 * kk), PAL.dangerIn, 3, flick, 16);
       } else if (e.type === 'BOSS'){
         groundBandPath(e.x, e.y, e.atkAng, 660, 60, 0);
         ctx.fillStyle = hexToRgba(PAL.danger, flick * 0.45); ctx.fill();
@@ -552,22 +552,17 @@ function drawAoePreview(){
     }
     const c = clampToDeck(tx, ty, 6);
     const ready = sk.cdLeft <= 0;
+    // Yours: a closed rim with inward ticks, in the skill's own element colour
+    // and carrying that element's motif at the centre. A hostile area is the
+    // same idea inverted — broken rim, teeth outward — so which is which
+    // survives greyscale and a colour-blind eye.
+    const E = ELEMENTS[sk.element];
     if (!groundRuneImage('rune_player', c.x, c.y, st.radius, ready ? 0.55 : 0.2)){
-      groundRing(c.x, c.y, st.radius, PAL.teal, 2.6, ready ? 0.45 : 0.16);
-      groundRing(c.x, c.y, st.radius * 0.24, PAL.teal, 2, ready ? 0.35 : 0.12);
-      const g = groundEllipsePath(c.x, c.y, st.radius);
-      ctx.save();
-      ctx.globalAlpha = ready ? 0.30 : 0.10;
-      ctx.strokeStyle = PAL.teal; ctx.lineWidth = 1.6 * g.p.k;
-      for (let t = 0; t < 12; t++){
-        const a = t / 12 * TAU;
-        ctx.beginPath();
-        ctx.moveTo(g.p.x + Math.cos(a) * g.rx * 0.88, g.p.y + Math.sin(a) * g.ry * 0.88);
-        ctx.lineTo(g.p.x + Math.cos(a) * g.rx, g.p.y + Math.sin(a) * g.ry);
-        ctx.stroke();
-      }
-      ctx.restore();
+      playerRing(c.x, c.y, st.radius, E.color, 2.6, ready ? 0.5 : 0.18, 14);
+      playerRing(c.x, c.y, st.radius * 0.24, E.color, 2, ready ? 0.35 : 0.12, 6);
     }
+    const gm = CAM.project(c.x, c.y, 0);
+    elementMotif(sk.element, gm.x, gm.y, 9 * gm.k, E.glow, true);
     return;
   }
 }

@@ -374,6 +374,11 @@ const SFX = {
   boiler(){     Sound.tone({type:'sine', f0:120, f1:44, dur:0.36, gain:0.26});
                 Sound.noise({dur:0.16, ff0:500, ff1:110, q:0.6, gain:0.14, filter:'lowpass'}); },
   waveClear(){  [0,1,2,3].forEach((i)=> Sound.tone({type:'triangle', f0:[523,659,784,1047][i], dur:0.42, gain:0.16, delay:i*0.085})); },
+  // Two falling notes, quiet. A lane going critical is tier 0 — never culled,
+  // audible with the camera elsewhere — but it fires at most every seven
+  // seconds, so it does not need to be loud to be heard.
+  laneCritical(){ Sound.tone({type:'triangle', f0:660, f1:520, dur:0.16, gain:0.13});
+                  Sound.tone({type:'triangle', f0:494, f1:392, dur:0.26, gain:0.13, delay:0.13}); },
   cardPick(){   Sound.tone({type:'square', f0:620, dur:0.06, gain:0.14});
                 Sound.tone({type:'square', f0:940, dur:0.10, gain:0.14, delay:0.06}); },
   uiHover(){    Sound.tone({type:'sine', f0:520, dur:0.04, gain:0.05}); },
@@ -1074,16 +1079,49 @@ function hitStop(v){
 }
 
 const MAX_NUMBERS = 64;
+/* Damage numbers, aggregated.
+
+   A burning Field ticking four times a second into six boarders is 24 numbers a
+   second within one sprite's width of each other. Individually they are all
+   correct and together they are a smear you cannot read a single value out of.
+   So a new number lands ON an existing one when it is close in space, recent,
+   and the same colour — the colour carries the element, so merging across
+   colours would be merging across meanings.
+
+   Crits never merge. A crit is a discrete event with its own weight and its own
+   sound, and folding it into a running total is exactly the information the
+   number exists to carry. */
+const NUM_MERGE_R2 = 34 * 34;     // squared world radius
+const NUM_MERGE_T  = 0.30;        // and only while it is still young
 function dmgNumber(x, y, text, col, size, crit){
+  col = col || PAL.bone;
+  const n = parseInt(text, 10);
+  if (!crit && isFinite(n)){
+    for (let i = S.nums.length - 1; i >= 0; i--){
+      const o = S.nums[i];
+      if (o.crit || o.col !== col || o.t > NUM_MERGE_T || !isFinite(o.n)) continue;
+      if (dist2(o.x, o.y, x, y) > NUM_MERGE_R2) continue;
+      o.n += n;
+      o.text = (o.text[0] === '-' ? '-' : '') + Math.abs(o.n);
+      // Restart the rise so a growing total keeps drawing the eye, and grow it
+      // a little so a big accumulation reads as bigger than a single hit.
+      o.t = 0;
+      o.size = Math.min(o.size + 1.1, (size || 17) * 1.7);
+      return o;
+    }
+  }
   // Hard cap. A 95° cone into forty boarders would otherwise queue forty
   // strokeText calls a frame, and readability dies long before the frame does.
   if (S.nums.length >= MAX_NUMBERS){
     if (!crit) return;
     S.nums.shift();
   }
-  S.nums.push({ x: x + rnd(-8,8), y: y - 10, vx: rnd(-26,26), vy: rnd(-92,-64),
-                t: 0, life: TUNING.feel.dmgNumberLife * (crit ? 1.25 : 1),
-                text, col: col || PAL.bone, size: size || 17, crit: !!crit });
+  const o = { x: x + vrnd(-8,8), y: y - 10, vx: vrnd(-26,26), vy: vrnd(-92,-64),
+              t: 0, life: TUNING.feel.dmgNumberLife * (crit ? 1.25 : 1),
+              text, n: isFinite(n) ? n : NaN,
+              col, size: size || 17, crit: !!crit };
+  S.nums.push(o);
+  return o;
 }
 function fx(o){ o.t = 0; S.fx.push(o); return o; }
 
@@ -2603,14 +2641,134 @@ function rollSkillCards(slot, n, opening){
   return out;
 }
 
+/* ---------------------------------------------------------------------------
+   CARD PREVIEW — before → after
+
+   "Burn deals +50% damage" is a sentence about a modifier, not about the game:
+   it does not say what the number is now, what it becomes, or whether that is
+   worth more than "+2 pierce". So every card is applied to a copy of the state
+   and the two are diffed. Nothing is hand-authored per card — a card added
+   later gets a preview for free, and a preview can never disagree with what the
+   card actually does, because it IS what the card does.
+
+   The copy is narrow on purpose: cards only ever touch the mod block, the
+   skills in the slots, and the two health pools. Cloning the whole of S would
+   mean cloning the enemy list every time a card is hovered.
+--------------------------------------------------------------------------- */
+function cloneSkill(sk){
+  return sk ? { shape: sk.shape, element: sk.element, cdLeft: sk.cdLeft,
+                casts: sk.casts, mods: Object.assign({}, sk.mods) } : null;
+}
+function saveForPreview(){
+  return {
+    mods: JSON.parse(JSON.stringify(S.mods)),
+    slots: S.slots.map(cloneSkill),
+    basic: cloneSkill(S.basic),
+    unlocked: S.unlockedSlots,
+    pmax: S.player.maxHp, php: S.player.hp,
+    bmax: S.boiler.maxHp, bhp: S.boiler.hp,
+  };
+}
+function restoreFromPreview(sav){
+  S.mods = sav.mods;
+  for (let i = 0; i < 4; i++) S.slots[i] = sav.slots[i];
+  S.basic = sav.basic;
+  S.unlockedSlots = sav.unlocked;
+  S.player.maxHp = sav.pmax; S.player.hp = sav.php;
+  S.boiler.maxHp = sav.bmax; S.boiler.hp = sav.bhp;
+}
+
+/* One flat vector of everything a player could notice. Per-slot entries are
+   keyed by slot so a card that upgrades slot 3 does not read as a change to
+   slot 1. */
+function previewVector(){
+  const v = {};
+  const add = (tag, sk) => {
+    if (!sk) return;
+    const st = skillStats(sk);
+    v[tag + ' damage'] = { n: st.dmg * (st.multi > 1 ? st.multi * 0.7 : 1), d: 0 };
+    if (!SHAPES[sk.shape].passive) v[tag + ' cooldown'] = { n: st.cd, d: 2, unit: 's', lower: true };
+    const reach = st.range || st.len || st.radius || 0;
+    if (reach) v[tag + ' reach'] = { n: reach, d: 0 };
+    if (st.pierce) v[tag + ' pierce'] = { n: st.pierce, d: 0 };
+    if (st.jumps) v[tag + ' jumps'] = { n: st.jumps, d: 0 };
+  };
+  // Labelled by the key that fires it, not by an index. "slot1 cooldown"
+  // makes the player count buttons; "LMB cooldown" is the thing they press.
+  for (let i = 0; i < 4; i++) if (S.slots[i]) add(bindLabel(BINDS[i]), S.slots[i]);
+  const M = S.mods;
+  v['captain HP']   = { n: S.player.maxHp, d: 0 };
+  v['Boiler HP']    = { n: S.boiler.maxHp, d: 0 };
+  v['crit chance']  = { n: M.critChance * 100, d: 0, unit: '%' };
+  v['move speed']   = { n: M.moveMult * 100, d: 0, unit: '%' };
+  v['dash charges'] = { n: M.dashCharges, d: 0 };
+  v['dash cooldown'] = { n: Math.max(0.30, (FEEL.dashCd || TUNING.player.dashCd) - M.dashCdBonus),
+                         d: 2, unit: 's', lower: true };
+  v['burn damage']  = { n: M.burnDmg * 100, d: 0, unit: '%' };
+  v['burn time']    = { n: 3 + M.burnDur, d: 0, unit: 's' };
+  v['frost slow']   = { n: M.slowAmt * 100, d: 0, unit: '%' };
+  v['damage to slowed'] = { n: M.slowDmg * 100, d: 0, unit: '%' };
+  v['stun chance']  = { n: M.stunChance * 100, d: 0, unit: '%' };
+  v['knockback']    = { n: M.knockMult * 100, d: 0, unit: '%' };
+  v['Boiler armour'] = { n: M.boilerDR * 100, d: 0, unit: '%' };
+  v['dash damage']  = { n: M.dashDamage, d: 0 };
+  v['lifesteal']    = { n: M.lifesteal * 100, d: 0, unit: '%' };
+  v['scrap chance'] = { n: M.scrapChance * 100, d: 0, unit: '%' };
+  v['residue']      = { n: M.residue, d: 0 };
+  v['scald']        = { n: M.scald * 8, d: 0 };
+  for (const el of ELEMENT_KEYS){
+    v[ELEMENTS[el].name + ' damage'] = { n: M.elemDmg[el] * 100, d: 0, unit: '%' };
+    v[ELEMENTS[el].name + ' cooldown'] = { n: M.elemCd[el] * 100, d: 0, unit: '%', lower: true };
+  }
+  return v;
+}
+
+const PREVIEW_MAX = 3;
+function previewCard(card){
+  if (!card || !card.apply) return [];
+  const sav = saveForPreview();
+  let before, after;
+  try {
+    before = previewVector();
+    card.apply(S);
+    after = previewVector();
+  } catch (e){
+    restoreFromPreview(sav);
+    return [];
+  }
+  restoreFromPreview(sav);
+  const out = [];
+  for (const k in after){
+    const a = after[k], b = before[k];
+    // A stat that did not exist before is a new capability, not a change; the
+    // card's own text covers those, and listing "slot2 damage — → 40" reads as
+    // a bug.
+    if (!b || Math.abs(a.n - b.n) < 0.005) continue;
+    const fmt = (x) => x.toFixed(a.d) + (a.unit || '');
+    out.push({ label: k, from: fmt(b.n), to: fmt(a.n),
+               better: a.lower ? a.n < b.n : a.n > b.n });
+  }
+  // Most-changed first, so a card with six small effects still leads with its
+  // biggest one.
+  out.sort((p, q) => Math.abs(parseFloat(q.to) - parseFloat(q.from)) /
+                     Math.max(1, Math.abs(parseFloat(q.from))) -
+                     Math.abs(parseFloat(p.to) - parseFloat(p.from)) /
+                     Math.max(1, Math.abs(parseFloat(p.from))));
+  return out.slice(0, PREVIEW_MAX);
+}
+
 function openDraft(kind){
   S.mode = 'draft';
   const opening = kind === 'opening';
   const empty = emptyUnlocked(S);
   const skillDraft = opening || empty.length > 0;
   const slot = opening ? 0 : (skillDraft ? empty[0] : -1);
-  S.draft = { cards: skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3),
-              hover: -1, t: 0, chosen: -1, chooseT: 0,
+  const cards = skillDraft ? rollSkillCards(slot, 3, opening) : rollCards(3);
+  // Computed once, when the draft opens, not per frame while hovering: each
+  // preview applies the card to a copy of the state and diffing three cards
+  // sixty times a second to draw the same three rows would be silly.
+  for (const c of cards) c.preview = previewCard(c);
+  S.draft = { cards, hover: -1, t: 0, chosen: -1, chooseT: 0,
               kind: opening ? 'opening' : skillDraft ? 'skill' : 'upgrade', slot };
   Hints.fire('draft');
   SFX.cardDeal();
@@ -2742,7 +2900,7 @@ function updateUI(rt){
   S.flashWhite = Math.max(0, S.flashWhite - rt * 3.2);
   S.flashRed   = Math.max(0, S.flashRed   - rt * 2.4);
   S.intro  = Math.max(0, S.intro - rt * 0.7);
-  if (S.mode === 'play') Hints.update(rt);
+  if (S.mode === 'play'){ Hints.update(rt); updateLaneAlerts(rt); }
   if (S.banner){
     S.banner.t += rt;
     if (S.banner.t >= S.banner.life) S.banner = null;
