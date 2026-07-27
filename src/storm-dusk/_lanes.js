@@ -251,11 +251,12 @@ function hurtCrew(c, dmg, ang){
 }
 
 /* --- the enemy hulk (their nexus) ------------------------------------------ */
-function spawnHulk(){
+function spawnHulk(scale){
   if (!PRESET.lanes){ S.hulk = null; return; }
   const D = TUNING.deck, H = LANE_TUNING.hulk;
+  const hp = Math.round(H.hp * (scale || 1));
   S.hulk = { x: D.cx, y: D.cy - D.h/2 - 130, r: H.r,
-             hp: H.hp, maxHp: H.hp, flash: 0, vulnerable: false, dead: false };
+             hp: hp, maxHp: hp, flash: 0, vulnerable: false, dead: false };
 }
 function damageHulk(dmg){
   const H = S.hulk;

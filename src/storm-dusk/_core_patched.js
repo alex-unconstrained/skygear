@@ -2149,11 +2149,22 @@ function pendingCount(){ return S.queue.length + countLive(); }
 function startWave(n){
   S.wave = n;
   if (PRESET.lanes && S.hulk){
-    S.hulk.vulnerable = !!(WAVES[n-1] && WAVES[n-1].push);
-    if (S.hulk.vulnerable){
+    const isPush = !!(WAVES[n-1] && WAVES[n-1].push);
+    if (isPush){
+      // A fresh vessel grapples on for every push. Without this the hulk was
+      // spawned once at run start and never reset, so breaking it on wave 4
+      // left it permanently dead — wave 8 then satisfied its "ends when their
+      // hulk does" condition on the first frame and completed in 3 seconds,
+      // and wave 12 lost its push half entirely. Each one is a little tougher
+      // than the last, but only a little: the first one already reads as long.
+      const idx = WAVES.slice(0, n).filter(w => w.push).length - 1;
+      spawnHulk(1 + idx * 0.20);
+      S.hulk.vulnerable = true;
       S.banner = { kind:'push', n, t:0, life: 3.0 };
       SFX.bossRoar();
       S.crewT = 0.5;            // send a wave with the horn, not 14s after it
+    } else {
+      S.hulk.vulnerable = false;
     }
   }
   S.queue = buildQueue(n);
