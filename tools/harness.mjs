@@ -1150,6 +1150,74 @@ async function checkAudio(browser, port){
   } finally { await tab.close(); }
 }
 
+/* What one frame asks the canvas for, asserted (v12).
+
+   "It lags when a lot is going on" was reported after v11 and the honest first
+   move was to count rather than to guess: a saturated wave-11 frame was asking
+   the canvas for 15,968 calls, 9,354 of them from unbounded transient effects.
+   Timing it in headless Chromium would have been worthless — software
+   rasterisation has a different cost curve from a player's GPU-composited
+   canvas — but the number of calls a frame ASKS FOR is hardware-independent, so
+   that is what this pins.
+
+   The ceiling is deliberately loose. It is not a performance target; it is a
+   tripwire for the class of change that adds an uncapped per-entity draw. */
+async function checkFrame(page){
+  const out = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.player.maxHp = 220; S.player.hp = 180;
+    S.boiler.maxHp = 800; S.boiler.hp = 620;
+    S.wave = 11;
+    const shapes = Object.keys(G.SHAPES).filter(k => !G.SHAPES[k].passive);
+    for (let i = 0; i < 4; i++)
+      S.slots[i] = G.newSkill(shapes[i % shapes.length], ['EMBER','FROST','ARC','STEAM'][i]);
+    const D = G.TUNING.deck;
+    const fill = (n) => {
+      for (let i = 0; i < n; i++){
+        const e = G.spawnEnemy(['SCRAPPER','SWARM','GUNNER','ARMORED'][i % 4], {
+          x: D.cx + (i % 9 - 4) * 90, y: D.cy - D.h/2 + 240 + (i % 7) * 70, side: 'bow' });
+        e.state = 'move'; e.st = 0;
+      }
+    };
+    fill(46);
+    for (const pr of G.LIVE_PROPS) if (pr.kind === 'keg') G.hitProp(pr, 999, 0);
+    for (let i = 0; i < 200; i++){
+      for (let sl = 0; sl < 4; sl++) if (S.slots[sl]) S.slots[sl].cdLeft = 0;
+      for (let sl = 0; sl < 4; sl++) G.castSlot(sl, {});
+      G.step(G.DT);
+      if (S.enemies.filter(e => !e.dead).length < 28) fill(8);
+    }
+
+    const ctx = document.querySelector('canvas').getContext('2d');
+    const proto = Object.getPrototypeOf(ctx);
+    let calls = 0, alloc = 0;
+    const patched = [];
+    for (const m of Object.getOwnPropertyNames(proto)){
+      let d;
+      try { d = Object.getOwnPropertyDescriptor(proto, m); } catch (e){ continue; }
+      if (!d || typeof d.value !== 'function' || m === 'constructor') continue;
+      const orig = d.value;
+      patched.push([m, orig]);
+      const isAlloc = /^create(Radial|Linear|Conic)Gradient$|^createPattern$/.test(m);
+      proto[m] = function (...a){ calls++; if (isAlloc) alloc++; return orig.apply(this, a); };
+    }
+    G.render();
+    for (const [m, orig] of patched) proto[m] = orig;
+    return { calls, alloc, fx: S.fx.length, enemies: S.enemies.filter(e => !e.dead).length,
+             cap: G.fxCap ? G.fxCap() : 0 };
+  });
+
+  record('frame', 'a saturated frame stays inside its canvas-call budget',
+    out.calls < 11000,
+    out.calls + ' calls with ' + out.enemies + ' enemies and ' + out.fx + ' effects');
+  record('frame', 'transient effects are capped, not unbounded',
+    out.cap > 0 && out.fx <= out.cap,
+    out.fx + ' live, cap ' + out.cap);
+  record('frame', 'per-frame gradient allocation stays small',
+    out.alloc < 200, out.alloc + ' gradients/patterns created in one frame');
+}
+
 /* ---------------------------------------------------------------------------
    main
 --------------------------------------------------------------------------- */
@@ -1174,6 +1242,7 @@ await group('deck',    () => checkDeck(page));
 await group('close',   () => checkClose(page));
 await group('crowd',   () => checkCrowd(page));
 await group('audio',   () => checkAudio(browser, port));
+await group('frame',   () => checkFrame(page));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));

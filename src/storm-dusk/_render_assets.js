@@ -176,6 +176,16 @@ const ANIMATION_MANIFEST = {
     strip:'assets/animations/scrapper_run.png', count:15, fps:12,
     meta:{ anchor:0.920, cx:0.500, fig:0.660 },
   },
+  /* Delivered 2026-07-27, the first cycle forged after the v11 playthrough
+     asked where the missing animation was going to come from. TEN frames, not
+     the twelve ANIMATION-BRIEF asks for: loom-ingest writes whatever the cut
+     loop produced and the manifest has to agree with the file, or the slicer
+     reads frames that are not there. Measured swing 0.3%, and it is pingpong
+     anyway, so the loop boundary is exact by construction (§6b). */
+  SCRAPPER_idle: {
+    strip:'assets/animations/scrapper_idle.png', count:10, fps:10, pingpong:true,
+    meta:{ anchor:0.920, cx:0.500, fig:0.790 },
+  },
 };
 
 /* The rest of the cast, wired but not yet delivered. A cycle listed here is
@@ -192,7 +202,6 @@ const ANIMATION_MANIFEST = {
    mismatch is caught at ingest rather than as a sprite that jitters in game. */
 const ANIMATION_PENDING = {
   hero_attack:      { strip:'assets/animations/hero_attack.png',   count:10, fps:14, once:true },
-  SCRAPPER_idle:    { strip:'assets/animations/scrapper_idle.png',   count:12, fps:12, pingpong:true },
   SCRAPPER_attack:  { strip:'assets/animations/scrapper_attack.png', count:10, fps:14, once:true },
   CREW_idle:        { strip:'assets/animations/crew_idle.png',   count:12, fps:12, pingpong:true },
   CREW_run:         { strip:'assets/animations/crew_run.png',    count:13, fps:12 },

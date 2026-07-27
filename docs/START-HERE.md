@@ -44,7 +44,8 @@ rewrite. Full scope means **finishing what exists**, not adding systems.
 
 | # | File | What it gives you |
 |---|---|---|
-| 1 | `docs/V11-PLAN.md` | **The plan of record.** The tester message, the diagnosis, every number, the acceptance criteria, and the browser-vs-engine-port answer. `V10-PLAN.md` is the record behind it. |
+| 1 | `docs/V12-PLAN.md` | **The plan of record.** The v11 playthrough, the balance ceiling, the frame-budget measurement, the Godot spike proposal, and where animation comes from. `V11-PLAN.md` is the record behind it. |
+| 1b | `docs/V11-PLAN.md` | The version before. The tester message, the diagnosis, every number, the acceptance criteria, and the browser-vs-engine-port answer. `V10-PLAN.md` is the record behind it. |
 | 2 | `docs/ASSET-GENERATION.md` | **How to make art.** The Aether Loom tool, its API, chroma rules, the prompt constraints that are load-bearing, the ingest bridge, the queue, and a failure table. |
 | 3 | `docs/AUDIO-SPEC.md` | **How to make sound.** Mix architecture, per-cue length budgets, ElevenLabs prompts, the shape × element layering trick. |
 | 4 | `docs/VOICE-BRIEF.md` | **How to make the voice.** The cast, the settings, the full line sheet, and what not to record. Engine side is done; every cue key is wired. |

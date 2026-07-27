@@ -9,8 +9,38 @@ The rule for an entry: **what changed, and what it was an answer to.** A change
 nobody asked for and no measurement demanded is worth writing down as exactly
 that, so the next person can tell taste from evidence.
 
-Live: <https://alex-unconstrained.github.io/skygear/> · **v11** ·
+Live: <https://alex-unconstrained.github.io/skygear/> · **v11** (build v11.1) ·
 earlier builds at `archive.html`, pinned to the bytes they shipped.
+
+---
+
+## v11.1 · Balance, frame budget, and a ship that moves — 2026-07-27 *(live)*
+
+**Answered:** the first full v11 playthrough. Twelve waves, 4:43, 338 kills,
+195 dashes, played entirely in melee, never in danger. Plus: the envelope
+obscures the upper third, the game lags when a lot is happening, and "what am I
+supposed to be looking at to see that this ship is flying?"
+
+- **One ceiling on all healing — 12 hp/s.** The run stacked four reasonable
+  cards into over a thousand points of healing; an additive failure needs an
+  additive fix. Vent to 10hp on a 2.0s floor, salvage 16%/8 → 10%/6,
+  SCRAPPER'S LUCK once-only, FIELD DRESSING below 60% health only.
+- **The lag was ours.** A saturated frame was asking the canvas for 15,968
+  calls, 9,354 of them from an unbounded transient-effects list. Capped and
+  LOD'd: 7,937. New tool `tools/profile.mjs` counts calls per subsystem, and the
+  harness now pins the budget.
+- **A HUD tick per 20 max HP with no cap** — 50 million stroke calls in one
+  frame when the profiler set maxHp to 1e9. Capped at 20.
+- **The envelope is tied to the camera**: full at the bow, 20% height and 28%
+  opacity aft. The top of the frame is where boarders come from.
+- **An airstream**, and clouds at double speed. A vehicle reads as moving
+  because things go past you.
+- **`scrapper_idle` delivered** — the first cycle since the queue was paced,
+  forged to answer where the missing animation comes from.
+- **V12-PLAN.md** answers the Godot question with the measurement rather than a
+  preference, and proposes a one-day spike with four numbers to decide on.
+
+**Harness: 58 → 61 checks** (frame budget, effect cap, gradient allocation).
 
 ---
 
