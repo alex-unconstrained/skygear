@@ -556,7 +556,14 @@ S.mode = 'title';
 S.phase = 'idle';
 requestAnimationFrame(frame);
 
+/* The seam the headless harness drives (tools/harness.mjs). It hands out the
+   real state object and the real functions rather than a summary, because a
+   harness that tests a summary tests the summary. hurtPlayer/hurtBoiler are
+   here specifically so a test can end a run the way the game ends one —
+   setting `hp = 0` directly skips the code that decides the run is over, and a
+   test that does that is asserting about a state the game never reaches. */
 window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Assets, FEEL, DT,
                    startRun, startWave, spawnEnemy, openDraft, newSkill, castSlot,
                    skillStats, step, rollCards, updateRay, endRay, render, Particles,
+                   hurtPlayer, hurtBoiler, pickCard, closeDraft,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };

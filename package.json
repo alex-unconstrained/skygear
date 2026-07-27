@@ -1,0 +1,27 @@
+{
+  "name": "skygear",
+  "version": "1.0.0",
+  "description": "SKYGEAR \u2014 build tooling and the headless harness. The game itself is a single self-contained HTML file and needs none of this to run.",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "python src/storm-dusk/build.py",
+    "test": "node tools/harness.mjs",
+    "test:headed": "node tools/harness.mjs --headed --verbose"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alex-unconstrained/skygear.git"
+  },
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/alex-unconstrained/skygear/issues"
+  },
+  "homepage": "https://github.com/alex-unconstrained/skygear#readme",
+  "devDependencies": {
+    "playwright": "^1.62.0"
+  },
+  "private": true
+}
