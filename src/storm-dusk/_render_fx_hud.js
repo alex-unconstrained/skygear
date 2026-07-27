@@ -7,7 +7,54 @@ function jitterAt(i, seed){
   return (n - Math.floor(n)) * 2 - 1;
 }
 
+/* The aura is not an effect that fires — it is a state you are in, so it draws
+   every frame from the slot rather than from the fx list. Kept faint: it is on
+   screen permanently and anything punchy here becomes wallpaper within a wave. */
+function drawAuraFields(){
+  const P = S.player;
+  if (P.hp <= 0) return;
+  for (let i = 0; i < 4; i++){
+    const sk = S.slots[i];
+    if (!sk || SHAPES[sk.shape].kind !== 'aura') continue;
+    const st = skillStats(sk), E = ELEMENTS[sk.element];
+    const puls = 0.82 + Math.sin(S.t * 2.4) * 0.18;
+    groundDisc(P.x, P.y, st.radius, E.color, 0.055 * puls);
+    groundRing(P.x, P.y, st.radius, E.color, 3, 0.34 * puls);
+    groundRing(P.x, P.y, st.radius * 0.82, E.glow, 1.5, 0.16 * puls);
+  }
+}
+
+function drawSentries(){
+  for (const s of S.sentries){
+    const E = ELEMENTS[s.element];
+    const p = CAM.project(s.x, s.y, 0);
+    const fade = clamp(s.t / 1.2, 0, 1);      // warns before it expires
+    ctx.save();
+    ctx.globalAlpha = fade;
+    groundRing(s.x, s.y, 34, E.color, 2.5, 0.5);
+    const top = CAM.project(s.x, s.y, 46);
+    // squat tripod + barrel, drawn straight so it reads at any camera angle
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 6 * p.k;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    ctx.strokeStyle = PAL.brass; ctx.lineWidth = 3.4 * p.k;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    const bl = 26 * top.k;
+    ctx.strokeStyle = E.color; ctx.lineWidth = 5 * top.k; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(top.x, top.y);
+    ctx.lineTo(top.x + Math.cos(s.ang) * bl, top.y + Math.sin(s.ang) * bl * 0.6);
+    ctx.stroke();
+    circ(top.x, top.y, 6 * top.k); ctx.fillStyle = PAL.iron; ctx.fill();
+    if (s.fire > 0){
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      drawGlow(top.x, top.y, 26 * top.k, E.glow, s.fire / 0.12);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
 function drawGroundFx(){
+  drawAuraFields();
   ctx.save();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   for (const f of S.fx){

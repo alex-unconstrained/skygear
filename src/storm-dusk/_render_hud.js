@@ -191,6 +191,7 @@ function drawSkillBar(){
     ctx.fillStyle = locked ? 'rgba(13,11,18,0.95)' : PAL.base; ctx.fill();
     gaugeRing(0, 0, size * 0.46, locked ? '#3A3440' : hexToRgba(PAL.brass, 0.9), 16);
 
+    const passive = sk && SHAPES[sk.shape].passive;
     if (locked){
       ctx.strokeStyle = '#4A4450'; ctx.lineWidth = 4;
       rr(-size*0.16, -size*0.05, size*0.32, size*0.24, 4); ctx.stroke();
@@ -202,6 +203,12 @@ function drawSkillBar(){
       textOut('EMPTY', 0, 0, '#5E5668');
     } else {
       const E = ELEMENTS[sk.element], st = skillStats(sk);
+      if (passive){
+        // a steady ring instead of a keycap: nothing here is waiting on you
+        gaugeRing(0, 0, size * 0.40, hexToRgba(E.color, 0.5), 10);
+        setFont(Math.round(8.5*HS), 800, true);
+        textOut('AUTO', 0, size * 0.30, hexToRgba(E.color, 0.85));
+      }
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       drawGlow(0, 0, size * 0.5, E.color, 0.22);
       ctx.restore();

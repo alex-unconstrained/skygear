@@ -492,6 +492,7 @@ function render(){
   drawTelegraphs();
   drawAoePreview();
   drawGroundFx();
+  drawSentries();
 
   // --- billboards, far to near
   const list = [];

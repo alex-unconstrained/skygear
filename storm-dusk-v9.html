@@ -86,7 +86,7 @@ const PRESET = {
       ]
     ]
   },
-  "build": "8535c51"
+  "build": "dc9bef8"
 };
 
 /* ============================================================================
@@ -484,6 +484,31 @@ const SHAPES = {
     key:'CHAIN', noun:'Whip', kind:'chain', desc:'arcs between nearby enemies',
     dmg: 26, cd: 2.0, jumps: 3, jumpRange: 200, seekRange: 480, falloff: 0.15, knock: 90,
   },
+  /* Passives. They take a slot like anything else and cross with all four
+     elements, so they are part of the matrix rather than a category beside it —
+     but they never read input. Four actives means four things to press, and a
+     build that wants power without more buttons had no way to ask for it. */
+  AURA: {
+    key:'AURA', noun:'Field', kind:'aura', passive:true,
+    desc:'a field around you, always on',
+    // A field hits everything inside it continuously, so its damage scales with
+    // the crowd — in a horde game that is the strongest scaling in the set, and
+    // it asks nothing of the player. Benchmarked at 96 dps against four
+    // clustered dummies where the best active managed 62; tuned to sit under a
+    // well-played active, which is the deal a passive should offer.
+    radius: 150, dmg: 4, tickRate: 1.8, cd: 0, knock: 0,
+  },
+  PULSE: {
+    key:'PULSE', noun:'Pulse', kind:'pulse', passive:true,
+    desc:'detonates around you on its own',
+    radius: 210, dmg: 34, cd: 4.4, knock: 220,
+  },
+  SENTRY: {
+    key:'SENTRY', noun:'Sentry', kind:'sentry', passive:true,
+    desc:'plants a gun that fires for you',
+    dmg: 14, cd: 9.0, life: 7.0, range: 420, shotCd: 0.7, knock: 60,
+  },
+
   RAY: {
     key:'RAY', noun:'Beam', kind:'ray', desc:'sustained beam while held',
     len: 480, width: 24, dmg: 7, tickRate: 8, cd: 0.6, maxDur: 2.5, knock: 40,
@@ -900,6 +925,7 @@ function resetGame(){
   S.boiler = { x: TUNING.boiler.x, y: TUNING.boiler.y, r: TUNING.boiler.r,
                hp: TUNING.boiler.hp, maxHp: TUNING.boiler.hp, flash: 0, shake: 0, gauge: 0 };
 
+  S.sentries = [];
   S.slots = [null, null, null, null];
   const LD = FEEL.loadout || [['CLOSEHIT', 'EMBER'], ['RANGED_AOE', 'FROST']];
   for (let i = 0; i < Math.min(4, LD.length); i++) S.slots[i] = newSkill(LD[i][0], LD[i][1]);
@@ -1088,6 +1114,18 @@ function skillStats(sk){
     case 'aoe':
       st.radius = b.radius * m.aoe; st.castRange = b.castRange * m.range;
       break;
+    case 'aura':
+      st.radius = b.radius * m.aoe * m.range;
+      st.tickRate = b.tickRate / Math.max(0.35, m.cd);   // faster ticks, not shorter cd
+      break;
+    case 'pulse':
+      st.radius = b.radius * m.aoe;
+      break;
+    case 'sentry':
+      st.range = b.range * m.range;
+      st.life = b.life;
+      st.shotCd = b.shotCd * m.cd;
+      break;
     case 'chain':
       st.jumps = b.jumps + m.jumps + (sk.element === 'ARC' ? 1 : 0);
       st.jumpRange = b.jumpRange * m.range; st.seekRange = b.seekRange * m.range;
@@ -1260,6 +1298,82 @@ function randomLiveEnemy(skip){
 /* ---------------------------------------------------------------------------
    SYSTEMS — casting. Six shapes × four elements, resolved through one path.
 --------------------------------------------------------------------------- */
+/* Passives run themselves. Each one still routes damage through the same
+   damageArea/hitEnemy path as an active, so elements, crits, the hulk and every
+   upgrade card apply exactly as they would to a cast. */
+function updatePassive(idx, sk, dt){
+  const P = S.player, st = skillStats(sk), E = ELEMENTS[sk.element];
+  if (P.hp <= 0) return;
+
+  if (st.kind === 'aura'){
+    sk.tick = (sk.tick || 0) - dt;
+    if (sk.tick > 0) return;
+    sk.tick = 1 / Math.max(0.2, st.tickRate);
+    const n = damageArea(P.x, P.y, st.radius, st.dmg, sk.element,
+                         { silent: true, noCrit: false, from: P });
+    if (n) pSparks(P.x + rnd(-st.radius*0.6, st.radius*0.6),
+                   P.y + rnd(-st.radius*0.4, st.radius*0.4), 1, E.glow, 60);
+    return;
+  }
+
+  if (st.kind === 'pulse'){
+    if (sk.cdLeft > 0) return;
+    sk.cdLeft = st.cd;
+    sk.casts++;
+    damageArea(P.x, P.y, st.radius, st.dmg, sk.element,
+               { ang: P.facing, knock: st.knock, from: P });
+    fx({ kind:'aoe', x:P.x, y:P.y, r: st.radius, life: 0.34,
+         col: E.color, glow: E.glow });
+    addTrauma(0.14);
+    SFX.fire[sk.element]({ x: P.x, y: P.y });
+    return;
+  }
+
+  if (st.kind === 'sentry'){
+    if (sk.cdLeft > 0) return;
+    sk.cdLeft = st.cd;
+    sk.casts++;
+    S.sentries.push({ x: P.x, y: P.y, t: st.life, cd: 0, ang: -Math.PI/2,
+                      element: sk.element, dmg: st.dmg, range: st.range,
+                      shotCd: st.shotCd, knock: st.knock, fire: 0 });
+    fx({ kind:'aoe', x:P.x, y:P.y, r: 60, life: 0.28, col: E.color, glow: E.glow });
+    SFX.ready();
+    return;
+  }
+}
+
+/* A planted sentry picks its own target and fires until it expires. */
+function updateSentries(dt){
+  for (let i = S.sentries.length - 1; i >= 0; i--){
+    const s = S.sentries[i];
+    s.t -= dt; s.cd -= dt; s.fire = Math.max(0, s.fire - dt);
+    if (s.t <= 0){
+      pSmoke(s.x, s.y, 4, 'rgba(200,195,190,0.5)', 26);
+      S.sentries.splice(i, 1);
+      continue;
+    }
+    let best = null, bd = s.range * s.range;
+    Hash.query(s.x, s.y, s.range + 40, _q);
+    for (const e of _q){
+      if (e.dead || e.state === 'climb') continue;
+      const d = dist2(s.x, s.y, e.x, e.y);
+      if (d < bd){ bd = d; best = e; }
+    }
+    if (!best) continue;
+    s.ang = Math.atan2(best.y - s.y, best.x - s.x);
+    if (s.cd > 0) continue;
+    s.cd = s.shotCd; s.fire = 0.12;
+    hitEnemy(best, s.dmg, { ang: s.ang, knock: s.knock, elem: s.element, silent: true });
+    applyElement(best, s.element, s.ang, s.knock);
+    hulkSplash({ x: best.x, y: best.y }, s.dmg);
+    const E = ELEMENTS[s.element];
+    pSparks(s.x + Math.cos(s.ang)*18, s.y + Math.sin(s.ang)*18, 3, E.glow, 190, s.ang, 0.4);
+    fx({ kind:'muzzle', x: s.x + Math.cos(s.ang)*18, y: s.y + Math.sin(s.ang)*18,
+         a: s.ang, life: 0.10, col: E.color, glow: E.glow });
+    SFX.hit({ x: s.x, y: s.y });
+  }
+}
+
 function castSlot(idx, opt){
   opt = opt || {};
   const sk = (typeof idx === 'number') ? S.slots[idx] : idx;
@@ -1762,6 +1876,7 @@ function updatePlayer(dt){
     // Remember a press that arrived while blocked, and spend it the instant the
     // skill comes up. Without this, tapping 20ms early is simply swallowed —
     // the single biggest thing that makes an action game feel unresponsive.
+    if (SHAPES[sk.shape].passive){ updatePassive(i, sk, dt); continue; }
     if (slotHeld(i)) sk.buf = FEEL.inputBuffer;
     else sk.buf = Math.max(0, (sk.buf || 0) - dt);
     if (slotHeld(i) || sk.buf > 0){
@@ -2494,6 +2609,7 @@ function step(dt){
   for (let i = 0; i < S.enemies.length; i++) updateEnemy(S.enemies[i], dt);
   separate(dt);
   for (let i = S.enemies.length - 1; i >= 0; i--) if (S.enemies[i].dead) S.enemies.splice(i, 1);
+  updateSentries(dt);
   updateLanes(dt);
   updateBolts(dt);
   updatePickups(dt);
@@ -5959,7 +6075,54 @@ function jitterAt(i, seed){
   return (n - Math.floor(n)) * 2 - 1;
 }
 
+/* The aura is not an effect that fires — it is a state you are in, so it draws
+   every frame from the slot rather than from the fx list. Kept faint: it is on
+   screen permanently and anything punchy here becomes wallpaper within a wave. */
+function drawAuraFields(){
+  const P = S.player;
+  if (P.hp <= 0) return;
+  for (let i = 0; i < 4; i++){
+    const sk = S.slots[i];
+    if (!sk || SHAPES[sk.shape].kind !== 'aura') continue;
+    const st = skillStats(sk), E = ELEMENTS[sk.element];
+    const puls = 0.82 + Math.sin(S.t * 2.4) * 0.18;
+    groundDisc(P.x, P.y, st.radius, E.color, 0.055 * puls);
+    groundRing(P.x, P.y, st.radius, E.color, 3, 0.34 * puls);
+    groundRing(P.x, P.y, st.radius * 0.82, E.glow, 1.5, 0.16 * puls);
+  }
+}
+
+function drawSentries(){
+  for (const s of S.sentries){
+    const E = ELEMENTS[s.element];
+    const p = CAM.project(s.x, s.y, 0);
+    const fade = clamp(s.t / 1.2, 0, 1);      // warns before it expires
+    ctx.save();
+    ctx.globalAlpha = fade;
+    groundRing(s.x, s.y, 34, E.color, 2.5, 0.5);
+    const top = CAM.project(s.x, s.y, 46);
+    // squat tripod + barrel, drawn straight so it reads at any camera angle
+    ctx.strokeStyle = PAL.ink; ctx.lineWidth = 6 * p.k;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    ctx.strokeStyle = PAL.brass; ctx.lineWidth = 3.4 * p.k;
+    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(top.x, top.y); ctx.stroke();
+    const bl = 26 * top.k;
+    ctx.strokeStyle = E.color; ctx.lineWidth = 5 * top.k; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(top.x, top.y);
+    ctx.lineTo(top.x + Math.cos(s.ang) * bl, top.y + Math.sin(s.ang) * bl * 0.6);
+    ctx.stroke();
+    circ(top.x, top.y, 6 * top.k); ctx.fillStyle = PAL.iron; ctx.fill();
+    if (s.fire > 0){
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      drawGlow(top.x, top.y, 26 * top.k, E.glow, s.fire / 0.12);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+}
+
 function drawGroundFx(){
+  drawAuraFields();
   ctx.save();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   for (const f of S.fx){
@@ -6402,6 +6565,7 @@ function drawSkillBar(){
     ctx.fillStyle = locked ? 'rgba(13,11,18,0.95)' : PAL.base; ctx.fill();
     gaugeRing(0, 0, size * 0.46, locked ? '#3A3440' : hexToRgba(PAL.brass, 0.9), 16);
 
+    const passive = sk && SHAPES[sk.shape].passive;
     if (locked){
       ctx.strokeStyle = '#4A4450'; ctx.lineWidth = 4;
       rr(-size*0.16, -size*0.05, size*0.32, size*0.24, 4); ctx.stroke();
@@ -6413,6 +6577,12 @@ function drawSkillBar(){
       textOut('EMPTY', 0, 0, '#5E5668');
     } else {
       const E = ELEMENTS[sk.element], st = skillStats(sk);
+      if (passive){
+        // a steady ring instead of a keycap: nothing here is waiting on you
+        gaugeRing(0, 0, size * 0.40, hexToRgba(E.color, 0.5), 10);
+        setFont(Math.round(8.5*HS), 800, true);
+        textOut('AUTO', 0, size * 0.30, hexToRgba(E.color, 0.85));
+      }
       ctx.save(); ctx.globalCompositeOperation = 'lighter';
       drawGlow(0, 0, size * 0.5, E.color, 0.22);
       ctx.restore();
@@ -7285,6 +7455,7 @@ function render(){
   drawTelegraphs();
   drawAoePreview();
   drawGroundFx();
+  drawSentries();
 
   // --- billboards, far to near
   const list = [];
