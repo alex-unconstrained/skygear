@@ -215,5 +215,11 @@ relics, currencies, accounts, leaderboards, multiplayer, touch controls,
 procedural maps, a renderer rewrite. The reasoning in `V10-PLAN.md` §0 still
 holds — they are ways to postpone the moment this game becomes excellent.
 
-**A port to Godot** was asked about directly and answered in `V11-PLAN.md` §6:
-stay in the browser, with four named triggers that would change the answer.
+**A port to Godot** is underway in `skygear-godot/` — an isolated Godot 4.5
+project targeting v11, with a living DESIGN.md, the art copied in, scenes and the
+data layer written, and most behaviour scripts still to come. `V12-PLAN.md` §4
+stops arguing about whether to spike it and instead states the four numbers it
+has to produce (web bundle size, cold start on 3 Mbit, frame time at 46 enemies,
+hours to parity) plus the two conditions that are not numbers: where a
+threaded wasm build hosts, since GitHub Pages cannot set COOP/COEP, and what
+replaces the 61 harness checks.

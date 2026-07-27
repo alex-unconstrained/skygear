@@ -216,30 +216,49 @@ goes unsaid:
   single-threaded and hosted somewhere else. iOS Safari remains unreliable. "A
   stranger opens a link and is playing in 210 ms" does not survive that.
 
-### The recommendation
+### The spike is already being built — and that changes the ask
 
-**Do not decide this with opinions. Spend one spike and decide with numbers.**
+`skygear-godot/` exists in this repo: an isolated Godot 4.5 project targeting
+v11, with a living `DESIGN.md`, the runtime art copied in, `project.godot`, four
+scenes and the data layer (`scripts/game_data.gd`) written. Its own README
+describes milestone 1 as a playable combat vertical slice; on disk the design
+document, scenes and data are in and most of the behaviour scripts
+(`game.gd`, `player.gd`, `enemy.gd`, `prop.gd`, `hud.gd`) are not yet. It is
+mid-flight, and it is not mine — I found it while committing and swept its
+current state into a commit of my own, which is noted here so the history is not
+confusing later.
 
-A Godot 4 spike, scoped tight:
+So the question is no longer "should we spike it". It is **"what does that spike
+have to show to win the argument"**, and the four numbers below are the answer.
+Nothing else needs to be argued: measure these, put them next to the browser
+build's, and the decision makes itself.
 
-1. The deck at 41°, Y-sorted, with the captain and one Scrapper as billboards.
-2. The Ember Cleave: telegraph, hit, knockback, hit-stop.
-3. 46 enemies walking a lane with separation.
-4. Export to web **and** to Windows.
+| # | Measure | Browser build today | Port has to beat / match |
+|---|---|---|---|
+| 1 | **Web bundle size** | 0.42 MB HTML + 34.7 MB streamed assets, playable before any of it arrives | a wasm bundle that is playable on a cold 3 Mbit line |
+| 2 | **Cold start to interactive** | **210 ms** on a throttled 3 Mbit line | anything under ~3 s is a win; a loading bar is a real loss |
+| 3 | **Frame time at 46 enemies + a keg chain** | 1.9 ms sim, 7,937 canvas calls, 60 fps on the dev box | 60 fps on the tester's machine, which is the one that reported lag |
+| 4 | **Hours to parity** | — | honest count, including the harness |
 
-Then measure exactly four things: **web bundle size**, **cold start on a
-throttled 3 Mbit line**, **frame time at 46 enemies on the tester's machine**,
-and **how long the spike took**. That is a day or two, it produces a real
-artifact, and it answers the question permanently instead of annually.
+And two conditions that are not numbers but decide it just as much:
 
-Meanwhile the browser build keeps shipping, because it is what the playtests are
-running on and there is a balance pass and 15 animation cycles to land.
+- **Where does it host?** Threads need `SharedArrayBuffer`, which needs COOP/COEP
+  headers, which GitHub Pages cannot set. Either the export is single-threaded or
+  the game moves off Pages. Both are fine; neither is free, and it should be a
+  decision rather than a discovery.
+- **What replaces the 61 checks?** They survive as *ideas* — headless Godot with
+  GUT can assert every one of them — but not as code. A port that reaches feature
+  parity without them is a step backwards in the only thing that has reliably
+  caught defects in this project.
 
-**Where I would put the decision now, stated plainly:** if the goal is Steam,
-controllers, real lighting or mobile — go, and the spike will confirm it
-cheaply. If the goal is the next five playtests, the browser build is still the
-faster road, and it just got 50% cheaper per frame. Those are not in conflict:
-the spike costs a day and the answer stops being a guess either way.
+**My position, plainly.** If the destination is Steam, controllers, real 2D
+lighting or mobile, the port is right and the work already started should
+continue. If the next milestone is five cold playtests, the browser build gets
+there sooner and just got 50% cheaper per frame. These are not in conflict: the
+browser build keeps taking playtests and the balance/animation work, and the port
+proves itself on the four numbers rather than on enthusiasm. What I would not do
+is stop shipping the browser build in the middle of a balance conversation — the
+tester's next run is the only thing that tells us whether §1 worked.
 
 ---
 
