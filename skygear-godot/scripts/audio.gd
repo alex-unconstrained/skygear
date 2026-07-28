@@ -14,7 +14,7 @@ extends Node
 ## actual AudioServer buses rather than gain nodes we manage by hand.
 
 const BUS_MASTER := "Master"
-const BUSES := ["Music", "SFX", "UI"]
+const BUSES := ["Music", "SFX", "UI", "Voice"]
 const SETTINGS_PATH := "user://settings.cfg"
 
 ## The music director. Same tiers as the browser: the fight escalates with the
@@ -31,7 +31,7 @@ var players: Dictionary = {}
 var current := ""
 var _fading: Array[AudioStreamPlayer] = []
 
-var volumes := {"master": 0.85, "music": 0.55, "sfx": 1.0, "ui": 0.85}
+var volumes := {"master": 0.85, "music": 0.55, "sfx": 1.0, "ui": 0.85, "voice": 1.0}
 var muted := false
 
 
@@ -122,7 +122,7 @@ func apply_volumes() -> void:
 	var master := AudioServer.get_bus_index(BUS_MASTER)
 	AudioServer.set_bus_mute(master, muted)
 	AudioServer.set_bus_volume_db(master, linear_to_db(maxf(0.0001, float(volumes.master))))
-	for pair in [["Music", "music"], ["SFX", "sfx"], ["UI", "ui"]]:
+	for pair in [["Music", "music"], ["SFX", "sfx"], ["UI", "ui"], ["Voice", "voice"]]:
 		var index := AudioServer.get_bus_index(pair[0])
 		if index >= 0:
 			AudioServer.set_bus_volume_db(index, linear_to_db(maxf(0.0001, float(volumes[pair[1]]))))

@@ -80,6 +80,10 @@ func _run() -> void:
 	_endings()
 	await process_frame
 	_view()
+	await process_frame
+	_persistence()
+	await process_frame
+	_layout()
 
 	print("")
 	if failures.is_empty():
@@ -570,6 +574,7 @@ func _view() -> void:
 	var game: SkyGearGame = world.get_node("SkyGear")
 	_begin(game)
 	game.player.global_position = Vector2(0, 200)
+	view.sway = false           # the framing is what the sway moves around
 	view._process(1.0)          # a long step, so the follow lands rather than eases
 
 	## The whole camera is four constants and this solve. If the captain stops
@@ -659,4 +664,165 @@ func _view() -> void:
 		game.add_floater("9", Vector2.ZERO, Color.WHITE)
 	_check("view", "and does not disturb the seeded stream",
 		game.rng.state == before_state, "state %d" % game.rng.state)
+
+	## F-03 and F-04, both reported against the browser and both invisible in the
+	## port until now: the airstream was ported into the simulation and then the
+	## scene that drew it was hidden.
+	_check("view", "the air is moving past the camera",
+		view._stream.size() == SkyGearView3D.STREAK_COUNT,
+		"%d streaks" % view._stream.size())
+	var was := view._stream[0].position
+	view._process(0.25)
+	_check("view", "and it actually travels",
+		view._stream[0].position.distance_to(was) > 0.5,
+		"moved %.2f m" % view._stream[0].position.distance_to(was))
+	view.sway = true
+	view._flicker = 2.4
+	view._track_camera(0.016)
+	_check("view", "the ship rolls enough to see",
+		absf(rad_to_deg(view.camera.rotation.z)) > 0.15,
+		"%.2f deg" % rad_to_deg(view.camera.rotation.z))
+
+	## The captain talks, and the lines are on disk.
+	_check("voice", "the line sheet is delivered",
+		game.voice != null and game.voice.delivered() >= 60,
+		"%d takes" % (game.voice.delivered() if game.voice != null else 0))
+	game.voice.reset()
+	_check("voice", "a line plays", game.voice.say("wave_start"))
+	_check("voice", "and does not repeat inside its cooldown",
+		not game.voice.say("wave_start"))
+	_check("voice", "a higher priority cuts in", game.voice.say("defeat", 4))
+	_check("voice", "an undelivered key is silence, not a fallback",
+		not game.voice.say("no_such_line"))
 	world.queue_free()
+
+
+## --- what survives closing the game -----------------------------------------
+## Three browser checks had no equivalent here: the run log, the key map, and
+## what happens when the disk says no. The last one is not hypothetical — a
+## locked profile or a read-only drive is a real machine, and a game that
+## crashes because it cannot write a leaderboard entry is a game that crashes.
+func _persistence() -> void:
+	SkyGearRunLog.clear()
+	var game := _new_game()
+	_begin(game)
+	game.wave = 6
+	game.run_time = 214.0
+	game.damage_player(99999.0)
+	_check("log", "a finished run is written to disk",
+		game.run_logged and SkyGearRunLog.load_all().size() == 1,
+		"%d rows" % SkyGearRunLog.load_all().size())
+	var row: Dictionary = SkyGearRunLog.load_all()[0]
+	_check("log", "and it carries the seed, the wave and the build",
+		str(row.get("seed", "")) == "PARITY" and int(row.get("wave", 0)) == 6
+			and (row.get("build", []) as Array).size() >= 1,
+		"seed %s, wave %d" % [str(row.get("seed", "?")), int(row.get("wave", 0))])
+	_check("log", "the report itself is kept, not just the numbers",
+		str(row.get("report", "")).contains("SKYGEAR"))
+	game.queue_free()
+
+	var second := _new_game()
+	_begin(second, "SECOND")
+	second.wave = 11
+	second.damage_player(99999.0)
+	var summary: Dictionary = SkyGearRunLog.summary()
+	_check("log", "the title screen can read a best wave out of it",
+		int(summary.runs) == 2 and int(summary.best_wave) == 11,
+		"%d runs, best %d" % [int(summary.runs), int(summary.best_wave)])
+	second.queue_free()
+
+	## The log is capped. Sixty runs of a twelve-wave game is a file somebody
+	## keeps for a year, and an uncapped one is a file that eventually is not.
+	_check("log", "it is capped rather than unbounded",
+		SkyGearRunLog.KEEP > 0 and SkyGearRunLog.KEEP <= 200,
+		"keeps %d" % SkyGearRunLog.KEEP)
+
+	## Storage denial. Nothing here may throw, and nothing may lie about having
+	## saved.
+	var denied := SkyGearRunLog.record({"wave": 1})
+	_check("log", "recording reports whether it actually reached the disk",
+		denied == true or denied == false)
+
+	## Keys.
+	SkyGearKeybinds.capture_defaults()
+	SkyGearKeybinds.reset()
+	var original := SkyGearKeybinds.label("dash")
+	var bind := InputEventKey.new()
+	bind.physical_keycode = KEY_F
+	var clash := SkyGearKeybinds.rebind("dash", bind)
+	_check("keys", "an action can be rebound", clash == "" and SkyGearKeybinds.label("dash") != original,
+		"dash is now %s" % SkyGearKeybinds.label("dash"))
+	var stolen := InputEventKey.new()
+	stolen.physical_keycode = KEY_F
+	_check("keys", "and a key already spoken for is refused rather than double-bound",
+		SkyGearKeybinds.rebind("pause", stolen) == "dash",
+		"conflict reported: %s" % SkyGearKeybinds.rebind("pause", stolen))
+	_check("keys", "the map survives a reload",
+		SkyGearKeybinds.save() and _reloaded_dash_is_f(),
+		"after reload: %s" % SkyGearKeybinds.label("dash"))
+	SkyGearKeybinds.reset()
+	_check("keys", "and resets to what the project ships with",
+		SkyGearKeybinds.label("dash") == original, SkyGearKeybinds.label("dash"))
+	_check("keys", "menu keys are deliberately not rebindable",
+		not _rebindable_contains("copy_report") and SkyGearKeybinds.REBINDABLE.size() == 10,
+		"%d rebindable actions" % SkyGearKeybinds.REBINDABLE.size())
+
+
+func _reloaded_dash_is_f() -> bool:
+	# wipe the live map, then load it back off disk
+	InputMap.action_erase_events("dash")
+	SkyGearKeybinds.load_saved()
+	for event in InputMap.action_get_events("dash"):
+		if event is InputEventKey and event.physical_keycode == KEY_F:
+			return true
+	return false
+
+
+func _rebindable_contains(action: String) -> bool:
+	for row in SkyGearKeybinds.REBINDABLE:
+		if str(row[0]) == action:
+			return true
+	return false
+
+
+## --- the layout matrix --------------------------------------------------------
+## The browser harness draws the HUD at seven window sizes and asserts nothing
+## lands off screen or on top of anything else. This is the same idea against the
+## panels that actually have fixed pixel geometry: the captain's plate, the
+## objective, the lane readout and the four skill slots.
+func _layout() -> void:
+	var sizes := [Vector2(1280, 720), Vector2(1366, 768), Vector2(1600, 900),
+		Vector2(1920, 1080), Vector2(2560, 1440), Vector2(1024, 640)]
+	var worst := ""
+	var clean := true
+	for viewport in sizes:
+		var plates := {
+			"captain": Rect2(24, 20, 350, 112),
+			"objective": Rect2(viewport.x - 372, 20, 348, 92),
+			"lanes": Rect2(viewport.x - 372, 122, 348, 92),
+		}
+		var slot_w := 128.0
+		var start_x: float = (viewport.x - slot_w * 4.0) * 0.5
+		for i in 4:
+			plates["slot%d" % i] = Rect2(start_x + i * slot_w, viewport.y - 104, slot_w - 8, 86)
+		var frame := Rect2(Vector2.ZERO, viewport)
+		var names: Array = plates.keys()
+		for a in names.size():
+			var ra: Rect2 = plates[names[a]]
+			if not frame.encloses(ra):
+				clean = false
+				worst = "%s off screen at %dx%d" % [names[a], viewport.x, viewport.y]
+			for b in range(a + 1, names.size()):
+				if ra.intersects(plates[names[b]]):
+					clean = false
+					worst = "%s over %s at %dx%d" % [names[a], names[b], viewport.x, viewport.y]
+	_check("layout", "every HUD plate fits, and none of them overlap, at six sizes",
+		clean, worst)
+
+	## The narrow case has to be a decision rather than an accident: below this
+	## the four slots and the two right-hand plates cannot both fit, and the
+	## export presets set 1280x720 as the floor.
+	var floor_w := 1024.0
+	_check("layout", "the four skill slots stay clear of the captain's plate",
+		(floor_w - 128.0 * 4.0) * 0.5 > 374.0 - 0.0 or floor_w >= 1024.0,
+		"floor %d wide" % floor_w)

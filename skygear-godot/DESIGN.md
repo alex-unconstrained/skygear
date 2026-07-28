@@ -280,6 +280,57 @@ Eleven checks were added for all of this (44 → 55), because the previous harne
 drove the model exclusively and therefore could not have caught a port whose
 simulation was right and whose picture was a different game.
 
+## 13d. What the last pass added, 2026-07-28
+
+Staged for the next itch push, not yet pushed.
+
+**The voice layer.** 67 takes across nineteen keys were sitting in `audio/voice/`
+unused by the port. `scripts/voice.gd` is the browser's `Voice` director ported
+with its rules intact, because the rules are the feature: one line at a time,
+higher priority cuts in, every key has its own cooldown, the dash grunt is one
+in six behind an eight second floor, and nothing is ever announced only by
+voice — every call site sits on a mechanical cue that already fires. No
+procedural fallback: an absent line is silence, not a synth impression of a
+person. Own bus, own volume.
+
+**F-03, the airstream.** It had been ported into `game.gd` and then the scene
+that drew it was hidden, so what shipped was nothing. Rebuilt as 48 flat ribbons
+lying in the air along the keel, travelling past the camera and shearing with the
+captain's lateral movement. Three passes to tune: billboarded (drew every streak
+as a horizontal bar, the one direction air down a keel does not travel), then
+too many and too bright (milky fog over the fight), then pushed back so nothing
+passes within four metres of the lens.
+
+**F-04, the sway.** Reported as "very subtle, didn't notice much even after being
+told", which in 2D it was always going to be. A real camera can roll the horizon:
+0.85° of roll on two beating periods, 0.42° of yaw, 26 units of heave, none of
+them dividing into each other so the motion never resolves into a loop. The
+harness turns it off — a camera deliberately never still cannot also be what a
+framing check measures against.
+
+**The run report was unreachable.** `_draw_results` had existed since the report
+landed and `_draw()` never called it: GAMEOVER and VICTORY both drew a one-line
+overlay instead. The telemetry layer, the per-slot attribution and the copy key
+were all feeding a screen no player had ever seen.
+
+**The run log.** `scripts/runlog.gd`, `user://runs.json`, last 60 runs, and the
+title screen reads a best-wave out of it. One run is an anecdote; the reason v11
+tracks damage per skill and time at each range is so ten of them read as a shape.
+Total on failure, and the results screen says so out loud when the write did not
+land, because a log that silently is not being written is worse than none.
+
+**Rebindable keys.** `scripts/keybinds.gd` plus an F2 screen. Physical keycodes
+throughout, so AZERTY gets ZQSD without anyone touching it. Ten actions;
+conflicts are refused with the name of the action that already owns the key
+rather than silently double-bound. Menu keys are deliberately not on the list —
+rebinding your way out of the rebind screen leaves no way back in.
+
+**Harness 55 -> 76.** The three browser groups that had no equivalent here now
+do: persistence (the log round-trips, is capped, and reports whether it reached
+the disk), keys (rebind, conflict, reload, reset, and that menu keys are out of
+scope), and the layout matrix (every HUD plate fits and none overlap at six
+window sizes).
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

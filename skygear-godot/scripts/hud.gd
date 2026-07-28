@@ -22,6 +22,8 @@ func _draw() -> void:
 	match game.state_name:
 		"TITLE":
 			_draw_title()
+			if game.keys_open:
+				_draw_keys()
 		"DRAFT":
 			_draw_world_overlay()
 			_draw_game_hud()
@@ -29,11 +31,18 @@ func _draw() -> void:
 		"PAUSE":
 			_draw_world_overlay()
 			_draw_game_hud()
-			_draw_overlay("PAUSED", _pause_text())
+			if game.keys_open:
+				_draw_keys()
+			else:
+				_draw_overlay("PAUSED", _pause_text())
 		"GAMEOVER":
-			_draw_overlay("DECK LOST", game.end_reason + "\nEnter to return to title")
+			## The run report, not a sentence. `_draw_results` has existed since
+			## the report landed and nothing ever called it — the telemetry
+			## layer, the per-slot attribution and the copy key were all feeding
+			## a screen no player had ever seen.
+			_draw_results("DECK LOST", Color("#ff4d37"))
 		"VICTORY":
-			_draw_overlay("DECK HELD", "Twelve waves repelled.\nEnter to return to title")
+			_draw_results("DECK HELD", Color("#37f0c8"))
 		_:
 			_draw_world_overlay()
 			_draw_game_hud()
@@ -45,6 +54,17 @@ func _draw_title() -> void:
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
 	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash", 330.0, 18, Color("#b9afaa"))
 	_center_text("Press Enter to choose your opening weapon", 430.0, 26, Color("#ffe08a"))
+	## What the machine remembers. A title screen with a best-wave on it is the
+	## cheapest possible reason to press Enter again.
+	var history: Dictionary = SkyGearRunLog.summary()
+	if int(history.runs) > 0:
+		var line := "%d runs · best wave %d" % [int(history.runs), int(history.best_wave)]
+		if int(history.wins) > 0:
+			line += " · %d held" % int(history.wins)
+			if str(history.best_time) != "":
+				line += " (best %s)" % str(history.best_time)
+		_center_text(line, 500.0, 17, Color("#b0813f"))
+	_center_text("F2 rebind keys · F3 audio", 540.0, 15, Color("#6a6478"))
 	_center_text("Milestone 1 · v11 combat vertical slice", 675.0, 15, Color("#8f8697"))
 
 ## The HUD, brought up to the browser build.
@@ -411,8 +431,7 @@ func _draw_draft() -> void:
 	for i in mini(3, game.draft_options.size()):
 		var card: Dictionary = game.draft_options[i]
 		var rect := Rect2(start_x + i * (card_width + gap), 200, card_width, 340)
-		draw_rect(rect, Color(0.08, 0.06, 0.09, 0.98))
-		draw_rect(rect, Color("#b0813f"), false, 3.0)
+		_panel(rect)
 		_center_in_rect(str(i + 1), Rect2(rect.position + Vector2(0, 16), Vector2(card_width, 30)), 22, Color("#ffe08a"))
 
 		## The class band. Reported against the browser build in exactly these
@@ -425,15 +444,38 @@ func _draw_draft() -> void:
 		_center_in_rect(str(card.get("class_label", "UPGRADE")),
 			Rect2(band.position + Vector2(0, 3), band.size), 14, tint)
 
-		_center_in_rect(str(card.title), Rect2(rect.position + Vector2(15, 104), Vector2(card_width - 30, 72)), 22, tint)
-		_center_in_rect(str(card.text), Rect2(rect.position + Vector2(20, 176), Vector2(card_width - 40, 96)), 16, Color("#eee5d5"))
+		_center_in_rect(str(card.title), Rect2(rect.position + Vector2(15, 96), Vector2(card_width - 30, 72)), 22, tint)
+		_center_in_rect(str(card.text), Rect2(rect.position + Vector2(20, 150), Vector2(card_width - 40, 96)), 16, Color("#eee5d5"))
+
+		## The shape, as its glyph. A card that hands you a weapon should show
+		## you the weapon: nine shapes with nine icons already in `assets/`, and
+		## "cone · burns targets" is a sentence rather than a picture.
+		var glyph_shape := ""
+		if str(card.get("kind", "")) == "skill":
+			glyph_shape = str(card.skill.shape)
+		elif card.has("shape"):
+			glyph_shape = str(card.shape)
+		if glyph_shape != "":
+			var glyph := _tex(str(SLOT_ICONS.get(glyph_shape, "")))
+			if glyph != null:
+				var at := rect.position + Vector2(card_width * 0.5 - 34.0, 214.0)
+				draw_texture_rect_region(glyph, Rect2(at, Vector2(68, 68)),
+					Rect2(Vector2.ZERO, glyph.get_size()), tint)
 
 		## And which of your skills it lands on, as glyphs, with the untouched
 		## ones dim. A card that touches no skill says what it does touch —
 		## four dark glyphs reads as "affects nothing".
 		var hit: Array = card.get("affects", [])
 		var row_y: float = rect.position.y + rect.size.y - 44.0
-		if game.skills.is_empty() or hit.is_empty():
+		## A weapon card does not "affect" the skills you already hold — it takes
+		## a slot. Saying so beats four grey dots, which is what it was drawing.
+		if str(card.get("kind", "")) == "skill":
+			var slot_note := "ARMS SLOT %d" % (int(card.get("slot", game.skills.size())) + 1)
+			if game.skills.size() >= 4:
+				slot_note = "REPLACES A SLOT"
+			_center_in_rect(slot_note, Rect2(Vector2(rect.position.x, row_y),
+				Vector2(card_width, 24)), 13, tint)
+		elif game.skills.is_empty() or hit.is_empty():
 			var label := "AFFECTS THE CAPTAIN"
 			match str(card.get("scope", "captain")):
 				"ship": label = "AFFECTS THE BOILER"
@@ -453,6 +495,43 @@ func _draw_draft() -> void:
 					draw_circle(centre, 14.0, Color(tint.r, tint.g, tint.b, 0.18))
 					draw_arc(centre, 14.0, 0.0, TAU, 20, tint, 2.0)
 				draw_circle(centre, 7.0, skill_color if lit else Color(0.42, 0.40, 0.46))
+
+## The controls screen.
+##
+## WASD is a QWERTY fact, not a universal one, and a player who cannot reach
+## `dash` cannot dash. Ten rows, numbered so they are reachable without a cursor,
+## and the menu keys are deliberately not on the list — rebinding your way out of
+## the rebind screen leaves no way back in.
+func _draw_keys() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.92))
+	var sheet := Rect2(size.x * 0.5 - 300.0, 70.0, 600.0, 480.0)
+	_panel(sheet)
+	_center_text("CONTROLS", 124.0, 38, BRASS_LIT)
+	_center_text("press a number to rebind that row", 154.0, 15, Color("#8b8296"))
+	var y := sheet.position.y + 112.0
+	for i in SkyGearKeybinds.REBINDABLE.size():
+		var action: String = SkyGearKeybinds.REBINDABLE[i][0]
+		var name: String = SkyGearKeybinds.REBINDABLE[i][1]
+		var listening: bool = game.rebinding_index == i
+		var row := Rect2(sheet.position.x + 30.0, y - 15.0, sheet.size.x - 60.0, 30.0)
+		if listening:
+			draw_rect(row, Color(0.69, 0.51, 0.25, 0.20))
+			draw_rect(row, BRASS, false, 1.6)
+		draw_string(font, Vector2(row.position.x + 10.0, y + 6.0),
+			"%d" % ((i + 1) % 10), HORIZONTAL_ALIGNMENT_LEFT, 24, 15, Color("#6a6478"))
+		draw_string(font, Vector2(row.position.x + 40.0, y + 6.0), name,
+			HORIZONTAL_ALIGNMENT_LEFT, 240, 17, BONE)
+		draw_string(font, Vector2(row.position.x, y + 6.0),
+			"press a key…" if listening else SkyGearKeybinds.label(action),
+			HORIZONTAL_ALIGNMENT_RIGHT, row.size.x - 12.0, 17,
+			BRASS_LIT if listening else Color("#b9afaa"))
+		y += 34.0
+	if game.rebind_conflict != "":
+		_center_text("that key already runs %s" % game.rebind_conflict.replace("_", " "),
+			y + 14.0, 15, Color("#ff9a5a"))
+	_center_text("Backspace resets · Esc closes · F2 toggles", sheet.end.y - 22.0, 15,
+		Color("#37f0c8"))
+
 
 func _draw_overlay(title: String, subtitle: String) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.86))
@@ -483,11 +562,21 @@ WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash"
 
 func _draw_results(title: String, tint: Color) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
-	_center_text(title, 92.0, 52, tint)
 	var report: String = game.run_report()
-	var lines := report.split("
+	var body := report.split("
 ")
-	var y := 150.0
+	var tall := 0.0
+	for line in body:
+		tall += 20.0 if str(line).begins_with("  ") else 23.0
+	## Sized to the report rather than to the window. A fixed plate left three
+	## hundred pixels of empty brass under a twelve-line run, which reads as a
+	## screen that failed to load something.
+	_panel(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0, minf(size.y - 104.0, tall + 232.0)))
+	_center_text(title, 110.0, 52, tint)
+	if game.end_reason != "":
+		_center_text(game.end_reason, 146.0, 18, Color("#b9afaa"))
+	var lines := body
+	var y := 188.0
 	for i in lines.size():
 		var line: String = lines[i]
 		var small := line.begins_with("  ")
@@ -497,6 +586,9 @@ func _draw_results(title: String, tint: Color) -> void:
 		y += 20.0 if small else 23.0
 	y += 18.0
 	_center_text("C to copy the report · Enter to return to title", y, 18, Color("#37f0c8"))
+	var log_note := "saved to the run log" if game.run_logged 		else "COULD NOT WRITE THE RUN LOG — copy it before you leave"
+	_center_text(log_note, y + 24.0, 14,
+		Color("#6a6478") if game.run_logged else Color("#ff9a5a"))
 
 
 func _center_text(text: String, y: float, font_size: int, color: Color) -> void:

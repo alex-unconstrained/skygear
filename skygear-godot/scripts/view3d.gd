@@ -44,6 +44,34 @@ const WORLD_SCALE := 0.01           ## ground units -> metres, so Godot's units 
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
+## THE AIRSTREAM (F-03) and THE SWAY (F-04).
+##
+## Both were reported against the browser build and both are still open there.
+## The port had the airstream ported into `game.gd` and then hid the scene that
+## drew it, so what actually shipped was nothing at all.
+##
+## Rebuilt here as what it always wanted to be: streaks in the air travelling
+## past the camera, at the camera's own height, rather than lines drawn on a
+## flat picture of a deck. The tester asked what they were supposed to look at to
+## see the ship was flying, and the answer has to be something between them and
+## the deck, moving.
+## Tuned down hard from the first pass. Seventy-two ribbons at 0.4 additive were
+## not air, they were fog: milky bands washing across the deck and the fight.
+## Air you are moving through is a thing you notice in motion and barely see in a
+## still, which is the right target for a still.
+const STREAK_COUNT := 48
+const STREAK_SPEED := 1450.0        ## ground units per second, toward the stern
+const STREAK_DEPTH := 3000.0        ## the volume they live in, ahead of the camera
+const STREAK_SPREAD := 1500.0       ## and across it
+
+## And the sway. Reported as "very subtle, player didn't notice much even after
+## being told" — because in 2D it could only ever be a small parallax nudge. A
+## real camera can roll the horizon, which is what standing on a ship feels
+## like, and one degree of roll is unmistakable where ten pixels of drift is not.
+const SWAY_ROLL := 0.85             ## degrees
+const SWAY_YAW := 0.42
+const SWAY_HEAVE := 26.0            ## ground units, vertical
+
 @export var game_path: NodePath = ^"SkyGear"
 
 var game: SkyGearGame
@@ -60,6 +88,15 @@ var _focus := Vector2.ZERO
 var _focus_set := false
 var _flicker := 0.0
 var _made: Dictionary = {}           ## generated textures, by key
+var _stream: Array[MeshInstance3D] = []
+var _stream_v: PackedFloat32Array = PackedFloat32Array()
+var _stream_len: PackedFloat32Array = PackedFloat32Array()   ## length, width, per streak
+var _roll := 0.0
+var _yaw := 0.0
+## Off for the harness. A camera that is deliberately never still cannot also be
+## the thing a framing check measures against, and the check is measuring the
+## framing the sway moves AROUND.
+var sway := true
 
 
 func _ready() -> void:
@@ -276,6 +313,8 @@ func _build_world() -> void:
 
 	_build_boiler()
 
+	_build_airstream()
+
 	camera = Camera3D.new()
 	## Not a taste dial. The browser's focal length is 1320 quoted against a
 	## reference height of 860, so its vertical field of view is
@@ -289,6 +328,42 @@ func _build_world() -> void:
 	camera.current = true
 	add_child(camera)
 	_track_camera(1.0)
+
+
+## Streaks of moving air, as objects in the world. Unshaded, additive, and each
+## one aligned to the direction it is travelling so it leans when the captain
+## does — which is the half of F-03 the browser was missing when it was reviewed:
+## constant rather than intermittent, and shearing with lateral movement so it
+## says "you are moving through air" and not only "the ship is".
+func _build_airstream() -> void:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_texture = _streak_texture()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_color = Color(0.62, 0.74, 0.92, 0.19)
+	## NOT billboarded. A billboard yaws to face the camera, which overrode the
+	## heading and drew every streak as a horizontal bar across the screen —
+	## precisely the one direction air rushing down a keel does not travel.
+	## Instead each streak is a flat ribbon lying in the air, long axis along the
+	## keel; a camera pitched 41 degrees projects that to a near-vertical line,
+	## which is what the browser draws by hand.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 8811
+	_stream_len.clear()
+	for i in STREAK_COUNT:
+		var node := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2.ONE
+		node.mesh = quad
+		node.material_override = mat
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+		_stream.append(node)
+		_stream_v.append(rng.randf())
+		_stream_len.append(rng.randf_range(190.0, 430.0))
+		_stream_len.append(rng.randf_range(1.1, 2.4))
 
 
 ## The cargo runs. In the browser these are `cargo_wall_module` billboards tiled
@@ -725,6 +800,7 @@ func _process(delta: float) -> void:
 	_decals_used.clear()
 	_sync_all()
 	_sync_effects()
+	_sync_airstream(delta)
 	# anything not claimed this frame is gone from the simulation
 	for key in _billboards.keys():
 		if not _used.has(key):
@@ -759,14 +835,60 @@ func _track_camera(delta: float) -> void:
 		_focus_set = true
 	else:
 		_focus = _focus.lerp(target, 1.0 - exp(-delta / CAM_TAU))
-	camera.position = Vector3(_focus.x * WORLD_SCALE, CAM_HEIGHT * WORLD_SCALE,
+	## The sway. Three periods that do not divide into each other, so the motion
+	## never resolves into a loop you can count: a long roll, a shorter yaw, and
+	## a heave on its own clock. Deliberately at the top of what is comfortable
+	## rather than the bottom — the browser's version was invisible.
+	_roll = 0.0
+	_yaw = 0.0
+	var heave := 0.0
+	if sway:
+		_roll = sin(_flicker * 0.31) * 0.72 + sin(_flicker * 0.73) * 0.28
+		_yaw = sin(_flicker * 0.47)
+		heave = sin(_flicker * 0.58) * SWAY_HEAVE
+	camera.position = Vector3(_focus.x * WORLD_SCALE,
+		(CAM_HEIGHT + heave) * WORLD_SCALE,
 		(_focus.y + CAM_NEAR) * WORLD_SCALE)
-	camera.rotation = Vector3(-PITCH, 0.0, 0.0)
+	camera.rotation = Vector3(-PITCH, deg_to_rad(SWAY_YAW * _yaw),
+		deg_to_rad(SWAY_ROLL * _roll))
 	if _envelope != null:
 		# hangs above and ahead, angled to face the camera
 		_envelope.position = camera.position + Vector3(0.0, 620.0 * WORLD_SCALE,
 			-1500.0 * WORLD_SCALE)
 		_envelope.rotation = Vector3(-PITCH * 0.55, 0.0, 0.0)
+
+
+func _sync_airstream(delta: float) -> void:
+	var shear: float = 0.0
+	if game.player != null:
+		shear = clampf(game.player.velocity.x / 320.0, -1.0, 1.0)
+	var lean := -shear * 0.30                     # radians, against the movement
+	## They never get closer than this. A ribbon that passes within a couple of
+	## metres of the lens is a pale smear over half the frame no matter how thin
+	## it is in world units, which is what the first two passes looked like.
+	var near_z: float = camera.position.z / WORLD_SCALE - 430.0
+	for i in _stream.size():
+		var node := _stream[i]
+		# a stable per-streak pseudo-random, so nothing pops when one recycles
+		var salt := float(i) * 0.6180339887
+		var t: float = _stream_v[i] + delta * (STREAK_SPEED * (0.7 + fmod(salt * 7.3, 1.0) * 0.8)) / STREAK_DEPTH
+		if t >= 1.0:
+			t = fmod(t, 1.0)
+		_stream_v[i] = t
+		var z: float = near_z - STREAK_DEPTH * (1.0 - t)
+		var x: float = _focus.x + (fmod(salt * 31.7, 1.0) - 0.5) * STREAK_SPREAD
+		var y: float = 70.0 + fmod(salt * 13.1, 1.0) * 420.0
+		# aim it down the keel, leaned by the shear
+		var angle: float = -PI * 0.5 + lean
+		var ca := cos(angle)
+		var sa := sin(angle)
+		var basis := Basis(Vector3(ca, 0.0, sa), Vector3(sa, 0.0, -ca), Vector3(0.0, 1.0, 0.0))
+		basis = basis.scaled(Vector3(_stream_len[i * 2] * WORLD_SCALE,
+			_stream_len[i * 2 + 1] * WORLD_SCALE, 1.0))
+		node.transform = Transform3D(basis, Vector3(x, y, z) * WORLD_SCALE)
+		# fade in at the far end and out as it passes, so nothing appears in shot
+		var fade: float = smoothstep(0.0, 0.16, t) * smoothstep(1.0, 0.70, t)
+		node.transparency = 1.0 - fade
 
 
 ## Effects, projected flat onto the deck.

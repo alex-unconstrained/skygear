@@ -23,6 +23,12 @@ const CARGO_RECTS := [
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
 var audio: SkyGearAudio
+## The captain, her crew and the thing in the last wave. Every line below sits
+## on top of a mechanical cue that already fires, so the layer is flavour and
+## never information — see `scripts/voice.gd` for why that rule exists.
+var voice: SkyGearVoice
+var _said_first_board := false
+var _said_boiler_low := false
 
 var rng := RandomNumberGenerator.new()
 ## A SECOND stream, for anything that only affects the picture.
@@ -75,6 +81,14 @@ var heal_budget := 0.0
 var steal_budget := 0.0
 var cards_taken: Array[String] = []
 var run_time := 0.0
+## Whether the last finished run reached the disk. Shown on the results screen,
+## because a run log that silently is not being written is worse than none.
+var run_logged := false
+## The controls screen. `rebinding_index` is which row is listening for a key,
+## or -1; `rebind_conflict` is the action that already owns the last key tried.
+var keys_open := false
+var rebinding_index := -1
+var rebind_conflict := ""
 
 ## The lane layer. Plain data, drawn by this node — see scripts/lanes.gd.
 const BASE_Y := 730.0
@@ -93,11 +107,52 @@ func _ready() -> void:
 	audio = SkyGearAudio.new()
 	audio.name = "Audio"
 	add_child(audio)
+	voice = SkyGearVoice.new()
+	voice.name = "Voice"
+	add_child(voice)
 	player.dash_started.connect(_on_dash_started)
+	SkyGearKeybinds.capture_defaults()
+	SkyGearKeybinds.load_saved()
 	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	## The rebind screen swallows everything while it is open, so that pressing
+	## W to bind W does not also walk you into a boarder.
+	if rebinding_index >= 0:
+		if event is InputEventKey and event.pressed and not event.echo:
+			if event.keycode == KEY_ESCAPE:
+				rebinding_index = -1
+				rebind_conflict = ""
+			else:
+				_apply_rebind(event)
+			get_viewport().set_input_as_handled()
+		elif event is InputEventMouseButton and event.pressed:
+			_apply_rebind(event)
+			get_viewport().set_input_as_handled()
+		return
 	if event is not InputEventKey or not event.pressed or event.echo:
+		return
+	## The controls screen. Fixed keys, deliberately: rebinding your way out of
+	## the rebind screen leaves no way back in.
+	if event.keycode == KEY_F2 and state in [State.TITLE, State.PAUSE]:
+		keys_open = not keys_open
+		queue_redraw()
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
+	if keys_open:
+		if event.keycode == KEY_ESCAPE:
+			keys_open = false
+		elif event.keycode == KEY_BACKSPACE:
+			SkyGearKeybinds.reset()
+			rebind_conflict = ""
+		else:
+			var slot := _digit_slot(event.keycode)
+			if slot >= 0 and slot < SkyGearKeybinds.REBINDABLE.size():
+				rebinding_index = slot
+				rebind_conflict = ""
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
 		return
 	if state == State.TITLE and event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
 		begin_run()
@@ -155,6 +210,24 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif state == State.PAUSE:
 			_set_state(State.PLAY)
 		get_viewport().set_input_as_handled()
+
+## 1-9 then 0, so ten rows are reachable without a cursor.
+func _digit_slot(code: int) -> int:
+	if code >= KEY_1 and code <= KEY_9:
+		return code - KEY_1
+	if code == KEY_0:
+		return 9
+	return -1
+
+
+func _apply_rebind(event: InputEvent) -> void:
+	var action: String = SkyGearKeybinds.REBINDABLE[rebinding_index][0]
+	var clash := SkyGearKeybinds.rebind(action, event)
+	rebind_conflict = clash
+	if clash == "":
+		rebinding_index = -1
+	hud.queue_redraw()
+
 
 func _process(delta: float) -> void:
 	_update_effects(delta)
@@ -323,10 +396,48 @@ func go_to_title() -> void:
 	_set_state(State.TITLE)
 
 func _set_state(next_state: State) -> void:
+	var was := state
 	state = next_state
 	state_name = State.keys()[state]
 	player.controls_enabled = state == State.PLAY
+	## A finished run goes on disk. One run is an anecdote; the reason v11 tracks
+	## damage per skill and time at each range is so ten of them can be read as a
+	## shape, and a report that dies when you press Enter cannot be.
+	if was != next_state and (next_state == State.VICTORY or next_state == State.GAMEOVER):
+		run_logged = SkyGearRunLog.record({
+			"won": next_state == State.VICTORY,
+			"wave": wave,
+			"time": _format_time(run_time),
+			"seed": seed_text,
+			"build": _build_names(),
+			"cards": cards_taken.duplicate(),
+			"reason": end_reason,
+			"vents": int(tel.vents),
+			"healed": roundi(float(tel.healed)),
+			"salvage": int(tel.salvage),
+			"rerolls": int(tel.rerolls),
+			"close_share": _close_share(),
+			"report": run_report(),
+		})
 	hud.queue_redraw()
+
+
+func _build_names() -> Array[String]:
+	var out: Array[String] = ["Ember Cleave (auto)"]
+	for skill in skills:
+		out.append(SkyGearData.skill_name(skill))
+	return out
+
+
+## The fraction of the run spent inside close range, as a percentage. It is the
+## one number that says whether the v11 loop landed, so it goes in the log on its
+## own rather than only inside the report text.
+func _close_share() -> int:
+	var rt: Dictionary = tel.range_time
+	var span: float = float(rt.close) + float(rt.mid) + float(rt.far) + float(rt.none)
+	if span <= 0.0:
+		return 0
+	return roundi(float(rt.close) / span * 100.0)
 
 func choose_draft(index: int) -> void:
 	if state != State.DRAFT or index < 0 or index >= draft_options.size():
@@ -340,6 +451,8 @@ func choose_draft(index: int) -> void:
 		"skill":
 			if skills.size() < 4:
 				skills.append(option.skill.duplicate(true))
+				if voice != null:
+					voice.say("slot", 1)
 		"damage":
 			damage_multiplier *= 1.15
 		"health":
@@ -363,7 +476,10 @@ func choose_draft(index: int) -> void:
 ## the browser build spawned it once at run start and never reset it, so
 ## breaking it on wave 4 left it permanently dead — and wave 8 then satisfied
 ## its "ends when their hulk does" condition on the first frame.
+## A boarding hulk grapples on and keeps sending them until it is broken.
 func _begin_push(wave_number: int) -> void:
+	if voice != null:
+		voice.say("push", 2)
 	var index := 0
 	for i in wave_number:
 		if bool(SkyGearData.WAVES[i].get("push", false)):
@@ -379,6 +495,8 @@ func start_wave(next_wave: int) -> void:
 		var is_boss := next_wave >= 1 and next_wave <= SkyGearData.WAVES.size() 			and bool(SkyGearData.WAVES[next_wave - 1].get("boss", false))
 		audio.play_music(audio.track_for(next_wave, is_boss))
 	if wave > SkyGearData.WAVES.size():
+		if voice != null:
+			voice.say("victory", 4)
 		_set_state(State.VICTORY)
 		return
 	restow_props()
@@ -386,6 +504,8 @@ func start_wave(next_wave: int) -> void:
 		if bool(SkyGearData.WAVES[next_wave - 1].get("push", false)):
 			_begin_push(next_wave)
 	spawn_queue = _build_spawn_queue(wave)
+	if voice != null and wave > 0:
+		voice.say("wave_start", 1)
 	wave_time = 0.0
 	wave_clear_time = -1.0
 	projectiles.clear()
@@ -419,6 +539,8 @@ func _update_wave(delta: float) -> void:
 		wave_clear_time -= delta
 		if wave_clear_time <= 0.0:
 			if wave >= SkyGearData.WAVES.size():
+				if voice != null:
+					voice.say("victory", 4)
 				_set_state(State.VICTORY)
 			else:
 				open_draft()
@@ -436,6 +558,8 @@ func _update_wave(delta: float) -> void:
 	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0 and not push_pending:
 		wave_clear_time = 1.6
 		play_sfx("world/wave_clear.ogg", -4.0)
+		if voice != null:
+			voice.say("wave_clear", 1)
 		effects.append({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0, "life": 1.6})
 	elif push_pending and spawn_queue.is_empty() and enemy_count() < 6 and wave > 0:
 		# they keep coming while the hulk lives — that is what it is for
@@ -525,6 +649,8 @@ func reroll_draft() -> bool:
 
 
 func open_draft() -> void:
+	if voice != null:
+		voice.say("draft")
 	draft_options.clear()
 	if skills.size() < 4:
 		var shape_order: Array[String] = ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY", "AURA", "PULSE", "SENTRY"]
@@ -573,6 +699,12 @@ func spawn_enemy(kind: String, lane: int) -> void:
 	enemy.global_position = Vector2(LANE_CENTERS[lane] + rng.randf_range(-58.0, 58.0), -1115.0)
 	enemy.configure(self, kind, lane, wave)
 	play_sfx("enemy/climb.ogg", -12.0)
+	if voice != null:
+		if kind == "BOSS":
+			voice.say("boss_arrive", 3)
+		elif not _said_first_board:
+			_said_first_board = true
+			voice.say("first_board", 2)
 
 func enemy_count() -> int:
 	var count := 0
@@ -946,6 +1078,8 @@ func vent_pressure() -> void:
 	tel.vents += 1
 	effects.append({"kind": "circle", "position": player.global_position, "radius": radius, "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
 	play_sfx("player/vent.ogg", -2.0)
+	if voice != null:
+		voice.say("vent")
 
 func damage_player(amount: float, _source: String = "") -> void:
 	if state != State.PLAY:
@@ -953,12 +1087,19 @@ func damage_player(amount: float, _source: String = "") -> void:
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
 		add_floater("-%d" % roundi(amount), player.global_position, Color("#ff4d37"), true)
+		if voice != null and player.hp <= player.max_hp * 0.32 and player.hp > 0.0:
+			voice.say("hurt_low", 2)
 		effects.append({"kind": "burst", "position": player.global_position, "radius": 65.0, "color": Color("#ff4d37"), "time": 0.0, "life": 0.18})
 		if player.hp <= 0.0:
 			end_reason = "The captain fell on wave %d." % wave
+			if voice != null:
+				voice.say("defeat", 4)
 			_set_state(State.GAMEOVER)
 
 func damage_boiler(amount: float) -> void:
+	if voice != null and not _said_boiler_low and boiler_hp <= boiler_max_hp * 0.4:
+		_said_boiler_low = true
+		voice.say("boiler_low", 2)
 	if state != State.PLAY:
 		return
 	boiler_hp = maxf(0.0, boiler_hp - amount)
@@ -966,6 +1107,8 @@ func damage_boiler(amount: float) -> void:
 	effects.append({"kind": "burst", "position": BOILER_POSITION, "radius": 90.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.2})
 	if boiler_hp <= 0.0:
 		end_reason = "The Boiler was destroyed on wave %d." % wave
+		if voice != null:
+			voice.say("defeat", 4)
 		_set_state(State.GAMEOVER)
 
 func spawn_enemy_bolt(origin: Vector2, target: Vector2, damage: float, speed: float) -> void:
@@ -1024,6 +1167,8 @@ func on_prop_destroyed(prop: SkyGearProp) -> void:
 	effects.append({"kind": "burst", "position": prop.global_position, "radius": 70.0, "color": Color("#e8c376"), "time": 0.0, "life": 0.25})
 
 func explode_keg(prop: SkyGearProp) -> void:
+	if voice != null:
+		voice.say("keg")
 	var center := prop.global_position
 	_damage_circle(center, 175.0, 78.0, "STEAM", 380.0, false, false)
 	if center.distance_to(player.global_position) <= 192.0:
@@ -1059,6 +1204,8 @@ func _update_fire_fields(delta: float) -> void:
 func _on_dash_started() -> void:
 	dash_hit_ids.clear()
 	play_sfx("player/dash.ogg", -4.0)
+	if voice != null:
+		voice.maybe("dash", 1.0 / 6.0)
 
 func _process_dash_impacts() -> void:
 	if player.dash_time_left <= 0.0:
@@ -1085,6 +1232,17 @@ func _process_dash_impacts() -> void:
 ## One per lane, gating it. Boarders have to break it to pass, which is what
 ## makes a lane a lane rather than a stripe on the floor.
 func _update_turrets(delta: float) -> void:
+	## The lane call. Checked here rather than in the HUD because the HUD is a
+	## view and a view that fires audio is a view that fires audio twice the
+	## moment anything else draws.
+	if voice != null and state == State.PLAY:
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.dead:
+				continue
+			var depth: float = (enemy.global_position.y - DECK_RECT.position.y) / DECK_RECT.size.y
+			if depth > 0.80:
+				voice.say("lane_critical", 2)
+				break
 	for t in turrets:
 		t.flash = maxf(0.0, float(t.flash) - delta)
 		t.fire_flash = maxf(0.0, float(t.fire_flash) - delta)
@@ -1127,6 +1285,8 @@ func damage_turret(t: Dictionary, amount: float) -> void:
 	if float(t.hp) <= 0.0:
 		t.dead = true
 		play_sfx("lane/cannon_down_1.ogg", -4.0)
+		if voice != null:
+			voice.say("cannon_down", 1)
 		effects.append({"kind": "burst", "position": t.position, "radius": 120.0,
 			"color": Color("#ff9a5a"), "time": 0.0, "life": 0.4})
 	else:
@@ -1144,6 +1304,8 @@ func on_boss_turn(boss) -> void:
 		"color": Color("#ffd36b"), "time": 0.0, "life": 0.9})
 	effects.append({"kind": "banner", "text": "IT TURNS", "time": 0.0, "life": 2.4})
 	play_sfx("enemy/boss_roar.ogg", -1.0)
+	if voice != null:
+		voice.say("boss_turn", 3)
 
 
 func nearest_crew(origin: Vector2, max_distance: float) -> Dictionary:
@@ -1179,6 +1341,8 @@ func _update_crew(delta: float) -> void:
 			for _i in int(SkyGearLanes.CREW.per_wave):
 				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y))
 		play_sfx("lane/crew_muster.ogg", -10.0)
+		if voice != null:
+			voice.say("crew_muster")
 
 	for i in range(crew.size() - 1, -1, -1):
 		var c: Dictionary = crew[i]
@@ -1234,6 +1398,13 @@ func _update_crew(delta: float) -> void:
 					c.state = "move"
 
 
+## Called from the lane update once a lane is genuinely breaking. The HUD
+## already shouts it; this is the crew shouting it too.
+func note_lane_critical() -> void:
+	if voice != null:
+		voice.say("lane_critical", 2)
+
+
 func hurt_crew(c: Dictionary, amount: float) -> void:
 	if bool(c.dead):
 		return
@@ -1242,6 +1413,8 @@ func hurt_crew(c: Dictionary, amount: float) -> void:
 	if float(c.hp) <= 0.0:
 		c.dead = true
 		play_sfx("lane/crew_down_1.ogg", -12.0)
+		if voice != null:
+			voice.say("crew_down")
 
 
 ## --- the boarding hulk ------------------------------------------------------
