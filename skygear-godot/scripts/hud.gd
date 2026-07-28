@@ -203,12 +203,68 @@ static func hud_plates(view: Vector2) -> Dictionary:
 	## hardware requirement.
 	var side: float = clampf((view.x - slots_w) * 0.5 - HUD_MARGIN * 2.0, 250.0, 350.0)
 	var out := {
-		"captain": Rect2(HUD_MARGIN, base - 112.0, side, 112.0),
-		"ship": Rect2(view.x - HUD_MARGIN - side, base - 152.0, side, 152.0),
+		"captain": Rect2(HUD_MARGIN, base - 132.0, side, 132.0),
+		"ship": Rect2(view.x - HUD_MARGIN - side, base - 186.0, side, 186.0),
 	}
 	for i in 4:
-		out["slot%d" % i] = Rect2(slots_x + i * SLOT_W, base - 96.0, SLOT_W - 8.0, 96.0)
+		out["slot%d" % i] = Rect2(slots_x + i * SLOT_W, base - 112.0, SLOT_W - 8.0, 112.0)
 	return out
+
+
+## How much of a plate is frame rather than interior.
+##
+## The code-drawn panel had a five pixel edge and the layout was written against
+## it. The painted housings have a riveted brass border that is a fifth of their
+## height, so the same layout put the health bar across the frame and the lane
+## labels on the rivets. Everything inside a plate is positioned against
+## `interior()`, never against the plate itself.
+static func interior(rect: Rect2) -> Rect2:
+	## Measured off the delivered plates rather than guessed: the riveted brass
+	## border is close to a fifth of the shorter side, and 13% put the Boiler bar
+	## across the top frame and the lane labels on the rivets.
+	var inset: float = clampf(minf(rect.size.x, rect.size.y) * 0.19, 10.0, 30.0)
+	return rect.grow(-inset)
+
+
+## A pressure dial. The face is painted with its danger arc and tick marks; the
+## needle is drawn, because a needle baked into a bezel is a needle that is wrong
+## for every value but one.
+func _dial(rect: Rect2, ratio: float) -> void:
+	var face := _tex("res://assets/art/ui/pressure_dial.png")
+	var centre := rect.get_center()
+	var radius: float = minf(rect.size.x, rect.size.y) * 0.5
+	if face != null:
+		draw_texture_rect_region(face, rect, Rect2(Vector2.ZERO, face.get_size()))
+	else:
+		draw_circle(centre, radius, Color("#0b0910"))
+		draw_arc(centre, radius - 2.0, deg_to_rad(313.0), deg_to_rad(400.0), 24,
+			Color("#8b2418"), 3.0)
+		draw_arc(centre, radius, 0.0, TAU, 32, BRASS, 2.0)
+	## 260 degrees of sweep starting at eight on a clock face, which is where a
+	## dial with its danger arc across the last third puts zero.
+	var angle: float = deg_to_rad(140.0 + 260.0 * clampf(ratio, 0.0, 1.0))
+	var tip := centre + Vector2(cos(angle), sin(angle)) * (radius - 5.0)
+	draw_line(centre, tip, Color("#f2eaff") if ratio >= 1.0 else Color("#e8542e"), 2.4)
+	draw_circle(centre, 3.0, BRASS_LIT)
+
+
+## The cooldown, as a clock sweep rather than a bottom-up wipe.
+##
+## Both say the same thing; the sweep says it in the shape everyone has already
+## learned from every other game, and that is worth more than the shape being
+## ours. Drawn as a fan of wedges so it needs neither a shader nor a rotated
+## draw, both of which Godot makes awkward from inside `_draw`.
+func _cooldown(rect: Rect2, remaining: float) -> void:
+	var shade := Color(0.04, 0.03, 0.06, 0.74)
+	var centre := rect.get_center()
+	var radius: float = rect.size.length() * 0.5
+	var steps: int = maxi(2, int(ceil(remaining * 24.0)))
+	var points := PackedVector2Array([centre])
+	for i in range(steps + 1):
+		var a: float = -PI * 0.5 + TAU * remaining * float(i) / float(steps)
+		points.append(centre + Vector2(cos(a), sin(a)) * radius)
+	if points.size() >= 3:
+		draw_colored_polygon(points, shade)
 
 
 func _draw_game_hud() -> void:
@@ -218,9 +274,10 @@ func _draw_game_hud() -> void:
 	## --- the captain: portrait, health, pressure, dash ---------------------
 	var panel: Rect2 = plates.captain
 	_panel(panel)
+	var inner := interior(panel)
 	var portrait := _tex("res://assets/art/ui/portrait_corsair.png")
-	var pr := 34.0
-	var centre := panel.position + Vector2(20 + pr, panel.size.y * 0.5)
+	var pr: float = minf(30.0, inner.size.y * 0.36)
+	var centre := Vector2(inner.position.x + pr + 4.0, inner.get_center().y)
 	if portrait != null:
 		draw_texture_rect_region(portrait, Rect2(centre - Vector2(pr, pr), Vector2(pr * 2, pr * 2)),
 			Rect2(Vector2.ZERO, portrait.get_size()))
@@ -233,39 +290,42 @@ func _draw_game_hud() -> void:
 	else:
 		draw_arc(centre, pr + 2.0, 0.0, TAU, 40, BRASS, 2.4)
 
-	var bx := panel.position.x + 24 + pr * 2 + 12
-	var bw := panel.size.x - (bx - panel.position.x) - 18
-	_bar(Rect2(bx, panel.position.y + 26, bw, 20), player.hp / player.max_hp,
+	var bx: float = centre.x + pr + 14.0
+	var bw: float = inner.end.x - bx
+	_bar(Rect2(bx, inner.position.y + 10, bw, 26), player.hp / player.max_hp,
 		Color("#e8542e"), Color("#8b2418"), "CAPTAIN", "%d / %d" % [player.hp, player.max_hp])
 
-	# the pressure gauge, with its own icon watermarked into the bar
-	var gauge := Rect2(bx, panel.position.y + 56, bw, 12)
+	## The pressure gauge. Pressure is the v11 mechanic and it was the least
+	## legible thing on the bar — a twelve-pixel rect with an icon watermarked
+	## into it. A dial reads at a glance; a thin bar does not.
 	var pressure_ratio: float = player.pressure / 100.0
-	draw_rect(gauge, Color("#0b0910"))
-	if pressure_ratio > 0.0:
-		draw_rect(Rect2(gauge.position, Vector2(gauge.size.x * pressure_ratio, gauge.size.y)),
-			Color("#c9b6e8") if pressure_ratio < 1.0 else Color("#f2eaff"))
-	draw_rect(gauge, Color("#0d0b12"), false, 2.0)
-	draw_line(gauge.position + Vector2(gauge.size.x * 0.5, 0),
-		gauge.position + Vector2(gauge.size.x * 0.5, gauge.size.y), BRASS, 1.5)
+	var dial_size: float = minf(40.0, inner.size.y * 0.44)
+	_dial(Rect2(bx, inner.end.y - dial_size - 2.0, dial_size, dial_size), pressure_ratio)
 	var gauge_icon := _tex("res://assets/art/ui/icon_vent.png" if pressure_ratio >= 1.0
 		else "res://assets/art/ui/icon_pressure.png")
 	if gauge_icon != null:
 		draw_texture_rect_region(gauge_icon,
-			Rect2(gauge.position + Vector2(2, -3), Vector2(18, 18)),
-			Rect2(Vector2.ZERO, gauge_icon.get_size()))
-	draw_string(font, gauge.position + Vector2(gauge.size.x - 66, gauge.size.y - 1),
+			Rect2(Vector2(bx + dial_size + 8.0, inner.end.y - dial_size + 2.0), Vector2(15, 15)),
+			Rect2(Vector2.ZERO, gauge_icon.get_size()),
+			Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#8b8296"))
+	draw_string(font, Vector2(bx + dial_size + 26.0, inner.end.y - dial_size + 14.0),
 		"VENTING" if pressure_ratio >= 1.0 else "PRESSURE",
-		HORIZONTAL_ALIGNMENT_RIGHT, 64, 10,
+		HORIZONTAL_ALIGNMENT_LEFT, 90, 10,
 		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#7e7392"))
 
-	draw_string(font, Vector2(bx, panel.position.y + 96), "DASH", HORIZONTAL_ALIGNMENT_LEFT,
-		-1, 12, Color("#8b8296"))
+	draw_string(font, Vector2(bx + dial_size + 26.0, inner.end.y - 2.0), "DASH",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#8b8296"))
+	var pip_art := _tex("res://assets/art/ui/dash_pip.png")
 	for i in 2:
 		var lit := i < player.dash_charges
-		var pip := Vector2(bx + 46 + i * 20, panel.position.y + 92)
-		draw_circle(pip, 7.0, Color("#37f0c8") if lit else Color("#201c28"))
-		draw_arc(pip, 7.0, 0.0, TAU, 16, Color("#0d0b12"), 2.0)
+		var pip := Vector2(bx + dial_size + 70.0 + i * 22, inner.end.y - 8.0)
+		if pip_art != null:
+			draw_texture_rect_region(pip_art, Rect2(pip - Vector2(10, 10), Vector2(20, 20)),
+				Rect2(Vector2.ZERO, pip_art.get_size()),
+				Color("#9ff5e2") if lit else Color(0.30, 0.28, 0.34))
+		else:
+			draw_circle(pip, 7.0, Color("#37f0c8") if lit else Color("#201c28"))
+			draw_arc(pip, 7.0, 0.0, TAU, 16, Color("#0d0b12"), 2.0)
 
 	## --- the ship: the objective and the three lanes, one plate -------------
 	## They were two plates stacked in the top-right corner. Together they are
@@ -273,22 +333,27 @@ func _draw_game_hud() -> void:
 	## plate, and the corner they were in is now deck you can see.
 	var right: Rect2 = plates.ship
 	_panel(right)
-	_bar(Rect2(right.position.x + 18, right.position.y + 28, right.size.x - 36, 18),
+	var ship := interior(right)
+	_bar(Rect2(ship.position.x, ship.position.y + 16, ship.size.x, 26),
 		game.boiler_hp / game.boiler_max_hp, Color("#37f0c8"), Color("#1c6f61"),
 		"BOILER", "%d / %d" % [game.boiler_hp, game.boiler_max_hp])
-	draw_string(font, right.position + Vector2(18, 68),
-		"WAVE %d / 12" % game.wave, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, BRASS_LIT)
-	draw_string(font, right.position + Vector2(right.size.x - 152, 68),
-		"BOARDERS %d" % game.enemy_count(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, BONE)
+	draw_string(font, ship.position + Vector2(0, 60),
+		"WAVE %d / 12" % game.wave, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, BRASS_LIT)
+	draw_string(font, ship.position + Vector2(ship.size.x - 132, 60),
+		"BOARDERS %d" % game.enemy_count(), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, BONE)
 
 	## Which lane is breaking, without having to look at it: three tracks, the
 	## cannon still standing in each drawn as its remaining health, and the
 	## deepest boarder marked on it.
 	var names := ["PORT", "CENTRE", "STARBOARD"]
 	for lane in 3:
-		var row := right.position + Vector2(18, 94 + lane * 20)
+		var row := ship.position + Vector2(0, 86 + lane * 18)
 		draw_string(font, row, names[lane], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#8b8296"))
-		var track := Rect2(row + Vector2(78, -8), Vector2(right.size.x - 124, 10))
+		var track := Rect2(row + Vector2(72, -8), Vector2(ship.size.x - 96, 8))
+		## Code-drawn on purpose. `lane_track.png` is painted with heavy brass end
+		## stops, and at nine pixels tall across a 250-wide plate the two caps
+		## are most of the track — the channel it is supposed to be disappears.
+		## A painted asset that does not fit its slot is the wrong asset for it.
 		draw_rect(track, Color("#0b0910"))
 		var gate: Dictionary = game.turret_in_lane(lane)
 		if not gate.is_empty():
@@ -309,36 +374,38 @@ func _draw_game_hud() -> void:
 			draw_rect(Rect2(marker - Vector2(2, 3), Vector2(4, track.size.y + 6)),
 				Color("#ff4d37") if deepest > 0.72 else Color("#ffb347"))
 		draw_rect(track, Color("#0d0b12"), false, 1.4)
-		draw_string(font, row + Vector2(right.size.x - 38, 0), str(count),
-			HORIZONTAL_ALIGNMENT_RIGHT, 24, 11, BONE)
+		draw_string(font, row + Vector2(ship.size.x - 22, 0), str(count),
+			HORIZONTAL_ALIGNMENT_RIGHT, 22, 11, BONE)
 
 	## --- the hand -----------------------------------------------------------
 	var labels := ["LMB", "RMB", "Q", "E"]
 	for i in 4:
 		var rect: Rect2 = plates["slot%d" % i]
 		_panel(rect, true)
-		draw_string(font, rect.position + Vector2(10, 20), labels[i],
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, BRASS_LIT)
+		var face := interior(rect)
+		## The key label goes on the tab the plate is painted with, which sits
+		## above the recess rather than inside it.
+		draw_string(font, Vector2(rect.position.x, rect.position.y + 15), labels[i],
+			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 12, BRASS_LIT)
 		if i >= game.skills.size():
-			draw_string(font, rect.position + Vector2(10, 58), "LOCKED",
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("#5f5863"))
+			draw_string(font, Vector2(face.position.x, face.get_center().y + 4),
+				"LOCKED", HORIZONTAL_ALIGNMENT_CENTER, face.size.x, 13, Color("#5f5863"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
 		var icon := _tex(str(SLOT_ICONS.get(skill.shape, "")))
-		var icon_at := rect.position + Vector2(rect.size.x * 0.5 - 19, 24)
+		var glyph: float = minf(40.0, face.size.y * 0.62)
+		var icon_at := Vector2(face.get_center().x - glyph * 0.5, face.position.y + 6.0)
 		if icon != null:
-			draw_texture_rect_region(icon, Rect2(icon_at, Vector2(38, 38)),
+			draw_texture_rect_region(icon, Rect2(icon_at, Vector2(glyph, glyph)),
 				Rect2(Vector2.ZERO, icon.get_size()), element)
 		var ready: bool = float(skill.cooldown_left) <= 0.0
 		if not ready:
-			# the cooldown eats the icon from the bottom, as it does in the browser
 			var st: Dictionary = game.skill_stats(skill)
 			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)), 0.0, 1.0)
-			draw_rect(Rect2(icon_at + Vector2(0, 38.0 * (1.0 - frac)), Vector2(38, 38.0 * frac)),
-				Color(0.04, 0.03, 0.06, 0.72))
-		draw_string(font, rect.position + Vector2(6, rect.size.y - 12),
-			SkyGearData.skill_name(skill), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 12, 12,
+			_cooldown(Rect2(icon_at - Vector2(4, 4), Vector2(glyph + 8, glyph + 8)), frac)
+		draw_string(font, Vector2(face.position.x, face.end.y - 2.0),
+			SkyGearData.skill_name(skill), HORIZONTAL_ALIGNMENT_CENTER, face.size.x, 11,
 			element if ready else Color("#7f7782"))
 
 
@@ -347,16 +414,31 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 	var housing := _tex("res://assets/art/ui/bar_housing.png")
 	var fill := _tex("res://assets/art/ui/bar_fill_cold.png" if top.g > top.r
 		else "res://assets/art/ui/bar_fill_hot.png")
-	if housing != null:
-		_nine(housing, rect, 22.0)
+	## The housing is authored as a chunky trough, 512x158 — roughly three to one.
+	## Nine-slicing that into a sixteen-pixel-tall bar squeezes 26 pixels of brass
+	## corner into seven, and the gauge comes out solid brass with a thread of
+	## colour in it. Below this height the painted housing is the wrong asset for
+	## the slot and the code-drawn channel is the right one.
+	if housing != null and rect.size.y >= 22.0:
+		_nine(housing, rect, 20.0)
+		## Inside the housing's own frame, which is about a fifth of its height.
+		## Drawn at the rect the fill spills over the brass and the gauge reads
+		## as a tube rather than as a channel with something in it.
+		var bed := rect.grow(-maxf(3.0, rect.size.y * 0.24))
+		## The channel, drawn dark before anything goes in it. Nine-slicing a
+		## trough into a short bar leaves the interior mostly brass, so an empty
+		## gauge reads as a full one — which on a health bar is the worst
+		## possible failure.
+		draw_rect(bed, Color("#0b0910"))
+		filled = Rect2(bed.position, Vector2(bed.size.x * clampf(ratio, 0.0, 1.0), bed.size.y))
 		if fill != null and filled.size.x > 1.0:
 			## Clipped, not scaled: the band is authored even along its length so
 			## it can be cut anywhere, and stretching it would smear the lit edge.
-			var cut: float = filled.size.x / maxf(1.0, rect.size.x) * fill.get_width()
-			draw_texture_rect_region(fill, filled.grow(-3.0),
-				Rect2(0, 0, cut, fill.get_height()), Color(top.r, top.g, top.b, 0.95))
+			var cut: float = filled.size.x / maxf(1.0, bed.size.x) * fill.get_width()
+			draw_texture_rect_region(fill, filled,
+				Rect2(0, 0, cut, fill.get_height()), Color(top.r, top.g, top.b, 0.98))
 		elif filled.size.x > 1.0:
-			draw_rect(filled.grow(-3.0), top)
+			draw_rect(filled, top)
 	else:
 		draw_rect(rect, Color("#0b0910"))
 		draw_rect(filled, top)
@@ -369,9 +451,9 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 		var x: float = rect.position.x + rect.size.x * float(i) / float(segments)
 		draw_line(Vector2(x, rect.position.y + 2), Vector2(x, rect.end.y - 2),
 			Color(0.05, 0.04, 0.07, 0.5), 1.5)
-	draw_string(font, rect.position + Vector2(2, -4), label, HORIZONTAL_ALIGNMENT_LEFT,
-		-1, 11, Color("#8b8296"))
-	draw_string(font, Vector2(rect.position.x, rect.position.y - 4), value,
+	draw_string(font, rect.position + Vector2(4, -5), label, HORIZONTAL_ALIGNMENT_LEFT,
+		-1, 11, BRASS_LIT)
+	draw_string(font, Vector2(rect.position.x - 4, rect.position.y - 5), value,
 		HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x, 12, BONE)
 
 

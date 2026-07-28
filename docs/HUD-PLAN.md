@@ -127,3 +127,44 @@ skill glyph (nine already delivered).
 Each step is shippable on its own, and each falls back to what is drawn now if
 the art is not there — the same rule the animation strips follow, and the reason
 the port can ship at any point in the middle of an art pipeline.
+
+
+---
+
+## 7. What happened when the art landed, 2026-07-28
+
+All nine forged and ingested (`skygear-godot/tools/ingest_ui.py` — port-side,
+because registering these in the browser manifest would mean the browser
+downloading nine images it never draws). Candidate picks recorded in
+`tools/forge-state.json`: plate_wide #2, plate_slot #4, the rest #1.
+
+**The plates are right.** Riveted brass frames, oxblood leather, empty dark
+recess, exactly as briefed. Nine-slicing works: one 512×378 plate is now the
+captain panel, the ship panel and four skill slots without the rivets smearing.
+
+**Two assets do not fit their slots**, and it is a proportion problem rather than
+a quality one:
+
+- `ui_bar_housing` is authored as a chunky trough at roughly 3:1. The bars are
+  250×26 — nearer 10:1. Nine-slicing it squeezes 20 px of brass corner into 6 and
+  the gauge comes out solid brass with a thread of colour in it. Mitigated by
+  drawing the dark channel ourselves before the fill (an empty gauge reading as a
+  full one is the worst possible failure on a health bar) and by only using the
+  housing above 22 px tall.
+- `ui_lane_track` has heavy brass end stops. At 8 px tall across a 250-wide plate
+  the two caps are most of the track. Reverted to the code-drawn channel.
+
+**The frame is a fifth of each plate.** The layout was written against a 5 px
+code-drawn edge, so the first pass put the Boiler bar across the top frame and
+the lane labels on the rivets. Everything inside a plate is now positioned
+against `SkyGearHUD.interior()`, measured at 19% rather than guessed.
+
+### Still to do
+
+1. **Re-forge the housing and the track at their real aspect** — a 512×64
+   trough and a 256×24 rail, rather than square-ish plates that have to be
+   squashed. The prompts are right; the canvas is wrong.
+2. **Label contrast.** Small grey text on brass is the weakest thing on the bar.
+   Either a dark inlay behind each label or a lighter type colour.
+3. **The skill key tab.** `plate_slot` is painted with a label tab and LMB/RMB
+   currently sit near it rather than in it.
