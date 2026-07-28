@@ -44,5 +44,13 @@ func _run() -> void:
 		game._process(0.02)
 		await process_frame
 	root.get_texture().get_image().save_png("res://../.shots/godot-3d.png")
+	if OS.get_cmdline_user_args().has("layout"):
+		game.layout_edit = true
+		game.layout_pick = "ship"
+		game.hud.queue_redraw()
+		await process_frame
+		await process_frame
+		root.get_texture().get_image().save_png("res://../.shots/godot-layout.png")
+		print("shot layout")
 	print("shot saved")
 	quit(0)

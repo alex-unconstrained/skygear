@@ -1072,6 +1072,56 @@ func _layout() -> void:
 	_check("layout", "and none of it is in the top 60% of the screen, where they come from",
 		band, "tallest plate reaches %d px up" % highest)
 
+	## THE LAYOUT IS DATA NOW, and a person edits it. Everything below is about
+	## that being safe: a hand-edited file is a file that will one day have a
+	## trailing comma in it, and a bad layout must cost one panel rather than the
+	## whole HUD.
+	var fresh := SkyGearHudLayout.new()
+	_check("layout", "the shipped default is a clean layout",
+		fresh.problems(Vector2(1366, 768)).is_empty(),
+		", ".join(fresh.problems(Vector2(1366, 768))))
+	_check("layout", "and stays clean on a very wide screen",
+		fresh.problems(Vector2(2560, 1440)).is_empty(),
+		", ".join(fresh.problems(Vector2(2560, 1440))))
+
+	## Anchored, not absolute — otherwise a hand-placed HUD is only right on the
+	## monitor it was placed on.
+	var narrow_rect: Rect2 = fresh.rect("ship", Vector2(1280, 720))
+	var wide_rect: Rect2 = fresh.rect("ship", Vector2(2560, 1440))
+	_check("layout", "a right-anchored plate keeps its distance from the right edge",
+		is_equal_approx(1280.0 - narrow_rect.end.x, 2560.0 - wide_rect.end.x),
+		"%.0f vs %.0f" % [1280.0 - narrow_rect.end.x, 2560.0 - wide_rect.end.x])
+	_check("layout", "and a bottom-anchored one from the bottom",
+		is_equal_approx(720.0 - narrow_rect.end.y, 1440.0 - wide_rect.end.y))
+
+	## Re-anchoring may not move the plate, or the editor is a puzzle.
+	var before_anchor: Rect2 = fresh.rect("captain", Vector2(1366, 768))
+	fresh.set_anchor("captain", "bottom_right", Vector2(1366, 768))
+	_check("layout", "changing an anchor leaves the plate where it was",
+		fresh.rect("captain", Vector2(1366, 768)).is_equal_approx(before_anchor),
+		"%s -> %s" % [before_anchor, fresh.rect("captain", Vector2(1366, 768))])
+
+	## Round trip, and refusal of nonsense.
+	var edited := SkyGearHudLayout.new()
+	edited.nudge("captain", Vector2(11, -7))
+	edited.resize("ship", Vector2(-20, 0))
+	_check("layout", "an edit survives a save and a load",
+		edited.save() and SkyGearHudLayout.load_layout().rect("captain", Vector2(1366, 768))
+			.is_equal_approx(edited.rect("captain", Vector2(1366, 768))))
+	var junk := SkyGearHudLayout._sanitise({
+		"captain": {"anchor": "sideways", "offset": [1, 2], "size": [10, 10]},
+		"ship": {"offset": "not an array"},
+		"slot0": {"anchor": "bottom_centre", "offset": [-256, -136], "size": [9999, 1]},
+	})
+	_check("layout", "a malformed plate falls back rather than taking the HUD with it",
+		junk.captain.anchor == SkyGearHudLayout.DEFAULT.captain.anchor
+			and junk.ship.offset == SkyGearHudLayout.DEFAULT.ship.offset,
+		"kept %s" % str(junk.captain.anchor))
+	_check("layout", "and a plate cannot be edited down to nothing",
+		float(junk.slot0.size[1]) >= 28.0, "%.0f tall" % float(junk.slot0.size[1]))
+	## Leave no editor state behind for the next run of the harness.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+
 	## The floor is a decision. Below this the three clusters cannot share a
 	## baseline without overlapping, and the export presets say 1152x648.
 	var narrow: Dictionary = SkyGearHUD.hud_plates(Vector2(1152, 648))

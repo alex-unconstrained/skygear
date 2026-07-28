@@ -1,0 +1,12 @@
+{
+  "_readme": "The shipped HUD layout. Edited by hand or, better, by pressing F4 in the game and dragging — that writes user://hud_layout.json, which wins over this file. To make a hand-placed layout the default, copy that file over this one. Anchors: top_left, top_centre, top_right, bottom_left, bottom_centre, bottom_right. Offset is measured from the anchor to the plate's matching edge, so a bottom_right plate keeps its right edge a fixed distance from the right of the screen at any window width.",
+  "version": 1,
+  "plates": {
+    "captain": {"anchor": "bottom_left",   "offset": [24, -156],   "size": [350, 132]},
+    "slot0":   {"anchor": "bottom_centre", "offset": [-256, -136], "size": [120, 112]},
+    "slot1":   {"anchor": "bottom_centre", "offset": [-128, -136], "size": [120, 112]},
+    "slot2":   {"anchor": "bottom_centre", "offset": [0, -136],    "size": [120, 112]},
+    "slot3":   {"anchor": "bottom_centre", "offset": [128, -136],  "size": [120, 112]},
+    "ship":    {"anchor": "bottom_right",  "offset": [-24, -210],  "size": [350, 186]}
+  }
+}

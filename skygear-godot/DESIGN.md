@@ -456,6 +456,51 @@ by light rather than by hue. Every item gets a check that asserts its pool is
 capped, because every performance problem this project has had was an unbounded
 collection and not a slow algorithm.
 
+## 13j. Tools, as a standing policy — 2026-07-28
+
+Asked for directly: on this game, before doing a piece of work, ask what tool
+would make this and every future instance of it cheaper, and build the tool.
+
+The project has paid for the same manual work twice more than once. The captain
+took an afternoon of hand-holding before `tools/ingest_model.py` existed. HUD
+positions were being nudged three pixels at a time through a patch, rebuild,
+screenshot, look loop — a turn per adjustment, on a question whose answer is a
+matter of taste and therefore one I cannot settle alone.
+
+The test for whether to build a tool: is the work going to recur, is it a
+feedback loop I cannot close myself, or is it something Alex could do faster
+than he could describe? Any of those and the tool is worth the hour.
+
+Tools so far: `tools/forge.py` (art, prompts beside the manifest key they fill),
+`tools/ingest_model.py` (rigged models, archive to usable scene, verified after
+the sources are deleted), `tools/ingest_ui.py`, and the HUD layout editor below.
+
+## 13k. The HUD layout editor (F4)
+
+The positions were constants in `_draw`. Now they are `assets/hud_layout.json`,
+the game reads it, and F4 lets a person drag the panels and save.
+
+What makes it worth having rather than an external mockup tool: **the panels
+being dragged are the real panels, with the real content, at the real
+resolution, over the real fight.** A mockup is a picture of a decision; this is
+the decision.
+
+- **Anchored, not absolute.** A panel records which screen corner it hangs off
+  and how far in, so one hand-placed layout is correct at 1280 and at 2560.
+  Re-anchoring never moves the panel, only what its offset is measured from —
+  otherwise every anchor change is also a jump and the editor is a puzzle.
+- **Guides and a verdict.** Edges snap-highlight against other panels, and the
+  top bar says clean, or names what is wrong: off screen, overlapping, or crept
+  back into the top half where the boarders come from.
+- **Nothing a person can do in it can break the game.** A malformed file falls
+  back per panel, so a bad edit costs one panel rather than the HUD. Panels have
+  a floor size. Ctrl+R restores. Eight checks cover the round trip, the anchor
+  invariant, and the refusal of nonsense.
+
+Saving writes `user://hud_layout.json`, which wins over the shipped file.
+Promoting a layout to the default is copying one file. `docs/HUD-LAYOUT.md` is
+the page for whoever is doing the dragging.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

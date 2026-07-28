@@ -107,6 +107,15 @@ func aim_target() -> Vector2:
 	return player.get_global_mouse_position()
 ## The controls screen. `rebinding_index` is which row is listening for a key,
 ## or -1; `rebind_conflict` is the action that already owns the last key tried.
+## The HUD layout editor (F4). State lives here rather than in the HUD because
+## the HUD is a view and input belongs to the thing that owns input.
+var layout_edit := false
+var layout_pick := "captain"
+var layout_saved := false
+var _layout_drag := ""
+var _layout_resize := false
+var _layout_from := Vector2.ZERO
+
 var keys_open := false
 var rebinding_index := -1
 var rebind_conflict := ""
@@ -138,6 +147,11 @@ func _ready() -> void:
 	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	## The layout editor, first and greedy. It is a mode, and a mode that lets
+	## the game underneath react to the same click is a mode that fights you.
+	if layout_edit and _layout_input(event):
+		get_viewport().set_input_as_handled()
+		return
 	## The rebind screen swallows everything while it is open, so that pressing
 	## W to bind W does not also walk you into a boarder.
 	if rebinding_index >= 0:
@@ -169,6 +183,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	if event is not InputEventKey or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_F4:
+		layout_edit = not layout_edit
+		layout_saved = false
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
 		return
 	## The controls screen. Fixed keys, deliberately: rebinding your way out of
 	## the rebind screen leaves no way back in.
@@ -248,6 +268,90 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif state == State.PAUSE:
 			_set_state(State.PLAY)
 		get_viewport().set_input_as_handled()
+
+## The layout editor. Returns whether it consumed the event.
+##
+## Everything here writes to `SkyGearHUD.layout`, which is the same object the
+## HUD draws from — so a drag is visible on the panel being dragged rather than
+## on a wireframe of it. That is the whole point: the thing being positioned is
+## the real panel with the real content at the real resolution.
+func _layout_input(event: InputEvent) -> bool:
+	var view: Vector2 = hud.size
+	var where: Vector2 = hud.get_local_mouse_position()
+	if SkyGearHUD.layout == null:
+		SkyGearHUD.layout = SkyGearHudLayout.load_layout()
+	var layout := SkyGearHUD.layout
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			var hit := SkyGearHUD.plate_at(view, where)
+			if hit.is_empty():
+				return true
+			layout_pick = str(hit.name)
+			_layout_drag = layout_pick
+			_layout_resize = bool(hit.resize)
+			_layout_from = where
+			layout_saved = false
+		else:
+			_layout_drag = ""
+		hud.queue_redraw()
+		return true
+
+	if event is InputEventMouseMotion and _layout_drag != "":
+		var delta: Vector2 = where - _layout_from
+		_layout_from = where
+		if _layout_resize:
+			layout.resize(_layout_drag, delta)
+		else:
+			layout.nudge(_layout_drag, delta)
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+
+	if event is not InputEventKey or not event.pressed:
+		return event is InputEventMouseMotion
+	var key := event as InputEventKey
+	## Ctrl+S and Ctrl+R rather than S and R, because a layout you have spent two
+	## minutes on should not be resettable by leaning on the keyboard.
+	if key.ctrl_pressed and key.keycode == KEY_S:
+		layout_saved = layout.save()
+		hud.queue_redraw()
+		return true
+	if key.ctrl_pressed and key.keycode == KEY_R:
+		layout.reset()
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+	if key.keycode == KEY_TAB:
+		var order: Array = SkyGearHudLayout.ORDER
+		var at: int = maxi(0, order.find(layout_pick))
+		layout_pick = order[(at + (-1 if key.shift_pressed else 1) + order.size()) % order.size()]
+		hud.queue_redraw()
+		return true
+	if key.keycode == KEY_A:
+		var anchors: Array = SkyGearHudLayout.ANCHORS
+		var current := str(layout.plates[layout_pick].anchor)
+		layout.set_anchor(layout_pick,
+			anchors[(maxi(0, anchors.find(current)) + 1) % anchors.size()], view)
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+	var step: float = 10.0 if key.shift_pressed else 1.0
+	var nudge := Vector2.ZERO
+	match key.keycode:
+		KEY_LEFT: nudge = Vector2(-step, 0)
+		KEY_RIGHT: nudge = Vector2(step, 0)
+		KEY_UP: nudge = Vector2(0, -step)
+		KEY_DOWN: nudge = Vector2(0, step)
+		_: return false
+	if key.alt_pressed:
+		layout.resize(layout_pick, nudge)
+	else:
+		layout.nudge(layout_pick, nudge)
+	layout_saved = false
+	hud.queue_redraw()
+	return true
+
 
 ## 1-9 then 0, so ten rows are reachable without a cursor.
 func _digit_slot(code: int) -> int:

@@ -46,6 +46,8 @@ func _draw() -> void:
 		_:
 			_draw_world_overlay()
 			_draw_game_hud()
+	if game.layout_edit:
+		_draw_layout_editor()
 
 func _draw_title() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
@@ -189,25 +191,36 @@ const HUD_BASE := 24.0               ## gap from the bottom edge
 const SLOT_W := 128.0
 
 
-## Where each cluster sits, given the window. One place, because the layout
-## matrix in the harness asserts against exactly these rectangles and a second
-## copy of the arithmetic is a second copy that can be wrong.
+## Where each cluster sits, given the window.
+##
+## Read from `SkyGearHudLayout` rather than computed here, so the positions are
+## something a person can drag (F4) rather than something I edit three pixels at
+## a time through a rebuild-screenshot-look loop. One place still, because the
+## layout matrix asserts against exactly these rectangles.
+##
+## The side plates still give way to the hand on a narrow window: a hand-placed
+## layout is placed at one width, and a HUD that overlaps itself at 1152 is a
+## bug rather than a hardware requirement.
+static var layout: SkyGearHudLayout
+
+
 static func hud_plates(view: Vector2) -> Dictionary:
-	var slots_w: float = SLOT_W * 4.0
-	var slots_x: float = (view.x - slots_w) * 0.5
-	var base: float = view.y - HUD_BASE
-	## The side plates take what is left after the hand, rather than a fixed
-	## width that happens to fit one monitor. Three clusters at their preferred
-	## sizes want 1258 pixels; below that they either shrink or they overlap, and
-	## a HUD that overlaps itself on a 1152-wide window is a bug rather than a
-	## hardware requirement.
-	var side: float = clampf((view.x - slots_w) * 0.5 - HUD_MARGIN * 2.0, 250.0, 350.0)
-	var out := {
-		"captain": Rect2(HUD_MARGIN, base - 132.0, side, 132.0),
-		"ship": Rect2(view.x - HUD_MARGIN - side, base - 186.0, side, 186.0),
-	}
+	if layout == null:
+		layout = SkyGearHudLayout.load_layout()
+	var out := layout.all_rects(view)
+	var slots := Rect2()
 	for i in 4:
-		out["slot%d" % i] = Rect2(slots_x + i * SLOT_W, base - 112.0, SLOT_W - 8.0, 112.0)
+		slots = slots.merge(out["slot%d" % i]) if i > 0 else out["slot0"]
+	for name in ["captain", "ship"]:
+		var plate: Rect2 = out[name]
+		if not plate.intersects(slots):
+			continue
+		var room: float = (slots.position.x - plate.position.x) if name == "captain" \
+			else (plate.end.x - slots.end.x)
+		plate.size.x = maxf(160.0, room - 12.0)
+		if name == "ship":
+			plate.position.x = plate.end.x - plate.size.x if false else slots.end.x + 12.0
+		out[name] = plate
 	return out
 
 
@@ -224,6 +237,84 @@ static func interior(rect: Rect2) -> Rect2:
 	## across the top frame and the lane labels on the rivets.
 	var inset: float = clampf(minf(rect.size.x, rect.size.y) * 0.19, 10.0, 30.0)
 	return rect.grow(-inset)
+
+
+## --- the layout editor -------------------------------------------------------
+## Drawn over everything while F4 is on. The point is that the panels underneath
+## are the REAL panels with the REAL content at the REAL resolution — a mockup
+## of a HUD is a picture of a decision rather than the decision.
+func _draw_layout_editor() -> void:
+	var plates := SkyGearHUD.hud_plates(size)
+	var chosen: String = game.layout_pick
+	for name in SkyGearHudLayout.ORDER:
+		var rect: Rect2 = plates.get(name, Rect2())
+		var hot: bool = name == chosen
+		draw_rect(rect, Color(0.22, 0.94, 0.78, 0.10) if hot else Color(1, 1, 1, 0.03))
+		draw_rect(rect, Color("#37f0c8") if hot else Color(1, 1, 1, 0.28), false,
+			2.0 if hot else 1.0)
+		draw_string(font, rect.position + Vector2(6, -6), name,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
+			Color("#37f0c8") if hot else Color(1, 1, 1, 0.45))
+		if hot:
+			## A resize grip in the corner, and the numbers, because "about
+			## there" is not a layout you can reproduce.
+			var grip := Rect2(rect.end - Vector2(14, 14), Vector2(14, 14))
+			draw_rect(grip, Color("#e8c376"))
+			var entry: Dictionary = SkyGearHUD.layout.plates.get(name, {})
+			draw_string(font, rect.position + Vector2(6, rect.size.y + 16),
+				"%s  %d,%d  %dx%d" % [str(entry.get("anchor", "?")),
+					int(entry.offset[0]), int(entry.offset[1]),
+					int(entry.size[0]), int(entry.size[1])],
+				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#e8c376"))
+
+	## Alignment guides against the other plates, which is the thing that makes
+	## dragging by hand come out straight.
+	if chosen != "":
+		var mine: Rect2 = plates.get(chosen, Rect2())
+		for name in SkyGearHudLayout.ORDER:
+			if name == chosen:
+				continue
+			var other: Rect2 = plates[name]
+			for pair in [[mine.position.y, other.position.y], [mine.end.y, other.end.y],
+					[mine.position.x, other.position.x], [mine.end.x, other.end.x]]:
+				if absf(pair[0] - pair[1]) > 1.5:
+					continue
+				var vertical: bool = pair[0] == mine.position.x or pair[0] == mine.end.x
+				if vertical:
+					draw_line(Vector2(pair[0], 0), Vector2(pair[0], size.y),
+						Color(1, 0.88, 0.54, 0.55), 1.0)
+				else:
+					draw_line(Vector2(0, pair[0]), Vector2(size.x, pair[0]),
+						Color(1, 0.88, 0.54, 0.55), 1.0)
+
+	var trouble := SkyGearHUD.layout.problems(size)
+	var bar := Rect2(0, 0, size.x, 62)
+	draw_rect(bar, Color(0.02, 0.015, 0.028, 0.88))
+	draw_string(font, Vector2(16, 22),
+		"HUD LAYOUT — drag to move · corner to resize · Tab next · arrows nudge "
+		+ "(Shift = 10) · A cycles anchor · Ctrl+S save · Ctrl+R reset · F4 done",
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, BONE)
+	draw_string(font, Vector2(16, 44),
+		("saved to " + SkyGearHudLayout.USER_PATH) if game.layout_saved
+		else ("%d problem(s): %s" % [trouble.size(), ", ".join(trouble)] if not trouble.is_empty()
+			else "layout is clean"),
+		HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+		Color("#37f0c8") if trouble.is_empty() else Color("#ff9a5a"))
+
+
+## Which plate, and which part of it, is under a point. Shared with the input
+## handler so what you grab is what you saw.
+static func plate_at(view: Vector2, where: Vector2) -> Dictionary:
+	var plates := hud_plates(view)
+	## Backwards, so the topmost drawn plate wins a click where two overlap.
+	for i in range(SkyGearHudLayout.ORDER.size() - 1, -1, -1):
+		var name: String = SkyGearHudLayout.ORDER[i]
+		var rect: Rect2 = plates.get(name, Rect2())
+		if not rect.has_point(where):
+			continue
+		var grip := Rect2(rect.end - Vector2(16, 16), Vector2(16, 16))
+		return {"name": name, "resize": grip.has_point(where)}
+	return {}
 
 
 ## A pressure dial. The face is painted with its danger arc and tick marks; the
