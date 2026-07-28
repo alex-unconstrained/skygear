@@ -75,6 +75,8 @@ func _run() -> void:
 	await process_frame
 	_boss()
 	await process_frame
+	_audio()
+	await process_frame
 	_endings()
 
 	print("")
@@ -485,6 +487,43 @@ func _boss() -> void:
 		minion == null or not is_instance_valid(minion) or minion.dead)
 	_advance(game, 2.0)
 	_check("boss", "and it comes out of the turn", boss.state != "turn", boss.state)
+	game.queue_free()
+
+
+## Sound the player can control, and that survives the session. A build people
+## download needs a volume slider more than it needs another particle.
+func _audio() -> void:
+	# No awaits in here. A coroutine that suspends mid-check is a check that
+	# silently does not run: the first version awaited a frame after saving
+	# settings, _run() reached quit() first, and the persistence assertion never
+	# printed at all — which looked exactly like a pass.
+	var game := _new_game()
+	_check("audio", "the mixer has its own buses",
+		AudioServer.get_bus_index("Music") >= 0 and AudioServer.get_bus_index("SFX") >= 0
+		and AudioServer.get_bus_index("UI") >= 0)
+	if game.audio == null:
+		_check("audio", "the audio director exists", false)
+		game.queue_free()
+		return
+	_check("audio", "music is tiered by wave and the finale has its own",
+		game.audio.track_for(1, false) == "combat_low"
+		and game.audio.track_for(10, false) == "combat_high"
+		and game.audio.track_for(12, true) == "boss",
+		"%s / %s / %s" % [game.audio.track_for(1, false), game.audio.track_for(10, false),
+			game.audio.track_for(12, true)])
+	_check("audio", "every tier has a file behind it",
+		ResourceLoader.exists(SkyGearAudio.TRACKS.combat_low)
+		and ResourceLoader.exists(SkyGearAudio.TRACKS.combat_high)
+		and ResourceLoader.exists(SkyGearAudio.TRACKS.boss))
+	game.audio.set_volume("master", 0.42)
+	game.audio.save_settings()
+	var fresh := SkyGearAudio.new()
+	root.add_child(fresh)
+	_check("audio", "volume survives the session",
+		is_equal_approx(float(fresh.volumes.master), 0.42),
+		str(fresh.volumes.master))
+	game.audio.set_volume("master", 0.85)
+	fresh.queue_free()
 	game.queue_free()
 
 

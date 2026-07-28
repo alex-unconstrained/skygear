@@ -22,6 +22,7 @@ const CARGO_RECTS := [
 
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
+var audio: SkyGearAudio
 
 var rng := RandomNumberGenerator.new()
 var state := State.TITLE
@@ -76,6 +77,9 @@ func _ready() -> void:
 	hud.game = self
 	player.controls_enabled = false
 	player.visible = false
+	audio = SkyGearAudio.new()
+	audio.name = "Audio"
+	add_child(audio)
 	player.dash_started.connect(_on_dash_started)
 	queue_redraw()
 
@@ -112,6 +116,24 @@ func _unhandled_input(event: InputEvent) -> void:
 			choice = 2
 		if choice >= 0:
 			choose_draft(choice)
+			get_viewport().set_input_as_handled()
+			return
+	## Volume, from the keyboard, at any time — the browser build has a settings
+	## panel and this build has downloads, so the minimum is that a player can
+	## turn it down without leaving the game or opening the Windows mixer.
+	if audio != null:
+		if event.keycode == KEY_M:
+			audio.toggle_mute()
+			effects.append({"kind": "banner", "text": "MUTED" if audio.muted else "UNMUTED",
+				"time": 0.0, "life": 1.0})
+			get_viewport().set_input_as_handled()
+			return
+		if event.keycode in [KEY_MINUS, KEY_KP_SUBTRACT, KEY_EQUAL, KEY_KP_ADD]:
+			var step := -0.1 if event.keycode in [KEY_MINUS, KEY_KP_SUBTRACT] else 0.1
+			audio.set_volume("master", float(audio.volumes.master) + step)
+			effects.append({"kind": "banner",
+				"text": "VOLUME %d%%" % roundi(float(audio.volumes.master) * 100.0),
+				"time": 0.0, "life": 1.0})
 			get_viewport().set_input_as_handled()
 			return
 	if event.is_action_pressed("pause"):
@@ -276,6 +298,8 @@ func copy_run_report() -> void:
 
 
 func go_to_title() -> void:
+	if audio != null:
+		audio.stop_music()
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	for prop in get_tree().get_nodes_in_group("props"):
@@ -338,6 +362,9 @@ func _begin_push(wave_number: int) -> void:
 
 func start_wave(next_wave: int) -> void:
 	wave = next_wave
+	if audio != null:
+		var is_boss := next_wave >= 1 and next_wave <= SkyGearData.WAVES.size() 			and bool(SkyGearData.WAVES[next_wave - 1].get("boss", false))
+		audio.play_music(audio.track_for(next_wave, is_boss))
 	if wave > SkyGearData.WAVES.size():
 		_set_state(State.VICTORY)
 		return
@@ -1249,15 +1276,31 @@ func correct_enemy_position(position: Vector2, lane: int, radius: float) -> Vect
 		clampf(position.y, DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
 	)
 
+## One-shot cues, on the SFX bus, with a ceiling on how many can exist at once.
+##
+## The browser build leaked a Web Audio node per cue because nothing ever
+## disconnected them, and a keg chain into forty boarders creates on the order of
+## a hundred cues in one frame. Godot frees a finished player, but a hundred
+## nodes a frame is still a hundred nodes a frame, so the cap is here from the
+## start rather than after a playtest reports lag.
+const MAX_VOICES := 24
+var _voices := 0
+
 func play_sfx(relative_path: String, volume_db: float = -6.0) -> void:
+	if _voices >= MAX_VOICES:
+		return
 	var full_path := "res://assets/audio/sfx/" + relative_path
 	if not ResourceLoader.exists(full_path):
 		return
 	var audio := AudioStreamPlayer.new()
 	audio.stream = load(full_path)
 	audio.volume_db = volume_db
+	audio.bus = "UI" if relative_path.begins_with("ui/") else "SFX"
 	add_child(audio)
-	audio.finished.connect(audio.queue_free)
+	_voices += 1
+	audio.finished.connect(func ():
+		_voices -= 1
+		audio.queue_free())
 	audio.play()
 
 func _shape_sound(shape: String) -> String:

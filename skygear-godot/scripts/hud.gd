@@ -21,7 +21,7 @@ func _draw() -> void:
 			_draw_draft()
 		"PAUSE":
 			_draw_game_hud()
-			_draw_overlay("PAUSED", "Esc / P to return to the deck")
+			_draw_overlay("PAUSED", _pause_text())
 		"GAMEOVER":
 			_draw_overlay("DECK LOST", game.end_reason + "\nEnter to return to title")
 		"VICTORY":
@@ -134,6 +134,23 @@ func _draw_overlay(title: String, subtitle: String) -> void:
 ## The results screen IS the run report. One block of text a player can read and
 ## copy, rather than a screen that says "twelve waves repelled" and a report
 ## somewhere else that says something different.
+func _pause_text() -> String:
+	var lines := "Esc / P to return to the deck"
+	if game.audio != null:
+		lines += "
+
+volume  %d%%   (- and = to change, M to mute)" % roundi(float(game.audio.volumes.master) * 100.0)
+		if game.audio.muted:
+			lines += "
+MUTED"
+	lines += "
+
+WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash"
+	lines += "
+1/2/3 pick a card · R reroll · C copy the run report"
+	return lines
+
+
 func _draw_results(title: String, tint: Color) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
 	_center_text(title, 92.0, 52, tint)
