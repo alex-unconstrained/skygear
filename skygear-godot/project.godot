@@ -15,11 +15,18 @@ window/size/viewport_height=720
 window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
+window/vsync/vsync_mode=1
+window/size/resizable=true
 
 [rendering]
 
-renderer/rendering_method="gl_compatibility"
-renderer/rendering_method.mobile="gl_compatibility"
+; Windows-first, hardware accelerated. The port started on gl_compatibility
+; because that is what a web export wants, and the web export is no longer the
+; target: Forward+ is the Vulkan path, and it is the only one that gives 2D
+; lighting, real batching and shaders — the things the browser build cannot do
+; and the whole reason for being in an engine at all.
+renderer/rendering_method="forward_plus"
+renderer/rendering_method.mobile="mobile"
 textures/default_filters/use_nearest_mipmap_filter=false
 environment/defaults/default_clear_color=Color(0.0509804, 0.0431373, 0.0705882, 1)
 

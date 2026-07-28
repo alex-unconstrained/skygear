@@ -161,7 +161,11 @@ function updateTurrets(dt){
     if (t.cd <= 0){
       t.cd = T.cd;
       t.fireFx = 0.14;
+      // a cannon's work belongs to the ship, not to whatever the captain was
+      // casting when it happened to fire
+      const _src = S.src; S.src = 'allies';
       hitEnemy(best, T.dmg, { ang: t.ang, knock: 90, noCrit: true });
+      S.src = _src;
       SFX.cannonFire({ x: t.x, y: t.y });
       pSparks(t.x + Math.cos(t.ang) * 30, t.y + Math.sin(t.ang) * 30, 5, PAL.teal, 200, t.ang, 0.4);
     }
@@ -256,7 +260,9 @@ function updateCrew(dt){
         } else {
           const e = c.target;
           if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r){
+            const _src = S.src; S.src = 'allies';
             hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+            S.src = _src;
             SFX.crewAttack({ x: c.x, y: c.y });
           }
         }

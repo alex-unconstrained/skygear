@@ -216,9 +216,24 @@ const ANIMATION_PENDING = {
   BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10, pingpong:true },
   BOSS_attack:      { strip:'assets/animations/colossus_attack.png', count:12, fps:12, once:true },
 };
+/* Wired, but NOT requested (v12.1).
+
+   These entries exist so the engine already knows how to draw every cycle: a
+   delivered strip needs no code, only its entry moved up into the manifest
+   above. What they must not do is generate a network request. Packaging the
+   game for itch and watching the console showed fourteen 404s on every single
+   load — one per undelivered cycle — which is exactly the failure the audio
+   side has a generated delivery index to avoid, and which nobody had ever
+   looked for on the art side because a 404 on a fallback-covered asset is
+   invisible while playing.
+
+   `pending: true` keeps the slot documented and keeps the loader off it. The
+   delivery step is: ingest the strip, move its entry into ANIMATION_MANIFEST
+   with the frame count the cut loop actually produced. */
 for (const k in ANIMATION_PENDING){
   const spec = ANIMATION_PENDING[k];
   spec.meta = { anchor:0.920, cx:0.500, fig:0.840 };
+  spec.pending = true;
   ANIMATION_MANIFEST[k] = spec;
 }
 
@@ -299,7 +314,9 @@ const Assets = {
     // load and are never drawn made that claim wrong in the flattering
     // direction.
     const keys = Object.keys(ASSET_MANIFEST).filter(k => !ASSET_MANIFEST[k].unused);
-    const animKeys = Object.keys(ANIMATION_MANIFEST);
+    // only cycles that have actually been delivered — a pending entry is a
+    // wired slot, not a file, and requesting it is fourteen 404s a session
+    const animKeys = Object.keys(ANIMATION_MANIFEST).filter(k => !ANIMATION_MANIFEST[k].pending);
     this.total = keys.length + animKeys.length;
     if (!this.enabled) return;
 

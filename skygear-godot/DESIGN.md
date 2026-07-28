@@ -150,3 +150,41 @@ through 2560×1440.
   the Windows release with Godot 4.7.1, and uploaded version `milestone-1` to
   itch.io channel `alex-unconstrained/skygear-godot-test:windows` (build
   `#1837384`).
+
+## 12. Target and renderer — decided 2026-07-27
+
+**Windows first, hardware accelerated.** The project was on
+`gl_compatibility`, which is the renderer a web export wants; the target is now
+a native Windows build on **Forward+ (Vulkan)**. That is the only path that
+gives 2D lighting, real batching and shaders — which is the whole reason to be
+in an engine rather than in the Canvas 2D build that already exists and is
+further along.
+
+Consequences, stated so they are not rediscovered:
+
+- The itch artifact is `SkyGear-Windows.zip` (a single embedded-pck .exe,
+  129 MB uncompressed, 59 MB zipped), built by `tools/pack_itch.py`.
+- There is no web export and no web export template installed. Adding one later
+  means downloading ~1 GB of templates and switching the renderer back for that
+  preset, and it would produce a strictly worse artifact than the browser build
+  that already exists.
+- Forward+ needs Vulkan. On hardware without it Godot falls back and logs; that
+  is an accepted cost of choosing acceleration over reach.
+
+## 13. Parity with the browser build, as of 2026-07-27
+
+Done: the twelve-wave schedule, three lanes and cargo walls, the Boiler, the
+automatic Ember Cleave, the nine shapes crossed with four elements including the
+three passives, the full **draft** (41 cards across seven scopes, reroll,
+adaptive slot weighting, seeded rolls), per-skill mods and resolved stats,
+**telemetry** with slot attribution and range buckets, the close-quarters loop
+at v11.2 numbers (210 reach, vent 10hp/2.0s/200/280, salvage 10%/6, one 12 hp/s
+ceiling over all healing with a 9 hp/s lifesteal budget inside it), reactive
+kegs, crates and lanterns with fuses and chain reactions, salvage, dash with two
+charges and contact damage, readable enemy bolts.
+
+Not yet: deck cannons, crew, boarding hulks and push waves; the boss's two
+beats; the results screen and copyable run report; settings and persistence; the
+presentation layer (airstream, camera-tied envelope, bolt shadows and trails,
+HUD gauges, music and voice). Those are the next milestone, and the browser
+build remains the complete game until they land.

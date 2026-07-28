@@ -8,7 +8,8 @@
   "scripts": {
     "build": "python src/storm-dusk/build.py",
     "test": "node tools/harness.mjs",
-    "test:headed": "node tools/harness.mjs --headed --verbose"
+    "test:headed": "node tools/harness.mjs --headed --verbose",
+    "pack": "python src/pack-itch.py && node tools/itch-check.mjs"
   },
   "repository": {
     "type": "git",

@@ -283,6 +283,7 @@ function buildRunRecord(win){
                      kills: S.tel.basic.kills } : null,
     deck: S.tel ? { damage: Math.round(S.tel.deck.damage), kegs: S.tel.deck.kegs,
                     crates: S.tel.deck.crates, lanterns: S.tel.deck.lanterns } : null,
+    allies: S.tel ? { damage: Math.round(S.tel.allies.damage) } : null,
     rangeT: S.tel ? S.tel.rangeT : null,
     vents: S.tel ? S.tel.vents : 0,
     healed: S.tel ? Math.round(S.tel.healed) : 0,
@@ -310,7 +311,8 @@ function runReportText(r){
   if (r.perSkill && r.perSkill.length){
     const rows = r.perSkill.slice();
     if (r.basic && r.basic.damage) rows.unshift({ shape:'AUTO', element:'', slot:'-', ...r.basic });
-    const total = rows.reduce((a, t) => a + t.damage, 0) + ((r.deck && r.deck.damage) || 0);
+    const total = rows.reduce((a, t) => a + t.damage, 0)
+                + ((r.deck && r.deck.damage) || 0) + ((r.allies && r.allies.damage) || 0);
     L.push('');
     L.push('skills — damage · share · casts · kills');
     for (const t of rows){
@@ -325,6 +327,9 @@ function runReportText(r){
              '  ' + (total ? Math.round(t.damage / total * 100) : 0) + '%'.padEnd(4) +
              '  ' + t.casts + ' casts  ' + t.kills + ' kills');
     }
+    if (r.allies && r.allies.damage)
+      L.push('  ' + 'crew and cannons'.padEnd(20) + String(r.allies.damage).padStart(7) +
+             '  ' + (total ? Math.round(r.allies.damage / total * 100) : 0) + '%');
     if (r.deck && r.deck.damage)
       L.push('  ' + 'the deck'.padEnd(20) + String(r.deck.damage).padStart(7) +
              '  ' + (total ? Math.round(r.deck.damage / total * 100) : 0) + '%' +

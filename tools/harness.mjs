@@ -1378,6 +1378,10 @@ async function checkAttribution(page){
   const out = await page.evaluate(() => {
     const G = window.SKYGEAR, S = G.S;
     window.__begin();
+    // Seeded and pinned. The first version let the run roll its own seed and
+    // read 33% unaccounted on one pass and 1.3% on the next — not because
+    // attribution changed but because the enemies wandered out of a LINE_BURST.
+    G.Rng.set(20260727);
     S.player.maxHp = 1e6; S.player.hp = 1e6;
     S.boiler.maxHp = 1e6; S.boiler.hp = 1e6;
     S.unlockedSlots = 4;
@@ -1404,11 +1408,12 @@ async function checkAttribution(page){
     }
     let attributed = 0;
     for (const t of S.tel.per) attributed += t.damage;
-    attributed += S.tel.basic.damage + S.tel.deck.damage;
+    attributed += S.tel.basic.damage + S.tel.deck.damage + S.tel.allies.damage;
     return { total: S.stats.damage, attributed,
              per: S.tel.per.map(t => Math.round(t.damage)),
              basic: Math.round(S.tel.basic.damage),
-             deck: Math.round(S.tel.deck.damage) };
+             deck: Math.round(S.tel.deck.damage),
+             allies: Math.round(S.tel.allies.damage) };
   });
   const miss = out.total - out.attributed;
   const pc = out.total > 0 ? Math.abs(miss) / out.total : 0;
@@ -1416,7 +1421,8 @@ async function checkAttribution(page){
     pc < 0.02,
     Math.round(out.attributed) + ' of ' + Math.round(out.total) +
     ' attributed (' + (pc * 100).toFixed(1) + '% unaccounted) · slots ' +
-    JSON.stringify(out.per) + ' basic ' + out.basic + ' deck ' + out.deck);
+    JSON.stringify(out.per) + ' basic ' + out.basic + ' deck ' + out.deck +
+    ' allies ' + out.allies);
 }
 
 /* ---------------------------------------------------------------------------

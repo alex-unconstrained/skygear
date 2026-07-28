@@ -85,7 +85,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "b7c7c0b"
+  "build": "dcc2cbd"
 };
 
 /* ============================================================================
@@ -1833,6 +1833,10 @@ const Telemetry = {
       per,
       basic: { casts: 0, damage: 0, kills: 0, hits: 0 },
       deck:  { damage: 0, kills: 0, kegs: 0, crates: 0, lanterns: 0 },
+    // The crew and the deck cannons fight too, and on a lane map they do real
+    // work — a third of a run's damage in one measured case. Attributing it to
+    // nobody made the per-slot numbers look like they did not add up.
+    allies: { damage: 0, kills: 0 },
       vents: 0, healed: 0, salvage: 0,
       // engagement distance, sampled every simulation step against the nearest
       // live boarder. Three buckets rather than a mean: a captain who alternates
@@ -1860,6 +1864,7 @@ const Telemetry = {
     const src = (forceSrc === undefined) ? S.src : forceSrc;
     const t = (src === 'basic') ? S.tel.basic
             : (src === 'deck') ? S.tel.deck
+            : (src === 'allies') ? S.tel.allies
             : (typeof src === 'number' ? this.slot(src) : null);
     if (!t) return;
     t.damage += amount;
@@ -4308,6 +4313,7 @@ function buildRunRecord(win){
                      kills: S.tel.basic.kills } : null,
     deck: S.tel ? { damage: Math.round(S.tel.deck.damage), kegs: S.tel.deck.kegs,
                     crates: S.tel.deck.crates, lanterns: S.tel.deck.lanterns } : null,
+    allies: S.tel ? { damage: Math.round(S.tel.allies.damage) } : null,
     rangeT: S.tel ? S.tel.rangeT : null,
     vents: S.tel ? S.tel.vents : 0,
     healed: S.tel ? Math.round(S.tel.healed) : 0,
@@ -4335,7 +4341,8 @@ function runReportText(r){
   if (r.perSkill && r.perSkill.length){
     const rows = r.perSkill.slice();
     if (r.basic && r.basic.damage) rows.unshift({ shape:'AUTO', element:'', slot:'-', ...r.basic });
-    const total = rows.reduce((a, t) => a + t.damage, 0) + ((r.deck && r.deck.damage) || 0);
+    const total = rows.reduce((a, t) => a + t.damage, 0)
+                + ((r.deck && r.deck.damage) || 0) + ((r.allies && r.allies.damage) || 0);
     L.push('');
     L.push('skills — damage · share · casts · kills');
     for (const t of rows){
@@ -4350,6 +4357,9 @@ function runReportText(r){
              '  ' + (total ? Math.round(t.damage / total * 100) : 0) + '%'.padEnd(4) +
              '  ' + t.casts + ' casts  ' + t.kills + ' kills');
     }
+    if (r.allies && r.allies.damage)
+      L.push('  ' + 'crew and cannons'.padEnd(20) + String(r.allies.damage).padStart(7) +
+             '  ' + (total ? Math.round(r.allies.damage / total * 100) : 0) + '%');
     if (r.deck && r.deck.damage)
       L.push('  ' + 'the deck'.padEnd(20) + String(r.deck.damage).padStart(7) +
              '  ' + (total ? Math.round(r.deck.damage / total * 100) : 0) + '%' +
@@ -5594,7 +5604,11 @@ function updateTurrets(dt){
     if (t.cd <= 0){
       t.cd = T.cd;
       t.fireFx = 0.14;
+      // a cannon's work belongs to the ship, not to whatever the captain was
+      // casting when it happened to fire
+      const _src = S.src; S.src = 'allies';
       hitEnemy(best, T.dmg, { ang: t.ang, knock: 90, noCrit: true });
+      S.src = _src;
       SFX.cannonFire({ x: t.x, y: t.y });
       pSparks(t.x + Math.cos(t.ang) * 30, t.y + Math.sin(t.ang) * 30, 5, PAL.teal, 200, t.ang, 0.4);
     }
@@ -5689,7 +5703,9 @@ function updateCrew(dt){
         } else {
           const e = c.target;
           if (e && !e.dead && dist(c.x, c.y, e.x, e.y) < C.reach + e.r){
+            const _src = S.src; S.src = 'allies';
             hitEnemy(e, C.dmg, { ang: c.atkAng, knock: 60, noCrit: true, silent: true });
+            S.src = _src;
             SFX.crewAttack({ x: c.x, y: c.y });
           }
         }
@@ -6461,9 +6477,24 @@ const ANIMATION_PENDING = {
   BOSS_idle:        { strip:'assets/animations/colossus_idle.png',   count:14, fps:10, pingpong:true },
   BOSS_attack:      { strip:'assets/animations/colossus_attack.png', count:12, fps:12, once:true },
 };
+/* Wired, but NOT requested (v12.1).
+
+   These entries exist so the engine already knows how to draw every cycle: a
+   delivered strip needs no code, only its entry moved up into the manifest
+   above. What they must not do is generate a network request. Packaging the
+   game for itch and watching the console showed fourteen 404s on every single
+   load — one per undelivered cycle — which is exactly the failure the audio
+   side has a generated delivery index to avoid, and which nobody had ever
+   looked for on the art side because a 404 on a fallback-covered asset is
+   invisible while playing.
+
+   `pending: true` keeps the slot documented and keeps the loader off it. The
+   delivery step is: ingest the strip, move its entry into ANIMATION_MANIFEST
+   with the frame count the cut loop actually produced. */
 for (const k in ANIMATION_PENDING){
   const spec = ANIMATION_PENDING[k];
   spec.meta = { anchor:0.920, cx:0.500, fig:0.840 };
+  spec.pending = true;
   ANIMATION_MANIFEST[k] = spec;
 }
 
@@ -6544,7 +6575,9 @@ const Assets = {
     // load and are never drawn made that claim wrong in the flattering
     // direction.
     const keys = Object.keys(ASSET_MANIFEST).filter(k => !ASSET_MANIFEST[k].unused);
-    const animKeys = Object.keys(ANIMATION_MANIFEST);
+    // only cycles that have actually been delivered — a pending entry is a
+    // wired slot, not a file, and requesting it is fourteen 404s a session
+    const animKeys = Object.keys(ANIMATION_MANIFEST).filter(k => !ANIMATION_MANIFEST[k].pending);
     this.total = keys.length + animKeys.length;
     if (!this.enabled) return;
 

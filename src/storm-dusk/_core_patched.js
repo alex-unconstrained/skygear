@@ -1743,6 +1743,10 @@ const Telemetry = {
       per,
       basic: { casts: 0, damage: 0, kills: 0, hits: 0 },
       deck:  { damage: 0, kills: 0, kegs: 0, crates: 0, lanterns: 0 },
+    // The crew and the deck cannons fight too, and on a lane map they do real
+    // work — a third of a run's damage in one measured case. Attributing it to
+    // nobody made the per-slot numbers look like they did not add up.
+    allies: { damage: 0, kills: 0 },
       vents: 0, healed: 0, salvage: 0,
       // engagement distance, sampled every simulation step against the nearest
       // live boarder. Three buckets rather than a mean: a captain who alternates
@@ -1770,6 +1774,7 @@ const Telemetry = {
     const src = (forceSrc === undefined) ? S.src : forceSrc;
     const t = (src === 'basic') ? S.tel.basic
             : (src === 'deck') ? S.tel.deck
+            : (src === 'allies') ? S.tel.allies
             : (typeof src === 'number' ? this.slot(src) : null);
     if (!t) return;
     t.damage += amount;
