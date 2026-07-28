@@ -4,3 +4,4 @@ builds/
 .tools/
 *.tmp
 
+import_staging/
