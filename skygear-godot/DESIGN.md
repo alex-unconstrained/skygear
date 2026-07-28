@@ -211,6 +211,40 @@ primitives, HUD gauges with art). The browser build also still has 29 checks
 this harness does not: layout across resolutions, storage denial, slow-line
 loading, the frame budget, and the audio-node leak guard.
 
+## 13b. The camera — corrected 2026-07-27
+
+The port rendered the deck as a **flat overhead 2D scene**, and the game it is
+porting has never been that. The browser build hand-writes a perspective camera
+in Canvas 2D — 760 ground units above the deck, pitched 0.72 rad (41°), focal
+length 1320, dividing by depth — and paints every character as an upright
+billboard standing in it. `docs/LEVEL-KIT-BRIEF.md` calls that camera settled and
+locked, and **every sprite in `assets/` was generated for it**: figures painted
+10–15° above horizontal so they read as standing on a deck seen from 41°.
+
+Rendering that art straight down was showing the right pictures through the
+wrong camera, and it is the single most defining visual decision in the project.
+
+**Fixed with an actual 3D camera**, which is what the browser was emulating and
+what being in a hardware-accelerated engine is for. `scripts/view3d.gd` mirrors
+the running simulation into a Node3D scene each frame:
+
+- a `Camera3D` at the same 41° pitch, following the captain and aimed up-deck so
+  she sits below centre with the boarders in front of her;
+- `Sprite3D` billboards for every entity, which is the same trick the browser
+  performs by hand — except these get real depth sorting and real cast shadows;
+- the deck as a plane, the cargo runs as boxes, a gunwale, a hull beneath, and a
+  cloud sea below so the void reads as ten thousand feet rather than as nothing;
+- two directional lights matching the palette the art is painted for: steel-blue
+  moon from the upper left, warm lantern fill from the lower right.
+
+**The simulation is untouched.** It still runs in ground-plane coordinates in the
+2D scene, which is still what all 44 parity checks drive; the 3D node only
+mirrors it. Ground (x, y) becomes world (x, 0, y), with y as depth exactly as the
+browser's TUNING comment says.
+
+Still flat-coloured rather than painted: the deck itself, the cargo boxes and the
+hull. That is a texture pass, not a camera problem.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

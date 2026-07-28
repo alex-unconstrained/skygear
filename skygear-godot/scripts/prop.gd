@@ -71,6 +71,11 @@ func light_fuse() -> void:
 		game.play_sfx("prop/keg_fuse.ogg", -4.0)
 		queue_redraw()
 
+## Which picture this prop is, so a renderer that is not this node can ask.
+func texture_path() -> String:
+	return str(TEXTURES.get(prop_type, ""))
+
+
 func is_targetable() -> bool:
 	return not dead
 

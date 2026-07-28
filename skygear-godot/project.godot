@@ -6,7 +6,7 @@ config_version=5
 
 config/name="SkyGear: Godot Port"
 config/description="An isolated Godot 4 port of SkyGear v11."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/main3d.tscn"
 
 [display]
 

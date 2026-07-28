@@ -1,0 +1,9 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://scripts/view3d.gd" id="1_view"]
+[ext_resource type="PackedScene" path="res://scenes/main.tscn" id="2_game"]
+
+[node name="World" type="Node3D"]
+script = ExtResource("1_view")
+
+[node name="SkyGear" parent="." instance=ExtResource("2_game")]
