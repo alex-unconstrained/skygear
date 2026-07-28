@@ -16,6 +16,39 @@ Playtest reports and open bugs: **[FEEDBACK.md](FEEDBACK.md)**.
 
 ---
 
+## The Godot port · milestone 2 — 2026-07-27
+
+Taken over and brought most of the way to the browser build. Runs on Godot 4.7,
+**Forward+ (Vulkan), Windows first** — the project was on `gl_compatibility`,
+which is the renderer a web export wants, and the web export is not the target.
+
+- **The lane layer**, which is what makes a lane a lane: deck cannons gating
+  each one, boarders that attack the cannon in their way, crew mustering and
+  pushing the other way, boarding hulks on every push wave, and a push that does
+  not end until its hulk does.
+- **The Colossus has its two beats** — turns at half health, cannot be burst
+  through the turn, vents what it called, and the second beat reaches further.
+- **The full draft**: 41 cards across seven scopes, class bands and
+  affected-skill glyphs on every card, reroll, adaptive slot weighting, seeded
+  rolls. It had three hardcoded upgrades before this.
+- **Telemetry and the run report** — the results screen *is* the report,
+  copyable with C, naming which skill did the work and where the fight was had.
+- **Sound**: three music tracks tiered by wave with a hand-written crossfade,
+  real audio buses, a voice cap, and a volume the player owns and that survives
+  the session.
+- **A parity harness — 44 checks**, the browser harness's claims re-asked in
+  GDScript. It found five real defects on its first run.
+
+Still missing: key rebinding and the run log, the voice layer, and the
+presentation pass (painted deck, camera-tied envelope, HUD art). The browser
+build remains the complete game.
+
+Packaged as `SkyGear-Windows.zip`, 67.5 MB. **Not yet on itch** — the account
+`alex-unconstrained` is valid but no game page exists, and butler can only push
+to a page that already does.
+
+---
+
 ## v11.2 · The draft explains itself, and the audio stops leaking — 2026-07-27 *(live)*
 
 **Answered:** the second playthrough's five requests, plus one bug from it.

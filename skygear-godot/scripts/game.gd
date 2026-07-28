@@ -1327,6 +1327,37 @@ func _update_effects(delta: float) -> void:
 		if float(effects[i].time) >= float(effects[i].life):
 			effects.remove_at(i)
 
+## THE AIRSTREAM.
+##
+## Asked of the browser build in exactly these words: what am I supposed to be
+## looking at to see that this ship is flying? The answer was "two cloud bands
+## drifting", which is to say nothing. The strongest available cue that a
+## vehicle is moving is not the scenery — it is stuff going past you.
+##
+## Ported here with the two things the browser version was missing when it was
+## reviewed: it is constant rather than intermittent, and it SHEARS with the
+## captain's lateral movement, which says "you are moving through air" rather
+## than only "the ship is".
+const AIRSTREAM_LANES := 54
+
+func _draw_airstream() -> void:
+	var t := float(Time.get_ticks_msec()) * 0.001
+	var shear: float = clampf(player.velocity.x / 320.0, -1.0, 1.0) if player != null else 0.0
+	for i in AIRSTREAM_LANES:
+		var seed_value := float(i) * 0.6180339887
+		var lane := fmod(seed_value, 1.0)
+		var speed := 1.45 + fmod(seed_value * 7.3, 1.0) * 1.1
+		var phase := fmod(t * speed * 0.42 + lane, 1.0)
+		var y: float = DECK_RECT.position.y - 200.0 + phase * (DECK_RECT.size.y + 500.0)
+		var x: float = DECK_RECT.position.x + lane * DECK_RECT.size.x + sin(seed_value * 31.7) * 90.0
+		var length := 90.0 + fmod(seed_value * 13.0, 1.0) * 130.0
+		var alpha := 0.06 + fmod(seed_value * 3.1, 1.0) * 0.07
+		# the shear: streaks lean against the way the captain is moving
+		var lean := -shear * 26.0
+		draw_line(Vector2(x, y), Vector2(x + lean, y + length),
+			Color(0.62, 0.72, 0.88, alpha), 1.6 + fmod(seed_value * 5.0, 1.0) * 2.0)
+
+
 func _draw() -> void:
 	draw_rect(Rect2(-5000, -5000, 10000, 10000), Color("#17152a"))
 	draw_rect(DECK_RECT.grow(24.0), Color("#0d0b12"))
@@ -1336,6 +1367,7 @@ func _draw() -> void:
 	for x in range(int(DECK_RECT.position.x), int(DECK_RECT.end.x), 116):
 		draw_line(Vector2(x, DECK_RECT.position.y), Vector2(x, DECK_RECT.end.y), Color(0.12, 0.09, 0.11, 0.28), 2.0)
 	draw_rect(DECK_RECT, Color("#b0813f"), false, 8.0)
+	_draw_airstream()
 	for cargo in CARGO_RECTS:
 		draw_rect(cargo, Color("#17131a"))
 		draw_rect(cargo.grow(-8.0), Color("#54413c"))
@@ -1412,6 +1444,10 @@ func _draw() -> void:
 		draw_circle(item.position, 18.0, Color("#6bbf72"))
 		draw_arc(item.position, 25.0, 0.0, TAU, 18, Color("#e8c376"), 3.0)
 	for bolt in projectiles:
+		# where it is ON THE DECK, not where it is in the air. Reported against
+		# the browser build: enemy fire was hard to track, and an unshadowed
+		# sprite has no position you can step out of the way of.
+		draw_circle(Vector2(bolt.position) + Vector2(0, 22), 9.0, Color(0.02, 0.015, 0.03, 0.45))
 		var trail: Array = bolt.trail
 		for i in range(trail.size() - 1):
 			var alpha := 0.55 * (1.0 - float(i) / maxf(1.0, trail.size()))
