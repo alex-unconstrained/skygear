@@ -331,6 +331,70 @@ the disk), keys (rebind, conflict, reload, reset, and that menu keys are out of
 scope), and the layout matrix (every HUD plate fits and none overlap at six
 window sizes).
 
+## 13e. The VFX layer — answered and rebuilt, 2026-07-28
+
+Asked of the pushed build: *"targeted vfx and auras were all rendering strangely.
+are they setup to be working 3d vfx?"* No, they were not. They were flat unshaded
+quads lying 1.5 ground units — one and a half centimetres — above the deck plane,
+which is a 2D sticker that happens to live in a 3D scene.
+
+**Four defects, all of them visible:**
+
+1. **The pools were keyed by ARRAY INDEX.** `_decal("fx%d" % i, …)` against an
+   array that compacts with `remove_at` the moment an entry expires. So node
+   `fx3` was one effect this frame and a different one the next: a ring became a
+   beam, jumped across the deck and resized halfway through its own fade. The
+   same bug ran on fire fields, bolts, bolt trails and salvage. A passive build
+   is where it is worst, because a Field and a Sentry append and expire
+   something several times a second — which is exactly when it was reported.
+2. **A Field drew nothing at all.** `_update_passives` ticks `_damage_circle` at
+   150 units and appended no effect, so the aura was 150 units of standing
+   damage with no picture. The other passives fake it by appending a circle when
+   they fire; a Field fires 1.8 times a second and would have strobed.
+3. **Z-fighting.** 0.015 m of separation inside a 0.05–400 m depth range is
+   inside the depth buffer's own precision.
+4. **Slicing.** A flat plane cannot climb a cargo run, so effects were cut off
+   along a hard straight line at every crate and went through the Boiler plinth.
+
+**Rebuilt as actual `Decal` nodes,** which is the one thing that most justifies
+being in a 3D renderer for this: a decal projects down a box onto whatever
+geometry is inside it, so a ring wraps the deck AND the crate, cannot z-fight
+because it is not a surface, and needs no depth ordering against anything.
+
+One trap worth recording: **a Decal's emission channel ignores the texture's
+alpha.** Feeding it the ring — white RGB, shaped alpha — lit the entire
+projection box, painting a solid glowing rectangle over the deck, the crates and
+the fight. The fix is a premultiplied emission map, alpha baked into RGB, so the
+hollow parts are black and black emits nothing.
+
+**The aura got a body.** A soft cylinder of charged air around the captain with
+its far wall only — you are standing inside it, so the near wall is between the
+camera and you, and additively that bleached her and anyone next to her — plus a
+decal ring on the planking marking exactly where it stops. Both driven from
+`skill_stats` each frame, so a card that widens the field widens the picture.
+
+**And effects anchored to the captain now follow her.** A cleave baked at the
+position you cast it from slides out of your hands at dash speed, which is most
+of its own lifetime.
+
+Five checks guard all of it.
+
+## 13f. The captain, as a mesh — parked
+
+A Meshy OBJ arrived and is in `reference/models/captain/`, which carries a
+`.gdignore` so Godot never imports it. `tools/pose_captain.py` brings her out of
+the T-pose Meshy exports — no skeleton to pose with, but the geometry separates
+cleanly (body inside |x| < 0.24, arms out to 0.95), so the arms rotate about a
+shoulder pivot with the angle ramped across the joint. That is a skin cluster
+with one bone a side and a hand-authored falloff.
+
+`SkyGearView3D.USE_MESH_CAPTAIN` is **false**. A static unrigged mesh slides
+across a deck in a fixed pose, which reads worse than the painted billboard it
+replaced — the billboard at least has an artist's stance in it. The loader stays
+in place for a rigged export; what it wants is Y up, facing +Z at rest, roughly
+1.8 units crown to sole, glTF/GLB so the skeleton and animations come with it,
+moved into `assets/models/captain/`.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

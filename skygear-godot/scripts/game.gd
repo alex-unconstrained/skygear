@@ -167,7 +167,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			# the report is the thing a tester pastes into a message; make
 			# taking it one key rather than a screenshot of a screen
 			copy_run_report()
-			effects.append({"kind": "banner", "text": "REPORT COPIED", "time": 0.0, "life": 1.6})
+			_fx({"kind": "banner", "text": "REPORT COPIED", "time": 0.0, "life": 1.6})
 			get_viewport().set_input_as_handled()
 			return
 	if state == State.DRAFT:
@@ -192,14 +192,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if audio != null:
 		if event.keycode == KEY_M:
 			audio.toggle_mute()
-			effects.append({"kind": "banner", "text": "MUTED" if audio.muted else "UNMUTED",
+			_fx({"kind": "banner", "text": "MUTED" if audio.muted else "UNMUTED",
 				"time": 0.0, "life": 1.0})
 			get_viewport().set_input_as_handled()
 			return
 		if event.keycode in [KEY_MINUS, KEY_KP_SUBTRACT, KEY_EQUAL, KEY_KP_ADD]:
 			var step := -0.1 if event.keycode in [KEY_MINUS, KEY_KP_SUBTRACT] else 0.1
 			audio.set_volume("master", float(audio.volumes.master) + step)
-			effects.append({"kind": "banner",
+			_fx({"kind": "banner",
 				"text": "VOLUME %d%%" % roundi(float(audio.volumes.master) * 100.0),
 				"time": 0.0, "life": 1.0})
 			get_viewport().set_input_as_handled()
@@ -512,7 +512,7 @@ func start_wave(next_wave: int) -> void:
 	player.heal(4.0)
 	_set_state(State.PLAY)
 	play_sfx("world/wave_start.ogg", -5.0)
-	effects.append({"kind": "banner", "text": "WAVE %d" % wave, "time": 0.0, "life": 2.0})
+	_fx({"kind": "banner", "text": "WAVE %d" % wave, "time": 0.0, "life": 2.0})
 
 func _build_spawn_queue(wave_number: int) -> Array[Dictionary]:
 	var queue: Array[Dictionary] = []
@@ -560,7 +560,7 @@ func _update_wave(delta: float) -> void:
 		play_sfx("world/wave_clear.ogg", -4.0)
 		if voice != null:
 			voice.say("wave_clear", 1)
-		effects.append({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0, "life": 1.6})
+		_fx({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0, "life": 1.6})
 	elif push_pending and spawn_queue.is_empty() and enemy_count() < 6 and wave > 0:
 		# they keep coming while the hulk lives — that is what it is for
 		for lane in LANE_CENTERS.size():
@@ -723,7 +723,7 @@ func _process_basic_attack(delta: float) -> void:
 	var direction := (target.global_position - player.global_position).normalized()
 	_damage_cone(player.global_position, direction, 190.0, 2.443, 22.0 * damage_multiplier, "EMBER", 150.0, true)
 	basic_cooldown = 0.45 * 0.8
-	effects.append({"kind": "arc", "position": player.global_position, "direction": direction.angle(), "radius": 190.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.16})
+	_fx({"kind": "arc", "position": player.global_position, "direction": direction.angle(), "radius": 190.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.16})
 	play_sfx("player/shape_cleave.ogg", -7.0)
 
 func _process_skill_input() -> void:
@@ -800,7 +800,7 @@ func cast_skill(index: int, aim_at = null) -> void:
 	hulk_splash(land, damage * float(shots))
 	# RESIDUE: a burning field wherever the shape landed.
 	if float(mods.residue) > 0.0:
-		fire_fields.append({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
+		_field({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
 			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
 	play_sfx(_shape_sound(skill.shape), -5.0)
@@ -814,30 +814,30 @@ func _resolve_cast(st: Dictionary, skill: Dictionary, origin: Vector2, direction
 	match str(st.kind):
 		"arc":
 			_damage_cone(origin, direction, float(st.range), float(st.arc), damage, skill.element, float(st.knock), true)
-			effects.append({"kind": "arc", "position": origin, "direction": direction.angle(), "radius": float(st.range), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.2})
+			_fx({"kind": "arc", "position": origin, "direction": direction.angle(), "radius": float(st.range), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.2, "follow": true})
 			land = origin + direction * float(st.range) * 0.62
 		"line":
 			var end := origin + direction * float(st.range)
 			_damage_line(origin, end, float(st.width), damage, skill.element, float(st.knock), true)
-			effects.append({"kind": "line", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.18})
+			_fx({"kind": "line", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.18})
 			land = origin + direction * float(st.range) * 0.5
 		"cone":
 			_damage_cone(origin, direction, float(st.range), float(st.arc), damage, skill.element, float(st.knock), true)
-			effects.append({"kind": "cone", "position": origin, "direction": direction.angle(), "radius": float(st.range), "arc": float(st.arc), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.22})
+			_fx({"kind": "cone", "position": origin, "direction": direction.angle(), "radius": float(st.range), "arc": float(st.arc), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.22, "follow": true})
 			land = origin + direction * float(st.range) * 0.55
 		"aoe":
 			var offset := target - origin
 			if offset.length() > float(st.range):
 				target = origin + offset.normalized() * float(st.range)
 			_damage_circle(target, float(st.radius), damage, skill.element, float(st.knock), true, true)
-			effects.append({"kind": "circle", "position": target, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.28})
+			_fx({"kind": "circle", "position": target, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.28})
 			land = target
 		"chain":
 			land = _cast_chain(origin, target, st, skill.element, damage)
 		"ray":
 			var end := origin + direction * float(st.range)
 			_damage_line(origin, end, float(st.width), damage * 4.0, skill.element, float(st.knock), true)
-			effects.append({"kind": "beam", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.32})
+			_fx({"kind": "beam", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.32})
 			land = origin + direction * float(st.range) * 0.5
 	return land
 
@@ -855,7 +855,7 @@ func _cast_chain(origin: Vector2, target_position: Vector2, st: Dictionary, elem
 			break
 		visited[current.get_instance_id()] = true
 		damage_enemy(current, damage * pow(0.85, jump), element, float(st.knock), from, true)
-		effects.append({"kind": "line", "from": from, "to": current.global_position, "color": SkyGearData.ELEMENTS[element].color, "time": 0.0, "life": 0.22})
+		_fx({"kind": "line", "from": from, "to": current.global_position, "color": SkyGearData.ELEMENTS[element].color, "time": 0.0, "life": 0.22})
 		from = current.global_position
 		current = nearest_enemy_excluding(from, float(st.jump_range), visited)
 	return from
@@ -885,13 +885,13 @@ func _update_passives(delta: float) -> void:
 				skill.passive_timer = 1.0 / maxf(0.2, float(st.tick_rate))
 			"pulse":
 				_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
-				effects.append({"kind": "circle", "position": player.global_position, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
+				_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
 				skill.passive_timer = float(st.cooldown)
 			"sentry":
 				var target := nearest_enemy(player.global_position, float(st.range))
 				if target != null:
 					damage_enemy(target, float(st.damage), skill.element, 60.0, player.global_position, true)
-					effects.append({"kind": "line", "from": player.global_position, "to": target.global_position, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.12})
+					_fx({"kind": "line", "from": player.global_position, "to": target.global_position, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.12})
 				skill.passive_timer = 0.7
 		src_slot = previous_src
 
@@ -1019,10 +1019,10 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
 		if rng.randf() < float(SkyGearData.CLOSE.scrap_chance):
-			salvage.append({"position": enemy.global_position, "heal": float(SkyGearData.CLOSE.scrap_heal), "time": 12.0})
+			_scrap({"position": enemy.global_position, "heal": float(SkyGearData.CLOSE.scrap_heal), "time": 12.0})
 			tel.salvage += 1
 	if float(mods.scrap_chance) > 0.0 and rng.randf() < float(mods.scrap_chance):
-		salvage.append({"position": enemy.global_position, "heal": 12.0, "time": 12.0})
+		_scrap({"position": enemy.global_position, "heal": 12.0, "time": 12.0})
 		tel.salvage += 1
 	if float(mods.kill_explode) > 0.0:
 		_damage_circle(enemy.global_position, 80.0, float(mods.kill_explode), "EMBER", 70.0, false, false)
@@ -1032,7 +1032,7 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		cast_skill(0, enemy.global_position)
 		skills[0].cooldown_left = previous
 	play_sfx("enemy/death_heavy_1.ogg" if enemy.kind in ["ARMORED", "BOSS"] else "enemy/death_light_1.ogg", -8.0)
-	effects.append({"kind": "burst", "position": enemy.global_position, "radius": enemy.radius * 2.5, "color": Color("#ff9a5a"), "time": 0.0, "life": 0.25})
+	_fx({"kind": "burst", "position": enemy.global_position, "radius": enemy.radius * 2.5, "color": Color("#ff9a5a"), "time": 0.0, "life": 0.25})
 
 func _update_pressure(delta: float) -> void:
 	var close_range := float(SkyGearData.CLOSE.range)
@@ -1076,7 +1076,7 @@ func vent_pressure() -> void:
 	_damage_circle(player.global_position, radius, float(SkyGearData.CLOSE.vent_damage) * float(mods.vent_damage), "STEAM", float(SkyGearData.CLOSE.vent_knock), false, false)
 	heal_player(float(SkyGearData.CLOSE.vent_heal) + float(mods.vent_heal), "vent")
 	tel.vents += 1
-	effects.append({"kind": "circle", "position": player.global_position, "radius": radius, "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
+	_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": radius, "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
 	play_sfx("player/vent.ogg", -2.0)
 	if voice != null:
 		voice.say("vent")
@@ -1089,7 +1089,7 @@ func damage_player(amount: float, _source: String = "") -> void:
 		add_floater("-%d" % roundi(amount), player.global_position, Color("#ff4d37"), true)
 		if voice != null and player.hp <= player.max_hp * 0.32 and player.hp > 0.0:
 			voice.say("hurt_low", 2)
-		effects.append({"kind": "burst", "position": player.global_position, "radius": 65.0, "color": Color("#ff4d37"), "time": 0.0, "life": 0.18})
+		_fx({"kind": "burst", "position": player.global_position, "radius": 65.0, "color": Color("#ff4d37"), "time": 0.0, "life": 0.18})
 		if player.hp <= 0.0:
 			end_reason = "The captain fell on wave %d." % wave
 			if voice != null:
@@ -1104,7 +1104,7 @@ func damage_boiler(amount: float) -> void:
 		return
 	boiler_hp = maxf(0.0, boiler_hp - amount)
 	play_sfx("world/boiler_hurt.ogg", -6.0)
-	effects.append({"kind": "burst", "position": BOILER_POSITION, "radius": 90.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.2})
+	_fx({"kind": "burst", "position": BOILER_POSITION, "radius": 90.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.2})
 	if boiler_hp <= 0.0:
 		end_reason = "The Boiler was destroyed on wave %d." % wave
 		if voice != null:
@@ -1113,7 +1113,7 @@ func damage_boiler(amount: float) -> void:
 
 func spawn_enemy_bolt(origin: Vector2, target: Vector2, damage: float, speed: float) -> void:
 	var direction := (target - origin).normalized()
-	projectiles.append({
+	_bolt({
 		"position": origin,
 		"velocity": direction * speed,
 		"damage": damage,
@@ -1159,12 +1159,12 @@ func restow_props() -> void:
 
 func on_prop_destroyed(prop: SkyGearProp) -> void:
 	if prop.prop_type == "crate":
-		salvage.append({"position": prop.global_position, "heal": 12.0, "time": 12.0})
+		_scrap({"position": prop.global_position, "heal": 12.0, "time": 12.0})
 		play_sfx("prop/crate_break_1.ogg", -5.0)
 	elif prop.prop_type == "lantern":
-		fire_fields.append({"position": prop.global_position, "time": 6.0, "tick": 0.0})
+		_field({"position": prop.global_position, "time": 6.0, "tick": 0.0})
 		play_sfx("prop/lantern_break.ogg", -5.0)
-	effects.append({"kind": "burst", "position": prop.global_position, "radius": 70.0, "color": Color("#e8c376"), "time": 0.0, "life": 0.25})
+	_fx({"kind": "burst", "position": prop.global_position, "radius": 70.0, "color": Color("#e8c376"), "time": 0.0, "life": 0.25})
 
 func explode_keg(prop: SkyGearProp) -> void:
 	if voice != null:
@@ -1174,7 +1174,7 @@ func explode_keg(prop: SkyGearProp) -> void:
 	if center.distance_to(player.global_position) <= 192.0:
 		damage_player(26.0, "keg")
 	_damage_props_circle(center, 175.0, 78.0)
-	effects.append({"kind": "burst", "position": center, "radius": 175.0, "color": Color("#ffe08a"), "time": 0.0, "life": 0.45})
+	_fx({"kind": "burst", "position": center, "radius": 175.0, "color": Color("#ffe08a"), "time": 0.0, "life": 0.45})
 	play_sfx("prop/keg_blow.ogg", -1.0)
 
 func _update_salvage(delta: float) -> void:
@@ -1287,7 +1287,7 @@ func damage_turret(t: Dictionary, amount: float) -> void:
 		play_sfx("lane/cannon_down_1.ogg", -4.0)
 		if voice != null:
 			voice.say("cannon_down", 1)
-		effects.append({"kind": "burst", "position": t.position, "radius": 120.0,
+		_fx({"kind": "burst", "position": t.position, "radius": 120.0,
 			"color": Color("#ff9a5a"), "time": 0.0, "life": 0.4})
 	else:
 		play_sfx("lane/cannon_hurt_1.ogg", -12.0)
@@ -1300,9 +1300,9 @@ func on_boss_turn(boss) -> void:
 		if is_instance_valid(enemy) and enemy != boss and not enemy.dead:
 			enemy.hp = 0.0
 			enemy.kill()
-	effects.append({"kind": "circle", "position": boss.global_position, "radius": 420.0,
+	_fx({"kind": "circle", "position": boss.global_position, "radius": 420.0,
 		"color": Color("#ffd36b"), "time": 0.0, "life": 0.9})
-	effects.append({"kind": "banner", "text": "IT TURNS", "time": 0.0, "life": 2.4})
+	_fx({"kind": "banner", "text": "IT TURNS", "time": 0.0, "life": 2.4})
 	play_sfx("enemy/boss_roar.ogg", -1.0)
 	if voice != null:
 		voice.say("boss_turn", 3)
@@ -1433,7 +1433,7 @@ func damage_hulk(amount: float) -> void:
 	if float(hulk.hp) <= 0.0:
 		hulk.dead = true
 		play_sfx("lane/hulk_break.ogg", -2.0)
-		effects.append({"kind": "burst", "position": hulk.position, "radius": 260.0,
+		_fx({"kind": "burst", "position": hulk.position, "radius": 260.0,
 			"color": Color("#ffd36b"), "time": 0.0, "life": 0.6})
 
 
@@ -1520,11 +1520,54 @@ func _distance_to_segment(point: Vector2, start: Vector2, end: Vector2) -> float
 	var t := clampf((point - start).dot(segment) / length_squared, 0.0, 1.0)
 	return point.distance_to(start + segment * t)
 
+## Everything the renderer pools needs a name that outlives its position in a
+## list. The 3D view keyed its billboards and decals by ARRAY INDEX, and every
+## one of these arrays is compacted with `remove_at` the moment an entry expires
+## — so effect 3 became effect 4 mid-frame and the node drawing it kept its
+## place while its contents changed underneath. On screen that is a ring turning
+## into a beam, jumping across the deck and resizing halfway through its own
+## fade, which is exactly what a passive build produces most of: a Field and a
+## Sentry append and expire something several times a second.
+var _fx_seq := 0
+
+
+func _fx(d: Dictionary) -> void:
+	_fx_seq += 1
+	d["id"] = _fx_seq
+	effects.append(d)
+
+
+func _field(d: Dictionary) -> void:
+	_fx_seq += 1
+	d["id"] = _fx_seq
+	fire_fields.append(d)
+
+
+func _bolt(d: Dictionary) -> void:
+	_fx_seq += 1
+	d["id"] = _fx_seq
+	projectiles.append(d)
+
+
+func _scrap(d: Dictionary) -> void:
+	_fx_seq += 1
+	d["id"] = _fx_seq
+	salvage.append(d)
+
+
 func _update_effects(delta: float) -> void:
 	for i in range(effects.size() - 1, -1, -1):
 		effects[i].time = float(effects[i].time) + delta
 		if float(effects[i].time) >= float(effects[i].life):
 			effects.remove_at(i)
+	## Anything anchored to the captain rides with her. The browser carries a
+	## `follow` flag for the same reason: a cleave baked at the position you cast
+	## it from slides out of your hands the moment you keep moving, which at
+	## dash speed is most of its own lifetime.
+	if player != null:
+		for e in effects:
+			if bool(e.get("follow", false)):
+				e["position"] = player.global_position
 	for i in range(floaters.size() - 1, -1, -1):
 		var f: Dictionary = floaters[i]
 		f.time = float(f.time) + delta

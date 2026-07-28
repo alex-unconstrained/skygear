@@ -14,6 +14,7 @@ func _run() -> void:
 	game.choose_draft(0)
 	game.skills.append(SkyGearData.make_skill("CHAIN", "ARC"))
 	game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+	game.skills.append(SkyGearData.make_skill("AURA", "STEAM"))
 	game.start_wave(5)
 	game.player.global_position = Vector2(40, 690)
 	game.player.hp = 76.0

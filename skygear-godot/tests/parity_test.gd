@@ -683,6 +683,52 @@ func _view() -> void:
 		absf(rad_to_deg(view.camera.rotation.z)) > 0.15,
 		"%.2f deg" % rad_to_deg(view.camera.rotation.z))
 
+	## The VFX layer. Reported from a build: "targeted vfx and auras were all
+	## rendering strangely."
+	game.effects.clear()
+	game.skills.append(SkyGearData.make_skill("AURA", "STEAM"))
+	for k in 4:
+		game._fx({"kind": "circle", "position": Vector2(k * 40, 0), "radius": 90.0,
+			"color": Color.WHITE, "time": 0.0, "life": 1.0})
+	var ids := {}
+	for e in game.effects:
+		ids[int(e.get("id", -1))] = true
+	_check("vfx", "every effect has an identity that outlives its index",
+		ids.size() == game.effects.size() and not ids.has(-1),
+		"%d effects, %d ids" % [game.effects.size(), ids.size()])
+	var second_id: int = int(game.effects[1].id)
+	game.effects.remove_at(0)
+	_check("vfx", "and removing one does not renumber the rest",
+		int(game.effects[0].id) == second_id,
+		"id %d still %d" % [int(game.effects[0].id), second_id])
+
+	## A Field used to draw nothing at all: `_update_passives` ticked damage at
+	## 150 units and appended no effect, so the player could not see the edge of
+	## their own aura.
+	view._process(0.05)
+	var aura_ring := false
+	var aura_volume := false
+	for key in view._decals.keys():
+		if str(key).begins_with("aura"):
+			aura_ring = true
+	for key in view._volumes.keys():
+		if str(key).begins_with("auravol"):
+			aura_volume = true
+	_check("vfx", "a Field shows where it reaches", aura_ring and aura_volume,
+		"ring %s, volume %s" % [aura_ring, aura_volume])
+
+	## Ground effects are projected, not stickers a centimetre off the planking.
+	var any_decal: Decal = null
+	for key in view._decals.keys():
+		any_decal = view._decals[key]
+		break
+	_check("vfx", "ground effects are projected decals, not floating quads",
+		any_decal != null and any_decal is Decal and any_decal.size.y > 1.0,
+		"projection depth %.2f m" % (any_decal.size.y if any_decal != null else 0.0))
+	_check("vfx", "and their emission is premultiplied, so it cannot flood the box",
+		any_decal != null and (any_decal.texture_emission == null
+			or any_decal.texture_emission != any_decal.texture_albedo))
+
 	## The captain talks, and the lines are on disk.
 	_check("voice", "the line sheet is delivered",
 		game.voice != null and game.voice.delivered() >= 60,

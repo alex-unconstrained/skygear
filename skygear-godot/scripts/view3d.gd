@@ -80,7 +80,8 @@ var deck: MeshInstance3D
 var _billboards: Dictionary = {}     ## key -> Sprite3D
 var _used: Dictionary = {}
 var _textures: Dictionary = {}
-var _decals: Dictionary = {}         ## key -> MeshInstance3D, flat on the deck
+var _decals: Dictionary = {}         ## key -> Decal, projected onto the deck
+var _volumes: Dictionary = {}        ## key -> MeshInstance3D, the aura cylinders
 var _decals_used: Dictionary = {}
 var _lights: Dictionary = {}         ## prop id -> OmniLight3D
 var _envelope: MeshInstance3D
@@ -758,6 +759,39 @@ func _grille_texture() -> ImageTexture:
 	return _made.grille
 
 
+## The wall of an aura: brightest at the top and bottom edges, thin in between,
+## so a cylinder of it reads as a boundary rather than as a tube of fog.
+func _wall_texture() -> ImageTexture:
+	if _made.has("wall"):
+		return _made.wall
+	var w := 8
+	var h := 64
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		var v := float(y) / float(h - 1)
+		var a: float = exp(-pow(v / 0.16, 2.0)) * 0.9 + exp(-pow((1.0 - v) / 0.12, 2.0)) + 0.10
+		for x in w:
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
+	_made.wall = ImageTexture.create_from_image(img)
+	return _made.wall
+
+
+## The emission map for a shape: its alpha, baked into RGB, opaque. Cached
+## against the texture it came from, built once on first use.
+func _glow_map(tex: Texture2D) -> Texture2D:
+	var key := "glow_%d" % tex.get_instance_id()
+	if _made.has(key):
+		return _made[key]
+	var src := tex.get_image()
+	var out := Image.create(src.get_width(), src.get_height(), false, Image.FORMAT_RGBA8)
+	for y in src.get_height():
+		for x in src.get_width():
+			var a: float = src.get_pixel(x, y).a
+			out.set_pixel(x, y, Color(a, a, a, 1.0))
+	_made[key] = ImageTexture.create_from_image(out)
+	return _made[key]
+
+
 ## A soft dark blob. Every billboard needs one under it or it floats: the
 ## browser calls this `entityShadow` and draws one for everything on the deck.
 func _blob_texture() -> ImageTexture:
@@ -799,6 +833,7 @@ func _process(delta: float) -> void:
 	_used.clear()
 	_decals_used.clear()
 	_sync_all()
+	_sync_auras()
 	_sync_effects()
 	_sync_airstream(delta)
 	# anything not claimed this frame is gone from the simulation
@@ -809,7 +844,7 @@ func _process(delta: float) -> void:
 			_billboards.erase(key)
 	for key in _decals.keys():
 		if not _decals_used.has(key):
-			var node: MeshInstance3D = _decals[key]
+			var node: Decal = _decals[key]
 			node.queue_free()
 			_decals.erase(key)
 
@@ -902,6 +937,12 @@ func _sync_airstream(delta: float) -> void:
 func _sync_effects() -> void:
 	for i in game.effects.size():
 		var fx: Dictionary = game.effects[i]
+		## By ID, never by index. See `_fx()` in game.gd — these arrays compact
+		## on expiry, so an index is a different effect from one frame to the
+		## next and the node pooled against it inherits the wrong contents.
+		var fid: int = int(fx.get("id", -1))
+		if fid < 0:
+			continue
 		var kind := str(fx.kind)
 		if kind == "banner":
 			continue
@@ -916,33 +957,33 @@ func _sync_effects() -> void:
 		match kind:
 			"arc":
 				var r: float = float(fx.get("radius", 120.0)) * (0.9 + progress * 0.2)
-				_decal("fx%d" % i, centre, float(fx.get("direction", 0.0)),
+				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), false), tint)
 			"cone":
 				var rc: float = float(fx.get("radius", 120.0)) * (0.55 + progress * 0.55)
-				_decal("fx%d" % i, centre, float(fx.get("direction", 0.0)),
+				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					rc * 2.0, rc * 2.0, _fan_texture(float(fx.get("arc", 0.9)), true),
 					Color(tint.r, tint.g, tint.b, tint.a * 0.85))
 			"circle", "burst":
 				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
-				_decal("fx%d" % i, centre, 0.0, rb * 2.0, rb * 2.0, _ring_texture(), tint)
+				_decal("fx%d" % fid, centre, 0.0, rb * 2.0, rb * 2.0, _ring_texture(), tint)
 			"line", "beam":
 				var from: Vector2 = fx.get("from", Vector2.ZERO)
 				var to: Vector2 = fx.get("to", Vector2.ZERO)
 				var span := to - from
 				var width: float = (26.0 if kind == "line" else 54.0) * (1.0 - progress * 0.35)
-				_decal("fx%d" % i, (from + to) * 0.5, span.angle(),
+				_decal("fx%d" % fid, (from + to) * 0.5, span.angle(),
 					maxf(8.0, span.length()), width, _streak_texture(), tint)
 			_:
 				var rr: float = float(fx.get("radius", 90.0))
-				_decal("fx%d" % i, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
+				_decal("fx%d" % fid, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
 
 	## Lingering fire. It is a hazard you have to read the floor for, so it gets
 	## a decal that breathes rather than a static disc.
 	for i in game.fire_fields.size():
 		var f: Dictionary = game.fire_fields[i]
 		var pulse: float = 0.72 + sin(_flicker * 7.0 + float(i)) * 0.14
-		_decal("fire%d" % i, f.position, 0.0, float(f.get("radius", 62.0)) * 2.2,
+		_decal("fire%d" % int(f.get("id", i)), f.position, 0.0, float(f.get("radius", 62.0)) * 2.2,
 			float(f.get("radius", 62.0)) * 2.2, _ring_texture(),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
 
@@ -972,53 +1013,147 @@ func _sync_effects() -> void:
 				_ring_texture(), Color("#ffd36b"))
 
 
-## One decal, pooled. `angle` aims the texture's +X down a direction in ground
-## coordinates; `sx`/`sy` are its size in ground units along and across that.
+## One ground effect, pooled, as an actual projected decal.
+##
+## THIS WAS NOT 3D. Every skill shape, every fire field, every contact shadow was
+## an unshaded quad lying one and a half centimetres above the deck plane, which
+## is a 2D sticker that happens to live in a 3D scene. Three things follow from
+## that and all three were visible:
+##
+##   1. **Z-fighting.** 0.015 m of separation inside a 0.05–400 m depth range is
+##      inside the depth buffer's own precision. Rings shimmered.
+##   2. **Slicing.** The quad is a flat plane, so where an effect reached a cargo
+##      run it was cut off along a hard straight line instead of climbing it, and
+##      where it reached the Boiler plinth it went through it.
+##   3. **No conforming.** A mortar landing at the foot of a crate painted half a
+##      ring on the floor and nothing on the crate.
+##
+## Godot's `Decal` is the fix and it is the whole reason to be in a 3D renderer
+## for this: it projects down a box onto whatever geometry is inside it, so the
+## ring wraps the deck AND the crate, cannot z-fight because it is not a surface,
+## and needs no depth ordering against anything.
+##
+## `angle` aims the texture's +X down a direction in ground coordinates; `sx`/`sy`
+## are its size along and across that.
 func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
-		texture: Texture2D, colour: Color, additive: bool = true) -> void:
+		texture: Texture2D, colour: Color, glowing: bool = true) -> void:
 	_decals_used[key] = true
-	var node: MeshInstance3D = _decals.get(key)
+	var node: Decal = _decals.get(key)
 	if node == null:
-		node = MeshInstance3D.new()
-		var quad := QuadMesh.new()
-		quad.size = Vector2.ONE
-		node.mesh = quad
-		var m := StandardMaterial3D.new()
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		m.no_depth_test = false
-		node.material_override = m
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		node = Decal.new()
+		node.cull_mask = 0xFFFFF
+		node.upper_fade = 0.1
+		node.lower_fade = 0.1
+		node.normal_fade = 0.0
 		add_child(node)
 		_decals[key] = node
-	var mat: StandardMaterial3D = node.material_override
-	mat.albedo_texture = texture
-	mat.albedo_color = colour
-	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if additive else BaseMaterial3D.BLEND_MODE_MIX
-	# lie flat, aimed along `angle`. Building the basis by hand beats stacking
-	# Euler rotations: the quad's +X has to be the ground direction exactly, or
-	# every cone in the game points somewhere other than where it hits.
-	var ca := cos(angle)
-	var sa := sin(angle)
-	var basis := Basis(Vector3(ca, 0.0, sa), Vector3(sa, 0.0, -ca), Vector3(0.0, 1.0, 0.0))
-	basis = basis.scaled(Vector3(sx * WORLD_SCALE, sy * WORLD_SCALE, 1.0))
+	node.texture_albedo = texture
+	node.modulate = Color(colour.r, colour.g, colour.b, 1.0)
+	## Emission through a PREMULTIPLIED map, never through the albedo texture.
+	## A Decal's emission channel ignores the texture's alpha and lights the
+	## whole projection box, so feeding it the ring — white RGB, shaped alpha —
+	## painted a solid glowing rectangle the size of the effect's bounding box
+	## over the deck, the crates and the fight. Baking alpha into RGB makes the
+	## hollow parts black, and black emits nothing.
+	if glowing:
+		node.texture_emission = _glow_map(texture)
+		node.emission_energy = 0.85 * colour.a
+	else:
+		node.texture_emission = null
+		node.emission_energy = 0.0
+	node.albedo_mix = colour.a
+	## The projection box. Tall enough to reach the top of a cargo run from above
+	## so an effect that touches one climbs it, and to reach the deck from a metre
+	## up so nothing falls short.
+	var basis := Basis(Vector3(cos(angle), 0.0, sin(angle)), Vector3(0.0, 1.0, 0.0),
+		Vector3(-sin(angle), 0.0, cos(angle)))
 	node.transform = Transform3D(basis, Vector3(centre.x * WORLD_SCALE,
-		1.5 * WORLD_SCALE, centre.y * WORLD_SCALE))
+		90.0 * WORLD_SCALE, centre.y * WORLD_SCALE))
+	node.size = Vector3(sx, 260.0, sy) * WORLD_SCALE
 
 
-## Contact shadow under a standing thing. Not additive — a shadow that adds
-## light is a highlight.
+## Contact shadow under a standing thing. Not glowing — a shadow that emits light
+## is a highlight.
 func _shadow(key: String, centre: Vector2, width: float, alpha: float) -> void:
-	_decal("sh_" + key, centre, 0.0, width, width * 0.52, _blob_texture(),
-		Color(0.01, 0.01, 0.02, alpha), false)
+	_decal("sh_" + key, centre, 0.0, width, width * 0.62, _blob_texture(),
+		Color(0.02, 0.015, 0.03, alpha), false)
+
+
+## The aura, as a volume.
+##
+## A Field was the one skill in the game with NO visual at all: `_update_passives`
+## ticks `_damage_circle` at the captain's radius and appended nothing, so a
+## hundred and fifty units of standing damage were invisible and the player had
+## no way to know where the edge of their own aura was. The other passives fake
+## it by appending a circle every time they fire; a Field fires 1.8 times a
+## second and would have strobed.
+##
+## So it gets what it actually is: a soft cylinder of charged air around her,
+## plus a decal ring on the planking marking exactly where it stops. Both are
+## driven from `skill_stats` each frame, so a card that widens the field widens
+## the picture with no second place to change.
+func _sync_auras() -> void:
+	var index := 0
+	for skill in game.skills:
+		var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
+		if str(shape.get("kind", "")) != "aura":
+			continue
+		index += 1
+		var st: Dictionary = game.skill_stats(skill)
+		var radius := float(st.radius)
+		var tint: Color = SkyGearData.ELEMENTS[skill.element].color
+		var at: Vector2 = game.player.global_position
+		# the edge, on the deck
+		_decal("aura%d" % index, at, 0.0, radius * 2.0, radius * 2.0, _ring_texture(),
+			Color(tint.r, tint.g, tint.b, 0.42 + sin(_flicker * 2.6) * 0.08))
+		# and the air inside it
+		var key := "auravol%d" % index
+		_used[key] = true
+		var vol: MeshInstance3D = _volumes.get(key)
+		if vol == null:
+			vol = MeshInstance3D.new()
+			var cyl := CylinderMesh.new()
+			cyl.top_radius = 1.0
+			cyl.bottom_radius = 1.0
+			cyl.height = 1.0
+			cyl.radial_segments = 40
+			cyl.cap_top = false
+			cyl.cap_bottom = false
+			vol.mesh = cyl
+			var m := StandardMaterial3D.new()
+			m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+			m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+			m.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+			m.albedo_texture = _wall_texture()
+			m.disable_receive_shadows = true
+			## Only the FAR wall. You are standing inside this thing, so the near
+			## wall is between the camera and you — and drawn additively that
+			## bleached the captain and anyone next to her every time a Field was
+			## equipped. Culling the front faces leaves the boundary you are
+			## looking at and removes the one you are looking through.
+			m.cull_mode = BaseMaterial3D.CULL_FRONT
+			vol.material_override = m
+			vol.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+			add_child(vol)
+			_volumes[key] = vol
+		var mat: StandardMaterial3D = vol.material_override
+		mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.22)
+		vol.scale = Vector3(radius * WORLD_SCALE, 118.0 * WORLD_SCALE, radius * WORLD_SCALE)
+		vol.position = Vector3(at.x * WORLD_SCALE, 59.0 * WORLD_SCALE, at.y * WORLD_SCALE)
+	# a field that was dropped stops being drawn
+	for key in _volumes.keys():
+		if not _used.has(key):
+			var dead: MeshInstance3D = _volumes[key]
+			dead.queue_free()
+			_volumes.erase(key)
 
 
 func _sync_all() -> void:
 	if game.player != null and game.player.hp > 0.0:
 		_shadow("player", game.player.global_position, 96.0, 0.55)
-		_place("player", _player_texture(), game.player.global_position, 150.0)
-		_xray("player", game.player.global_position, 150.0, Color(1.0, 0.86, 0.42, 0.62))
+		if not _sync_captain():
+			_place("player", _player_texture(), game.player.global_position, 150.0)
+			_xray("player", game.player.global_position, 150.0, Color(1.0, 0.86, 0.42, 0.62))
 	for enemy in game.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
@@ -1076,23 +1211,25 @@ func _sync_all() -> void:
 	## the air and the deck is where you are.
 	for i in game.projectiles.size():
 		var b: Dictionary = game.projectiles[i]
+		var bid: int = int(b.get("id", i))
 		var col := Color("#ff6a4a")
 		var trail: Array = b.get("trail", [])
 		if trail.size() > 1:
 			var tail: Vector2 = trail[trail.size() - 1]
 			var span: Vector2 = b.position - tail
 			if span.length() > 4.0:
-				_decal("bt%d" % i, (b.position + tail) * 0.5, span.angle(),
+				_decal("bt%d" % bid, (b.position + tail) * 0.5, span.angle(),
 					span.length(), 20.0, _streak_texture(), Color(col.r, col.g, col.b, 0.45))
-		_shadow("b%d" % i, b.position, 40.0, 0.38)
-		_spark("b%d" % i, b.position, 60.0, 52.0, col)
+		_shadow("b%d" % bid, b.position, 40.0, 0.38)
+		_spark("b%d" % bid, b.position, 60.0, 52.0, col)
 
 	## Salvage on the deck, bobbing so it reads as a pickup and not as debris.
 	for i in game.salvage.size():
 		var s: Dictionary = game.salvage[i]
-		var bob: float = sin(_flicker * 3.4 + float(i) * 1.7) * 9.0
-		_shadow("s%d" % i, s.position, 56.0, 0.35)
-		_place("s%d" % i, _texture("res://assets/art/props/salvage_pile.png"),
+		var sid: int = int(s.get("id", i))
+		var bob: float = sin(_flicker * 3.4 + float(sid) * 1.7) * 9.0
+		_shadow("s%d" % sid, s.position, 56.0, 0.35)
+		_place("s%d" % sid, _texture("res://assets/art/props/salvage_pile.png"),
 			s.position, 62.0, bob)
 
 	## The Boiler's health, as a ring on the planking around it.
@@ -1143,6 +1280,116 @@ func _sync_all() -> void:
 		_shadow("hulk", game.hulk.position, 300.0, 0.5)
 		_place("hulk", _texture("res://assets/art/props/boarding_hulk_open.png"),
 			game.hulk.position, 420.0)
+
+
+## The captain, as an actual mesh.
+##
+## Every other figure on this deck is a painted billboard turned to face the
+## camera, which is what the browser could do and all it could do. She is the one
+## the player is looking at for the whole run, and she is the one who is
+## constantly turning: a billboard cannot show you which way you are facing, and
+## in a game where a Cleave that is aimed away from a boarder does nothing, which
+## way you are facing is a mechanic.
+##
+## Static mesh, no rig — so she does not walk, she turns. That is still strictly
+## more information than a picture that always faces you.
+## OFF until a rigged export lands.
+##
+## The Meshy OBJ in `assets/models/captain/` is a static, unrigged mesh: she can
+## turn but she cannot walk, swing or take a hit, and a figure that slides across
+## a deck in a fixed pose reads worse than the painted billboard it replaced —
+## the billboard at least has an artist's stance in it. `tools/pose_captain.py`
+## brought her out of the T-pose Meshy exports, which is the part worth keeping.
+##
+## The mesh itself lives in `reference/models/captain/`, which carries a
+## `.gdignore` so Godot never imports it — an unreferenced 9 MB model still ends
+## up inside the exe otherwise, and six megabytes of a build nobody can see is
+## six megabytes.
+##
+## Flip this to true, and move the model into `assets/models/captain/`, when
+## there is a rigged one with an idle. What the loader below wants is: Y up,
+## facing +Z at rest, roughly 1.8 units crown to sole, glTF/GLB so the skeleton
+## and the animations come with it.
+const USE_MESH_CAPTAIN := false
+const CAPTAIN_MODEL := "res://assets/models/captain/captain.obj"
+const CAPTAIN_HEIGHT := 172.0        ## ground units, feet to crown
+## Which way the model was authored facing, in radians about +Y. Meshy exports
+## are not consistent about this and it is a property of the file, not of us.
+const CAPTAIN_FACING := 0.0
+var _captain: MeshInstance3D
+var _captain_missing := false
+## Her own key light. A standard trick and the honest one: the hero of a dark
+## scene is lit for being the hero, not by whatever happens to be burning nearby.
+var _hero: OmniLight3D
+
+
+func _sync_captain() -> bool:
+	if not USE_MESH_CAPTAIN or _captain_missing:
+		return false
+	if _captain == null:
+		if not ResourceLoader.exists(CAPTAIN_MODEL):
+			_captain_missing = true
+			return false
+		var mesh: Mesh = load(CAPTAIN_MODEL)
+		if mesh == null:
+			_captain_missing = true
+			return false
+		_captain = MeshInstance3D.new()
+		_captain.mesh = mesh
+		_captain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+		## The OBJ ships albedo 0.8 grey over the texture, which is a Blender
+		## default and costs a fifth of the paint. And she is a LIT mesh standing
+		## among unshaded painted billboards, so without a rim she reads darker
+		## than every other figure on the deck no matter how the scene is graded.
+		var skin := StandardMaterial3D.new()
+		var source := mesh.surface_get_material(0)
+		if source is StandardMaterial3D:
+			skin.albedo_texture = (source as StandardMaterial3D).albedo_texture
+		if skin.albedo_texture == null:
+			skin.albedo_texture = _texture("res://assets/models/captain/captain_albedo.png")
+		skin.albedo_color = Color.WHITE
+		skin.roughness = 0.62
+		skin.metallic = 0.15
+		## A whisper of rim, not a halo. At 0.55 the Fresnel term covered most of
+		## a small figure seen at 41 degrees and bleached her to a cream
+		## silhouette — grazing angles are the majority of the surface at this
+		## camera, which is the opposite of the case rim lighting assumes.
+		skin.rim_enabled = true
+		skin.rim = 0.16
+		skin.rim_tint = 0.75
+		_captain.material_override = skin
+		add_child(_captain)
+		# scale so she stands CAPTAIN_HEIGHT tall whatever the file was exported at
+		var aabb := mesh.get_aabb()
+		var unit: float = maxf(0.001, aabb.size.y)
+		_captain.set_meta("scale", CAPTAIN_HEIGHT * WORLD_SCALE / unit)
+		_captain.set_meta("foot", -aabb.position.y)
+	var scale: float = float(_captain.get_meta("scale"))
+	var foot: float = float(_captain.get_meta("foot"))
+	var at: Vector2 = game.player.global_position
+	## She turns to her aim, not to the camera. `atan2(x, z)` rather than the
+	## usual `atan2(z, x)` because a yaw of zero looks down +Z.
+	var aim: Vector2 = game.player.aim_direction
+	if aim.length_squared() < 0.0001:
+		aim = Vector2(0, -1)
+	var yaw := atan2(aim.x, aim.y) + CAPTAIN_FACING
+	var basis := Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(scale, scale, scale))
+	_captain.transform = Transform3D(basis, Vector3(at.x * WORLD_SCALE,
+		foot * scale, at.y * WORLD_SCALE))
+	## The hero light lives OUTSIDE her transform. A light parented to a node
+	## scaled by 0.0097 has its range scaled by 0.0097 too, which is a two
+	## centimetre lamp.
+	if _hero == null:
+		_hero = OmniLight3D.new()
+		_hero.light_color = Color("#ffd9b0")
+		_hero.light_energy = 1.5
+		_hero.omni_range = 250.0 * WORLD_SCALE
+		_hero.omni_attenuation = 1.5
+		_hero.shadow_enabled = false
+		add_child(_hero)
+	_hero.position = Vector3(at.x * WORLD_SCALE, 150.0 * WORLD_SCALE,
+		(at.y + 90.0) * WORLD_SCALE)
+	return true
 
 
 ## One billboard per entity, pooled. `BILLBOARD_ENABLED` is what makes a flat
