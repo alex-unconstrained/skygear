@@ -33,6 +33,11 @@ func _new_game() -> SkyGearGame:
 	var scene: PackedScene = load("res://scenes/main.tscn")
 	var game: SkyGearGame = scene.instantiate()
 	root.add_child(game)
+	## Hit-stop off everywhere except where it is the thing being tested: it
+	## hands the simulation a smaller delta, so a check that advances three
+	## seconds would advance less depending on how many boarders died in them.
+	if game.impact != null:
+		game.impact.enabled = false
 	return game
 
 
@@ -841,6 +846,72 @@ func _view() -> void:
 	_check("aim", "a cast with no explicit target uses the cursor on the deck",
 		game.aim_target() == Vector2(120, -300), str(game.aim_target()))
 
+	## IMPACT. VFX-PLAN.md puts hit-stop at the top of the list: cheapest thing
+	## on it and the biggest single change to whether a hit reads as landing.
+	var punch := SkyGearImpact.new()
+	root.add_child(punch)
+	_check("impact", "a kill stops the simulation briefly",
+		punch.hit_stop(SkyGearImpact.STOP_KILL) and punch.stop_left > 0.0,
+		"%.3fs" % punch.stop_left)
+	_check("impact", "and the frame it ends on runs the remainder rather than dropping it",
+		is_equal_approx(punch.advance(SkyGearImpact.STOP_KILL + 0.01), 0.01))
+	## A Field ticking into six boarders is six stops a second, which is not
+	## feedback — it is a frame rate problem with a reason.
+	punch.reset()
+	_check("impact", "a small hit stops, then waits", punch.hit_stop(0.04))
+	_check("impact", "so clearing a horde cannot freeze the game",
+		not punch.hit_stop(0.04))
+	_check("impact", "but a big one always lands", punch.hit_stop(SkyGearImpact.STOP_KILL))
+	_check("impact", "and nothing freezes longer than the cap",
+		punch.hit_stop(9.0) and punch.stop_left <= SkyGearImpact.STOP_MAX,
+		"%.3fs" % punch.stop_left)
+
+	punch.reset()
+	punch.add_shake(9999.0)
+	_check("impact", "shake is capped, so a keg cannot throw the deck",
+		punch.shake <= SkyGearImpact.SHAKE_MAX, "%.1f units" % punch.shake)
+	var before_shake: float = punch.shake
+	for i in 30:
+		punch.advance(0.05)
+	_check("impact", "and it settles rather than being dragged back",
+		punch.shake < before_shake * 0.1, "%.2f -> %.2f" % [before_shake, punch.shake])
+	punch.enabled = false
+	_check("impact", "the harness can turn the whole thing off",
+		is_equal_approx(punch.advance(0.05), 0.05))
+	punch.queue_free()
+
+	## The particles and the light. Every performance problem this project has had
+	## was an unbounded collection, so what is asserted is the CAP, not the look.
+	_check("impact", "one particle system per element, not one per hit",
+		view._sparks.size() == SkyGearData.ELEMENTS.size(),
+		"%d systems for %d elements" % [view._sparks.size(), SkyGearData.ELEMENTS.size()])
+	_check("impact", "and the flash pool is fixed",
+		view._flashes.size() == SkyGearView3D.FLASH_POOL,
+		"%d lights" % view._flashes.size())
+	var systems_before: int = view._sparks.size()
+	var lights_before: int = view._flashes.size()
+	for i in 60:
+		view.impact_at(Vector2(i * 3, 0), "EMBER", 40.0)
+	_check("impact", "sixty hits in a frame create nothing new",
+		view._sparks.size() == systems_before and view._flashes.size() == lights_before,
+		"%d systems, %d lights" % [view._sparks.size(), view._flashes.size()])
+	## A bigger hit throws more, without rebuilding the system — which is the
+	## whole reason one system per element is enough.
+	view.impact_at(Vector2.ZERO, "FROST", 5.0)
+	var small: float = (view._sparks.FROST as GPUParticles3D).amount_ratio
+	view.impact_at(Vector2.ZERO, "FROST", 90.0)
+	var big: float = (view._sparks.FROST as GPUParticles3D).amount_ratio
+	_check("impact", "and a harder hit throws more of them",
+		big > small, "%.2f -> %.2f" % [small, big])
+	## Colour-blind players get nothing from a teal ring against an orange one.
+	## The light is a second channel that does not depend on hue.
+	var lit := 0
+	for light in view._flashes:
+		if light.light_energy > 0.0:
+			lit += 1
+	_check("impact", "a hit lights the deck as well as colouring it", lit > 0,
+		"%d of %d lit" % [lit, view._flashes.size()])
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY
@@ -927,6 +998,23 @@ func _view() -> void:
 	_check("audio", "and it comes back slower than it goes, so it does not pump",
 		SkyGearAudio.DUCK_RELEASE < SkyGearAudio.DUCK_ATTACK)
 	mixer.queue_free()
+
+	## Boarders take a mesh the moment one is ingested for their kind, and a
+	## painted billboard until then. Both paths always present, because the
+	## boarders will become models one at a time.
+	_check("view", "a model path is derived from the enemy kind",
+		SkyGearView3D.model_path("SCRAPPER") == "res://assets/models/scrapper/scrapper.tscn",
+		SkyGearView3D.model_path("SCRAPPER"))
+	_check("view", "and the captain's own model is where that rule says it is",
+		SkyGearView3D.model_path("CAPTAIN") == SkyGearView3D.CAPTAIN_SCENE)
+	var billboards := 0
+	for key in view._billboards.keys():
+		if str(key).begins_with("e"):
+			billboards += 1
+	_check("view", "with no boarder models yet, every boarder is still drawn",
+		billboards + view._rigs.size() >= game.enemy_count(),
+		"%d billboards, %d rigs, %d boarders"
+			% [billboards, view._rigs.size(), game.enemy_count()])
 
 	## The captain talks, and the lines are on disk.
 	_check("voice", "the line sheet is delivered",

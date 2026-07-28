@@ -142,6 +142,38 @@ supports — 24 named bones, `RightHand` among them.
 
 ## Order of work
 
+## DONE, 2026-07-28
+
+Items 1, 2 and 5 are in. `scripts/impact.gd` owns hit-stop and shake; the
+renderer owns the particles and the light.
+
+- **Hit-stop** at the browser's numbers (70 ms on a kill, 40 on a big hit) and
+  with its rule: a big hit always lands, small ones respect a refractory window
+  or a Field ticking into six boarders freezes the game six times a second. It
+  works by handing the simulation a smaller delta, **never** by touching
+  `Engine.time_scale` — a global scale also slows the animation blends, the music
+  and the voice, which is not a hit landing, it is the game skipping. Effects and
+  the renderer keep running through it, because a frozen explosion reads as a
+  crash.
+- **Shake** is added to the sway rather than replacing it, on two frequencies so
+  it does not read as a sine, capped so a keg cannot throw the deck, decaying
+  exponentially so it settles rather than being dragged back. Taking a hit shakes
+  harder than landing one.
+- **Impact particles**, one `GPUParticles3D` per element rather than one per hit
+  — forty boarders dying to a keg chain is forty systems otherwise, which is the
+  browser's audio-node leak with a different noun. `amount_ratio` scales the
+  burst by damage without rebuilding the system. Steam rises and scrap falls,
+  because that is the one thing a particle can say that a ring cannot.
+- **Element light flashes**, a pool of eight. Colour-blind players get nothing
+  from a teal ring against an orange one; a hit that lights the deck is a second
+  channel that does not depend on hue.
+
+Fourteen checks, and every one of them asserts a **cap** rather than a look:
+sixty hits in a frame create nothing new.
+
+Remaining: item 3 (bolt and chain ribbons), item 6 (weapon trail, wants the
+boarder meshes first), item 4 (volumetric fields, measure before committing).
+
 | # | Item | Answers | Cost | Do |
 | - | ---- | ------- | ---- | -- |
 | 1 | Impact particles | hit landed | ~200 ln | now |

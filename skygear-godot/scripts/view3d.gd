@@ -107,6 +107,11 @@ var _focus_set := false
 var _flicker := 0.0
 var _made: Dictionary = {}           ## generated textures, by key
 var _cloud_bands: Array[Dictionary] = []
+var _sparks: Dictionary = {}          ## element -> GPUParticles3D
+var _flashes: Array[OmniLight3D] = []
+var _flash_next := 0
+var _rigs: Dictionary = {}            ## key -> SkyGearRig3D, for anything with a model
+var _no_model: Dictionary = {}        ## kinds we have already looked for and not found
 var _stream: Array[MeshInstance3D] = []
 var _stream_v: PackedFloat32Array = PackedFloat32Array()
 var _stream_len: PackedFloat32Array = PackedFloat32Array()   ## length, width, per streak
@@ -127,6 +132,7 @@ func _ready() -> void:
 		# the HUD still draws over the fight, so it needs the lens we are using
 		if game.hud != null:
 			game.hud.view = self
+		game.view = self
 
 
 ## How far behind the captain the focus point sits, so she lands at STAND_FRAC.
@@ -382,6 +388,7 @@ func _build_world() -> void:
 	_build_boiler()
 
 	_build_airstream()
+	_build_impacts()
 
 	camera = Camera3D.new()
 	## Not a taste dial. The browser's focal length is 1320 quoted against a
@@ -396,6 +403,105 @@ func _build_world() -> void:
 	camera.current = true
 	add_child(camera)
 	_track_camera(1.0)
+
+
+## Impact particles and impact light, both pooled.
+##
+## VFX-PLAN.md, items 1 and 2. A hit currently produces a number and a ring, and
+## the number is the only thing that scales with damage. Everything needed is
+## already in `assets/art/fx/` and none of it was reachable: `ember_particle`,
+## `puff_steam`, `puff_smoke_dark` exist to be particles and were being used, at
+## most, as flat decals.
+##
+## ONE SYSTEM PER ELEMENT, not one per hit. Forty boarders dying to a keg chain
+## is forty systems otherwise, and that is the browser's audio-node leak with a
+## different noun. `amount_ratio` scales the burst by damage without rebuilding
+## the system, which is the difference between this being free and being a
+## stutter.
+const SPARK_CAP := 48
+const FLASH_POOL := 8
+
+func _build_impacts() -> void:
+	for element in SkyGearData.ELEMENTS.keys():
+		var tint: Color = SkyGearData.ELEMENTS[element].color
+		var node := GPUParticles3D.new()
+		node.amount = SPARK_CAP
+		node.lifetime = 0.55
+		node.one_shot = true
+		node.explosiveness = 1.0
+		node.emitting = false
+		node.local_coords = false
+		node.draw_order = GPUParticles3D.DRAW_ORDER_VIEW_DEPTH
+		var mesh := QuadMesh.new()
+		mesh.size = Vector2(22.0, 22.0) * WORLD_SCALE
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.albedo_texture = _art("ember", _spark_texture())
+		mat.albedo_color = Color(tint.r * 1.6, tint.g * 1.6, tint.b * 1.6, 1.0)
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh.material = mat
+		node.draw_pass_1 = mesh
+		var process := ParticleProcessMaterial.new()
+		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
+		process.emission_sphere_radius = 18.0 * WORLD_SCALE
+		process.direction = Vector3(0, 1, 0)
+		process.spread = 65.0
+		process.initial_velocity_min = 90.0 * WORLD_SCALE
+		process.initial_velocity_max = 320.0 * WORLD_SCALE
+		## Steam rises, scrap falls. The element decides which, because that is
+		## the one thing a particle can say that a ring cannot.
+		var lift: float = 40.0 if element == "STEAM" else -260.0
+		process.gravity = Vector3(0, lift * WORLD_SCALE, 0)
+		process.damping_min = 0.4
+		process.damping_max = 1.4
+		process.scale_min = 0.35
+		process.scale_max = 1.0
+		var curve := CurveTexture.new()
+		var ramp := Curve.new()
+		ramp.add_point(Vector2(0.0, 1.0))
+		ramp.add_point(Vector2(1.0, 0.0))
+		curve.curve = ramp
+		process.scale_curve = curve
+		node.process_material = process
+		node.layers = LAYER_FIGURES
+		add_child(node)
+		_sparks[element] = node
+
+	## And the light. Colour-blind players get nothing from a teal ring versus an
+	## orange one; a hit that LIGHTS THE DECK is a second channel that does not
+	## depend on hue at all.
+	for i in FLASH_POOL:
+		var light := OmniLight3D.new()
+		light.light_energy = 0.0
+		light.omni_range = 300.0 * WORLD_SCALE
+		light.omni_attenuation = 1.6
+		light.shadow_enabled = false
+		add_child(light)
+		_flashes.append(light)
+
+
+## A hit landed here, this hard, of this element.
+func impact_at(ground: Vector2, element: String, damage: float) -> void:
+	var node: GPUParticles3D = _sparks.get(element)
+	if node != null:
+		node.position = Vector3(ground.x * WORLD_SCALE, 48.0 * WORLD_SCALE,
+			ground.y * WORLD_SCALE)
+		## Scaled by the hit rather than by nothing. `amount_ratio` is the whole
+		## reason this can be one system: it changes the burst without rebuilding.
+		node.amount_ratio = clampf(0.25 + damage / 90.0, 0.2, 1.0)
+		node.restart()
+	if _flashes.is_empty():
+		return
+	var light: OmniLight3D = _flashes[_flash_next % _flashes.size()]
+	_flash_next += 1
+	var tint: Color = SkyGearData.ELEMENTS.get(element, {}).get("color", Color.WHITE)
+	light.light_color = tint
+	light.light_energy = clampf(1.4 + damage / 40.0, 1.4, 5.0)
+	light.position = Vector3(ground.x * WORLD_SCALE, 70.0 * WORLD_SCALE,
+		ground.y * WORLD_SCALE)
 
 
 ## Streaks of moving air, as objects in the world. Unshaded, additive, and each
@@ -959,6 +1065,11 @@ func _process(delta: float) -> void:
 	_sync_auras()
 	_sync_effects()
 	_sync_airstream(delta)
+	## The flashes fade. Ember lingers, Frost is instant — the decay carries the
+	## element as much as the colour does.
+	for light in _flashes:
+		if light.light_energy > 0.0:
+			light.light_energy = maxf(0.0, light.light_energy - delta * 11.0)
 	## The cloud bands drift across and wrap. Slower than the airstream by an
 	## order of magnitude, which is the parallax: the near thing races and the
 	## far thing crawls.
@@ -973,6 +1084,11 @@ func _process(delta: float) -> void:
 			var node: Sprite3D = _billboards[key]
 			node.queue_free()
 			_billboards.erase(key)
+	for key in _rigs.keys():
+		if not _used.has(key):
+			var rig: SkyGearRig3D = _rigs[key]
+			rig.queue_free()
+			_rigs.erase(key)
 	for key in _decals.keys():
 		if not _decals_used.has(key):
 			var node: Decal = _decals[key]
@@ -1012,8 +1128,12 @@ func _track_camera(delta: float) -> void:
 		_roll = sin(_flicker * 0.31) * 0.72 + sin(_flicker * 0.73) * 0.28
 		_yaw = sin(_flicker * 0.47)
 		heave = sin(_flicker * 0.58) * SWAY_HEAVE
-	camera.position = Vector3(_focus.x * WORLD_SCALE,
-		(CAM_HEIGHT + heave) * WORLD_SCALE,
+	## Shake is ADDED to the sway, never assigned over it. Two systems both
+	## writing the camera transform is two systems fighting, and the sway is the
+	## one the ship is doing.
+	var kick := game.impact.shake_offset() if game.impact != null else Vector2.ZERO
+	camera.position = Vector3((_focus.x + kick.x) * WORLD_SCALE,
+		(CAM_HEIGHT + heave + kick.y) * WORLD_SCALE,
 		(_focus.y + CAM_NEAR) * WORLD_SCALE)
 	camera.rotation = Vector3(-PITCH, deg_to_rad(SWAY_YAW * _yaw),
 		deg_to_rad(SWAY_ROLL * _roll))
@@ -1374,8 +1494,14 @@ func _sync_all(delta: float) -> void:
 		var swinging: bool = enemy.state == "windup" or enemy.state == "recover"
 		# a phase offset per boarder, or a lane of them marches in lockstep
 		var phase: float = float(enemy.get_instance_id() % 97) * 0.113
-		_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
-			enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
+		## A mesh if one has been ingested for this kind, the painted billboard
+		## if not. Both paths are always here: the boarders will become models
+		## one at a time, and the renderer should not need editing for each.
+		if not _sync_rig(key, enemy.kind, enemy.global_position, heading, height,
+				swinging, enemy.state == "move", enemy.velocity.length(),
+				maxf(0.0, enemy.state_time), delta):
+			_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
+				enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
 		# burning boarders glow; frozen ones go blue. The status is the read.
 		var node: Sprite3D = _billboards.get(key)
 		if node != null:
@@ -1566,6 +1692,45 @@ func _sync_captain(delta: float) -> bool:
 		add_child(_hero)
 	_hero.position = Vector3(player.global_position.x * WORLD_SCALE, 150.0 * WORLD_SCALE,
 		(player.global_position.y + 90.0) * WORLD_SCALE)
+	return true
+
+
+## Where an ingested model for a kind would live. `SCRAPPER` -> `scrapper`, and
+## `tools/models.json` writes to exactly that path, so adding a boarder model is
+## a manifest entry and an ingest run rather than a code change.
+static func model_path(kind: String) -> String:
+	var slug := kind.to_lower()
+	return "res://assets/models/%s/%s.tscn" % [slug, slug]
+
+
+## Drive a rigged figure, if this kind has one. Returns false when it does not,
+## so the caller falls back to the painted billboard.
+func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
+		height: float, attacking: bool, moving: bool, speed: float,
+		attack_clock: float, delta: float) -> bool:
+	if _no_model.has(kind):
+		return false
+	var rig: SkyGearRig3D = _rigs.get(key)
+	if rig == null:
+		var path := model_path(kind)
+		if not ResourceLoader.exists(path):
+			_no_model[kind] = true
+			return false
+		rig = SkyGearRig3D.new()
+		add_child(rig)
+		if not rig.setup(path, height * WORLD_SCALE, LAYER_FIGURES):
+			rig.queue_free()
+			_no_model[kind] = true
+			return false
+		_rigs[key] = rig
+	_used[key] = true
+	var doing := "idle"
+	if attacking:
+		doing = "swing"
+	elif moving and speed > 12.0:
+		doing = "run"
+	rig.want(doing, speed)
+	rig.place(ground, heading, WORLD_SCALE, delta)
 	return true
 
 

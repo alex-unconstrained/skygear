@@ -27,6 +27,14 @@ var audio: SkyGearAudio
 ## on top of a mechanical cue that already fires, so the layer is flavour and
 ## never information — see `scripts/voice.gd` for why that rule exists.
 var voice: SkyGearVoice
+## Hit-stop and shake. The one thing in this project allowed to scale time, and
+## it does it by handing the simulation a smaller delta rather than by touching
+## `Engine.time_scale` — a global scale also slows the animation blends, the
+## music and the voice, which is not a hit landing, it is the game skipping.
+var impact: SkyGearImpact
+## The 3D renderer, when it is the one drawing. Set by `SkyGearView3D` so the
+## simulation can tell it a hit happened without knowing anything else about it.
+var view: SkyGearView3D
 var _said_first_board := false
 var _said_boiler_low := false
 
@@ -141,6 +149,9 @@ func _ready() -> void:
 	audio = SkyGearAudio.new()
 	audio.name = "Audio"
 	add_child(audio)
+	impact = SkyGearImpact.new()
+	impact.name = "Impact"
+	add_child(impact)
 	voice = SkyGearVoice.new()
 	voice.name = "Voice"
 	voice.audio = audio
@@ -416,8 +427,15 @@ func _apply_rebind(event: InputEvent) -> void:
 
 
 func _process(delta: float) -> void:
+	## Effects and the renderer keep running through a hit-stop — a frozen frame
+	## with a frozen explosion on it reads as a crash, not as impact. Only the
+	## simulation stops.
 	_update_effects(delta)
 	if state != State.PLAY:
+		queue_redraw()
+		return
+	delta = impact.advance(delta)
+	if delta <= 0.0:
 		queue_redraw()
 		return
 	_update_cooldowns(delta)
@@ -1097,6 +1115,12 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 	var hit_at := enemy.global_position
 	var dealt := enemy.take_damage(scaled, origin, element, knock * float(mods.knock_multiplier))
 	var killed := enemy.dead or enemy.hp <= 0.0
+	if impact != null and dealt >= 1.0:
+		impact.note_hit(dealt, killed)
+		## And the picture of it. The renderer owns the particles; the simulation
+		## only says a hit of this size, of this element, landed here.
+		if view != null:
+			view.impact_at(hit_at, element, dealt)
 	if dealt >= 1.0:
 		# a lane cannon fires no element, so this cannot assume the table has one
 		var tint: Color = Color("#eee5d5")
@@ -1264,6 +1288,8 @@ func vent_pressure() -> void:
 	heal_player(float(SkyGearData.CLOSE.vent_heal) + float(mods.vent_heal), "vent")
 	tel.vents += 1
 	_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": radius, "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
+	if impact != null:
+		impact.note_explosion(7.0)
 	play_sfx("player/vent.ogg", -2.0)
 	if voice != null:
 		voice.say("vent")
@@ -1273,6 +1299,11 @@ func damage_player(amount: float, _source: String = "") -> void:
 		return
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
+		if impact != null:
+			## Taking one shakes harder than landing one. The browser does the
+			## same and it is the difference between a hit you notice and a
+			## health bar you notice afterwards.
+			impact.add_shake(4.5 + amount * 0.12)
 		add_floater("-%d" % roundi(amount), player.global_position, Color("#ff4d37"), true)
 		if voice != null and player.hp <= player.max_hp * 0.32 and player.hp > 0.0:
 			voice.say("hurt_low", 2)
@@ -1356,6 +1387,8 @@ func on_prop_destroyed(prop: SkyGearProp) -> void:
 func explode_keg(prop: SkyGearProp) -> void:
 	if voice != null:
 		voice.say("keg")
+	if impact != null:
+		impact.note_explosion(11.0)
 	var center := prop.global_position
 	_damage_circle(center, 175.0, 78.0, "STEAM", 380.0, false, false)
 	if center.distance_to(player.global_position) <= 192.0:

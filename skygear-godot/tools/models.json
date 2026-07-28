@@ -22,6 +22,17 @@
     "  facing      degrees about +Y the rig faces at rest. 0 means it faces +Z."
   ],
 
+  "_boarders": [
+    "Ready for models. Copy the captain entry, change the archive and the name,",
+    "and the renderer picks it up with no code change — it looks for",
+    "assets/models/<name>/<name>.tscn where <name> is the enemy kind in lower",
+    "case. The kinds are: scrapper, gunner, armored, swarm, boss, crew.",
+    "",
+    "Clips it will use, in the order it falls back: idle, run, swing. Anything",
+    "missing degrades — run to walk to idle — so a model with only an idle is",
+    "still an improvement on a billboard that never turns."
+  ],
+
   "captain": {
     "archive": "C:/Users/alexr/Downloads/Meshy_AI_Crimson_Gearbound_biped.zip",
     "rig": "*Animation_Idle_03*.fbx",
