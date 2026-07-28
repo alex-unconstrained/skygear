@@ -38,10 +38,15 @@ static func make_turrets(lane_centers: Array, base_y: float) -> Array[Dictionary
 	return out
 
 
-static func make_crew(lane: int, lane_centers: Array, base_y: float) -> Dictionary:
+## `rng` is the run's SEEDED stream, deliberately. This used the global
+## `randf_range`, so two runs on the same seed mustered their crew in different
+## places — a small thing that makes a seed not a seed.
+static func make_crew(lane: int, lane_centers: Array, base_y: float,
+		rng: RandomNumberGenerator = null) -> Dictionary:
+	var jitter: float = rng.randf_range(-40.0, 40.0) if rng != null else 0.0
 	return {
 		"lane": lane,
-		"position": Vector2(float(lane_centers[lane]) + randf_range(-40.0, 40.0), base_y + 120.0),
+		"position": Vector2(float(lane_centers[lane]) + jitter, base_y + 120.0),
 		"hp": CREW.hp, "max_hp": CREW.hp,
 		"state": "move", "state_time": 0.0,
 		"radius": CREW.radius, "flash": 0.0, "dead": false,

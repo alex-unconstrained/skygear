@@ -729,6 +729,66 @@ func _view() -> void:
 		any_decal != null and (any_decal.texture_emission == null
 			or any_decal.texture_emission != any_decal.texture_albedo))
 
+	## The figures. Every character was one image — `*_front_idle.png` — in every
+	## situation, with three authored views and four delivered cycles unreachable.
+	var facing_away: Dictionary = SkyGearSprites.view_for(Vector2(0, -1), false)
+	var facing_you: Dictionary = SkyGearSprites.view_for(Vector2(0, 1), false)
+	_check("sprites", "a figure walking up-deck shows you its back",
+		str(facing_away.view) == "back_idle" and str(facing_you.view) == "front_idle")
+	_check("sprites", "and mirrors rather than needing a second painting",
+		bool(SkyGearSprites.view_for(Vector2(1, 1), false).mirror)
+			and not bool(SkyGearSprites.view_for(Vector2(-1, 1), false).mirror))
+	_check("sprites", "a swing uses the attack view",
+		str(SkyGearSprites.view_for(Vector2(0, 1), true).view) == "front_attack")
+	_check("sprites", "every kind has art behind every view it claims",
+		_views_resolve(), "missing: %s" % _missing_views())
+
+	## The cycles. `frame` returning -1 is how an undelivered strip falls back to
+	## the still, and it has to keep doing that or the whole thing is a hard
+	## dependency on art that does not exist yet.
+	_check("sprites", "a delivered cycle advances",
+		SkyGearSprites.frame("hero_run", 0.0) != SkyGearSprites.frame("hero_run", 0.5),
+		"%d -> %d" % [SkyGearSprites.frame("hero_run", 0.0),
+			SkyGearSprites.frame("hero_run", 0.5)])
+	_check("sprites", "and stays inside its own strip",
+		SkyGearSprites.frame("hero_run", 99.0) < int(SkyGearSprites.STRIPS.hero_run.count),
+		"frame %d of %d" % [SkyGearSprites.frame("hero_run", 99.0),
+			int(SkyGearSprites.STRIPS.hero_run.count)])
+	_check("sprites", "a pingpong idle turns round rather than snapping",
+		SkyGearSprites.frame("hero_idle", 0.0) == 0
+			and SkyGearSprites.frame("hero_idle", 11.0 / 12.0) == 11
+			and SkyGearSprites.frame("hero_idle", 12.0 / 12.0) == 10)
+	_check("sprites", "an undelivered cycle falls back to the still, not to nothing",
+		SkyGearSprites.frame("BOSS_idle", 0.5) == -1
+			and SkyGearSprites.still("BOSS", "front_idle") != null)
+	_check("sprites", "and the outstanding list is honest",
+		SkyGearSprites.pending().size() == 14,
+		"%d cycles outstanding" % SkyGearSprites.pending().size())
+
+	## The captain is a rigged mesh now, and decals must not paint on her.
+	var mesh_captain: bool = SkyGearView3D.USE_MESH_CAPTAIN 		and ResourceLoader.exists(SkyGearView3D.CAPTAIN_SCENE)
+	_check("captain", "the rigged model is in the build", mesh_captain)
+	if mesh_captain:
+		var scene := (load(SkyGearView3D.CAPTAIN_SCENE) as PackedScene).instantiate()
+		var ap := scene.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		var clips := ap.get_animation_list() if ap != null else PackedStringArray()
+		_check("captain", "she has the clips the state machine asks for",
+			"idle" in clips and "run" in clips and "swing" in clips and "dash" in clips,
+			str(clips))
+		var unresolved := 0
+		for name in clips:
+			var anim: Animation = ap.get_animation(name)
+			for t in anim.get_track_count():
+				if anim.track_get_path(t).get_subname_count() > 0 						and not str(anim.track_get_path(t)).begins_with("Armature/Skeleton3D"):
+					unresolved += 1
+		_check("captain", "and every track points at the skeleton we kept",
+			unresolved == 0, "%d stray tracks" % unresolved)
+		_check("captain", "the scene carries no import-time dependency",
+			not _depends_on_staging(SkyGearView3D.CAPTAIN_SCENE))
+		scene.queue_free()
+	_check("captain", "figures are on their own visual layer, so decals stay on the deck",
+		SkyGearView3D.LAYER_FIGURES != SkyGearView3D.LAYER_WORLD)
+
 	## The captain talks, and the lines are on disk.
 	_check("voice", "the line sheet is delivered",
 		game.voice != null and game.voice.delivered() >= 60,
@@ -872,3 +932,26 @@ func _layout() -> void:
 	_check("layout", "the four skill slots stay clear of the captain's plate",
 		(floor_w - 128.0 * 4.0) * 0.5 > 374.0 - 0.0 or floor_w >= 1024.0,
 		"floor %d wide" % floor_w)
+
+
+func _views_resolve() -> bool:
+	return _missing_views() == ""
+
+
+func _missing_views() -> String:
+	var out: Array[String] = []
+	for kind in SkyGearSprites.VIEWS.keys():
+		for view in (SkyGearSprites.VIEWS[kind] as Dictionary).keys():
+			if SkyGearSprites.still(kind, view) == null:
+				out.append("%s/%s" % [kind, view])
+	return ", ".join(out)
+
+
+## Nothing in the shipped captain may point back at the import staging the FBXs
+## were unpacked into — that directory is deleted, and a dangling dependency
+## fails the whole resource with no captain and no obvious reason why.
+func _depends_on_staging(path: String) -> bool:
+	for dep in ResourceLoader.get_dependencies(path):
+		if dep.contains("import_staging"):
+			return true
+	return false

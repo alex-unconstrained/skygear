@@ -803,6 +803,7 @@ func cast_skill(index: int, aim_at = null) -> void:
 		_field({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
 			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
+	player.attack_time = 0.26
 	play_sfx(_shape_sound(skill.shape), -5.0)
 	src_slot = previous_src
 
@@ -1339,7 +1340,7 @@ func _update_crew(delta: float) -> void:
 		crew_timer = SkyGearLanes.CREW.push_every if pushing else SkyGearLanes.CREW.every
 		for lane in LANE_CENTERS.size():
 			for _i in int(SkyGearLanes.CREW.per_wave):
-				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y))
+				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y, rng))
 		play_sfx("lane/crew_muster.ogg", -10.0)
 		if voice != null:
 			voice.say("crew_muster")

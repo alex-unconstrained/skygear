@@ -41,6 +41,16 @@ const WORLD_SCALE := 0.01           ## ground units -> metres, so Godot's units 
 ## Cargo modules are tiled down a run rather than stretched over a box, which is
 ## what the browser does and the reason its crates read as lashed cargo instead
 ## of as a wall with a picture on it.
+## Visual layers. Layer 1 is the ship; layer 2 is anybody standing on it.
+##
+## Decals project onto whatever geometry is inside their box, which is the whole
+## point of them — and the captain, the crew and every boarder are inside those
+## boxes. A mortar ring was being painted across her chest, the aura washed the
+## crew to cream, and every contact shadow darkened the person standing on it.
+## Splitting the layers is the fix: a ring belongs on the deck.
+const LAYER_WORLD := 1
+const LAYER_FIGURES := 2
+
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
@@ -1041,7 +1051,7 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 	var node: Decal = _decals.get(key)
 	if node == null:
 		node = Decal.new()
-		node.cull_mask = 0xFFFFF
+		node.cull_mask = 0xFFFFF & ~LAYER_FIGURES
 		node.upper_fade = 0.1
 		node.lower_fade = 0.1
 		node.normal_fade = 0.0
@@ -1152,7 +1162,11 @@ func _sync_all() -> void:
 	if game.player != null and game.player.hp > 0.0:
 		_shadow("player", game.player.global_position, 96.0, 0.55)
 		if not _sync_captain():
-			_place("player", _player_texture(), game.player.global_position, 150.0)
+			_draw_figure("player", "hero", game.player.global_position,
+				game.player.aim_direction, 150.0,
+				game.player.attack_time > 0.0,
+				game.player.velocity.length() > 35.0 and game.player.dash_time_left <= 0.0,
+				game.run_time, game.player.attack_time)
 			_xray("player", game.player.global_position, 150.0, Color(1.0, 0.86, 0.42, 0.62))
 	for enemy in game.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy) or enemy.dead:
@@ -1161,7 +1175,17 @@ func _sync_all() -> void:
 		var height := 120.0 + float(config.get("radius", 22.0)) * 3.0
 		var key := "e%d" % enemy.get_instance_id()
 		_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
-		_place(key, _texture(str(config.get("texture", ""))), enemy.global_position, height)
+		## Boarders come DOWN the deck, so most of the time you are looking at
+		## their backs — which is the view the port never drew. They face you when
+		## they turn to swing, and that turn is the tell.
+		var heading: Vector2 = enemy.attack_direction
+		if enemy.state == "move" and enemy.velocity.length_squared() > 1.0:
+			heading = enemy.velocity
+		var swinging: bool = enemy.state == "windup" or enemy.state == "recover"
+		# a phase offset per boarder, or a lane of them marches in lockstep
+		var phase: float = float(enemy.get_instance_id() % 97) * 0.113
+		_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
+			enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
 		# burning boarders glow; frozen ones go blue. The status is the read.
 		var node: Sprite3D = _billboards.get(key)
 		if node != null:
@@ -1192,8 +1216,12 @@ func _sync_all() -> void:
 		if bool(c.dead):
 			continue
 		_shadow("c%d" % i, c.position, 74.0, 0.45)
-		_place("c%d" % i, _texture("res://assets/art/allies/crew_front_idle.png"),
-			c.position, 110.0)
+		## Crew push UP the deck, into the boarders, so they are almost always
+		## showing you their backs. Drawing them front-on made a line of allies
+		## look like it was retreating.
+		var busy: bool = str(c.get("state", "move")) != "move"
+		_draw_figure("c%d" % i, "CREW", c.position, Vector2(0, -1), 110.0,
+			busy, not busy, game.run_time + float(i) * 0.21, float(c.get("state_time", 0.0)))
 	for i in game.turrets.size():
 		var t: Dictionary = game.turrets[i]
 		var art := "res://assets/art/props/cannon_deck_destroyed.png" if bool(t.dead) \
@@ -1276,47 +1304,38 @@ func _sync_all() -> void:
 				Color(1.0, 0.56, 0.22, 0.34 * jitter) if warm
 				else Color(1.0, 0.72, 0.36, 0.24 * jitter))
 
-	if not game.hulk.is_empty() and not bool(game.hulk.dead):
+	## The hulk has three painted states and the port only ever drew one. Sealed
+	## while it is still grappling on, open while it is disgorging boarders,
+	## wrecked once you break it — which is the only feedback that breaking it
+	## did anything, since it stops existing in the simulation the same moment.
+	if not game.hulk.is_empty():
+		var broken: bool = bool(game.hulk.get("dead", false))
+		var vulnerable: bool = bool(game.hulk.get("vulnerable", true))
+		var art := "res://assets/art/props/boarding_hulk_destroyed.png" if broken \
+			else ("res://assets/art/props/boarding_hulk_open.png" if vulnerable
+				else "res://assets/art/props/boarding_hulk_sealed.png")
 		_shadow("hulk", game.hulk.position, 300.0, 0.5)
-		_place("hulk", _texture("res://assets/art/props/boarding_hulk_open.png"),
-			game.hulk.position, 420.0)
+		_place("hulk", _texture(art), game.hulk.position, 420.0)
 
 
-## The captain, as an actual mesh.
+## The captain, as a rigged, animated mesh.
 ##
 ## Every other figure on this deck is a painted billboard turned to face the
 ## camera, which is what the browser could do and all it could do. She is the one
-## the player is looking at for the whole run, and she is the one who is
-## constantly turning: a billboard cannot show you which way you are facing, and
-## in a game where a Cleave that is aimed away from a boarder does nothing, which
-## way you are facing is a mechanic.
+## the player looks at for a whole run and the one constantly turning: a
+## billboard cannot show which way you are facing, and in a game where a Cleave
+## aimed away from a boarder does nothing, which way you are facing is a mechanic.
 ##
-## Static mesh, no rig — so she does not walk, she turns. That is still strictly
-## more information than a picture that always faces you.
-## OFF until a rigged export lands.
-##
-## The Meshy OBJ in `assets/models/captain/` is a static, unrigged mesh: she can
-## turn but she cannot walk, swing or take a hit, and a figure that slides across
-## a deck in a fixed pose reads worse than the painted billboard it replaced —
-## the billboard at least has an artist's stance in it. `tools/pose_captain.py`
-## brought her out of the T-pose Meshy exports, which is the part worth keeping.
-##
-## The mesh itself lives in `reference/models/captain/`, which carries a
-## `.gdignore` so Godot never imports it — an unreferenced 9 MB model still ends
-## up inside the exe otherwise, and six megabytes of a build nobody can see is
-## six megabytes.
-##
-## Flip this to true, and move the model into `assets/models/captain/`, when
-## there is a rigged one with an idle. What the loader below wants is: Y up,
-## facing +Z at rest, roughly 1.8 units crown to sole, glTF/GLB so the skeleton
-## and the animations come with it.
-const USE_MESH_CAPTAIN := false
-const CAPTAIN_MODEL := "res://assets/models/captain/captain.obj"
-const CAPTAIN_HEIGHT := 172.0        ## ground units, feet to crown
-## Which way the model was authored facing, in radians about +Y. Meshy exports
-## are not consistent about this and it is a property of the file, not of us.
-const CAPTAIN_FACING := 0.0
-var _captain: MeshInstance3D
+## Six clips out of Meshy, retargeted onto one rig by `tools/build_captain.gd` —
+## see DESIGN.md 13f for why that step is not optional. The scene owns its mesh,
+## skin, skeleton, material and animation library, so no FBX ships.
+const USE_MESH_CAPTAIN := true
+const CAPTAIN_SCENE := "res://assets/models/captain/captain.tscn"
+const CAPTAIN_HEIGHT := 176.0        ## ground units, sole to crown
+var _captain: Node3D
+var _captain_anim: AnimationPlayer
+var _captain_scale := 1.0
+var _captain_clip := ""
 var _captain_missing := false
 ## Her own key light. A standard trick and the honest one: the hero of a dark
 ## scene is lit for being the hero, not by whatever happens to be burning nearby.
@@ -1327,59 +1346,59 @@ func _sync_captain() -> bool:
 	if not USE_MESH_CAPTAIN or _captain_missing:
 		return false
 	if _captain == null:
-		if not ResourceLoader.exists(CAPTAIN_MODEL):
+		if not ResourceLoader.exists(CAPTAIN_SCENE):
 			_captain_missing = true
 			return false
-		var mesh: Mesh = load(CAPTAIN_MODEL)
-		if mesh == null:
-			_captain_missing = true
-			return false
-		_captain = MeshInstance3D.new()
-		_captain.mesh = mesh
-		_captain.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-		## The OBJ ships albedo 0.8 grey over the texture, which is a Blender
-		## default and costs a fifth of the paint. And she is a LIT mesh standing
-		## among unshaded painted billboards, so without a rim she reads darker
-		## than every other figure on the deck no matter how the scene is graded.
-		var skin := StandardMaterial3D.new()
-		var source := mesh.surface_get_material(0)
-		if source is StandardMaterial3D:
-			skin.albedo_texture = (source as StandardMaterial3D).albedo_texture
-		if skin.albedo_texture == null:
-			skin.albedo_texture = _texture("res://assets/models/captain/captain_albedo.png")
-		skin.albedo_color = Color.WHITE
-		skin.roughness = 0.62
-		skin.metallic = 0.15
-		## A whisper of rim, not a halo. At 0.55 the Fresnel term covered most of
-		## a small figure seen at 41 degrees and bleached her to a cream
-		## silhouette — grazing angles are the majority of the surface at this
-		## camera, which is the opposite of the case rim lighting assumes.
-		skin.rim_enabled = true
-		skin.rim = 0.16
-		skin.rim_tint = 0.75
-		_captain.material_override = skin
+		## A HOLDER, and the scene inside it untouched. FBX measures in
+		## centimetres, so Godot bakes a hundredth into the imported root — and
+		## writing a transform onto that root, which is what a naive placement
+		## does, removes it. She rendered at one hundredth of a metre and could
+		## not be found on the deck.
+		_captain = Node3D.new()
 		add_child(_captain)
-		# scale so she stands CAPTAIN_HEIGHT tall whatever the file was exported at
-		var aabb := mesh.get_aabb()
-		var unit: float = maxf(0.001, aabb.size.y)
-		_captain.set_meta("scale", CAPTAIN_HEIGHT * WORLD_SCALE / unit)
-		_captain.set_meta("foot", -aabb.position.y)
-	var scale: float = float(_captain.get_meta("scale"))
-	var foot: float = float(_captain.get_meta("foot"))
+		var inner := (load(CAPTAIN_SCENE) as PackedScene).instantiate()
+		_captain.add_child(inner)
+		_captain_anim = inner.find_child("AnimationPlayer", true, false)
+		# how tall she actually is once every baked scale in the chain is applied
+		var tall := 1.0
+		for child in inner.find_children("*", "MeshInstance3D", true, false):
+			var mi := child as MeshInstance3D
+			mi.layers = LAYER_FIGURES
+			tall = maxf(tall, mi.get_aabb().size.y * mi.global_transform.basis.get_scale().y)
+		_captain_scale = CAPTAIN_HEIGHT * WORLD_SCALE / maxf(0.0001, tall)
 	var at: Vector2 = game.player.global_position
-	## She turns to her aim, not to the camera. `atan2(x, z)` rather than the
-	## usual `atan2(z, x)` because a yaw of zero looks down +Z.
+	## She turns to her aim, not to the camera. `atan2(x, y)` rather than the
+	## usual `atan2(y, x)` because a yaw of zero looks down +Z, which is where
+	## the rig faces at rest.
 	var aim: Vector2 = game.player.aim_direction
 	if aim.length_squared() < 0.0001:
 		aim = Vector2(0, -1)
-	var yaw := atan2(aim.x, aim.y) + CAPTAIN_FACING
-	var basis := Basis(Vector3(0, 1, 0), yaw).scaled(Vector3(scale, scale, scale))
-	_captain.transform = Transform3D(basis, Vector3(at.x * WORLD_SCALE,
-		foot * scale, at.y * WORLD_SCALE))
-	## The hero light lives OUTSIDE her transform. A light parented to a node
-	## scaled by 0.0097 has its range scaled by 0.0097 too, which is a two
-	## centimetre lamp.
+	var basis := Basis(Vector3(0, 1, 0), atan2(aim.x, aim.y)).scaled(
+		Vector3(_captain_scale, _captain_scale, _captain_scale))
+	_captain.transform = Transform3D(basis, Vector3(at.x * WORLD_SCALE, 0.0,
+		at.y * WORLD_SCALE))
+
+	## What she is doing, in the order it overrides. A swing beats a dash beats
+	## running, because the one you most need to see is the one that is about to
+	## damage something.
+	if _captain_anim != null:
+		var clip := "idle"
+		if game.player.attack_time > 0.0:
+			clip = "swing"
+		elif game.player.dash_time_left > 0.0:
+			clip = "dash"
+		elif game.player.velocity.length() > 35.0:
+			clip = "run"
+		if clip != _captain_clip and _captain_anim.has_animation(clip):
+			# a blend, so she does not snap between poses at every keypress
+			_captain_anim.play(clip, 0.14)
+			_captain_clip = clip
+		elif not _captain_anim.is_playing() and _captain_anim.has_animation(clip):
+			_captain_anim.play(clip)
+
 	if _hero == null:
+		## OUTSIDE her transform. A light parented to a node scaled by 0.009 has
+		## its range scaled by 0.009 too, which is a two centimetre lamp.
 		_hero = OmniLight3D.new()
 		_hero.light_color = Color("#ffd9b0")
 		_hero.light_energy = 1.5
@@ -1390,6 +1409,62 @@ func _sync_captain() -> bool:
 	_hero.position = Vector3(at.x * WORLD_SCALE, 150.0 * WORLD_SCALE,
 		(at.y + 90.0) * WORLD_SCALE)
 	return true
+
+
+## One figure: the right painted view, mirrored if it is heading right, running
+## its cycle if that cycle has been delivered.
+##
+## Everything about which picture and which frame lives in `SkyGearSprites`, so
+## this is only the part that is about being in a 3D scene. A cycle that has not
+## been delivered returns -1 and the still is used, which is why this could be
+## written before the art was.
+func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
+		height: float, attacking: bool, moving: bool, clock: float,
+		attack_clock: float) -> void:
+	var v: Dictionary = SkyGearSprites.view_for(heading, attacking)
+	var front: bool = v.front
+	## Front views only. The cycles are authored facing the camera; a figure
+	## walking away keeps its still, which is what the back view exists for.
+	var cycle := ""
+	if front:
+		if attacking:
+			cycle = "%s_attack" % kind
+		elif moving:
+			cycle = "%s_run" % kind
+		else:
+			cycle = "%s_idle" % kind
+	var time: float = attack_clock if attacking else clock
+	var index: int = SkyGearSprites.frame(cycle, time) if cycle != "" else -1
+	var texture: Texture2D = SkyGearSprites.strip(cycle) if index >= 0 \
+		else SkyGearSprites.still(kind, str(v.view))
+	if texture == null:
+		return
+	_used[key] = true
+	var node: Sprite3D = _billboards.get(key)
+	if node == null:
+		node = Sprite3D.new()
+		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		node.shaded = false
+		node.double_sided = true
+		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		node.layers = LAYER_FIGURES
+		add_child(node)
+		_billboards[key] = node
+	node.texture = texture
+	node.modulate = Color.WHITE
+	node.flip_h = bool(v.mirror)
+	var tall: float = float(texture.get_height())
+	if index >= 0:
+		var rect: Rect2 = SkyGearSprites.frame_rect(cycle, index, texture)
+		node.region_enabled = true
+		node.region_rect = rect
+		tall = rect.size.y
+	else:
+		node.region_enabled = false
+	node.pixel_size = height * WORLD_SCALE / maxf(1.0, tall)
+	node.position = Vector3(ground.x * WORLD_SCALE, height * WORLD_SCALE * 0.5,
+		ground.y * WORLD_SCALE)
 
 
 ## One billboard per entity, pooled. `BILLBOARD_ENABLED` is what makes a flat
@@ -1414,6 +1489,7 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 		node.double_sided = true
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		node.layers = LAYER_FIGURES
 		add_child(node)
 		_billboards[key] = node
 	node.texture = texture
@@ -1446,6 +1522,7 @@ func _spark(key: String, ground: Vector2, height: float, size: float, colour: Co
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		node.material_override = mat
+		node.layers = LAYER_FIGURES
 		add_child(node)
 		_billboards[key] = node
 	if node.material_override is StandardMaterial3D:
@@ -1534,6 +1611,7 @@ func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> vo
 		ghost.shaded = false
 		ghost.double_sided = true
 		ghost.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		ghost.layers = LAYER_FIGURES
 		ghost.no_depth_test = true
 		ghost.render_priority = 8
 		add_child(ghost)

@@ -22,6 +22,11 @@ var controls_enabled := false
 var dash_charges := MAX_DASH_CHARGES
 var dash_recharge_left := 0.0
 var dash_time_left := 0.0
+## How long she is still mid-swing, for the renderer. A cast is instantaneous in
+## the simulation and has to last long enough to be a picture — the attack view
+## and the swing cycle both key off this, and without it she casts six times a
+## second while standing perfectly still.
+var attack_time := 0.0
 var dash_direction := Vector2.UP
 var invulnerability_left := 0.0
 var dash_serial := 0
@@ -36,6 +41,7 @@ func reset_for_run() -> void:
 	dash_charges = MAX_DASH_CHARGES
 	dash_recharge_left = 0.0
 	dash_time_left = 0.0
+	attack_time = 0.0
 	invulnerability_left = 0.0
 	velocity = Vector2.ZERO
 	global_position = Vector2(0, 720)
@@ -53,6 +59,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
+	attack_time = maxf(0.0, attack_time - delta)
 	if dash_time_left > 0.0:
 		dash_time_left -= delta
 		velocity = dash_direction * DASH_SPEED
