@@ -78,6 +78,18 @@ const PROP_LAYOUT := [
 	{"type": "rope", "position": Vector2(60, -520)},
 	{"type": "rope", "position": Vector2(-155, 300)},
 	{"type": "lantern", "position": Vector2(620, -420)},
+	# the ship itself: a mast amidships, hatches, the rail, a vent, the ballista
+	{"type": "mast", "position": Vector2(0, -180)},
+	{"type": "hatch", "position": Vector2(-250, 520)},
+	{"type": "hatch", "position": Vector2(300, -740)},
+	{"type": "vent", "position": Vector2(-680, 620)},
+	{"type": "vent", "position": Vector2(700, 120)},
+	{"type": "ballista", "position": Vector2(-700, -820)},
+	{"type": "ballista", "position": Vector2(700, -820)},
+	{"type": "railing", "position": Vector2(-780, -300)},
+	{"type": "railing", "position": Vector2(-780, 240)},
+	{"type": "railing", "position": Vector2(780, -300)},
+	{"type": "railing", "position": Vector2(780, 240)},
 ]
 
 static func skill_name(skill: Dictionary) -> String:

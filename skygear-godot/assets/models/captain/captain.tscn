@@ -4,12 +4,16 @@
 [ext_resource type="Skin" path="res://assets/models/captain/captain_skin.res" id="2_hxr0o"]
 [ext_resource type="AnimationLibrary" path="res://assets/models/captain/captain_anims.res" id="3_mp0p4"]
 
-[node name="Captain" type="Node3D" unique_id=184698157]
+[node name="Captain" type="Node3D" unique_id=1470200662]
+metadata/model_height = 1.9215302
+metadata/target_height = 176.0
+metadata/facing_degrees = 0.0
+metadata/clips = PackedStringArray("dash", "idle", "idle_alt", "run", "swing", "walk")
 
-[node name="Armature" type="Node3D" parent="." unique_id=1954821696]
+[node name="Armature" type="Node3D" parent="." unique_id=857565591]
 transform = Transform3D(1, 0, 0, 0, 0, 1, 0, -1, 0, 0, 0, 0)
 
-[node name="Skeleton3D" type="Skeleton3D" parent="Armature" unique_id=2133085728]
+[node name="Skeleton3D" type="Skeleton3D" parent="Armature" unique_id=1981272742]
 bones/0/name = "Hips"
 bones/0/parent = -1
 bones/0/rest = Transform3D(-0.38914344, 0.9194329, -0.056666084, -0.9013125, -0.39273655, -0.18274178, -0.19027364, -0.020038895, 0.9815267, 0.0139691355, -0.06501147, 0.97729105)
@@ -179,10 +183,10 @@ bones/23/position = Vector3(0.002628712, 0.053401984, 0.15590473)
 bones/23/rotation = Quaternion(0.5812936, 1.728413e-07, -0.009800322, 0.8136349)
 bones/23/scale = Vector3(0.9999998, 1.0000004, 1.0000005)
 
-[node name="char1" type="MeshInstance3D" parent="Armature/Skeleton3D" unique_id=1403433955]
+[node name="char1" type="MeshInstance3D" parent="Armature/Skeleton3D" unique_id=1501590057]
 mesh = ExtResource("1_1w7yq")
 skin = ExtResource("2_hxr0o")
 skeleton = NodePath("..")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=225866844]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=199348101]
 libraries/ = ExtResource("3_mp0p4")

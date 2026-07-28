@@ -49,6 +49,7 @@ func _draw() -> void:
 
 func _draw_title() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+	_banner(size.x * 0.5, 104.0, 600.0)
 	_center_text("SKYGEAR", 150.0, 64, Color("#e8c376"))
 	_center_text("STORM-DUSK · GODOT PORT", 205.0, 24, Color("#37f0c8"))
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
@@ -98,10 +99,47 @@ func _tex(path: String) -> Texture2D:
 	return _tex_cache[path]
 
 
-## A brass plate: dark fill, hard ink edge, a brass inlay inside it, a rivet in
-## each corner. Every panel is this, which is what makes them read as one
-## instrument rather than four boxes.
-func _panel(rect: Rect2) -> void:
+## Nine-slice, by hand.
+##
+## Godot's `draw_texture_rect_region` cannot nine-slice and `NinePatchRect` is a
+## node rather than something you can call from `_draw`. So: corners at their
+## authored size, edges stretched on one axis, middle on both. Nine calls.
+##
+## This is what lets one 512x256 painted plate be a 350-wide captain panel, a
+## 348-wide ship panel and a 120-wide skill slot without the rivets smearing —
+## which is the whole reason the HUD art is authored as housings rather than as
+## one image per panel.
+func _nine(texture: Texture2D, rect: Rect2, margin: float) -> void:
+	var t := texture.get_size()
+	var m: float = minf(margin, minf(t.x, t.y) * 0.45)
+	var inner: float = maxf(1.0, m)
+	## source columns/rows, then destination columns/rows
+	var sx := [0.0, inner, t.x - inner, t.x]
+	var sy := [0.0, inner, t.y - inner, t.y]
+	## The destination corners never scale below their own size, or a narrow
+	## panel eats its own frame.
+	var dm: float = minf(inner, minf(rect.size.x, rect.size.y) * 0.45)
+	var dx := [rect.position.x, rect.position.x + dm, rect.end.x - dm, rect.end.x]
+	var dy := [rect.position.y, rect.position.y + dm, rect.end.y - dm, rect.end.y]
+	for row in 3:
+		for col in 3:
+			var src := Rect2(sx[col], sy[row], sx[col + 1] - sx[col], sy[row + 1] - sy[row])
+			var dst := Rect2(dx[col], dy[row], dx[col + 1] - dx[col], dy[row + 1] - dy[row])
+			if src.size.x <= 0.0 or src.size.y <= 0.0 or dst.size.x <= 0.0 or dst.size.y <= 0.0:
+				continue
+			draw_texture_rect_region(texture, dst, src)
+
+
+## A brass plate. The painted housing if it has been delivered, otherwise the
+## code-drawn approximation of one — dark fill, hard ink edge, brass inlay,
+## rivet in each corner. Both are the same shape, so the layout does not move
+## when the art lands. docs/HUD-PLAN.md is the brief.
+func _panel(rect: Rect2, slot: bool = false) -> void:
+	var plate := _tex("res://assets/art/ui/plate_slot.png" if slot
+		else "res://assets/art/ui/plate_wide.png")
+	if plate != null:
+		_nine(plate, rect, 48.0)
+		return
 	draw_rect(rect, PANEL_FILL)
 	draw_rect(rect, Color("#0d0b12"), false, 5.0)
 	draw_rect(rect.grow(-4.0), BRASS, false, 2.0)
@@ -111,11 +149,74 @@ func _panel(rect: Rect2) -> void:
 		draw_circle(corner, 2.6, BRASS)
 
 
+## A big plate, for the screens that are one panel rather than five.
+func _sheet(rect: Rect2) -> void:
+	_panel(rect)
+
+
+## The title banner.
+##
+## `frame_hud.png` is 1024x256 with its art in a 391x117 patch — it is a wide
+## banner with a lot of empty sheet around it, not a border. Stretched over a
+## panel it drew a small ornament floating in the middle of nothing, which is
+## what happens when you use an asset for the thing its filename suggests
+## instead of the thing its pixels are.
+const BANNER_REGION := Rect2(316, 0, 391, 117)
+
+
+func _banner(centre_x: float, y: float, width: float) -> void:
+	var plate := _tex("res://assets/art/ui/frame_hud.png")
+	if plate == null:
+		return
+	var height: float = width * BANNER_REGION.size.y / BANNER_REGION.size.x
+	draw_texture_rect_region(plate,
+		Rect2(centre_x - width * 0.5, y, width, height), BANNER_REGION,
+		Color(1, 1, 1, 0.9))
+
+
+## THE HUD LIVES ALONG THE BOTTOM.
+##
+## It used to sit in the top corners, and the top of the frame is where boarders
+## come from — the objective plate and the lane readout were covering the two
+## hundred pixels of deck a player most needs to watch. Everything is now in one
+## band across the bottom, which is the half of the screen the captain is
+## already looking at and the half nothing arrives from.
+##
+## Three clusters, all sharing a baseline: her on the left, her hand in the
+## middle, the ship on the right.
+const HUD_MARGIN := 24.0
+const HUD_BASE := 24.0               ## gap from the bottom edge
+const SLOT_W := 128.0
+
+
+## Where each cluster sits, given the window. One place, because the layout
+## matrix in the harness asserts against exactly these rectangles and a second
+## copy of the arithmetic is a second copy that can be wrong.
+static func hud_plates(view: Vector2) -> Dictionary:
+	var slots_w: float = SLOT_W * 4.0
+	var slots_x: float = (view.x - slots_w) * 0.5
+	var base: float = view.y - HUD_BASE
+	## The side plates take what is left after the hand, rather than a fixed
+	## width that happens to fit one monitor. Three clusters at their preferred
+	## sizes want 1258 pixels; below that they either shrink or they overlap, and
+	## a HUD that overlaps itself on a 1152-wide window is a bug rather than a
+	## hardware requirement.
+	var side: float = clampf((view.x - slots_w) * 0.5 - HUD_MARGIN * 2.0, 250.0, 350.0)
+	var out := {
+		"captain": Rect2(HUD_MARGIN, base - 112.0, side, 112.0),
+		"ship": Rect2(view.x - HUD_MARGIN - side, base - 152.0, side, 152.0),
+	}
+	for i in 4:
+		out["slot%d" % i] = Rect2(slots_x + i * SLOT_W, base - 96.0, SLOT_W - 8.0, 96.0)
+	return out
+
+
 func _draw_game_hud() -> void:
 	var player: SkyGearPlayer = game.player
+	var plates := hud_plates(size)
 
 	## --- the captain: portrait, health, pressure, dash ---------------------
-	var panel := Rect2(24, 20, 350, 112)
+	var panel: Rect2 = plates.captain
 	_panel(panel)
 	var portrait := _tex("res://assets/art/ui/portrait_corsair.png")
 	var pr := 34.0
@@ -123,7 +224,14 @@ func _draw_game_hud() -> void:
 	if portrait != null:
 		draw_texture_rect_region(portrait, Rect2(centre - Vector2(pr, pr), Vector2(pr * 2, pr * 2)),
 			Rect2(Vector2.ZERO, portrait.get_size()))
-	draw_arc(centre, pr + 2.0, 0.0, TAU, 40, BRASS, 2.4)
+	## The painted bezel, which is what `gauge_ring.png` is for and had never
+	## been drawn — a hand-painted brass ring beats `draw_arc` at any radius.
+	var bezel := _tex("res://assets/art/ui/gauge_ring.png")
+	if bezel != null:
+		draw_texture_rect(bezel, Rect2(centre - Vector2(pr + 9, pr + 9),
+			Vector2(pr + 9, pr + 9) * 2.0), false, BRASS_LIT)
+	else:
+		draw_arc(centre, pr + 2.0, 0.0, TAU, 40, BRASS, 2.4)
 
 	var bx := panel.position.x + 24 + pr * 2 + 12
 	var bw := panel.size.x - (bx - panel.position.x) - 18
@@ -159,28 +267,28 @@ func _draw_game_hud() -> void:
 		draw_circle(pip, 7.0, Color("#37f0c8") if lit else Color("#201c28"))
 		draw_arc(pip, 7.0, 0.0, TAU, 16, Color("#0d0b12"), 2.0)
 
-	## --- the objective ------------------------------------------------------
-	var right := Rect2(size.x - 372, 20, 348, 92)
+	## --- the ship: the objective and the three lanes, one plate -------------
+	## They were two plates stacked in the top-right corner. Together they are
+	## one answer to one question — how is the ship doing — so they are one
+	## plate, and the corner they were in is now deck you can see.
+	var right: Rect2 = plates.ship
 	_panel(right)
-	_bar(Rect2(right.position.x + 18, right.position.y + 30, right.size.x - 36, 18),
+	_bar(Rect2(right.position.x + 18, right.position.y + 28, right.size.x - 36, 18),
 		game.boiler_hp / game.boiler_max_hp, Color("#37f0c8"), Color("#1c6f61"),
 		"BOILER", "%d / %d" % [game.boiler_hp, game.boiler_max_hp])
-	draw_string(font, right.position + Vector2(18, 76),
-		"WAVE %d / 12" % game.wave, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, BRASS_LIT)
-	draw_string(font, right.position + Vector2(right.size.x - 158, 76),
-		"BOARDERS %d" % game.enemy_count(), HORIZONTAL_ALIGNMENT_LEFT, -1, 17, BONE)
+	draw_string(font, right.position + Vector2(18, 68),
+		"WAVE %d / 12" % game.wave, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, BRASS_LIT)
+	draw_string(font, right.position + Vector2(right.size.x - 152, 68),
+		"BOARDERS %d" % game.enemy_count(), HORIZONTAL_ALIGNMENT_LEFT, -1, 16, BONE)
 
-	## --- the lane readout ---------------------------------------------------
 	## Which lane is breaking, without having to look at it: three tracks, the
 	## cannon still standing in each drawn as its remaining health, and the
 	## deepest boarder marked on it.
-	var lanes := Rect2(size.x - 372, 122, 348, 92)
-	_panel(lanes)
 	var names := ["PORT", "CENTRE", "STARBOARD"]
 	for lane in 3:
-		var row := lanes.position + Vector2(18, 30 + lane * 22)
-		draw_string(font, row, names[lane], HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#8b8296"))
-		var track := Rect2(row + Vector2(84, -9), Vector2(lanes.size.x - 130, 11))
+		var row := right.position + Vector2(18, 94 + lane * 20)
+		draw_string(font, row, names[lane], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#8b8296"))
+		var track := Rect2(row + Vector2(78, -8), Vector2(right.size.x - 124, 10))
 		draw_rect(track, Color("#0b0910"))
 		var gate: Dictionary = game.turret_in_lane(lane)
 		if not gate.is_empty():
@@ -200,49 +308,61 @@ func _draw_game_hud() -> void:
 			var marker := track.position + Vector2(track.size.x * deepest, 0)
 			draw_rect(Rect2(marker - Vector2(2, 3), Vector2(4, track.size.y + 6)),
 				Color("#ff4d37") if deepest > 0.72 else Color("#ffb347"))
-		draw_rect(track, Color("#0d0b12"), false, 1.6)
-		draw_string(font, row + Vector2(lanes.size.x - 40, 0), str(count),
-			HORIZONTAL_ALIGNMENT_RIGHT, 26, 12, BONE)
+		draw_rect(track, Color("#0d0b12"), false, 1.4)
+		draw_string(font, row + Vector2(right.size.x - 38, 0), str(count),
+			HORIZONTAL_ALIGNMENT_RIGHT, 24, 11, BONE)
 
 	## --- the hand -----------------------------------------------------------
 	var labels := ["LMB", "RMB", "Q", "E"]
-	var slot_w := 128.0
-	var start_x := (size.x - slot_w * 4.0) * 0.5
 	for i in 4:
-		var rect := Rect2(start_x + i * slot_w, size.y - 104, slot_w - 8, 86)
-		_panel(rect)
+		var rect: Rect2 = plates["slot%d" % i]
+		_panel(rect, true)
 		draw_string(font, rect.position + Vector2(10, 20), labels[i],
 			HORIZONTAL_ALIGNMENT_LEFT, -1, 13, BRASS_LIT)
 		if i >= game.skills.size():
-			draw_string(font, rect.position + Vector2(10, 54), "LOCKED",
+			draw_string(font, rect.position + Vector2(10, 58), "LOCKED",
 				HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("#5f5863"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
 		var icon := _tex(str(SLOT_ICONS.get(skill.shape, "")))
-		var icon_at := rect.position + Vector2(rect.size.x * 0.5 - 18, 24)
+		var icon_at := rect.position + Vector2(rect.size.x * 0.5 - 19, 24)
 		if icon != null:
-			draw_texture_rect_region(icon, Rect2(icon_at, Vector2(36, 36)),
+			draw_texture_rect_region(icon, Rect2(icon_at, Vector2(38, 38)),
 				Rect2(Vector2.ZERO, icon.get_size()), element)
 		var ready: bool = float(skill.cooldown_left) <= 0.0
 		if not ready:
 			# the cooldown eats the icon from the bottom, as it does in the browser
 			var st: Dictionary = game.skill_stats(skill)
 			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)), 0.0, 1.0)
-			draw_rect(Rect2(icon_at + Vector2(0, 36.0 * (1.0 - frac)), Vector2(36, 36.0 * frac)),
+			draw_rect(Rect2(icon_at + Vector2(0, 38.0 * (1.0 - frac)), Vector2(38, 38.0 * frac)),
 				Color(0.04, 0.03, 0.06, 0.72))
-		draw_string(font, rect.position + Vector2(6, rect.size.y - 10),
+		draw_string(font, rect.position + Vector2(6, rect.size.y - 12),
 			SkyGearData.skill_name(skill), HORIZONTAL_ALIGNMENT_CENTER, rect.size.x - 12, 12,
 			element if ready else Color("#7f7782"))
 
 
 func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, value: String) -> void:
-	draw_rect(rect, Color("#0b0910"))
 	var filled := Rect2(rect.position, Vector2(rect.size.x * clampf(ratio, 0.0, 1.0), rect.size.y))
-	draw_rect(filled, top)
-	draw_rect(Rect2(filled.position + Vector2(0, filled.size.y * 0.55),
-		Vector2(filled.size.x, filled.size.y * 0.45)), bottom)
-	draw_rect(rect, Color("#0d0b12"), false, 2.4)
+	var housing := _tex("res://assets/art/ui/bar_housing.png")
+	var fill := _tex("res://assets/art/ui/bar_fill_cold.png" if top.g > top.r
+		else "res://assets/art/ui/bar_fill_hot.png")
+	if housing != null:
+		_nine(housing, rect, 22.0)
+		if fill != null and filled.size.x > 1.0:
+			## Clipped, not scaled: the band is authored even along its length so
+			## it can be cut anywhere, and stretching it would smear the lit edge.
+			var cut: float = filled.size.x / maxf(1.0, rect.size.x) * fill.get_width()
+			draw_texture_rect_region(fill, filled.grow(-3.0),
+				Rect2(0, 0, cut, fill.get_height()), Color(top.r, top.g, top.b, 0.95))
+		elif filled.size.x > 1.0:
+			draw_rect(filled.grow(-3.0), top)
+	else:
+		draw_rect(rect, Color("#0b0910"))
+		draw_rect(filled, top)
+		draw_rect(Rect2(filled.position + Vector2(0, filled.size.y * 0.55),
+			Vector2(filled.size.x, filled.size.y * 0.45)), bottom)
+		draw_rect(rect, Color("#0d0b12"), false, 2.4)
 	# segment ticks, capped: a bar with sixty ticks is a bar
 	var segments: int = clampi(int(rect.size.x / 26.0), 1, 12)
 	for i in range(1, segments):
@@ -326,11 +446,10 @@ func _draw_world_overlay() -> void:
 			continue
 		# the plate is pinned inside the frame when the head is not, but never on
 		# top of the captain's own panel
-		var at := Vector2(head.at.x, maxf(head.at.y, 26.0))
-		if at.x < 400.0 and at.y < 150.0:
-			at.y = maxf(at.y, 150.0)
-		elif at.x > size.x - 400.0 and at.y < 230.0:
-			at.y = maxf(at.y, 230.0)
+		## Clamped to the top edge only. With the HUD along the bottom there is
+		## nothing up there to collide with any more, which is the entire point
+		## of having moved it.
+		var at := Vector2(head.at.x, maxf(head.at.y, 20.0))
 		var wide: float = 78.0 if enemy.kind == "BOSS" else (48.0 if elite else 34.0)
 		if enemy.hp < enemy.max_hp or elite:
 			var bar := Rect2(at - Vector2(wide * 0.5, 0.0), Vector2(wide, 5.0))
@@ -371,9 +490,24 @@ func _draw_world_overlay() -> void:
 				- SkyGearGame.DECK_RECT.position.y) / SkyGearGame.DECK_RECT.size.y, 0.0, 1.0))
 		if worst > 0.80:
 			var x: float = size.x * (0.24 + lane * 0.26)
-			draw_string(font, Vector2(x - 130.0, size.y * 0.30 + lane * 24.0),
+			draw_string(font, Vector2(x - 130.0, size.y * 0.22 + lane * 24.0),
 				"%s LANE BREAKING" % LANE_NAMES[lane], HORIZONTAL_ALIGNMENT_CENTER, 260, 18,
 				Color("#ff4d37"))
+
+	## Salvage on the deck, marked. It heals you and it times out, and until now
+	## the only sign of it was a small pile of scrap among a lot of small piles
+	## of scrap.
+	var scrap_icon := _tex("res://assets/art/ui/icon_salvage.png")
+	if scrap_icon != null:
+		for sc in game.salvage:
+			var mark := _to_screen(Vector2(sc.position), 96.0)
+			if not mark.ok or not frame.has_point(mark.at):
+				continue
+			var bob: float = sin(float(sc.time) * 4.0) * 3.0
+			var fade: float = clampf(float(sc.time) / 3.0, 0.25, 1.0)
+			draw_texture_rect(scrap_icon,
+				Rect2(mark.at + Vector2(-11, -11 + bob), Vector2(22, 22)), false,
+				Color(0.22, 0.94, 0.78, fade))
 
 	## Numbers leaving bodies.
 	for f in game.floaters:
@@ -419,6 +553,7 @@ func _edge_marker(toward: Vector2, inset: Rect2, colour: Color) -> void:
 
 func _draw_draft() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.78))
+	_banner(size.x * 0.5, 88.0, 420.0)
 	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
 	_center_text("Every weapon is a shape crossed with an element.", 158.0, 18, Color("#b9afaa"))
 	# reroll: two per RUN, so spending one is a decision about which hand
@@ -505,7 +640,8 @@ func _draw_draft() -> void:
 func _draw_keys() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.92))
 	var sheet := Rect2(size.x * 0.5 - 300.0, 70.0, 600.0, 480.0)
-	_panel(sheet)
+	_sheet(sheet)
+	_banner(size.x * 0.5, 84.0, 420.0)
 	_center_text("CONTROLS", 124.0, 38, BRASS_LIT)
 	_center_text("press a number to rebind that row", 154.0, 15, Color("#8b8296"))
 	var y := sheet.position.y + 112.0
@@ -571,7 +707,8 @@ func _draw_results(title: String, tint: Color) -> void:
 	## Sized to the report rather than to the window. A fixed plate left three
 	## hundred pixels of empty brass under a twelve-line run, which reads as a
 	## screen that failed to load something.
-	_panel(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0, minf(size.y - 104.0, tall + 232.0)))
+	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0, minf(size.y - 104.0, tall + 232.0)))
+	_banner(size.x * 0.5, 62.0, 520.0)
 	_center_text(title, 110.0, 52, tint)
 	if game.end_reason != "":
 		_center_text(game.end_reason, 146.0, 18, Color("#b9afaa"))

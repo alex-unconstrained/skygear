@@ -16,6 +16,15 @@ const TEXTURES := {
 	"brazier": "res://assets/art/props/brazier.png",
 	"crates": "res://assets/art/props/crate_stack.png",
 	"rope": "res://assets/art/props/rope_coil.png",
+	## Dressing that had art and no way onto the deck. None of it is targetable;
+	## it is here because a working ship has a mast, a hatch, a rail and a vent,
+	## and a deck with only the things you can blow up on it reads as a test bed.
+	"mast": "res://assets/art/props/mast_section.png",
+	"railing": "res://assets/art/props/railing_segment.png",
+	"hatch": "res://assets/art/props/hatch_cargo.png",
+	"ballista": "res://assets/art/props/harpoon_ballista.png",
+	"vent": "res://assets/art/props/steam_vent.png",
+	"wreck": "res://assets/art/props/colossus_wreck.png",
 }
 
 const SCALES := {
@@ -25,6 +34,12 @@ const SCALES := {
 	"brazier": 0.16,
 	"crates": 0.24,
 	"rope": 0.15,
+	"mast": 0.30,
+	"railing": 0.16,
+	"hatch": 0.15,
+	"ballista": 0.20,
+	"vent": 0.12,
+	"wreck": 0.34,
 }
 
 func configure(owner_game: Node, kind: String) -> void:
@@ -52,6 +67,15 @@ func configure(owner_game: Node, kind: String) -> void:
 		"rope":
 			max_hp = 9999.0
 			radius = 20.0
+		"mast":
+			max_hp = 9999.0
+			radius = 34.0
+		"railing", "hatch", "vent", "wreck":
+			max_hp = 9999.0
+			radius = 22.0
+		"ballista":
+			max_hp = 9999.0
+			radius = 30.0
 	hp = max_hp
 	$Sprite.texture = load(TEXTURES[prop_type])
 	$Sprite.scale = Vector2.ONE * float(SCALES[prop_type])
@@ -97,7 +121,7 @@ func texture_path() -> String:
 
 
 func is_targetable() -> bool:
-	return not dead and prop_type != "brazier" and prop_type != "rope"
+	return not dead and prop_type in ["keg", "crate", "crates", "lantern"]
 
 func _draw() -> void:
 	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, Color(0.05, 0.03, 0.04, 0.7), 2.0)

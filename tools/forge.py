@@ -73,6 +73,34 @@ ICON = (
 )
 
 
+# For HUD FURNITURE: the plates, housings and bezels that other things sit in.
+# Distinct from ICON because an icon is a symbol and these are containers — the
+# middle has to be empty or the value drawn into it is unreadable. And they are
+# authored straight-on: the deck's three-quarter bake is settled and locked, but
+# a HUD in perspective is a HUD you cannot read, so this is the one place it does
+# not apply. See docs/HUD-PLAN.md §3.
+PLATE = (
+    "A piece of game-UI furniture from a steampunk airship: brass housing with "
+    "visible rivets and honest wear at the corners, dark iron or smoked-glass "
+    "recess where a value would be displayed, oxblood leather backing. Read "
+    "straight on, orthographic, no perspective, no tilt. Centred and filling 96% "
+    "of the canvas. The interior must be EMPTY — no text, no numerals, no icons, "
+    "no needle, no fill, no gauge markings inside the recess. No cast shadow, "
+    "no drop shadow, no background scene. " + STYLE
+)
+
+
+# The FILL that goes inside a housing. It is the one HUD piece that must NOT be
+# empty in the middle, so it cannot take the PLATE clause — which says the
+# interior is bare and would contradict the subject line.
+BAND = (
+    "A seamless horizontal band of light for a game gauge, read straight on, "
+    "orthographic. It fills the canvas edge to edge with no margin, and it is "
+    "even along its whole length so it can be cut at any point. No frame, no "
+    "housing, no end caps, no rivets, no text, no markings. " + STYLE
+)
+
+
 # The Loom appends its own background clause from the `chroma_key` form field,
 # and that clause wins. The first job sent from here asked for green in the
 # prompt text, was submitted with the default magenta key, and came back on
@@ -323,9 +351,69 @@ ASSETS = [
       "One continuous horizontal band filling a 4:1 landscape canvas edge to edge, "
       "with the cloud mass in the middle and clear space above and below. " + STYLE,
       "#FF00FF", fill=1.0, anchor=0.5, batch="env"),
+
+    # --- 8 · hud --------------------------------------------------------------
+    # The whole HUD moved into a bottom band so the top of the frame — which is
+    # where boarders come from — stops being covered by panels. The layout is
+    # right and the material is code: every plate is a `draw_rect` approximating
+    # a painted one. These are the painted ones. docs/HUD-PLAN.md is the brief.
+    A("ui_plate_wide",
+      "A wide riveted brass instrument housing bolted to an airship bulkhead: a "
+      "heavy brass frame with rivets along every edge and reinforced corner "
+      "brackets, surrounding a large EMPTY recessed panel of dark smoked iron. "
+      "Built to have gauges mounted in it. The recess is flat, dark and "
+      "completely bare.",
+      PLATE, "#00FF00", n=4, fill=0.98, anchor=0.5, batch="hud"),
+    A("ui_plate_slot",
+      "A single square brass instrument bezel for one control: a chunky riveted "
+      "brass square frame with a small raised tab across the top edge where a key "
+      "label would be stamped, surrounding an EMPTY deep recess of dark smoked "
+      "glass. Nothing mounted in it, nothing written on it.",
+      PLATE, "#00FF00", n=4, fill=0.96, anchor=0.5, batch="hud"),
+    A("ui_bar_housing",
+      "A long horizontal brass gauge channel, empty: a narrow riveted brass trough "
+      "with rounded end caps at both ends and a bare dark iron interior running "
+      "the full length. The trough is completely empty — no liquid, no fill, no "
+      "markings, no needle.",
+      PLATE, "#00FF00", n=4, fill=0.98, anchor=0.5, batch="hud"),
+    A("ui_bar_fill_hot",
+      "A horizontal band of molten orange furnace light with a bright lit upper "
+      "edge and a deeper oxblood lower edge, even along its whole length so it "
+      "can be cut anywhere. Just the glowing band, edge to edge.",
+      BAND, "#00FF00", n=1, fill=1.0, anchor=0.5, batch="hud"),
+    A("ui_bar_fill_cold",
+      "A horizontal band of verdigris teal aetheric light with a bright lit upper "
+      "edge and a deeper blue-green lower edge, even along its whole length so it "
+      "can be cut anywhere. Just the glowing band, edge to edge.",
+      BAND, "#FF00FF", n=1, fill=1.0, anchor=0.5, batch="hud"),
+    A("ui_pressure_dial",
+      "A round steampunk pressure dial FACE with no needle: a brass bezel ring "
+      "with rivets, an iron dial plate inside it, fine tick marks around the rim, "
+      "and a dull red danger arc across the last third of the sweep. Absolutely "
+      "no needle, no pointer, no numbers, no lettering — the face only.",
+      PLATE, "#00FF00", n=4, fill=0.96, anchor=0.5, batch="hud"),
+    A("ui_cooldown_sweep",
+      "A radial clock-wipe mask: a solid white circle on transparency with one "
+      "clean wedge removed from twelve o'clock clockwise, like a pie chart with a "
+      "quarter missing. Pure flat white, hard edges, no shading, no colour, no "
+      "detail of any kind. A mask, not an illustration.",
+      "A flat white radial mask shape on a plain background, centred, filling 96% "
+      "of the square canvas, orthographic. No text, no lettering, no watermark.",
+      "#00FF00", n=1, fill=0.96, anchor=0.5, batch="hud"),
+    A("ui_dash_pip",
+      "A single small round charge indicator: a brass ring with four rivets around "
+      "a domed glass centre lit from within by pale aether light. One pip only, "
+      "centred, nothing else in frame.",
+      PLATE, "#00FF00", n=1, fill=0.86, anchor=0.5, batch="hud"),
+    A("ui_lane_track",
+      "A long narrow horizontal iron rail channel with a brass end stop at each "
+      "end and rivets along its length, the channel between them completely "
+      "empty and dark. A track for a marker to slide along. No marker, no fill, "
+      "no markings.",
+      PLATE, "#00FF00", n=1, fill=0.98, anchor=0.5, batch="hud"),
 ]
 
-BATCHES = ["ground", "ui", "fx", "colossus", "props", "env", "v11"]
+BATCHES = ["ground", "ui", "fx", "colossus", "props", "env", "v11", "hud"]
 
 
 # --- plumbing ---------------------------------------------------------------

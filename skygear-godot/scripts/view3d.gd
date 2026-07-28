@@ -51,6 +51,13 @@ const WORLD_SCALE := 0.01           ## ground units -> metres, so Godot's units 
 const LAYER_WORLD := 1
 const LAYER_FIGURES := 2
 
+## How tall each prop stands, in ground units. The browser's `PROP_H`.
+const PROP_HEIGHT := {
+	"keg": 100.0, "crate": 84.0, "crates": 148.0, "rope": 30.0, "lantern": 200.0,
+	"brazier": 116.0, "mast": 340.0, "railing": 52.0, "hatch": 44.0,
+	"ballista": 118.0, "vent": 52.0, "wreck": 210.0,
+}
+
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
@@ -99,6 +106,7 @@ var _focus := Vector2.ZERO
 var _focus_set := false
 var _flicker := 0.0
 var _made: Dictionary = {}           ## generated textures, by key
+var _cloud_bands: Array[Dictionary] = []
 var _stream: Array[MeshInstance3D] = []
 var _stream_v: PackedFloat32Array = PackedFloat32Array()
 var _stream_len: PackedFloat32Array = PackedFloat32Array()   ## length, width, per streak
@@ -255,8 +263,7 @@ func _build_world() -> void:
 	add_child(hull)
 
 	## A cloud sea far below and behind, so the void reads as ten thousand feet
-	## rather than as nothing. It is the cheapest possible version of the
-	## browser's parallax bands and it does the same job: something is down there.
+	## rather than as nothing.
 	var clouds := MeshInstance3D.new()
 	var cp := PlaneMesh.new()
 	cp.size = Vector2(14000.0, 14000.0) * WORLD_SCALE
@@ -268,6 +275,56 @@ func _build_world() -> void:
 	clouds.position = Vector3(0.0, -900.0 * WORLD_SCALE,
 		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
 	add_child(clouds)
+
+	## And the painted bands on top of it. `clouds_far` and `clouds_near` are two
+	## of the nineteen art files nothing referenced; in the browser they are the
+	## parallax that says the ship is moving, and here they can be objects at two
+	## real distances and parallax for free. They drift, at speeds the browser
+	## settled on: 16 and 34 units a second.
+	for band in [
+		{"art": "res://assets/art/env/clouds_far.png", "z": -5200.0, "y": -520.0,
+			"w": 11000.0, "h": 2750.0, "speed": 16.0, "alpha": 0.55},
+		{"art": "res://assets/art/env/clouds_near.png", "z": -3000.0, "y": -760.0,
+			"w": 7600.0, "h": 1900.0, "speed": 34.0, "alpha": 0.72},
+	]:
+		var tex := _texture(str(band.art))
+		if tex == null:
+			continue
+		var layer := MeshInstance3D.new()
+		var q := QuadMesh.new()
+		q.size = Vector2(float(band.w), float(band.h)) * WORLD_SCALE
+		layer.mesh = q
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = tex
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.albedo_color = Color(1, 1, 1, float(band.alpha))
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		layer.mesh.material = m
+		layer.position = Vector3(0.0, float(band.y) * WORLD_SCALE,
+			(SkyGearGame.DECK_RECT.position.y + float(band.z)) * WORLD_SCALE)
+		add_child(layer)
+		_cloud_bands.append({"node": layer, "speed": float(band.speed),
+			"span": float(band.w) * 0.5})
+
+	## Another ship out there, which is the cheapest possible way to say this one
+	## is not the only thing in the sky.
+	var far_ship := _texture("res://assets/art/env/airship_distant.png")
+	if far_ship != null:
+		var other := MeshInstance3D.new()
+		var oq := QuadMesh.new()
+		oq.size = Vector2(1700.0, 850.0) * WORLD_SCALE
+		other.mesh = oq
+		var om := StandardMaterial3D.new()
+		om.albedo_texture = far_ship
+		om.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		om.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		om.albedo_color = Color(1, 1, 1, 0.8)
+		om.cull_mode = BaseMaterial3D.CULL_DISABLED
+		other.mesh.material = om
+		other.position = Vector3(1900.0 * WORLD_SCALE, 420.0 * WORLD_SCALE,
+			(SkyGearGame.DECK_RECT.position.y - 4200.0) * WORLD_SCALE)
+		add_child(other)
 
 	## The sky, the envelope and the bow: the three pieces that say "airship"
 	## rather than "arena". All three exist as painted art already; in the
@@ -427,11 +484,31 @@ func _build_cargo() -> void:
 				(height + 2.0) * WORLD_SCALE,
 				(rect.position.y + rect.size.y * 0.5 + oz) * WORLD_SCALE)
 			add_child(cap)
-		# lashing straps, one per module step down the run
+		## The painted module, tiled down the run as decals.
+		##
+		## `cargo_wall_module.png` is what the browser paints its cargo with, and
+		## the first 3D pass stretched it over the box with alpha off and got
+		## eight black slabs. A cut-out belongs in a decal, not on a surface: the
+		## alpha is respected, it wraps the box rather than facing one way, and
+		## the procedural crate underneath fills whatever the module leaves bare.
+		var module := _texture("res://assets/art/props/cargo_wall_module.png")
 		var modules := maxi(1, int(round(rect.size.y / WALL_MODULE_D)))
 		for i in modules:
 			var t: float = 0.5 if modules == 1 else float(i) / float(modules - 1)
 			var z: float = lerpf(rect.position.y + 34.0, rect.end.y - 34.0, t)
+			if module != null:
+				var skin := Decal.new()
+				skin.cull_mask = 0xFFFFF & ~LAYER_FIGURES
+				skin.texture_albedo = module
+				skin.albedo_mix = 1.0
+				skin.upper_fade = 0.05
+				skin.lower_fade = 0.05
+				skin.normal_fade = 0.0
+				skin.size = Vector3(rect.size.x + 10.0, height + 30.0, WALL_MODULE_D) * WORLD_SCALE
+				skin.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
+					height * 0.5 * WORLD_SCALE, z * WORLD_SCALE)
+				add_child(skin)
+			# and a lashing strap, so the run reads as cargo rather than as wall
 			var strap := MeshInstance3D.new()
 			var sm2 := BoxMesh.new()
 			sm2.size = Vector3(rect.size.x + 5.0, 7.0, 5.0) * WORLD_SCALE
@@ -582,6 +659,41 @@ func _build_boiler() -> void:
 	glow.omni_range = 360.0 * WORLD_SCALE
 	glow.position = Vector3(0.0, 60.0 * WORLD_SCALE, 96.0 * WORLD_SCALE)
 	boiler.add_child(glow)
+
+
+## PAINTED ART BEATS GENERATED ART.
+##
+## Everything below this line was being drawn with a texture written in code
+## because, when the 3D view was built, nobody had gone looking for what was
+## already in `assets/art/`. There is a painted ring for a player aura, a painted
+## ring for an enemy one, a painted scorch, a soft shadow, an impact burst, a
+## slash arc, a tesla bolt, steam and embers — nineteen files, none of them
+## reachable from any script. The generated versions stay as the fallback, which
+## is what they are good for.
+const PAINTED := {
+	"blob": "res://assets/art/ground/shadow_blob.png",
+	"ring": "res://assets/art/ground/rune_player.png",
+	"ring_hostile": "res://assets/art/ground/rune_enemy.png",
+	"ring_filled": "res://assets/art/ground/rune_enemy_filled.png",
+	"scorch": "res://assets/art/ground/decal_scorch.png",
+	"oil": "res://assets/art/ground/decal_oil.png",
+	"gears": "res://assets/art/ground/decal_gear_scatter.png",
+	"burst": "res://assets/art/fx/burst_impact.png",
+	"slash": "res://assets/art/fx/slash_arc.png",
+	"bolt": "res://assets/art/fx/bolt_tesla.png",
+	"steam": "res://assets/art/fx/puff_steam.png",
+	"smoke": "res://assets/art/fx/puff_smoke_dark.png",
+	"ember": "res://assets/art/fx/ember_particle.png",
+}
+
+
+## The painted version if it is on disk, otherwise the one we can always draw.
+func _art(key: String, fallback: Texture2D) -> Texture2D:
+	var path: String = str(PAINTED.get(key, ""))
+	if path == "":
+		return fallback
+	var tex := _texture(path)
+	return tex if tex != null else fallback
 
 
 ## --- generated textures ------------------------------------------------------
@@ -842,10 +954,18 @@ func _process(delta: float) -> void:
 	_track_camera(delta)
 	_used.clear()
 	_decals_used.clear()
-	_sync_all()
+	_sync_all(delta)
 	_sync_auras()
 	_sync_effects()
 	_sync_airstream(delta)
+	## The cloud bands drift across and wrap. Slower than the airstream by an
+	## order of magnitude, which is the parallax: the near thing races and the
+	## far thing crawls.
+	for band in _cloud_bands:
+		var node: MeshInstance3D = band.node
+		node.position.x += float(band.speed) * delta * WORLD_SCALE
+		if node.position.x > float(band.span) * WORLD_SCALE:
+			node.position.x = -float(band.span) * WORLD_SCALE
 	# anything not claimed this frame is gone from the simulation
 	for key in _billboards.keys():
 		if not _used.has(key):
@@ -968,22 +1088,33 @@ func _sync_effects() -> void:
 			"arc":
 				var r: float = float(fx.get("radius", 120.0)) * (0.9 + progress * 0.2)
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
-					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), false), tint)
+					r * 2.0, r * 2.0, _art("slash", _fan_texture(float(fx.get("arc", 1.7)), false)),
+					tint)
 			"cone":
 				var rc: float = float(fx.get("radius", 120.0)) * (0.55 + progress * 0.55)
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					rc * 2.0, rc * 2.0, _fan_texture(float(fx.get("arc", 0.9)), true),
 					Color(tint.r, tint.g, tint.b, tint.a * 0.85))
-			"circle", "burst":
+			"circle":
 				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
-				_decal("fx%d" % fid, centre, 0.0, rb * 2.0, rb * 2.0, _ring_texture(), tint)
+				_decal("fx%d" % fid, centre, 0.0, rb * 2.0, rb * 2.0,
+					_art("ring", _ring_texture()), tint)
+			"burst":
+				## A burst is an impact, and there is a painted one. It reads as
+				## debris thrown out of a point rather than as a ring, which is
+				## the difference between a kill and a spell landing.
+				var rp: float = float(fx.get("radius", 120.0)) * (0.5 + progress * 0.9)
+				_decal("fx%d" % fid, centre, 0.0, rp * 2.0, rp * 2.0,
+					_art("burst", _ring_texture()), tint)
 			"line", "beam":
 				var from: Vector2 = fx.get("from", Vector2.ZERO)
 				var to: Vector2 = fx.get("to", Vector2.ZERO)
 				var span := to - from
 				var width: float = (26.0 if kind == "line" else 54.0) * (1.0 - progress * 0.35)
 				_decal("fx%d" % fid, (from + to) * 0.5, span.angle(),
-					maxf(8.0, span.length()), width, _streak_texture(), tint)
+					maxf(8.0, span.length()), width,
+					_art("bolt", _streak_texture()) if kind == "line" else _streak_texture(),
+					tint)
 			_:
 				var rr: float = float(fx.get("radius", 90.0))
 				_decal("fx%d" % fid, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
@@ -993,8 +1124,13 @@ func _sync_effects() -> void:
 	for i in game.fire_fields.size():
 		var f: Dictionary = game.fire_fields[i]
 		var pulse: float = 0.72 + sin(_flicker * 7.0 + float(i)) * 0.14
-		_decal("fire%d" % int(f.get("id", i)), f.position, 0.0, float(f.get("radius", 62.0)) * 2.2,
-			float(f.get("radius", 62.0)) * 2.2, _ring_texture(),
+		var fr: float = float(f.get("radius", 62.0)) * 2.2
+		var fid2: int = int(f.get("id", i))
+		# the scorch on the planking, and the fire standing on top of it
+		_decal("scorch%d" % fid2, f.position, 0.0, fr, fr, _art("scorch", _blob_texture()),
+			Color(0.10, 0.07, 0.08, 0.75), false)
+		_decal("fire%d" % fid2, f.position, 0.0, fr * 0.82, fr * 0.82,
+			_art("ring", _ring_texture()),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
 
 	## The ordnance the deck already knows about: a lit keg draws its blast.
@@ -1017,10 +1153,19 @@ func _sync_effects() -> void:
 			var beat: float = 0.55 + sin(_flicker * 22.0) * 0.22
 			_decal("tg%d" % enemy.get_instance_id(), mid, enemy.attack_direction.angle(),
 				reach, 34.0, _streak_texture(), Color(0.92, 0.18, 0.11, beat))
+			## And the enemy rune under their feet, which is the painted plate
+			## that exists for exactly this and had never been drawn: it fills as
+			## the windup completes, so the tell has a clock on it.
+			var wind: float = 1.0 - clampf(enemy.state_time / maxf(0.05,
+				float(enemy.config.windup)), 0.0, 1.0)
+			var mark: float = float(enemy.radius) * 3.2
+			_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, 0.0, mark, mark,
+				_art("ring_filled" if wind > 0.62 else "ring_hostile", _ring_texture()),
+				Color(0.95, 0.25, 0.16, 0.35 + wind * 0.5))
 		elif enemy.state == "turn":
 			var ring: float = (enemy.radius + 26.0 + sin(enemy.turn_time * 9.0) * 6.0) * 2.0
 			_decal("tn%d" % enemy.get_instance_id(), enemy.global_position, 0.0, ring, ring,
-				_ring_texture(), Color("#ffd36b"))
+				_art("ring", _ring_texture()), Color("#ffd36b"))
 
 
 ## One ground effect, pooled, as an actual projected decal.
@@ -1085,7 +1230,7 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 ## Contact shadow under a standing thing. Not glowing — a shadow that emits light
 ## is a highlight.
 func _shadow(key: String, centre: Vector2, width: float, alpha: float) -> void:
-	_decal("sh_" + key, centre, 0.0, width, width * 0.62, _blob_texture(),
+	_decal("sh_" + key, centre, 0.0, width, width * 0.62, _art("blob", _blob_texture()),
 		Color(0.02, 0.015, 0.03, alpha), false)
 
 
@@ -1114,7 +1259,8 @@ func _sync_auras() -> void:
 		var tint: Color = SkyGearData.ELEMENTS[skill.element].color
 		var at: Vector2 = game.player.global_position
 		# the edge, on the deck
-		_decal("aura%d" % index, at, 0.0, radius * 2.0, radius * 2.0, _ring_texture(),
+		_decal("aura%d" % index, at, 0.0, radius * 2.0, radius * 2.0,
+			_art("ring", _ring_texture()),
 			Color(tint.r, tint.g, tint.b, 0.42 + sin(_flicker * 2.6) * 0.08))
 		# and the air inside it
 		var key := "auravol%d" % index
@@ -1158,10 +1304,10 @@ func _sync_auras() -> void:
 			_volumes.erase(key)
 
 
-func _sync_all() -> void:
+func _sync_all(delta: float) -> void:
 	if game.player != null and game.player.hp > 0.0:
 		_shadow("player", game.player.global_position, 96.0, 0.55)
-		if not _sync_captain():
+		if not _sync_captain(delta):
 			_draw_figure("player", "hero", game.player.global_position,
 				game.player.aim_direction, 150.0,
 				game.player.attack_time > 0.0,
@@ -1202,13 +1348,9 @@ func _sync_all() -> void:
 		if not is_instance_valid(prop) or prop.dead:
 			continue
 		var pkey := "p%d" % prop.get_instance_id()
-		var ph := 110.0
-		if prop.prop_type == "lantern":
-			ph = 150.0
-		elif prop.prop_type == "brazier":
-			ph = 132.0
-		elif prop.prop_type == "crates":
-			ph = 150.0
+		## Heights straight from the browser's `PROP_H`, which is the table that
+		## decides whether a keg reads as ordnance or as a footstool.
+		var ph: float = float(PROP_HEIGHT.get(prop.prop_type, 110.0))
 		_shadow(pkey, prop.global_position, 80.0, 0.45)
 		_place(pkey, _texture(prop.texture_path()), prop.global_position, ph)
 	for i in game.crew.size():
@@ -1321,80 +1463,52 @@ func _sync_all() -> void:
 ## The captain, as a rigged, animated mesh.
 ##
 ## Every other figure on this deck is a painted billboard turned to face the
-## camera, which is what the browser could do and all it could do. She is the one
-## the player looks at for a whole run and the one constantly turning: a
+## camera, which is what the browser could do and all it could do. She is the
+## one the player looks at for a whole run and the one constantly turning: a
 ## billboard cannot show which way you are facing, and in a game where a Cleave
-## aimed away from a boarder does nothing, which way you are facing is a mechanic.
+## aimed away from a boarder does nothing, which way you are facing is a
+## mechanic.
 ##
-## Six clips out of Meshy, retargeted onto one rig by `tools/build_captain.gd` —
-## see DESIGN.md 13f for why that step is not optional. The scene owns its mesh,
-## skin, skeleton, material and animation library, so no FBX ships.
+## The state machine, the crossfades, the rate-limited turn and the hit
+## reactions all live in `SkyGearRig3D`, because none of that is about her —
+## the boarders are next and they get the same component.
 const USE_MESH_CAPTAIN := true
 const CAPTAIN_SCENE := "res://assets/models/captain/captain.tscn"
 const CAPTAIN_HEIGHT := 176.0        ## ground units, sole to crown
-var _captain: Node3D
-var _captain_anim: AnimationPlayer
-var _captain_scale := 1.0
-var _captain_clip := ""
+var _captain: SkyGearRig3D
 var _captain_missing := false
 ## Her own key light. A standard trick and the honest one: the hero of a dark
 ## scene is lit for being the hero, not by whatever happens to be burning nearby.
 var _hero: OmniLight3D
 
 
-func _sync_captain() -> bool:
+func _sync_captain(delta: float) -> bool:
 	if not USE_MESH_CAPTAIN or _captain_missing:
 		return false
 	if _captain == null:
-		if not ResourceLoader.exists(CAPTAIN_SCENE):
+		_captain = SkyGearRig3D.new()
+		add_child(_captain)
+		if not _captain.setup(CAPTAIN_SCENE, CAPTAIN_HEIGHT * WORLD_SCALE, LAYER_FIGURES):
+			_captain.queue_free()
+			_captain = null
 			_captain_missing = true
 			return false
-		## A HOLDER, and the scene inside it untouched. FBX measures in
-		## centimetres, so Godot bakes a hundredth into the imported root — and
-		## writing a transform onto that root, which is what a naive placement
-		## does, removes it. She rendered at one hundredth of a metre and could
-		## not be found on the deck.
-		_captain = Node3D.new()
-		add_child(_captain)
-		var inner := (load(CAPTAIN_SCENE) as PackedScene).instantiate()
-		_captain.add_child(inner)
-		_captain_anim = inner.find_child("AnimationPlayer", true, false)
-		# how tall she actually is once every baked scale in the chain is applied
-		var tall := 1.0
-		for child in inner.find_children("*", "MeshInstance3D", true, false):
-			var mi := child as MeshInstance3D
-			mi.layers = LAYER_FIGURES
-			tall = maxf(tall, mi.get_aabb().size.y * mi.global_transform.basis.get_scale().y)
-		_captain_scale = CAPTAIN_HEIGHT * WORLD_SCALE / maxf(0.0001, tall)
-	var at: Vector2 = game.player.global_position
-	## She turns to her aim, not to the camera. `atan2(x, y)` rather than the
-	## usual `atan2(y, x)` because a yaw of zero looks down +Z, which is where
-	## the rig faces at rest.
-	var aim: Vector2 = game.player.aim_direction
-	if aim.length_squared() < 0.0001:
-		aim = Vector2(0, -1)
-	var basis := Basis(Vector3(0, 1, 0), atan2(aim.x, aim.y)).scaled(
-		Vector3(_captain_scale, _captain_scale, _captain_scale))
-	_captain.transform = Transform3D(basis, Vector3(at.x * WORLD_SCALE, 0.0,
-		at.y * WORLD_SCALE))
-
-	## What she is doing, in the order it overrides. A swing beats a dash beats
-	## running, because the one you most need to see is the one that is about to
-	## damage something.
-	if _captain_anim != null:
-		var clip := "idle"
-		if game.player.attack_time > 0.0:
-			clip = "swing"
-		elif game.player.dash_time_left > 0.0:
-			clip = "dash"
-		elif game.player.velocity.length() > 35.0:
-			clip = "run"
-		if clip != _captain_clip and _captain_anim.has_animation(clip):
-			# a blend, so she does not snap between poses at every keypress
-			_captain_anim.play(clip, 0.14)
-			_captain_clip = clip
-		elif not _captain_anim.is_playing() and _captain_anim.has_animation(clip):
-			_captain_anim.play(clip)
+	var player := game.player
+	## What she is doing, in the order the rig resolves it. Dash beats run, swing
+	## beats dash — and the rig holds a one-shot for its own length rather than
+	## having it cancelled on the next frame by the run underneath it.
+	var speed: float = player.velocity.length()
+	var doing := "idle"
+	if player.attack_time > 0.0:
+		doing = "swing"
+	elif player.dash_time_left > 0.0:
+		doing = "dash"
+	elif speed > 35.0:
+		doing = "run"
+	_captain.want(doing, speed)
+	## She turns to her aim rather than to her movement: aim is what the Cleave
+	## uses, so aim is what the player has to be able to read off her.
+	_captain.place(player.global_position, player.aim_direction, WORLD_SCALE, delta)
 
 	if _hero == null:
 		## OUTSIDE her transform. A light parented to a node scaled by 0.009 has
@@ -1406,8 +1520,8 @@ func _sync_captain() -> bool:
 		_hero.omni_attenuation = 1.5
 		_hero.shadow_enabled = false
 		add_child(_hero)
-	_hero.position = Vector3(at.x * WORLD_SCALE, 150.0 * WORLD_SCALE,
-		(at.y + 90.0) * WORLD_SCALE)
+	_hero.position = Vector3(player.global_position.x * WORLD_SCALE, 150.0 * WORLD_SCALE,
+		(player.global_position.y + 90.0) * WORLD_SCALE)
 	return true
 
 

@@ -395,6 +395,67 @@ in place for a rigged export; what it wants is Y up, facing +Z at rest, roughly
 1.8 units crown to sole, glTF/GLB so the skeleton and animations come with it,
 moved into `assets/models/captain/`.
 
+## 13g. The HUD moved to the bottom, 2026-07-28
+
+The objective plate and the lane readout sat in the top-right corner, and **the
+top of the frame is where boarders come from**. Two panels, 348 wide and 250 tall
+between them, were covering the deck a player most needs to watch — and the lane
+readout, whose entire job is to say a lane is breaking, was covering the lane
+that was breaking.
+
+One band along the bottom now: her on the left, her hand in the middle, the ship
+on the right, all on one baseline. The objective and the lanes merged into one
+plate because they are one answer to one question. The side plates take whatever
+is left after the hand rather than a fixed width — three clusters at their
+preferred sizes want 1258 px, and a HUD that overlaps itself on a 1152-wide
+window is a bug rather than a hardware requirement.
+
+The layout matrix now drives `SkyGearHUD.hud_plates` rather than a second copy of
+the arithmetic, so the check cannot drift from what is drawn. It also asserts
+nothing is in the top 60% of the screen, which is the property that was actually
+wanted and was never stated.
+
+Full brief, including the nine pieces of art being generated against it, in
+`docs/HUD-PLAN.md`.
+
+## 13h. The model pipeline and the animation engine, 2026-07-28
+
+**`tools/ingest_model.py` + `tools/ingest_model.gd`.** Bringing the captain in
+took an afternoon and three false starts, and none of the work was about her.
+Every rigged model has the same six problems — 190 MB of FBX because each clip
+embeds the mesh, a different rest pose per clip, clips disagreeing where the rig
+lives, an imported material pointing into a directory about to be deleted, maps
+far too big, and a unit scale on the root that naive placement overwrites. All
+six are solved once, from `tools/models.json`, and the result is verified **after
+the sources are deleted** — the captain passed a load check while the FBXs were
+still on disk and then failed to load in the game.
+
+Running it against the captain reproduces her exactly: 6 clips, 20 track paths
+repathed for the Rigify-sourced swing, self-contained, 7.7 MB.
+
+**`scripts/rig3d.gd`.** Her state machine was four `if`s in the renderer, a yaw
+written straight onto the transform, and no notion of a clip finishing. That is
+enough for one character and wrong for two, with five boarders and a crew behind
+her. The component owns: clips chosen by priority, one-shots that hold for their
+own length rather than being cancelled by the state underneath, a **rate-limited
+turn that goes the short way round** (lerping raw angles takes the long way
+whenever a turn crosses PI, which looks like a figure spinning to avoid you),
+playback speed matched to actual ground speed so feet stop skating, and hit/land
+reactions as decaying scalars rather than Tween allocations per hit.
+
+Clip fallback is part of it: `run` degrades to `walk` degrades to `idle`. The
+boarders will arrive with fewer cycles than she has, and the renderer should not
+have to know that.
+
+## 13i. VFX
+
+`VFX-PLAN.md` ranks the work by one test — can a player answer a question faster
+with it than without — and names the four questions worth answering. Top three
+are impact particles, hit-stop with additive shake, and element identity carried
+by light rather than by hue. Every item gets a check that asserts its pool is
+capped, because every performance problem this project has had was an unbounded
+collection and not a slow algorithm.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

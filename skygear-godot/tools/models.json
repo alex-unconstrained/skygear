@@ -1,0 +1,46 @@
+{
+  "_readme": [
+    "The model ingest manifest. One entry per rigged character.",
+    "",
+    "Everything the captain needed was worked out by hand once — which archive,",
+    "which file is the rig, which clip is which, how tall she stands, which maps",
+    "to keep and at what size. None of that is character-specific reasoning; it",
+    "is the same six questions for every model Meshy or anyone else produces. So",
+    "it lives here, and `python tools/ingest_model.py <name>` does the rest.",
+    "",
+    "  archive     zip or directory, absolute or relative to the repo root",
+    "  rig         which file inside it carries the mesh and skeleton to keep.",
+    "              For Meshy this is an ANIMATION export, not Character_output:",
+    "              every clip ships its own skeleton and the character file's",
+    "              rest pose does not match any of them. See DESIGN.md 13f.",
+    "  clips       our name -> the file that contains that clip",
+    "  loop        which of those loop; everything else plays once and holds",
+    "  height      ground units, sole to crown. The renderer scales to this.",
+    "  maps        albedo/normal/roughness/metallic source patterns and the size",
+    "              to downscale each to. Meshy ships 4096 albedo and 4096 normal:",
+    "              56 MB of PNG for a figure 180 pixels tall on screen.",
+    "  facing      degrees about +Y the rig faces at rest. 0 means it faces +Z."
+  ],
+
+  "captain": {
+    "archive": "C:/Users/alexr/Downloads/Meshy_AI_Crimson_Gearbound_biped.zip",
+    "rig": "*Animation_Idle_03*.fbx",
+    "clips": {
+      "idle": "*Animation_Idle_03*.fbx",
+      "idle_alt": "*Animation_Idle_10*.fbx",
+      "run": "*Animation_Running*.fbx",
+      "walk": "*Animation_Walking*.fbx",
+      "dash": "*Animation_Backflip*.fbx",
+      "swing": "*Animation_019fa6da*.fbx"
+    },
+    "loop": ["idle", "idle_alt", "run", "walk"],
+    "height": 176.0,
+    "facing": 0.0,
+    "maps": {
+      "albedo": {"match": "*texture_0.png", "size": 1024},
+      "normal": {"match": "*_normal.png", "size": 512},
+      "rough": {"match": "*_roughness.png", "size": 512},
+      "metal": {"match": "*_metallic.png", "size": 512}
+    }
+  }
+}

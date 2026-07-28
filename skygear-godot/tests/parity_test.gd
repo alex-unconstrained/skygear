@@ -765,6 +765,30 @@ func _view() -> void:
 		SkyGearSprites.pending().size() == 14,
 		"%d cycles outstanding" % SkyGearSprites.pending().size())
 
+	## Painted art beats generated art, and forty-two of sixty files in
+	## `assets/art/` were unreachable from any script.
+	var unpainted: Array[String] = []
+	for key in SkyGearView3D.PAINTED.keys():
+		if not ResourceLoader.exists(str(SkyGearView3D.PAINTED[key])):
+			unpainted.append(str(key))
+	_check("art", "every painted effect plate is on disk", unpainted.is_empty(),
+		"missing: %s" % ", ".join(unpainted))
+	var unprop: Array[String] = []
+	for kind in SkyGearProp.TEXTURES.keys():
+		if not ResourceLoader.exists(str(SkyGearProp.TEXTURES[kind])):
+			unprop.append(str(kind))
+	_check("art", "every prop kind has art", unprop.is_empty(),
+		"missing: %s" % ", ".join(unprop))
+	var unsized: Array[String] = []
+	for kind in SkyGearProp.TEXTURES.keys():
+		if not SkyGearView3D.PROP_HEIGHT.has(kind):
+			unsized.append(str(kind))
+	_check("art", "and a height, so nothing is drawn at a default", unsized.is_empty(),
+		"missing: %s" % ", ".join(unsized))
+	_check("art", "the deck is dressed with the ship, not only with ordnance",
+		SkyGearData.PROP_LAYOUT.size() >= 24,
+		"%d pieces" % SkyGearData.PROP_LAYOUT.size())
+
 	## The captain is a rigged mesh now, and decals must not paint on her.
 	var mesh_captain: bool = SkyGearView3D.USE_MESH_CAPTAIN 		and ResourceLoader.exists(SkyGearView3D.CAPTAIN_SCENE)
 	_check("captain", "the rigged model is in the build", mesh_captain)
@@ -788,6 +812,59 @@ func _view() -> void:
 		scene.queue_free()
 	_check("captain", "figures are on their own visual layer, so decals stay on the deck",
 		SkyGearView3D.LAYER_FIGURES != SkyGearView3D.LAYER_WORLD)
+
+	## The animation engine. State selection, one-shot ownership and the turn are
+	## the parts that were written inline for one character and had to stop being.
+	var order: Array = SkyGearRig3D.PRIORITY
+	_check("rig", "a swing outranks a dash outranks a run",
+		order.find("swing") < order.find("dash") and order.find("dash") < order.find("run"))
+	_check("rig", "one-shots are the ones that must not loop",
+		SkyGearRig3D.ONE_SHOT.get("swing", false)
+			and not SkyGearRig3D.ONE_SHOT.get("run", false))
+	_check("rig", "an attack blends in faster than an idle",
+		float(SkyGearRig3D.BLEND.swing) < float(SkyGearRig3D.BLEND.idle),
+		"%.2fs vs %.2fs" % [float(SkyGearRig3D.BLEND.swing), float(SkyGearRig3D.BLEND.idle)])
+
+	## Turning takes time, and it goes the short way. Lerping raw angles takes
+	## the long way round whenever a turn crosses PI, which looks like a figure
+	## spinning to avoid you.
+	## Not PI: a half turn is an exact tie and either way round is correct, so
+	## asserting a direction there is asserting a tie-break.
+	_check("rig", "a turn is rate limited",
+		absf(SkyGearRig3D._turn_toward(0.0, 2.0, 0.1) - 0.1) < 0.001,
+		"%.3f rad after one step" % SkyGearRig3D._turn_toward(0.0, 2.0, 0.1))
+	_check("rig", "and takes the short way round",
+		SkyGearRig3D._turn_toward(3.0, -3.0, 0.1) > 3.0,
+		"%.3f" % SkyGearRig3D._turn_toward(3.0, -3.0, 0.1))
+	_check("rig", "and arrives rather than orbiting",
+		is_equal_approx(SkyGearRig3D._turn_toward(1.0, 1.02, 0.1), 1.02))
+
+	## The rig itself, built from the ingested captain.
+	var rig := SkyGearRig3D.new()
+	root.add_child(rig)
+	var built: bool = rig.setup(SkyGearView3D.CAPTAIN_SCENE,
+		SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+		SkyGearView3D.LAYER_FIGURES)
+	_check("rig", "it builds from an ingested model", built)
+	if built:
+		_check("rig", "and scales the model to the height we asked for",
+			absf(rig.height_scale * 1.92153 - SkyGearView3D.CAPTAIN_HEIGHT
+				* SkyGearView3D.WORLD_SCALE) < 0.01,
+			"scale %.4f" % rig.height_scale)
+		rig.want("run", 300.0)
+		_check("rig", "a run plays faster when she is moving faster",
+			rig.anim.speed_scale > 1.0, "rate %.2f" % rig.anim.speed_scale)
+		rig.want("swing")
+		var held := rig._clip
+		rig.want("run", 300.0)
+		_check("rig", "and a swing is not cancelled by the run underneath it",
+			rig._clip == held, "playing %s" % rig._clip)
+		## An undelivered clip has to degrade rather than fail: the boarders will
+		## arrive with fewer cycles than she has.
+		_check("rig", "an undelivered clip falls back to the nearest one it has",
+			rig._fallback("hurt") == "idle" and rig._fallback("run") in ["run", "walk"],
+			"hurt -> %s" % rig._fallback("hurt"))
+	rig.queue_free()
 
 	## The captain talks, and the lines are on disk.
 	_check("voice", "the line sheet is delivered",
@@ -896,21 +973,18 @@ func _rebindable_contains(action: String) -> bool:
 ## lands off screen or on top of anything else. This is the same idea against the
 ## panels that actually have fixed pixel geometry: the captain's plate, the
 ## objective, the lane readout and the four skill slots.
+## --- the layout matrix --------------------------------------------------------
+## The browser harness draws the HUD at seven window sizes and asserts nothing
+## lands off screen or on top of anything else. Same idea, against the one place
+## the geometry is defined — `SkyGearHUD.hud_plates` — so this cannot drift from
+## what is drawn.
 func _layout() -> void:
 	var sizes := [Vector2(1280, 720), Vector2(1366, 768), Vector2(1600, 900),
-		Vector2(1920, 1080), Vector2(2560, 1440), Vector2(1024, 640)]
+		Vector2(1920, 1080), Vector2(2560, 1440), Vector2(1152, 648)]
 	var worst := ""
 	var clean := true
 	for viewport in sizes:
-		var plates := {
-			"captain": Rect2(24, 20, 350, 112),
-			"objective": Rect2(viewport.x - 372, 20, 348, 92),
-			"lanes": Rect2(viewport.x - 372, 122, 348, 92),
-		}
-		var slot_w := 128.0
-		var start_x: float = (viewport.x - slot_w * 4.0) * 0.5
-		for i in 4:
-			plates["slot%d" % i] = Rect2(start_x + i * slot_w, viewport.y - 104, slot_w - 8, 86)
+		var plates: Dictionary = SkyGearHUD.hud_plates(viewport)
 		var frame := Rect2(Vector2.ZERO, viewport)
 		var names: Array = plates.keys()
 		for a in names.size():
@@ -922,16 +996,27 @@ func _layout() -> void:
 				if ra.intersects(plates[names[b]]):
 					clean = false
 					worst = "%s over %s at %dx%d" % [names[a], names[b], viewport.x, viewport.y]
-	_check("layout", "every HUD plate fits, and none of them overlap, at six sizes",
-		clean, worst)
+	_check("layout", "every HUD plate fits, and none overlap, at six sizes", clean, worst)
 
-	## The narrow case has to be a decision rather than an accident: below this
-	## the four slots and the two right-hand plates cannot both fit, and the
-	## export presets set 1280x720 as the floor.
-	var floor_w := 1024.0
-	_check("layout", "the four skill slots stay clear of the captain's plate",
-		(floor_w - 128.0 * 4.0) * 0.5 > 374.0 - 0.0 or floor_w >= 1024.0,
-		"floor %d wide" % floor_w)
+	## And it is all in the bottom band. The top of the frame is where boarders
+	## arrive from; the objective plate and the lane readout used to sit in it.
+	var probe := Vector2(1366, 768)
+	var band := true
+	var highest := 0.0
+	for rect in SkyGearHUD.hud_plates(probe).values():
+		highest = maxf(highest, probe.y - (rect as Rect2).position.y)
+		if (rect as Rect2).position.y < probe.y * 0.60:
+			band = false
+	_check("layout", "and none of it is in the top 60% of the screen, where they come from",
+		band, "tallest plate reaches %d px up" % highest)
+
+	## The floor is a decision. Below this the three clusters cannot share a
+	## baseline without overlapping, and the export presets say 1152x648.
+	var narrow: Dictionary = SkyGearHUD.hud_plates(Vector2(1152, 648))
+	_check("layout", "the captain's plate clears the skill slots at the floor size",
+		not (narrow.captain as Rect2).intersects(narrow.slot0 as Rect2),
+		"gap %.0f px" % ((narrow.slot0 as Rect2).position.x
+			- (narrow.captain as Rect2).end.x))
 
 
 func _views_resolve() -> bool:

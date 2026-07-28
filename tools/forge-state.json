@@ -198,5 +198,50 @@
   "id": "7004d3d845dd",
   "chroma": "#006BFF",
   "n": 4
+ },
+ "ui_plate_wide": {
+  "id": "52363cafe439",
+  "chroma": "#00FF00",
+  "n": 4
+ },
+ "ui_plate_slot": {
+  "id": "cc2ba67a5849",
+  "chroma": "#00FF00",
+  "n": 4
+ },
+ "ui_bar_housing": {
+  "id": "e8ebc9bd8ab8",
+  "chroma": "#00FF00",
+  "n": 4
+ },
+ "ui_bar_fill_hot": {
+  "id": "e77b61c13d08",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "ui_bar_fill_cold": {
+  "id": "3e9b25480d79",
+  "chroma": "#FF00FF",
+  "n": 1
+ },
+ "ui_pressure_dial": {
+  "id": "b1ff8f0d15c8",
+  "chroma": "#00FF00",
+  "n": 4
+ },
+ "ui_cooldown_sweep": {
+  "id": "7fbffb4565f1",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "ui_dash_pip": {
+  "id": "cef7bf23d39e",
+  "chroma": "#00FF00",
+  "n": 1
+ },
+ "ui_lane_track": {
+  "id": "34b594c7d222",
+  "chroma": "#00FF00",
+  "n": 1
  }
 }
