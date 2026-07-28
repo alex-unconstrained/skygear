@@ -22,6 +22,89 @@ Running version history: [VERSIONS.md](VERSIONS.md). Current plan:
 
 ---
 
+## Session 2026-07-27b · v11 build `8f16357`
+
+Third playthrough. Won at 4:53 on an Arc Beam / Ember Field / Ember Sentry /
+Steam Lance build, with the new per-skill report attached.
+
+---
+
+### F-08 · "Ember Sentry did 76% of the damage — is that correct?" `FIXED` — no, it was not
+
+```
+  Ember Sentry          17614  76%     0 casts  227 kills
+```
+
+**It was a bookkeeping bug, and a bad one, because the draft weights itself on
+these numbers.**
+
+Damage attribution works by recording which slot is currently resolving in
+`S.src`, set around a cast and read by `hitEnemy`. `updatePassive` set it and
+**never restored it**. So once any passive had ticked in a frame, `S.src` stayed
+pointing at it for everything that resolved afterwards:
+
+- every DETONATOR burst (18 damage per kill, and the run had 338 kills)
+- every OVERKILL crit explosion
+- every sentry shot, correct by accident
+- anything else landing outside a cast
+
+Their loadout put the Sentry last in slot order among passives, so the Sentry
+absorbed all of it. The report's own arithmetic showed the second half of the
+problem: the listed skills sum to 23,216 against a stated total of 31,108, and
+the missing ~7,900 was burn damage, which `tickDamage` never attributed at all
+because it bypasses `hitEnemy`.
+
+**Fixed:**
+- `updatePassive` restores the previous source at every exit, including the
+  early returns.
+- A frame begins with no source, so anything outside a cast, a passive or a
+  sentry is attributed to nobody rather than to whatever ran last.
+- A sentry records the slot that planted it and bills its own shots to it.
+- Burn and scald record who lit them and are attributed, and the source stays
+  set across a kill so the DETONATOR burst a burn tick causes belongs to the
+  same slot.
+
+**And a check, because a number nobody verifies is how this happened:** the
+harness plays three waves with an active, an aura, a sentry and both explosion
+cards live, then asserts the per-slot totals add up to the run's total damage.
+Before: 75% accounted for. Now 98.7%, with the remainder being crew and deck
+cannon damage, which genuinely belongs to no slot.
+
+**What the corrected picture probably looks like:** the Sentry is still doing
+real work — it fires continuously and 227 kills is not all borrowed — but its
+share was inflated by every kill-triggered burst in a build that had drafted two
+of them. The next run's report will be trustworthy; this one is not, and no
+balance decision should be taken from it.
+
+---
+
+### F-09 · The run was won at mid range `OPEN` — and this one is not a bug
+
+```
+range: 12% close · 49% mid · 18% far · 21% clear
+```
+
+Worth separating from F-08, because it survives the attribution fix. v11's
+central bet is that close range is the better way to play. This run spent 12% of
+its time close and won comfortably — because a Field-and-Sentry build fights
+*for* you: both are passives, neither needs the captain anywhere in particular,
+and the Sentry outranges the reason to close.
+
+That is a design finding, not a defect: the close-quarters loop is competing
+against a build that opts out of it entirely. Options, none taken yet —
+
+- passives could build pressure at a reduced rate, so a passive build still has
+  to close to vent;
+- the Sentry could plant where the captain is and stay there, rather than
+  following, so using it well means choosing ground;
+- or this is fine, and "a turret build that lets you play at mid range" is a
+  legitimate second way to play that the game should own rather than punish.
+
+Needs one more playtest before anything moves. The question to ask is whether
+the run was *interesting*, not whether it was close.
+
+---
+
 ## Session 2026-07-27 · v11 build `d27b694`
 
 Second playthrough, after the healing ceiling, the frame-budget fix, the

@@ -65,5 +65,40 @@ static func skill_name(skill: Dictionary) -> String:
 	return "%s %s" % [ELEMENTS[skill.element].name, SHAPES[skill.shape].name]
 
 static func make_skill(shape: String, element: String) -> Dictionary:
-	return {"shape": shape, "element": element, "cooldown_left": 0.0, "level": 1}
+	## Per-skill modifiers live on the instance, exactly as they do in the
+	## browser build: a card that says "+30% range on Frost Mortar" has to be
+	## able to say it about ONE of your skills, not about the shape table.
+	return {
+		"shape": shape, "element": element, "cooldown_left": 0.0, "level": 1,
+		"casts": 0,
+		"mods": {
+			"area": 1.0, "range": 1.0, "cooldown": 1.0, "damage": 1.0,
+			"knock": 1.0, "multi": 1, "pierce": 0, "jumps": 0,
+			"wide_cone": false,
+		},
+	}
+
+
+## Base tuning for the close-quarters loop and the draft, matching browser
+## v11.2. Kept in one block rather than scattered as literals, because the
+## previous pass had 210 and 1.1 and 0.16 written inline in four files and the
+## balance change that followed had to find all of them.
+const CLOSE := {
+	"range": 210.0,
+	"pressure_per_damage": 0.85,
+	"pressure_idle": 6.0,
+	"pressure_decay": 14.0,
+	"pressure_grace": 1.2,
+	"vent_heal": 10.0,
+	"vent_damage": 40.0,
+	"vent_radius": 200.0,
+	"vent_knock": 280.0,
+	"vent_cooldown": 2.0,
+	"scrap_chance": 0.10,
+	"scrap_heal": 6.0,
+	"dash_refund": 0.30,
+	"heal_cap_per_sec": 12.0,
+	"lifesteal_cap_per_sec": 9.0,
+}
+const DRAFT := {"rerolls": 2}
 

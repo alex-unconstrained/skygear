@@ -85,7 +85,7 @@ const PRESET = {
     "basicArc": 1.2,
     "loadout": []
   },
-  "build": "8f16357"
+  "build": "b7c7c0b"
 };
 
 /* ============================================================================
@@ -1688,6 +1688,9 @@ function applyElement(e, elem, ang, knock){
     case 'EMBER':
       e.burnStacks = Math.min(3, e.burnStacks + 1);
       e.burnT = 3 + M.burnDur;
+      // Remember who lit it. Burn is a large share of an Ember build and used
+      // to be attributed to nobody at all: tickDamage bypasses hitEnemy.
+      e.burnSrc = S.src;
       break;
     case 'FROST':
       e.slowT = 2; e.slowAmt = Math.max(e.slowAmt, M.slowAmt);
@@ -1852,9 +1855,9 @@ const Telemetry = {
     const t = this.slot(i);
     if (t) t.casts++;
   },
-  damage(amount, killed){
+  damage(amount, killed, forceSrc){
     if (!S.tel) return;
-    const src = S.src;
+    const src = (forceSrc === undefined) ? S.src : forceSrc;
     const t = (src === 'basic') ? S.tel.basic
             : (src === 'deck') ? S.tel.deck
             : (typeof src === 'number' ? this.slot(src) : null);
@@ -2082,22 +2085,29 @@ function randomLiveEnemy(skip){
 function updatePassive(idx, sk, dt){
   const P = S.player, st = skillStats(sk), E = ELEMENTS[sk.element];
   if (P.hp <= 0) return;
-  // a passive has no press, so its damage is all it can be judged on
+  /* A passive has no press, so its damage is all it can be judged on. RESTORED
+     at every exit, which the first version did not do — and that single missing
+     line is why a playtest report credited a Sentry with 76% of a run's damage.
+     With `S.src` left pointing at the last passive that ticked, everything
+     resolving later in the frame — DETONATOR bursts, OVERKILL crits, sentry
+     shots, field ticks — was billed to it. */
+  const _prevSrc = S.src;
   S.src = idx;
+  const done = (v) => { S.src = _prevSrc; return v; };
 
   if (st.kind === 'aura'){
     sk.tick = (sk.tick || 0) - dt;
-    if (sk.tick > 0) return;
+    if (sk.tick > 0) return done();
     sk.tick = 1 / Math.max(0.2, st.tickRate);
     const n = damageArea(P.x, P.y, st.radius, st.dmg, sk.element,
                          { silent: true, noCrit: false, from: P });
     if (n) pSparks(P.x + rnd(-st.radius*0.6, st.radius*0.6),
                    P.y + rnd(-st.radius*0.4, st.radius*0.4), 1, E.glow, 60);
-    return;
+    return done();
   }
 
   if (st.kind === 'pulse'){
-    if (sk.cdLeft > 0) return;
+    if (sk.cdLeft > 0) return done();
     sk.cdLeft = st.cd;
     sk.casts++;
     damageArea(P.x, P.y, st.radius, st.dmg, sk.element,
@@ -2106,26 +2116,33 @@ function updatePassive(idx, sk, dt){
          col: E.color, glow: E.glow });
     addTrauma(0.14);
     SFX.fire[sk.element]({ x: P.x, y: P.y });
-    return;
+    return done();
   }
 
   if (st.kind === 'sentry'){
-    if (sk.cdLeft > 0) return;
+    if (sk.cdLeft > 0) return done();
     sk.cdLeft = st.cd;
     sk.casts++;
     S.sentries.push({ x: P.x, y: P.y, t: st.life, cd: 0, ang: -Math.PI/2,
                       element: sk.element, dmg: st.dmg, range: st.range,
-                      shotCd: st.shotCd, knock: st.knock, fire: 0 });
+                      shotCd: st.shotCd, knock: st.knock, fire: 0,
+                      // whose sentry this is, so its shots are billed to the
+                      // slot that planted it rather than to whatever was
+                      // resolving when it happened to fire
+                      src: idx });
     fx({ kind:'aoe', x:P.x, y:P.y, r: 60, life: 0.28, col: E.color, glow: E.glow });
     SFX.ready();
-    return;
+    return done();
   }
+  S.src = _prevSrc;
 }
 
 /* A planted sentry picks its own target and fires until it expires. */
 function updateSentries(dt){
+  const prevSrc = S.src;
   for (let i = S.sentries.length - 1; i >= 0; i--){
     const s = S.sentries[i];
+    S.src = (s.src === undefined) ? null : s.src;
     s.t -= dt; s.cd -= dt; s.fire = Math.max(0, s.fire - dt);
     if (s.t <= 0){
       pSmoke(s.x, s.y, 4, 'rgba(200,195,190,0.5)', 26);
@@ -2152,6 +2169,7 @@ function updateSentries(dt){
          a: s.ang, life: 0.10, col: E.color, glow: E.glow });
     SFX.hit({ x: s.x, y: s.y });
   }
+  S.src = prevSrc;
 }
 
 function castSlot(idx, opt){
@@ -2813,6 +2831,7 @@ function spawnEnemy(type, forced, lane){
     burnStacks: 0, burnT: 0, burnTick: 0, slowT: 0, slowAmt: 0, stunT: 0, accT: 0, scaldT: 0, scaldTick: 0,
     flash: 0, blockFlash: 0, anim: rnd(TAU), dead: false,
     atkAng: 0, atkTarget: null, shootT: rnd(0.4, 1.4), swingFx: 0, atkAnimT: -1,
+    burnSrc: null,   // which slot set this one alight, for attribution
     spawnX: pt.x, spawnY: pt.y, side: pt.side,
     boss: type === 'BOSS' ? { seq: 0, cool: 2.4, atk: null, sweep: 0, dir: 1, tick: 0, beat: 0 } : null,
   };
@@ -2837,12 +2856,23 @@ function enemyTarget(e){
   return { x: S.boiler.x, y: S.boiler.y, r: S.boiler.r, isPlayer: false };
 }
 
-function tickDamage(e, dmg, col){
+function tickDamage(e, dmg, col, src){
   if (e.dead) return;
   e.hp -= dmg;
   S.stats.damage += dmg;
+  /* Damage over time counts toward the run's attribution too, billed to whoever
+     applied the status rather than to whatever is resolving now — and the
+     source stays set across the KILL, because a kill triggers DETONATOR and the
+     burst it causes belongs to the same slot. Without that, every kill landed
+     by a burn tick spent its explosion on nobody's account, which was a quarter
+     of the run's damage going unattributed. */
+  const from = (src === undefined) ? e.burnSrc : src;
+  const prev = S.src;
+  S.src = (from === undefined) ? null : from;
+  Telemetry.damage(dmg, e.hp <= 0, S.src);
   if (chance(0.30)) dmgNumber(e.x + rnd(-6,6), e.y - e.r, Math.round(dmg), col, 13);
   if (e.hp <= 0) killEnemy(e, rnd(TAU));
+  S.src = prev;
 }
 
 function updateEnemy(e, dt){
@@ -3810,6 +3840,7 @@ function endGame(win, reason, title){
 --------------------------------------------------------------------------- */
 function step(dt){
   S.t += dt;
+  S.src = null;
   Hash.build(S.enemies);
   updatePlayer(dt);
   for (let i = 0; i < S.enemies.length; i++) updateEnemy(S.enemies[i], dt);

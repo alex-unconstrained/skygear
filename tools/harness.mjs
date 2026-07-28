@@ -1360,6 +1360,65 @@ async function checkTelemetry(page){
     out.closeGrew, 'close-range time ' + (out.closeGrew ? 'accumulates' : 'never moves'));
 }
 
+
+/* Attribution has to add up (v12.1).
+
+   A playtest report showed a Sentry credited with 76% of a run's damage and
+   227 of 338 kills, which turned out to be a bookkeeping bug rather than a
+   balance one: `updatePassive` set the attribution source and never restored
+   it, so every DETONATOR burst, OVERKILL crit and sentry shot resolving later
+   in that frame was billed to whichever passive had ticked last.
+
+   The fix is restoring the source at every exit. This is the check that keeps
+   it honest: play a wave with a passive, an active and a kill-explosion card
+   all live, then assert the per-slot numbers actually sum to the run total. An
+   attribution system that does not add up is worse than none, because the draft
+   weights itself on it. */
+async function checkAttribution(page){
+  const out = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.player.maxHp = 1e6; S.player.hp = 1e6;
+    S.boiler.maxHp = 1e6; S.boiler.hp = 1e6;
+    S.unlockedSlots = 4;
+    // the reported build's shape: an active, an aura, a sentry, and the cards
+    // that make damage happen away from a cast
+    S.slots[0] = G.newSkill('LINE_BURST', 'STEAM');
+    S.slots[1] = G.newSkill('AURA', 'EMBER');
+    S.slots[2] = G.newSkill('SENTRY', 'EMBER');
+    S.mods.killExplode = 18;
+    S.mods.critExplode = 1;
+    S.mods.critChance = 0.5;
+    const D = G.TUNING.deck;
+    for (let w = 0; w < 3; w++){
+      for (let i = 0; i < 14; i++){
+        const e = G.spawnEnemy('SCRAPPER', {
+          x: D.cx + (i % 7 - 3) * 40, y: S.player.y - 90 - (i % 4) * 25, side: 'bow' });
+        e.state = 'move'; e.st = 0;
+      }
+      for (let i = 0; i < 420; i++){
+        if (S.slots[0]) S.slots[0].cdLeft = 0;
+        G.castSlot(0, {});
+        G.step(G.DT);
+      }
+    }
+    let attributed = 0;
+    for (const t of S.tel.per) attributed += t.damage;
+    attributed += S.tel.basic.damage + S.tel.deck.damage;
+    return { total: S.stats.damage, attributed,
+             per: S.tel.per.map(t => Math.round(t.damage)),
+             basic: Math.round(S.tel.basic.damage),
+             deck: Math.round(S.tel.deck.damage) };
+  });
+  const miss = out.total - out.attributed;
+  const pc = out.total > 0 ? Math.abs(miss) / out.total : 0;
+  record('attribution', 'per-slot damage adds up to the run total',
+    pc < 0.02,
+    Math.round(out.attributed) + ' of ' + Math.round(out.total) +
+    ' attributed (' + (pc * 100).toFixed(1) + '% unaccounted) · slots ' +
+    JSON.stringify(out.per) + ' basic ' + out.basic + ' deck ' + out.deck);
+}
+
 /* ---------------------------------------------------------------------------
    main
 --------------------------------------------------------------------------- */
@@ -1387,6 +1446,7 @@ await group('audio',   () => checkAudio(browser, port));
 await group('frame',   () => checkFrame(page));
 await group('draft',   () => checkDraft(page));
 await group('telemetry', () => checkTelemetry(page));
+await group('attribution', () => checkAttribution(page));
 await group('leak',    () => checkAudioLeak(browser, port));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));

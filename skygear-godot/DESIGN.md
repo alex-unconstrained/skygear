@@ -118,11 +118,11 @@ world space and remain independent of sprite dimensions.
 | System | Status | Next proof |
 |---|---|---|
 | Isolated project and copied references | complete | hash manifest |
-| Movement, aim, camera | implemented | run in Godot editor |
+| Movement, aim, camera | implemented and smoke-tested | hands-on playtest |
 | Basic attack and active skills | implemented | matrix test scene |
 | Enemy melee/ranged behavior | implemented | wave-one playtest |
-| Boiler and loss state | implemented | automated damage test |
-| Dash and pressure vent | implemented | close/range assertions |
+| Boiler and loss state | implemented and smoke-tested | hands-on balance pass |
+| Dash and pressure vent | implemented and smoke-tested | hands-on balance pass |
 | Reactive props | implemented, reduced layout | full v11 layout |
 | Draft | implemented, simplified cards | migrate all 37 cards |
 | 12-wave campaign | data present; boss uses temporary heavy behavior | dedicated boss patterns |
@@ -130,7 +130,7 @@ world space and remain independent of sprite dimensions.
 | Audio | key runtime SFX copied, basic playback wired | buses/music/voice director |
 | Animation strips | copied, not yet wired | SpriteFrames importer |
 | Settings, rebinding, seed, run report | not yet ported | Milestone 3 |
-| Automated parity harness | not yet ported | headless GUT/native tests |
+| Automated parity harness | 13-check native smoke test passing | expand to deterministic parity suite |
 
 ## 10. Verification policy
 
@@ -146,3 +146,7 @@ through 2560×1440.
   source snapshot, key design references, production runtime art, and `.ogg`
   SFX. Added Milestone 1 architecture and playable systems.
 
+- 2026-07-27: Passed the 13-check headless smoke suite, exported and launch-tested
+  the Windows release with Godot 4.7.1, and uploaded version `milestone-1` to
+  itch.io channel `alex-unconstrained/skygear-godot-test:windows` (build
+  `#1837384`).
