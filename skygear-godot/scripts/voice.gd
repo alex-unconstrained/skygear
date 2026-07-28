@@ -74,6 +74,10 @@ var _priority := -1
 var _last: Dictionary = {}
 var _clock := 0.0
 var _player: AudioStreamPlayer
+## Set while a line is in flight, so the mixer can duck the fight under it. A
+## playtest could not make the lines out against the other sounds, and the layer
+## being quiet was never the problem — thirty simultaneous cues was.
+var audio: SkyGearAudio
 var _rng := RandomNumberGenerator.new()
 
 
@@ -81,6 +85,9 @@ func _ready() -> void:
 	_rng.randomize()
 	_player = AudioStreamPlayer.new()
 	_player.bus = "Voice" if AudioServer.get_bus_index("Voice") >= 0 else "SFX"
+	## Above the fight rather than level with it. A line that is merely present
+	## in the mix is a line nobody parses while three boarders are winding up.
+	_player.volume_db = 4.0
 	add_child(_player)
 	for key in LINES.keys():
 		var takes: Array[AudioStream] = []
@@ -95,6 +102,8 @@ func _ready() -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	if audio != null:
+		audio.speaking = _player != null and _player.playing
 
 
 ## Say a line, or decline to. Returns whether it actually spoke, so a call site

@@ -84,6 +84,27 @@ var run_time := 0.0
 ## Whether the last finished run reached the disk. Shown on the results screen,
 ## because a run log that silently is not being written is worse than none.
 var run_logged := false
+## Where the cursor is on the deck, as the 3D view sees it.
+##
+## The 2D scene is hidden, so `get_global_mouse_position()` on it answers a
+## question about a space nobody is looking at. The renderer that owns the camera
+## owns the answer; this is where it puts it. Unset in the plain 2D scene, which
+## still uses the 2D mouse and is still what the harness drives.
+var cursor_ground := Vector2.ZERO
+var cursor_valid := false
+
+
+func set_cursor_ground(at: Vector2) -> void:
+	cursor_ground = at
+	cursor_valid = true
+
+
+## The point every skill aims at. One place, so a cast, the captain's facing and
+## the renderer cannot disagree about where the player is pointing.
+func aim_target() -> Vector2:
+	if cursor_valid:
+		return cursor_ground
+	return player.get_global_mouse_position()
 ## The controls screen. `rebinding_index` is which row is listening for a key,
 ## or -1; `rebind_conflict` is the action that already owns the last key tried.
 var keys_open := false
@@ -109,6 +130,7 @@ func _ready() -> void:
 	add_child(audio)
 	voice = SkyGearVoice.new()
 	voice.name = "Voice"
+	voice.audio = audio
 	add_child(voice)
 	player.dash_started.connect(_on_dash_started)
 	SkyGearKeybinds.capture_defaults()
@@ -130,6 +152,22 @@ func _unhandled_input(event: InputEvent) -> void:
 			_apply_rebind(event)
 			get_viewport().set_input_as_handled()
 		return
+	## The draft, with a mouse. It was keyboard-only — 1, 2, 3 — and a screen full
+	## of cards that do not respond to being clicked reads as a screen that is
+	## broken, not as a screen with a keyboard shortcut.
+	if state == State.DRAFT and event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_LEFT:
+		var where: Vector2 = hud.get_local_mouse_position()
+		var cards := SkyGearHUD.draft_cards(hud.size, mini(3, draft_options.size()))
+		for i in cards.size():
+			if cards[i].has_point(where):
+				choose_draft(i)
+				get_viewport().set_input_as_handled()
+				return
+		if SkyGearHUD.reroll_button(hud.size).has_point(where):
+			reroll_draft()
+			get_viewport().set_input_as_handled()
+			return
 	if event is not InputEventKey or not event.pressed or event.echo:
 		return
 	## The controls screen. Fixed keys, deliberately: rebinding your way out of
@@ -772,7 +810,7 @@ func cast_skill(index: int, aim_at = null) -> void:
 	if bool(shape.get("passive", false)) or float(skill.cooldown_left) > 0.0:
 		return
 	var origin := player.global_position
-	var target: Vector2 = aim_at if aim_at is Vector2 else player.get_global_mouse_position()
+	var target: Vector2 = aim_at if aim_at is Vector2 else aim_target()
 	# An explicit aim has to steer the DIRECTION too, not only the landing point:
 	# a Cleave aimed at a target it is facing away from hits nothing, which is
 	# how six casts recorded six presses and zero damage.

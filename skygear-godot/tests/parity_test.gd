@@ -813,6 +813,34 @@ func _view() -> void:
 	_check("captain", "figures are on their own visual layer, so decals stay on the deck",
 		SkyGearView3D.LAYER_FIGURES != SkyGearView3D.LAYER_WORLD)
 
+	## AIMING. `Node2D.get_global_mouse_position()` answers a question about the
+	## hidden 2D scene; what the player is looking at is a perspective projection
+	## of the deck. Every skill was aimed at a point unrelated to the cursor.
+	view.sway = false
+	game.player.global_position = Vector2(0, 400)
+	view._process(0.05)
+	var frame_size: Vector2 = view.camera.get_viewport().get_visible_rect().size
+	var centre_ground: Vector2 = view.ground_at(frame_size * 0.5)
+	## The middle of the screen is the point the camera is aimed through, so it
+	## must land on the deck ahead of her rather than anywhere near the origin.
+	_check("aim", "the centre of the screen unprojects onto the deck",
+		SkyGearGame.DECK_RECT.grow(200.0).has_point(centre_ground),
+		"(%.0f, %.0f)" % [centre_ground.x, centre_ground.y])
+	var left_ground: Vector2 = view.ground_at(Vector2(frame_size.x * 0.2, frame_size.y * 0.7))
+	var right_ground: Vector2 = view.ground_at(Vector2(frame_size.x * 0.8, frame_size.y * 0.7))
+	_check("aim", "left of the screen is to port, right is to starboard",
+		left_ground.x < right_ground.x,
+		"%.0f vs %.0f" % [left_ground.x, right_ground.x])
+	var near_ground: Vector2 = view.ground_at(Vector2(frame_size.x * 0.5, frame_size.y * 0.9))
+	var far_ground: Vector2 = view.ground_at(Vector2(frame_size.x * 0.5, frame_size.y * 0.3))
+	_check("aim", "and lower on the screen is nearer the stern",
+		near_ground.y > far_ground.y,
+		"%.0f vs %.0f" % [near_ground.y, far_ground.y])
+	## The whole point: what the game aims at is what the cursor is over.
+	game.set_cursor_ground(Vector2(120, -300))
+	_check("aim", "a cast with no explicit target uses the cursor on the deck",
+		game.aim_target() == Vector2(120, -300), str(game.aim_target()))
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY
@@ -865,6 +893,40 @@ func _view() -> void:
 			rig._fallback("hurt") == "idle" and rig._fallback("run") in ["run", "walk"],
 			"hurt -> %s" % rig._fallback("hurt"))
 	rig.queue_free()
+
+	## Clicking a card. It was 1/2/3 only, and a screen full of cards that do not
+	## respond to a cursor reads as broken rather than as keyboard-driven.
+	var cards := SkyGearHUD.draft_cards(Vector2(1366, 768), 3)
+	_check("draft", "three cards, side by side, on screen",
+		cards.size() == 3 and cards[0].position.x > 0.0
+			and cards[2].end.x < 1366.0 and cards[0].end.x < cards[1].position.x)
+	_check("draft", "and they do not overlap the reroll button",
+		not cards[1].intersects(SkyGearHUD.reroll_button(Vector2(1366, 768))))
+	## The geometry is shared between the draw and the hit test, so a card cannot
+	## be somewhere the click is not.
+	_check("draft", "a click in the middle card hits the middle card",
+		cards[1].has_point(cards[1].get_center())
+			and not cards[0].has_point(cards[1].get_center()))
+
+	## The mix. Sixty-seven lines nobody can make out are sixty-seven lines of
+	## noise, and the layer being quiet was never the problem.
+	var mixer := SkyGearAudio.new()
+	root.add_child(mixer)
+	mixer.speaking = true
+	mixer._process(1.0)
+	var ducked: float = AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX"))
+	mixer.speaking = false
+	for i in 40:
+		mixer._process(0.1)
+	var clear: float = AudioServer.get_bus_volume_db(AudioServer.get_bus_index("SFX"))
+	_check("audio", "the fight ducks under a line and comes back",
+		ducked < clear - 3.0, "%.1f dB speaking, %.1f dB clear" % [ducked, clear])
+	_check("audio", "music ducks harder than the fight does",
+		SkyGearAudio.DUCK_MUSIC < SkyGearAudio.DUCK_SFX,
+		"%.0f vs %.0f dB" % [SkyGearAudio.DUCK_MUSIC, SkyGearAudio.DUCK_SFX])
+	_check("audio", "and it comes back slower than it goes, so it does not pump",
+		SkyGearAudio.DUCK_RELEASE < SkyGearAudio.DUCK_ATTACK)
+	mixer.queue_free()
 
 	## The captain talks, and the lines are on disk.
 	_check("voice", "the line sheet is delivered",

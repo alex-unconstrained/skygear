@@ -31,7 +31,26 @@ var players: Dictionary = {}
 var current := ""
 var _fading: Array[AudioStreamPlayer] = []
 
-var volumes := {"master": 0.85, "music": 0.55, "sfx": 1.0, "ui": 0.85, "voice": 1.0}
+## Voice sits ABOVE everything and everything else gets out of its way.
+##
+## Reported from a playtest: the character audio was not easy to hear or
+## understand against the other sounds. Sixty-seven lines that nobody can make
+## out are sixty-seven lines of noise, and turning the whole layer up just makes
+## a louder mess — a keg chain into forty boarders is thirty simultaneous cues,
+## and no fixed level wins against thirty of anything.
+##
+## So the fix is ducking, which is what a mixer is for: while a line is speaking,
+## SFX and music drop under it and come back when it stops.
+var volumes := {"master": 0.85, "music": 0.55, "sfx": 0.9, "ui": 0.85, "voice": 1.0}
+
+## How far, in decibels, and how fast. Music ducks harder than SFX because the
+## fight is information and the music is not.
+const DUCK_SFX := -7.0
+const DUCK_MUSIC := -11.0
+const DUCK_ATTACK := 14.0     ## dB per second going down
+const DUCK_RELEASE := 5.0     ## and coming back, slower, so it does not pump
+var _duck := 0.0              ## 0 = clear, 1 = fully ducked
+var speaking := false
 var muted := false
 
 
@@ -92,6 +111,13 @@ func stop_music() -> void:
 
 
 func _process(delta: float) -> void:
+	## The duck. Driven by `speaking`, which the voice director sets — it knows
+	## when a line starts and how long it holds the channel, and nothing else has
+	## to know anything.
+	var want: float = 1.0 if speaking else 0.0
+	var rate: float = DUCK_ATTACK if want > _duck else DUCK_RELEASE
+	_duck = move_toward(_duck, want, rate * delta / 14.0)
+	_apply_duck()
 	# crossfade by hand: Godot has no built-in and a hard cut on a two-minute
 	# generated track is exactly as audible here as it was in the browser
 	if current != "" and players.has(current):
@@ -116,6 +142,20 @@ func toggle_mute() -> void:
 	muted = not muted
 	apply_volumes()
 	save_settings()
+
+
+## The ducked levels, applied on top of whatever the player set. Kept separate
+## from `apply_volumes` so a duck can never be mistaken for a settings change and
+## saved to disk.
+func _apply_duck() -> void:
+	var sfx := AudioServer.get_bus_index("SFX")
+	if sfx >= 0:
+		AudioServer.set_bus_volume_db(sfx,
+			linear_to_db(maxf(0.0001, float(volumes.sfx))) + DUCK_SFX * _duck)
+	var music := AudioServer.get_bus_index("Music")
+	if music >= 0:
+		AudioServer.set_bus_volume_db(music,
+			linear_to_db(maxf(0.0001, float(volumes.music))) + DUCK_MUSIC * _duck)
 
 
 func apply_volumes() -> void:

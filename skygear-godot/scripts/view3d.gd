@@ -951,6 +951,7 @@ func _process(delta: float) -> void:
 	if game == null:
 		return
 	_flicker += delta
+	_aim_from_cursor()
 	_track_camera(delta)
 	_used.clear()
 	_decals_used.clear()
@@ -1054,6 +1055,49 @@ func _sync_airstream(delta: float) -> void:
 		# fade in at the far end and out as it passes, so nothing appears in shot
 		var fade: float = smoothstep(0.0, 0.16, t) * smoothstep(1.0, 0.70, t)
 		node.transparency = 1.0 - fade
+
+
+## Where the cursor is pointing, ON THE DECK.
+##
+## THIS WAS THE AIMING BUG. `Node2D.get_global_mouse_position()` returns the
+## mouse in the 2D scene's coordinates — and the 2D scene is hidden. What the
+## player is looking at is a perspective projection of the deck through a
+## Camera3D forty-one degrees above it, and the two spaces have no relationship
+## whatsoever. Every skill was aimed at a point that had nothing to do with the
+## cursor: a Lance fired past the pointer, a Mortar landed somewhere else, and a
+## Cleave aimed away from the boarder it looked like it was facing.
+##
+## The browser has `CAM.unproject` for exactly this and it is the same three
+## lines: take the ray under the cursor and intersect it with the deck plane.
+func _aim_from_cursor() -> void:
+	if camera == null:
+		return
+	var viewport := camera.get_viewport()
+	if viewport == null:
+		return
+	var mouse := viewport.get_mouse_position()
+	var from := camera.project_ray_origin(mouse)
+	var direction := camera.project_ray_normal(mouse)
+	## Parallel to the deck means the cursor is on or above the horizon. Keep the
+	## last good point rather than aiming at infinity behind the ship.
+	if absf(direction.y) < 0.00001:
+		return
+	var distance := -from.y / direction.y
+	if distance <= 0.0:
+		return
+	var hit := from + direction * distance
+	game.set_cursor_ground(Vector2(hit.x, hit.z) / WORLD_SCALE)
+
+
+## Ground point under a screen position, for the harness and for anything that
+## needs to ask without waiting for a frame.
+func ground_at(screen: Vector2) -> Vector2:
+	var from := camera.project_ray_origin(screen)
+	var direction := camera.project_ray_normal(screen)
+	if absf(direction.y) < 0.00001:
+		return Vector2.ZERO
+	var hit := from + direction * (-from.y / direction.y)
+	return Vector2(hit.x, hit.z) / WORLD_SCALE
 
 
 ## Effects, projected flat onto the deck.

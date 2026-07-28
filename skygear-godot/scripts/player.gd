@@ -77,7 +77,10 @@ func _physics_process(delta: float) -> void:
 	queue_redraw()
 
 func _update_aim() -> void:
-	var mouse_delta := get_global_mouse_position() - global_position
+	## Through the game, not through the 2D viewport: the visible scene is a 3D
+	## projection and the 2D mouse position is an answer about a hidden space.
+	var aim_at: Vector2 = game.aim_target() if game != null else get_global_mouse_position()
+	var mouse_delta := aim_at - global_position
 	if mouse_delta.length_squared() > 4.0:
 		aim_direction = mouse_delta.normalized()
 		$Sprite.flip_h = aim_direction.x < 0.0

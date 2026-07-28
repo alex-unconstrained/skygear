@@ -633,23 +633,58 @@ func _edge_marker(toward: Vector2, inset: Rect2, colour: Color) -> void:
 	draw_circle(at - dir * 4.0, 3.0, Color(0.04, 0.03, 0.06, 0.8))
 
 
+## Where the draft cards are. Static and shared, so the thing that draws them
+## and the thing that decides what was clicked cannot disagree — the same reason
+## `hud_plates` exists.
+const CARD_W := 280.0
+const CARD_GAP := 28.0
+const CARD_TOP := 200.0
+const CARD_H := 340.0
+
+
+static func draft_cards(view: Vector2, count: int) -> Array[Rect2]:
+	var out: Array[Rect2] = []
+	var span: float = CARD_W * float(count) + CARD_GAP * maxf(0.0, float(count) - 1.0)
+	var start_x: float = (view.x - span) * 0.5
+	for i in count:
+		out.append(Rect2(start_x + i * (CARD_W + CARD_GAP), CARD_TOP, CARD_W, CARD_H))
+	return out
+
+
+## The reroll button, which was a line of text that said "(R)" and nothing a
+## mouse could do anything with.
+static func reroll_button(view: Vector2) -> Rect2:
+	return Rect2(view.x * 0.5 - 120.0, CARD_TOP + CARD_H + 22.0, 240.0, 38.0)
+
+
 func _draw_draft() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.78))
 	_banner(size.x * 0.5, 88.0, 420.0)
 	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
 	_center_text("Every weapon is a shape crossed with an element.", 158.0, 18, Color("#b9afaa"))
 	# reroll: two per RUN, so spending one is a decision about which hand
-	var reroll_label := ("REROLL  x%d   (R)" % game.rerolls) if game.rerolls > 0 else "NO REROLLS LEFT"
-	_center_text(reroll_label, 580.0, 20,
-		Color("#e8c376") if game.rerolls > 0 else Color("#6a6478"))
-	var card_width := 280.0
-	var gap := 28.0
-	var start_x := (size.x - (card_width * 3.0 + gap * 2.0)) * 0.5
-	for i in mini(3, game.draft_options.size()):
+	var reroll := reroll_button(size)
+	var can_reroll: bool = game.rerolls > 0
+	var reroll_hot: bool = can_reroll and reroll.has_point(get_local_mouse_position())
+	draw_rect(reroll, Color(0.69, 0.51, 0.25, 0.22 if reroll_hot else 0.10))
+	draw_rect(reroll, BRASS_LIT if reroll_hot else BRASS, false, 2.0)
+	_center_in_rect(("REROLL  x%d   (R)" % game.rerolls) if can_reroll else "NO REROLLS LEFT",
+		Rect2(reroll.position + Vector2(0, 6), reroll.size), 18,
+		BRASS_LIT if can_reroll else Color("#6a6478"))
+	var card_width := CARD_W
+	var cards := draft_cards(size, mini(3, game.draft_options.size()))
+	for i in cards.size():
 		var card: Dictionary = game.draft_options[i]
-		var rect := Rect2(start_x + i * (card_width + gap), 200, card_width, 340)
+		var rect: Rect2 = cards[i]
+		## The card under the pointer lifts and lights, because a card that does
+		## not react to a cursor is a card a player does not know is clickable.
+		var hovered: bool = rect.has_point(get_local_mouse_position())
+		if hovered:
+			rect = rect.grow(4.0)
 		_panel(rect)
-		_center_in_rect(str(i + 1), Rect2(rect.position + Vector2(0, 16), Vector2(card_width, 30)), 22, Color("#ffe08a"))
+		_center_in_rect("%d  ·  CLICK OR PRESS %d" % [i + 1, i + 1],
+			Rect2(rect.position + Vector2(0, 14), Vector2(rect.size.x, 30)), 13,
+			Color("#ffe08a") if hovered else Color("#8b8296"))
 
 		## The class band. Reported against the browser build in exactly these
 		## words: it is not visually clear whether an upgrade enhances a skill
