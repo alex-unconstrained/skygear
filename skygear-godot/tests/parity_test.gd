@@ -804,13 +804,22 @@ func _view() -> void:
 		_check("captain", "she has the clips the state machine asks for",
 			"idle" in clips and "run" in clips and "swing" in clips and "dash" in clips,
 			str(clips))
+		## RESOLVES, rather than begins with a particular path. The first version
+		## hard-coded `Armature/Skeleton3D` because that is where the Meshy rig
+		## happened to live; a Mixamo pack puts it somewhere else and the check
+		## failed on a model that was perfectly correct. What matters is that
+		## every track finds a node, which is the thing that was actually broken
+		## when the swing clip animated nothing.
 		var unresolved := 0
 		for name in clips:
 			var anim: Animation = ap.get_animation(name)
 			for t in anim.get_track_count():
-				if anim.track_get_path(t).get_subname_count() > 0 						and not str(anim.track_get_path(t)).begins_with("Armature/Skeleton3D"):
+				var path := anim.track_get_path(t)
+				if path.get_subname_count() == 0:
+					continue
+				if scene.get_node_or_null(NodePath(path.get_concatenated_names())) == null:
 					unresolved += 1
-		_check("captain", "and every track points at the skeleton we kept",
+		_check("captain", "and every track resolves against the rig",
 			unresolved == 0, "%d stray tracks" % unresolved)
 		_check("captain", "the scene carries no import-time dependency",
 			not _depends_on_staging(SkyGearView3D.CAPTAIN_SCENE))
@@ -946,10 +955,15 @@ func _view() -> void:
 		SkyGearView3D.LAYER_FIGURES)
 	_check("rig", "it builds from an ingested model", built)
 	if built:
+		## Against the model's OWN measured height, not against a number copied
+		## from whichever pack was current when the check was written. An FBX
+		## from a different exporter measures in different units and the check
+		## has to survive that — the whole point of normalising by height.
+		var measured: float = float(rig.model.get_meta("model_height", 0.0))
 		_check("rig", "and scales the model to the height we asked for",
-			absf(rig.height_scale * 1.92153 - SkyGearView3D.CAPTAIN_HEIGHT
-				* SkyGearView3D.WORLD_SCALE) < 0.01,
-			"scale %.4f" % rig.height_scale)
+			measured > 0.0 and absf(rig.height_scale * measured
+				- SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE) < 0.01,
+			"%.4f units x %.3f" % [measured, rig.height_scale])
 		rig.want("run", 300.0)
 		_check("rig", "a run plays faster when she is moving faster",
 			rig.anim.speed_scale > 1.0, "rate %.2f" % rig.anim.speed_scale)

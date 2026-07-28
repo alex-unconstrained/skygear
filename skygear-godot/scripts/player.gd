@@ -27,6 +27,9 @@ var dash_time_left := 0.0
 ## and the swing cycle both key off this, and without it she casts six times a
 ## second while standing perfectly still.
 var attack_time := 0.0
+## How long she is still reacting to being hit. The melee pack ships a proper
+## flinch and the state machine had nothing to trigger it with.
+var hurt_time := 0.0
 var dash_direction := Vector2.UP
 var invulnerability_left := 0.0
 var dash_serial := 0
@@ -42,6 +45,7 @@ func reset_for_run() -> void:
 	dash_recharge_left = 0.0
 	dash_time_left = 0.0
 	attack_time = 0.0
+	hurt_time = 0.0
 	invulnerability_left = 0.0
 	velocity = Vector2.ZERO
 	global_position = Vector2(0, 720)
@@ -60,6 +64,7 @@ func _physics_process(delta: float) -> void:
 		return
 
 	attack_time = maxf(0.0, attack_time - delta)
+	hurt_time = maxf(0.0, hurt_time - delta)
 	if dash_time_left > 0.0:
 		dash_time_left -= delta
 		velocity = dash_direction * DASH_SPEED

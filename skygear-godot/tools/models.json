@@ -34,24 +34,38 @@
   ],
 
   "captain": {
-    "archive": "C:/Users/alexr/Downloads/Meshy_AI_Crimson_Gearbound_biped.zip",
-    "rig": "*Animation_Idle_03*.fbx",
+    "_note": [
+      "Pro Melee Axe Pack: one character FBX with the mesh and skin, and 47",
+      "animation-only clips at a fifth of a megabyte each. All 33 bones share",
+      "the Mixamo naming and every clip sits a consistent 19.6 degrees off the",
+      "character's rest, so one retarget covers the lot. The maps come from the",
+      "original Meshy archive because the axe pack's character embeds a 4096",
+      "albedo we would only be throwing away."
+    ],
+    "archive": "C:/Users/alexr/Downloads/Pro Melee Axe Pack.zip",
+    "maps_archive": "C:/Users/alexr/Downloads/Meshy_AI_Crimson_Gearbound_0728033432_texture_obj.zip",
+    "rig": "Meshy_AI_Crimson_Gearbound_0728033432_texture_obj.fbx",
     "clips": {
-      "idle": "*Animation_Idle_03*.fbx",
-      "idle_alt": "*Animation_Idle_10*.fbx",
-      "run": "*Animation_Running*.fbx",
-      "walk": "*Animation_Walking*.fbx",
-      "dash": "*Animation_Backflip*.fbx",
-      "swing": "*Animation_019fa6da*.fbx"
+      "idle": "standing idle.fbx",
+      "idle_alt": "standing idle looking ver. 1.fbx",
+      "walk": "standing walk forward.fbx",
+      "run": "standing run forward.fbx",
+      "run_back": "standing run back.fbx",
+      "swing": "standing melee attack horizontal.fbx",
+      "swing2": "standing melee attack downward.fbx",
+      "swing3": "standing melee attack backhand.fbx",
+      "spin": "standing melee attack 360 high.fbx",
+      "combo": "standing melee combo attack ver. 1.fbx",
+      "dash": "standing jump.fbx",
+      "hurt": "standing react large gut.fbx",
+      "block": "standing block idle.fbx",
+      "taunt": "standing taunt battlecry.fbx"
     },
-    "loop": ["idle", "idle_alt", "run", "walk"],
+    "loop": ["idle", "idle_alt", "walk", "run", "run_back", "block"],
     "height": 176.0,
     "facing": 0.0,
     "maps": {
-      "albedo": {"match": "*texture_0.png", "size": 1024},
-      "normal": {"match": "*_normal.png", "size": 512},
-      "rough": {"match": "*_roughness.png", "size": 512},
-      "metal": {"match": "*_metallic.png", "size": 512}
+      "albedo": {"match": "*texture.png", "size": 1024}
     }
   }
 }

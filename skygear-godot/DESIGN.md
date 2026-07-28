@@ -501,6 +501,46 @@ Saving writes `user://hud_layout.json`, which wins over the shipped file.
 Promoting a layout to the default is copying one file. `docs/HUD-LAYOUT.md` is
 the page for whoever is doing the dragging.
 
+## 13l. The melee pack — the pipeline paying for itself, 2026-07-28
+
+A Mixamo-style axe pack arrived: one 25 MB character FBX with the mesh and skin,
+and 47 animation-only clips at a fifth of a megabyte each. Total 38 MB, against
+190 MB for six Meshy clips, because these do not each embed the whole character.
+
+**Bringing it in cost two small pipeline additions and a manifest entry.** That
+is the return on `tools/ingest_model.py`: the first character took an afternoon
+and three false starts, this one took a `models.json` edit and one command.
+
+- All 33 bones share the Mixamo naming and every clip sits a **consistent 19.6
+  degrees** off the character's rest — one retarget covers all fourteen, and the
+  code that does it was already written for the Meshy pack's much worse case.
+- The rig came from the CHARACTER file this time rather than from an animation
+  file. The manifest says which, so neither is special-cased.
+- **`maps_archive`** is the one new manifest key: an animation pack retargeted
+  onto a character ships the clips and the character but not the source textures
+  at a useful size, and re-extracting a 4096 albedo from an FBX we are about to
+  delete is work for nothing when the original archive is still on disk.
+
+**Fourteen clips, up from six**: idle and a looking variant, walk, run, run back,
+four distinct melee attacks plus a spin and a combo, jump, a flinch, a block and
+a taunt. `SkyGearRig3D.VARIANTS` cycles the attacks, so repeated casts no longer
+perform the identical horizontal cut — which reads worse than a billboard,
+because a billboard never claimed to be swinging. The flinch is wired to taking
+damage, which the port had no animation for at all.
+
+**Two checks were wrong and the new pack found them.** One asserted every
+animation track began with `Armature/Skeleton3D` — true of the Meshy rig, false
+of a Mixamo one, and irrelevant either way: what matters is that a track
+*resolves*, which is the thing that was actually broken when the swing clip
+animated nothing. The other multiplied by 1.92153, the old model's height in
+its own units. This one measures 0.018. Both now assert the invariant instead
+of the constant, which is the entire point of normalising by height.
+
+**Still open:** the pack is authored for a character holding an axe and ships no
+axe. She reads acceptably because she already wears a heavy brass gauntlet on
+the swing arm, but a weapon mesh attached to `mixamorig_RightHand` would make
+the animations mean what they were animated to mean.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-

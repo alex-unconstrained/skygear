@@ -106,6 +106,19 @@ def ingest(name: str, spec: dict, keep_staging: bool) -> int:
     source = unpack(archive, scratch)
     print("  unpacked %s" % source)
 
+    ## Maps may live in a DIFFERENT archive from the rig. An animation pack
+    ## retargeted onto a character ships the clips and the character but not
+    ## necessarily the source textures at full size — and re-extracting a 4096
+    ## albedo out of an FBX we are about to throw away is work for nothing when
+    ## the original is still on disk.
+    map_source = source
+    if spec.get("maps_archive"):
+        maps_archive = Path(spec["maps_archive"])
+        if not maps_archive.is_absolute():
+            maps_archive = ROOT / maps_archive
+        map_source = unpack(maps_archive, STAGING / "_maps")
+        print("  maps from %s" % map_source)
+
     out = ROOT / "assets" / "models" / name
     out.mkdir(parents=True, exist_ok=True)
 
@@ -113,7 +126,7 @@ def ingest(name: str, spec: dict, keep_staging: bool) -> int:
     maps = {}
     for role, cfg in spec.get("maps", {}).items():
         try:
-            src = find(source, cfg["match"])
+            src = find(map_source, cfg["match"])
         except SystemExit:
             print("    %-14s (absent)" % role)
             continue

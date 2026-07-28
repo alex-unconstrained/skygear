@@ -38,6 +38,18 @@ const PRIORITY := ["die", "hurt", "swing", "dash", "run", "walk", "idle"]
 ## character having a fit.
 const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true}
 
+## Attacks alternate. A melee pack ships four or five swings and the state
+## machine only ever asks for one, so without this the captain performs the
+## identical horizontal cut every time she casts anything — which reads worse
+## than a billboard, because a billboard never claimed to be swinging.
+##
+## Named after the state, so `want("swing")` picks the next of whichever of
+## these have actually been delivered.
+const VARIANTS := {
+	"swing": ["swing", "swing2", "swing3", "spin", "combo"],
+}
+var _variant := 0
+
 ## How long to crossfade into each state. A swing has to land NOW; an idle can
 ## ease. Zero would pop, and a quarter second on an attack is a quarter second
 ## of the player not knowing they pressed the button.
@@ -118,8 +130,13 @@ func want(next: String, speed: float = 0.0) -> void:
 	## next frame by the run that is still true underneath it.
 	if _clock < _one_shot_until and PRIORITY.find(next) > PRIORITY.find(state):
 		next = state
+	## A new one-shot picks the next variant; holding the same state keeps the
+	## clip it is already playing, or an attack would reshuffle every frame.
+	var starting: bool = next != state
 	state = next
-	var clip := next if has_clip(next) else _fallback(next)
+	var clip := _variant_of(next) if starting else _clip
+	if clip == "" or not has_clip(clip):
+		clip = next if has_clip(next) else _fallback(next)
 	if clip == "":
 		return
 	if clip != _clip:
@@ -140,6 +157,20 @@ func want(next: String, speed: float = 0.0) -> void:
 
 ## Nearest usable clip when the wanted one has not been delivered. Walking is a
 ## slow run; a hurt is a very short idle; anything else falls to idle.
+## The next delivered variant of a state, round robin. Falls back to the state
+## itself when no variants exist, which is every state but the attack.
+func _variant_of(next: String) -> String:
+	var options: Array = VARIANTS.get(next, [])
+	var live: Array[String] = []
+	for name in options:
+		if has_clip(str(name)):
+			live.append(str(name))
+	if live.is_empty():
+		return next
+	_variant = (_variant + 1) % live.size()
+	return live[_variant]
+
+
 func _fallback(next: String) -> String:
 	match next:
 		"run":

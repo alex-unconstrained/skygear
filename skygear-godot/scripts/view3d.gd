@@ -1669,13 +1669,18 @@ func _sync_captain(delta: float) -> bool:
 	## having it cancelled on the next frame by the run underneath it.
 	var speed: float = player.velocity.length()
 	var doing := "idle"
-	if player.attack_time > 0.0:
+	if player.hurt_time > 0.0:
+		doing = "hurt"
+	elif player.attack_time > 0.0:
 		doing = "swing"
 	elif player.dash_time_left > 0.0:
 		doing = "dash"
 	elif speed > 35.0:
 		doing = "run"
 	_captain.want(doing, speed)
+	## A flinch is worth seeing on the model as well as in the numbers.
+	if player.hurt_time > 0.30:
+		_captain.react_hit(1.0)
 	## She turns to her aim rather than to her movement: aim is what the Cleave
 	## uses, so aim is what the player has to be able to read off her.
 	_captain.place(player.global_position, player.aim_direction, WORLD_SCALE, delta)

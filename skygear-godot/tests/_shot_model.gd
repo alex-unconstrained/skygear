@@ -24,11 +24,24 @@ func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	if args.size() > 0:
 		clip = args[0]
+	## Normalised by the model's own measured height, exactly as the game does.
+	## A pack from a different exporter measures in different units — this one is
+	## 0.018 units tall where the last was 1.92 — and a viewer that assumes one
+	## of them shows an empty screen for the other.
 	for i in 4:
+		var holder := Node3D.new()
+		root3d.add_child(holder)
 		var it := scene.instantiate()
-		it.position = Vector3(-3.0 + i * 2.0, -0.95, 0)
-		it.rotation = Vector3(0, TAU * float(i) / 4.0, 0)
-		root3d.add_child(it)
+		holder.add_child(it)
+		var tall: float = float(it.get_meta("model_height", 0.0))
+		if tall <= 0.0:
+			for m in it.find_children("*", "MeshInstance3D", true, false):
+				tall = maxf(tall, (m as MeshInstance3D).get_aabb().size.y
+					* (m as MeshInstance3D).global_transform.basis.get_scale().y)
+		var k: float = 1.8 / maxf(0.0001, tall)
+		holder.scale = Vector3(k, k, k)
+		holder.position = Vector3(-3.0 + i * 2.0, -0.95, 0)
+		holder.rotation = Vector3(0, TAU * float(i) / 4.0, 0)
 		var p := it.find_child("AnimationPlayer", true, false) as AnimationPlayer
 		if p != null and clip != "none":
 			p.play(clip)

@@ -1299,6 +1299,7 @@ func damage_player(amount: float, _source: String = "") -> void:
 		return
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
+		player.hurt_time = 0.34
 		if impact != null:
 			## Taking one shakes harder than landing one. The browser does the
 			## same and it is the difference between a hit you notice and a
