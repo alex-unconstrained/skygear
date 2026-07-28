@@ -891,9 +891,26 @@ func _view() -> void:
 
 	## The particles and the light. Every performance problem this project has had
 	## was an unbounded collection, so what is asserted is the CAP, not the look.
-	_check("impact", "one particle system per element, not one per hit",
-		view._sparks.size() == SkyGearData.ELEMENTS.size(),
-		"%d systems for %d elements" % [view._sparks.size(), SkyGearData.ELEMENTS.size()])
+	## By BEHAVIOUR, not by element. Four elements share three ways of moving, and
+	## the colour rides on the particle — see the rendering audit, finding 3.
+	_check("impact", "one emitter per behaviour, not one per element or per hit",
+		view._sparks.size() == 3 and view._sparks.has("spark")
+			and view._sparks.has("steam") and view._sparks.has("shard"),
+		"%d emitters: %s" % [view._sparks.size(), ", ".join(view._sparks.keys())])
+	_check("impact", "every element maps to one of them",
+		SkyGearView3D.ELEMENT_FX.size() == SkyGearData.ELEMENTS.size(),
+		"%d mapped" % SkyGearView3D.ELEMENT_FX.size())
+	## The bug the audit found: restarting a shared one-shot emitter throws away
+	## whatever is still in the air, so every impact after the first was, on
+	## screen, the only impact. Emitters are now never restarted.
+	var live_emitters := 0
+	for family in view._sparks.keys():
+		var e: GPUParticles3D = view._sparks[family]
+		if e.emitting and not e.one_shot:
+			live_emitters += 1
+	_check("impact", "and they emit continuously rather than being restarted",
+		live_emitters == view._sparks.size(),
+		"%d of %d live" % [live_emitters, view._sparks.size()])
 	_check("impact", "and the flash pool is fixed",
 		view._flashes.size() == SkyGearView3D.FLASH_POOL,
 		"%d lights" % view._flashes.size())
@@ -906,12 +923,26 @@ func _view() -> void:
 		"%d systems, %d lights" % [view._sparks.size(), view._flashes.size()])
 	## A bigger hit throws more, without rebuilding the system — which is the
 	## whole reason one system per element is enough.
-	view.impact_at(Vector2.ZERO, "FROST", 5.0)
-	var small: float = (view._sparks.FROST as GPUParticles3D).amount_ratio
+	## Frost and Ember do not merely differ in colour — the audit's finding 4 is
+	## that coloured light IS a hue cue and cannot be the accessibility answer by
+	## itself. They differ in where the particles go and how fast the light dies.
+	var frost: Dictionary = SkyGearView3D.ELEMENT_FX.FROST
+	var ember: Dictionary = SkyGearView3D.ELEMENT_FX.EMBER
+	_check("impact", "elements differ in motion, not only in colour",
+		float(frost.rise) < 0.0 and float(ember.rise) > 0.0
+			and float(frost.spread) < float(ember.spread)
+			and float(frost.life) < float(ember.life),
+		"frost falls and snaps, ember rises and lingers")
 	view.impact_at(Vector2.ZERO, "FROST", 90.0)
-	var big: float = (view._sparks.FROST as GPUParticles3D).amount_ratio
-	_check("impact", "and a harder hit throws more of them",
-		big > small, "%.2f -> %.2f" % [small, big])
+	var quick: float = float(view._flashes[(view._flash_next - 1) % view._flashes.size()]
+		.get_meta("decay", 0.0))
+	view.impact_at(Vector2.ZERO, "EMBER", 90.0)
+	var slow: float = float(view._flashes[(view._flash_next - 1) % view._flashes.size()]
+		.get_meta("decay", 0.0))
+	_check("impact", "and their light dies at different rates",
+		quick > slow, "frost %.0f/s, ember %.0f/s" % [quick, slow])
+	_check("impact", "the flashes add nothing to the fog, so hits leave no trail",
+		is_zero_approx(view._flashes[0].light_volumetric_fog_energy))
 	## Colour-blind players get nothing from a teal ring against an orange one.
 	## The light is a second channel that does not depend on hue.
 	var lit := 0
@@ -920,6 +951,38 @@ func _view() -> void:
 			lit += 1
 	_check("impact", "a hit lights the deck as well as colouring it", lit > 0,
 		"%d of %d lit" % [lit, view._flashes.size()])
+
+	## POOLING, for real this time. The rendering audit was blunt and correct: the
+	## first version freed every unclaimed node each frame and built a new one
+	## when it was next needed, which is churn with the word "pool" on it.
+	for i in 30:
+		view.impact_at(Vector2(i * 20, 0), "EMBER", 20.0)
+		view._process(0.05)
+	var churned := view._free_decals.size() + view._free_billboards.size()
+	_check("pool", "returned nodes are kept for reuse rather than freed",
+		churned > 0 or view._decals.size() > 0,
+		"%d decals and %d billboards waiting" % [view._free_decals.size(),
+			view._free_billboards.size()])
+	## And the free list cannot grow without bound — a keg chain must not leave
+	## four hundred hidden nodes resident for the rest of the run.
+	_check("pool", "and the free list is trimmed rather than growing forever",
+		view._free_decals.size() <= SkyGearView3D.POOL_SLACK
+			and view._free_billboards.size() <= SkyGearView3D.POOL_SLACK,
+		"%d / %d against a slack of %d" % [view._free_decals.size(),
+			view._free_billboards.size(), SkyGearView3D.POOL_SLACK])
+
+	## The renderer is not what the design document assumed. Forward+ can run
+	## over Vulkan or D3D12, and Compatibility cannot draw Decals at all — which
+	## would silently remove every gameplay telegraph in the game.
+	_check("render", "the build reports what it is actually running on",
+		SkyGearRendererCheck.method() != "" and SkyGearRendererCheck.driver() != "",
+		SkyGearRendererCheck.describe())
+	_check("render", "and knows whether it can draw the deck markings",
+		SkyGearRendererCheck.can_draw_telegraphs()
+			== (SkyGearRendererCheck.method() in SkyGearRendererCheck.SUPPORTS_DECALS))
+	_check("render", "with something to say to the player when it cannot",
+		SkyGearRendererCheck.warning().is_empty()
+			== SkyGearRendererCheck.can_draw_telegraphs())
 
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.

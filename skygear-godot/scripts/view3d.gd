@@ -110,6 +110,13 @@ var _cloud_bands: Array[Dictionary] = []
 var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
 var _flash_next := 0
+var _impact_rng := RandomNumberGenerator.new()
+## The actual free lists. `_billboards` and `_decals` hold what is IN USE this
+## frame; these hold what has been returned and is waiting to be claimed again.
+var _free_billboards: Array[Sprite3D] = []
+var _free_decals: Array[Decal] = []
+var _peak_decals := 0
+var _peak_billboards := 0
 var _rigs: Dictionary = {}            ## key -> SkyGearRig3D, for anything with a model
 var _no_model: Dictionary = {}        ## kinds we have already looked for and not found
 var _stream: Array[MeshInstance3D] = []
@@ -405,59 +412,81 @@ func _build_world() -> void:
 	_track_camera(1.0)
 
 
-## Impact particles and impact light, both pooled.
+## Impact particles and impact light.
 ##
-## VFX-PLAN.md, items 1 and 2. A hit currently produces a number and a ring, and
-## the number is the only thing that scales with damage. Everything needed is
-## already in `assets/art/fx/` and none of it was reachable: `ember_particle`,
-## `puff_steam`, `puff_smoke_dark` exist to be particles and were being used, at
-## most, as flat decals.
+## VFX-PLAN.md items 1 and 2, REVISED after the rendering audit
+## (`docs/VFX-RESEARCH-AUDIT.md` findings 3 and 4) found two real faults in the
+## first version:
 ##
-## ONE SYSTEM PER ELEMENT, not one per hit. Forty boarders dying to a keg chain
-## is forty systems otherwise, and that is the browser's audio-node leak with a
-## different noun. `amount_ratio` scales the burst by damage without rebuilding
-## the system, which is the difference between this being free and being a
-## stutter.
-const SPARK_CAP := 48
+##   * **`restart()` on a shared one-shot emitter throws away the particles
+##     already in flight.** Two boarders dying half a second apart meant the
+##     second kill erased the first one's sparks. Every impact after the first
+##     was, visually, the only impact.
+##   * **`amount_ratio` does not reduce processing cost** — the capacity stays
+##     allocated — so scaling it by damage bought nothing.
+##
+## `emit_particle` is the right API and was the answer to both: particles are
+## injected individually with their own transform, velocity and colour, into a
+## continuously live emitter that is never restarted. Overlapping impacts now
+## overlap.
+##
+## And the systems are keyed by BEHAVIOUR rather than by element. Sparks fly and
+## fade; steam rises and dissolves; frost shards go out hard and stop. Four
+## elements share three behaviours, and the colour rides on the particle.
+const SPARK_CAPACITY := 512
 const FLASH_POOL := 8
 
+## Which behaviour each element throws, and how it moves. The audit's finding 4
+## is the reason this table exists at all: **coloured light is still a hue cue**,
+## so it cannot be the accessibility answer on its own. Shape, direction and
+## timing are the channels that survive colour blindness, and they are set here.
+const ELEMENT_FX := {
+	"EMBER": {"family": "spark", "rise": 40.0, "spread": 70.0, "speed": 230.0,
+		"life": 0.70, "count": 14},
+	"FROST": {"family": "shard", "rise": -40.0, "spread": 26.0, "speed": 420.0,
+		"life": 0.28, "count": 12},
+	"ARC": {"family": "spark", "rise": 10.0, "spread": 14.0, "speed": 520.0,
+		"life": 0.22, "count": 10},
+	"STEAM": {"family": "steam", "rise": 150.0, "spread": 88.0, "speed": 120.0,
+		"life": 0.95, "count": 12},
+}
+
 func _build_impacts() -> void:
-	for element in SkyGearData.ELEMENTS.keys():
-		var tint: Color = SkyGearData.ELEMENTS[element].color
+	for family in ["spark", "shard", "steam"]:
 		var node := GPUParticles3D.new()
-		node.amount = SPARK_CAP
-		node.lifetime = 0.55
-		node.one_shot = true
-		node.explosiveness = 1.0
-		node.emitting = false
+		node.amount = SPARK_CAPACITY
+		node.lifetime = 1.0
+		node.one_shot = false
+		node.emitting = false          ## nothing auto-emits; everything is injected
 		node.local_coords = false
+		node.fixed_fps = 30
+		node.interpolate = true
+		node.preprocess = 0.0
+		node.explosiveness = 0.0
 		node.draw_order = GPUParticles3D.DRAW_ORDER_VIEW_DEPTH
+		## An accurate box, or Godot culls the system when the emitter node is off
+		## screen and the sparks vanish mid-flight.
+		node.visibility_aabb = AABB(Vector3(-40, -40, -40), Vector3(80, 80, 80))
 		var mesh := QuadMesh.new()
-		mesh.size = Vector2(22.0, 22.0) * WORLD_SCALE
+		mesh.size = Vector2(26.0 if family != "steam" else 46.0,
+			26.0 if family != "steam" else 46.0) * WORLD_SCALE
 		var mat := StandardMaterial3D.new()
 		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if family != "steam" \
+			else BaseMaterial3D.BLEND_MODE_MIX
 		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
-		mat.albedo_texture = _art("ember", _spark_texture())
-		mat.albedo_color = Color(tint.r * 1.6, tint.g * 1.6, tint.b * 1.6, 1.0)
+		mat.vertex_color_use_as_albedo = true    ## the colour rides on the particle
+		mat.albedo_texture = _art("steam" if family == "steam" else "ember",
+			_spark_texture())
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		mesh.material = mat
 		node.draw_pass_1 = mesh
 		var process := ParticleProcessMaterial.new()
-		process.emission_shape = ParticleProcessMaterial.EMISSION_SHAPE_SPHERE
-		process.emission_sphere_radius = 18.0 * WORLD_SCALE
-		process.direction = Vector3(0, 1, 0)
-		process.spread = 65.0
-		process.initial_velocity_min = 90.0 * WORLD_SCALE
-		process.initial_velocity_max = 320.0 * WORLD_SCALE
-		## Steam rises, scrap falls. The element decides which, because that is
-		## the one thing a particle can say that a ring cannot.
-		var lift: float = 40.0 if element == "STEAM" else -260.0
-		process.gravity = Vector3(0, lift * WORLD_SCALE, 0)
-		process.damping_min = 0.4
-		process.damping_max = 1.4
-		process.scale_min = 0.35
+		process.gravity = Vector3.ZERO         ## per-particle velocity does the work
+		process.damping_min = 1.2
+		process.damping_max = 3.0
+		process.scale_min = 0.4
 		process.scale_max = 1.0
 		var curve := CurveTexture.new()
 		var ramp := Curve.new()
@@ -465,41 +494,63 @@ func _build_impacts() -> void:
 		ramp.add_point(Vector2(1.0, 0.0))
 		curve.curve = ramp
 		process.scale_curve = curve
+		process.alpha_curve = curve
 		node.process_material = process
 		node.layers = LAYER_FIGURES
 		add_child(node)
-		_sparks[element] = node
+		_sparks[family] = node
+		node.emitting = true
 
-	## And the light. Colour-blind players get nothing from a teal ring versus an
-	## orange one; a hit that LIGHTS THE DECK is a second channel that does not
-	## depend on hue at all.
+	## Eight pooled flashes, as reinforcement rather than as the cue. Shadowless
+	## and with no volumetric contribution, or a fog-lit scene keeps a trail of
+	## every hit for as long as the fog takes to settle.
 	for i in FLASH_POOL:
 		var light := OmniLight3D.new()
 		light.light_energy = 0.0
 		light.omni_range = 300.0 * WORLD_SCALE
 		light.omni_attenuation = 1.6
 		light.shadow_enabled = false
+		light.light_volumetric_fog_energy = 0.0
 		add_child(light)
 		_flashes.append(light)
 
 
 ## A hit landed here, this hard, of this element.
 func impact_at(ground: Vector2, element: String, damage: float) -> void:
-	var node: GPUParticles3D = _sparks.get(element)
+	var spec: Dictionary = ELEMENT_FX.get(element, ELEMENT_FX.EMBER)
+	var node: GPUParticles3D = _sparks.get(str(spec.family))
+	var tint: Color = SkyGearData.ELEMENTS.get(element, {}).get("color", Color.WHITE)
 	if node != null:
-		node.position = Vector3(ground.x * WORLD_SCALE, 48.0 * WORLD_SCALE,
+		var at := Vector3(ground.x * WORLD_SCALE, 48.0 * WORLD_SCALE,
 			ground.y * WORLD_SCALE)
-		## Scaled by the hit rather than by nothing. `amount_ratio` is the whole
-		## reason this can be one system: it changes the burst without rebuilding.
-		node.amount_ratio = clampf(0.25 + damage / 90.0, 0.2, 1.0)
-		node.restart()
+		var count: int = int(clampf(float(spec.count) * (0.4 + damage / 70.0),
+			4.0, float(spec.count) * 2.0))
+		var spread: float = deg_to_rad(float(spec.spread))
+		for i in count:
+			## Injected one at a time, into an emitter that is never restarted —
+			## which is the whole fix. A `restart()` here would erase whatever is
+			## still in the air from the last kill.
+			var yaw: float = _impact_rng.randf() * TAU
+			var pitch: float = _impact_rng.randf_range(0.0, spread)
+			var dir := Vector3(sin(pitch) * cos(yaw), cos(pitch), sin(pitch) * sin(yaw))
+			var speed: float = float(spec.speed) * _impact_rng.randf_range(0.55, 1.35)
+			var velocity := dir * speed * WORLD_SCALE
+			velocity.y += float(spec.rise) * WORLD_SCALE
+			var scatter := Vector3(_impact_rng.randf_range(-14.0, 14.0), 0.0,
+				_impact_rng.randf_range(-14.0, 14.0)) * WORLD_SCALE
+			node.emit_particle(Transform3D(Basis(), at + scatter), velocity,
+				Color(tint.r * 1.7, tint.g * 1.7, tint.b * 1.7, 1.0), Color.WHITE,
+				GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+					| GPUParticles3D.EMIT_FLAG_COLOR)
 	if _flashes.is_empty():
 		return
 	var light: OmniLight3D = _flashes[_flash_next % _flashes.size()]
 	_flash_next += 1
-	var tint: Color = SkyGearData.ELEMENTS.get(element, {}).get("color", Color.WHITE)
 	light.light_color = tint
 	light.light_energy = clampf(1.4 + damage / 40.0, 1.4, 5.0)
+	## Timing is a channel colour blindness cannot take away. Frost snaps out,
+	## Ember lingers — see `_flash_decay`.
+	light.set_meta("decay", 26.0 if element == "FROST" or element == "ARC" else 8.0)
 	light.position = Vector3(ground.x * WORLD_SCALE, 70.0 * WORLD_SCALE,
 		ground.y * WORLD_SCALE)
 
@@ -1069,7 +1120,8 @@ func _process(delta: float) -> void:
 	## element as much as the colour does.
 	for light in _flashes:
 		if light.light_energy > 0.0:
-			light.light_energy = maxf(0.0, light.light_energy - delta * 11.0)
+			light.light_energy = maxf(0.0, light.light_energy
+				- delta * float(light.get_meta("decay", 11.0)))
 	## The cloud bands drift across and wrap. Slower than the airstream by an
 	## order of magnitude, which is the parallax: the near thing races and the
 	## far thing crawls.
@@ -1078,22 +1130,51 @@ func _process(delta: float) -> void:
 		node.position.x += float(band.speed) * delta * WORLD_SCALE
 		if node.position.x > float(band.span) * WORLD_SCALE:
 			node.position.x = -float(band.span) * WORLD_SCALE
-	# anything not claimed this frame is gone from the simulation
+	_recycle()
+
+
+## Return what nobody claimed this frame — HIDE it, do not free it.
+##
+## The rendering audit was blunt about this and correct: freeing every unclaimed
+## node each frame and building a new one when it is next needed is churn with
+## the word "pool" written on it. A fight is a few dozen decals and billboards
+## appearing and disappearing several times a second, which was several dozen
+## node allocations a second for no reason.
+##
+## Freed only when the free list is deeper than anything has ever needed at once,
+## so a keg chain does not leave four hundred hidden nodes resident for the rest
+## of the run.
+const POOL_SLACK := 24
+
+func _recycle() -> void:
 	for key in _billboards.keys():
 		if not _used.has(key):
 			var node: Sprite3D = _billboards[key]
-			node.queue_free()
+			node.visible = false
+			_free_billboards.append(node)
 			_billboards.erase(key)
+	for key in _decals.keys():
+		if not _decals_used.has(key):
+			var node: Decal = _decals[key]
+			node.visible = false
+			_free_decals.append(node)
+			_decals.erase(key)
+	## Rigs are the exception: a character is a whole scene with a skeleton and an
+	## animation player, and keeping a dead boarder's one alive to re-skin later
+	## is holding far more than a sprite.
 	for key in _rigs.keys():
 		if not _used.has(key):
 			var rig: SkyGearRig3D = _rigs[key]
 			rig.queue_free()
 			_rigs.erase(key)
-	for key in _decals.keys():
-		if not _decals_used.has(key):
-			var node: Decal = _decals[key]
-			node.queue_free()
-			_decals.erase(key)
+	_trim(_free_billboards)
+	_trim(_free_decals)
+
+
+func _trim(free_list: Array) -> void:
+	while free_list.size() > POOL_SLACK:
+		var node: Node = free_list.pop_back()
+		node.queue_free()
 
 
 ## The camera sits behind and above the captain and looks down the pitch, and
@@ -1359,13 +1440,18 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 	_decals_used[key] = true
 	var node: Decal = _decals.get(key)
 	if node == null:
-		node = Decal.new()
-		node.cull_mask = 0xFFFFF & ~LAYER_FIGURES
-		node.upper_fade = 0.1
-		node.lower_fade = 0.1
-		node.normal_fade = 0.0
-		add_child(node)
+		if not _free_decals.is_empty():
+			node = _free_decals.pop_back()
+			node.visible = true
+		else:
+			node = Decal.new()
+			node.cull_mask = 0xFFFFF & ~LAYER_FIGURES
+			node.upper_fade = 0.1
+			node.lower_fade = 0.1
+			node.normal_fade = 0.0
+			add_child(node)
 		_decals[key] = node
+		_peak_decals = maxi(_peak_decals, _decals.size())
 	node.texture_albedo = texture
 	node.modulate = Color(colour.r, colour.g, colour.b, 1.0)
 	## Emission through a PREMULTIPLIED map, never through the albedo texture.
@@ -1770,15 +1856,21 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 	_used[key] = true
 	var node: Sprite3D = _billboards.get(key)
 	if node == null:
-		node = Sprite3D.new()
+		## From the free list when there is one. Every property below is set
+		## unconditionally, which is what makes a reused node safe to hand out:
+		## nothing carries over from whoever had it last.
+		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
+		node.visible = true
 		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		node.shaded = false
 		node.double_sided = true
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		node.layers = LAYER_FIGURES
-		add_child(node)
+		if node.get_parent() == null:
+			add_child(node)
 		_billboards[key] = node
+		_peak_billboards = maxi(_peak_billboards, _billboards.size())
 	node.texture = texture
 	node.modulate = Color.WHITE
 	node.flip_h = bool(v.mirror)
@@ -1805,7 +1897,11 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 	_used[key] = true
 	var node: Sprite3D = _billboards.get(key)
 	if node == null:
-		node = Sprite3D.new()
+		## From the free list when there is one. Every property below is set
+		## unconditionally, which is what makes a reused node safe to hand out:
+		## nothing carries over from whoever had it last.
+		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
+		node.visible = true
 		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		## NOT shaded. Every character sprite in `assets/` was generated with the
 		## scene's lighting already painted into it — steel-blue rim from the
@@ -1818,8 +1914,10 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		node.layers = LAYER_FIGURES
-		add_child(node)
+		if node.get_parent() == null:
+			add_child(node)
 		_billboards[key] = node
+		_peak_billboards = maxi(_peak_billboards, _billboards.size())
 	node.texture = texture
 	node.modulate = Color.WHITE
 	# scale so the sprite stands `height_units` tall in ground units, and lift it
@@ -1836,7 +1934,11 @@ func _spark(key: String, ground: Vector2, height: float, size: float, colour: Co
 	_used[key] = true
 	var node: Sprite3D = _billboards.get(key)
 	if node == null:
-		node = Sprite3D.new()
+		## From the free list when there is one. Every property below is set
+		## unconditionally, which is what makes a reused node safe to hand out:
+		## nothing carries over from whoever had it last.
+		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
+		node.visible = true
 		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		node.shaded = false
 		node.double_sided = true
@@ -1851,8 +1953,10 @@ func _spark(key: String, ground: Vector2, height: float, size: float, colour: Co
 		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
 		node.material_override = mat
 		node.layers = LAYER_FIGURES
-		add_child(node)
+		if node.get_parent() == null:
+			add_child(node)
 		_billboards[key] = node
+		_peak_billboards = maxi(_peak_billboards, _billboards.size())
 	if node.material_override is StandardMaterial3D:
 		(node.material_override as StandardMaterial3D).albedo_color = colour
 	node.pixel_size = size * WORLD_SCALE / 64.0
@@ -1934,7 +2038,8 @@ func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> vo
 	_used[ghost_key] = true
 	var ghost: Sprite3D = _billboards.get(ghost_key)
 	if ghost == null:
-		ghost = Sprite3D.new()
+		ghost = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
+		ghost.visible = true
 		ghost.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		ghost.shaded = false
 		ghost.double_sided = true
@@ -1942,7 +2047,8 @@ func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> vo
 		ghost.layers = LAYER_FIGURES
 		ghost.no_depth_test = true
 		ghost.render_priority = 8
-		add_child(ghost)
+		if ghost.get_parent() == null:
+			add_child(ghost)
 		_billboards[ghost_key] = ghost
 	ghost.texture = source.texture
 	ghost.pixel_size = source.pixel_size

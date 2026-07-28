@@ -541,6 +541,65 @@ axe. She reads acceptably because she already wears a heavy brass gauntlet on
 the swing arm, but a weapon mesh attached to `mixamorig_RightHand` would make
 the animations mean what they were animated to mean.
 
+## 13m. Response to the rendering audit — 2026-07-28
+
+`docs/VFX-RESEARCH-AUDIT.md` arrived and found four things wrong with work that
+had shipped that same day. All four were correct. Recorded here with what has
+been done, because a critique that gets read and not acted on is worse than one
+that never arrived.
+
+### Fixed
+
+**Finding 3 — the particle architecture was wrong, and one part of it was a
+bug.** `restart()` on a shared one-shot emitter throws away the particles
+already in flight, so two boarders dying half a second apart meant the second
+kill erased the first one's sparks: every impact after the first was, on screen,
+the only impact. And `amount_ratio` does not reduce processing cost — the
+capacity stays allocated — so scaling it by damage bought nothing. Rebuilt on
+`emit_particle`, which injects particles individually into an emitter that is
+never restarted. Emitters are now keyed by **behaviour** (spark, shard, steam)
+rather than by element, with the colour riding on the particle.
+
+**Finding 4 — coloured light is still a hue cue.** The plan claimed element
+identity had moved "through light, not hue". That was wrong: coloured light *is*
+hue, and it cannot be the accessibility answer on its own. Each element now has a
+motion and timing signature that survives colour blindness — Frost falls, snaps
+outward in a narrow cone and its light dies at 26/s; Ember rises, spreads wide
+and lingers at 8/s. The flashes stay as reinforcement, now with
+`light_volumetric_fog_energy = 0` so a fog-lit scene does not keep a trail of
+every hit.
+
+**Finding 2 — the "pools" were not pools.** They freed every unclaimed node each
+frame and built a new one when it was next needed, which is churn with the word
+pool written on it. Decals and billboards are now hidden and returned to a free
+list, claimed back on demand, with the list trimmed past a slack of 24 so a keg
+chain does not leave hundreds of hidden nodes resident. Rigs are deliberately
+still freed: a character is a whole scene with a skeleton and an animation
+player, and holding a dead boarder's is holding far more than a sprite.
+
+**Finding 1 — Forward+ does not mean Vulkan.** The renderer and the driver are
+separate settings and the project never selected a driver, so the "Forward+
+(Vulkan)" claim in this document was an assumption. It happens to be true on this
+machine. `scripts/renderer_check.gd` now reports both at runtime. More
+importantly: **Compatibility cannot draw `Decal`**, and every gameplay telegraph
+in this game is a Decal — the enemy windup rune, the aura edge, the mortar ring,
+the contact shadows. A player dropped to Compatibility would not get a
+worse-looking game, they would get one with the tells missing and nothing saying
+so. There is now a warning for that case.
+
+### Still open from the audit
+
+- **Reserved capacity per pool.** The audit asks for fixed capacities with
+  gameplay-critical effects never displaced by decorative ones. The pools are
+  real now but share one free list; a hostile telegraph and a scorch mark
+  compete. The budgets in the audit's table are the next step.
+- **D3D12 has never been tested.** Only Vulkan has run.
+- **`fixed_fps` / visibility AABB tuning** is set from the audit's guidance but
+  has not been profiled, because the port has never been profiled at all.
+- Sections beyond the four findings — tonemapping and grading, shader-stutter
+  prevention, the validation requirements — have been read but not yet worked
+  through.
+
 ## 14. Known differences that are deliberate
 
 - **Enemy separation** is Godot's own physics rather than the browser's hand-
