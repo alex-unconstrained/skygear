@@ -22,6 +22,9 @@ static func fresh() -> Dictionary:
 		"per": per,
 		"basic": {"casts": 0, "damage": 0.0, "kills": 0, "hits": 0},
 		"deck": {"damage": 0.0, "kills": 0, "kegs": 0, "crates": 0, "lanterns": 0},
+		# The crew and the deck cannons fight too, and on a lane map they do
+		# real work — a third of a run's damage in one measured browser case.
+		"allies": {"damage": 0.0, "kills": 0},
 		# Engagement distance, sampled every frame against the nearest live
 		# boarder. Three buckets rather than a mean: a captain who alternates
 		# between point blank and the far rail has the same mean as one who never
@@ -44,7 +47,9 @@ static func note_cast(tel: Dictionary, slot: int, skill: Dictionary) -> void:
 
 static func note_damage(tel: Dictionary, slot: int, amount: float, killed: bool) -> void:
 	var bucket: Dictionary
-	if slot == -2:
+	if slot == -3:
+		bucket = tel.allies
+	elif slot == -2:
 		bucket = tel.deck
 	elif slot < 0:
 		bucket = tel.basic

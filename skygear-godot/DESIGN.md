@@ -173,18 +173,50 @@ Consequences, stated so they are not rediscovered:
 
 ## 13. Parity with the browser build, as of 2026-07-27
 
-Done: the twelve-wave schedule, three lanes and cargo walls, the Boiler, the
-automatic Ember Cleave, the nine shapes crossed with four elements including the
-three passives, the full **draft** (41 cards across seven scopes, reroll,
-adaptive slot weighting, seeded rolls), per-skill mods and resolved stats,
-**telemetry** with slot attribution and range buckets, the close-quarters loop
-at v11.2 numbers (210 reach, vent 10hp/2.0s/200/280, salvage 10%/6, one 12 hp/s
-ceiling over all healing with a 9 hp/s lifesteal budget inside it), reactive
-kegs, crates and lanterns with fuses and chain reactions, salvage, dash with two
-charges and contact damage, readable enemy bolts.
+Verified by `tests/parity_test.gd` — **40 checks, all passing**:
 
-Not yet: deck cannons, crew, boarding hulks and push waves; the boss's two
-beats; the results screen and copyable run report; settings and persistence; the
-presentation layer (airstream, camera-tied envelope, bolt shadows and trails,
-HUD gauges, music and voice). Those are the next milestone, and the browser
-build remains the complete game until they land.
+```
+godot --path . --headless --script tests/parity_test.gd
+```
+
+They are the browser harness's claims, re-asked here: every one of the 36
+shape x element cells deals damage; pressure builds in close and only in close;
+a full gauge vents, heals, hits and does not refill itself; no burst of healing
+beats the 12 hp/s ceiling; lifesteal heals in close and nowhere else; a keg
+lights a fuse rather than detonating and its blast lands on what stands in it;
+the deck is re-stowed between waves; a cannon gates each lane and fires on the
+boarder in it; a boarder attacks the cannon in its way; crew muster; a push wave
+grapples a hulk on and does not end until it breaks; every card declares what it
+touches; reroll spends one, deals a new hand and stops at zero; a seed deals the
+same hand twice and a different seed does not; the Colossus turns at half
+health, cannot be burst through the turn, clears what it called, and comes out
+of it; damage is attributed to the slot that fired; and all three endings
+resolve.
+
+**In:** the twelve-wave schedule, three lanes with cargo walls, deck cannons,
+crew, boarding hulks and push waves, the Boiler, the automatic Cleave, nine
+shapes crossed with four elements including the three passives, per-skill mods
+and resolved stats, the full draft (41 cards across seven scopes, class bands,
+affected-skill glyphs, reroll, adaptive slot weighting, seeded rolls),
+telemetry with slot attribution and range buckets, the close-quarters loop at
+v11.2 numbers, reactive kegs, crates and lanterns, salvage, dash with two
+charges and contact damage, readable enemy bolts, the boss's two beats, and a
+results screen that is the copyable run report.
+
+**Not yet:** settings and persistence (volume, key rebinding, reduced motion,
+the run log); audio beyond one-shot SFX — no music director and no voice layer;
+and the presentation pass the browser build has (airstream, camera-tied
+envelope, bolt ground shadows and trails, painted billboards rather than
+primitives, HUD gauges with art). The browser build also still has 29 checks
+this harness does not: layout across resolutions, storage denial, slow-line
+loading, the frame budget, and the audio-node leak guard.
+
+## 14. Known differences that are deliberate
+
+- **Enemy separation** is Godot's own physics rather than the browser's hand-
+  written pass, so crowds spread differently. The browser's numbers were tuned
+  against its own solver and porting them literally would be cargo cult.
+- **The deck is 1680 x 2320 in world units and lanes sit at -560/0/560**, which
+  matches v11 rather than the browser's current geometry helper. Any future
+  change to lane width has to move both.
+- **No web export.** Windows first, Forward+, see section 12.

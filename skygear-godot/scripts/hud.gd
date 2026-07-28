@@ -70,18 +70,59 @@ func _draw_game_hud() -> void:
 func _draw_draft() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.78))
 	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
-	_center_text("Every weapon is a shape crossed with an element.", 166.0, 18, Color("#b9afaa"))
+	_center_text("Every weapon is a shape crossed with an element.", 158.0, 18, Color("#b9afaa"))
+	# reroll: two per RUN, so spending one is a decision about which hand
+	var reroll_label := ("REROLL  x%d   (R)" % game.rerolls) if game.rerolls > 0 else "NO REROLLS LEFT"
+	_center_text(reroll_label, 580.0, 20,
+		Color("#e8c376") if game.rerolls > 0 else Color("#6a6478"))
 	var card_width := 280.0
 	var gap := 28.0
 	var start_x := (size.x - (card_width * 3.0 + gap * 2.0)) * 0.5
 	for i in mini(3, game.draft_options.size()):
 		var card: Dictionary = game.draft_options[i]
-		var rect := Rect2(start_x + i * (card_width + gap), 220, card_width, 300)
+		var rect := Rect2(start_x + i * (card_width + gap), 200, card_width, 340)
 		draw_rect(rect, Color(0.08, 0.06, 0.09, 0.98))
 		draw_rect(rect, Color("#b0813f"), false, 3.0)
-		_center_in_rect(str(i + 1), Rect2(rect.position + Vector2(0, 24), Vector2(card_width, 35)), 24, Color("#ffe08a"))
-		_center_in_rect(str(card.title), Rect2(rect.position + Vector2(15, 88), Vector2(card_width - 30, 72)), 22, card.color)
-		_center_in_rect(str(card.text), Rect2(rect.position + Vector2(20, 185), Vector2(card_width - 40, 72)), 16, Color("#eee5d5"))
+		_center_in_rect(str(i + 1), Rect2(rect.position + Vector2(0, 16), Vector2(card_width, 30)), 22, Color("#ffe08a"))
+
+		## The class band. Reported against the browser build in exactly these
+		## words: it is not visually clear whether an upgrade enhances a skill
+		## you have or hands you a new one. Both were a card with a title on it.
+		var band := Rect2(rect.position + Vector2(18, 52), Vector2(card_width - 36, 26))
+		var tint: Color = card.get("color", Color("#b0813f"))
+		draw_rect(band, Color(tint.r, tint.g, tint.b, 0.16))
+		draw_rect(band, tint, false, 2.0)
+		_center_in_rect(str(card.get("class_label", "UPGRADE")),
+			Rect2(band.position + Vector2(0, 3), band.size), 14, tint)
+
+		_center_in_rect(str(card.title), Rect2(rect.position + Vector2(15, 104), Vector2(card_width - 30, 72)), 22, tint)
+		_center_in_rect(str(card.text), Rect2(rect.position + Vector2(20, 176), Vector2(card_width - 40, 96)), 16, Color("#eee5d5"))
+
+		## And which of your skills it lands on, as glyphs, with the untouched
+		## ones dim. A card that touches no skill says what it does touch —
+		## four dark glyphs reads as "affects nothing".
+		var hit: Array = card.get("affects", [])
+		var row_y: float = rect.position.y + rect.size.y - 44.0
+		if game.skills.is_empty() or hit.is_empty():
+			var label := "AFFECTS THE CAPTAIN"
+			match str(card.get("scope", "captain")):
+				"ship": label = "AFFECTS THE BOILER"
+				"deck": label = "AFFECTS THE DECK"
+				"meta": label = "AFFECTS FUTURE DRAFTS"
+				"new": label = "ARMS AN EMPTY SLOT"
+			_center_in_rect(label, Rect2(Vector2(rect.position.x, row_y), Vector2(card_width, 24)), 13, tint)
+		else:
+			var count: int = game.skills.size()
+			var step := 34.0
+			var x0: float = rect.position.x + card_width * 0.5 - (count - 1) * step * 0.5
+			for k in count:
+				var lit: bool = hit.has(k)
+				var centre := Vector2(x0 + k * step, row_y + 6.0)
+				var skill_color: Color = SkyGearData.ELEMENTS[game.skills[k].element].color
+				if lit:
+					draw_circle(centre, 14.0, Color(tint.r, tint.g, tint.b, 0.18))
+					draw_arc(centre, 14.0, 0.0, TAU, 20, tint, 2.0)
+				draw_circle(centre, 7.0, skill_color if lit else Color(0.42, 0.40, 0.46))
 
 func _draw_overlay(title: String, subtitle: String) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.86))
@@ -89,6 +130,27 @@ func _draw_overlay(title: String, subtitle: String) -> void:
 	var lines := subtitle.split("\n")
 	for i in lines.size():
 		_center_text(lines[i], 330.0 + i * 34.0, 22, Color("#eee5d5"))
+
+## The results screen IS the run report. One block of text a player can read and
+## copy, rather than a screen that says "twelve waves repelled" and a report
+## somewhere else that says something different.
+func _draw_results(title: String, tint: Color) -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
+	_center_text(title, 92.0, 52, tint)
+	var report: String = game.run_report()
+	var lines := report.split("
+")
+	var y := 150.0
+	for i in lines.size():
+		var line: String = lines[i]
+		var small := line.begins_with("  ")
+		draw_string(font, Vector2(size.x * 0.5 - 340.0, y), line,
+			HORIZONTAL_ALIGNMENT_LEFT, 680, 15 if small else 17,
+			Color("#b9afaa") if small else Color("#eee5d5"))
+		y += 20.0 if small else 23.0
+	y += 18.0
+	_center_text("C to copy the report · Enter to return to title", y, 18, Color("#37f0c8"))
+
 
 func _draw_bar(rect: Rect2, ratio: float, color: Color, label: String) -> void:
 	draw_rect(rect, Color("#241b25"))

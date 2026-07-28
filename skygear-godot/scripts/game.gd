@@ -62,6 +62,14 @@ var steal_budget := 0.0
 var cards_taken: Array[String] = []
 var run_time := 0.0
 
+## The lane layer. Plain data, drawn by this node — see scripts/lanes.gd.
+const BASE_Y := 730.0
+const BOW_Y := -1000.0
+var turrets: Array[Dictionary] = []
+var crew: Array[Dictionary] = []
+var hulk: Dictionary = {}
+var crew_timer := 0.0
+
 func _ready() -> void:
 	rng.seed = 0x5A17C0DE
 	player.game = self
@@ -78,11 +86,23 @@ func _unhandled_input(event: InputEvent) -> void:
 		begin_run()
 		get_viewport().set_input_as_handled()
 		return
-	if state in [State.GAMEOVER, State.VICTORY] and event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
-		go_to_title()
-		get_viewport().set_input_as_handled()
-		return
+	if state in [State.GAMEOVER, State.VICTORY]:
+		if event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+			go_to_title()
+			get_viewport().set_input_as_handled()
+			return
+		if event.keycode == KEY_C:
+			# the report is the thing a tester pastes into a message; make
+			# taking it one key rather than a screenshot of a screen
+			copy_run_report()
+			effects.append({"kind": "banner", "text": "REPORT COPIED", "time": 0.0, "life": 1.6})
+			get_viewport().set_input_as_handled()
+			return
 	if state == State.DRAFT:
+		if event.keycode == KEY_R:
+			reroll_draft()
+			get_viewport().set_input_as_handled()
+			return
 		var choice := -1
 		if event.keycode in [KEY_1, KEY_KP_1]:
 			choice = 0
@@ -113,6 +133,10 @@ func _process(delta: float) -> void:
 	_update_pressure(delta)
 	_update_salvage(delta)
 	_update_fire_fields(delta)
+	run_time += delta
+	_update_turrets(delta)
+	_update_crew(delta)
+	_update_hulk(delta)
 	_process_skill_input()
 	_process_basic_attack(delta)
 	_process_dash_impacts()
@@ -164,6 +188,10 @@ func begin_run() -> void:
 	end_reason = ""
 	opening_draft = true
 	draft_options.clear()
+	turrets = SkyGearLanes.make_turrets(LANE_CENTERS, BASE_Y)
+	crew.clear()
+	hulk = {}
+	crew_timer = 2.5
 	mods = SkyGearCards.fresh_mods()
 	tel = SkyGearTelemetry.fresh()
 	cards_taken.clear()
@@ -184,6 +212,68 @@ func begin_run() -> void:
 			"skill": instance,
 		})
 	_set_state(State.DRAFT)
+
+## The run report. Same shape as the browser build's, because the point of it is
+## that a tester pastes it into a message and the numbers mean the same thing on
+## both sides — including which skill actually did the work, which is the
+## question every balance conversation so far has had to guess at.
+func run_report() -> String:
+	var lines: Array[String] = []
+	var won := state == State.VICTORY
+	lines.append("SKYGEAR — Godot port")
+	lines.append(("DECK HELD" if won else "BOARDED") + " — " + end_reason)
+	lines.append("wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
+		_format_time(run_time), seed_text])
+	var build: Array[String] = ["Ember Cleave (auto)"]
+	for skill in skills:
+		build.append(SkyGearData.skill_name(skill))
+	lines.append("build: " + "  /  ".join(build))
+	if not cards_taken.is_empty():
+		lines.append("draft: " + ", ".join(cards_taken))
+
+	var total := float(tel.basic.damage) + float(tel.deck.damage) + float(tel.allies.damage)
+	for row in tel.per:
+		total += float(row.damage)
+	if total > 0.0:
+		lines.append("")
+		lines.append("skills — damage · share · casts · kills")
+		lines.append(_report_row("auto cleave", float(tel.basic.damage), total,
+			int(tel.basic.casts), int(tel.basic.kills)))
+		for i in tel.per.size():
+			var row: Dictionary = tel.per[i]
+			if str(row.shape) == "":
+				continue
+			lines.append(_report_row(
+				SkyGearData.skill_name({"shape": row.shape, "element": row.element}),
+				float(row.damage), total, int(row.casts), int(row.kills)))
+		if float(tel.allies.damage) > 0.0:
+			lines.append(_report_row("crew and cannons", float(tel.allies.damage), total, 0, 0))
+		if float(tel.deck.damage) > 0.0:
+			lines.append(_report_row("the deck", float(tel.deck.damage), total, 0, 0))
+	var rt: Dictionary = tel.range_time
+	var span: float = float(rt.close) + float(rt.mid) + float(rt.far) + float(rt.none)
+	if span > 1.0:
+		lines.append("range: %d%% close · %d%% mid · %d%% far · %d%% clear" % [
+			roundi(float(rt.close) / span * 100.0), roundi(float(rt.mid) / span * 100.0),
+			roundi(float(rt.far) / span * 100.0), roundi(float(rt.none) / span * 100.0)])
+	lines.append("vents %d · healed %d · salvage %d · rerolls %d" % [
+		int(tel.vents), roundi(float(tel.healed)), int(tel.salvage), int(tel.rerolls)])
+	return "
+".join(lines)
+
+
+func _report_row(name: String, damage: float, total: float, casts: int, kills: int) -> String:
+	return "  %-20s %7d  %d%%   %d casts  %d kills" % [
+		name, roundi(damage), roundi(damage / maxf(1.0, total) * 100.0), casts, kills]
+
+
+func _format_time(seconds: float) -> String:
+	return "%d:%02d" % [int(seconds) / 60, int(seconds) % 60]
+
+
+func copy_run_report() -> void:
+	DisplayServer.clipboard_set(run_report())
+
 
 func go_to_title() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemies"):
@@ -232,12 +322,29 @@ func choose_draft(index: int) -> void:
 	else:
 		start_wave(wave + 1)
 
+## A push wave grapples a fresh hulk to the hull. Without a fresh one per push
+## the browser build spawned it once at run start and never reset it, so
+## breaking it on wave 4 left it permanently dead — and wave 8 then satisfied
+## its "ends when their hulk does" condition on the first frame.
+func _begin_push(wave_number: int) -> void:
+	var index := 0
+	for i in wave_number:
+		if bool(SkyGearData.WAVES[i].get("push", false)):
+			index += 1
+	hulk = SkyGearLanes.make_hulk(BOW_Y, 1.0 + maxi(0, index - 1) * 0.20)
+	hulk.vulnerable = true
+	play_sfx("lane/hulk_grapple.ogg", -4.0)
+
+
 func start_wave(next_wave: int) -> void:
 	wave = next_wave
 	if wave > SkyGearData.WAVES.size():
 		_set_state(State.VICTORY)
 		return
 	restow_props()
+	if next_wave >= 1 and next_wave <= SkyGearData.WAVES.size():
+		if bool(SkyGearData.WAVES[next_wave - 1].get("push", false)):
+			_begin_push(next_wave)
 	spawn_queue = _build_spawn_queue(wave)
 	wave_time = 0.0
 	wave_clear_time = -1.0
@@ -280,10 +387,21 @@ func _update_wave(delta: float) -> void:
 	while not spawn_queue.is_empty() and float(spawn_queue[0].time) <= wave_time and enemy_count() < 64:
 		var entry: Dictionary = spawn_queue.pop_front()
 		spawn_enemy(entry.type, entry.lane)
-	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0:
+	## A push wave is not over until its hulk is. Otherwise the wave that exists
+	## to make you leave the objective can be won by standing on the objective.
+	var push_pending := false
+	if wave >= 1 and wave <= SkyGearData.WAVES.size():
+		if bool(SkyGearData.WAVES[wave - 1].get("push", false)):
+			push_pending = hulk.is_empty() or not bool(hulk.get("dead", false))
+	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0 and not push_pending:
 		wave_clear_time = 1.6
 		play_sfx("world/wave_clear.ogg", -4.0)
 		effects.append({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0, "life": 1.6})
+	elif push_pending and spawn_queue.is_empty() and enemy_count() < 6 and wave > 0:
+		# they keep coming while the hulk lives — that is what it is for
+		for lane in LANE_CENTERS.size():
+			spawn_queue.append({"time": wave_time + 1.0 + lane * 0.4,
+				"type": "SCRAPPER" if lane != 1 else "SWARM", "lane": lane})
 
 ## Weighted by how much the player actually uses a slot, never absolute: the
 ## least-used slot keeps a real chance, because an upgrade is also how a
@@ -309,12 +427,12 @@ func pick_slot_by_use(candidates: Array) -> int:
 
 
 ## Three upgrade cards, weighted, no duplicates, drawn from the seeded stream.
-func roll_upgrade_cards(count: int) -> Array:
+func roll_upgrade_cards(count: int) -> Array[Dictionary]:
 	var available: Array = []
 	for card in SkyGearCards.catalogue():
 		if bool(card.can.call(self)):
 			available.append(card)
-	var out: Array = []
+	var out: Array[Dictionary] = []
 	var used := {}
 	for _i in count:
 		var pool: Array = []
@@ -374,7 +492,7 @@ func open_draft() -> void:
 		var used_shapes: Array[String] = []
 		for skill in skills:
 			used_shapes.append(skill.shape)
-		var cursor := wave * 2
+		var cursor := rng.randi_range(0, shape_order.size() - 1)
 		for i in 3:
 			var shape: String = shape_order[(cursor + i) % shape_order.size()]
 			var guard := 0
@@ -382,7 +500,12 @@ func open_draft() -> void:
 				cursor += 1
 				shape = shape_order[(cursor + i) % shape_order.size()]
 				guard += 1
-			var element: String = element_order[(wave + i) % element_order.size()]
+			# One option deliberately matches the element you already run, so
+			# committing to a colour across several shapes is a build rather
+			# than a consolation prize.
+			var element: String = element_order[rng.randi_range(0, element_order.size() - 1)]
+			if i == 0 and not skills.is_empty():
+				element = str(skills[rng.randi_range(0, skills.size() - 1)].element)
 			var instance := SkyGearData.make_skill(shape, element)
 			draft_options.append({
 				"kind": "skill",
@@ -469,7 +592,7 @@ func skill_stats(skill: Dictionary) -> Dictionary:
 	return out
 
 
-func cast_skill(index: int) -> void:
+func cast_skill(index: int, aim_at = null) -> void:
 	if index < 0 or index >= skills.size():
 		return
 	var skill: Dictionary = skills[index]
@@ -477,8 +600,12 @@ func cast_skill(index: int) -> void:
 	if bool(shape.get("passive", false)) or float(skill.cooldown_left) > 0.0:
 		return
 	var origin := player.global_position
-	var direction := player.aim_direction
-	var target := player.get_global_mouse_position()
+	var target: Vector2 = aim_at if aim_at is Vector2 else player.get_global_mouse_position()
+	# An explicit aim has to steer the DIRECTION too, not only the landing point:
+	# a Cleave aimed at a target it is facing away from hits nothing, which is
+	# how six casts recorded six presses and zero damage.
+	var direction: Vector2 = ((target - origin).normalized() if aim_at is Vector2
+		else player.aim_direction)
 	var st := skill_stats(skill)
 	var previous_src := src_slot
 	src_slot = index
@@ -496,6 +623,9 @@ func cast_skill(index: int) -> void:
 	var land := origin
 	for _shot in shots:
 		land = _resolve_cast(st, skill, origin, direction, target, damage)
+	# Every shape must be able to bite the hulk, or breaking one is the job of
+	# whichever weapon happens to be shaped like a structure-killer.
+	hulk_splash(land, damage * float(shots))
 	# RESIDUE: a burning field wherever the shape landed.
 	if float(mods.residue) > 0.0:
 		fire_fields.append({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
@@ -715,7 +845,7 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 	if float(mods.kill_autofire) > 0.0 and rng.randf() < float(mods.kill_autofire) and skills.size() > 0:
 		var previous: float = float(skills[0].cooldown_left)
 		skills[0].cooldown_left = 0.0
-		cast_skill(0)
+		cast_skill(0, enemy.global_position)
 		skills[0].cooldown_left = previous
 	play_sfx("enemy/death_heavy_1.ogg" if enemy.kind in ["ARMORED", "BOSS"] else "enemy/death_light_1.ogg", -8.0)
 	effects.append({"kind": "burst", "position": enemy.global_position, "radius": enemy.radius * 2.5, "color": Color("#ff9a5a"), "time": 0.0, "life": 0.25})
@@ -898,6 +1028,198 @@ func _process_dash_impacts() -> void:
 			else:
 				prop.damage(30.0)
 
+## --- deck cannons ---------------------------------------------------------
+## One per lane, gating it. Boarders have to break it to pass, which is what
+## makes a lane a lane rather than a stripe on the floor.
+func _update_turrets(delta: float) -> void:
+	for t in turrets:
+		t.flash = maxf(0.0, float(t.flash) - delta)
+		t.fire_flash = maxf(0.0, float(t.fire_flash) - delta)
+		if bool(t.dead):
+			continue
+		t.cooldown = maxf(0.0, float(t.cooldown) - delta)
+		# the boarder nearest the Boiler in this lane, so a cannon covers the
+		# thing behind it rather than the thing in front of it
+		var best: SkyGearEnemy = null
+		var best_y := -99999.0
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
+				continue
+			if enemy.lane != int(t.lane):
+				continue
+			if enemy.global_position.distance_to(t.position) > SkyGearLanes.TURRET.range:
+				continue
+			if enemy.global_position.y > best_y:
+				best_y = enemy.global_position.y
+				best = enemy
+		if best == null:
+			continue
+		t.angle = (best.global_position - Vector2(t.position)).angle()
+		if float(t.cooldown) > 0.0:
+			continue
+		t.cooldown = SkyGearLanes.TURRET.cooldown
+		t.fire_flash = 0.14
+		var previous := src_slot
+		src_slot = -3                     # allies: the ship's own guns
+		damage_enemy(best, SkyGearLanes.TURRET.damage, "", 90.0, t.position, false)
+		src_slot = previous
+		play_sfx("lane/cannon_fire_1.ogg", -9.0)
+
+
+func damage_turret(t: Dictionary, amount: float) -> void:
+	if bool(t.dead):
+		return
+	t.hp = maxf(0.0, float(t.hp) - amount)
+	t.flash = 0.16
+	if float(t.hp) <= 0.0:
+		t.dead = true
+		play_sfx("lane/cannon_down_1.ogg", -4.0)
+		effects.append({"kind": "burst", "position": t.position, "radius": 120.0,
+			"color": Color("#ff9a5a"), "time": 0.0, "life": 0.4})
+	else:
+		play_sfx("lane/cannon_hurt_1.ogg", -12.0)
+
+
+## Everything it called in the first beat is vented with it, so the turn is a
+## clear moment and not a moment spent fighting six swarmers.
+func on_boss_turn(boss) -> void:
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy) and enemy != boss and not enemy.dead:
+			enemy.hp = 0.0
+			enemy.kill()
+	effects.append({"kind": "circle", "position": boss.global_position, "radius": 420.0,
+		"color": Color("#ffd36b"), "time": 0.0, "life": 0.9})
+	effects.append({"kind": "banner", "text": "IT TURNS", "time": 0.0, "life": 2.4})
+	play_sfx("enemy/boss_roar.ogg", -1.0)
+
+
+func nearest_crew(origin: Vector2, max_distance: float) -> Dictionary:
+	var best: Dictionary = {}
+	var best_distance := max_distance
+	for c in crew:
+		if bool(c.dead):
+			continue
+		var d: float = Vector2(c.position).distance_to(origin)
+		if d < best_distance:
+			best_distance = d
+			best = c
+	return best
+
+
+func turret_in_lane(lane: int) -> Dictionary:
+	for t in turrets:
+		if int(t.lane) == lane and not bool(t.dead):
+			return t
+	return {}
+
+
+## --- crew -----------------------------------------------------------------
+## Your own boarders, pushing the other way. They are minions: they hold a lane
+## while you are somewhere else, and on a push they are what breaks the hulk if
+## you do not.
+func _update_crew(delta: float) -> void:
+	var pushing := not hulk.is_empty() and not bool(hulk.get("dead", true))
+	crew_timer -= delta
+	if crew_timer <= 0.0:
+		crew_timer = SkyGearLanes.CREW.push_every if pushing else SkyGearLanes.CREW.every
+		for lane in LANE_CENTERS.size():
+			for _i in int(SkyGearLanes.CREW.per_wave):
+				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y))
+		play_sfx("lane/crew_muster.ogg", -10.0)
+
+	for i in range(crew.size() - 1, -1, -1):
+		var c: Dictionary = crew[i]
+		c.flash = maxf(0.0, float(c.flash) - delta)
+		if bool(c.dead):
+			crew.remove_at(i)
+			continue
+		# nearest boarder in this crewman's lane, else march at the hulk
+		var target: SkyGearEnemy = null
+		var best := 1e9
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
+				continue
+			if enemy.lane != int(c.lane):
+				continue
+			var d: float = enemy.global_position.distance_to(c.position)
+			if d < best:
+				best = d
+				target = enemy
+		var goal: Vector2 = Vector2(float(LANE_CENTERS[int(c.lane)]), BOW_Y + 260.0)
+		var reach := float(SkyGearLanes.CREW.reach)
+		if target != null:
+			goal = target.global_position
+		elif not hulk.is_empty() and not bool(hulk.dead) and bool(hulk.vulnerable):
+			goal = hulk.position
+			reach = float(hulk.radius) + 40.0
+		var to_goal: Vector2 = goal - Vector2(c.position)
+		var distance := to_goal.length()
+		match str(c.state):
+			"move":
+				if distance <= reach:
+					c.state = "windup"
+					c.state_time = SkyGearLanes.CREW.windup
+				else:
+					c.position = Vector2(c.position) + to_goal.normalized() * float(SkyGearLanes.CREW.speed) * delta
+			"windup":
+				c.state_time = float(c.state_time) - delta
+				if float(c.state_time) <= 0.0:
+					c.state = "recover"
+					c.state_time = SkyGearLanes.CREW.recover
+					var previous := src_slot
+					src_slot = -3
+					if target != null and target.global_position.distance_to(c.position) <= reach + 20.0:
+						damage_enemy(target, SkyGearLanes.CREW.damage, "", 60.0, c.position, false)
+						play_sfx("lane/crew_attack_1.ogg", -14.0)
+					elif not hulk.is_empty() and not bool(hulk.dead) and bool(hulk.vulnerable) \
+							and Vector2(hulk.position).distance_to(c.position) <= reach + 30.0:
+						damage_hulk(SkyGearLanes.CREW.siege)
+					src_slot = previous
+			"recover":
+				c.state_time = float(c.state_time) - delta
+				if float(c.state_time) <= 0.0:
+					c.state = "move"
+
+
+func hurt_crew(c: Dictionary, amount: float) -> void:
+	if bool(c.dead):
+		return
+	c.hp = float(c.hp) - amount
+	c.flash = 0.14
+	if float(c.hp) <= 0.0:
+		c.dead = true
+		play_sfx("lane/crew_down_1.ogg", -12.0)
+
+
+## --- the boarding hulk ------------------------------------------------------
+func _update_hulk(delta: float) -> void:
+	if hulk.is_empty():
+		return
+	hulk.flash = maxf(0.0, float(hulk.get("flash", 0.0)) - delta)
+
+
+func damage_hulk(amount: float) -> void:
+	if hulk.is_empty() or bool(hulk.dead) or not bool(hulk.vulnerable):
+		return
+	hulk.hp = maxf(0.0, float(hulk.hp) - amount)
+	hulk.flash = 0.12
+	play_sfx("lane/hulk_hit.ogg", -14.0)
+	if float(hulk.hp) <= 0.0:
+		hulk.dead = true
+		play_sfx("lane/hulk_break.ogg", -2.0)
+		effects.append({"kind": "burst", "position": hulk.position, "radius": 260.0,
+			"color": Color("#ffd36b"), "time": 0.0, "life": 0.6})
+
+
+## A shape that lands on or near the hulk hurts it, so every weapon can bite it
+## rather than only the ones that happen to target structures.
+func hulk_splash(at: Vector2, amount: float) -> void:
+	if hulk.is_empty() or bool(hulk.dead) or not bool(hulk.vulnerable):
+		return
+	if Vector2(hulk.position).distance_to(at) < float(hulk.radius) + 150.0:
+		damage_hulk(amount)
+
+
 func correct_player_position(position: Vector2, radius: float) -> Vector2:
 	var corrected := Vector2(
 		clampf(position.x, DECK_RECT.position.x + radius, DECK_RECT.end.x - radius),
@@ -976,6 +1298,62 @@ func _draw() -> void:
 		draw_rect(cargo.grow(-8.0), Color("#54413c"))
 		for y in range(int(cargo.position.y) + 18, int(cargo.end.y), 42):
 			draw_line(Vector2(cargo.position.x + 8, y), Vector2(cargo.end.x - 8, y), Color("#b0813f"), 3.0)
+
+	## --- the lane layer -----------------------------------------------------
+	## Simulated since this milestone, and drawn here rather than as scene nodes
+	## for the same reason it is simulated as plain data: three cannons, a dozen
+	## crew and one hulk do not need a Node2D lifetime each.
+	if not hulk.is_empty() and not bool(hulk.dead):
+		var hull_flash: float = float(hulk.get("flash", 0.0))
+		draw_circle(Vector2(hulk.position) + Vector2(0, 20), float(hulk.radius) * 0.9,
+			Color(0.01, 0.01, 0.02, 0.5))
+		draw_circle(hulk.position, float(hulk.radius),
+			Color("#3a2a2e").lerp(Color.WHITE, hull_flash * 2.0))
+		draw_circle(hulk.position, float(hulk.radius) * 0.62, Color("#241b25"))
+		draw_arc(hulk.position, float(hulk.radius) + 14.0, -PI, -PI + TAU * float(hulk.hp) / float(hulk.max_hp),
+			64, Color("#ff4d37"), 9.0)
+		# grapples, so it reads as attached rather than parked
+		for g in 5:
+			var gx: float = float(hulk.position.x) - 150.0 + g * 75.0
+			draw_line(Vector2(gx, float(hulk.position.y) + float(hulk.radius) * 0.6),
+				Vector2(gx * 0.6, float(hulk.position.y) + float(hulk.radius) + 90.0),
+				Color("#4a4a55"), 6.0)
+
+	for t in turrets:
+		var pos: Vector2 = t.position
+		var dead_gun := bool(t.dead)
+		draw_circle(pos + Vector2(0, 12), float(t.radius) * 1.15, Color(0.01, 0.01, 0.02, 0.5))
+		var body := Color("#2a2027") if dead_gun else Color("#4a4a55")
+		if float(t.flash) > 0.0:
+			body = body.lerp(Color.WHITE, 0.6)
+		draw_circle(pos, float(t.radius), body)
+		if not dead_gun:
+			draw_circle(pos, float(t.radius) * 0.55, Color("#b0813f"))
+			var muzzle: Vector2 = pos + Vector2.RIGHT.rotated(float(t.angle)) * (float(t.radius) + 26.0)
+			draw_line(pos, muzzle, Color("#e8c376"), 9.0)
+			if float(t.fire_flash) > 0.0:
+				draw_circle(muzzle, 14.0, Color("#ffd36b"))
+			draw_arc(pos, float(t.radius) + 10.0, -PI * 0.5,
+				-PI * 0.5 + TAU * float(t.hp) / float(t.max_hp), 32, Color("#37f0c8"), 4.0)
+		else:
+			draw_line(pos + Vector2(-22, -22), pos + Vector2(22, 22), Color("#ff4d37"), 5.0)
+			draw_line(pos + Vector2(22, -22), pos + Vector2(-22, 22), Color("#ff4d37"), 5.0)
+
+	for c in crew:
+		if bool(c.dead):
+			continue
+		var cpos: Vector2 = c.position
+		draw_circle(cpos + Vector2(0, 8), float(c.radius) * 1.1, Color(0.01, 0.01, 0.02, 0.45))
+		var tint := Color("#8fa6c9")
+		if float(c.flash) > 0.0:
+			tint = tint.lerp(Color.WHITE, 0.7)
+		draw_circle(cpos, float(c.radius), tint)
+		draw_circle(cpos + Vector2(0, -float(c.radius) * 0.7), float(c.radius) * 0.55, Color("#e8e2d2"))
+		if float(c.hp) < float(c.max_hp):
+			var w := 26.0
+			draw_rect(Rect2(cpos.x - w * 0.5, cpos.y - float(c.radius) - 12.0, w, 4.0), Color("#241b25"))
+			draw_rect(Rect2(cpos.x - w * 0.5, cpos.y - float(c.radius) - 12.0,
+				w * float(c.hp) / float(c.max_hp), 4.0), Color("#37f0c8"))
 
 	draw_circle(BOILER_POSITION + Vector2(0, 14), 78.0, Color(0.01, 0.01, 0.02, 0.55))
 	draw_circle(BOILER_POSITION, boiler_radius, Color("#5b3b25"))

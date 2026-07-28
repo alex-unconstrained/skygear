@@ -1,0 +1,58 @@
+class_name SkyGearLanes
+extends RefCounted
+
+## The lane layer: deck cannons, crew, and the boarding hulk.
+##
+## Ported from the browser build's `_lanes.js`, and it is the reason the deck is
+## a map rather than an arena. Without it the port had three lanes drawn on the
+## floor and nothing that made committing to one mean anything: no gate for the
+## boarders to break, no allies pushing the other way, and no push waves.
+##
+## Kept as plain dictionaries drawn by the game rather than as scene nodes, for
+## the same reason the browser keeps them as plain objects: there are at most
+## three cannons, a dozen crew and one hulk, they have no physics worth the name,
+## and a Node2D each buys nothing but a lifetime to get wrong.
+##
+## Tuning is the browser's, which was itself tuned down hard after the first v5
+## playtest — crew were arriving nine at a time and the lanes held themselves.
+
+const TURRET := {"hp": 480.0, "range": 400.0, "damage": 15.0, "cooldown": 1.45, "radius": 34.0}
+const CREW := {
+	"hp": 34.0, "damage": 5.0, "siege": 22.0, "speed": 118.0, "radius": 15.0,
+	"reach": 52.0, "windup": 0.40, "recover": 0.5,
+	"every": 14.0, "push_every": 9.0, "per_wave": 2,
+}
+const HULK := {"hp": 1500.0, "radius": 190.0}
+
+
+static func make_turrets(lane_centers: Array, base_y: float) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for i in lane_centers.size():
+		out.append({
+			"lane": i,
+			"position": Vector2(float(lane_centers[i]), base_y - 210.0),
+			"hp": TURRET.hp, "max_hp": TURRET.hp,
+			"cooldown": 0.0, "radius": TURRET.radius,
+			"angle": -PI * 0.5, "flash": 0.0, "fire_flash": 0.0, "dead": false,
+		})
+	return out
+
+
+static func make_crew(lane: int, lane_centers: Array, base_y: float) -> Dictionary:
+	return {
+		"lane": lane,
+		"position": Vector2(float(lane_centers[lane]) + randf_range(-40.0, 40.0), base_y + 120.0),
+		"hp": CREW.hp, "max_hp": CREW.hp,
+		"state": "move", "state_time": 0.0,
+		"radius": CREW.radius, "flash": 0.0, "dead": false,
+	}
+
+
+## A fresh vessel grapples on for every push. Each is a little tougher than the
+## last, but only a little: the first one already reads as long.
+static func make_hulk(bow_y: float, toughness: float) -> Dictionary:
+	return {
+		"position": Vector2(0.0, bow_y),
+		"hp": HULK.hp * toughness, "max_hp": HULK.hp * toughness,
+		"radius": HULK.radius, "vulnerable": false, "dead": false, "flash": 0.0,
+	}
