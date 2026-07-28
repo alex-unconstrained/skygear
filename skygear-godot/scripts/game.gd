@@ -111,6 +111,10 @@ func aim_target() -> Vector2:
 ## the HUD is a view and input belongs to the thing that owns input.
 var layout_edit := false
 var layout_pick := "captain"
+## Which element INSIDE the selected plate is being edited, or "" for the plate
+## itself. Panel-level placement was not enough: a glyph can sit off-centre in
+## its own slot, and the only fix was another round trip through me.
+var layout_item := ""
 var layout_saved := false
 var _layout_drag := ""
 var _layout_resize := false
@@ -281,13 +285,15 @@ func _layout_input(event: InputEvent) -> bool:
 	if SkyGearHUD.layout == null:
 		SkyGearHUD.layout = SkyGearHudLayout.load_layout()
 	var layout := SkyGearHUD.layout
+	var plate_rect: Rect2 = SkyGearHUD.hud_plates(view).get(layout_pick, Rect2())
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			var hit := SkyGearHUD.plate_at(view, where)
+			var hit := SkyGearHUD.pick_at(view, where, layout_pick)
 			if hit.is_empty():
 				return true
-			layout_pick = str(hit.name)
+			layout_pick = str(hit.plate)
+			layout_item = str(hit.item)
 			_layout_drag = layout_pick
 			_layout_resize = bool(hit.resize)
 			_layout_from = where
@@ -301,9 +307,9 @@ func _layout_input(event: InputEvent) -> bool:
 		var delta: Vector2 = where - _layout_from
 		_layout_from = where
 		if _layout_resize:
-			layout.resize(_layout_drag, delta)
+			layout.resize(layout_pick, layout_item, delta)
 		else:
-			layout.nudge(_layout_drag, delta)
+			layout.nudge(layout_pick, layout_item, delta)
 		layout_saved = false
 		hud.queue_redraw()
 		return true
@@ -319,35 +325,73 @@ func _layout_input(event: InputEvent) -> bool:
 		return true
 	if key.ctrl_pressed and key.keycode == KEY_R:
 		layout.reset()
+		layout_item = ""
 		layout_saved = false
 		hud.queue_redraw()
 		return true
+	## Tab walks plates; Enter drops into the elements inside one and Escape
+	## comes back out. Two levels, one key each.
 	if key.keycode == KEY_TAB:
-		var order: Array = SkyGearHudLayout.ORDER
-		var at: int = maxi(0, order.find(layout_pick))
-		layout_pick = order[(at + (-1 if key.shift_pressed else 1) + order.size()) % order.size()]
+		var step: int = -1 if key.shift_pressed else 1
+		if layout_item == "":
+			var order: Array = SkyGearHudLayout.ORDER
+			var at: int = maxi(0, order.find(layout_pick))
+			layout_pick = order[(at + step + order.size()) % order.size()]
+		else:
+			var items := layout.items_of(layout_pick)
+			var at2: int = maxi(0, items.find(layout_item))
+			layout_item = items[(at2 + step + items.size()) % items.size()]
+		hud.queue_redraw()
+		return true
+	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		var items2 := layout.items_of(layout_pick)
+		if layout_item == "" and not items2.is_empty():
+			layout_item = items2[0]
+		hud.queue_redraw()
+		return true
+	if key.keycode == KEY_ESCAPE:
+		if layout_item != "":
+			layout_item = ""
+			hud.queue_redraw()
+			return true
+		layout_edit = false
 		hud.queue_redraw()
 		return true
 	if key.keycode == KEY_A:
 		var anchors: Array = SkyGearHudLayout.ANCHORS
-		var current := str(layout.plates[layout_pick].anchor)
-		layout.set_anchor(layout_pick,
-			anchors[(maxi(0, anchors.find(current)) + 1) % anchors.size()], view)
+		var entry: Dictionary = layout.plates.get(layout_pick, {}) if layout_item == "" \
+			else layout._bag(layout_pick).get(layout_item, {})
+		if not entry.is_empty():
+			var current := str(entry.anchor)
+			layout.set_anchor(layout_pick, layout_item,
+				anchors[(maxi(0, anchors.find(current)) + 1) % anchors.size()],
+				view, plate_rect)
+			layout_saved = false
+		hud.queue_redraw()
+		return true
+	## C centres the selected element in its plate, which is the single most
+	## common thing anyone wants from a screen like this and is fiddly by hand.
+	if key.keycode == KEY_C and layout_item != "":
+		layout.set_anchor(layout_pick, layout_item, "centre", view, plate_rect)
+		var entry2: Dictionary = layout._bag(layout_pick).get(layout_item, {})
+		if not entry2.is_empty():
+			entry2.offset = [0.0, float(entry2.offset[1])] if key.shift_pressed \
+				else [0.0, 0.0]
 		layout_saved = false
 		hud.queue_redraw()
 		return true
-	var step: float = 10.0 if key.shift_pressed else 1.0
+	var step_px: float = 10.0 if key.shift_pressed else 1.0
 	var nudge := Vector2.ZERO
 	match key.keycode:
-		KEY_LEFT: nudge = Vector2(-step, 0)
-		KEY_RIGHT: nudge = Vector2(step, 0)
-		KEY_UP: nudge = Vector2(0, -step)
-		KEY_DOWN: nudge = Vector2(0, step)
+		KEY_LEFT: nudge = Vector2(-step_px, 0)
+		KEY_RIGHT: nudge = Vector2(step_px, 0)
+		KEY_UP: nudge = Vector2(0, -step_px)
+		KEY_DOWN: nudge = Vector2(0, step_px)
 		_: return false
 	if key.alt_pressed:
-		layout.resize(layout_pick, nudge)
+		layout.resize(layout_pick, layout_item, nudge)
 	else:
-		layout.nudge(layout_pick, nudge)
+		layout.nudge(layout_pick, layout_item, nudge)
 	layout_saved = false
 	hud.queue_redraw()
 	return true

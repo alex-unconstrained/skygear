@@ -1041,6 +1041,11 @@ func _rebindable_contains(action: String) -> bool:
 ## the geometry is defined — `SkyGearHUD.hud_plates` — so this cannot drift from
 ## what is drawn.
 func _layout() -> void:
+	## A previous run of this harness saves a layout to test the round trip, and
+	## a saved layout WINS over the shipped one — so without this the matrix below
+	## would be checking whatever the last run happened to leave behind.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	SkyGearHUD.layout = null
 	var sizes := [Vector2(1280, 720), Vector2(1366, 768), Vector2(1600, 900),
 		Vector2(1920, 1080), Vector2(2560, 1440), Vector2(1152, 648)]
 	var worst := ""
@@ -1096,15 +1101,15 @@ func _layout() -> void:
 
 	## Re-anchoring may not move the plate, or the editor is a puzzle.
 	var before_anchor: Rect2 = fresh.rect("captain", Vector2(1366, 768))
-	fresh.set_anchor("captain", "bottom_right", Vector2(1366, 768))
+	fresh.set_anchor("captain", "", "bottom_right", Vector2(1366, 768), before_anchor)
 	_check("layout", "changing an anchor leaves the plate where it was",
 		fresh.rect("captain", Vector2(1366, 768)).is_equal_approx(before_anchor),
 		"%s -> %s" % [before_anchor, fresh.rect("captain", Vector2(1366, 768))])
 
 	## Round trip, and refusal of nonsense.
 	var edited := SkyGearHudLayout.new()
-	edited.nudge("captain", Vector2(11, -7))
-	edited.resize("ship", Vector2(-20, 0))
+	edited.nudge("captain", "", Vector2(11, -7))
+	edited.resize("ship", "", Vector2(-20, 0))
 	_check("layout", "an edit survives a save and a load",
 		edited.save() and SkyGearHudLayout.load_layout().rect("captain", Vector2(1366, 768))
 			.is_equal_approx(edited.rect("captain", Vector2(1366, 768))))
@@ -1119,6 +1124,45 @@ func _layout() -> void:
 		"kept %s" % str(junk.captain.anchor))
 	_check("layout", "and a plate cannot be edited down to nothing",
 		float(junk.slot0.size[1]) >= 28.0, "%.0f tall" % float(junk.slot0.size[1]))
+	## THE SECOND LEVEL. Panel placement was not enough: a glyph could sit
+	## off-centre inside its own slot and the only fix was another round trip.
+	var plan := SkyGearHudLayout.new()
+	var slot: Rect2 = plan.rect("slot1", Vector2(1366, 768))
+	var glyph: Rect2 = plan.item("slot1", "icon", slot)
+	_check("layout", "every element inside a plate has a box of its own",
+		plan.items_of("slot1").size() == 3 and plan.items_of("captain").size() == 7
+			and glyph.size.x > 0.0,
+		"%d in a slot, %d on the captain" % [plan.items_of("slot1").size(),
+			plan.items_of("captain").size()])
+	_check("layout", "and it lands inside the plate's interior, not on its frame",
+		SkyGearHudLayout.interior(slot).grow(2.0).encloses(glyph),
+		"%s in %s" % [glyph, SkyGearHudLayout.interior(slot)])
+	## The four slots share one set of item positions. Four slots that disagree
+	## about where the glyph goes is four bugs rather than four decisions.
+	var other: Rect2 = plan.rect("slot3", Vector2(1366, 768))
+	var other_glyph: Rect2 = plan.item("slot3", "icon", other)
+	_check("layout", "and all four slots agree where their glyph sits",
+		is_equal_approx(glyph.position.x - slot.position.x,
+			other_glyph.position.x - other.position.x))
+	## Items move with the plate rather than staying put on screen.
+	plan.nudge("slot1", "", Vector2(40, 0))
+	var moved_slot: Rect2 = plan.rect("slot1", Vector2(1366, 768))
+	_check("layout", "moving a plate carries its contents with it",
+		is_equal_approx(plan.item("slot1", "icon", moved_slot).position.x,
+			glyph.position.x + 40.0))
+	plan.nudge("slot1", "icon", Vector2(0, -9))
+	_check("layout", "and an element can then be moved on its own",
+		is_equal_approx(plan.item("slot1", "icon", moved_slot).position.y,
+			glyph.position.y - 9.0))
+	## The failure the whole second level exists to make visible.
+	plan.nudge("slot1", "icon", Vector2(500, 0))
+	var escaped := false
+	for note in plan.problems(Vector2(1366, 768)):
+		if note.contains("outside its plate"):
+			escaped = true
+	_check("layout", "an element dragged off its plate is reported, not silently lost",
+		escaped)
+
 	## Leave no editor state behind for the next run of the harness.
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
 

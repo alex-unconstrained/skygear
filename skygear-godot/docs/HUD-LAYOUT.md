@@ -13,7 +13,20 @@ lights up and shows its live numbers.
 | **A** | cycle which screen corner it is anchored to |
 | **Ctrl+S** | save |
 | **Ctrl+R** | back to the shipped layout |
+| **Enter** | drop into a panel and edit the things inside it |
+| **Esc** | back out to panel level (again to close) |
+| **C** | centre the selected element in its panel |
 | **F4** | done |
+
+Two levels. At panel level you are moving the six plates. Press **Enter** and you
+are moving what is *inside* the selected plate — the portrait, the health bar,
+the pressure dial, each skill glyph, each lane row. That is where alignment
+problems actually live: a glyph one pixel off-centre in its slot is not something
+panel positioning can fix.
+
+The four skill slots share one set of element positions. Four slots that disagree
+about where the glyph sits is four bugs, not four decisions — so aligning one
+aligns all of them.
 
 The panels underneath are the real panels, with the real content, at the real
 resolution — not a mockup. Guide lines appear when an edge lines up with another

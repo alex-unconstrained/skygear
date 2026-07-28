@@ -246,74 +246,79 @@ static func interior(rect: Rect2) -> Rect2:
 func _draw_layout_editor() -> void:
 	var plates := SkyGearHUD.hud_plates(size)
 	var chosen: String = game.layout_pick
+	var chosen_item: String = game.layout_item
 	for name in SkyGearHudLayout.ORDER:
 		var rect: Rect2 = plates.get(name, Rect2())
 		var hot: bool = name == chosen
-		draw_rect(rect, Color(0.22, 0.94, 0.78, 0.10) if hot else Color(1, 1, 1, 0.03))
-		draw_rect(rect, Color("#37f0c8") if hot else Color(1, 1, 1, 0.28), false,
-			2.0 if hot else 1.0)
-		draw_string(font, rect.position + Vector2(6, -6), name,
-			HORIZONTAL_ALIGNMENT_LEFT, -1, 12,
+		draw_rect(rect, Color(0.22, 0.94, 0.78, 0.08) if hot else Color(1, 1, 1, 0.03))
+		draw_rect(rect, Color("#37f0c8") if hot else Color(1, 1, 1, 0.26), false,
+			2.0 if hot and chosen_item == "" else 1.0)
+		_label(name, rect.position + Vector2(6, -6), 200.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
 			Color("#37f0c8") if hot else Color(1, 1, 1, 0.45))
-		if hot:
-			## A resize grip in the corner, and the numbers, because "about
-			## there" is not a layout you can reproduce.
-			var grip := Rect2(rect.end - Vector2(14, 14), Vector2(14, 14))
-			draw_rect(grip, Color("#e8c376"))
-			var entry: Dictionary = SkyGearHUD.layout.plates.get(name, {})
-			draw_string(font, rect.position + Vector2(6, rect.size.y + 16),
-				"%s  %d,%d  %dx%d" % [str(entry.get("anchor", "?")),
-					int(entry.offset[0]), int(entry.offset[1]),
-					int(entry.size[0]), int(entry.size[1])],
-				HORIZONTAL_ALIGNMENT_LEFT, -1, 12, Color("#e8c376"))
+		if not hot:
+			continue
+		## Everything inside the selected plate, so the thing being aligned is
+		## visible as a box rather than inferred from where a glyph landed.
+		draw_rect(SkyGearHudLayout.interior(rect), Color(1, 1, 1, 0.18), false, 1.0)
+		for item_name in layout.items_of(name):
+			var box := layout.item(name, item_name, rect)
+			var picked: bool = item_name == chosen_item
+			draw_rect(box, Color(1.0, 0.88, 0.54, 0.14) if picked else Color(1, 1, 1, 0.04))
+			draw_rect(box, Color("#ffe08a") if picked else Color(1, 1, 1, 0.3), false,
+				2.0 if picked else 1.0)
+			if picked:
+				draw_rect(Rect2(box.end - Vector2(9, 9), Vector2(11, 11)), Color("#e8c376"))
+				## Centre lines, which is what alignment actually is.
+				draw_line(Vector2(box.get_center().x, rect.position.y),
+					Vector2(box.get_center().x, rect.end.y), Color(1, 0.88, 0.54, 0.4), 1.0)
+				draw_line(Vector2(rect.position.x, box.get_center().y),
+					Vector2(rect.end.x, box.get_center().y), Color(1, 0.88, 0.54, 0.4), 1.0)
+			else:
+				_label(item_name, box.position + Vector2(2, -3), 160.0,
+					HORIZONTAL_ALIGNMENT_LEFT, 10, Color(1, 1, 1, 0.5))
 
-	## Alignment guides against the other plates, which is the thing that makes
-	## dragging by hand come out straight.
-	if chosen != "":
-		var mine: Rect2 = plates.get(chosen, Rect2())
-		for name in SkyGearHudLayout.ORDER:
-			if name == chosen:
-				continue
-			var other: Rect2 = plates[name]
-			for pair in [[mine.position.y, other.position.y], [mine.end.y, other.end.y],
-					[mine.position.x, other.position.x], [mine.end.x, other.end.x]]:
-				if absf(pair[0] - pair[1]) > 1.5:
-					continue
-				var vertical: bool = pair[0] == mine.position.x or pair[0] == mine.end.x
-				if vertical:
-					draw_line(Vector2(pair[0], 0), Vector2(pair[0], size.y),
-						Color(1, 0.88, 0.54, 0.55), 1.0)
-				else:
-					draw_line(Vector2(0, pair[0]), Vector2(size.x, pair[0]),
-						Color(1, 0.88, 0.54, 0.55), 1.0)
-
-	var trouble := SkyGearHUD.layout.problems(size)
-	var bar := Rect2(0, 0, size.x, 62)
-	draw_rect(bar, Color(0.02, 0.015, 0.028, 0.88))
-	draw_string(font, Vector2(16, 22),
-		"HUD LAYOUT — drag to move · corner to resize · Tab next · arrows nudge "
-		+ "(Shift = 10) · A cycles anchor · Ctrl+S save · Ctrl+R reset · F4 done",
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 14, BONE)
-	draw_string(font, Vector2(16, 44),
-		("saved to " + SkyGearHudLayout.USER_PATH) if game.layout_saved
-		else ("%d problem(s): %s" % [trouble.size(), ", ".join(trouble)] if not trouble.is_empty()
-			else "layout is clean"),
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+	var trouble := layout.problems(size)
+	draw_rect(Rect2(0, 0, size.x, 66), Color(0.02, 0.015, 0.028, 0.9))
+	var target: String = chosen if chosen_item == "" else "%s / %s" % [chosen, chosen_item]
+	_value("HUD LAYOUT — editing %s" % target, Vector2(16, 22), size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
+	_label("drag to move · corner to resize · Tab next · Enter into a panel · Esc out"
+		+ " · arrows nudge (Shift 10, Alt resize) · A anchor · C centre · Ctrl+S save"
+		+ " · Ctrl+R reset · F4 done",
+		Vector2(16, 42), size.x, HORIZONTAL_ALIGNMENT_LEFT, 12)
+	var entry: Dictionary = layout.plates.get(chosen, {}) if chosen_item == "" 		else layout._bag(chosen).get(chosen_item, {})
+	if not entry.is_empty():
+		_label("%s  %d,%d  %dx%d" % [str(entry.anchor), int(entry.offset[0]),
+			int(entry.offset[1]), int(entry.size[0]), int(entry.size[1])],
+			Vector2(size.x - 16, 22), 300.0, HORIZONTAL_ALIGNMENT_RIGHT, 14, Color("#e8c376"))
+	_label(("saved to " + SkyGearHudLayout.USER_PATH) if game.layout_saved
+		else ("%d problem(s): %s" % [trouble.size(), ", ".join(trouble)]
+			if not trouble.is_empty() else "layout is clean"),
+		Vector2(size.x - 16, 42), 700.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
 		Color("#37f0c8") if trouble.is_empty() else Color("#ff9a5a"))
 
 
-## Which plate, and which part of it, is under a point. Shared with the input
-## handler so what you grab is what you saw.
-static func plate_at(view: Vector2, where: Vector2) -> Dictionary:
+## What is under a point: a plate, or an element inside the plate currently
+## being edited. Shared with the input handler so what you grab is what you saw.
+static func pick_at(view: Vector2, where: Vector2, current: String) -> Dictionary:
 	var plates := hud_plates(view)
-	## Backwards, so the topmost drawn plate wins a click where two overlap.
+	## Items inside the selected plate win, because they are drawn on top of it
+	## and are the smaller target.
+	if plates.has(current):
+		var plate: Rect2 = plates[current]
+		for item_name in layout.items_of(current):
+			var box := layout.item(current, item_name, plate)
+			if not box.grow(3.0).has_point(where):
+				continue
+			var grip := Rect2(box.end - Vector2(9, 9), Vector2(11, 11))
+			return {"plate": current, "item": item_name, "resize": grip.has_point(where)}
 	for i in range(SkyGearHudLayout.ORDER.size() - 1, -1, -1):
 		var name: String = SkyGearHudLayout.ORDER[i]
 		var rect: Rect2 = plates.get(name, Rect2())
 		if not rect.has_point(where):
 			continue
-		var grip := Rect2(rect.end - Vector2(16, 16), Vector2(16, 16))
-		return {"name": name, "resize": grip.has_point(where)}
+		var grip2 := Rect2(rect.end - Vector2(16, 16), Vector2(16, 16))
+		return {"plate": name, "item": "", "resize": grip2.has_point(where)}
 	return {}
 
 
@@ -358,93 +363,109 @@ func _cooldown(rect: Rect2, remaining: float) -> void:
 		draw_colored_polygon(points, shade)
 
 
+## Readability first.
+##
+## Reported after a playtest: "we've lost a lot of readability and clarity from
+## the browser version." The browser draws every HUD label with an ink shadow
+## under it and a bright value over it, and this build was putting small grey
+## text straight onto brass — the one background it disappears against.
+##
+## `_label` and `_value` are the fix and they are used for every piece of text on
+## the bar, so the contrast decision is made once.
+const INK := Color(0.03, 0.02, 0.045, 0.9)
+
+
+func _label(text: String, at: Vector2, width: float, align: int, pt: int = 12,
+		tint: Color = Color("#cfc4b4")) -> void:
+	draw_string(font, at + Vector2(1, 1), text, align, width, pt, INK)
+	draw_string(font, at, text, align, width, pt, tint)
+
+
+func _value(text: String, at: Vector2, width: float, align: int, pt: int = 15,
+		tint: Color = Color("#fff6e4")) -> void:
+	draw_string(font, at + Vector2(1.5, 1.5), text, align, width, pt, INK)
+	draw_string(font, at, text, align, width, pt, tint)
+
+
 func _draw_game_hud() -> void:
 	var player: SkyGearPlayer = game.player
 	var plates := hud_plates(size)
+	var l := layout
 
-	## --- the captain: portrait, health, pressure, dash ---------------------
+	## --- the captain -------------------------------------------------------
 	var panel: Rect2 = plates.captain
 	_panel(panel)
-	var inner := interior(panel)
+	var portrait_at := l.item("captain", "portrait", panel)
 	var portrait := _tex("res://assets/art/ui/portrait_corsair.png")
-	var pr: float = minf(30.0, inner.size.y * 0.36)
-	var centre := Vector2(inner.position.x + pr + 4.0, inner.get_center().y)
 	if portrait != null:
-		draw_texture_rect_region(portrait, Rect2(centre - Vector2(pr, pr), Vector2(pr * 2, pr * 2)),
+		draw_texture_rect_region(portrait, portrait_at,
 			Rect2(Vector2.ZERO, portrait.get_size()))
-	## The painted bezel, which is what `gauge_ring.png` is for and had never
-	## been drawn — a hand-painted brass ring beats `draw_arc` at any radius.
 	var bezel := _tex("res://assets/art/ui/gauge_ring.png")
 	if bezel != null:
-		draw_texture_rect(bezel, Rect2(centre - Vector2(pr + 9, pr + 9),
-			Vector2(pr + 9, pr + 9) * 2.0), false, BRASS_LIT)
+		draw_texture_rect(bezel, portrait_at.grow(6.0), false, BRASS_LIT)
 	else:
-		draw_arc(centre, pr + 2.0, 0.0, TAU, 40, BRASS, 2.4)
+		draw_arc(portrait_at.get_center(), portrait_at.size.x * 0.5 + 2.0, 0.0, TAU, 40,
+			BRASS, 2.4)
 
-	var bx: float = centre.x + pr + 14.0
-	var bw: float = inner.end.x - bx
-	_bar(Rect2(bx, inner.position.y + 10, bw, 26), player.hp / player.max_hp,
-		Color("#e8542e"), Color("#8b2418"), "CAPTAIN", "%d / %d" % [player.hp, player.max_hp])
+	var health := l.item("captain", "health", panel)
+	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
+		"CAPTAIN", "%d / %d" % [player.hp, player.max_hp])
 
-	## The pressure gauge. Pressure is the v11 mechanic and it was the least
-	## legible thing on the bar — a twelve-pixel rect with an icon watermarked
-	## into it. A dial reads at a glance; a thin bar does not.
 	var pressure_ratio: float = player.pressure / 100.0
-	var dial_size: float = minf(40.0, inner.size.y * 0.44)
-	_dial(Rect2(bx, inner.end.y - dial_size - 2.0, dial_size, dial_size), pressure_ratio)
+	_dial(l.item("captain", "dial", panel), pressure_ratio)
+	var vent_at := l.item("captain", "vent_icon", panel)
 	var gauge_icon := _tex("res://assets/art/ui/icon_vent.png" if pressure_ratio >= 1.0
 		else "res://assets/art/ui/icon_pressure.png")
 	if gauge_icon != null:
-		draw_texture_rect_region(gauge_icon,
-			Rect2(Vector2(bx + dial_size + 8.0, inner.end.y - dial_size + 2.0), Vector2(15, 15)),
+		draw_texture_rect_region(gauge_icon, vent_at,
 			Rect2(Vector2.ZERO, gauge_icon.get_size()),
-			Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#8b8296"))
-	draw_string(font, Vector2(bx + dial_size + 26.0, inner.end.y - dial_size + 14.0),
-		"VENTING" if pressure_ratio >= 1.0 else "PRESSURE",
-		HORIZONTAL_ALIGNMENT_LEFT, 90, 10,
-		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#7e7392"))
+			Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#a79bb5"))
+	var pressure_at := l.item("captain", "pressure_label", panel)
+	_label("VENTING" if pressure_ratio >= 1.0 else "PRESSURE",
+		pressure_at.position + Vector2(0, pressure_at.size.y), pressure_at.size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 12,
+		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#b4a8c4"))
 
-	draw_string(font, Vector2(bx + dial_size + 26.0, inner.end.y - 2.0), "DASH",
-		HORIZONTAL_ALIGNMENT_LEFT, -1, 10, Color("#8b8296"))
+	var dash_at := l.item("captain", "dash_label", panel)
+	_label("DASH", dash_at.position + Vector2(0, dash_at.size.y), dash_at.size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 12)
+	var pips := l.item("captain", "dash_pips", panel)
 	var pip_art := _tex("res://assets/art/ui/dash_pip.png")
+	var pip_r: float = minf(pips.size.y, pips.size.x * 0.5) * 0.5
 	for i in 2:
 		var lit := i < player.dash_charges
-		var pip := Vector2(bx + dial_size + 70.0 + i * 22, inner.end.y - 8.0)
+		var at := Vector2(pips.position.x + pip_r + i * pip_r * 2.2, pips.get_center().y)
 		if pip_art != null:
-			draw_texture_rect_region(pip_art, Rect2(pip - Vector2(10, 10), Vector2(20, 20)),
+			draw_texture_rect_region(pip_art,
+				Rect2(at - Vector2(pip_r, pip_r), Vector2(pip_r * 2, pip_r * 2)),
 				Rect2(Vector2.ZERO, pip_art.get_size()),
-				Color("#9ff5e2") if lit else Color(0.30, 0.28, 0.34))
+				Color("#9ff5e2") if lit else Color(0.28, 0.26, 0.32))
 		else:
-			draw_circle(pip, 7.0, Color("#37f0c8") if lit else Color("#201c28"))
-			draw_arc(pip, 7.0, 0.0, TAU, 16, Color("#0d0b12"), 2.0)
+			draw_circle(at, pip_r, Color("#37f0c8") if lit else Color("#201c28"))
 
-	## --- the ship: the objective and the three lanes, one plate -------------
-	## They were two plates stacked in the top-right corner. Together they are
-	## one answer to one question — how is the ship doing — so they are one
-	## plate, and the corner they were in is now deck you can see.
+	## --- the ship -----------------------------------------------------------
 	var right: Rect2 = plates.ship
 	_panel(right)
-	var ship := interior(right)
-	_bar(Rect2(ship.position.x, ship.position.y + 16, ship.size.x, 26),
-		game.boiler_hp / game.boiler_max_hp, Color("#37f0c8"), Color("#1c6f61"),
-		"BOILER", "%d / %d" % [game.boiler_hp, game.boiler_max_hp])
-	draw_string(font, ship.position + Vector2(0, 60),
-		"WAVE %d / 12" % game.wave, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, BRASS_LIT)
-	draw_string(font, ship.position + Vector2(ship.size.x - 132, 60),
-		"BOARDERS %d" % game.enemy_count(), HORIZONTAL_ALIGNMENT_LEFT, -1, 15, BONE)
+	_bar(l.item("ship", "boiler", right), game.boiler_hp / game.boiler_max_hp,
+		Color("#37f0c8"), Color("#1c6f61"), "BOILER",
+		"%d / %d" % [game.boiler_hp, game.boiler_max_hp])
+	var wave_at := l.item("ship", "wave", right)
+	_value("WAVE %d / 12" % game.wave,
+		wave_at.position + Vector2(0, wave_at.size.y), wave_at.size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 16, BRASS_LIT)
+	var boarders_at := l.item("ship", "boarders", right)
+	_value("BOARDERS %d" % game.enemy_count(),
+		boarders_at.position + Vector2(0, boarders_at.size.y), boarders_at.size.x,
+		HORIZONTAL_ALIGNMENT_RIGHT, 16)
 
-	## Which lane is breaking, without having to look at it: three tracks, the
-	## cannon still standing in each drawn as its remaining health, and the
-	## deepest boarder marked on it.
+	## Which lane is breaking, without having to look at it.
 	var names := ["PORT", "CENTRE", "STARBOARD"]
 	for lane in 3:
-		var row := ship.position + Vector2(0, 86 + lane * 18)
-		draw_string(font, row, names[lane], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color("#8b8296"))
-		var track := Rect2(row + Vector2(72, -8), Vector2(ship.size.x - 96, 8))
-		## Code-drawn on purpose. `lane_track.png` is painted with heavy brass end
-		## stops, and at nine pixels tall across a 250-wide plate the two caps
-		## are most of the track — the channel it is supposed to be disappears.
-		## A painted asset that does not fit its slot is the wrong asset for it.
+		var row := l.item("ship", "lane%d" % lane, right)
+		_label(names[lane], row.position + Vector2(0, row.size.y - 3.0), 70.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 11)
+		var track := Rect2(row.position.x + 74.0, row.get_center().y - 4.0,
+			maxf(20.0, row.size.x - 96.0), 9.0)
 		draw_rect(track, Color("#0b0910"))
 		var gate: Dictionary = game.turret_in_lane(lane)
 		if not gate.is_empty():
@@ -465,39 +486,47 @@ func _draw_game_hud() -> void:
 			draw_rect(Rect2(marker - Vector2(2, 3), Vector2(4, track.size.y + 6)),
 				Color("#ff4d37") if deepest > 0.72 else Color("#ffb347"))
 		draw_rect(track, Color("#0d0b12"), false, 1.4)
-		draw_string(font, row + Vector2(ship.size.x - 22, 0), str(count),
-			HORIZONTAL_ALIGNMENT_RIGHT, 22, 11, BONE)
+		_value(str(count), row.position + Vector2(row.size.x - 20.0, row.size.y - 3.0),
+			20.0, HORIZONTAL_ALIGNMENT_RIGHT, 12)
 
 	## --- the hand -----------------------------------------------------------
 	var labels := ["LMB", "RMB", "Q", "E"]
 	for i in 4:
-		var rect: Rect2 = plates["slot%d" % i]
+		var slot := "slot%d" % i
+		var rect: Rect2 = plates[slot]
 		_panel(rect, true)
-		var face := interior(rect)
-		## The key label goes on the tab the plate is painted with, which sits
-		## above the recess rather than inside it.
-		draw_string(font, Vector2(rect.position.x, rect.position.y + 15), labels[i],
-			HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 12, BRASS_LIT)
+		var key_at := l.item(slot, "key", rect)
+		_label(labels[i], key_at.position + Vector2(0, key_at.size.y), key_at.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 13, BRASS_LIT)
+		var icon_at := l.item(slot, "icon", rect)
+		var name_at := l.item(slot, "name", rect)
+		## A dark recess under the glyph, always. The painted bezel has brass
+		## detail in the middle of it, and an element icon drawn straight onto
+		## that is an icon competing with a latch — the reported loss of clarity
+		## against the browser, which puts every glyph on a flat dark disc.
+		draw_circle(icon_at.get_center(), icon_at.size.x * 0.62, Color(0.05, 0.04, 0.07, 0.82))
+		draw_arc(icon_at.get_center(), icon_at.size.x * 0.62, 0.0, TAU, 28,
+			Color(0.02, 0.015, 0.03, 0.9), 2.0)
 		if i >= game.skills.size():
-			draw_string(font, Vector2(face.position.x, face.get_center().y + 4),
-				"LOCKED", HORIZONTAL_ALIGNMENT_CENTER, face.size.x, 13, Color("#5f5863"))
+			_label("LOCKED", name_at.position + Vector2(0, name_at.size.y), name_at.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#5f5863"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
 		var icon := _tex(str(SLOT_ICONS.get(skill.shape, "")))
-		var glyph: float = minf(40.0, face.size.y * 0.62)
-		var icon_at := Vector2(face.get_center().x - glyph * 0.5, face.position.y + 6.0)
 		if icon != null:
-			draw_texture_rect_region(icon, Rect2(icon_at, Vector2(glyph, glyph)),
-				Rect2(Vector2.ZERO, icon.get_size()), element)
+			draw_texture_rect_region(icon, icon_at, Rect2(Vector2.ZERO, icon.get_size()),
+				element)
 		var ready: bool = float(skill.cooldown_left) <= 0.0
 		if not ready:
 			var st: Dictionary = game.skill_stats(skill)
-			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)), 0.0, 1.0)
-			_cooldown(Rect2(icon_at - Vector2(4, 4), Vector2(glyph + 8, glyph + 8)), frac)
-		draw_string(font, Vector2(face.position.x, face.end.y - 2.0),
-			SkyGearData.skill_name(skill), HORIZONTAL_ALIGNMENT_CENTER, face.size.x, 11,
-			element if ready else Color("#7f7782"))
+			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)),
+				0.0, 1.0)
+			_cooldown(icon_at.grow(4.0), frac)
+		_label(SkyGearData.skill_name(skill),
+			name_at.position + Vector2(0, name_at.size.y), name_at.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 12,
+			element if ready else Color("#8b8296"))
 
 
 func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, value: String) -> void:
@@ -542,10 +571,12 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 		var x: float = rect.position.x + rect.size.x * float(i) / float(segments)
 		draw_line(Vector2(x, rect.position.y + 2), Vector2(x, rect.end.y - 2),
 			Color(0.05, 0.04, 0.07, 0.5), 1.5)
-	draw_string(font, rect.position + Vector2(4, -5), label, HORIZONTAL_ALIGNMENT_LEFT,
-		-1, 11, BRASS_LIT)
-	draw_string(font, Vector2(rect.position.x - 4, rect.position.y - 5), value,
-		HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x, 12, BONE)
+	## Inside the bar rather than floating above it, so a gauge is one object
+	## and the label cannot land on the plate's brass frame.
+	_label(label, rect.position + Vector2(6, rect.size.y * 0.5 + 4.0), rect.size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 11, BRASS_LIT)
+	_value(value, rect.position + Vector2(-6, rect.size.y * 0.5 + 5.0), rect.size.x,
+		HORIZONTAL_ALIGNMENT_RIGHT, 13)
 
 
 ## --- what is drawn over the fight -------------------------------------------
