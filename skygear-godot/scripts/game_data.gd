@@ -50,6 +50,14 @@ const STARTING_SKILLS := [
 	{"shape": "LINE_BURST", "element": "ARC"},
 ]
 
+## What is standing on the deck when a run starts.
+##
+## The eight interactive props were the whole layout, and a deck with eight
+## objects on it looks like a test level. The browser dresses the same space
+## with roughly twice that — braziers, crate stacks, coiled rope — none of which
+## you fight, all of which is why the ship reads as a working ship. Everything
+## added here is scenery: `is_targetable()` keeps braziers and rope off the
+## enemy's and the bolt's list, so the fight is unchanged.
 const PROP_LAYOUT := [
 	{"type": "keg", "position": Vector2(-520, -650)},
 	{"type": "keg", "position": Vector2(520, -560)},
@@ -59,6 +67,17 @@ const PROP_LAYOUT := [
 	{"type": "crate", "position": Vector2(590, 300)},
 	{"type": "keg", "position": Vector2(-520, 480)},
 	{"type": "lantern", "position": Vector2(130, 610)},
+	# dressing
+	{"type": "brazier", "position": Vector2(-120, -700)},
+	{"type": "brazier", "position": Vector2(160, 330)},
+	{"type": "brazier", "position": Vector2(-600, 160)},
+	{"type": "crates", "position": Vector2(-150, -140)},
+	{"type": "crates", "position": Vector2(430, -260)},
+	{"type": "crates", "position": Vector2(-430, 760)},
+	{"type": "crate", "position": Vector2(500, 680)},
+	{"type": "rope", "position": Vector2(60, -520)},
+	{"type": "rope", "position": Vector2(-155, 300)},
+	{"type": "lantern", "position": Vector2(620, -420)},
 ]
 
 static func skill_name(skill: Dictionary) -> String:

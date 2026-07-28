@@ -78,6 +78,8 @@ func _run() -> void:
 	_audio()
 	await process_frame
 	_endings()
+	await process_frame
+	_view()
 
 	print("")
 	if failures.is_empty():
@@ -553,3 +555,108 @@ func _endings() -> void:
 	_check("endings", "clearing the last wave wins the run",
 		third.state_name == "VICTORY", third.state_name)
 	third.queue_free()
+
+
+## --- what you actually look at ----------------------------------------------
+## The port shipped a build whose simulation was right and whose picture was a
+## different game, and nothing in this harness caught it, because every check
+## drove the model. These drive the camera and the mirror instead. They are not
+## screenshot tests — they assert the two numbers and the one decision that a
+## screenshot would only show you had gone wrong.
+func _view() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	_begin(game)
+	game.player.global_position = Vector2(0, 200)
+	view._process(1.0)          # a long step, so the follow lands rather than eases
+
+	## The whole camera is four constants and this solve. If the captain stops
+	## landing at 60% of screen height, every sprite in `assets/` — all of which
+	## was generated against that framing — is being shown through a lens it was
+	## not painted for.
+	var lens: float = rad_to_deg(2.0 * atan((SkyGearView3D.REF_HEIGHT * 0.5)
+		/ SkyGearView3D.FOCAL))
+	_check("camera", "the lens is the browser's focal length",
+		absf(view.camera.fov - lens) < 0.01 and absf(lens - 36.1) < 0.2,
+		"%.2f deg vertical" % view.camera.fov)
+
+	var screen := view.camera.unproject_position(
+		Vector3(game.player.global_position.x, 0.0, game.player.global_position.y)
+		* SkyGearView3D.WORLD_SCALE)
+	var height: float = float(view.camera.get_viewport().get_visible_rect().size.y)
+	var frac: float = screen.y / maxf(1.0, height)
+	_check("camera", "the captain stands where the art was framed for",
+		absf(frac - SkyGearView3D.STAND_FRAC) < 0.02,
+		"%.3f of screen height" % frac)
+
+	## Ground (x, y) -> world (x, 0, y). Everything in the mirror depends on it.
+	var probe := Vector2(-300, 480)
+	var back := view.camera.unproject_position(Vector3(probe.x, 0.0, probe.y)
+		* SkyGearView3D.WORLD_SCALE)
+	_check("camera", "deck coordinates land left of centre when they are to port",
+		back.x < view.camera.get_viewport().get_visible_rect().size.x * 0.5,
+		"x %.0f" % back.x)
+
+	## The x-ray. A boarder that walks behind a cargo run has to keep existing.
+	## The shadow of a cargo run is a band about forty units deep behind its far
+	## face, so the test point is placed there rather than "somewhere past it".
+	var cargo: Rect2 = SkyGearGame.CARGO_RECTS[2]
+	var eye := Vector2(view._focus.x, view._focus.y + SkyGearView3D.CAM_NEAR)
+	var ray: Vector2 = (cargo.get_center() - eye).normalized()
+	var to_far_face: float = (eye.y - cargo.position.y) / -ray.y
+	var behind: Vector2 = eye + ray * (to_far_face + 26.0)
+	var stand := 186.0                       # a SCRAPPER, standing
+	_check("view", "a boarder tucked behind cargo is x-rayed",
+		view._occluded(behind, stand), "at %.0f, %.0f" % [behind.x, behind.y])
+	_check("view", "one in the open is not",
+		not view._occluded(Vector2(0, 300), stand))
+	_check("view", "and neither is one well clear of the run",
+		not view._occluded(eye + ray * (to_far_face + 420.0), stand))
+
+	## Every living thing gets a body in the mirror, or it is in the fight
+	## without being on the screen.
+	for i in 5:
+		game.spawn_enemy("SCRAPPER", i % 3)
+	view._process(0.05)
+	var bodies := 0
+	for key in view._billboards.keys():
+		if str(key).begins_with("e"):
+			bodies += 1
+	_check("view", "every boarder gets a billboard",
+		bodies == game.enemy_count(), "%d bodies / %d boarders" % [bodies, game.enemy_count()])
+
+	## Dressing is dressing. Braziers and rope were added to fill the deck out,
+	## and if they joined the target list they would change the fight.
+	var dressing := 0
+	var targetable_dressing := 0
+	for p in game.get_tree().get_nodes_in_group("props"):
+		if p.prop_type == "brazier" or p.prop_type == "rope":
+			dressing += 1
+			if p.is_targetable():
+				targetable_dressing += 1
+	_check("view", "the deck is dressed", dressing >= 4, "%d pieces" % dressing)
+	_check("view", "and the dressing stays out of the fight",
+		targetable_dressing == 0, "%d targetable" % targetable_dressing)
+
+	## Damage says a number. The whole v11 upgrade system asks the player to
+	## notice which skill is carrying the run.
+	game.floaters.clear()
+	var victim: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		victim = e
+	game.damage_enemy(victim, 17.0, "EMBER", 0.0, victim.global_position, false)
+	_check("view", "a hit puts a number in the world",
+		game.floaters.size() == 1, "%d floaters" % game.floaters.size())
+
+	## And it does so WITHOUT touching the seeded stream. Scattering the numbers
+	## from `rng` shifted every crit and scrap roll after the first hit, which is
+	## a cosmetic feature quietly rewriting the run.
+	game.rng.seed = 1234
+	var before_state: int = game.rng.state
+	for i in 12:
+		game.add_floater("9", Vector2.ZERO, Color.WHITE)
+	_check("view", "and does not disturb the seeded stream",
+		game.rng.state == before_state, "state %d" % game.rng.state)
+	world.queue_free()

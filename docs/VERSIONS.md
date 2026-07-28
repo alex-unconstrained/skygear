@@ -283,6 +283,18 @@ relics, currencies, accounts, leaderboards, multiplayer, touch controls,
 procedural maps, a renderer rewrite. The reasoning in `V10-PLAN.md` §0 still
 holds — they are ways to postpone the moment this game becomes excellent.
 
+**The Godot port now matches the browser build on screen.** Camera solved from
+the browser's own `CAM.recompute()` (36.1° vertical, captain at 0.600 of screen
+height, both asserted); brass HUD; procedural deck and cargo; decals for every
+skill shape; bolts, floaters, nameplates, off-screen markers and the x-ray pass;
+a flat Boiler with a lit furnace grille. Side by side in
+`.shots/parity-browser-vs-godot.png`. Harness 44 → 55 checks. One real bug fell
+out of the work: damage-number scatter was drawing from the seeded RNG, so a
+cosmetic feature was shifting every crit and scrap roll in the run — fixed with
+a separate visual stream and a check. Details in `skygear-godot/DESIGN.md` §13c.
+Still blocked on itch: butler cannot create a game page, so one has to exist
+under `alex-unconstrained` before `SkyGear-Windows.zip` (67.5 MB) can be pushed.
+
 **A port to Godot** is underway in `skygear-godot/` — an isolated Godot 4.5
 project targeting v11, with a living DESIGN.md, the art copied in, scenes and the
 data layer written, and most behaviour scripts still to come. `V12-PLAN.md` §4

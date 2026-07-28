@@ -23,21 +23,26 @@ extends Node3D
 ## frame. Ground (x, y) becomes world (x, 0, y); y is depth, exactly as in the
 ## browser's TUNING comment.
 
+## --- the camera, solved from the browser's own numbers -----------------------
+## An earlier version of this file guessed at framing ("lower and closer gives
+## the same composition") and it did not: it put the cargo runs in the lens as
+## black slabs and cropped the deck to a corridor. The browser is not doing
+## anything mysterious, so there is nothing to guess at — its `CAM` is a pinhole
+## with four constants and one solve, and all of it ports exactly.
 const PITCH := 0.72                 ## radians below horizontal. Locked. See the brief.
-## Framing, tuned by looking at it. The browser's own numbers (760 above, 460
-## behind) put the near edge of the deck in the middle of the screen and left
-## the bottom 40% empty, because its camera is not free — it is a projection
-## with a principal point at 0.60 of screen height doing the same job. Lower and
-## closer gives the same composition here: deck to the bottom edge, captain
-## sitting just below centre, and enough of the bow visible to see what is
-## coming.
-const CAM_HEIGHT := 470.0           ## ground units above the deck
-## How far AHEAD of the captain the camera looks, toward the bow. The browser
-## does this with `camBack`, for the same reason: aim at her and she sits in the
-## middle of the frame with half the screen showing deck she has already crossed.
-## Aim up-deck and she sits below centre with the boarders in front of her.
-const CAM_LOOK_AHEAD := 260.0
+const CAM_HEIGHT := 760.0           ## ground units above the deck  (browser: CAM.h)
+const CAM_NEAR := 460.0             ## camera to focus point, along the deck (CAM.near)
+const FOCAL := 1320.0               ## focal length at reference scale  (CAM.f)
+const REF_HEIGHT := 860.0           ## the height that focal length is quoted at
+const STAND_FRAC := 0.60            ## where the captain sits, as a fraction of screen
+const CAM_TAU := 0.155              ## follow smoothing, seconds  (FEEL.camTau)
 const WORLD_SCALE := 0.01           ## ground units -> metres, so Godot's units stay sane
+
+## Cargo modules are tiled down a run rather than stretched over a box, which is
+## what the browser does and the reason its crates read as lashed cargo instead
+## of as a wall with a picture on it.
+const WALL_MODULE_D := 100.0
+const WALL_MODULE_H := 125.0
 
 @export var game_path: NodePath = ^"SkyGear"
 
@@ -47,6 +52,14 @@ var deck: MeshInstance3D
 var _billboards: Dictionary = {}     ## key -> Sprite3D
 var _used: Dictionary = {}
 var _textures: Dictionary = {}
+var _decals: Dictionary = {}         ## key -> MeshInstance3D, flat on the deck
+var _decals_used: Dictionary = {}
+var _lights: Dictionary = {}         ## prop id -> OmniLight3D
+var _envelope: MeshInstance3D
+var _focus := Vector2.ZERO
+var _focus_set := false
+var _flicker := 0.0
+var _made: Dictionary = {}           ## generated textures, by key
 
 
 func _ready() -> void:
@@ -55,19 +68,61 @@ func _ready() -> void:
 	if game != null:
 		# the 2D scene keeps simulating; it just stops being what you look at
 		game.visible = false
+		# the HUD still draws over the fight, so it needs the lens we are using
+		if game.hud != null:
+			game.hud.view = self
+
+
+## How far behind the captain the focus point sits, so she lands at STAND_FRAC.
+## Straight out of `CAM.recompute()`: the browser solves this rather than tuning
+## it, because a hard-coded offset silently re-frames the whole fight the moment
+## the pitch or the focal length moves.
+static func camera_back() -> float:
+	var r: float = (0.5 - STAND_FRAC) * REF_HEIGHT / FOCAL
+	var den: float = sin(PITCH) - r * cos(PITCH)
+	if absf(den) < 1e-4:
+		return CAM_NEAR + 200.0
+	return clampf(CAM_HEIGHT * (r * sin(PITCH) + cos(PITCH)) / den - CAM_NEAR, -260.0, 900.0)
 
 
 func _build_world() -> void:
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
-	e.background_mode = Environment.BG_COLOR
-	e.background_color = Color("#17152a")
+	## A real sky, because the top of the frame is where the horizon is and a
+	## flat clear colour reads as a void rather than as altitude at dusk.
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color("#100e1c")
+	sky_mat.sky_horizon_color = Color("#2e2a4e")
+	sky_mat.ground_bottom_color = Color("#1b1830")
+	sky_mat.ground_horizon_color = Color("#3a3358")
+	sky_mat.sun_angle_max = 30.0
+	var sky_res := Sky.new()
+	sky_res.sky_material = sky_mat
+	e.background_mode = Environment.BG_SKY
+	e.sky = sky_res
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("#4a4560")
-	e.ambient_light_energy = 0.9
+	e.ambient_light_color = Color("#4a4058")
+	e.ambient_light_energy = 0.62
 	e.fog_enabled = true
-	e.fog_light_color = Color("#241f3a")
-	e.fog_density = 0.006
+	e.fog_light_color = Color("#1d1930")
+	e.fog_density = 0.011
+	## Bloom. The browser fakes every glow by hand with radial gradients — the
+	## lantern haze, the furnace mouth, the rim on a cleave — because Canvas 2D
+	## has no post chain. Here it is one flag, and without it the emissive
+	## surfaces read as flat orange paint rather than as light.
+	e.glow_enabled = true
+	e.glow_intensity = 0.32
+	e.glow_bloom = 0.06
+	e.glow_hdr_threshold = 1.05
+	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
+	## Contact shadowing in the creases of the cargo, which is most of what makes
+	## a box look like an object rather than a shape.
+	e.ssao_enabled = true
+	e.ssao_intensity = 1.6
+	e.ssao_radius = 0.6
+	e.adjustment_enabled = true
+	e.adjustment_contrast = 1.10
+	e.adjustment_saturation = 1.04
 	env.environment = e
 	add_child(env)
 
@@ -75,13 +130,16 @@ func _build_world() -> void:
 	## from the upper left and a warm lantern fill from the lower right.
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color("#8fa6c9")
-	moon.light_energy = 1.15
+	moon.light_energy = 1.45
 	moon.rotation_degrees = Vector3(-52, 34, 0)
 	moon.shadow_enabled = true
+	moon.shadow_blur = 2.2
+	moon.directional_shadow_max_distance = 60.0
+	moon.shadow_opacity = 0.72
 	add_child(moon)
 	var lantern := DirectionalLight3D.new()
 	lantern.light_color = Color("#ffb347")
-	lantern.light_energy = 0.55
+	lantern.light_energy = 0.38
 	lantern.rotation_degrees = Vector3(-28, -150, 0)
 	add_child(lantern)
 
@@ -90,8 +148,11 @@ func _build_world() -> void:
 	plane.size = Vector2(SkyGearGame.DECK_RECT.size.x, SkyGearGame.DECK_RECT.size.y) * WORLD_SCALE
 	deck.mesh = plane
 	var mat := StandardMaterial3D.new()
-	mat.albedo_color = Color("#3d2e30")
-	mat.roughness = 0.92
+	mat.albedo_texture = _planking_texture()
+	## 1.8 tiles across 1680 units puts a board at roughly 116 wide, which is the
+	## browser's own plank width; 2.9 down 2320 puts a butt joint every ~400.
+	mat.uv1_scale = Vector3(1.8, 7.0, 1.0)
+	mat.roughness = 0.86
 	deck.material_override = mat
 	deck.position = Vector3(
 		(SkyGearGame.DECK_RECT.position.x + SkyGearGame.DECK_RECT.size.x * 0.5) * WORLD_SCALE,
@@ -99,19 +160,7 @@ func _build_world() -> void:
 		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
 	add_child(deck)
 
-	# the cargo runs, as actual boxes — they are what a lane is made of
-	for rect in SkyGearGame.CARGO_RECTS:
-		var box := MeshInstance3D.new()
-		var mesh := BoxMesh.new()
-		mesh.size = Vector3(rect.size.x, 150.0, rect.size.y) * WORLD_SCALE
-		box.mesh = mesh
-		var bm := StandardMaterial3D.new()
-		bm.albedo_color = Color("#54413c")
-		bm.roughness = 0.95
-		box.material_override = bm
-		box.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
-			75.0 * WORLD_SCALE, (rect.position.y + rect.size.y * 0.5) * WORLD_SCALE)
-		add_child(box)
+	_build_cargo()
 
 	## The gunwale. Without it the deck is a rectangle that stops, and at
 	## altitude the thing you most need to read is where the edge is.
@@ -172,66 +221,804 @@ func _build_world() -> void:
 		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
 	add_child(clouds)
 
+	## The sky, the envelope and the bow: the three pieces that say "airship"
+	## rather than "arena". All three exist as painted art already; in the
+	## browser they are screen-space layers, and here they can simply be objects
+	## in the world at the right distance, which is cheaper and parallaxes for
+	## free.
+	var sky_tex := _texture("res://assets/art/env/sky_backdrop.png")
+	if sky_tex != null:
+		var sky := MeshInstance3D.new()
+		var sq := QuadMesh.new()
+		sq.size = Vector2(9000.0, 4500.0) * WORLD_SCALE
+		sky.mesh = sq
+		var sm := StandardMaterial3D.new()
+		sm.albedo_texture = sky_tex
+		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		sm.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
+		sm.cull_mode = BaseMaterial3D.CULL_DISABLED
+		sky.mesh.material = sm
+		sky.position = Vector3(0.0, 900.0 * WORLD_SCALE,
+			(SkyGearGame.DECK_RECT.position.y - 3600.0) * WORLD_SCALE)
+		add_child(sky)
+
+	var bow_tex := _texture("res://assets/art/env/bow_prow.png")
+	if bow_tex != null:
+		var bow := Sprite3D.new()
+		bow.texture = bow_tex
+		bow.billboard = BaseMaterial3D.BILLBOARD_DISABLED
+		bow.shaded = true
+		bow.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		bow.pixel_size = 900.0 * WORLD_SCALE / float(bow_tex.get_height())
+		bow.rotation_degrees = Vector3(-90.0 + rad_to_deg(PITCH) * 0.35, 0.0, 0.0)
+		bow.position = Vector3(0.0, 120.0 * WORLD_SCALE,
+			(SkyGearGame.DECK_RECT.position.y - 150.0) * WORLD_SCALE)
+		add_child(bow)
+
+	## Our own gas bag, overhead. Tied to the camera rather than the world so it
+	## stays where a thing hanging above you stays — and kept thin, because the
+	## browser build was reported for exactly this: the envelope was covering the
+	## top third of the frame, which is the direction boarders arrive from.
+	var env_tex := _texture("res://assets/art/env/envelope_top.png")
+	if env_tex != null:
+		_envelope = MeshInstance3D.new()
+		var eq := QuadMesh.new()
+		eq.size = Vector2(3600.0, 1100.0) * WORLD_SCALE
+		_envelope.mesh = eq
+		var em := StandardMaterial3D.new()
+		em.albedo_texture = env_tex
+		em.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		em.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		em.albedo_color = Color(1, 1, 1, 0.85)
+		em.cull_mode = BaseMaterial3D.CULL_DISABLED
+		_envelope.mesh.material = em
+		add_child(_envelope)
+
+	_build_boiler()
+
 	camera = Camera3D.new()
-	camera.fov = 52.0
+	## Not a taste dial. The browser's focal length is 1320 quoted against a
+	## reference height of 860, so its vertical field of view is
+	## 2·atan(430/1320) — about 36° — at every window size. Godot's `fov` is the
+	## vertical one by default, so this is the same lens rather than a similar
+	## one, and it is why the deck now reads to the horizon instead of the cargo
+	## filling the frame.
+	camera.fov = rad_to_deg(2.0 * atan((REF_HEIGHT * 0.5) / FOCAL))
+	camera.near = 0.05
+	camera.far = 400.0
 	camera.current = true
 	add_child(camera)
+	_track_camera(1.0)
 
 
-func _process(_delta: float) -> void:
+## The cargo runs. In the browser these are `cargo_wall_module` billboards tiled
+## down the run — 120 wide, stepped every 100, alternating mirror so one module
+## does not read as a repeating stamp. Here they get to be a real box (which is
+## what stops a boarder, and what the lane collision already assumes) with the
+## module painted around it and a brass capping rail on top.
+##
+## The first version stretched the module texture over the box with alpha
+## blending off, and since the module is a cut-out with a transparent surround,
+## every crate rendered as a black slab. Cut-outs belong on billboards; a box
+## gets a tiling texture, so this paints one.
+func _build_cargo() -> void:
+	var crate_mat := StandardMaterial3D.new()
+	crate_mat.albedo_texture = _crate_texture()
+	crate_mat.roughness = 0.88
+	crate_mat.uv1_triplanar = true
+	## One tile per 70 ground units. At 150 the module was larger than the box it
+	## was on, so each run showed a single flat swatch of the middle of it.
+	crate_mat.uv1_scale = Vector3(1.0, 1.0, 1.0) / (70.0 * WORLD_SCALE)
+	var band_mat := StandardMaterial3D.new()
+	band_mat.albedo_color = Color("#6d5227")
+	band_mat.metallic = 0.45
+	band_mat.roughness = 0.55
+	for rect: Rect2 in SkyGearGame.CARGO_RECTS:
+		var height := WALL_MODULE_H
+		var box := MeshInstance3D.new()
+		var mesh := BoxMesh.new()
+		mesh.size = Vector3(rect.size.x, height, rect.size.y) * WORLD_SCALE
+		box.mesh = mesh
+		box.material_override = crate_mat
+		box.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
+			height * 0.5 * WORLD_SCALE, (rect.position.y + rect.size.y * 0.5) * WORLD_SCALE)
+		add_child(box)
+		## The brass capping rail. A full plate over the top face turned every
+		## cargo run into a flat olive slab from this angle, which is what the
+		## camera mostly sees — so it is four edge bars and the crate lids stay
+		## visible between them.
+		for edge in 4:
+			var along_x: bool = edge < 2
+			var cap := MeshInstance3D.new()
+			var cm := BoxMesh.new()
+			cm.size = Vector3(rect.size.x + 5.0 if along_x else 5.0, 6.0,
+				5.0 if along_x else rect.size.y + 5.0) * WORLD_SCALE
+			cap.mesh = cm
+			var ox: float = 0.0 if along_x else (rect.size.x * 0.5) * (1.0 if edge == 2 else -1.0)
+			var oz: float = 0.0 if not along_x else (rect.size.y * 0.5) * (1.0 if edge == 0 else -1.0)
+			cap.material_override = band_mat
+			cap.position = Vector3((rect.position.x + rect.size.x * 0.5 + ox) * WORLD_SCALE,
+				(height + 2.0) * WORLD_SCALE,
+				(rect.position.y + rect.size.y * 0.5 + oz) * WORLD_SCALE)
+			add_child(cap)
+		# lashing straps, one per module step down the run
+		var modules := maxi(1, int(round(rect.size.y / WALL_MODULE_D)))
+		for i in modules:
+			var t: float = 0.5 if modules == 1 else float(i) / float(modules - 1)
+			var z: float = lerpf(rect.position.y + 34.0, rect.end.y - 34.0, t)
+			var strap := MeshInstance3D.new()
+			var sm2 := BoxMesh.new()
+			sm2.size = Vector3(rect.size.x + 5.0, 7.0, 5.0) * WORLD_SCALE
+			strap.mesh = sm2
+			strap.material_override = band_mat
+			strap.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
+				height * 0.62 * WORLD_SCALE, z * WORLD_SCALE)
+			add_child(strap)
+
+
+## The Boiler, as geometry. There is no painted boiler in the manifest — the
+## browser draws it procedurally — and borrowing another prop's sprite for the
+## thing you lose by is worse than building it: a brass drum on a plinth with a
+## furnace mouth, lit from inside.
+func _build_boiler() -> void:
+	var boiler := Node3D.new()
+	boiler.position = Vector3(SkyGearGame.BOILER_POSITION.x * WORLD_SCALE, 0.0,
+		SkyGearGame.BOILER_POSITION.y * WORLD_SCALE)
+	add_child(boiler)
+	var brass := StandardMaterial3D.new()
+	brass.albedo_color = Color("#c9903c")
+	brass.metallic = 0.5
+	brass.roughness = 0.3
+	var plinth := MeshInstance3D.new()
+	var pm := CylinderMesh.new()
+	pm.top_radius = 84.0 * WORLD_SCALE
+	pm.bottom_radius = 96.0 * WORLD_SCALE
+	pm.height = 22.0 * WORLD_SCALE
+	plinth.mesh = pm
+	var iron := StandardMaterial3D.new()
+	iron.albedo_color = Color("#4c4238")
+	iron.metallic = 0.45
+	iron.roughness = 0.58
+	plinth.material_override = iron
+	plinth.position.y = 11.0 * WORLD_SCALE
+	boiler.add_child(plinth)
+	## FLAT. The browser sets `boilerH` to 132 with the comment "a flat engine
+	## block, not a tower", and it is not a style note: the captain spawns 130
+	## units in front of this thing, so anything tall enough to be impressive is
+	## tall enough to hide the player behind it for the first second of a run.
+	## The first 3D pass built a 300-unit drum with a funnel and did exactly that.
+	var drum := MeshInstance3D.new()
+	var dm := CylinderMesh.new()
+	dm.top_radius = 70.0 * WORLD_SCALE
+	dm.bottom_radius = 76.0 * WORLD_SCALE
+	dm.height = 84.0 * WORLD_SCALE
+	drum.mesh = dm
+	drum.material_override = brass
+	drum.position.y = 64.0 * WORLD_SCALE
+	boiler.add_child(drum)
+	## A riveted lid, not a dome. The hemisphere version was a polished gold ball
+	## the width of the deck sitting in the bottom of every frame — smooth
+	## primitives read as toy, and the one object the player is defending is the
+	## last place to put one.
+	var lid := MeshInstance3D.new()
+	var lm := CylinderMesh.new()
+	lm.top_radius = 62.0 * WORLD_SCALE
+	lm.bottom_radius = 72.0 * WORLD_SCALE
+	lm.height = 16.0 * WORLD_SCALE
+	lid.mesh = lm
+	var lid_mat := StandardMaterial3D.new()
+	lid_mat.albedo_color = Color("#5d4a33")
+	lid_mat.metallic = 0.4
+	lid_mat.roughness = 0.5
+	lid.material_override = lid_mat
+	lid.position.y = 112.0 * WORLD_SCALE
+	boiler.add_child(lid)
+	var rivets := StandardMaterial3D.new()
+	rivets.albedo_color = Color("#c9903c")
+	rivets.metallic = 0.55
+	rivets.roughness = 0.34
+	for r in 8:
+		var a: float = TAU * float(r) / 8.0
+		var rivet := MeshInstance3D.new()
+		var rmesh := CylinderMesh.new()
+		rmesh.top_radius = 5.0 * WORLD_SCALE
+		rmesh.bottom_radius = 5.0 * WORLD_SCALE
+		rmesh.height = 7.0 * WORLD_SCALE
+		rivet.mesh = rmesh
+		rivet.material_override = rivets
+		rivet.position = Vector3(cos(a) * 52.0 * WORLD_SCALE, 122.0 * WORLD_SCALE,
+			sin(a) * 52.0 * WORLD_SCALE)
+		boiler.add_child(rivet)
+	var valve := MeshInstance3D.new()
+	var vm := TorusMesh.new()
+	vm.inner_radius = 14.0 * WORLD_SCALE
+	vm.outer_radius = 22.0 * WORLD_SCALE
+	valve.mesh = vm
+	valve.material_override = rivets
+	valve.position.y = 128.0 * WORLD_SCALE
+	boiler.add_child(valve)
+	for band_y in [40.0, 88.0]:
+		var band := MeshInstance3D.new()
+		var bm := TorusMesh.new()
+		bm.inner_radius = 71.0 * WORLD_SCALE
+		bm.outer_radius = 78.0 * WORLD_SCALE
+		band.mesh = bm
+		band.material_override = iron
+		band.position.y = band_y * WORLD_SCALE
+		boiler.add_child(band)
+	# the funnels lean AFT, away from the camera, so they never cross the fight
+	for fx in [-46.0, 46.0]:
+		var funnel := MeshInstance3D.new()
+		var fu := CylinderMesh.new()
+		fu.top_radius = 13.0 * WORLD_SCALE
+		fu.bottom_radius = 17.0 * WORLD_SCALE
+		fu.height = 86.0 * WORLD_SCALE
+		funnel.mesh = fu
+		funnel.material_override = iron
+		funnel.position = Vector3(fx * WORLD_SCALE, 132.0 * WORLD_SCALE, 54.0 * WORLD_SCALE)
+		funnel.rotation_degrees = Vector3(18.0, 0.0, 0.0)
+		boiler.add_child(funnel)
+	## The furnace face. This is the Boiler as anyone remembers it — a slatted
+	## grille with fire behind it — and it has to be aimed at the camera, because
+	## the camera never moves and a detail on the far side is a detail nobody
+	## ever sees.
+	var furnace := MeshInstance3D.new()
+	var fm := QuadMesh.new()
+	fm.size = Vector2(104.0, 62.0) * WORLD_SCALE
+	furnace.mesh = fm
+	var fire := StandardMaterial3D.new()
+	fire.albedo_texture = _grille_texture()
+	fire.emission_enabled = true
+	fire.emission_texture = _grille_texture()
+	fire.emission = Color("#ffb060")
+	fire.emission_energy_multiplier = 2.6
+	fire.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	fire.cull_mode = BaseMaterial3D.CULL_DISABLED
+	furnace.mesh.material = fire
+	furnace.position = Vector3(0.0, 56.0 * WORLD_SCALE, 78.0 * WORLD_SCALE)
+	furnace.rotation_degrees = Vector3(-14.0, 0.0, 0.0)
+	boiler.add_child(furnace)
+	# a bronze surround, so the grille is set into the drum rather than stuck on
+	var bezel := MeshInstance3D.new()
+	var bz := BoxMesh.new()
+	bz.size = Vector3(120.0, 78.0, 12.0) * WORLD_SCALE
+	bezel.mesh = bz
+	var bronze := StandardMaterial3D.new()
+	bronze.albedo_color = Color("#7d5a2c")
+	bronze.metallic = 0.5
+	bronze.roughness = 0.45
+	bezel.material_override = bronze
+	bezel.position = Vector3(0.0, 56.0 * WORLD_SCALE, 72.0 * WORLD_SCALE)
+	boiler.add_child(bezel)
+	var glow := OmniLight3D.new()
+	glow.light_color = Color("#ff9a4a")
+	glow.light_energy = 1.7
+	glow.omni_range = 360.0 * WORLD_SCALE
+	glow.position = Vector3(0.0, 60.0 * WORLD_SCALE, 96.0 * WORLD_SCALE)
+	boiler.add_child(glow)
+
+
+## --- generated textures ------------------------------------------------------
+## Everything below is painted at startup rather than shipped as art, for the
+## same reason the browser paints its deck in code: a tiling photo of wood reads
+## as a floor and this has to read as a SHIP. Each one is cached by key.
+
+## Planked timber.
+func _planking_texture() -> ImageTexture:
+	if _made.has("plank"):
+		return _made.plank
+	var size := 256
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	## Warmer and lighter than the browser's hex values, deliberately: those are
+	## the colour of the finished pixel, and this one goes through a blue key and
+	## a purple ambient before anyone sees it. Painting the browser's #3d2e30
+	## here came out as grey stone tile.
+	var base := Color("#5c433a")
+	var dark := Color("#33262a")
+	var light := Color("#856046")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 20260727
+	for y in size:
+		for x in size:
+			## Boards run along the KEEL. The plane maps u across the ship and v
+			## down it, so a board is a column in this image — the first version
+			## had them running athwartships, which is not how anyone has ever
+			## planked a deck and read as floor tile at distance.
+			var board := int(x / 32.0)
+			var shade: float = 0.90 + fmod(float(board) * 0.37, 1.0) * 0.2
+			var c := base * shade
+			# the seam between two boards
+			if x % 32 == 0:
+				c = dark
+			elif x % 32 == 31:
+				c = c.lerp(light, 0.22)     # the lit lip of the next board over
+			## Butt joints, staggered board to board — and FAINT. At full dark
+			## every 128 rows they crossed the plank seams into a tile grid, and
+			## a tiled deck is a floor rather than a ship.
+			if (y + board * 61) % 128 < 2:
+				c = c.lerp(dark, 0.28)
+			# grain
+			var grain := rng.randf()
+			if grain < 0.06:
+				c = c.lerp(dark, 0.5)
+			elif grain > 0.965:
+				c = c.lerp(light, 0.35)
+			img.set_pixel(x, y, c)
+	_made.plank = ImageTexture.create_from_image(img)
+	return _made.plank
+
+
+## Lashed crate: vertical boards, an iron band top and bottom, corner plates.
+## Tiles in both axes so it can go on a box triplanar without seams reading.
+func _crate_texture() -> ImageTexture:
+	if _made.has("crate"):
+		return _made.crate
+	var size := 128
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var wood := Color("#6b4c37")
+	var dark := Color("#2d2128")
+	var lit := Color("#9a7350")
+	var band := Color("#94702f")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 419
+	for y in size:
+		for x in size:
+			var c := wood
+			# vertical planks, 16px, each its own shade
+			var plank := int(x / 16.0)
+			c = c * (0.86 + fmod(float(plank) * 0.41, 1.0) * 0.28)
+			if x % 16 == 0:
+				c = dark
+			# iron bands across the top and bottom thirds
+			if (y > 18 and y < 28) or (y > 100 and y < 110):
+				c = band * (0.8 + 0.4 * float((x / 8) % 2))
+			# rivets on the bands
+			if ((y == 23 or y == 105) and x % 16 == 8):
+				c = lit
+			var n := rng.randf()
+			if n < 0.07:
+				c = c.lerp(dark, 0.45)
+			elif n > 0.96:
+				c = c.lerp(lit, 0.3)
+			img.set_pixel(x, y, c)
+	_made.crate = ImageTexture.create_from_image(img)
+	return _made.crate
+
+
+## A soft ring, bright at the rim and hollow in the middle — the shape every
+## radial ground effect in this game actually is.
+func _ring_texture() -> ImageTexture:
+	if _made.has("ring"):
+		return _made.ring
+	var size := 128
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var centre := Vector2(size, size) * 0.5
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(centre) / (size * 0.5)
+			var a := 0.0
+			if d <= 1.0:
+				## Mostly rim. The first version washed the inside at 0.22 alpha
+				## additive, and at a mortar's radius that is a bright disc the
+				## size of a lane sitting on top of the fight — the browser's
+				## rings are a fill you can see through and an edge you cannot
+				## miss, and the ratio is what makes them readable.
+				a = 0.05 * (1.0 - d * 0.55)
+				a += 1.0 * exp(-pow((d - 0.92) / 0.06, 2.0))
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
+	_made.ring = ImageTexture.create_from_image(img)
+	return _made.ring
+
+
+## A streak, for anything that goes from A to B: bright along the centreline,
+## soft across it, faded at both ends. Beams and chains were being drawn as
+## RINGS the size of their own length, which is where the two enormous blue
+## hoops in the first 3D screenshot came from.
+func _streak_texture() -> ImageTexture:
+	if _made.has("streak"):
+		return _made.streak
+	var size := 128
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	for y in size:
+		var v: float = absf(float(y) / float(size - 1) - 0.5) * 2.0
+		var across: float = exp(-pow(v / 0.30, 2.0))
+		for x in size:
+			var u := float(x) / float(size - 1)
+			var ends: float = smoothstep(0.0, 0.06, u) * smoothstep(0.0, 0.06, 1.0 - u)
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(across * ends, 0.0, 1.0)))
+	_made.streak = ImageTexture.create_from_image(img)
+	return _made.streak
+
+
+## A fan, for cleaves and cones. `filled` is the difference between the two: a
+## cone is a wedge of ground you are about to cook, a cleave is the rim of one.
+## Cached per arc, because there are only ever a handful of distinct arcs.
+func _fan_texture(arc: float, filled: bool) -> ImageTexture:
+	var key := "fan%s_%d" % ["f" if filled else "r", int(arc * 24.0)]
+	if _made.has(key):
+		return _made[key]
+	var size := 128
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var c := float(size) * 0.5
+	var half: float = clampf(arc, 0.15, TAU) * 0.5
+	for y in size:
+		for x in size:
+			var dx := float(x) + 0.5 - c
+			var dy := float(y) + 0.5 - c
+			var d := sqrt(dx * dx + dy * dy) / c
+			var a := 0.0
+			# the fan opens along +X of the decal, which the transform aims
+			var off: float = absf(atan2(dy, dx))
+			if d <= 1.0 and off <= half:
+				# soften the two cut edges and the outer rim
+				var edge: float = smoothstep(0.0, 0.16, (half - off) / maxf(0.001, half))
+				if filled:
+					a = (0.30 + 0.55 * d) * edge * smoothstep(1.0, 0.86, d)
+				else:
+					a = exp(-pow((d - 0.88) / 0.10, 2.0)) * edge
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
+	_made[key] = ImageTexture.create_from_image(img)
+	return _made[key]
+
+
+## The furnace grille: horizontal iron slats with fire behind them, hottest in
+## the middle and cooling toward the edges.
+func _grille_texture() -> ImageTexture:
+	if _made.has("grille"):
+		return _made.grille
+	var w := 96
+	var h := 64
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		var slat: bool = (y % 11) < 4
+		for x in w:
+			var u := (float(x) / float(w - 1)) * 2.0 - 1.0
+			var v := (float(y) / float(h - 1)) * 2.0 - 1.0
+			var heat: float = clampf(1.0 - sqrt(u * u * 0.7 + v * v * 1.1), 0.0, 1.0)
+			var c := Color("#1b1418") if slat else 				Color("#ff4a12").lerp(Color("#ffe6a8"), heat * heat) * (0.35 + heat * 1.5)
+			if y < 3 or y > h - 4 or x < 3 or x > w - 4:
+				c = Color("#241b25")
+			img.set_pixel(x, y, Color(c.r, c.g, c.b, 1.0))
+	_made.grille = ImageTexture.create_from_image(img)
+	return _made.grille
+
+
+## A soft dark blob. Every billboard needs one under it or it floats: the
+## browser calls this `entityShadow` and draws one for everything on the deck.
+func _blob_texture() -> ImageTexture:
+	if _made.has("blob"):
+		return _made.blob
+	var size := 64
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var c := Vector2(size, size) * 0.5
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(c) / (size * 0.5)
+			var a: float = 0.0 if d > 1.0 else pow(1.0 - d, 1.7)
+			img.set_pixel(x, y, Color(1, 1, 1, a))
+	_made.blob = ImageTexture.create_from_image(img)
+	return _made.blob
+
+
+## A hot point, for bolts and sparks.
+func _spark_texture() -> ImageTexture:
+	if _made.has("spark"):
+		return _made.spark
+	var size := 64
+	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
+	var c := Vector2(size, size) * 0.5
+	for y in size:
+		for x in size:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(c) / (size * 0.5)
+			var a: float = 0.0 if d > 1.0 else pow(1.0 - d, 2.4) + exp(-pow(d / 0.22, 2.0))
+			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
+	_made.spark = ImageTexture.create_from_image(img)
+	return _made.spark
+
+
+func _process(delta: float) -> void:
 	if game == null:
 		return
-	_track_camera()
+	_flicker += delta
+	_track_camera(delta)
 	_used.clear()
+	_decals_used.clear()
 	_sync_all()
+	_sync_effects()
 	# anything not claimed this frame is gone from the simulation
 	for key in _billboards.keys():
 		if not _used.has(key):
 			var node: Sprite3D = _billboards[key]
 			node.queue_free()
 			_billboards.erase(key)
+	for key in _decals.keys():
+		if not _decals_used.has(key):
+			var node: MeshInstance3D = _decals[key]
+			node.queue_free()
+			_decals.erase(key)
 
 
-## The camera sits behind and above the captain and looks down the pitch. Framing
-## matches the browser: she rides a little below centre so the deck she is
-## walking into is the part you can see.
-func _track_camera() -> void:
-	var focus: Vector2 = game.player.global_position if game.player != null else Vector2.ZERO
-	focus.y -= CAM_LOOK_AHEAD          # -y is the bow; that is where the fight is
-	var height := CAM_HEIGHT * WORLD_SCALE
-	var back := height / tan(PITCH)
-	var target := Vector3(focus.x * WORLD_SCALE, 0.0, focus.y * WORLD_SCALE)
-	camera.position = target + Vector3(0.0, height, back)
+## The camera sits behind and above the captain and looks down the pitch, and
+## the numbers are the browser's own — see `camera_back()`. She rides at 60% of
+## screen height, which is what the art was framed against.
+func _track_camera(delta: float) -> void:
+	var back := camera_back()
+	var p: Vector2 = game.player.global_position if game.player != null else Vector2.ZERO
+	var deck_rect: Rect2 = SkyGearGame.DECK_RECT
+	var slack: float = deck_rect.size.x * 0.22
+	var centre_x: float = deck_rect.position.x + deck_rect.size.x * 0.5
+	## The leash is against the DECK, not against the Boiler. Clamping to keep
+	## the objective framed can shove the captain off the top of the screen at
+	## the bow, and losing yourself is far worse than losing sight of a thing
+	## that has an edge marker for exactly this reason.
+	var target := Vector2(
+		clampf(p.x, centre_x - slack, centre_x + slack),
+		clampf(p.y + back, deck_rect.position.y + 300.0, deck_rect.end.y + 200.0))
+	if not _focus_set:
+		_focus = target
+		_focus_set = true
+	else:
+		_focus = _focus.lerp(target, 1.0 - exp(-delta / CAM_TAU))
+	camera.position = Vector3(_focus.x * WORLD_SCALE, CAM_HEIGHT * WORLD_SCALE,
+		(_focus.y + CAM_NEAR) * WORLD_SCALE)
 	camera.rotation = Vector3(-PITCH, 0.0, 0.0)
+	if _envelope != null:
+		# hangs above and ahead, angled to face the camera
+		_envelope.position = camera.position + Vector3(0.0, 620.0 * WORLD_SCALE,
+			-1500.0 * WORLD_SCALE)
+		_envelope.rotation = Vector3(-PITCH * 0.55, 0.0, 0.0)
+
+
+## Effects, projected flat onto the deck.
+##
+## In the browser every skill draws its shape on the ground, and it is most of
+## what a fight looks like: the arc of a cleave, the ring of a mortar, the wedge
+## of a gale, the streak of a beam. They live in the 2D scene here, which is no
+## longer the scene anyone looks at — so they are rebuilt as unshaded quads lying
+## a centimetre above the planking, which is what a decal is and what the browser
+## was approximating.
+func _sync_effects() -> void:
+	for i in game.effects.size():
+		var fx: Dictionary = game.effects[i]
+		var kind := str(fx.kind)
+		if kind == "banner":
+			continue
+		var progress: float = float(fx.time) / maxf(0.001, float(fx.life))
+		var alpha: float = clampf(1.0 - progress, 0.0, 1.0)
+		var colour: Color = fx.get("color", Color.WHITE)
+		## Over 1.0 on purpose. The glow threshold is 1.05, so a skill drawn at
+		## its own palette value never blooms — and the browser's rings all carry
+		## a hand-painted halo. This is the same halo, from the post chain.
+		var tint := Color(colour.r * 1.45, colour.g * 1.45, colour.b * 1.45, alpha)
+		var centre: Vector2 = fx.get("position", Vector2.ZERO)
+		match kind:
+			"arc":
+				var r: float = float(fx.get("radius", 120.0)) * (0.9 + progress * 0.2)
+				_decal("fx%d" % i, centre, float(fx.get("direction", 0.0)),
+					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), false), tint)
+			"cone":
+				var rc: float = float(fx.get("radius", 120.0)) * (0.55 + progress * 0.55)
+				_decal("fx%d" % i, centre, float(fx.get("direction", 0.0)),
+					rc * 2.0, rc * 2.0, _fan_texture(float(fx.get("arc", 0.9)), true),
+					Color(tint.r, tint.g, tint.b, tint.a * 0.85))
+			"circle", "burst":
+				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
+				_decal("fx%d" % i, centre, 0.0, rb * 2.0, rb * 2.0, _ring_texture(), tint)
+			"line", "beam":
+				var from: Vector2 = fx.get("from", Vector2.ZERO)
+				var to: Vector2 = fx.get("to", Vector2.ZERO)
+				var span := to - from
+				var width: float = (26.0 if kind == "line" else 54.0) * (1.0 - progress * 0.35)
+				_decal("fx%d" % i, (from + to) * 0.5, span.angle(),
+					maxf(8.0, span.length()), width, _streak_texture(), tint)
+			_:
+				var rr: float = float(fx.get("radius", 90.0))
+				_decal("fx%d" % i, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
+
+	## Lingering fire. It is a hazard you have to read the floor for, so it gets
+	## a decal that breathes rather than a static disc.
+	for i in game.fire_fields.size():
+		var f: Dictionary = game.fire_fields[i]
+		var pulse: float = 0.72 + sin(_flicker * 7.0 + float(i)) * 0.14
+		_decal("fire%d" % i, f.position, 0.0, float(f.get("radius", 62.0)) * 2.2,
+			float(f.get("radius", 62.0)) * 2.2, _ring_texture(),
+			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
+
+	## The ordnance the deck already knows about: a lit keg draws its blast.
+	for prop in game.get_tree().get_nodes_in_group("props"):
+		if is_instance_valid(prop) and not prop.dead and prop.fuse_left > 0.0:
+			var f2: float = 1.0 - prop.fuse_left / 0.45
+			_decal("keg%d" % prop.get_instance_id(), prop.global_position, 0.0, 350.0, 350.0,
+				_ring_texture(), Color(0.95, 0.92, 1.0, 0.25 + f2 * 0.35))
+
+	## Enemy telegraphs. The browser draws the reach of a windup on the deck in
+	## red, and it is the single most important thing on screen when three of
+	## them are on you — a boarder that is about to swing has to look different
+	## from one that is walking.
+	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy) or enemy.dead:
+			continue
+		if enemy.state == "windup":
+			var reach: float = float(enemy.config.attack_range)
+			var mid: Vector2 = enemy.global_position + enemy.attack_direction * reach * 0.5
+			var beat: float = 0.55 + sin(_flicker * 22.0) * 0.22
+			_decal("tg%d" % enemy.get_instance_id(), mid, enemy.attack_direction.angle(),
+				reach, 34.0, _streak_texture(), Color(0.92, 0.18, 0.11, beat))
+		elif enemy.state == "turn":
+			var ring: float = (enemy.radius + 26.0 + sin(enemy.turn_time * 9.0) * 6.0) * 2.0
+			_decal("tn%d" % enemy.get_instance_id(), enemy.global_position, 0.0, ring, ring,
+				_ring_texture(), Color("#ffd36b"))
+
+
+## One decal, pooled. `angle` aims the texture's +X down a direction in ground
+## coordinates; `sx`/`sy` are its size in ground units along and across that.
+func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
+		texture: Texture2D, colour: Color, additive: bool = true) -> void:
+	_decals_used[key] = true
+	var node: MeshInstance3D = _decals.get(key)
+	if node == null:
+		node = MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		quad.size = Vector2.ONE
+		node.mesh = quad
+		var m := StandardMaterial3D.new()
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.cull_mode = BaseMaterial3D.CULL_DISABLED
+		m.no_depth_test = false
+		node.material_override = m
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(node)
+		_decals[key] = node
+	var mat: StandardMaterial3D = node.material_override
+	mat.albedo_texture = texture
+	mat.albedo_color = colour
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if additive else BaseMaterial3D.BLEND_MODE_MIX
+	# lie flat, aimed along `angle`. Building the basis by hand beats stacking
+	# Euler rotations: the quad's +X has to be the ground direction exactly, or
+	# every cone in the game points somewhere other than where it hits.
+	var ca := cos(angle)
+	var sa := sin(angle)
+	var basis := Basis(Vector3(ca, 0.0, sa), Vector3(sa, 0.0, -ca), Vector3(0.0, 1.0, 0.0))
+	basis = basis.scaled(Vector3(sx * WORLD_SCALE, sy * WORLD_SCALE, 1.0))
+	node.transform = Transform3D(basis, Vector3(centre.x * WORLD_SCALE,
+		1.5 * WORLD_SCALE, centre.y * WORLD_SCALE))
+
+
+## Contact shadow under a standing thing. Not additive — a shadow that adds
+## light is a highlight.
+func _shadow(key: String, centre: Vector2, width: float, alpha: float) -> void:
+	_decal("sh_" + key, centre, 0.0, width, width * 0.52, _blob_texture(),
+		Color(0.01, 0.01, 0.02, alpha), false)
 
 
 func _sync_all() -> void:
 	if game.player != null and game.player.hp > 0.0:
+		_shadow("player", game.player.global_position, 96.0, 0.55)
 		_place("player", _player_texture(), game.player.global_position, 150.0)
+		_xray("player", game.player.global_position, 150.0, Color(1.0, 0.86, 0.42, 0.62))
 	for enemy in game.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var config: Dictionary = SkyGearData.ENEMIES.get(enemy.kind, {})
 		var height := 120.0 + float(config.get("radius", 22.0)) * 3.0
-		_place("e%d" % enemy.get_instance_id(), _texture(str(config.get("texture", ""))),
-			enemy.global_position, height)
+		var key := "e%d" % enemy.get_instance_id()
+		_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
+		_place(key, _texture(str(config.get("texture", ""))), enemy.global_position, height)
+		# burning boarders glow; frozen ones go blue. The status is the read.
+		var node: Sprite3D = _billboards.get(key)
+		if node != null:
+			var tint := Color.WHITE
+			if enemy.burn_stacks > 0:
+				tint = Color(1.0, 0.72, 0.52).lerp(Color(1.6, 0.9, 0.6), 0.4)
+			elif enemy.slow_time > 0.0:
+				tint = Color(0.68, 0.86, 1.0)
+			if enemy.stun_time > 0.0:
+				tint = tint.lerp(Color(1.3, 1.25, 0.8), 0.5)
+			node.modulate = tint
+		_xray(key, enemy.global_position, height, Color(0.95, 0.30, 0.22, 0.55))
 	for prop in game.get_tree().get_nodes_in_group("props"):
 		if not is_instance_valid(prop) or prop.dead:
 			continue
-		_place("p%d" % prop.get_instance_id(), _texture(prop.texture_path()),
-			prop.global_position, 110.0)
+		var pkey := "p%d" % prop.get_instance_id()
+		var ph := 110.0
+		if prop.prop_type == "lantern":
+			ph = 150.0
+		elif prop.prop_type == "brazier":
+			ph = 132.0
+		elif prop.prop_type == "crates":
+			ph = 150.0
+		_shadow(pkey, prop.global_position, 80.0, 0.45)
+		_place(pkey, _texture(prop.texture_path()), prop.global_position, ph)
 	for i in game.crew.size():
 		var c: Dictionary = game.crew[i]
 		if bool(c.dead):
 			continue
+		_shadow("c%d" % i, c.position, 74.0, 0.45)
 		_place("c%d" % i, _texture("res://assets/art/allies/crew_front_idle.png"),
 			c.position, 110.0)
 	for i in game.turrets.size():
 		var t: Dictionary = game.turrets[i]
 		var art := "res://assets/art/props/cannon_deck_destroyed.png" if bool(t.dead) \
 			else "res://assets/art/props/cannon_deck.png"
+		_shadow("t%d" % i, t.position, 118.0, 0.5)
 		_place("t%d" % i, _texture(art), t.position, 130.0)
+
+	## Ordnance in flight. These were missing entirely, which is why the fight
+	## looked static: half of what is on screen at any moment in the browser is
+	## something travelling between two people.
+	## Every bolt in flight is hostile, and a tester could not track them (F-05).
+	## The browser's fix was three things at once and all three port: a hot head,
+	## a trail behind it, and a shadow on the planking directly under it — the
+	## shadow is what tells you where it will cross you, because the head is in
+	## the air and the deck is where you are.
+	for i in game.projectiles.size():
+		var b: Dictionary = game.projectiles[i]
+		var col := Color("#ff6a4a")
+		var trail: Array = b.get("trail", [])
+		if trail.size() > 1:
+			var tail: Vector2 = trail[trail.size() - 1]
+			var span: Vector2 = b.position - tail
+			if span.length() > 4.0:
+				_decal("bt%d" % i, (b.position + tail) * 0.5, span.angle(),
+					span.length(), 20.0, _streak_texture(), Color(col.r, col.g, col.b, 0.45))
+		_shadow("b%d" % i, b.position, 40.0, 0.38)
+		_spark("b%d" % i, b.position, 60.0, 52.0, col)
+
+	## Salvage on the deck, bobbing so it reads as a pickup and not as debris.
+	for i in game.salvage.size():
+		var s: Dictionary = game.salvage[i]
+		var bob: float = sin(_flicker * 3.4 + float(i) * 1.7) * 9.0
+		_shadow("s%d" % i, s.position, 56.0, 0.35)
+		_place("s%d" % i, _texture("res://assets/art/props/salvage_pile.png"),
+			s.position, 62.0, bob)
+
+	## The Boiler's health, as a ring on the planking around it.
+	_decal("boiler_ring", game.boiler_position, 0.0, 330.0, 330.0, _ring_texture(),
+		Color(0.91, 0.77, 0.46, 0.55) if game.boiler_hp > game.boiler_max_hp * 0.3
+		else Color(1.0, 0.30, 0.22, 0.65))
+
+	## Lanterns and braziers are light sources in a dark scene, and in 3D that
+	## can simply be true rather than painted on. They flicker, because a fixed
+	## point light on a ship at dusk is the one thing that says "render".
+	for prop in game.get_tree().get_nodes_in_group("props"):
+		if not is_instance_valid(prop):
+			continue
+		var id := prop.get_instance_id()
+		var kind: String = prop.prop_type
+		var wants_light: bool = (not prop.dead) and (kind == "lantern" or kind == "brazier")
+		var light: OmniLight3D = _lights.get(id)
+		if wants_light and light == null:
+			light = OmniLight3D.new()
+			add_child(light)
+			_lights[id] = light
+		elif not wants_light and light != null:
+			light.queue_free()
+			_lights.erase(id)
+		if light != null:
+			## Accents, not floodlights. At 3.4 energy over a five-metre radius
+			## three braziers turned a dusk deck into an orange room; the browser
+			## paints its lantern haze at a fraction of the deck's own value and
+			## that ratio is the whole mood.
+			var warm: bool = kind == "brazier"
+			var jitter: float = 1.0 + sin(_flicker * (11.0 if warm else 6.0) + float(id % 17)) * 0.12
+			light.light_color = Color("#ff8a3a") if warm else Color("#ffb347")
+			light.light_energy = (1.5 if warm else 1.0) * jitter
+			light.omni_range = (330.0 if warm else 260.0) * WORLD_SCALE
+			light.position = Vector3(prop.global_position.x * WORLD_SCALE,
+				(60.0 if warm else 110.0) * WORLD_SCALE, prop.global_position.y * WORLD_SCALE)
+			## And the pool on the planking. A point light alone falls off into
+			## the deck's own roughness and reads as nothing from this angle; the
+			## browser paints a radial gradient under every flame for exactly
+			## this reason, and it is most of why its deck looks lit rather than
+			## bright.
+			_decal("glow%d" % id, prop.global_position, 0.0,
+				(430.0 if warm else 330.0), (430.0 if warm else 330.0), _blob_texture(),
+				Color(1.0, 0.56, 0.22, 0.34 * jitter) if warm
+				else Color(1.0, 0.72, 0.36, 0.24 * jitter))
+
 	if not game.hulk.is_empty() and not bool(game.hulk.dead):
+		_shadow("hulk", game.hulk.position, 300.0, 0.5)
 		_place("hulk", _texture("res://assets/art/props/boarding_hulk_open.png"),
 			game.hulk.position, 420.0)
 
@@ -239,7 +1026,8 @@ func _sync_all() -> void:
 ## One billboard per entity, pooled. `BILLBOARD_ENABLED` is what makes a flat
 ## sprite stand up and face the camera — which is exactly what the browser's
 ## renderer does by hand, and what the art is painted for.
-func _place(key: String, texture: Texture2D, ground: Vector2, height_units: float) -> void:
+func _place(key: String, texture: Texture2D, ground: Vector2, height_units: float,
+		lift: float = 0.0) -> void:
 	if texture == null:
 		return
 	_used[key] = true
@@ -247,19 +1035,144 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 	if node == null:
 		node = Sprite3D.new()
 		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		node.shaded = true
+		## NOT shaded. Every character sprite in `assets/` was generated with the
+		## scene's lighting already painted into it — steel-blue rim from the
+		## upper left, warm bounce from below right — which is what the browser
+		## composites and what the level-kit brief specifies. Re-lighting them
+		## with the same two lamps applies the treatment twice and the result is
+		## a deck of silhouettes.
+		node.shaded = false
 		node.double_sided = true
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
 		add_child(node)
 		_billboards[key] = node
 	node.texture = texture
+	node.modulate = Color.WHITE
 	# scale so the sprite stands `height_units` tall in ground units, and lift it
 	# by half of that so its feet meet the deck rather than its middle
 	var pixel_height: float = maxf(1.0, float(texture.get_height()))
 	node.pixel_size = height_units * WORLD_SCALE / pixel_height
 	node.position = Vector3(ground.x * WORLD_SCALE,
-		height_units * WORLD_SCALE * 0.5, ground.y * WORLD_SCALE)
+		(height_units * 0.5 + lift) * WORLD_SCALE, ground.y * WORLD_SCALE)
+
+
+## A hot point in the air — a bolt, a spark. Unshaded and additive, so the bloom
+## catches it.
+func _spark(key: String, ground: Vector2, height: float, size: float, colour: Color) -> void:
+	_used[key] = true
+	var node: Sprite3D = _billboards.get(key)
+	if node == null:
+		node = Sprite3D.new()
+		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		node.shaded = false
+		node.double_sided = true
+		node.transparent = true
+		node.texture = _spark_texture()
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.albedo_texture = _spark_texture()
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		node.material_override = mat
+		add_child(node)
+		_billboards[key] = node
+	if node.material_override is StandardMaterial3D:
+		(node.material_override as StandardMaterial3D).albedo_color = colour
+	node.pixel_size = size * WORLD_SCALE / 64.0
+	node.position = Vector3(ground.x * WORLD_SCALE, height * WORLD_SCALE,
+		ground.y * WORLD_SCALE)
+
+
+## Where a sight line from the camera LEAVES a rect on the ground plane, as a
+## parameter along the line, or -1 if it never crosses it. Slab test.
+##
+## The far side, not the near one. Looking down at 41 degrees from 760 up, the
+## edge of a cargo run that hides anything is its far-top edge — the near face is
+## the one you are looking over. Testing the entry point said nothing was ever
+## occluded, which was technically a passing test.
+static func _exit_t(a: Vector2, b: Vector2, rect: Rect2) -> float:
+	var d := b - a
+	var t_min := 0.0
+	var t_max := 1.0
+	for axis in 2:
+		var origin: float = a.x if axis == 0 else a.y
+		var delta: float = d.x if axis == 0 else d.y
+		var lo: float = rect.position.x if axis == 0 else rect.position.y
+		var hi: float = rect.end.x if axis == 0 else rect.end.y
+		if absf(delta) < 0.0001:
+			if origin < lo or origin > hi:
+				return -1.0
+			continue
+		var t1 := (lo - origin) / delta
+		var t2 := (hi - origin) / delta
+		if t1 > t2:
+			var swap := t1
+			t1 = t2
+			t2 = swap
+		t_min = maxf(t_min, t1)
+		t_max = minf(t_max, t2)
+		if t_min > t_max:
+			return -1.0
+	if t_max <= 0.0 or t_min >= 1.0:
+		return -1.0
+	return minf(t_max, 1.0)
+
+
+## Is this thing standing in the shadow of a cargo run, from where we are
+## looking?
+##
+## The browser calls this its x-ray pass and turns it on for v3 onward, because
+## the alternative is that a boarder walks behind a container and stops existing
+## for two seconds — which in a game where the thing killing you is usually the
+## one you lost track of is not an aesthetic problem. The cargo runs are the only
+## geometry tall enough to hide anybody, so this is eight rectangles and a slab
+## test rather than a physics query.
+##
+## The probe is the TORSO, not the head. From this camera a 125-tall box hides
+## about forty units of deck behind it, so a boarder tucked against one is cut
+## off at the chest while their head is still in clear air — which is exactly the
+## case worth silhouetting, and the case a head test misses entirely.
+func _occluded(ground: Vector2, stand: float) -> bool:
+	var eye := Vector2(_focus.x, _focus.y + CAM_NEAR)
+	var torso := stand * 0.5
+	for rect: Rect2 in SkyGearGame.CARGO_RECTS:
+		var t := _exit_t(eye, ground, rect.grow(4.0))
+		if t < 0.0 or t >= 0.999:
+			continue
+		if CAM_HEIGHT + (torso - CAM_HEIGHT) * t < WALL_MODULE_H:
+			return true
+	return false
+
+
+## The silhouette itself: the same sprite, flattened to one colour and drawn
+## through everything. Pooled alongside the real one and only present while it
+## is needed, so a clear deck costs nothing.
+func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> void:
+	var source: Sprite3D = _billboards.get(key)
+	if source == null or source.texture == null:
+		return
+	if not _occluded(ground, height_units):
+		return
+	var ghost_key := "xr_" + key
+	_used[ghost_key] = true
+	var ghost: Sprite3D = _billboards.get(ghost_key)
+	if ghost == null:
+		ghost = Sprite3D.new()
+		ghost.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		ghost.shaded = false
+		ghost.double_sided = true
+		ghost.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		ghost.no_depth_test = true
+		ghost.render_priority = 8
+		add_child(ghost)
+		_billboards[ghost_key] = ghost
+	ghost.texture = source.texture
+	ghost.pixel_size = source.pixel_size
+	ghost.position = source.position
+	ghost.modulate = tint
 
 
 func _texture(path: String) -> Texture2D:

@@ -242,8 +242,43 @@ the running simulation into a Node3D scene each frame:
 mirrors it. Ground (x, y) becomes world (x, 0, y), with y as depth exactly as the
 browser's TUNING comment says.
 
-Still flat-coloured rather than painted: the deck itself, the cargo boxes and the
-hull. That is a texture pass, not a camera problem.
+## 13c. Screenshot parity — closed 2026-07-27
+
+Section 13b left the camera correct and the picture wrong: the framing was
+guessed at rather than solved, and the deck, cargo and Boiler were flat colour.
+Held against `.shots/fight-1366x768-art.png`, the port read as a prototype of the
+same game. The gap is now closed; `.shots/parity-browser-vs-godot.png` is the
+side by side.
+
+**The camera is solved, not tuned.** `camera_back()` is `CAM.recompute()` ported
+line for line, and the field of view is the browser's own focal length —
+2·atan(430/1320) = 36.1° vertical, not the 52° that was in there. Two checks
+assert it: the lens value, and that the captain unprojects to 0.600 of screen
+height, which is the framing every sprite in `assets/` was generated against.
+
+**What the picture was missing, in the order it mattered:**
+
+| Was | Is |
+| --- | --- |
+| Four grey rectangles and some text | Brass panels with riveted corners, the captain portrait, a pressure gauge with its own icon, dash pips, a three-lane readout with cannon health and deepest-boarder markers, and skill slots with shape glyphs and a cooldown sweep |
+| Cargo textured with a cut-out sprite, alpha off — black slabs | A tiling procedural crate, a brass rim on four edges, and lashing straps per module |
+| Beams and chains drawn as rings the size of their own length | A streak decal aimed along the shot; cones and cleaves get a fan baked per arc |
+| Nothing in flight | Bolts with a hot head, a trail, and a shadow on the planking under them — the browser's answer to F-05 |
+| No numbers, no plates, no arrows | Damage and healing floaters, health over hurt and elite boarders, status pips, off-screen markers, lane-breaking callouts, banners |
+| A 300-unit Boiler with a funnel | A flat engine block per the browser's `boilerH: 132`, with a slatted furnace grille aimed at the camera. The tall one hid the captain behind it for the first second of every run |
+| Point lights at 3.4 over five metres | Accents at 1.5 over three, plus a painted pool on the planking under every flame |
+| Boarders vanishing behind cargo | The x-ray pass, as a slab test against the eight cargo rects |
+| Athwartships planking, one tile grid | Boards along the keel at the browser's 116-unit width, faint staggered butt joints |
+
+**One real bug came out of it.** Damage floaters were scattered with
+`rng.randf_range`, which is the *seeded* stream — so every crit roll, scrap roll
+and spawn jitter after the first hit of a run shifted. A cosmetic feature was
+quietly rewriting the run. There is now a separate `visual_rng` and a check that
+`add_floater` leaves `rng.state` alone.
+
+Eleven checks were added for all of this (44 → 55), because the previous harness
+drove the model exclusively and therefore could not have caught a port whose
+simulation was right and whose picture was a different game.
 
 ## 14. Known differences that are deliberate
 

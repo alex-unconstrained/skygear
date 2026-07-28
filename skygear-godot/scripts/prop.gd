@@ -13,12 +13,18 @@ const TEXTURES := {
 	"keg": "res://assets/art/props/barrel.png",
 	"crate": "res://assets/art/props/crate_small.png",
 	"lantern": "res://assets/art/props/lantern_post.png",
+	"brazier": "res://assets/art/props/brazier.png",
+	"crates": "res://assets/art/props/crate_stack.png",
+	"rope": "res://assets/art/props/rope_coil.png",
 }
 
 const SCALES := {
 	"keg": 0.19,
 	"crate": 0.19,
 	"lantern": 0.14,
+	"brazier": 0.16,
+	"crates": 0.24,
+	"rope": 0.15,
 }
 
 func configure(owner_game: Node, kind: String) -> void:
@@ -34,10 +40,24 @@ func configure(owner_game: Node, kind: String) -> void:
 		"lantern":
 			max_hp = 12.0
 			radius = 18.0
+		## Dressing. A brazier is the deck's own fire and the browser leaves it
+		## standing all run — shooting out your own light is not a decision, it
+		## is an accident — so it takes damage like scenery and never falls.
+		"brazier":
+			max_hp = 9999.0
+			radius = 26.0
+		"crates":
+			max_hp = 40.0
+			radius = 38.0
+		"rope":
+			max_hp = 9999.0
+			radius = 20.0
 	hp = max_hp
 	$Sprite.texture = load(TEXTURES[prop_type])
 	$Sprite.scale = Vector2.ONE * float(SCALES[prop_type])
 	$Sprite.position.y = -34.0 if prop_type == "lantern" else -24.0
+	if prop_type == "rope":
+		$Sprite.position.y = -6.0
 	add_to_group("props")
 	queue_redraw()
 
@@ -77,7 +97,7 @@ func texture_path() -> String:
 
 
 func is_targetable() -> bool:
-	return not dead
+	return not dead and prop_type != "brazier" and prop_type != "rope"
 
 func _draw() -> void:
 	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 28, Color(0.05, 0.03, 0.04, 0.7), 2.0)

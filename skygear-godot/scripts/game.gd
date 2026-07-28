@@ -25,6 +25,14 @@ const CARGO_RECTS := [
 var audio: SkyGearAudio
 
 var rng := RandomNumberGenerator.new()
+## A SECOND stream, for anything that only affects the picture.
+##
+## The browser build keeps these apart deliberately and this is why: damage
+## numbers were given a little random scatter so a stack of them is readable,
+## the scatter was drawn from `rng`, and every crit roll, scrap roll and spawn
+## jitter for the rest of the run shifted by however many boarders had been hit.
+## A seed has to reproduce a run, so nothing cosmetic may touch it.
+var visual_rng := RandomNumberGenerator.new()
 var state := State.TITLE
 var state_name := "TITLE"
 var wave := 0
@@ -46,6 +54,11 @@ var vent_cooldown := 0.0
 var damage_multiplier := 1.0
 var projectiles: Array[Dictionary] = []
 var effects: Array[Dictionary] = []
+## Damage and healing, as numbers that leave the body they came from. The
+## browser has had these since v2 and they are not decoration: a fight where
+## every hit looks the same is a fight you cannot tune a build against, and the
+## whole v11 upgrade system asks the player to notice which skill is carrying.
+var floaters: Array[Dictionary] = []
 var salvage: Array[Dictionary] = []
 var fire_fields: Array[Dictionary] = []
 var dash_hit_ids := {}
@@ -762,8 +775,15 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 	var crit := rng.randf() < float(mods.crit_chance)
 	if crit:
 		scaled *= 2.0
+	var hit_at := enemy.global_position
 	var dealt := enemy.take_damage(scaled, origin, element, knock * float(mods.knock_multiplier))
 	var killed := enemy.dead or enemy.hp <= 0.0
+	if dealt >= 1.0:
+		# a lane cannon fires no element, so this cannot assume the table has one
+		var tint: Color = Color("#eee5d5")
+		if SkyGearData.ELEMENTS.has(element):
+			tint = SkyGearData.ELEMENTS[element].color
+		add_floater("%d" % roundi(dealt), hit_at, Color("#ffe08a") if crit else tint, crit)
 	SkyGearTelemetry.note_damage(tel, src_slot, dealt, killed)
 	if crit and float(mods.crit_explode) > 0.0:
 		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false)
@@ -803,6 +823,11 @@ func heal_player(amount: float, source: String) -> float:
 		return 0.0
 	var healed := player.heal(allowed)
 	tel.healed += healed
+	# Healing has to be as legible as damage or the close-quarters loop is
+	# invisible: the whole point of pressure, vent and salvage is that you can
+	# see them paying you back for standing in range.
+	if healed >= 1.0:
+		add_floater("+%d" % roundi(healed), player.global_position, Color("#37f0c8"))
 	return healed
 
 func _damage_circle(center: Vector2, radius: float, damage: float, element: String, knock: float, grants_pressure: bool, hits_props: bool) -> void:
@@ -927,6 +952,7 @@ func damage_player(amount: float, _source: String = "") -> void:
 		return
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
+		add_floater("-%d" % roundi(amount), player.global_position, Color("#ff4d37"), true)
 		effects.append({"kind": "burst", "position": player.global_position, "radius": 65.0, "color": Color("#ff4d37"), "time": 0.0, "life": 0.18})
 		if player.hp <= 0.0:
 			end_reason = "The captain fell on wave %d." % wave
@@ -1326,6 +1352,24 @@ func _update_effects(delta: float) -> void:
 		effects[i].time = float(effects[i].time) + delta
 		if float(effects[i].time) >= float(effects[i].life):
 			effects.remove_at(i)
+	for i in range(floaters.size() - 1, -1, -1):
+		var f: Dictionary = floaters[i]
+		f.time = float(f.time) + delta
+		f.position = Vector2(f.position) + Vector2(f.drift) * delta
+		if float(f.time) >= float(f.life):
+			floaters.remove_at(i)
+
+
+## A number, leaving a body. Capped, because a swarm wave with a chain skill can
+## produce sixty in a frame and sixty numbers is not more information than eight.
+func add_floater(text: String, at: Vector2, colour: Color, big: bool = false) -> void:
+	if floaters.size() >= 40:
+		floaters.remove_at(0)
+	floaters.append({
+		"text": text, "position": at + Vector2(visual_rng.randf_range(-14.0, 14.0), -10.0),
+		"drift": Vector2(visual_rng.randf_range(-26.0, 26.0), -78.0),
+		"color": colour, "big": big, "time": 0.0, "life": 0.85 if not big else 1.1,
+	})
 
 ## THE AIRSTREAM.
 ##
