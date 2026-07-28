@@ -270,6 +270,23 @@ function buildRunRecord(win){
     seed: seedText(S.seed),
     loadout: build,
     cards: S.stats.cards.slice(),
+    /* v12 — what the player actually did, not just what they ended holding.
+       A loadout line says which four skills were in the slots at the end; this
+       says which of them did the work, how often each was pressed, and where on
+       the deck the fight was had. That is the difference between a result and
+       an analysable run. */
+    perSkill: S.tel ? S.tel.per.map((t, i) => ({
+      slot: i, shape: t.shape, element: t.element,
+      casts: t.casts, damage: Math.round(t.damage), kills: t.kills,
+    })).filter(t => t.shape) : [],
+    basic: S.tel ? { casts: S.tel.basic.casts, damage: Math.round(S.tel.basic.damage),
+                     kills: S.tel.basic.kills } : null,
+    deck: S.tel ? { damage: Math.round(S.tel.deck.damage), kegs: S.tel.deck.kegs,
+                    crates: S.tel.deck.crates, lanterns: S.tel.deck.lanterns } : null,
+    rangeT: S.tel ? S.tel.rangeT : null,
+    vents: S.tel ? S.tel.vents : 0,
+    healed: S.tel ? Math.round(S.tel.healed) : 0,
+    rerolls: S.tel ? S.tel.rerolls : 0,
   };
 }
 
@@ -285,6 +302,45 @@ function runReportText(r){
          ' · best chain ' + r.chain + ' · dashes ' + r.dashes);
   L.push('build: ' + (r.loadout.length ? r.loadout.join('  /  ') : '—'));
   if (r.cards.length) L.push('draft: ' + r.cards.join(', '));
+
+  /* The analysis block. Deliberately in the copyable report rather than only on
+     the results screen: the report is the thing a tester pastes into a message,
+     and "which skill did the work" is the question every balance conversation
+     so far has had to guess at. */
+  if (r.perSkill && r.perSkill.length){
+    const rows = r.perSkill.slice();
+    if (r.basic && r.basic.damage) rows.unshift({ shape:'AUTO', element:'', slot:'-', ...r.basic });
+    const total = rows.reduce((a, t) => a + t.damage, 0) + ((r.deck && r.deck.damage) || 0);
+    L.push('');
+    L.push('skills — damage · share · casts · kills');
+    for (const t of rows){
+      // skillName is the one place that knows how a skill is written down;
+      // rebuilding the string here produced "Ember undefined", because a shape
+      // has a `noun`, not a `name`.
+      const name = t.shape === 'AUTO' ? 'auto cleave'
+        : (ELEMENTS[t.element] && SHAPES[t.shape])
+            ? skillName({ shape: t.shape, element: t.element })
+            : String(t.shape);
+      L.push('  ' + name.padEnd(20) + String(t.damage).padStart(7) +
+             '  ' + (total ? Math.round(t.damage / total * 100) : 0) + '%'.padEnd(4) +
+             '  ' + t.casts + ' casts  ' + t.kills + ' kills');
+    }
+    if (r.deck && r.deck.damage)
+      L.push('  ' + 'the deck'.padEnd(20) + String(r.deck.damage).padStart(7) +
+             '  ' + (total ? Math.round(r.deck.damage / total * 100) : 0) + '%' +
+             '   ' + r.deck.kegs + ' kegs, ' + r.deck.crates + ' crates');
+  }
+  if (r.rangeT){
+    const t = r.rangeT, tot = t.close + t.mid + t.far + t.none;
+    if (tot > 1){
+      const pc = (v) => Math.round(v / tot * 100) + '%';
+      L.push('range: ' + pc(t.close) + ' close · ' + pc(t.mid) + ' mid · ' +
+             pc(t.far) + ' far · ' + pc(t.none) + ' clear');
+    }
+  }
+  if (r.vents !== undefined)
+    L.push('vents ' + r.vents + ' · healed ' + r.healed + ' · rerolls ' + (r.rerolls || 0));
+  L.push('');
   L.push('replay: ' + location.origin + location.pathname + '?seed=' + r.seed);
   return L.join('\n');
 }

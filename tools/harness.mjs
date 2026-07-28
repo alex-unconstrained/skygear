@@ -1218,6 +1218,148 @@ async function checkFrame(page){
     out.alloc < 200, out.alloc + ' gradients/patterns created in one frame');
 }
 
+
+/* The audio graph must not grow without bound (v12).
+
+   FEEDBACK.md F-01: every cue built a source, a gain and sometimes a panner,
+   wired them to a bus and never disconnected them. Marking the voice record
+   `done` pruned the bookkeeping and left the graph, so the nodes stayed
+   reachable and Web Audio kept paying for them every render quantum. Measured
+   at ~515 cues a second in a saturated fight, that is tens of thousands of live
+   nodes in a five-minute run — exactly what was reported: progressively worse
+   with sound on, unaffected by muting, cleared by a reload.
+
+   The fix is a disconnect in `onended`. This is the check that keeps it. */
+async function checkAudioLeak(browser, port){
+  const tab = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+  try {
+    await tab.goto(`http://127.0.0.1:${port}/${BUILD}.html?assets=0&seed=LEAK01`,
+                   { waitUntil: 'load' });
+    await tab.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 15000 });
+    await tab.evaluate(INSTALL);
+    // A trusted click is what creates the AudioContext. Click, then WAIT for the
+    // context rather than for the loader — the first version waited on
+    // AudioBank.ready, timed out silently and reported SKIPPED, which is the
+    // most dangerous result a check can produce: a green line that tested
+    // nothing.
+    await tab.mouse.click(640, 360);
+    await tab.evaluate(() => window.__begin());
+    await tab.waitForFunction(() => window.SKYGEAR.Sound && window.SKYGEAR.Sound.ready,
+                              null, { timeout: 20000 }).catch(() => {});
+    await tab.mouse.click(640, 400);
+    await tab.waitForFunction(() => window.SKYGEAR.AudioBank.ready > 0,
+                              null, { timeout: 20000 }).catch(() => {});
+    const out = await tab.evaluate(async () => {
+      const G = window.SKYGEAR, Sound = G.Sound;
+      if (!Sound || !Sound.ready || typeof Sound.liveNodes !== 'function')
+        return { skipped: true, ready: !!(Sound && Sound.ready),
+                 hasFn: !!(Sound && typeof Sound.liveNodes === 'function') };
+      /* Cues WITHOUT a retrigger floor, cycled. The first version fired `hit`
+         400 times and made exactly one node: `hit` has gap:0.030, so 399 calls
+         returned early and the check proved nothing while passing. */
+      const keys = ['dash', 'ready', 'shape_cleave', 'elem_EMBER', 'elem_ARC', 'shape_lance']
+        .filter(k => G.AudioBank.has(k));
+      if (!keys.length) return { skipped: true, ready: true, hasFn: true };
+      for (let i = 0; i < 400; i++) Sound.sample(keys[i % keys.length], {});
+      const made = Sound.nodesMade;
+      await new Promise(r => setTimeout(r, 1500));
+      return { skipped: false, made, live: Sound.liveNodes(), freed: Sound.nodesFreed };
+    });
+    if (out.skipped){
+      // Not a pass. A check that cannot run is a failure of the check.
+      record('leak', 'audio nodes are released, not merely marked done', false,
+        'could not measure: context ready=' + out.ready + ' counter=' + out.hasFn);
+    } else {
+      record('leak', 'audio nodes are released, not merely marked done',
+        out.live <= 24,
+        out.live + ' still connected after 400 cues (made ' + out.made +
+        ', freed ' + out.freed + ')');
+    }
+  } catch (e){
+    record('leak', 'the audio graph is released', false,
+      String(e.message).split(String.fromCharCode(10))[0]);
+  } finally { await tab.close(); }
+}
+
+/* The draft says what it is, and lands where it says (v12). */
+async function checkDraft(page){
+  const out = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.slots[0] = G.newSkill('CLOSEHIT', 'EMBER');
+    S.slots[1] = G.newSkill('CHAIN', 'ARC');
+    S.unlockedSlots = 4;
+    const seen = {}, bad = [];
+    for (let n = 0; n < 60; n++){
+      for (const c of G.rollCards(3)){
+        const scope = G.cardScope(c);
+        seen[scope] = (seen[scope] || 0) + 1;
+        if (!scope) bad.push(c.id + ': no scope');
+        const hit = G.cardAffects(c);
+        if (scope === 'skill' && (hit.length !== 1 || hit[0] !== c.slot))
+          bad.push(c.id + ': slot card does not point at its slot');
+        if (scope === 'element' && hit.some(i => !S.slots[i]))
+          bad.push(c.id + ': element card points at an empty slot');
+      }
+    }
+    const ids = G.CARDS.map(c => c.id);
+    const orphan = Object.keys(G.CARD_SCOPE).filter(k => ids.indexOf(k) < 0);
+
+    G.openDraft();
+    const before = S.draft.cards.map(c => c.title).join('|');
+    const r0 = S.rerolls;
+    const ok1 = G.rerollDraft();
+    const after = S.draft.cards.map(c => c.title).join('|');
+    S.rerolls = 0;
+    const ok2 = G.rerollDraft();
+    return { seen, bad, orphan, ok1, ok2, changed: before !== after, r0,
+             spent: r0 - 1 };
+  });
+
+  record('draft', 'every card declares what it touches',
+    out.bad.length === 0 && out.orphan.length === 0,
+    (out.bad[0] || '') + (out.orphan.length ? ' orphan scopes: ' + out.orphan.join(',') : ''));
+  record('draft', 'the draft offers more than one class of card',
+    Object.keys(out.seen).length >= 3, JSON.stringify(out.seen));
+  record('draft', 'reroll spends one, deals a new hand, and stops at zero',
+    out.ok1 && out.changed && !out.ok2,
+    'rerolled=' + out.ok1 + ' changed=' + out.changed + ' refusedAtZero=' + !out.ok2);
+}
+
+/* Telemetry has to be true, or the draft weighting it feeds is worse than
+   random: it would be confidently wrong. */
+async function checkTelemetry(page){
+  const out = await page.evaluate(() => {
+    const G = window.SKYGEAR, S = G.S;
+    window.__begin();
+    S.player.maxHp = 1e6; S.player.hp = 1e6;
+    S.slots[0] = G.newSkill('CLOSEHIT', 'EMBER');
+    S.slots[1] = G.newSkill('RANGED_AOE', 'FROST');
+    const at = { x: S.player.x + 70, y: S.player.y, side: 'bow' };
+    const e = G.spawnEnemy('SCRAPPER', at);
+    e.x = at.x; e.y = at.y; e.hp = e.maxHp = 1e9; e.state = 'move'; e.st = 0;
+    G.step(G.DT);
+    for (let i = 0; i < 5; i++){
+      S.slots[0].cdLeft = 0;
+      G.castSlot(0, { atX: e.x, atY: e.y });
+    }
+    const t0 = S.tel.per[0], t1 = S.tel.per[1];
+    const closeBefore = S.tel.rangeT.close;
+    for (let i = 0; i < 60; i++) G.step(G.DT);
+    return { casts0: t0.casts, dmg0: t0.damage, casts1: t1.casts, dmg1: t1.damage,
+             shape0: t0.shape, closeGrew: S.tel.rangeT.close > closeBefore };
+  });
+
+  record('telemetry', 'damage and casts are attributed to the slot that fired',
+    out.casts0 === 5 && out.dmg0 > 0 && out.casts1 === 0 && out.dmg1 === 0,
+    'slot0 ' + out.casts0 + ' casts / ' + out.dmg0.toFixed(0) + ' dmg, slot1 ' +
+    out.casts1 + ' / ' + out.dmg1.toFixed(0));
+  record('telemetry', 'it records what the slot was holding',
+    out.shape0 === 'CLOSEHIT', 'slot 0 recorded as ' + out.shape0);
+  record('telemetry', 'engagement distance is sampled while the fight runs',
+    out.closeGrew, 'close-range time ' + (out.closeGrew ? 'accumulates' : 'never moves'));
+}
+
 /* ---------------------------------------------------------------------------
    main
 --------------------------------------------------------------------------- */
@@ -1243,6 +1385,9 @@ await group('close',   () => checkClose(page));
 await group('crowd',   () => checkCrowd(page));
 await group('audio',   () => checkAudio(browser, port));
 await group('frame',   () => checkFrame(page));
+await group('draft',   () => checkDraft(page));
+await group('telemetry', () => checkTelemetry(page));
+await group('leak',    () => checkAudioLeak(browser, port));
 await group('endings', () => checkEndings(page));
 await group('seed',    () => checkSeed(browser, port));
 await group('perf',    () => checkPerf(page, errors));

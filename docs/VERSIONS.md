@@ -9,10 +9,43 @@ The rule for an entry: **what changed, and what it was an answer to.** A change
 nobody asked for and no measurement demanded is worth writing down as exactly
 that, so the next person can tell taste from evidence.
 
-Live: <https://alex-unconstrained.github.io/skygear/> · **v11** (build `d27b694`) ·
+Live: <https://alex-unconstrained.github.io/skygear/> · **v11** (build v11.2) ·
 earlier builds at `archive.html`, pinned to the bytes they shipped.
 
 Playtest reports and open bugs: **[FEEDBACK.md](FEEDBACK.md)**.
+
+---
+
+## v11.2 · The draft explains itself, and the audio stops leaking — 2026-07-27 *(live)*
+
+**Answered:** the second playthrough's five requests, plus one bug from it.
+
+- **Every card declares what it is.** A coloured class band — NEW SKILL, SKILL
+  UPGRADE, ELEMENT, CAPTAIN, THE BOILER, THE DECK, EVERY SKILL — and a row of
+  small slot glyphs at the bottom showing exactly which of your skills it lands
+  on, with the untouched ones dim. Scope is declared data in the core, not
+  inferred in the renderer.
+- **Reroll.** Two per run, not per draft, so spending one is a decision. `R` or
+  the button. A SPARE PARTS card grants two more.
+- **Telemetry.** Damage, casts, hits and kills per slot; the deck's own damage
+  kept separate; engagement distance sampled every step into close/mid/far
+  buckets; vents, healing and rerolls. All of it in the copyable run report.
+- **The draft uses it.** Slot-targeted upgrades now pick their target weighted
+  by how much the player actually uses that slot, roughly 3:1 — LONG REACH used
+  to land on the skill you never press as often as the one carrying the run.
+- **The audio leak.** Every cue built a source, a gain and sometimes a panner,
+  wired them to a bus and never disconnected them: ~515 cues a second in a
+  saturated fight, all of them accumulating. Fixed, and the harness fires 400
+  cues and asserts nothing is left connected.
+- **The lightning theory, measured and wrong.** The tester's all-Arc build with
+  the screen shaking costs *fewer* canvas calls than a mixed build (7,063 vs
+  8,158). Chain lightning felt laggy because it hits many enemies per cast and
+  every hit played a sound — the audio leak, not the pixels.
+- **Card rolls are seeded.** `rollCards` was still calling `Math.random()`, so a
+  replayed seed could deal a different hand.
+
+**Harness: 61 → 68 checks** (draft scopes and reroll, telemetry attribution,
+audio-node release).
 
 ---
 

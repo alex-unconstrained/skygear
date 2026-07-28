@@ -53,7 +53,7 @@ await page.goto(`http://127.0.0.1:${port}/${BUILD}.html?audio=0${flag('art') ? '
 await page.waitForFunction(() => !!window.SKYGEAR, null, { timeout: 20000 });
 if (flag('art')) await page.waitForTimeout(6000);
 
-const out = await page.evaluate(({ WAVE, N }) => {
+const out = await page.evaluate(({ WAVE, N, ARC }) => {
   const G = window.SKYGEAR, S = G.S;
   G.startRun();
   if (S.mode === 'draft'){ G.pickCard(0); G.closeDraft(); }
@@ -63,9 +63,17 @@ const out = await page.evaluate(({ WAVE, N }) => {
   S.player.maxHp = 220; S.player.hp = 180;
   S.boiler.maxHp = 800; S.boiler.hp = 620;
   S.wave = WAVE;
+  /* The build the tester actually ran, when asked for it: all Arc, chain-heavy.
+     `--arc` reproduces it, because CHAIN is by far the most expensive effect in
+     the game to draw — every link is two passes of five jittered segments — and
+     the report guessed "lightning or screen shake". Guesses are worth testing
+     directly rather than around. */
+  const arc = !!ARC;
   const shapes = Object.keys(G.SHAPES).filter(k => !G.SHAPES[k].passive);
   for (let i = 0; i < 4; i++)
-    S.slots[i] = G.newSkill(shapes[i % shapes.length], ['EMBER','FROST','ARC','STEAM'][i]);
+    S.slots[i] = arc ? G.newSkill(['CHAIN','CONE','PULSE','CHAIN'][i], 'ARC')
+                     : G.newSkill(shapes[i % shapes.length], ['EMBER','FROST','ARC','STEAM'][i]);
+  if (arc) S.trauma = 1;                       // and shake the frame while measuring
   const D = G.TUNING.deck;
   for (let i = 0; i < N; i++){
     const e = G.spawnEnemy(['SCRAPPER','SWARM','GUNNER','ARMORED'][i % 4], {
@@ -78,6 +86,16 @@ const out = await page.evaluate(({ WAVE, N }) => {
      What the report describes is the opposite: everything happening at once. So
      cast on every frame, let kills happen, light every keg, and measure the
      frame where the particle pool is full. */
+  /* Count what the AUDIO layer is asked to do, not just the canvas. Every
+     Sound.sample() call builds a BufferSource, a GainNode and sometimes a
+     panner, connects them to a bus, and never disconnects them (FEEDBACK.md
+     F-01) — so this number is the leak rate, and it is the one measurement that
+     tells apart "chain lightning is expensive to draw" from "chain lightning
+     hits eight things per cast and each hit makes a sound". */
+  let sfxCalls = 0;
+  const origSample = G.Sound.sample.bind(G.Sound);
+  G.Sound.sample = function (...a){ sfxCalls++; return origSample(...a); };
+
   for (const pr of G.LIVE_PROPS) if (pr.kind === 'keg') G.hitProp(pr, 999, 0);
   for (let i = 0; i < 200; i++){
     for (let sl = 0; sl < 4; sl++) if (S.slots[sl]) S.slots[sl].cdLeft = 0;
@@ -94,6 +112,9 @@ const out = await page.evaluate(({ WAVE, N }) => {
   }
 
   // --- count everything the frame asks the context for ----------------------
+  G.Sound.sample = origSample;
+  const simSeconds = 200 * G.DT;
+
   const ctx = document.querySelector('canvas').getContext('2d');
   const proto = Object.getPrototypeOf(ctx);
   const counts = {};                       // method -> calls
@@ -173,15 +194,20 @@ const out = await page.evaluate(({ WAVE, N }) => {
     counts: { enemies: S.enemies.length, particles: G.Particles.live || 0,
               fields: S.fields.length, fx: S.fx.length, crew: S.crew.length,
               props: G.LIVE_PROPS.filter(p => !p.dead).length, bolts: S.bolts.length },
-    total, alloc, sample, seen,
+    total, alloc, sample, seen, sfxCalls, simSeconds,
     methods: Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 14),
     buckets: Object.entries(buckets).sort((a, b) => b[1].calls - a[1].calls),
   };
-}, { WAVE, N });
+}, { WAVE, N, ARC: flag('arc') });
 
 console.log(`\nSKYGEAR ${BUILD} · wave ${WAVE} · one frame · ${flag('art') ? 'delivered art' : 'procedural art'}`);
 console.log('on deck: ' + Object.entries(out.counts).map(([k, v]) => `${v} ${k}`).join(', '));
 console.log(`\ncanvas calls this frame: ${out.total}   of which gradient/pattern allocations: ${out.alloc}`);
+console.log('');
+console.log('audio: ' + out.sfxCalls + ' Sound.sample() calls over ' + out.simSeconds.toFixed(1) +
+            's of simulation = ' + (out.sfxCalls / out.simSeconds).toFixed(0) + '/s.');
+console.log('       Every one builds a source, a gain and sometimes a panner, connects them');
+console.log('       to a bus, and never disconnects them. See FEEDBACK.md F-01.');
 console.log('\n  by subsystem                calls    alloc   saves');
 for (const [k, v] of out.buckets)
   console.log('    ' + k.padEnd(24) + String(v.calls).padStart(6) + '   ' +

@@ -29,7 +29,7 @@ camera-tied envelope and the airstream landed.
 
 ---
 
-### F-01 · Audio makes it progressively laggy, and muting does not fix it `DIAGNOSED`
+### F-01 · Audio makes it progressively laggy, and muting does not fix it `FIXED`
 
 > "turned sound on (was muted) and we got crazy lag spikes. turned it back off
 > and its still crazy laggy. fresh restart resolved it. memory leak?"
@@ -63,19 +63,33 @@ src.onended = () => { rec.done = true;
   try { g.disconnect(); if (rec.pan) rec.pan.disconnect(); } catch (e) {} };
 ```
 
-plus a sweep of `_voices` on wave end for anything that never fired `onended`.
-Small and local. **Not done yet, per the standing instruction.**
+**Fixed 2026-07-27**, because the build testers are playing should not have a
+measured leak in it — this is three lines, not a rewrite, and it is not the kind
+of browser-side investment the Godot instruction was about.
 
-**How to confirm before fixing:** open the live build with sound on, play two
-waves, then in the console run `SKYGEAR.Sound.ctx` and take a heap snapshot in
-DevTools → Memory. Look for a growing count of `GainNode`. Ten minutes, and it
-turns the hypothesis into a fact. Worth doing before any port decision, because
-if this is the whole of the lag story then the platform argument loses its
-strongest exhibit.
+`onended` now disconnects the gain, the panner and the source; hand-stopped
+voices (a stolen voice, a stopped loop) go through a shared `Sound.release`;
+and `Sound.nodesMade` / `nodesFreed` count both sides.
+
+**Measured, before and after.** `tools/profile.mjs` now counts `Sound.sample()`
+calls as well as canvas calls, and a saturated wave-11 fight asks for **~515
+cues per second** — every one of which used to leave a node set connected to a
+bus. The harness fires 400 cues and asserts what is still connected afterwards:
+
+```
+leak · audio nodes are released, not merely marked done
+       0 still connected after 400 cues (made 400, freed 400)
+```
+
+That check had to be fixed twice before it was worth anything, which is worth
+recording: the first version waited on the wrong condition, timed out, and
+reported SKIPPED as a pass; the second fired `hit` 400 times and created exactly
+one node, because `hit` has a 30ms retrigger floor. A green line that tested
+nothing is the most expensive kind of check.
 
 ---
 
-### F-02 · Lag when blowing up lots of enemies and barrels `DIAGNOSED`
+### F-02 · Lag when blowing up lots of enemies and barrels `FIXED (pending a tester)`
 
 > "lagging happened when blowing up lots of enemies and barrels"
 
@@ -91,9 +105,38 @@ both the spike and the accelerant.
 and text is among the most expensive things a 2D canvas draws. `S.fx` was capped
 in `d27b694` and `S.nums` was not.
 
-**Not yet measured:** `tools/profile.mjs` counts a saturated frame at 7,937
-canvas calls, but it runs with `?audio=0` and does not count audio nodes at all.
-The profiler needs an audio-node counter before this entry can be closed.
+**Now measured, and it was the audio.** The profiler counts audio calls as well
+as canvas calls, and the answer is that a keg chain is not expensive to *draw* —
+it is expensive because every enemy it hits plays a sound, and every sound leaked
+a node set. With F-01 fixed the spike source is gone; what remains to confirm is
+whether the tester still sees it.
+
+`S.nums` is still uncapped and text is still expensive on canvas. Left as a
+suspect rather than a finding, because nothing has measured it hurting.
+
+---
+
+### F-07 · "Lag triggered by lightning or screen shake perhaps" `DIAGNOSED — the guess was half right`
+
+Worth writing out, because the guess pointed at the right *trigger* for the
+wrong *reason*, and only measuring it separated the two.
+
+`tools/profile.mjs --arc` builds the tester's actual loadout — all Arc, chain
+heavy — sets trauma to maximum so the frame is shaking, and counts one frame:
+
+| build | canvas calls | audio cues/sec |
+|---|---|---|
+| all-Arc, chains, shaking | **7,063** | 515 |
+| mixed elements, no shake | **8,158** | 516 |
+
+So chain lightning is *cheaper* to draw than the mixed build, and screen shake
+costs nothing in draw calls — it translates and rotates a frame that is fully
+repainted anyway. Neither is the cause.
+
+What lightning and keg chains have in common is not visual: **they are the two
+things in the game that hit many enemies per action**, and every hit plays a
+sound (F-01). The tester noticed lag around lightning because lightning was
+generating the most audio nodes per second, not the most pixels.
 
 ---
 

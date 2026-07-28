@@ -252,6 +252,12 @@ Sound.duck = function(db, secs){
 
 /* 4 ------------------------------------------------------------------------ */
 const _voices = {};        // key -> array of {node, t}
+/* Made and freed, cumulative. Not diagnostics for their own sake: the harness
+   asserts the difference stays bounded over hundreds of cues, which is the
+   check that would have caught the leak in F-01 the day it was written. */
+Sound.nodesMade = 0;
+Sound.nodesFreed = 0;
+Sound.liveNodes = function(){ return this.nodesMade - this.nodesFreed; };
 const _lastAt = {};        // key -> last start time, for the retrigger floor
 
 /* Pan and attenuate from the camera focus. A lane you cannot see must still be
@@ -285,7 +291,7 @@ Sound.sample = function(key, opt){
   const cap = opt.loop ? 1 : (m.max || 2);
   while (live.length >= cap){
     const old = live.shift();
-    try { old.src.stop(); } catch (e) {}
+    this.release(old);
   }
 
   const src = c.createBufferSource();
@@ -312,11 +318,44 @@ Sound.sample = function(key, opt){
   }
   node.connect(g);
   g.connect(this.dest(opt.bus || m.bus));
-  const rec = { src, g, done: false };
-  src.onended = () => { rec.done = true; };
+  const rec = { src, g, pan: (node === src ? null : node), done: false };
+  Sound.nodesMade++;
+  /* Disconnect on end, not just mark done (v12).
+
+     This was a leak, and a measured one. Every cue builds a BufferSource, a
+     GainNode and sometimes a StereoPanner and wires them to a bus. Marking the
+     record `done` let it be pruned from `_voices`, but the gain node stayed
+     connected to a live destination — so it stayed reachable, so it was never
+     collected, and Web Audio pays for every connected node every render quantum
+     whether or not it is making sound.
+
+     `tools/profile.mjs` puts the rate at ~515 cues per second under a saturated
+     wave-11 fight. A five-minute run is tens of thousands of orphaned nodes,
+     which is exactly the reported symptom: progressively worse with sound on,
+     unaffected by muting (mute returns before creating nodes but cannot release
+     the ones already made), and cleared by a reload. FEEDBACK.md F-01. */
+  src.onended = () => {
+    if (!rec.released){ rec.released = true; Sound.nodesFreed++; }
+    rec.done = true;
+    try { g.disconnect(); } catch (e) {}
+    try { if (rec.pan) rec.pan.disconnect(); } catch (e) {}
+    try { src.disconnect(); } catch (e) {}
+  };
   src.start(0);
   live.push(rec);
   return rec;
+};
+
+/* Anything stopped by hand — a stolen voice, a stopped loop — never fires
+   `onended` in every browser, so the same teardown is available directly. */
+Sound.release = function(rec){
+  if (!rec || rec.released) return;
+  rec.released = true;
+  Sound.nodesFreed++;
+  try { rec.src.stop(); } catch (e) {}
+  try { rec.g.disconnect(); } catch (e) {}
+  try { if (rec.pan) rec.pan.disconnect(); } catch (e) {}
+  try { rec.src.disconnect(); } catch (e) {}
 };
 
 /* Sustained cues: ambience, the beam, the boiler alarm. Idempotent both ways. */
@@ -336,6 +375,9 @@ Sound.stopLoop = function(key){
     rec.g.gain.linearRampToValueAtTime(0.0001, t + 0.25);
     rec.src.stop(t + 0.3);
   } catch (e) {}
+  // and let go of the graph once the fade has finished. A stopped loop that
+  // stays connected is the same leak as an ended one-shot that stays connected.
+  setTimeout(() => Sound.release(rec), 400);
 };
 
 /* 5 ------------------------------------------------------------------------ */

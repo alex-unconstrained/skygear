@@ -167,6 +167,104 @@ function updateDraftHover(){
   if (S.draft.hover < 0) S.draft.lastHover = -1;
 }
 
+
+/* WHAT KIND OF CARD IS THIS, AND WHAT DOES IT TOUCH (v12).
+
+   Reported after the second playthrough: it is not visually clear whether an
+   upgrade enhances a skill you already have or hands you a new one. Both looked
+   like a card with a title on it, and the only difference was reading the prose.
+
+   So every card now declares itself twice — a coloured band across the top that
+   names the class of thing it is, and a row of small shape glyphs at the bottom
+   showing exactly which of your four slots it lands on, with the untouched ones
+   drawn dim. An element card lights every skill of that colour; a captain card
+   lights none of them and shows her portrait pip instead.
+
+   The scope comes from CARD_SCOPE in the core — declared data, not inferred
+   here, because a renderer inferring it is how it goes wrong the first time
+   somebody adds a card. */
+const CARD_ELEMENT = { burnDmg:'EMBER', burnDur:'EMBER', slowAmt:'FROST',
+                       brittle:'FROST', stun:'ARC', knock:'STEAM', scald:'STEAM' };
+const CARD_CLASS = {
+  new:     { label:'NEW SKILL',     col:'#FFD52E' },
+  skill:   { label:'SKILL UPGRADE', col:PAL.teal },
+  element: { label:'ELEMENT',       col:'#C9B6E8' },
+  captain: { label:'CAPTAIN',       col:'#E8542E' },
+  ship:    { label:'THE BOILER',    col:PAL.brassLite },
+  deck:    { label:'THE DECK',      col:'#FF9A4A' },
+  all:     { label:'EVERY SKILL',   col:'#9BE8D2' },
+  meta:    { label:'THE DRAFT',     col:'#8FA6C9' },
+};
+function cardScope(c){
+  if (c.skill) return 'new';
+  if (CARD_SCOPE[c.id]) return CARD_SCOPE[c.id];
+  return (c.slot !== undefined) ? 'skill' : 'captain';
+}
+/* Which of the four slots this card lands on. Empty means it does not touch a
+   skill at all, which is itself the useful thing to show. */
+function cardAffects(c){
+  const scope = cardScope(c);
+  if (scope === 'new' || scope === 'skill')
+    return (c.slot === undefined) ? [] : [c.slot];
+  if (scope === 'element'){
+    const e = c.element || CARD_ELEMENT[c.id];
+    const out = [];
+    for (let i = 0; i < 4; i++) if (S.slots[i] && (!e || S.slots[i].element === e)) out.push(i);
+    return out;
+  }
+  if (scope === 'all'){
+    const out = [];
+    for (let i = 0; i < 4; i++) if (S.slots[i]) out.push(i);
+    return out;
+  }
+  return [];
+}
+
+/* The row of slot glyphs. Four positions, always in slot order, so the row
+   reads as "your loadout" and the lit ones read as "these". */
+function drawAffectedRow(cx, cy, s, c){
+  const scope = cardScope(c);
+  const hit = cardAffects(c);
+  const cls = CARD_CLASS[scope] || CARD_CLASS.captain;
+  const slots = [];
+  for (let i = 0; i < 4; i++) if (S.slots[i] || hit.indexOf(i) >= 0) slots.push(i);
+  // A card that touches no skill draws no loadout row. Drawing four dim glyphs
+  // with none lit reads as "affects nothing"; the point is that it affects
+  // something else, so say which.
+  if (!hit.length || !slots.length){
+    // nothing in the loadout is touched — say what IS, with one pip
+    setFont(Math.round(10*s), 800, true);
+    textOut(scope === 'ship' ? 'AFFECTS THE BOILER'
+          : scope === 'deck' ? 'AFFECTS THE DECK'
+          : scope === 'meta' ? 'AFFECTS FUTURE DRAFTS'
+          : 'AFFECTS THE CAPTAIN', cx, cy + 4*s, cls.col, PAL.ink, 3*s);
+    return;
+  }
+  const step = 30*s, x0 = cx - (slots.length - 1) * step / 2;
+  for (let k = 0; k < slots.length; k++){
+    const i = slots[k], sk = S.slots[i];
+    const on = hit.indexOf(i) >= 0;
+    const x = x0 + k * step;
+    ctx.save();
+    ctx.globalAlpha = on ? 1 : 0.26;
+    if (on){
+      ctx.beginPath(); ctx.arc(x, cy, 13*s, 0, TAU);
+      ctx.fillStyle = hexToRgba(cls.col, 0.16); ctx.fill();
+      ctx.strokeStyle = cls.col; ctx.lineWidth = 1.6*s; ctx.stroke();
+    }
+    if (sk){
+      const E = ELEMENTS[sk.element];
+      drawShapeGlyph(sk.shape, x, cy, 8.5*s, on ? E.color : '#6E667A', E.glow);
+    } else {
+      // the empty slot this card would fill
+      ctx.beginPath(); ctx.arc(x, cy, 6*s, 0, TAU);
+      ctx.strokeStyle = cls.col; ctx.lineWidth = 1.6*s; ctx.setLineDash([3*s, 3*s]);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+}
+
 function drawDraft(){
   if (!S.draft) return;
   const HS = hudScale();
@@ -242,7 +340,18 @@ function drawDraft(){
       textOut(R.name, r.w/2, 2*s, PAL.ink);
     }
 
-    const iconY = 84*s;
+    // the class band: what KIND of thing this card is, before any reading
+    {
+      const cls = CARD_CLASS[cardScope(c)] || CARD_CLASS.captain;
+      const bw = r.w - 44*s;
+      rr(r.w/2 - bw/2, 24*s, bw, 20*s, 5*s);
+      ctx.fillStyle = hexToRgba(cls.col, 0.14); ctx.fill();
+      ctx.strokeStyle = hexToRgba(cls.col, 0.75); ctx.lineWidth = 1.6*s; ctx.stroke();
+      setFont(Math.round(11*s), 800, true);
+      textOut(cls.label, r.w/2, 38*s, cls.col, PAL.ink, 3*s);
+    }
+
+    const iconY = 92*s;
     gaugeRing(r.w/2, iconY, 40*s, hexToRgba(PAL.brass, 0.55), 16);
     // A skill card draws its OWN shape and element. It used to look up whatever
     // was already in the target slot — which is null for every skill draft,
@@ -307,6 +416,7 @@ function drawDraft(){
 
     // Whether it is something you press. A passive in a slot is the single
     // thing new players misread, and the card is where to say so.
+    if (!c.skill) drawAffectedRow(r.w/2, r.h - 68*s, s, c);
     if (c.skill){
       const passive = SHAPES[c.skill.shape].passive;
       setFont(Math.round(10.5*s), 800, true);
@@ -325,6 +435,22 @@ function drawDraft(){
     setFont(Math.round(17*s), 800, true);
     textOut((i + 1) + '', r.w/2, r.h - 29*s, R.edge);
     ctx.restore();
+  }
+
+  /* Reroll. Run-wide and scarce, so the interesting question is which hand is
+     bad enough to spend one on. Drawn under the cards rather than on them: it
+     is not a fourth option, it is a thing you do to the three. */
+  if (S.draft.chosen < 0){
+    const r0 = rects[0], last = rects[rects.length - 1];
+    const bw = 240*HS, bh = 46*HS;
+    const bx = (r0.x + last.x + last.w) / 2 - bw / 2;
+    const by = r0.y + r0.h + 20*HS;
+    const none = S.rerolls <= 0;
+    if (uiButton(bx, by, bw, bh,
+                 none ? 'NO REROLLS LEFT' : ('REROLL  ×' + S.rerolls),
+                 null, { disabled: none, hint: none ? null : 'R' }) && !none){
+      rerollDraft();
+    }
   }
 }
 
@@ -1026,4 +1152,6 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS, CAM, Asse
                    // files a build claims to have are files it can actually
                    // decode — the failure this project has already had twice
                    AudioBank, Sound, AUDIO_MANIFEST, fxCap,
+                   Telemetry, rerollDraft, cardScope, cardAffects, CARD_SCOPE,
+                   openDraft,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
