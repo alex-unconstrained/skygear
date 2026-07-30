@@ -62,6 +62,28 @@
       radial-gradient(60% 130% at 50% 122%, rgba(255,179,71,.30), transparent 62%),
       radial-gradient(40% 60% at 22% 16%, rgba(143,166,201,.42), transparent 60%),
       linear-gradient(180deg,#100E1C 0%,#2E2A4E 52%,#3D2E30 53%,#54413C 100%)}
+  /* THE VERSION PICKER.
+     Every build back to the first has been playable the whole time and the only
+     way to find them was one line of small text in the footer, which is the same
+     as not having them. Someone opening this page to show it to a friend sees
+     the current build and nothing else. A row of buttons under the play link is
+     the whole fix. */
+  .vers{margin:18px 0 4px}
+  .vers h3{margin:0 0 10px;font:700 13px/1 system-ui,sans-serif;letter-spacing:.16em;
+           text-transform:uppercase;color:var(--muted)}
+  .vlist{display:flex;flex-wrap:wrap;gap:8px}
+  .vlist a{display:inline-flex;flex-direction:column;gap:2px;text-decoration:none;
+           padding:8px 13px;border-radius:10px;background:rgba(13,11,18,.66);
+           border:1px solid rgba(176,129,63,.42);transition:border-color .14s ease,
+           transform .14s ease,background .14s ease;min-width:74px}
+  .vlist a:hover,.vlist a:focus-visible{border-color:var(--teal);transform:translateY(-2px);
+           background:rgba(13,11,18,.92);outline:none}
+  .vlist b{font:800 15px/1 system-ui,sans-serif;color:var(--brass-lt);letter-spacing:.03em}
+  /* Not --muted. Eleven-pixel type on a dark plate at the muted colour is type
+     nobody reads, which is the same mistake the HUD made and had reported. */
+  .vlist span{font:500 11px/1.25 system-ui,sans-serif;color:#b9afaa}
+  .vlist a.now{border-color:var(--teal);background:rgba(55,240,200,.10)}
+  .vlist a.now b{color:var(--teal)}
   .tag{position:absolute;top:14px;left:14px;font-size:11px;letter-spacing:.18em;
        text-transform:uppercase;padding:6px 12px;border-radius:999px;
        background:rgba(13,11,18,.8);border:1px solid rgba(176,129,63,.55);color:var(--brass-lt)}
@@ -125,6 +147,28 @@
     </div>
   </a>
 
+  <section class="vers">
+    <h3>Every build, still playable</h3>
+    <div class="vlist">
+      <a class="now" href="storm-dusk-v11.html?b=dcc2cbd"><b>v11</b><span>The deck fights back</span></a>
+      <a href="storm-dusk-v10.html"><b>v10</b><span>For a stranger</span></a>
+      <a href="storm-dusk-v9.html"><b>v9</b><span>Score &amp; passives</span></a>
+      <a href="storm-dusk-v8.html"><b>v8</b><span>Builds</span></a>
+      <a href="storm-dusk-v7.html"><b>v7</b><span>Sound</span></a>
+      <a href="storm-dusk-v6.html"><b>v6</b><span>Real basic</span></a>
+      <a href="storm-dusk-v5.html"><b>v5</b><span>Lanes</span></a>
+      <a href="storm-dusk-v4.html"><b>v4</b><span>Snappy</span></a>
+      <a href="storm-dusk-v3.html"><b>v3</b><span>See-through</span></a>
+      <a href="storm-dusk.html"><b>v2</b><span>First restyle</span></a>
+      <a href="classic.html"><b>v1</b><span>Classic</span></a>
+    </div>
+    <p class="lede" style="font-size:14px;margin:12px 0 0">
+      Eleven builds in order, oldest to newest — the whole thing is one HTML file
+      each, so they all still run. The <a href="archive.html">archive</a> says what
+      changed and why at every step.
+    </p>
+  </section>
+
   <section>
     <h3>What is new</h3>
     <div class="panel">
@@ -180,7 +224,8 @@
   <footer>
     Single HTML file &middot; no install, no accounts, nothing leaves your machine &middot;
     best on desktop in Chrome or Firefox<br>
-    Every earlier build is still playable in the <a href="archive.html">archive</a>.
+    Every build from v1 is playable above, and the <a href="archive.html">archive</a>
+    says what changed at each step.
   </footer>
 
 </div>
