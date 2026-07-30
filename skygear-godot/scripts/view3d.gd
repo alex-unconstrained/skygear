@@ -111,6 +111,8 @@ var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
 var _flash_next := 0
 var _impact_rng := RandomNumberGenerator.new()
+var _warmup := SkyGearWarmup.new()
+var _warm_frames := 0
 ## The actual free lists. `_billboards` and `_decals` hold what is IN USE this
 ## frame; these hold what has been returned and is waiting to be claimed again.
 var _free_billboards: Array[Sprite3D] = []
@@ -189,6 +191,18 @@ func _build_world() -> void:
 	e.ssao_enabled = true
 	e.ssao_intensity = 1.6
 	e.ssao_radius = 0.6
+	## A1. THERE WAS NO TONEMAPPER, so the environment ran Linear and everything
+	## above 1.0 hard-clipped to white — while this renderer deliberately pushes
+	## above 1.0 everywhere: effect tints at 1.45x, impact particles at 1.7x, the
+	## furnace emission at 2.6x, a glow threshold of 1.05. Every one of those was
+	## clipping to white at exactly the moment it was meant to carry an element's
+	## colour, which is the one job it had.
+	##
+	## Filmic rather than AgX: AgX desaturates hard in the highlights and this
+	## palette is carrying information in the hue of a bright ring.
+	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	e.tonemap_exposure = 1.0
+	e.tonemap_white = 6.0
 	e.adjustment_enabled = true
 	e.adjustment_contrast = 1.10
 	e.adjustment_saturation = 1.04
@@ -203,7 +217,10 @@ func _build_world() -> void:
 	moon.rotation_degrees = Vector3(-52, 34, 0)
 	moon.shadow_enabled = true
 	moon.shadow_blur = 2.2
-	moon.directional_shadow_max_distance = 60.0
+	## 60 metres was roughly double the visible deck (16.8 x 23.2). Tightening it
+	## to the deck plus a margin nearly doubles the effective shadow resolution
+	## for nothing.
+	moon.directional_shadow_max_distance = 34.0
 	moon.shadow_opacity = 0.72
 	add_child(moon)
 	var lantern := DirectionalLight3D.new()
@@ -222,6 +239,9 @@ func _build_world() -> void:
 	## browser's own plank width; 2.9 down 2320 puts a butt joint every ~400.
 	mat.uv1_scale = Vector3(1.8, 7.0, 1.0)
 	mat.roughness = 0.86
+	## Anisotropy, for the same reason: a plank run receding to the bow is the
+	## textbook case where trilinear alone turns detail into mush.
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	deck.material_override = mat
 	deck.position = Vector3(
 		(SkyGearGame.DECK_RECT.position.x + SkyGearGame.DECK_RECT.size.x * 0.5) * WORLD_SCALE,
@@ -285,6 +305,7 @@ func _build_world() -> void:
 	cmat.albedo_color = Color("#2e2a4e")
 	cmat.roughness = 1.0
 	clouds.material_override = cmat
+	clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	clouds.position = Vector3(0.0, -900.0 * WORLD_SCALE,
 		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
 	add_child(clouds)
@@ -314,6 +335,7 @@ func _build_world() -> void:
 		m.albedo_color = Color(1, 1, 1, float(band.alpha))
 		m.cull_mode = BaseMaterial3D.CULL_DISABLED
 		layer.mesh.material = m
+		layer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		layer.position = Vector3(0.0, float(band.y) * WORLD_SCALE,
 			(SkyGearGame.DECK_RECT.position.y + float(band.z)) * WORLD_SCALE)
 		add_child(layer)
@@ -335,6 +357,7 @@ func _build_world() -> void:
 		om.albedo_color = Color(1, 1, 1, 0.8)
 		om.cull_mode = BaseMaterial3D.CULL_DISABLED
 		other.mesh.material = om
+		other.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		other.position = Vector3(1900.0 * WORLD_SCALE, 420.0 * WORLD_SCALE,
 			(SkyGearGame.DECK_RECT.position.y - 4200.0) * WORLD_SCALE)
 		add_child(other)
@@ -356,6 +379,7 @@ func _build_world() -> void:
 		sm.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 		sm.cull_mode = BaseMaterial3D.CULL_DISABLED
 		sky.mesh.material = sm
+		sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		sky.position = Vector3(0.0, 900.0 * WORLD_SCALE,
 			(SkyGearGame.DECK_RECT.position.y - 3600.0) * WORLD_SCALE)
 		add_child(sky)
@@ -369,6 +393,7 @@ func _build_world() -> void:
 		bow.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		bow.pixel_size = 900.0 * WORLD_SCALE / float(bow_tex.get_height())
 		bow.rotation_degrees = Vector3(-90.0 + rad_to_deg(PITCH) * 0.35, 0.0, 0.0)
+		bow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		bow.position = Vector3(0.0, 120.0 * WORLD_SCALE,
 			(SkyGearGame.DECK_RECT.position.y - 150.0) * WORLD_SCALE)
 		add_child(bow)
@@ -390,12 +415,34 @@ func _build_world() -> void:
 		em.albedo_color = Color(1, 1, 1, 0.85)
 		em.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_envelope.mesh.material = em
+		_envelope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_envelope)
 
 	_build_boiler()
 
 	_build_airstream()
 	_build_impacts()
+	## A4. Build every generated texture NOW rather than the first time it is
+	## drawn. `_glow_map` runs a per-pixel GDScript loop and `_fan_texture` runs
+	## atan2 and exp per pixel — the first cone cast was paying for a 128x128
+	## texture mid-fight, which is a hitch at the exact moment the player is
+	## reacting to something.
+	_ring_texture()
+	_streak_texture()
+	_blob_texture()
+	_spark_texture()
+	_crate_texture()
+	_grille_texture()
+	_wall_texture()
+	for arc in [0.9, 1.134, 1.658, 1.7, 2.443]:
+		_fan_texture(arc, true)
+		_fan_texture(arc, false)
+	for key in PAINTED.keys():
+		var painted := _texture(str(PAINTED[key]))
+		if painted != null:
+			_glow_map(painted)
+	_glow_map(_ring_texture())
+	_glow_map(_streak_texture())
 
 	camera = Camera3D.new()
 	## Not a taste dial. The browser's focal length is 1320 quoted against a
@@ -497,6 +544,11 @@ func _build_impacts() -> void:
 		process.alpha_curve = curve
 		node.process_material = process
 		node.layers = LAYER_FIGURES
+		## A5. Particles do not cast. `cast_shadow` defaults ON, so three
+		## 512-capacity systems were rendering into the shadow map of the one
+		## shadowed light for no visible gain — the blob decals under everything
+		## already carry the grounding.
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(node)
 		_sparks[family] = node
 		node.emitting = true
@@ -858,6 +910,19 @@ func _art(key: String, fallback: Texture2D) -> Texture2D:
 ## same reason the browser paints its deck in code: a tiling photo of wood reads
 ## as a floor and this has to read as a SHIP. Each one is cached by key.
 
+## A2. Mipmaps, on everything generated.
+##
+## Every one of these was uploaded with `mipmaps = false` while the billboards
+## asked for `TEXTURE_FILTER_LINEAR_WITH_MIPMAPS` against them, and the deck
+## tiles planking 1.8 x 7.0 over a 23-metre plane seen at 41 degrees — which is
+## grazing, which is the exact case mipmaps exist for. The result was shimmering
+## planking and aliased rims on the telegraphs, and an aliased telegraph is a
+## readability problem rather than an ugly one.
+static func _with_mips(img: Image) -> ImageTexture:
+	img.generate_mipmaps()
+	return ImageTexture.create_from_image(img)
+
+
 ## Planked timber.
 func _planking_texture() -> ImageTexture:
 	if _made.has("plank"):
@@ -899,7 +964,7 @@ func _planking_texture() -> ImageTexture:
 			elif grain > 0.965:
 				c = c.lerp(light, 0.35)
 			img.set_pixel(x, y, c)
-	_made.plank = ImageTexture.create_from_image(img)
+	_made.plank = _with_mips(img)
 	return _made.plank
 
 
@@ -936,7 +1001,7 @@ func _crate_texture() -> ImageTexture:
 			elif n > 0.96:
 				c = c.lerp(lit, 0.3)
 			img.set_pixel(x, y, c)
-	_made.crate = ImageTexture.create_from_image(img)
+	_made.crate = _with_mips(img)
 	return _made.crate
 
 
@@ -961,7 +1026,7 @@ func _ring_texture() -> ImageTexture:
 				a = 0.05 * (1.0 - d * 0.55)
 				a += 1.0 * exp(-pow((d - 0.92) / 0.06, 2.0))
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
-	_made.ring = ImageTexture.create_from_image(img)
+	_made.ring = _with_mips(img)
 	return _made.ring
 
 
@@ -981,7 +1046,7 @@ func _streak_texture() -> ImageTexture:
 			var u := float(x) / float(size - 1)
 			var ends: float = smoothstep(0.0, 0.06, u) * smoothstep(0.0, 0.06, 1.0 - u)
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(across * ends, 0.0, 1.0)))
-	_made.streak = ImageTexture.create_from_image(img)
+	_made.streak = _with_mips(img)
 	return _made.streak
 
 
@@ -1012,7 +1077,7 @@ func _fan_texture(arc: float, filled: bool) -> ImageTexture:
 				else:
 					a = exp(-pow((d - 0.88) / 0.10, 2.0)) * edge
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
-	_made[key] = ImageTexture.create_from_image(img)
+	_made[key] = _with_mips(img)
 	return _made[key]
 
 
@@ -1034,7 +1099,7 @@ func _grille_texture() -> ImageTexture:
 			if y < 3 or y > h - 4 or x < 3 or x > w - 4:
 				c = Color("#241b25")
 			img.set_pixel(x, y, Color(c.r, c.g, c.b, 1.0))
-	_made.grille = ImageTexture.create_from_image(img)
+	_made.grille = _with_mips(img)
 	return _made.grille
 
 
@@ -1051,7 +1116,7 @@ func _wall_texture() -> ImageTexture:
 		var a: float = exp(-pow(v / 0.16, 2.0)) * 0.9 + exp(-pow((1.0 - v) / 0.12, 2.0)) + 0.10
 		for x in w:
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
-	_made.wall = ImageTexture.create_from_image(img)
+	_made.wall = _with_mips(img)
 	return _made.wall
 
 
@@ -1067,7 +1132,7 @@ func _glow_map(tex: Texture2D) -> Texture2D:
 		for x in src.get_width():
 			var a: float = src.get_pixel(x, y).a
 			out.set_pixel(x, y, Color(a, a, a, 1.0))
-	_made[key] = ImageTexture.create_from_image(out)
+	_made[key] = _with_mips(out)
 	return _made[key]
 
 
@@ -1084,7 +1149,7 @@ func _blob_texture() -> ImageTexture:
 			var d := Vector2(x + 0.5, y + 0.5).distance_to(c) / (size * 0.5)
 			var a: float = 0.0 if d > 1.0 else pow(1.0 - d, 1.7)
 			img.set_pixel(x, y, Color(1, 1, 1, a))
-	_made.blob = ImageTexture.create_from_image(img)
+	_made.blob = _with_mips(img)
 	return _made.blob
 
 
@@ -1100,13 +1165,25 @@ func _spark_texture() -> ImageTexture:
 			var d := Vector2(x + 0.5, y + 0.5).distance_to(c) / (size * 0.5)
 			var a: float = 0.0 if d > 1.0 else pow(1.0 - d, 2.4) + exp(-pow(d / 0.22, 2.0))
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
-	_made.spark = ImageTexture.create_from_image(img)
+	_made.spark = _with_mips(img)
 	return _made.spark
 
 
 func _process(delta: float) -> void:
 	if game == null:
 		return
+	## The shader warm-up: draw one of everything for a few frames, off-screen,
+	## then take it down. A pipeline is created when something is first RENDERED
+	## with a material, so the only honest way to pay that cost early is to
+	## render it early. The first bench found a 150 ms worst frame here against
+	## an 8.5 ms steady state.
+	if _warmup != null:
+		_warm_frames += 1
+		if _warm_frames == 1:
+			_warmup.warm(self)
+		elif _warm_frames > SkyGearWarmup.HOLD_FRAMES:
+			_warmup.cool()
+			_warmup = null
 	_flicker += delta
 	_aim_from_cursor()
 	_track_camera(delta)
@@ -1866,6 +1943,7 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 		node.double_sided = true
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		node.layers = LAYER_FIGURES
 		if node.get_parent() == null:
 			add_child(node)
@@ -1913,6 +1991,7 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 		node.double_sided = true
 		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		node.layers = LAYER_FIGURES
 		if node.get_parent() == null:
 			add_child(node)
@@ -2045,6 +2124,7 @@ func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> vo
 		ghost.double_sided = true
 		ghost.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
 		ghost.layers = LAYER_FIGURES
+		ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		ghost.no_depth_test = true
 		ghost.render_priority = 8
 		if ghost.get_parent() == null:

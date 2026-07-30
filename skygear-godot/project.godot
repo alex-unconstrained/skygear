@@ -16,9 +16,18 @@ window/size/window_width_override=1280
 window/size/window_height_override=720
 window/stretch/mode="canvas_items"
 window/vsync/vsync_mode=1
-window/size/resizable=true
 
 [rendering]
+
+; A2. The telegraphs are thin bright rims on a dark deck seen at a grazing
+; angle, which is the worst case for aliasing, and an aliased tell is a
+; readability problem rather than an ugly one.
+anti_aliasing/quality/msaa_3d=2
+anti_aliasing/quality/screen_space_aa=1
+textures/default_filters/anisotropic_filtering_level=2
+; B2. The dusk sky and the fog gradient are prime banding candidates.
+anti_aliasing/quality/use_debanding=true
+window/size/resizable=true
 
 ; Windows-first, hardware accelerated. The port started on gl_compatibility
 ; because that is what a web export wants, and the web export is no longer the

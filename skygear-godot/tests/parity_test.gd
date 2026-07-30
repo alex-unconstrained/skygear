@@ -1017,6 +1017,39 @@ func _view() -> void:
 		and int(prof.timings().samples) == 0)
 	prof.queue_free()
 
+	## RENDER QUALITY, from the audit. These are the ones that are silently wrong
+	## rather than visibly wrong, which is why they need a check rather than a
+	## screenshot.
+	var world_env: Environment = null
+	for child in view.get_children():
+		if child is WorldEnvironment:
+			world_env = (child as WorldEnvironment).environment
+	_check("render", "a tonemapper is set, so bright colour does not clip to white",
+		world_env != null and world_env.tonemap_mode != Environment.TONE_MAPPER_LINEAR,
+		"mode %d" % (world_env.tonemap_mode if world_env else -1))
+	_check("render", "and its white point is above the values the effects push to",
+		world_env != null and world_env.tonemap_white >= 2.0,
+		"white %.1f against tints at 1.7x" % (world_env.tonemap_white if world_env else 0.0))
+	## Every generated texture is drawn either at a grazing angle on the deck or
+	## minified on a billboard. Without mipmaps both shimmer, and a shimmering
+	## telegraph rim is a readability problem.
+	_check("render", "generated textures carry mipmaps",
+		view._ring_texture().get_image().has_mipmaps()
+			and view._planking_texture().get_image().has_mipmaps())
+	## Nothing that cannot cast a meaningful shadow should be in the shadow pass.
+	var casters := 0
+	for family in view._sparks.keys():
+		if (view._sparks[family] as GPUParticles3D).cast_shadow 				!= GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			casters += 1
+	_check("render", "particles stay out of the shadow pass",
+		casters == 0, "%d casting" % casters)
+
+	## The shader warm-up. First use of a material builds its pipeline, and the
+	## first bench found a 150 ms frame doing it — during a fight that lands as a
+	## hitch at the moment the player is reacting to something new.
+	_check("render", "every generated texture exists before the first frame of play",
+		view._made.size() >= 14, "%d built at load" % view._made.size())
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY
