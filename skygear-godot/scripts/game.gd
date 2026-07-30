@@ -32,6 +32,10 @@ var voice: SkyGearVoice
 ## `Engine.time_scale` — a global scale also slows the animation blends, the
 ## music and the voice, which is not a hit landing, it is the game skipping.
 var impact: SkyGearImpact
+## Frame cost and scene counts, always on. F3 shows it. Costs a float write a
+## frame, which is less than the cost of never knowing why a build got slow.
+var profiler: SkyGearProfiler
+var show_profiler := false
 ## The 3D renderer, when it is the one drawing. Set by `SkyGearView3D` so the
 ## simulation can tell it a hit happened without knowing anything else about it.
 var view: SkyGearView3D
@@ -149,6 +153,9 @@ func _ready() -> void:
 	audio = SkyGearAudio.new()
 	audio.name = "Audio"
 	add_child(audio)
+	profiler = SkyGearProfiler.new()
+	profiler.name = "Profiler"
+	add_child(profiler)
 	impact = SkyGearImpact.new()
 	impact.name = "Impact"
 	add_child(impact)
@@ -198,6 +205,13 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 			return
 	if event is not InputEventKey or not event.pressed or event.echo:
+		return
+	if event.keycode == KEY_F3:
+		show_profiler = not show_profiler
+		if show_profiler:
+			profiler.reset()
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F4:
 		layout_edit = not layout_edit

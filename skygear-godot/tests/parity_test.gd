@@ -984,6 +984,39 @@ func _view() -> void:
 		SkyGearRendererCheck.warning().is_empty()
 			== SkyGearRendererCheck.can_draw_telegraphs())
 
+	## The profiler. It exists because every performance conversation on this
+	## project has been held without a number.
+	var prof := SkyGearProfiler.new()
+	root.add_child(prof)
+	for i in 120:
+		prof._process(0.008)
+	## Three spikes in 123 frames — 2.4%, so the 99th percentile lands on one.
+	## With a single spike in 121 frames the p99 correctly does NOT catch it,
+	## which is a property of the statistic and not a bug: the first version of
+	## this check asserted otherwise and was simply wrong about percentiles.
+	for i in 3:
+		prof._process(0.050)
+	var t: Dictionary = prof.timings()
+	_check("profile", "frame timings are collected",
+		int(t.samples) > 100 and float(t.avg) > 0.0,
+		"%d samples, avg %.2f ms" % [int(t.samples), float(t.avg)])
+	## The 99th is the number that matters. An average hides exactly the thing
+	## players notice — a build at a 4 ms average that hitches to 40 twice a
+	## second is a build people call laggy.
+	## The 99th is the number that matters, and it must sit at or above the
+	## median or it is not measuring the tail at all.
+	_check("profile", "the 99th percentile reports the tail, not the middle",
+		float(t.p99) >= float(t.median) and float(t.p99) > 40.0,
+		"p99 %.2f, median %.2f" % [float(t.p99), float(t.median)])
+	_check("profile", "spikes are counted rather than averaged away",
+		prof.spikes == 3, "%d spikes" % prof.spikes)
+	_check("profile", "and the report names the renderer it was measured on",
+		prof.report(null, null).contains(SkyGearRendererCheck.method()))
+	prof.reset()
+	_check("profile", "reset clears the window", prof.spikes == 0
+		and int(prof.timings().samples) == 0)
+	prof.queue_free()
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY

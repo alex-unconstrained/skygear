@@ -48,6 +48,8 @@ func _draw() -> void:
 			_draw_game_hud()
 	if game.layout_edit:
 		_draw_layout_editor()
+	if game.show_profiler:
+		_draw_profiler()
 
 func _draw_title() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
@@ -320,6 +322,25 @@ static func pick_at(view: Vector2, where: Vector2, current: String) -> Dictionar
 		var grip2 := Rect2(rect.end - Vector2(16, 16), Vector2(16, 16))
 		return {"plate": name, "item": "", "resize": grip2.has_point(where)}
 	return {}
+
+
+## The frame cost, top-left, in a monospaced-ish block.
+##
+## Deliberately plain and deliberately ugly: it is a diagnostic, and a
+## diagnostic that looks like part of the game is one people forget is on.
+func _draw_profiler() -> void:
+	if game.profiler == null:
+		return
+	var text: String = game.profiler.report(view, game)
+	var lines: PackedStringArray = text.split("
+")
+	var box := Rect2(10, 10, 560, 10.0 + lines.size() * 17.0)
+	draw_rect(box, Color(0.02, 0.015, 0.028, 0.86))
+	draw_rect(box, Color("#37f0c8"), false, 1.0)
+	for i in lines.size():
+		draw_string(font, Vector2(18, 26 + i * 17), lines[i],
+			HORIZONTAL_ALIGNMENT_LEFT, -1, 13,
+			Color("#37f0c8") if i == 0 else Color("#cfc4b4"))
 
 
 ## A pressure dial. The face is painted with its danger arc and tick marks; the
