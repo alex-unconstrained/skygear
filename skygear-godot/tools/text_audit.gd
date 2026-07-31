@@ -188,6 +188,25 @@ func _run() -> void:
 						"box": box, "frame": plate, "measured": 0.0, "given": 0.0,
 						"screen": str(screen.name),
 						"at": "%dx%d" % [int(size.x), int(size.y)]})
+				## AND A STILL SCREEN HAS TO ACTUALLY BE STILL.
+				##
+				## Reported by the user as "the popup menus drifting right", and every
+				## check above is blind to it BY CONSTRUCTION: each one poses a screen,
+				## draws it ONCE, and measures that single frame. A menu that is laid
+				## out correctly and then walks two pixels right on every redraw passes
+				## all of them, at every resolution, forever.
+				##
+				## Nothing on a menu is animated, so the invariant is as strong as it
+				## gets: hold the pose, redraw, and every rectangle must land on the
+				## same pixels it did a second ago. PLAY is the one screen this cannot
+				## be asked of — the simulation is running underneath it and its
+				## readouts are supposed to move.
+				## At EVERY width, not just the one the contrast pass needs. Drift is
+				## arithmetic on the layout, and the layout is the one thing in the HUD
+				## that changes shape with the window — a sheet that only walks on an
+				## ultrawide is exactly the bug that would survive a single-size check.
+				if batch == null and str(screen.state) != "PLAY":
+					findings.append_array(await _drift(hud, str(screen.name), size))
 				hud.audit = null
 
 	## Grouped by what is broken rather than by where it was found: the same
@@ -554,3 +573,76 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 			SkyGearWorkshop.buy(game.workshop, id)
 		game.workshop_open = true
 	await process_frame
+
+## HOLD A SCREEN AND SEE IF IT MOVES.
+##
+## Sixty redraws, which is a second at the rate the game runs. A drift slow
+## enough to survive that is slow enough that nobody sees it either.
+##
+## Compared by index rather than by position, because position is the thing
+## under test — matching rectangles up by where they are would quietly pair a
+## drifted widget with whatever else had wandered into its place. The count
+## changing is itself a finding: a still screen that grows a widget while you
+## watch it is as wrong as one that slides.
+const DRIFT_FRAMES := 60
+
+func _drift(hud, screen: String, size: Vector2) -> Array:
+	var out: Array = []
+	var shot := func() -> Array:
+		hud.queue_redraw()
+		await process_frame
+		var copy: Array = []
+		for item in hud.ui.declared():
+			copy.append(item.rect as Rect2)
+		return copy
+
+	var first: Array = await shot.call()
+	for _i in DRIFT_FRAMES:
+		hud.queue_redraw()
+		await process_frame
+	var last: Array = await shot.call()
+
+	var tag := "%dx%d" % [int(size.x), int(size.y)]
+	if first.size() != last.size():
+		out.append({"kind": "DRIFT",
+			"text": "widget count went %d -> %d while the screen sat still"
+				% [first.size(), last.size()],
+			"box": Rect2(), "frame": Rect2(), "measured": 0.0, "given": 0.0,
+			"screen": screen, "at": tag})
+		return out
+
+	## One finding for the whole screen, naming the worst offender. Every widget
+	## on a drifting sheet drifts, and sixteen identical lines would bury the one
+	## fact that matters: this screen moves, and it moves THIS far in a second.
+	var worst := 0.0
+	var worst_at := -1
+	var moved := 0
+	var shove := Vector2.ZERO
+	for i in first.size():
+		var a: Rect2 = first[i]
+		var b: Rect2 = last[i]
+		var step: float = maxf(a.position.distance_to(b.position),
+			(a.size - b.size).length())
+		if step <= 0.5:
+			continue
+		moved += 1
+		if step > worst:
+			worst = step
+			worst_at = i
+			shove = b.position - a.position
+	if moved == 0:
+		return out
+
+	## Say which way. "Drifting right" was the whole of the bug report, and a
+	## direction is what turns a number into somewhere to look.
+	var way := "right" if shove.x > 0.5 else ("left" if shove.x < -0.5 else "")
+	if absf(shove.y) > absf(shove.x):
+		way = "down" if shove.y > 0.5 else "up"
+	out.append({"kind": "DRIFT",
+		## Front-loaded, because the report truncates a long line and the
+		## direction is the whole of what the reader needs.
+		"text": "slides%s %.1fpx a second (%d of %d widgets)"
+			% [(" " + way) if way != "" else "", worst, moved, first.size()],
+		"box": last[worst_at], "frame": first[worst_at],
+		"measured": 0.0, "given": 0.0, "screen": screen, "at": tag})
+	return out
