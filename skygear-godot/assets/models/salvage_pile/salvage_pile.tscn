@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/salvage_pile/salvage_pile.glb" id="1_dvjjr"]
+
+[node name="Salvage Pile" type="Node3D" unique_id=1257951038]
+metadata/model_height = 1.091863
+
+[node name="Holder" type="Node3D" parent="." unique_id=767235779]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0022699833, 0.548102, 0.004013002)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1480346044 instance=ExtResource("1_dvjjr")]

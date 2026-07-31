@@ -1,0 +1,21 @@
+{
+  "key": "boarding_hulk",
+  "ai_model": "meshy-6",
+  "prompt": "A wide armoured siege ram front, like a fortress gate: a broad flat front wall of dark iron plate and dark timber planking, twice as wide as it is tall, bound by vertical brass straps; a large round iron door in the middle of that wall, standing open with fire inside; a heavy timber ramp lowered flat on each side; a short chimney at each top corner. One siege machine alone, standing on nothing. No balloon, no sail, no mast, no rigging, no ground plane, no scenery, no duplicate, no lettering. Stylised game-ready steampunk siege vehicle: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Dark blue-grey iron plate and near-black weathered timber planking, warm polished brass strap bands and rivets, oxidised copper pipework, bare worn steel along the ramp edges, a hot orange furnace burning inside the open round door. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 20000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb85f-7d1b-793c-8efb-18872cc8bc76",
+  "refine_task": "019fb862-4bc0-7237-8523-29563b9957ed",
+  "credits": 30,
+  "files": [
+    "boarding_hulk.glb",
+    "boarding_hulk.fbx",
+    "boarding_hulk_base_color.png",
+    "boarding_hulk_metallic.png",
+    "boarding_hulk_roughness.png",
+    "boarding_hulk_normal.png",
+    "boarding_hulk_emission.png",
+    "boarding_hulk_thumb.png"
+  ]
+}

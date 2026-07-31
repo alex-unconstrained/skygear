@@ -1,0 +1,21 @@
+{
+  "key": "salvage_pile",
+  "ai_model": "meshy-6",
+  "prompt": "A low loose heap of salvaged machinery lying flat: a dozen brass cogs of different sizes leaning against each other; one length of copper pipe across them; a round brass gauge face on top; a coiled blue-steel spring at one side. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Warm polished brass cogs of varying tarnish, bright copper pipe, blue-steel spring, oxidised copper patina in the recesses, a cream gauge dial. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 8000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb849-7135-7cb1-baf8-871fcc13b8c1",
+  "refine_task": "019fb84c-9279-7d4b-b4bf-45451d0d2a78",
+  "credits": 30,
+  "files": [
+    "salvage_pile.glb",
+    "salvage_pile.fbx",
+    "salvage_pile_base_color.png",
+    "salvage_pile_metallic.png",
+    "salvage_pile_roughness.png",
+    "salvage_pile_normal.png",
+    "salvage_pile_emission.png",
+    "salvage_pile_thumb.png"
+  ]
+}

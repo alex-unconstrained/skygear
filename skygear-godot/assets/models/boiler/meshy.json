@@ -1,0 +1,21 @@
+{
+  "key": "boiler",
+  "ai_model": "meshy-6",
+  "prompt": "A squat steampunk furnace boiler: a fat upright riveted brass barrel standing on its flat end, wider than it is tall. A big arched furnace door low in its front with a slatted iron grate and fire blazing behind it; two iron hoops round the barrel; a round gauge and a valve wheel above the door; two short chimney pipes rising at the back. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Warm polished brass barrel with dark riveted iron hoops, heavy soot blackening around the furnace door, hot orange fire burning behind the grate, oxidised copper patina on the chimney pipes, a cream gauge dial. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 20000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb85a-a5d3-79da-b3b5-1b0a26ad667e",
+  "refine_task": "019fb85c-cd8e-78c6-9ebe-fc286a073d5c",
+  "credits": 30,
+  "files": [
+    "boiler.glb",
+    "boiler.fbx",
+    "boiler_base_color.png",
+    "boiler_metallic.png",
+    "boiler_roughness.png",
+    "boiler_normal.png",
+    "boiler_emission.png",
+    "boiler_thumb.png"
+  ]
+}

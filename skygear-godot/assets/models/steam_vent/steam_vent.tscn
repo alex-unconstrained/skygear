@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/steam_vent/steam_vent.glb" id="1_jb3v2"]
+
+[node name="Steam Vent" type="Node3D" unique_id=237308528]
+metadata/model_height = 1.5526431
+
+[node name="Holder" type="Node3D" parent="." unique_id=168541035]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0008574724, 0.777089, 0.000895977)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1828905578 instance=ExtResource("1_jb3v2")]

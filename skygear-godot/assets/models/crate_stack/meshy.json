@@ -1,0 +1,21 @@
+{
+  "key": "crate_stack",
+  "ai_model": "meshy-6",
+  "prompt": "Three wooden shipping crates stacked one on another into a tall tower, each a plank box with brass corner brackets and rivets; a thick rope lashing knotted over the top and running down two faces; one square copper patch plate on the bottom crate. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Weathered dark timber planks with open grain, warm polished brass corner brackets and rivets, coarse pale hemp rope lashing, one green oxidised copper patch plate. Hand-painted stylised game texture: weathered dark timber planks with open grain, warm polished brass corner brackets and rivets, deep oxblood leather strapping, coarse pale hemp rope, dull oxidised-copper patina in the recesses. Nothing emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 8000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb82e-2dc1-72c2-ae29-acb91ffc20e5",
+  "refine_task": "019fb82f-afbe-70a7-b650-ea0d02831145",
+  "credits": 30,
+  "files": [
+    "crate_stack.glb",
+    "crate_stack.fbx",
+    "crate_stack_base_color.png",
+    "crate_stack_metallic.png",
+    "crate_stack_roughness.png",
+    "crate_stack_normal.png",
+    "crate_stack_emission.png",
+    "crate_stack_thumb.png"
+  ]
+}

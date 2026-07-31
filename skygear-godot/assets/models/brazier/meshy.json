@@ -1,0 +1,21 @@
+{
+  "key": "brazier",
+  "ai_model": "meshy-6",
+  "prompt": "A wide shallow iron fire bowl on three splayed iron legs, the bowl bound by two riveted iron bands, heaped with burning coals that glow hot orange. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Rust-brown weathered iron bowl with dark riveted bands, charred black timber, and coals burning hot orange in the centre. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 6000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb83d-6b9d-755d-b7f3-205a5b473f74",
+  "refine_task": "019fb83f-947d-7229-9292-db42161a892e",
+  "credits": 30,
+  "files": [
+    "brazier.glb",
+    "brazier.fbx",
+    "brazier_base_color.png",
+    "brazier_metallic.png",
+    "brazier_roughness.png",
+    "brazier_normal.png",
+    "brazier_emission.png",
+    "brazier_thumb.png"
+  ]
+}

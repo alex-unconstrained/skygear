@@ -76,6 +76,88 @@ const MODELS := {
 	## sixty credits was a fair price for finding that out. The painted knight
 	## stays. If someone re-rolls again, the bar is the billboard, not the
 	## previous mesh.
+
+	## --- the deck props ------------------------------------------------------
+	## Same table, same two jobs, and for these the FACING column earns its
+	## keep in a way it did not for the boarders. A boarder turns to face
+	## whatever it is walking at, so a wrong rest facing is wrong for one frame
+	## in ten; a prop never turns at all, so whichever face the generator put on
+	## +Z is the face the player looks at for the whole run. The keg's red flame
+	## triangle, the vent's gauge and the lantern's lit panes are each on exactly
+	## one side of the object.
+	##
+	## `SkyGearView3D.PROP_MODEL` is the other half of the switch: a model can be
+	## wrapped here and still be left painted there, which is the cheap way to
+	## park one that came back wrong without deleting the file.
+	## The objective. Faces +Z already, which for this one is not luck being
+	## relied on but the thing to check first: the furnace door is on one face,
+	## the camera never leaves +Z, and a boiler turned round is a brass barrel.
+	"boiler": 0.0,
+
+	## "boarding_hulk" is generated TWICE, both on disk, and deliberately NOT
+	## here. The furnace knight's rule again, and the closest parallel to it.
+	##
+	## v1 came back a submarine. v2 fixed that — a wide armoured box, a round
+	## door standing open with fire in its throat, a ramp down, brass straps —
+	## and as a MODEL it is good. It still loses, and it loses to something no
+	## prompt can fix, which is why the third attempt is not worth buying:
+	##
+	## The painted hulk works because it is a FLAT FACADE and a billboard turns
+	## to face the camera, so all 420 units of it are always presented square-on:
+	## a wall of armour across the top of the frame with a glowing hole in the
+	## middle. The mesh is as DEEP as it is wide. At a locked 41-degree camera
+	## its mass goes up out of frame and what remains on screen is the ramp —
+	## a pale blue-grey staircase laid across the middle of the deck, with the
+	## door, the funnels and the straps all invisible. Posed side by side with
+	## the sprite at the bow and again from mid-deck, it is not a close call.
+	##
+	## Shrinking it does not help: it is a shape problem, not a size one. A mesh
+	## only beats this sprite if it is much wider and much SHALLOWER than
+	## anything text-to-3D returned — a wall with its ramps as separate low
+	## geometry — and at that point it is modelled by hand, not prompted.
+	##
+	## Sixty credits, and what it bought is knowing the sprite was right.
+
+	"crate_stack": 0.0,
+	"powder_keg": 0.0,
+	"lantern_post": 0.0,
+	"steam_vent": 0.0,
+	"cannon_deck": 0.0,
+	"salvage_pile": 0.0,
+
+	## "brazier" is generated and on disk and is deliberately NOT here.
+	##
+	## Its entire job on this deck is to be a FIRE — it is one of only two props
+	## the renderer hangs an OmniLight on, and the painted one is a bowl of coals
+	## burning orange. The mesh came back with a bowl of grey-blue rock. Standing
+	## inside its own orange light, contradicting it, it reads as a bathtub full
+	## of rubble. The prompt asked for "burning coals that glow hot orange" and
+	## the texture line asked twice; what it also said was "charred black timber",
+	## and that is the likeliest culprit for the next person to fix.
+	##
+	## It is also the wrong SHAPE: 1.898 wide by 0.925 tall, so scaling it to
+	## PROP_HEIGHT's 116 makes it 238 ground units across — wider than the
+	## captain is tall, against a painted brazier of about ninety. Two faults,
+	## either one disqualifying.
+
+	## "crate_small" is generated and on disk and is deliberately NOT here.
+	##
+	## It came back a bright orange treasure chest with a big gold clasp. The
+	## billboard is a dark blue-brown plank cube with blue-steel corner brackets
+	## and one oxblood strap; the mesh is the most saturated object on the deck
+	## and sits four feet from cargo runs painted in blue-grey. It is not that it
+	## is ugly — it is that it is a different object in a different palette, and
+	## a deck of eight generated props and twelve painted ones only holds
+	## together if they are the same objects.
+	##
+	## The lesson for the re-roll is in the prompt: "one oxblood leather strap
+	## ... with a brass buckle" is a chest fastening, and it was given a chest.
+	## The painted strap is decoration over a nailed lid, not a lock.
+	## "rope_coil" is deliberately absent and was never generated. It is 30
+	## ground units tall — the shortest entry in PROP_HEIGHT by a factor of two —
+	## and a mesh of a flat coil of rope and a billboard of one are the same
+	## forty pixels at a locked 41-degree camera. The prompt is in
+	## tools/meshy.py so the decision can be revisited for 30 credits.
 }
 
 

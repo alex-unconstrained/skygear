@@ -62,6 +62,67 @@ const PROP_HEIGHT := {
 	"ballista": 118.0, "vent": 52.0, "wreck": 210.0,
 }
 
+## Which deck props have a generated mesh: prop_type -> the directory under
+## `assets/models/`. A prop_type with no row here keeps its painted billboard.
+##
+## THIS TABLE IS THE SWITCH, and it is the same switch `tools/static_model.gd`
+## documents for the boarders: the bar a generated mesh has to clear is the art
+## it replaces, not the previous generation of itself, and the furnace knight is
+## on the deck as a sprite because it never cleared it. Deleting a row here puts
+## a prop back to painted with no other change.
+##
+## The keys on the right are the ART filenames rather than the prop_type strings.
+## That is deliberate: what a reviewer does with one of these is hold it up
+## against `assets/art/props/<key>.png`, and a name that does not match the file
+## you are comparing it to makes that harder for no gain. The two exceptions are
+## named where they are used below.
+const PROP_MODEL := {
+	## barrel.png is the powder keg — the fuse chimney, the pressure gauge and
+	## the red flame triangle are all painted on it — so there is one model for
+	## it and it is called what the object is.
+	"keg": "powder_keg",
+	"crates": "crate_stack",
+	"lantern": "lantern_post",
+	"vent": "steam_vent",
+	## "crate" and "brazier" are generated, on disk, and deliberately absent —
+	## the furnace knight's rule, applied twice. Both read WORSE than the art
+	## they would replace, checked at the real camera distance rather than off
+	## the thumbnail, and the reasons are written at tools/static_model.gd where
+	## the .tscn is not made.
+	## rope: NOT generated. 30 ground units tall, the shortest thing in
+	## PROP_HEIGHT by a factor of two. A billboard of a flat coil of rope and a
+	## mesh of one are the same forty pixels at this camera. The prompt is
+	## written and waiting in tools/meshy.py; nobody has paid for it.
+	## mast, railing, hatch, ballista, wreck: not asked for, still painted.
+}
+
+## The deck cannons and the salvage pickups are not in the `props` group, so they
+## are not reached by prop_type. Named here so all of the generated deck geometry
+## is switched from one screenful.
+const TURRET_MODEL := "cannon_deck"
+const SALVAGE_MODEL := "salvage_pile"
+## The enemy's boarding craft. Wired at the hulk block near the bottom of
+## `_sync_all`, where the three painted states are chosen between — and CURRENTLY
+## INERT, because `tools/static_model.gd` deliberately does not wrap a scene for
+## it. Two generations, both rejected, and the reasoning is written there beside
+## the missing row. The wiring stays for the same reason `_sync_rig` stays for
+## the furnace knight: the model-or-billboard fork is the permanent shape of this
+## renderer, and the next attempt should be a file appearing, not a code change.
+const HULK_MODEL := "boarding_hulk"
+
+## The Boiler. Until now the ONLY object in the port with no art at all — four
+## cylinders, two toruses, a box and a quad assembled in `_build_boiler` — and at
+## the bottom centre of every frame at the largest apparent size of anything on
+## the deck, which made it read as placeholder next to thirty painted assets.
+##
+## The height is NOT a taste number and must not be raised casually. The browser
+## sets `boilerH` to 132 with the note "a flat engine block, not a tower", and
+## this port's own first 3D pass built a 300-unit drum that hid the captain for
+## the first second of every run — she spawns 130 units in front of this thing.
+## 168 buys the chimney pipes the primitives never had and stays under her crown.
+const BOILER_MODEL := "boiler"
+const BOILER_HEIGHT := 168.0
+
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
@@ -130,6 +191,12 @@ var _peak_decals := 0
 var _peak_billboards := 0
 var _rigs: Dictionary = {}            ## key -> SkyGearRig3D, for anything with a model
 var _no_model: Dictionary = {}        ## kinds we have already looked for and not found
+var _prop_models: Dictionary = {}     ## key -> Node3D, a static generated mesh in use
+var _free_prop_models: Dictionary = {} ## model key -> Array[Node3D], hidden, reusable
+var _no_prop_model: Dictionary = {}   ## model keys already looked for and not found
+var _boiler_glow: OmniLight3D         ## the furnace lamp, on either Boiler body
+var _boiler_mats: Array[StandardMaterial3D] = []   ## override copies, tinted by health
+var _boiler_base: PackedColorArray = PackedColorArray()  ## their albedo at full health
 var _stream: Array[MeshInstance3D] = []
 var _stream_v: PackedFloat32Array = PackedFloat32Array()
 var _stream_len: PackedFloat32Array = PackedFloat32Array()   ## length, width, per streak
@@ -776,6 +843,13 @@ func _build_boiler() -> void:
 	boiler.position = Vector3(SkyGearGame.BOILER_POSITION.x * WORLD_SCALE, 0.0,
 		SkyGearGame.BOILER_POSITION.y * WORLD_SCALE)
 	add_child(boiler)
+	## A generated mesh if one has been wrapped, the primitives below if not.
+	## Both paths stay, and this one is not like the props: a prop that fails to
+	## load falls back to a painted billboard, and there is no painted Boiler.
+	## The object you lose the run by cannot be allowed to not exist.
+	if _boiler_mesh(boiler):
+		_boiler_fire(boiler)
+		return
 	var brass := StandardMaterial3D.new()
 	brass.albedo_color = Color("#c9903c")
 	brass.metallic = 0.5
@@ -901,12 +975,104 @@ func _build_boiler() -> void:
 	bezel.material_override = bronze
 	bezel.position = Vector3(0.0, 56.0 * WORLD_SCALE, 72.0 * WORLD_SCALE)
 	boiler.add_child(bezel)
-	var glow := OmniLight3D.new()
-	glow.light_color = Color("#ff9a4a")
-	glow.light_energy = 1.7
-	glow.omni_range = 360.0 * WORLD_SCALE
-	glow.position = Vector3(0.0, 60.0 * WORLD_SCALE, 96.0 * WORLD_SCALE)
-	boiler.add_child(glow)
+	_boiler_fire(boiler)
+
+
+## The furnace light, and it belongs to the RENDERER rather than to whichever
+## body it ends up on. A hot texture in an albedo map cannot light the planking
+## the captain is standing on, and this lamp is most of what says the Boiler is
+## alive from across the deck. Shared by the mesh path and the primitive one, so
+## the two versions are lit identically and only the geometry differs.
+func _boiler_fire(boiler: Node3D) -> void:
+	_boiler_glow = OmniLight3D.new()
+	_boiler_glow.light_color = Color("#ff9a4a")
+	_boiler_glow.omni_range = 360.0 * WORLD_SCALE
+	_boiler_glow.position = Vector3(0.0, 60.0 * WORLD_SCALE, 96.0 * WORLD_SCALE)
+	boiler.add_child(_boiler_glow)
+
+
+## THE BOILER'S DAMAGE, WITHOUT A SECOND MODEL.
+##
+## A damaged variant — scorched plates, sprung seams, venting — is a second
+## generation, a second 11 MB GLB and a visible pop the moment it swaps in, for
+## an object that is at the bottom centre of the frame the whole game. This is
+## the cheaper read and it is also the better one, because it is CONTINUOUS: the
+## fire goes out as the Boiler dies.
+##
+## Which is the fiction. It is a furnace that has been kept lit for thirty years
+## (CLASS-2-DESIGN.md §1) and losing the run is that fire going out, so a lamp
+## that dims and a body that goes cold and grey say the thing the ring at its
+## feet can only count. The ring is a number; this is the object itself.
+##
+## The lamp also FLICKERS harder as it fails rather than merely dimming, because
+## a light that only fades reads as dusk falling and a light that gutters reads
+## as something wrong.
+func _sync_boiler_damage() -> void:
+	if _boiler_glow == null:
+		return
+	var life: float = clampf(game.boiler_hp / maxf(1.0, game.boiler_max_hp), 0.0, 1.0)
+	## Never all the way out while the run is alive: at 1 hp left the Boiler is
+	## still the brightest thing on the deck and still the thing you are stood on
+	## defending. A quarter of the light is a dying fire, no light is a prop.
+	var gutter: float = 1.0 if life > 0.35 else 0.72 + 0.28 * sin(_flicker * 13.0)
+	_boiler_glow.light_energy = (0.45 + 1.25 * life) * gutter
+	## And the body goes cold and grey. There is no `modulate` on a Node3D, and
+	## `set_instance_shader_parameter` is a no-op against a StandardMaterial3D —
+	## it needs a shader that declares the uniform, which an imported glTF
+	## material does not. So the tint is written to per-surface OVERRIDE copies
+	## made once at load, which is also what stops the Boiler dyeing every other
+	## object that shares a material with it.
+	var chill: float = 1.0 - life
+	for i in _boiler_mats.size():
+		_boiler_mats[i].albedo_color = _boiler_base[i].lerp(
+			Color(0.40, 0.38, 0.42) * _boiler_base[i].a, chill)
+
+
+## The generated Boiler, if `tools/static_model.gd` has wrapped one.
+##
+## Not `_sync_prop_model`: this is built once at startup, never moves, is never
+## pooled and never recycled, and routing it through the per-frame prop path
+## would put the one permanent object in the scene on a free list.
+func _boiler_mesh(parent: Node3D) -> bool:
+	var path := model_path(BOILER_MODEL)
+	if not ResourceLoader.exists(path):
+		return false
+	var packed := load(path) as PackedScene
+	var node: Node3D = packed.instantiate() as Node3D if packed != null else null
+	if node == null:
+		return false
+	var measured: float = float(node.get_meta("model_height", 0.0))
+	if measured <= 0.0:
+		push_warning("boiler: no model_height - falling back to the primitives")
+		node.queue_free()
+		return false
+	var s: float = BOILER_HEIGHT * WORLD_SCALE / measured
+	node.scale = Vector3(s, s, s)
+	## LAYER_FIGURES, which is a CHANGE from the primitive Boiler and a
+	## deliberate one. The Boiler's own health ring is a 330-unit decal centred
+	## on it, and against the primitives it projects up the dome and reads as a
+	## halo round the objective rather than as a mark on the planking. The layer
+	## comment at the top of this file says a ring belongs on the deck; this is
+	## the largest object it was getting that wrong on.
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		mi.layers = LAYER_FIGURES
+		if mi.mesh == null:
+			continue
+		## Own copies of the materials, made once, so `_sync_boiler_damage` has
+		## something it can write a tint to every frame without editing the
+		## imported resource — which is shared, cached by path, and would follow
+		## the change into the next scene that loaded it.
+		for surface in mi.mesh.get_surface_count():
+			var mat := mi.get_active_material(surface) as StandardMaterial3D
+			if mat == null:
+				continue
+			var own := mat.duplicate() as StandardMaterial3D
+			mi.set_surface_override_material(surface, own)
+			_boiler_mats.append(own)
+			_boiler_base.append(own.albedo_color)
+	parent.add_child(node)
+	return true
 
 
 ## PAINTED ART BEATS GENERATED ART.
@@ -1286,6 +1452,23 @@ func _recycle() -> void:
 			var rig: SkyGearRig3D = _rigs[key]
 			rig.queue_free()
 			_rigs.erase(key)
+	## Prop meshes go back on a shelf instead, one shelf per model. They are not
+	## rigs — there is no skeleton or AnimationPlayer to hold — and salvage is the
+	## case that decides it: a pickup appears and is collected several times a
+	## second all run, so freeing its mesh on collection is `load` and
+	## `instantiate` on a repeating loop for a thing that will be needed again in
+	## two seconds.
+	for key in _prop_models.keys():
+		if not _used.has(key):
+			var node: Node3D = _prop_models[key]
+			node.visible = false
+			var model_key: String = str(node.get_meta("prop_model", ""))
+			if not _free_prop_models.has(model_key):
+				_free_prop_models[model_key] = []
+			_free_prop_models[model_key].append(node)
+			_prop_models.erase(key)
+	for model_key in _free_prop_models:
+		_trim(_free_prop_models[model_key])
 	_trim(_free_billboards)
 	_trim(_free_decals)
 
@@ -1925,7 +2108,11 @@ func _sync_all(delta: float) -> void:
 		## decides whether a keg reads as ordnance or as a footstool.
 		var ph: float = float(PROP_HEIGHT.get(prop.prop_type, 110.0))
 		_shadow(pkey, prop.global_position, 80.0, 0.45)
-		_place(pkey, _texture(prop.texture_path()), prop.global_position, ph)
+		## A mesh if one has been generated for this prop_type, the painted
+		## billboard if not — PROP_MODEL is the switch and both paths stay.
+		if not _sync_prop_model(pkey, str(PROP_MODEL.get(prop.prop_type, "")),
+				prop.global_position, ph):
+			_place(pkey, _texture(prop.texture_path()), prop.global_position, ph)
 	for i in game.crew.size():
 		var c: Dictionary = game.crew[i]
 		if bool(c.dead):
@@ -1982,7 +2169,28 @@ func _sync_all(delta: float) -> void:
 		var art := "res://assets/art/props/cannon_deck_destroyed.png" if bool(t.dead) \
 			else "res://assets/art/props/cannon_deck.png"
 		_shadow("t%d" % i, t.position, 118.0, 0.5)
-		_place("t%d" % i, _texture(art), t.position, 130.0)
+		## Only the LIVE cannon is a mesh. A wrecked one is a different object —
+		## the painted version is a burst barrel lying in its own debris, not the
+		## same gun tinted darker — and there is no model of it, so a dead turret
+		## keeps its art and the pair still read as before and after.
+		##
+		## -90 degrees, the one prop that is not turned to face the player. These
+		## guns shoot boarders, boarders come from the bow, and the bow is -z; a
+		## cannon aimed at the camera is aimed at the deck it is defending.
+		##
+		## Ninety and not a hundred and eighty, which is what this said first:
+		## the generated cannon's barrel lies along the model's X axis, not its
+		## Z, so half a turn left all three guns broadside across the deck. Found
+		## by looking at .shots/props/stern.png, which is the only way to find it.
+		##
+		## A SEPARATE KEY for the mesh. `_recycle` shelves anything `_used` did
+		## not claim this frame, and a turret is the one thing here that swaps
+		## representation mid-run: sharing one key would mark it used by the
+		## billboard on the frame it died, so the intact brass cannon would never
+		## be shelved and would stand inside its own wreck for the rest of the run.
+		if bool(t.dead) or not _sync_prop_model("tm%d" % i, TURRET_MODEL,
+				t.position, 130.0, 0.0, -90.0):
+			_place("t%d" % i, _texture(art), t.position, 130.0)
 
 	## Ordnance in flight. These were missing entirely, which is why the fight
 	## looked static: half of what is on screen at any moment in the browser is
@@ -2012,13 +2220,18 @@ func _sync_all(delta: float) -> void:
 		var sid: int = int(s.get("id", i))
 		var bob: float = sin(_flicker * 3.4 + float(sid) * 1.7) * 9.0
 		_shadow("s%d" % sid, s.position, 56.0, 0.35)
-		_place("s%d" % sid, _texture("res://assets/art/props/salvage_pile.png"),
-			s.position, 62.0, bob)
+		## The bob goes in as `lift`, which for a mesh is height above the deck
+		## and for the billboard is added to its half-height. Both end up the same
+		## distance off the planking, which is why the same number serves.
+		if not _sync_prop_model("s%d" % sid, SALVAGE_MODEL, s.position, 62.0, bob):
+			_place("s%d" % sid, _texture("res://assets/art/props/salvage_pile.png"),
+				s.position, 62.0, bob)
 
 	## The Boiler's health, as a ring on the planking around it.
 	_decal("boiler_ring", game.boiler_position, 0.0, 330.0, 330.0, _ring_texture(),
 		Color(0.91, 0.77, 0.46, 0.55) if game.boiler_hp > game.boiler_max_hp * 0.3
 		else Color(1.0, 0.30, 0.22, 0.65))
+	_sync_boiler_damage()
 
 	## Lanterns and braziers are light sources in a dark scene, and in 3D that
 	## can simply be true rather than painted on. They flicker, because a fixed
@@ -2070,7 +2283,31 @@ func _sync_all(delta: float) -> void:
 			else ("res://assets/art/props/boarding_hulk_open.png" if vulnerable
 				else "res://assets/art/props/boarding_hulk_sealed.png")
 		_shadow("hulk", game.hulk.position, 300.0, 0.5)
-		_place("hulk", _texture(art), game.hulk.position, 420.0)
+		## A mesh for the OPEN hulk only, and the painted art for the other two
+		## states. That is not a shortcut, it is what the three pictures are:
+		## the ramps are already down in all three, and the whole difference
+		## between them is the round door in the middle — shut, blazing, or
+		## blown apart. So one generation buys the state the player actually
+		## fights in (`game.gd` sets `vulnerable` true on the frame it grapples
+		## on and never sets it false, so SEALED is currently unreachable), and
+		## the wreck stays painted because a wreck is a different object rather
+		## than a darker one. Generating three would have been worse than one:
+		## Meshy returns three different vehicles from three prompts, and the
+		## swap would pop the whole silhouette mid-fight.
+		##
+		## Its own key, like the deck cannon's, so that when the hulk breaks the
+		## mesh is left unclaimed and shelved instead of standing inside its own
+		## wreckage for the rest of the wave.
+		if broken or not vulnerable or not _sync_prop_model(
+				"hulkm", HULK_MODEL, game.hulk.position, 420.0):
+			_place("hulk", _texture(art), game.hulk.position, 420.0)
+		elif not broken:
+			## The furnace in its throat, as light rather than as texture. Same
+			## argument as the Boiler's lamp: an emissive map cannot throw
+			## anything onto the deck the boarders are walking down, and "it is
+			## open" is the single most important thing this object says.
+			_spark("hulkfire", game.hulk.position + Vector2(0.0, 70.0), 190.0,
+				120.0, Color("#ff8a3a"))
 
 
 ## The captain, as a rigged, animated mesh.
@@ -2212,6 +2449,95 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 	rig.want(doing, speed, attack_clock if attacking else 0.0)
 	rig.place(ground, heading, WORLD_SCALE, delta)
 	return true
+
+
+## Stand a static generated mesh where a billboard would have gone. Returns false
+## when that model is not on disk, so every caller falls back to `_place` and the
+## painted art — the same always-both-paths rule `_sync_rig` follows for boarders,
+## for the same reason: the props become meshes one at a time.
+##
+## NOT a `SkyGearRig3D`. That class exists for a skeleton, an AnimationPlayer, a
+## blend, a hit flash and a squash, and a crate has none of them. There are
+## twenty-eight rows in `PROP_LAYOUT`; running an animation tree on every barrel
+## on the deck is twenty-eight of something for nothing.
+##
+## `yaw_degrees` is about +Y and measured from FACING THE CAMERA. The camera sits
+## at +z looking toward -z — `_track_camera` focuses on `p.y + back` with `back`
+## positive — and `tools/static_model.gd` has already turned every model so its
+## own front is +Z. So zero is right for everything whose read is one face
+## pointed at the player, and only the cannon disagrees.
+func _sync_prop_model(key: String, model_key: String, ground: Vector2,
+		height_units: float, lift: float = 0.0, yaw_degrees: float = 0.0) -> bool:
+	## An empty key is a prop_type with no row in PROP_MODEL, which is the normal
+	## way of saying "this one is still painted" — not an error, and not worth a
+	## path lookup on `res://assets/models///.tscn` to discover.
+	if model_key == "":
+		return false
+	var node: Node3D = _prop_models.get(key)
+	if node == null:
+		node = _claim_prop_model(model_key)
+		if node == null:
+			return false
+		_prop_models[key] = node
+	_used[key] = true
+	## Written every frame rather than once on claim. The salvage pickups bob, so
+	## the position has to move anyway, and PROP_HEIGHT is data another session
+	## can edit — a scale cached at claim time would keep the old number for as
+	## long as that prop lived, which is the whole run.
+	var measured: float = float(node.get_meta("model_height", 0.0))
+	var s: float = height_units * WORLD_SCALE / maxf(0.0001, measured)
+	node.scale = Vector3(s, s, s)
+	node.rotation.y = deg_to_rad(yaw_degrees)
+	node.position = Vector3(ground.x * WORLD_SCALE, lift * WORLD_SCALE,
+		ground.y * WORLD_SCALE)
+	return true
+
+
+## One instance of a generated prop scene, from the free list if one is waiting.
+##
+## The free list is per MODEL KEY, not one shared pool. A `Sprite3D` is
+## interchangeable because `_place` overwrites every property of it; a mesh is
+## not — handing a crate's node to a lantern would render a crate.
+func _claim_prop_model(model_key: String) -> Node3D:
+	var free: Array = _free_prop_models.get(model_key, [])
+	if not free.is_empty():
+		var reused: Node3D = free.pop_back()
+		reused.visible = true
+		return reused
+	if _no_prop_model.has(model_key):
+		return null
+	var path := model_path(model_key)
+	if not ResourceLoader.exists(path):
+		_no_prop_model[model_key] = true
+		return null
+	var packed := load(path) as PackedScene
+	var node: Node3D = packed.instantiate() as Node3D if packed != null else null
+	if node == null:
+		_no_prop_model[model_key] = true
+		return null
+	## `model_height` is written into the scene by `tools/static_model.gd`, which
+	## measures the UNION of every MeshInstance3D. Without it there is no honest
+	## number to scale by and the prop would be whatever size the exporter felt
+	## like — so fall back to the billboard rather than guess. This is also the
+	## symptom of the pruning bug: a .glb.import left on EXTRACT references
+	## sibling PNGs that are no longer there and instantiates with NO MESHES.
+	if float(node.get_meta("model_height", 0.0)) <= 0.0:
+		push_warning("%s: no model_height on %s - re-run tools/static_model.gd"
+			% [model_key, path])
+		node.queue_free()
+		_no_prop_model[model_key] = true
+		return null
+	## LAYER_FIGURES, exactly like the billboard it replaces. Effect decals are
+	## culled against that layer (see `_decal`), so a crate on LAYER_WORLD would
+	## suddenly start collecting every mortar ring and scorch mark that crossed
+	## it — painted around its sides as though the crate were floor.
+	for child in node.find_children("*", "MeshInstance3D", true, false):
+		(child as MeshInstance3D).layers = LAYER_FIGURES
+	## Stamped on the node so `_recycle` can shelve it on the right list without
+	## carrying a second key -> model map that could disagree with this one.
+	node.set_meta("prop_model", model_key)
+	add_child(node)
+	return node
 
 
 ## One figure: the right painted view, mirrored if it is heading right, running

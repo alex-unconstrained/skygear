@@ -1,0 +1,21 @@
+{
+  "key": "powder_keg",
+  "ai_model": "meshy-6",
+  "prompt": "A steampunk explosive powder keg: a squat egg-shaped riveted iron barrel; two wide brass hoops around its belly; a brass valve stack and short fuse chimney on top; a round brass pressure gauge on one shoulder; a brass carrying handle on each side; a red painted flame hazard triangle on the front; short vented feet. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Dark blue-black riveted iron shell, two broad polished brass hoops, brass valve stack and gauge bezel, a bright red painted flame hazard triangle, oxidised copper patina in the seams. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 8000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb836-6212-73fc-8e12-c812e8e03cb3",
+  "refine_task": "019fb838-395b-7457-8534-4448629faa92",
+  "credits": 30,
+  "files": [
+    "powder_keg.glb",
+    "powder_keg.fbx",
+    "powder_keg_base_color.png",
+    "powder_keg_metallic.png",
+    "powder_keg_roughness.png",
+    "powder_keg_normal.png",
+    "powder_keg_emission.png",
+    "powder_keg_thumb.png"
+  ]
+}

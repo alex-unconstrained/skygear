@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/cannon_deck/cannon_deck.glb" id="1_sgxte"]
+
+[node name="Cannon Deck" type="Node3D" unique_id=652190421]
+metadata/model_height = 0.950616
+
+[node name="Holder" type="Node3D" parent="." unique_id=1026845701]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0003899932, 0.477161, 0.0004954934)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1047977309 instance=ExtResource("1_sgxte")]

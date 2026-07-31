@@ -1,0 +1,21 @@
+{
+  "key": "lantern_post",
+  "ai_model": "meshy-6",
+  "prompt": "A cast-iron airship deck lamp post: a stepped square flared foot; a tall slim fluted column banded with brass; a small round gauge and a brass valve wheel partway up it; a six-sided lantern head with a brass frame and warm amber glass panes lit from within; a small finial spike on the cap. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Blackened cast iron column with warm polished brass bands and fittings, glowing warm amber glass panes in the lantern head, oxidised copper patina in the recesses. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 10000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb83a-3a59-79ea-baf1-6d063c18d5b0",
+  "refine_task": "019fb83b-9201-7145-8db9-e4e1139dc691",
+  "credits": 30,
+  "files": [
+    "lantern_post.glb",
+    "lantern_post.fbx",
+    "lantern_post_base_color.png",
+    "lantern_post_metallic.png",
+    "lantern_post_roughness.png",
+    "lantern_post_normal.png",
+    "lantern_post_emission.png",
+    "lantern_post_thumb.png"
+  ]
+}

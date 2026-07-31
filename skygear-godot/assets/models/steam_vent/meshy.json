@@ -1,0 +1,21 @@
+{
+  "key": "steam_vent",
+  "ai_model": "meshy-6",
+  "prompt": "A squat brass airship deck vent: a round riveted brass drum standing on a wide bolted flange plate; a dark ribbed cap on top; two copper pipes arcing up out of the base and back into the drum's sides; a round gauge on the front; a valve wheel on each side; a row of tall louvre slots glowing hot orange at the bottom. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Warm polished brass drum with blackened steel cap and banding, bright copper pipes, oxidised copper patina in the recesses, hot orange light in the louvre slots at the base. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 10000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb841-94b8-7629-b06a-3e49743f489f",
+  "refine_task": "019fb843-e6b7-743c-94df-ebad9b5b11d4",
+  "credits": 30,
+  "files": [
+    "steam_vent.glb",
+    "steam_vent.fbx",
+    "steam_vent_base_color.png",
+    "steam_vent_metallic.png",
+    "steam_vent_roughness.png",
+    "steam_vent_normal.png",
+    "steam_vent_emission.png",
+    "steam_vent_thumb.png"
+  ]
+}

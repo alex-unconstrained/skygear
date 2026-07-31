@@ -22,6 +22,7 @@ third shape:
   python tools/meshy.py run sword               # generate the whole batch and download
   python tools/meshy.py run all --only sword_cutlass
   python tools/meshy.py fetch sword             # re-poll and download, submit nothing
+  python tools/meshy.py prune props             # drop the 67 MB per asset we never load
   python tools/meshy.py show sword_cutlass      # raw task JSON from the API
 
 THE API, as of the docs at docs.meshy.ai (checked before this was written):
@@ -54,6 +55,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 import urllib.error
@@ -126,6 +128,12 @@ PALETTE = (
 # across thirty painted assets and everything generated beside them.
 STYLE_3D = "Stylised game-ready steampunk airship prop: " + PALETTE
 STYLE_FIGURE = "Stylised game-ready steampunk airship character: " + PALETTE
+# Three nouns now. The boarding hulk is the enemy's siege engine and NOT a ship,
+# and the first draft of its frame said "No airship" while this line two hundred
+# characters later said "airship prop" — the third time in this file that one
+# prompt has carried both halves of an argument. The word is removed rather than
+# negated; see HULK.
+STYLE_VEHICLE = "Stylised game-ready steampunk siege vehicle: " + PALETTE
 
 # The frame every weapon in this manifest is generated in. CONCEPT's job in the
 # 2D tool was to keep the reference sheet legible; this one's job is to keep the
@@ -143,9 +151,29 @@ PROP = (
 SURFACE = (
     "Hand-painted stylised game texture: blackened gunmetal, warm polished brass, "
     "deep oxblood leather, dull oxidised-copper patina settled in the recesses, "
-    "bare worn metal along the working edges. Any furnace, grate, vent or ember "
-    "is hot orange; nothing else emits light. Broad flat colour areas, no baked "
-    "lighting, no baked shadow, no text, no logos."
+    "bare worn metal along the working edges. Any furnace, grate, vent, ember or "
+    "lamp flame is hot orange; nothing else emits light. Broad flat colour areas, "
+    "no baked lighting, no baked shadow, no text, no logos."
+)
+
+# "or lamp flame" was added for the deck props. The list is the ONE place this
+# prompt says what is allowed to emit, and the lantern post is a lamp — without
+# it the per-asset line asking for lit amber panes and this line saying "nothing
+# else emits light" are the furnace knight's contradiction again, one asset later.
+# Inert for the five boarders: none of them owns a lamp, and their prompts are
+# already recorded verbatim in their own meshy.json sidecars.
+
+# The one prop family that is not made of metal. Same failure as the gremlin:
+# SURFACE names five metals and no timber, and a crate textured from it comes
+# back as a riveted brass strongbox — which is a different prop. Rope is named
+# here too, because crate_stack is lashed with it and "cord" painted in brass is
+# the same mistake in miniature.
+SURFACE_WOOD = (
+    "Hand-painted stylised game texture: weathered dark timber planks with open "
+    "grain, warm polished brass corner brackets and rivets, deep oxblood leather "
+    "strapping, coarse pale hemp rope, dull oxidised-copper patina in the "
+    "recesses. Nothing emits light. Broad flat colour areas, no baked lighting, "
+    "no baked shadow, no text, no logos."
 )
 
 # The one boarder that is not made of metal. SURFACE names five metals and no
@@ -169,6 +197,54 @@ FIGURE = (
     "One character alone, standing upright, facing forward, feet flat on the "
     "ground, arms clear of the body. No base, no plinth, no ground plane, no "
     "scenery, no duplicate, no text. " + STYLE_FIGURE
+)
+
+# The frame for a piece of deck furniture. PROP is about a weapon in a hand that
+# does not exist yet; this is about an object that already sits on planking in
+# thirty painted assets, and its clauses are the three ways a generator ruins one:
+#
+#   * it invents a display base. Every prop here is placed by PROP_LAYOUT at a
+#     measured y=0 and `static_model.gd` stands it on its own measured floor, so
+#     a plinth is 40 units of nothing lifting the object off the deck.
+#   * it invents a SCENE — a crate wants a warehouse, a lamp post wants a street.
+#     Anything that arrives with the object is geometry inside the same GLB and
+#     inside the AABB the height is measured from.
+#   * "no text" is NOT said the way PROP says it. The powder keg's read at a
+#     41-degree camera is a red flame triangle on a blue-black belly; banning
+#     text outright bans the one marking that tells a keg from a barrel. So the
+#     negative here is lettering and numbers, which is what we actually mean.
+DECK = (
+    "One object alone, whole and complete, standing on nothing. No base, plinth "
+    "or ground plane, no wall or scenery, no duplicate, no lettering or "
+    "numbers. " + STYLE_3D
+)
+
+# The boarding hulk gets its own frame for one reason: it must not come back as
+# a ship. It is the enemy's boarding craft, rammed against our rail, and the
+# thing it replaces is a battering ram with two ramps down — a handsome vessel
+# would be wrong here even if it were beautiful.
+#
+# The way that is asked for matters, and the first draft got it wrong in the
+# way this file has already been burned by twice. It said "No airship" and then
+# inherited STYLE_3D, which says "airship prop" two hundred characters later.
+# One prompt, both halves of the argument, resolved whichever way it likes.
+#
+# So the word is REMOVED rather than negated — STYLE_VEHICLE says siege vehicle
+# and nothing here says ship at all — and the only negatives left are pieces of
+# geometry that are unambiguously separable: a balloon, a sail, a mast, rigging.
+# Those four are what "handsome airship" actually looks like.
+#
+# DECK's "standing on nothing" is kept and its "upright and level" is not. This
+# thing is rammed in against a rail, and the one proportion that has to survive
+# is that it is far wider than it is tall.
+#
+# "One VEHICLE alone" in v1, and that word did most of the damage on its own —
+# see the v2 note at the asset. It is a siege machine now, which is a thing that
+# has a front and sits still.
+HULK = (
+    "One siege machine alone, standing on nothing. No balloon, no sail, no mast, "
+    "no rigging, no ground plane, no scenery, no duplicate, no lettering. "
+    + STYLE_VEHICLE
 )
 
 # The gunner is the one boarder with nothing to stand on. Telling a flying
@@ -329,9 +405,231 @@ ASSETS = [
       "orange furnace grate, verdigris teal in the seams, bare worn steel "
       "around the cannon mouths.",
       "boarders", 20000, FIGURE),
+
+    # --- the Boiler -----------------------------------------------------------
+    # The objective. `boiler_hp` reaching zero ends the run, it sits at the
+    # bottom centre of frame for the entire game at the largest apparent size of
+    # anything on the deck, and until now it was the ONLY object in the port with
+    # no art at all — `SkyGearView3D._build_boiler` assembles it out of four
+    # cylinders, two toruses, a box and a quad. Everything around it is
+    # hand-painted; it is smooth primitives, and at that size the difference is
+    # unmissable.
+    #
+    # THE ONE CONSTRAINT THAT IS NOT NEGOTIABLE IS THE PROPORTION, and it is a
+    # gameplay constraint rather than a taste one. The browser sets `boilerH` to
+    # 132 with the note "a flat engine block, not a tower", and the port's own
+    # comment records what happened when that was ignored: a 300-unit drum with a
+    # funnel hid the captain for the first second of every run, because she
+    # spawns 130 units in front of it. So "wider than it is tall" leads the
+    # subject, is the first thing said, and is worth more here than any detail.
+    #
+    # The furnace mouth is called out as being in ONE FACE for the same reason
+    # the deck props are: this thing is seen from directly astern at a locked
+    # 41-degree camera and is never rotated, so a mouth on the far side is a
+    # mouth nobody ever sees. Everything expensive goes on the face that shows.
+    # v2. v1 came back a WINE CASK: a horizontal wooden barrel lying on rollers,
+    # no furnace mouth, no fire, no chimneys, brown instead of brass. Three
+    # mistakes, and all three are ones this file has already made once:
+    #
+    #   * "a broad riveted brass DRUM" plus "wider than it is tall" was read as a
+    #     cylinder lying DOWN. Both clauses point that way and neither says which
+    #     end is up. The reference is a squat potbelly stove standing on its flat
+    #     end, and v1 never said "upright" once. Same failure as the scrapper's
+    #     proportion: described in one word, against a frame, and lost.
+    #   * the furnace mouth — the ONE feature that makes this a boiler rather
+    #     than a barrel, and the only thing the browser's procedural version
+    #     actually draws — was the third clause. It now leads the detail, right
+    #     after the posture.
+    #   * "a bolted iron BASE ring" in the first draft, against DECK's "No base".
+    #     Caught on the dry run before it was sent. The lantern's "stepped square
+    #     flared foot" and the keg's "short vented feet" both came back correct
+    #     from the same frame, so the clash is with the WORD, not with the idea
+    #     of something to stand on. There is no such clause now at all.
+    A("boiler",
+      "A squat steampunk furnace boiler: a fat upright riveted brass barrel "
+      "standing on its flat end, wider than it is tall. A big arched furnace "
+      "door low in its front with a slatted iron grate and fire blazing behind "
+      "it; two iron hoops round the barrel; a round gauge and a valve wheel "
+      "above the door; two short chimney pipes rising at the back.",
+      "Warm polished brass barrel with dark riveted iron hoops, heavy soot "
+      "blackening around the furnace door, hot orange fire burning behind the "
+      "grate, oxidised copper patina on the chimney pipes, a cream gauge dial.",
+      "props", 20000, DECK),
+
+    # --- the boarding hulk ----------------------------------------------------
+    # The largest sprite in the game after the Colossus, sitting at the bow
+    # directly above the three lanes the player is watching, which is why it is
+    # the most visible remaining one and the best return per credit here.
+    #
+    # ONE MESH FOR THREE PAINTED STATES, and the reason is in the simulation
+    # rather than in the art. `game.gd` sets `hulk.vulnerable = true` on the
+    # frame the hulk grapples on and never sets it false, so SEALED is a state
+    # nothing can currently reach; and the destroyed hulk is a different object,
+    # not a darker one — the centre plating is blown out and hanging. So this
+    # prompt describes the state the player actually fights, OPEN, and
+    # `SkyGearView3D` keeps the painted art for the other two. See the comment
+    # at the switch there.
+    #
+    # Three generations would be worse than one, not better: Meshy would return
+    # three different vehicles from three prompts, and swapping between them
+    # would pop the whole silhouette mid-fight. What changes between the painted
+    # states is the iris in the middle, and a glow is something the renderer can
+    # already do.
+    #
+    # Written for SILHOUETTE, deliberately. It is seen almost edge-on from a
+    # locked 41-degree camera and is partly off the top of frame most of the
+    # time, so the two funnels, the two dropped ramps and the low wide wedge are
+    # the whole read; the rivets are not.
+    # v2. v1 came back a SUBMARINE: a long cigar-shaped gondola lying on its
+    # side, an oval hole in the TOP, two little fins where the ramps should be.
+    # Exactly the handsome-vessel failure the frame was written against, which
+    # arrived anyway, and the frame was part of the reason:
+    #
+    #   * "craft" and "vehicle" both mean a thing that travels, and a steampunk
+    #     thing that travels and is longer than it is tall is a gondola. Both
+    #     words are gone; it is a siege machine and a fortress gate now.
+    #   * "far wider than it is tall" does not say WHICH horizontal axis, so it
+    #     grew along the one pointing away from the camera. What is actually
+    #     true of the painted hulk is that it is a broad flat FRONT WALL — you
+    #     only ever see its face — so v2 says wall, and says twice as wide as
+    #     tall against that wall rather than against the object.
+    #   * "an iris hatch in its front" put a hatch in the top, because nothing
+    #     had established where the front was. The wall establishes it, and the
+    #     door is now in the middle of the wall rather than in "its front".
+    A("boarding_hulk",
+      "A wide armoured siege ram front, like a fortress gate: a broad flat front "
+      "wall of dark iron plate and dark timber planking, twice as wide as it is "
+      "tall, bound by vertical brass straps; a large round iron door in the "
+      "middle of that wall, standing open with fire inside; a heavy timber ramp "
+      "lowered flat on each side; a short chimney at each top corner.",
+      "Dark blue-grey iron plate and near-black weathered timber planking, warm "
+      "polished brass strap bands and rivets, oxidised copper pipework, bare "
+      "worn steel along the ramp edges, a hot orange furnace burning inside the "
+      "open round door.",
+      "props", 20000, HULK),
+
+    # --- the deck props -------------------------------------------------------
+    # Same argument as the boarders and it is worth restating, because it is the
+    # only thing that decides whether one of these ships: every one of these
+    # already exists as a painted billboard in assets/art/props/ and has been on
+    # the deck for the whole port. The job of the prompt is NOT to design a
+    # crate. It is to describe the crate that is already on disk closely enough
+    # that a player cannot tell which of the two they are looking at, because a
+    # deck with eight generated props and twelve painted ones is only coherent if
+    # they are the same objects.
+    #
+    # So each subject is written off the PNG, feature by feature, in the order
+    # you would notice them at a locked 41-degree camera. Nothing is "improved".
+    #
+    # The keys are the ART filenames rather than the prop_type strings, because
+    # the PNG is the thing being matched and the review is "hold them side by
+    # side". `SkyGearView3D.PROP_MODEL` maps prop_type to these, and that table
+    # is the per-prop mesh/billboard switch.
+    #
+    # WHY THERE IS NO SEPARATE "barrel": barrel.png IS the powder keg. It has the
+    # fuse chimney, the pressure gauge and the red flame triangle painted on it,
+    # and `prop.gd` loads it for prop_type "keg". Generating a plain barrel as
+    # well would have been 30 credits for a prop nothing on the deck references.
+    #
+    # Polycounts are well under the weapons' 12k: a keg is 100 ground units tall
+    # against the captain's 176, and there are four of them on the deck at once.
+    A("crate_stack",
+      "Three wooden shipping crates stacked one on another into a tall tower, "
+      "each a plank box with brass corner brackets and rivets; a thick rope "
+      "lashing knotted over the top and running down two faces; one square "
+      "copper patch plate on the bottom crate.",
+      "Weathered dark timber planks with open grain, warm polished brass corner "
+      "brackets and rivets, coarse pale hemp rope lashing, one green oxidised "
+      "copper patch plate.",
+      "props", 8000, DECK, SURFACE_WOOD),
+
+    A("crate_small",
+      "One small wooden shipping crate, a plank cube with dark blue-steel corner "
+      "brackets and rivets on every corner, and one oxblood leather strap "
+      "running over the top and down the front face with a brass buckle.",
+      "Warm brown timber planks with open grain, dark blue-steel corner brackets "
+      "with brass rivets, a deep oxblood leather strap and a polished brass "
+      "buckle.",
+      "props", 6000, DECK, SURFACE_WOOD),
+
+    A("powder_keg",
+      "A steampunk explosive powder keg: a squat egg-shaped riveted iron barrel; "
+      "two wide brass hoops around its belly; a brass valve stack and short fuse "
+      "chimney on top; a round brass pressure gauge on one shoulder; a brass "
+      "carrying handle on each side; a red painted flame hazard triangle on the "
+      "front; short vented feet.",
+      "Dark blue-black riveted iron shell, two broad polished brass hoops, brass "
+      "valve stack and gauge bezel, a bright red painted flame hazard triangle, "
+      "oxidised copper patina in the seams.",
+      "props", 8000, DECK),
+
+    A("lantern_post",
+      "A cast-iron airship deck lamp post: a stepped square flared foot; a tall "
+      "slim fluted column banded with brass; a small round gauge and a brass "
+      "valve wheel partway up it; a six-sided lantern head with a brass frame "
+      "and warm amber glass panes lit from within; a small finial spike on the "
+      "cap.",
+      "Blackened cast iron column with warm polished brass bands and fittings, "
+      "glowing warm amber glass panes in the lantern head, oxidised copper "
+      "patina in the recesses.",
+      "props", 10000, DECK),
+
+    A("brazier",
+      "A wide shallow iron fire bowl on three splayed iron legs, the bowl bound "
+      "by two riveted iron bands, heaped with burning coals that glow hot "
+      "orange.",
+      "Rust-brown weathered iron bowl with dark riveted bands, charred black "
+      "timber, and coals burning hot orange in the centre.",
+      "props", 6000, DECK),
+
+    A("steam_vent",
+      "A squat brass airship deck vent: a round riveted brass drum standing on a "
+      "wide bolted flange plate; a dark ribbed cap on top; two copper pipes "
+      "arcing up out of the base and back into the drum's sides; a round gauge "
+      "on the front; a valve wheel on each side; a row of tall louvre slots "
+      "glowing hot orange at the bottom.",
+      "Warm polished brass drum with blackened steel cap and banding, bright "
+      "copper pipes, oxidised copper patina in the recesses, hot orange light in "
+      "the louvre slots at the base.",
+      "props", 10000, DECK),
+
+    A("cannon_deck",
+      "A short steampunk deck cannon on a pivot mount: a heavy blackened steel "
+      "barrel with a wide brass muzzle ring and two brass reinforcing bands, "
+      "cradled in a steel yoke; a large brass elevation gear wheel on one side; "
+      "a small pressure gauge; an octagonal riveted base carrying a rope winch "
+      "drum.",
+      "Blackened gunmetal barrel with warm polished brass muzzle ring, bands and "
+      "gear wheel, oxidised copper patina in the recesses, bare worn steel at "
+      "the muzzle, dark red-brown iron base.",
+      "props", 12000, DECK),
+
+    A("salvage_pile",
+      "A low loose heap of salvaged machinery lying flat: a dozen brass cogs of "
+      "different sizes leaning against each other; one length of copper pipe "
+      "across them; a round brass gauge face on top; a coiled blue-steel spring "
+      "at one side.",
+      "Warm polished brass cogs of varying tarnish, bright copper pipe, "
+      "blue-steel spring, oxidised copper patina in the recesses, a cream gauge "
+      "dial.",
+      "props", 8000, DECK),
+
+    # In the manifest, deliberately NOT generated, and the reason is the same one
+    # that keeps the furnace knight painted: it would not be an improvement.
+    # rope_coil is 30 ground units tall — the flattest, smallest thing on the
+    # deck, PROP_HEIGHT's minimum by a factor of two. A camera-facing billboard
+    # of a coil of rope and a mesh of a coil of rope are the same forty pixels.
+    # It is here so the next person does not have to write the prompt; running
+    # `run props` after the other eight are on disk generates exactly this one.
+    A("rope_coil",
+      "One thick coil of ship's rope lying flat, wound in three or four loose "
+      "concentric turns, the free end tucked under the outermost turn.",
+      "Coarse dark tarred hemp rope with a visible three-strand twist, pale "
+      "worn fibres on the high points.",
+      "props", 6000, DECK, SURFACE_WOOD),
 ]
 
-BATCHES = ["sword", "axe", "boarders"]
+BATCHES = ["sword", "axe", "boarders", "props"]
 
 # Generation settings. meshy-6 costs 20 credits at preview against meshy-5's 5,
 # and is the difference between a sword and a sword-shaped lump at this
@@ -671,6 +969,94 @@ def cmd_fetch(args) -> int:
     return rc
 
 
+# --- pruning ----------------------------------------------------------------
+# One finished asset arrives as about 77 MB across eight files and the renderer
+# loads exactly one of them. The other 67 MB is an FBX nobody imports and four
+# PBR maps that are ALREADY INSIDE the .glb — Meshy embeds them and also ships
+# them loose, so committing both is committing the same textures twice.
+#
+# This was done by hand for the boarders and it is four steps, one of which is
+# silent when you get it wrong, so it is a command now:
+#
+#   python tools/meshy.py prune props            # after godot --headless --import
+#
+# THE SILENT ONE is `gltf/embedded_image_handling`. Godot's default is 1,
+# EXTRACT: the importer writes the embedded textures out as PNGs beside the .glb
+# and the imported scene points at those files. Prune them and the next reimport
+# produces a scene that loads, instantiates, and contains NO MESHES — no error,
+# no warning, just a prop that is not there. 2 keeps the images inside the .glb
+# where nothing can delete them.
+#
+# The rule is a whitelist rather than a list of things to delete, because the
+# next Meshy change adds a file we have never seen and a blacklist keeps it.
+KEEP_SUFFIXES = (".glb", ".glb.import", ".tscn", ".tscn.uid",
+                 "_thumb.png", "_thumb.png.import")
+KEEP_NAMES = ("meshy.json",)
+EMBED_IMAGES = "gltf/embedded_image_handling=2"
+
+
+def prune_one(key: str, dry: bool) -> tuple[int, int]:
+    """Delete everything but the mesh. Returns (files removed, bytes freed)."""
+    out = outdir(key)
+    if not out.is_dir():
+        return (0, 0)
+    gone = freed = 0
+    for path in sorted(out.iterdir()):
+        if not path.is_file():
+            continue
+        name = path.name
+        keep = name in KEEP_NAMES or any(
+            name == key + suffix for suffix in KEEP_SUFFIXES)
+        if keep:
+            continue
+        size = path.stat().st_size
+        print("    %-6s %-30s %6.2f MB" % ("would" if dry else "rm", name, size / 1e6))
+        if not dry:
+            path.unlink()
+        gone += 1
+        freed += size
+
+    imp = out / (key + ".glb.import")
+    if not imp.exists():
+        print("    !! no %s - run `godot --path . --headless --import` FIRST, "
+              "then prune. Without the .import there is nothing to fix and the "
+              "next import will extract the textures you just deleted."
+              % imp.name)
+        return (gone, freed)
+    text = imp.read_text(encoding="utf-8")
+    if EMBED_IMAGES in text:
+        print("    ok     %s already embeds its images" % imp.name)
+    elif "gltf/embedded_image_handling=" in text:
+        fixed = re.sub(r"gltf/embedded_image_handling=\d+", EMBED_IMAGES, text)
+        print("    %-6s %s -> %s" % ("would" if dry else "set", imp.name, EMBED_IMAGES))
+        if not dry:
+            imp.write_text(fixed, encoding="utf-8")
+    else:
+        print("    %-6s %s += %s" % ("would" if dry else "add", imp.name, EMBED_IMAGES))
+        if not dry:
+            imp.write_text(text.rstrip("\n") + "\n" + EMBED_IMAGES + "\n",
+                           encoding="utf-8")
+    return (gone, freed)
+
+
+def cmd_prune(args) -> int:
+    total_files = total_bytes = 0
+    for a in select(args.batch, args.only):
+        if not delivered(a["key"]):
+            continue
+        print("== %s" % a["key"])
+        gone, freed = prune_one(a["key"], args.dry)
+        total_files += gone
+        total_bytes += freed
+    print("\n%s %d files, %.1f MB" %
+          ("would remove" if args.dry else "removed", total_files, total_bytes / 1e6))
+    if not args.dry:
+        print("now: godot --path . --headless --import      (forced reimport)\n"
+              "     godot --path . --headless --script tools/static_model.gd\n"
+              "     and CHECK the .tscn still has meshes - an empty one is silent.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -683,13 +1069,17 @@ def main() -> int:
     s.add_argument("key")
     s.set_defaults(fn=cmd_show)
 
-    for name, fn in (("run", cmd_run), ("fetch", cmd_fetch)):
+    for name, fn in (("run", cmd_run), ("fetch", cmd_fetch), ("prune", cmd_prune)):
         p = sub.add_parser(name)
         p.add_argument("batch", choices=BATCHES + ["all"])
         p.add_argument("--only", default="", help="comma-separated keys")
-        p.add_argument("--timeout", type=int, default=1800, help="seconds per task")
+        if name != "prune":
+            p.add_argument("--timeout", type=int, default=1800,
+                           help="seconds per task")
+        if name in ("run", "prune"):
+            p.add_argument("--dry", action="store_true",
+                           help="print, change nothing")
         if name == "run":
-            p.add_argument("--dry", action="store_true", help="print, send nothing")
             p.add_argument("--force", action="store_true", help="regenerate and pay again")
         p.set_defaults(fn=fn)
 
