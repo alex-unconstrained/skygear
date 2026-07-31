@@ -1414,6 +1414,47 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 		_say_free("DOWN", mid - Vector2(50.0, 8.0), 100,
 			HORIZONTAL_ALIGNMENT_CENTER, 11, Color("#ff8b6a"))
 
+	## AND THE PROMPT, once you are close enough to do something about it.
+	##
+	## The system has worked since the day it landed and no player has ever run
+	## it, because nothing on screen said it existed. A verb with no prompt is a
+	## verb nobody performs — the hint from the coach says the ability EXISTS,
+	## and this says you are standing where it works.
+	##
+	## Drawn over the gun rather than at the player: the thing being worked on is
+	## the thing the eye is already on, and a prompt pinned to the captain would
+	## drift away from the cannon the moment she moved off it.
+	## NOT UNDER A MENU. The health bars above can stay — they are scenery, and a
+	## frozen deck behind the pause sheet should still look like the deck. This
+	## cannot: it names a key, and in the draft that key is REROLL. A prompt
+	## reading "HOLD R - REPAIR THE CANNON" over a screen where R throws your
+	## hand away is worse than no prompt at all.
+	var work: Dictionary = game.deckwork if not under_menu else {}
+	if not work.is_empty():
+		var spec: Dictionary = work.spec
+		var goal: Dictionary = work.target
+		var pin := _to_screen(Vector2(goal.position), 150.0)
+		if pin.ok:
+			var stopped: bool = bool(work.get("contested", false))
+			## Says WHY when it refuses. A prompt that simply vanishes while
+			## boarders stand on the gun teaches the player that the repair is
+			## unreliable rather than that it is contested.
+			var line: String = ("— " + str(spec.blocked).to_upper() + " —") if stopped 				else "HOLD %s · %s" % [SkyGearKeybinds.label(str(spec.get(
+					"action", "deckwork"))), str(spec.verb)]
+			var tint: Color = Color("#ff8b6a") if stopped else Color("#ffdca8")
+			var plate := Rect2(pin.at.x - 128.0, pin.at.y - 34.0, 256.0, 22.0)
+			_stamp(plate, 0.62)
+			_say_free(line, Vector2(plate.position.x, plate.position.y + 15.0),
+				plate.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, tint)
+			## The ring under the words, so the commitment reads as a commitment.
+			if not stopped and game.deckwork_progress > 0.0:
+				var run := Rect2(plate.position.x + 28.0, plate.end.y + 2.0,
+					plate.size.x - 56.0, 3.0)
+				draw_rect(run, Color(0.05, 0.04, 0.07, 0.7))
+				draw_rect(Rect2(run.position, Vector2(run.size.x * clampf(
+					game.deckwork_progress, 0.0, 1.0), run.size.y)),
+					Color("#ffb347"))
+
 	## The objective, when it is not in the frame. Losing sight of the Boiler is
 	## normal — losing track of whether it is being hit is not.
 	var boiler := _to_screen(game.boiler_position, 150.0)

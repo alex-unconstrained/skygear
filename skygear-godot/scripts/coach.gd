@@ -34,6 +34,10 @@ const DWELL := {
 	"gauge": 8.0,        ## sitting on a full gauge with nothing to vent into
 	"lane": 6.0,         ## a lane unattended while it is being walked down
 	"idle_skill": 9.0,   ## a drafted weapon you have never pressed
+	## Short, because this one is not a mistake being earned — it is a fact the
+	## player has no other way to learn. Long enough that a gun dying in the last
+	## second of a wave does not fire it at the draft screen.
+	"broken_cannon": 3.5,
 }
 const MAX_SHOWS := 2
 const REPEAT_GAP := 42.0
@@ -42,13 +46,20 @@ const FIRST_WAVE := 2    ## nothing before this
 
 ## Priority order. The first one whose condition holds is the one shown, so this
 ## list IS the editorial judgement about which mistake costs the most.
-const ORDER := ["gauge", "kiting", "lane", "idle_skill"]
+## `broken_cannon` leads. Every other line here corrects a mistake the player is
+## already making and could in principle notice; this one announces a VERB THAT
+## IS OTHERWISE INVISIBLE. Nothing on screen says a dead gun can come back, so
+## without it the whole deckwork system is code no player ever runs.
+const ORDER := ["broken_cannon", "gauge", "kiting", "lane", "idle_skill"]
 
 const TEXT := {
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
 	"gauge": "Gauge is full. Get among them: it vents by itself and heals you for it.",
 	"lane": "A lane is walking through. The cannon holds, it does not kill.",
 	"idle_skill": "You have a weapon you have never fired. Q and E are drafted too.",
+	## `{key}` is filled from the live binding rather than written in, so a player
+	## who rebinds the key is not told to press the one they replaced.
+	"broken_cannon": "A cannon is down. Stand at it and HOLD {key} to bring it back.",
 }
 
 var _dwell := {}
@@ -97,7 +108,8 @@ func _still_showing(game) -> String:
 	if float(game.run_time) > _current_until:
 		_current = ""
 		return ""
-	return str(TEXT.get(_current, ""))
+	return str(TEXT.get(_current, "")).replace(
+		"{key}", SkyGearKeybinds.label("deckwork"))
 
 
 func _may_fire(id: String, now: float) -> bool:
@@ -138,6 +150,16 @@ func _is(id: String, game) -> bool:
 				if enemy.global_position.y < half:
 					continue
 				if game.player.global_position.distance_to(enemy.global_position) > 620.0:
+					return true
+			return false
+		"broken_cannon":
+			## Only while one is actually down, and not while they are already
+			## fixing it — a hint that tells you to do the thing you are visibly
+			## doing is how a coach stops being read.
+			if not (game.deckwork as Dictionary).is_empty():
+				return false
+			for turret in game.turrets:
+				if bool(turret.get("dead", false)):
 					return true
 			return false
 		"idle_skill":

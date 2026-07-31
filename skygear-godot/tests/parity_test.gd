@@ -2619,6 +2619,49 @@ func _view() -> void:
 	_check("coach", "and an empty deck is never a mistake", alone == "",
 		"said '%s'" % alone)
 
+	## A DOWNED CANNON IS ANNOUNCED, AND THE ANNOUNCEMENT NAMES THE REAL KEY.
+	##
+	## Deckwork shipped working and unreachable: nothing on screen said a dead gun
+	## could come back, so the whole verb table was code no player ever ran. The
+	## empty deck above is the right place to test it from — no boarders, so no
+	## other hint can win the priority order and mask this one.
+	game.turrets[1].dead = true
+	game.turrets[1].hp = 0.0
+	game.coach.reset()
+	game.deckwork = {}
+	var told := ""
+	for _t in 400:
+		var word: String = game.coach.advise(game, 0.1)
+		game.run_time += 0.1
+		if word != "":
+			told = word
+	_check("coach", "a downed cannon is announced at all", told != "",
+		"said nothing with a gun on the deck in pieces")
+	## The KEY, not the word "R". The line is authored with a `{key}` token and
+	## filled from the live binding, so a player who rebinds is not told to press
+	## the one they replaced — and this is the check that would notice if the
+	## substitution were ever dropped and the raw token shipped.
+	var bound := SkyGearKeybinds.label("deckwork")
+	_check("coach", "and it names the bound key rather than a hard-coded one",
+		told.contains(bound) and not told.contains("{key}"),
+		"'%s' does not carry '%s'" % [told, bound])
+	## And it stops the moment they are doing it, because a coach that narrates
+	## what you are visibly already doing stops being read.
+	game.coach.reset()
+	game.deckwork = {"spec": SkyGearDeckwork.actions()[0],
+		"target": game.turrets[1], "contested": false}
+	var nagged := ""
+	for _t in 400:
+		var word2: String = game.coach.advise(game, 0.1)
+		game.run_time += 0.1
+		if word2 != "":
+			nagged = word2
+	_check("coach", "and goes quiet once they are already repairing it",
+		nagged == "", "still said '%s'" % nagged)
+	game.turrets[1].dead = false
+	game.turrets[1].hp = game.turrets[1].max_hp
+	game.deckwork = {}
+
 	game.spawn_queue.clear()
 	game.go_to_title()
 	await game.get_tree().process_frame

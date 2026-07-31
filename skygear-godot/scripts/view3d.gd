@@ -2910,7 +2910,25 @@ func _sync_all(delta: float) -> void:
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var config: Dictionary = SkyGearData.ENEMIES.get(enemy.kind, {})
-		var height := 120.0 + float(config.get("radius", 22.0)) * 3.0
+		## HOW TALL A BOARDER STANDS, and it was wrong for the small ones.
+		##
+		## `120 + radius * 3` put a SCRAPPER at 186 and a GUNNER at 183 against a
+		## captain of 176 — so the rank and file were TALLER THAN THE HERO, and
+		## the three kinds that are meant to read as scurrying goblins read as a
+		## line of men. Reported as "goblins probably need to be scaled down to
+		## about 50%".
+		##
+		## Per-kind, because a flat halving would take the furnace knight from 216
+		## to 108 and the boss from 330 to 165 — captain-sized — and those two are
+		## frightening precisely because of their bulk. Shrinking the small three
+		## makes that contrast sharper rather than flattening it.
+		##
+		## NOTE the footprint does not move: `radius` is gameplay, and the shadow
+		## is drawn from it, so a goblin is now short and still as wide as it
+		## always was to hit. That is deliberate — changing reach is a balance
+		## change wearing a visual one — but it is the number to revisit if they
+		## look stubby.
+		var height: float = (120.0 + float(config.get("radius", 22.0)) * 3.0) 			* float(FIGURE_SCALE.get(enemy.kind, 1.0))
 		var key := "e%d" % enemy.get_instance_id()
 		_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
 		## Boarders come DOWN the deck, so most of the time you are looking at
@@ -3330,6 +3348,15 @@ func _sync_captain(delta: float) -> bool:
 ## Where an ingested model for a kind would live. `SCRAPPER` -> `scrapper`, and
 ## `tools/models.json` writes to exactly that path, so adding a boarder model is
 ## a manifest entry and an ingest run rather than a code change.
+## What each boarder's drawn height is multiplied by. One entry per kind that
+## is not full size; anything absent stands at what the radius says.
+const FIGURE_SCALE := {
+	"SCRAPPER": 0.5,   ## 186 -> 93, a little over half the captain
+	"GUNNER": 0.5,     ## 183 -> 92
+	"SWARM": 0.5,      ## 165 -> 83, the smallest thing on the deck
+}
+
+
 static func model_path(kind: String) -> String:
 	var slug := kind.to_lower()
 	return "res://assets/models/%s/%s.tscn" % [slug, slug]
