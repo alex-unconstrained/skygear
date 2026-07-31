@@ -2032,7 +2032,8 @@ func _sync_captain(delta: float) -> bool:
 		_captain.react_hit(1.0)
 	## She turns to her aim rather than to her movement: aim is what the Cleave
 	## uses, so aim is what the player has to be able to read off her.
-	_captain.place(player.global_position, player.aim_direction, WORLD_SCALE, delta)
+	_captain.place(player.global_position, player.aim_direction, WORLD_SCALE, delta,
+		player.velocity)
 
 	if _hero == null:
 		## OUTSIDE her transform. A light parented to a node scaled by 0.009 has

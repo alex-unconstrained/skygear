@@ -236,6 +236,19 @@ func has_clip(clip: String) -> bool:
 
 ## Ask for a state. Idempotent — call it every frame with whatever the
 ## simulation says and it only acts when something changed.
+## Is she travelling backwards relative to the way she is facing? Set by
+## `place`, read by `want` on the next frame, because the renderer knows the
+## heading and the simulation knows the velocity and they meet here.
+var _reverse := false
+
+## How far the body is allowed to lead the aim when strafing, in radians. There
+## is no strafe clip in the pack, so a pure sideways walk has no honest cycle;
+## letting the shoulders turn part of the way into the movement buys a diagonal
+## that `run` can actually sell. Not all the way, or she stops facing her cursor
+## and the Cleave lands somewhere the player did not point.
+const LEAN_MAX := 0.62
+
+
 func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 	if anim == null:
 		return
@@ -277,6 +290,18 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 	## someone moving at 300 is a figure skating; the cycle has to keep up with
 	## the ground it is covering.
 	if next == "run" or next == "walk":
+		## And BACKWARDS when she is going backwards. She faces her cursor, not
+		## her movement — that is deliberate, because aim is what the Cleave uses
+		## — so half the time she is travelling away from the way she is pointed
+		## while a forward run cycle plays. That is the ice-skating: feet driving
+		## one way, body going the other. `run_back` was in the pack from the
+		## first ingest and nothing ever asked for it.
+		if _reverse and has_clip("run_back") and _clip != "run_back":
+			anim.play("run_back", 0.12)
+			_clip = "run_back"
+		elif not _reverse and _clip == "run_back" and has_clip(clip):
+			anim.play(clip, 0.12)
+			_clip = clip
 		anim.speed_scale = clampf(speed / AUTHORED_RUN_SPEED, 0.55, 1.9)
 	elif ONE_SHOT.get(next, false) and window > 0.0 and has_clip(clip):
 		anim.speed_scale = clampf(anim.get_animation(clip).length / window,
@@ -341,7 +366,21 @@ func _or_idle() -> String:
 
 ## Where the figure is standing and which way it is trying to face. Position is
 ## exact; facing is a rate-limited turn.
-func place(ground: Vector2, heading: Vector2, world_scale: float, delta: float) -> void:
+func place(ground: Vector2, heading: Vector2, world_scale: float, delta: float,
+		travel: Vector2 = Vector2.ZERO) -> void:
+	## Lean into the direction of travel, up to a limit. Without this a strafe is
+	## a forward run cycle sliding sideways, which is the single loudest source of
+	## "she is ice skating" — the feet have no relationship to the ground.
+	_reverse = false
+	if travel.length_squared() > 400.0 and heading.length_squared() > 0.0001:
+		var forward := heading.normalized()
+		var going := travel.normalized()
+		var dot := forward.dot(going)
+		_reverse = dot < -0.35
+		if not _reverse:
+			var offset := wrapf(atan2(going.x, going.y) - atan2(forward.x, forward.y),
+				-PI, PI)
+			heading = forward.rotated(-clampf(offset, -LEAN_MAX, LEAN_MAX))
 	if heading.length_squared() > 0.0001:
 		## `atan2(x, y)` rather than the usual `atan2(y, x)`: a yaw of zero looks
 		## down +Z, which is where an ingested rig faces at rest.

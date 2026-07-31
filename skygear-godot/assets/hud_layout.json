@@ -1,38 +1,254 @@
 {
-  "_readme": "The shipped HUD layout. Press F4 in game to drag it, which writes user://hud_layout.json — that file wins over this one. To make a hand-placed layout the default, copy it over this file. Anchors are the nine of a 3x3 grid; an offset is measured to the box's matching edge, so a bottom_right box keeps its bottom-right corner a fixed distance from the screen's, and a centre box measures centre to centre. Plates are placed against the screen; items are placed against their plate's interior, which is the plate minus its painted brass frame.",
+  "_readme": "The shipped HUD layout. Press F4 in game to drag it, which writes user://hud_layout.json \u2014 that file wins over this one. To make a hand-placed layout the default, copy it over this file. Anchors are the nine of a 3x3 grid; an offset is measured to the box's matching edge, so a bottom_right box keeps its bottom-right corner a fixed distance from the screen's, and a centre box measures centre to centre. Plates are placed against the screen; items are placed against their plate's interior, which is the plate minus its painted brass frame.",
   "version": 2,
   "plates": {
     "captain": {
-      "anchor": "bottom_left", "offset": [24, -24], "size": [350, 132],
+      "anchor": "bottom_left",
+      "offset": [
+        24,
+        -24
+      ],
+      "size": [
+        350,
+        132
+      ],
       "items": {
-        "portrait":       {"anchor": "centre_left",  "offset": [0, 0],     "size": [60, 60]},
-        "health":         {"anchor": "top_left",     "offset": [74, 8],    "size": [220, 26]},
-        "dial":           {"anchor": "bottom_left",  "offset": [74, -4],   "size": [40, 40]},
-        "vent_icon":      {"anchor": "bottom_left",  "offset": [120, -34], "size": [15, 15]},
-        "pressure_label": {"anchor": "bottom_left",  "offset": [140, -26], "size": [96, 14]},
-        "dash_label":     {"anchor": "bottom_left",  "offset": [140, -8],  "size": [40, 14]},
-        "dash_pips":      {"anchor": "bottom_left",  "offset": [184, -14], "size": [48, 20]}
+        "portrait": {
+          "anchor": "centre_left",
+          "offset": [
+            0,
+            0
+          ],
+          "size": [
+            60,
+            60
+          ]
+        },
+        "health": {
+          "anchor": "top_left",
+          "offset": [
+            74,
+            8
+          ],
+          "size": [
+            212,
+            26
+          ]
+        },
+        "dial": {
+          "anchor": "bottom_left",
+          "offset": [
+            74,
+            -4
+          ],
+          "size": [
+            40,
+            40
+          ]
+        },
+        "vent_icon": {
+          "anchor": "bottom_left",
+          "offset": [
+            120,
+            -34
+          ],
+          "size": [
+            15,
+            15
+          ]
+        },
+        "pressure_label": {
+          "anchor": "bottom_left",
+          "offset": [
+            140,
+            -26
+          ],
+          "size": [
+            96,
+            14
+          ]
+        },
+        "dash_label": {
+          "anchor": "bottom_left",
+          "offset": [
+            140,
+            -8
+          ],
+          "size": [
+            40,
+            14
+          ]
+        },
+        "dash_pips": {
+          "anchor": "bottom_left",
+          "offset": [
+            184,
+            -14
+          ],
+          "size": [
+            48,
+            20
+          ]
+        }
       }
     },
     "ship": {
-      "anchor": "bottom_right", "offset": [-24, -24], "size": [350, 186],
+      "anchor": "bottom_right",
+      "offset": [
+        -24,
+        -24
+      ],
+      "size": [
+        350,
+        186
+      ],
       "items": {
-        "boiler":   {"anchor": "top_left",  "offset": [0, 12],  "size": [268, 26]},
-        "wave":     {"anchor": "top_left",  "offset": [0, 48],  "size": [130, 20]},
-        "boarders": {"anchor": "top_right", "offset": [0, 48],  "size": [140, 20]},
-        "lane0":    {"anchor": "top_left",  "offset": [0, 72],  "size": [268, 16]},
-        "lane1":    {"anchor": "top_left",  "offset": [0, 90],  "size": [268, 16]},
-        "lane2":    {"anchor": "top_left",  "offset": [0, 108], "size": [268, 16]}
+        "boiler": {
+          "anchor": "top_left",
+          "offset": [
+            0,
+            12
+          ],
+          "size": [
+            268,
+            26
+          ]
+        },
+        "wave": {
+          "anchor": "top_left",
+          "offset": [
+            0,
+            26
+          ],
+          "size": [
+            130,
+            20
+          ]
+        },
+        "boarders": {
+          "anchor": "top_right",
+          "offset": [
+            0,
+            26
+          ],
+          "size": [
+            140,
+            20
+          ]
+        },
+        "lane0": {
+          "anchor": "top_left",
+          "offset": [
+            0,
+            48
+          ],
+          "size": [
+            268,
+            16
+          ]
+        },
+        "lane1": {
+          "anchor": "top_left",
+          "offset": [
+            0,
+            66
+          ],
+          "size": [
+            268,
+            16
+          ]
+        },
+        "lane2": {
+          "anchor": "top_left",
+          "offset": [
+            0,
+            84
+          ],
+          "size": [
+            268,
+            16
+          ]
+        }
       }
     },
-    "slot0": {"anchor": "bottom_centre", "offset": [-192, -24], "size": [120, 112]},
-    "slot1": {"anchor": "bottom_centre", "offset": [-64, -24],  "size": [120, 112]},
-    "slot2": {"anchor": "bottom_centre", "offset": [64, -24],   "size": [120, 112]},
-    "slot3": {"anchor": "bottom_centre", "offset": [192, -24],  "size": [120, 112]}
+    "slot0": {
+      "anchor": "bottom_centre",
+      "offset": [
+        -192,
+        -24
+      ],
+      "size": [
+        120,
+        112
+      ]
+    },
+    "slot1": {
+      "anchor": "bottom_centre",
+      "offset": [
+        -64,
+        -24
+      ],
+      "size": [
+        120,
+        112
+      ]
+    },
+    "slot2": {
+      "anchor": "bottom_centre",
+      "offset": [
+        64,
+        -24
+      ],
+      "size": [
+        120,
+        112
+      ]
+    },
+    "slot3": {
+      "anchor": "bottom_centre",
+      "offset": [
+        192,
+        -24
+      ],
+      "size": [
+        120,
+        112
+      ]
+    }
   },
   "slot_items": {
-    "key":  {"anchor": "top_centre",    "offset": [0, -1], "size": [66, 14]},
-    "icon": {"anchor": "centre",        "offset": [0, 2],  "size": [32, 32]},
-    "name": {"anchor": "bottom_centre", "offset": [0, 1],  "size": [74, 13]}
+    "key": {
+      "anchor": "top_centre",
+      "offset": [
+        0,
+        -1
+      ],
+      "size": [
+        66,
+        14
+      ]
+    },
+    "icon": {
+      "anchor": "centre",
+      "offset": [
+        0,
+        2
+      ],
+      "size": [
+        32,
+        32
+      ]
+    },
+    "name": {
+      "anchor": "bottom_centre",
+      "offset": [
+        0,
+        1
+      ],
+      "size": [
+        74,
+        13
+      ]
+    }
   }
 }

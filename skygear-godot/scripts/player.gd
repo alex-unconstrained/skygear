@@ -5,8 +5,15 @@ signal dash_started
 
 const MAX_HP := 100.0
 const SPEED := 260.0
-const ACCEL := 3100.0
-const FRICTION := 2700.0
+## Reaching full speed in 0.084s and stopping in 0.096s already sounds crisp on
+## paper, and the report was still "like the protagonist is ice skating". The
+## rest of the fix is in the rig — the wrong cycle for the direction of travel —
+## but stopping wants to be sharper than starting regardless: a player releasing
+## a key has decided to stop, and a body that keeps going is a body that ignored
+## them. Starting soft and stopping hard is the shape almost every action game
+## uses, and this had them nearly equal.
+const ACCEL := 3400.0
+const FRICTION := 5200.0
 const DASH_DISTANCE := 220.0
 const DASH_TIME := 0.16
 const DASH_SPEED := DASH_DISTANCE / DASH_TIME
@@ -74,6 +81,13 @@ func _physics_process(delta: float) -> void:
 		dash_time_left -= delta
 		velocity = dash_direction * DASH_SPEED
 		invulnerability_left = maxf(invulnerability_left, 0.08)
+		## The frame the dash ENDS, drop to running speed rather than decaying
+		## from 1375 down to 260 at the normal rate. That decay is a third of a
+		## second of gliding at up to five times walking pace with no control
+		## authority, after every dash, and it is most of what "slippery" means
+		## here. Keep the direction, lose the excess.
+		if dash_time_left <= 0.0:
+			velocity = dash_direction * SPEED
 	else:
 		var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var target_velocity := input_direction * SPEED

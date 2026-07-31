@@ -50,7 +50,7 @@ const DEFAULT := {
 		"anchor": "bottom_left", "offset": [24, -24], "size": [350, 132],
 		"items": {
 			"portrait": {"anchor": "centre_left", "offset": [0, 0], "size": [60, 60]},
-			"health": {"anchor": "top_left", "offset": [74, 8], "size": [220, 26]},
+			"health": {"anchor": "top_left", "offset": [74, 8], "size": [212, 26]},
 			"dial": {"anchor": "bottom_left", "offset": [74, -4], "size": [40, 40]},
 			"vent_icon": {"anchor": "bottom_left", "offset": [120, -34], "size": [15, 15]},
 			"pressure_label": {"anchor": "bottom_left", "offset": [140, -26], "size": [96, 14]},
@@ -222,10 +222,16 @@ func rect(name: String, view: Vector2) -> Rect2:
 
 
 ## The usable inside of a plate, once its painted brass frame is taken off.
+## THE SAME interior the renderer uses. This had its own formula — 19% of the
+## short side, clamped to 10..30 — while `SkyGearHUD` drew a nine-slice rail and
+## measured against that. Two answers to "where does the brass end" is how items
+## get placed three pixels outside the plate they belong to, which is exactly
+## what `tools/text_audit.gd` reported for the lane labels and the wave line.
+##
+## The constants stay because the editor overlay quotes them, but nothing
+## positions against them any more.
 static func interior(plate: Rect2) -> Rect2:
-	var inset: float = clampf(minf(plate.size.x, plate.size.y) * FRAME_FRACTION,
-		FRAME_MIN, FRAME_MAX)
-	return plate.grow(-inset)
+	return SkyGearHUD.interior(plate)
 
 
 ## Where an item inside a plate lands. `plate_rect` is passed in rather than
@@ -237,7 +243,37 @@ func item(plate_name: String, item_name: String, plate_rect: Rect2) -> Rect2:
 	var entry: Dictionary = source.get(item_name, {})
 	if entry.is_empty():
 		return Rect2()
+	## CLAMPED to the plate. An offset that pushes an item past the brass is a
+	## label drawn on the frame — the audit found PORT, CENTRE and STARBOARD
+	## eleven pixels left of their own plate, and WAVE 7 / 12 three pixels left of
+	## its own. A layout file is hand-edited, so it will always be possible to
+	## nudge something off the edge; the renderer refusing is cheaper than
+	## everyone remembering not to.
+	return _clamped(place(entry, interior(plate_rect)), interior(plate_rect))
+
+
+## Where an item was AUTHORED to go, before the plate refuses it. The editor
+## needs this — a warning that your offset pushes a glyph off its slot is only
+## possible if something still knows you asked for that. `item` clamps for the
+## renderer; this tells the truth for the human.
+func authored(plate_name: String, item_name: String, plate_rect: Rect2) -> Rect2:
+	var source: Dictionary = slot_items if plate_name.begins_with("slot") 		else (plates.get(plate_name, {}).get("items", {}) as Dictionary)
+	var entry: Dictionary = source.get(item_name, {})
+	if entry.is_empty():
+		return Rect2()
 	return place(entry, interior(plate_rect))
+
+
+static func _clamped(box_in: Rect2, room: Rect2) -> Rect2:
+	var box := box_in
+	box.size.x = minf(box.size.x, room.size.x)
+	box.size.y = minf(box.size.y, room.size.y)
+	box.position.x = clampf(box.position.x, room.position.x, room.end.x - box.size.x)
+	box.position.y = clampf(box.position.y, room.position.y, room.end.y - box.size.y)
+	return box
+
+
+
 
 
 ## The item names a plate owns, in a stable order for the editor to walk.
@@ -333,7 +369,7 @@ func problems(view: Vector2) -> Array[String]:
 		## exists to make visible: a glyph sitting off the edge of its slot.
 		var inside := interior(r)
 		for item_name in items_of(name):
-			if not inside.grow(2.0).encloses(item(name, item_name, r)):
+			if not inside.grow(2.0).encloses(authored(name, item_name, r)):
 				out.append("%s/%s is outside its plate" % [name, item_name])
 	for i in ORDER.size():
 		for j in range(i + 1, ORDER.size()):

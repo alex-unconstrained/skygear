@@ -1214,6 +1214,57 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## FRAMES. Reported: "the text begins outside of the frame and continues over
+	## onto the right so it's hard to read." The cause was two functions answering
+	## "where does the brass end" differently — `SkyGearHUD._nine` drew a rail of
+	## up to 48px while `interior()` claimed at most 30, so content was laid out
+	## against a frame narrower than the one on screen.
+	##
+	## `tools/text_audit.gd` is the real detector — it renders 11 screens at 4
+	## sizes and measures every string. These are the invariants that made the
+	## bug possible, kept here so the tool has nothing to find.
+	_check("frame", "the layout and the renderer agree where the brass ends",
+		SkyGearHudLayout.interior(Rect2(0, 0, 330, 372))
+			== SkyGearHUD.interior(Rect2(0, 0, 330, 372)))
+	## A plate must always have a usable middle. The first honest version of
+	## `interior` returned a NEGATIVE height for the HUD strips, because a fixed
+	## 48px rail is most of a 90px plate.
+	var shapes := [Vector2(330, 372), Vector2(350, 118), Vector2(420, 76),
+		Vector2(128, 96), Vector2(800, 520), Vector2(90, 40)]
+	var starved := ""
+	for shape in shapes:
+		var room := SkyGearHUD.interior(Rect2(Vector2.ZERO, shape))
+		if room.size.x < shape.x * 0.5 or room.size.y < shape.y * 0.5:
+			starved += " %dx%d->%dx%d" % [shape.x, shape.y, room.size.x, room.size.y]
+	_check("frame", "and every plate keeps at least half of itself",
+		starved == "", starved)
+
+	## The SHIPPED layout, not only the built-in default. The file is hand-edited
+	## through F4, so it is the one that drifts — and it had all three lane rows
+	## authored past the bottom of their plate, which the clamp then stacked on
+	## top of each other so CENTRE disappeared entirely.
+	var shipped := SkyGearHudLayout.load_layout()
+	var complaints := ""
+	for note in shipped.problems(Vector2(1600, 900)):
+		if str(note).contains("outside its plate"):
+			complaints += " " + str(note)
+	_check("frame", "and the shipped layout keeps its items on their plates",
+		complaints == "", complaints)
+
+	## Clamping must not silently merge two rows into one. That is worse than the
+	## overflow it prevents: an item hanging 4px over an edge is untidy, two
+	## items on the same line is information the player never sees.
+	var ship_plate: Rect2 = SkyGearHUD.hud_plates(Vector2(1600, 900)).ship
+	var seen_rows := {}
+	var merged := 0
+	for lane in 3:
+		var key := "%d" % roundi(shipped.item("ship", "lane%d" % lane, ship_plate).position.y)
+		if seen_rows.has(key):
+			merged += 1
+		seen_rows[key] = true
+	_check("frame", "and no two lane rows land on the same line", merged == 0,
+		"%d rows collapsed" % merged)
+
 	## THE CARD PREVIEW. It computes before -> after by RUNNING the card against a
 	## copy of the state, which is the only way the preview cannot disagree with
 	## the effect — but it makes "does it change anything" the load-bearing test.
