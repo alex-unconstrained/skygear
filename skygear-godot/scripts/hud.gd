@@ -1673,7 +1673,26 @@ func _draw_workshop() -> void:
 					height += 18.0
 			height += 38.0
 		tallest = maxf(tallest, height)
-	var tall: float = minf(size.y - 116.0, tallest + 92.0 + 108.0 + 62.0)
+	## Plus the Articles underneath: seven of them, four to a line, a heading
+	## above and the respec row below. The first version counted only the rows and
+	## the second line of Articles sat on the bottom rail — the audit found it,
+	## which is the third time that tool has caught a plate I sized by eye.
+	var art_lines: float = ceil(float(SkyGearWorkshop.ARTICLES.size()) / 4.0)
+	var wanted: float = tallest + art_lines * 38.0 + 16.0 + 58.0 + 92.0 + 108.0 + 62.0
+	var tall: float = minf(size.y - 116.0, wanted)
+
+	## AND IF IT STILL DOES NOT FIT, THE ROWS COMPRESS. At 720p and 900p the plate
+	## is clamped by the window and the Articles ran off the bottom rail — sizing
+	## to content only helps while the content is smaller than the screen. The
+	## step shrinks to 26 before anything is allowed to leave the frame.
+	##
+	## Everything below measures from `step` rather than from 38, so this is one
+	## number rather than a rule people have to remember.
+	var step := 38.0
+	if wanted > tall:
+		var rows: float = (tallest - 16.0) / 38.0 + art_lines
+		step = clampf((tall - 92.0 - 108.0 - 62.0 - 16.0 - 58.0 - 16.0)
+			/ maxf(1.0, rows), 26.0, 38.0)
 	var page := Rect2(size.x * 0.5 - 520.0, maxf(48.0, (size.y - tall) * 0.4),
 		1040.0, tall)
 	_sheet(page)
@@ -1716,7 +1735,7 @@ func _draw_workshop() -> void:
 			var have := SkyGearWorkshop.rank(w, id)
 			var maxed: bool = have >= int(node.ranks)
 			var afford: bool = SkyGearWorkshop.can_buy(w, id)
-			var box := Rect2(x, y, col_w, 34.0)
+			var box := Rect2(x, y, col_w, step - 4.0)
 			var label := "%s %s" % [str(node.name),
 				("MAX" if maxed else "%d/%d" % [have, int(node.ranks)])]
 			if ui.button(box, "", {"disabled": not afford}):
@@ -1735,7 +1754,43 @@ func _draw_workshop() -> void:
 					Vector2(box.position.x, box.position.y + 21.0), box.size.x - 8.0,
 					HORIZONTAL_ALIGNMENT_RIGHT, 12,
 					Color("#e8c376") if afford else Color("#5f5863"))
-			y += 38.0
+			y += step
+
+	## THE ARTICLES, along the bottom. A separate row rather than a fifth column
+	## because they are a different object bought with a different currency —
+	## scrip buys experiments and sigils buy commitments, and there is no refund.
+	var art_y: float = room.position.y + 130.0 + (tallest - 16.0) * (step / 38.0)
+	_label("THE ARTICLES  ·  sigils, and no respec", Vector2(room.position.x, art_y),
+		room.size.x, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#c9b6e8"))
+	art_y += 16.0
+	var ax: float = room.position.x
+	for id in SkyGearWorkshop.ARTICLES.keys():
+		var art: Dictionary = SkyGearWorkshop.ARTICLES[id]
+		var held: bool = SkyGearWorkshop.owns(w, id)
+		var barred: bool = art.has("excludes") 			and SkyGearWorkshop.owns(w, str(art.excludes))
+		var takeable: bool = SkyGearWorkshop.can_take(w, id)
+		var box := Rect2(ax, art_y, room.size.x / 4.0 - 10.0, step - 4.0)
+		if ui.button(box, "", {"disabled": not takeable}):
+			SkyGearWorkshop.take(w, id)
+		var head := "%s  %d" % [str(art.name), int(art.cost)]
+		if held:
+			head = "%s  ✓" % str(art.name)
+		elif barred:
+			head = "%s  — barred" % str(art.name)
+		var tint: Color = Color("#c9b6e8") if held else 			(BONE if takeable else Color("#6f6878"))
+		_label(head, Vector2(box.position.x + 8.0, box.position.y + 14.0),
+			box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(head, box.size.x - 16.0, 12, 9), tint)
+		var blurb := str(art.text)
+		if bool(art.get("captain_only", false)):
+			blurb = "captain only · " + blurb
+		_label(blurb, Vector2(box.position.x + 8.0, box.position.y + 27.0),
+			box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(blurb, box.size.x - 16.0, 10, 7), Color("#9a92a6"))
+		ax += room.size.x / 4.0 + 3.0
+		if ax + 40.0 > room.end.x:
+			ax = room.position.x
+			art_y += step
 
 	var foot: float = room.end.y - 40.0
 	if ui.button(Rect2(room.position.x, foot, 200.0, 34.0), "RESPEC (FREE)"):

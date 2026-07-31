@@ -162,6 +162,18 @@ var talents: Dictionary = {}
 ## to close: the last one shipped thirteen fields that resolved and did nothing.
 func talent(field: String) -> float:
 	return float(talents.get(field, 0.0))
+
+
+## The sigil side, resolved for the run the same way the scrip side is.
+var articles: Dictionary = {}
+## Once-a-run and once-a-wave Articles need somewhere to remember they fired.
+var article_used: Dictionary = {}
+var brace_cooldown := 0.0
+var brace_left := 0.0
+
+
+func article(id: String) -> bool:
+	return bool(articles.get(id, false))
 ## The one line of advice, if there is one worth giving. Read-only against the
 ## simulation, so a bad hint is a wrong sentence rather than a wrong game.
 var coach := SkyGearCoach.new()
@@ -296,12 +308,15 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	## The Boilerwright's two bindings. Both no-ops for the captain, and both
 	## deliberately outside the four drafted slots — the 36-cell matrix stays 36.
+	## F and V belong to the class first and to the Articles second. The
+	## Boilerwright's are his signature rather than a binding, which is why the
+	## keyed Articles are captain-only — see `SkyGearWorkshop.ARTICLES`.
 	if event.keycode == KEY_F and state == State.PLAY:
-		if tap_main():
+		if tap_main() or use_article_f():
 			get_viewport().set_input_as_handled()
 			return
 	if event.keycode == KEY_V and state == State.PLAY:
-		if blowdown():
+		if blowdown() or use_article_v():
 			get_viewport().set_input_as_handled()
 			return
 	if event.keycode == KEY_F6 and bool(workshop.unlocked):
@@ -645,6 +660,23 @@ func _process(delta: float) -> void:
 	_update_salvage(delta)
 	_update_fire_fields(delta)
 	_update_taps(delta)
+	## KEEL HAULING. Anything the dash passes through comes with you — which turns
+	## a dash from an escape into a way to MOVE the fight, and is the only thing
+	## in the game that lets you take a boarder off a lane rather than off its
+	## feet. Applied while the dash is live rather than on contact, so a boarder
+	## caught at the start is still coming at the end.
+	if article("keel_hauling") and player.dash_time_left > 0.0:
+		var drag: Vector2 = player.velocity * delta * 0.85
+		for enemy in get_tree().get_nodes_in_group("enemies"):
+			if not is_instance_valid(enemy) or enemy.dead:
+				continue
+			if enemy.global_position.distance_to(player.global_position) > 90.0:
+				continue
+			## Mass resists it, same as knockback — a Colossus is not being towed.
+			enemy.global_position += drag / maxf(1.0, float(enemy.mass) * 0.5)
+	brace_cooldown = maxf(0.0, brace_cooldown - delta)
+	brace_left = maxf(0.0, brace_left - delta)
+	_check_deadman()
 	run_time += delta
 	_update_turrets(delta)
 	_update_crew(delta)
@@ -716,6 +748,10 @@ func begin_run() -> void:
 	## to nothing. Shot Locker did exactly that until a check compared a kitted
 	## cannon against a bare one and found them identical.
 	talents = SkyGearWorkshop.resolved(workshop)
+	articles = SkyGearWorkshop.articles_for(workshop, class_id)
+	article_used = {}
+	brace_cooldown = 0.0
+	brace_left = 0.0
 	range_multiplier = 1.0 + talent("range")
 	## Never mid-run. A tree you can edit while being shot at is a fifth ability
 	## button, which is the one thing the design says it must not become.
@@ -1053,6 +1089,8 @@ func start_wave(next_wave: int) -> void:
 		player.set_pressure(pressure)
 	if float(granted.get("boiler_repair", 0.0)) > 0.0 and wave > 1:
 		boiler_hp = minf(boiler_max_hp, boiler_hp + float(granted.boiler_repair))
+	article_used.erase("scuttle")
+	article_used.erase("deadmans_switch")
 	wave_time = 0.0
 	wave_clear_time = -1.0
 	projectiles.clear()
@@ -1712,6 +1750,12 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		pressure = minf(100.0, pressure + 9.0 * (1.0 + event_pressure_bonus()))
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
+		## PRESS-GANG. A close kill sometimes gets back up on your side. Rolled on
+		## the seeded stream, so a run with it is still reproducible.
+		if article("press_gang") and rng.randf() < 0.06:
+			crew.append(SkyGearLanes.make_crew(enemy.lane, LANE_CENTERS, BASE_Y, rng))
+			crew[crew.size() - 1].position = enemy.global_position
+			play_sfx("lane/crew_muster.ogg", -12.0)
 		if rng.randf() < float(SkyGearData.CLOSE.scrap_chance) * (1.0 + event_salvage_bonus()):
 			## SALVAGER. Flat, on top of the base heal.
 			_scrap({"position": enemy.global_position,
@@ -1860,6 +1904,68 @@ func _crew_haste(at: Vector2) -> float:
 	return 1.0
 
 
+## DEADMAN'S SWITCH. Below a quarter the Boiler blows its own steam across the
+## deck. Once a wave, so it is a reprieve rather than a floor — a Boiler that
+## saved itself every time would mean the objective could not be lost.
+func _check_deadman() -> void:
+	if not article("deadmans_switch") or bool(article_used.get("deadmans_switch", false)):
+		return
+	if boiler_hp > boiler_max_hp * 0.25 or boiler_hp <= 0.0:
+		return
+	article_used["deadmans_switch"] = true
+	_damage_circle(boiler_position, 700.0, 200.0, "STEAM", 320.0, false, false)
+	_fx({"kind": "circle", "position": boiler_position, "radius": 700.0,
+		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.5})
+	_fx({"kind": "banner", "text": "THE BOILER VENTS", "time": 0.0, "life": 1.8})
+	if impact != null:
+		impact.add_shake(18.0)
+	play_sfx("player/shape_mortar_land.ogg", -1.0)
+
+
+## BRACE and RECALL, both on F, never both owned. SCUTTLE on V.
+func use_article_f() -> bool:
+	if state != State.PLAY or brace_cooldown > 0.0:
+		return false
+	if article("brace"):
+		brace_cooldown = 18.0
+		brace_left = 0.35
+		player.invulnerability_left = maxf(player.invulnerability_left, 0.35)
+		_fx({"kind": "circle", "position": player.global_position, "radius": 120.0,
+			"color": Color("#9be8d2"), "time": 0.0, "life": 0.3})
+		play_sfx("player/ready.ogg", -6.0)
+		return true
+	if article("recall"):
+		brace_cooldown = 45.0
+		_fx({"kind": "circle", "position": player.global_position, "radius": 140.0,
+			"color": Color("#8fa6c9"), "time": 0.0, "life": 0.3})
+		player.global_position = boiler_position + Vector2(0.0, 160.0)
+		player.velocity = Vector2.ZERO
+		player.invulnerability_left = maxf(player.invulnerability_left, 0.25)
+		_fx({"kind": "circle", "position": player.global_position, "radius": 140.0,
+			"color": Color("#8fa6c9"), "time": 0.0, "life": 0.3})
+		play_sfx("player/dash.ogg", -4.0)
+		return true
+	return false
+
+
+func use_article_v() -> bool:
+	if state != State.PLAY or not article("scuttle"):
+		return false
+	if bool(article_used.get("scuttle", false)):
+		return false
+	var lit := 0
+	for prop in get_tree().get_nodes_in_group("props"):
+		if not is_instance_valid(prop) or prop.dead or str(prop.prop_type) != "keg":
+			continue
+		prop.fuse_left = 0.05 + lit * 0.06
+		lit += 1
+	if lit == 0:
+		return false
+	article_used["scuttle"] = true
+	_fx({"kind": "banner", "text": "SCUTTLE", "time": 0.0, "life": 1.4})
+	return true
+
+
 func _update_taps(delta: float) -> void:
 	tap_cooldown = maxf(0.0, tap_cooldown - delta)
 	var i := taps.size() - 1
@@ -1953,6 +2059,22 @@ func damage_player(amount: float, _source: String = "") -> void:
 	## himself, so it is a reward for the placement rather than a passive.
 	if anchored():
 		amount *= 1.0 - float(SkyGearData.TAP.anchor_resist)
+	## SECOND SHIFT. The first killing blow of a run leaves you at 1 and vents.
+	## Checked BEFORE the hit lands rather than after, because `take_damage`
+	## clamps at zero and a corpse cannot be resurrected without knowing it was
+	## about to be one.
+	if article("second_shift") and not bool(article_used.get("second_shift", false)) 			and amount >= player.hp and player.invulnerability_left <= 0.0:
+		article_used["second_shift"] = true
+		player.hp = 1.0
+		player.invulnerability_left = 1.5
+		pressure = 100.0
+		vent_cooldown = 0.0
+		vent_pressure()
+		_fx({"kind": "banner", "text": "SECOND SHIFT", "time": 0.0, "life": 2.0})
+		if impact != null:
+			impact.add_shake(16.0)
+		play_sfx("player/ready.ogg", -2.0)
+		return
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
 		player.hurt_time = 0.34

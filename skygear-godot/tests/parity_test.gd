@@ -1418,6 +1418,89 @@ func _view() -> void:
 				float(kitted.turrets[0].max_hp), base_turret])
 	kitted.queue_free()
 
+	## THE ARTICLES. The sigil side: commitments rather than experiments, no
+	## refund, and two of them fight over the same key.
+	var art := SkyGearWorkshop.fresh(true)
+	_check("shop", "no article before the workshop opens",
+		not SkyGearWorkshop.can_take(art, "brace"))
+	art.unlocked = true
+	art.sigils = 1
+	_check("shop", "one sigil buys a one-sigil article",
+		SkyGearWorkshop.can_take(art, "brace")
+			and not SkyGearWorkshop.can_take(art, "recall"))
+	SkyGearWorkshop.take(art, "brace")
+	_check("shop", "and taking it spends the sigil",
+		SkyGearWorkshop.owns(art, "brace") and int(art.sigils) == 0)
+
+	## THE EXCLUSION. Brace and Recall answer the two things the game has no
+	## answer for and share a key; owning both would make F a guess.
+	art.sigils = 9
+	_check("shop", "and its opposite is barred, not merely expensive",
+		not SkyGearWorkshop.can_take(art, "recall"))
+
+	## Sixteen sigils to own everything against eleven in existence, so the side
+	## can never be finished. That is the property, so it is the check.
+	var total_cost := 0
+	for id in SkyGearWorkshop.ARTICLES.keys():
+		total_cost += int(SkyGearWorkshop.ARTICLES[id].cost)
+	var sigil_sources := 5   ## the firsts in `firsts_in`
+	_check("shop", "the articles cost more than the sigils that exist",
+		total_cost > sigil_sources,
+		"%d to own all against %d obtainable" % [total_cost, sigil_sources])
+
+	## EVERY ARTICLE HAS A READER, same guard as the passive side — this is the
+	## trap that has now bitten three times, so it is checked on both halves.
+	var art_readers := ""
+	for path in ["res://scripts/game.gd", "res://scripts/hud.gd",
+			"res://scripts/player.gd"]:
+		art_readers += FileAccess.get_file_as_string(path)
+	var dead_articles := ""
+	for id in SkyGearWorkshop.ARTICLES.keys():
+		if not art_readers.contains('"%s"' % str(SkyGearWorkshop.ARTICLES[id].field)):
+			dead_articles += " " + id
+	_check("shop", "and every article is read by something", dead_articles == "",
+		"nothing reads:" + dead_articles)
+
+	## THE BOILERWRIGHT CANNOT TAKE THE KEYED ONES. His F is Tap Main and his V
+	## is Blowdown — they are the class, not a binding.
+	var keyed := SkyGearWorkshop.fresh(true)
+	keyed.unlocked = true
+	keyed.sigils = 9
+	for id in ["brace", "scuttle", "press_gang"]:
+		SkyGearWorkshop.take(keyed, id)
+	var art_hers: Dictionary = SkyGearWorkshop.articles_for(keyed, "captain")
+	var art_his: Dictionary = SkyGearWorkshop.articles_for(keyed, "boilerwright")
+	_check("shop", "the captain gets the keyed articles",
+		art_hers.has("brace") and art_hers.has("scuttle"))
+	_check("shop", "the Boilerwright does not, because F and V are his class",
+		not art_his.has("brace") and not art_his.has("scuttle"))
+	_check("shop", "but he still gets the ones with no key", art_his.has("press_gang"))
+
+	## SECOND SHIFT, the one that changes an outcome rather than a number.
+	var saved := _new_game()
+	saved.workshop = SkyGearWorkshop.fresh(true)
+	saved.workshop.unlocked = true
+	saved.workshop.sigils = 4
+	SkyGearWorkshop.take(saved.workshop, "second_shift")
+	saved.set_seed_text("SAVED")
+	saved.begin_run()
+	saved.choose_draft(0)
+	saved.start_wave(2)
+	saved.player.invulnerability_left = 0.0
+	saved.damage_player(9999.0)
+	## Alive, and barely. The design's "leaves you at 1 HP, a free full vent" means
+	## the vent heals AFTER the drop, so the exact number is whatever venting is
+	## worth this run — asserting 1.0 was asserting that the vent does nothing.
+	_check("shop", "the first killing blow is survived",
+		saved.player.hp > 0.0 and saved.player.hp < saved.player.max_hp * 0.25,
+		"%.1f of %.0f" % [saved.player.hp, saved.player.max_hp])
+	## Once a run. A cheat death you get twice is a difficulty setting.
+	saved.player.invulnerability_left = 0.0
+	saved.damage_player(9999.0)
+	_check("shop", "and only the first", saved.player.hp <= 0.0,
+		"%.1f hp" % saved.player.hp)
+	saved.queue_free()
+
 	## THE BOILERWRIGHT. A second class, and the point of it is that it is not a
 	## reskin — `docs/CLASS-2-DESIGN.md` argues at length that a class which
 	## simply fires further is the answer v11 deleted. So the checks are about

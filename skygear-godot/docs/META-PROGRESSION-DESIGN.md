@@ -1,6 +1,30 @@
 # Meta-progression — the Workshop and the Articles
 
-Status: design, not built. Written against the port as it stands 2026-07-31.
+Status: **BUILT**, both sides. The gate, both currencies, 24 Workshop nodes,
+7 Articles, respec, and the whole thing on one screen behind a first victory.
+Every field is wired — two harness checks fail the build if a node or an article
+is ever added without a reader.
+
+Where the build departs from what is written below, and why:
+
+- **Quartermaster is gone.** "The opening draft always holds a new skill" is a
+  no-op: below four skills `open_draft` already offers only weapons. Replaced by
+  **Watch Bill** — the lane readout counts who is still queued, read straight off
+  `spawn_queue`.
+- **Foresight is gone.** It needs the next draft pre-rolled without disturbing
+  the seeded stream. Real work, not started.
+- **The Opening Bid and The Second Hand are not built.** The Second Hand is the
+  most expensive node on the board — `telemetry.gd` hardcodes four slots, and so
+  do the HUD plates, `hud_layout.json` and the slot loops in `cards.gd` — and the
+  design says so itself. The Opening Bid needs a matrix picker screen.
+- **The keyed Articles are captain-only.** `F` is the Boilerwright's Tap Main and
+  `V` is his Blowdown; those are the class, not a binding. Rebinding his
+  signature or inventing a third key nobody remembers were both worse than
+  saying so on the node.
+- **Head does not cost Boiler HP** — see `CLASS-2-DESIGN.md` for that one.
+- **Heat is not built.** §5 is untouched.
+
+Written against the port as it stands 2026-07-31.
 
 ## 0. What changed, and what has not
 

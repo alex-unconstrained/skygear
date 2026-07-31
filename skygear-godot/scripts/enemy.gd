@@ -3,6 +3,10 @@ extends CharacterBody2D
 
 var game: Node
 var kind := "SCRAPPER"
+## HOW HARD THIS IS TO SHOVE. Was a local inside `take_damage`, so knockback knew
+## about it and nothing else could — Keel Hauling read `enemy.mass`, got a null,
+## and towed a Colossus at the same rate as a gremlin.
+var mass := 1.0
 var lane := 1
 var config: Dictionary
 var hp := 1.0
@@ -27,6 +31,7 @@ var beat := 0
 var turn_time := 0.0
 
 func configure(owner_game: Node, enemy_kind: String, enemy_lane: int, wave: int) -> void:
+	mass = 2.6 if enemy_kind == "ARMORED" else (24.0 if enemy_kind == "BOSS" else 1.0)
 	game = owner_game
 	kind = enemy_kind
 	lane = enemy_lane
@@ -164,7 +169,6 @@ func take_damage(amount: float, origin: Vector2, element: String, knock: float) 
 	var away := (global_position - origin).normalized()
 	if away.length_squared() == 0.0:
 		away = Vector2.UP
-	var mass := 2.6 if kind == "ARMORED" else (24.0 if kind == "BOSS" else 1.0)
 	knock_velocity += away * knock / mass
 	_apply_element(element)
 	if hp <= 0.0:

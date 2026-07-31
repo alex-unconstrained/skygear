@@ -146,6 +146,88 @@ const NODES := {
 		"field": "fourth_card", "per": 1.0},
 }
 
+## THE ARTICLES. Nine were designed; seven are here.
+##
+## Sixteen sigils to own the seven against eleven in existence, so you can never
+## have the whole side — which is the point. A meta layer you finish is a meta
+## layer that stops being a decision.
+##
+## TWO MUTUAL EXCLUSIONS, both on the same key. Brace and Recall answer the two
+## things the game has no answer for — the hit you saw coming, and the lane that
+## broke on the far side of the deck — and owning both would make `F` a
+## context-sensitive guess. Same key, different game.
+##
+## THE BOILERWRIGHT CANNOT TAKE THE KEYED ONES. His `F` is Tap Main and his `V`
+## is Blowdown; they are the class, not a binding. Rather than rebind his
+## signature or invent a third key nobody will remember, the keyed Articles are
+## the captain's. He gets the passives, and the Workshop says so on the node.
+const ARTICLES := {
+	"keel_hauling": {"name": "Keel Hauling", "cost": 1, "captain_only": true,
+		"text": "your dash drags what it hits along",
+		"field": "keel_hauling"},
+	"press_gang": {"name": "Press-Gang", "cost": 1,
+		"text": "close kills sometimes raise the body as a crewman",
+		"field": "press_gang"},
+	"brace": {"name": "Brace", "cost": 1, "key": "F", "captain_only": true,
+		"excludes": "recall",
+		"text": "F · 0.35s untouchable, 18s",
+		"field": "brace"},
+	"recall": {"name": "Recall", "cost": 2, "key": "F", "captain_only": true,
+		"excludes": "brace",
+		"text": "F · back to the Boiler at once, 45s",
+		"field": "recall"},
+	"scuttle": {"name": "Scuttle", "cost": 2, "key": "V", "captain_only": true,
+		"text": "V · every keg on the deck at once, once a wave",
+		"field": "scuttle"},
+	"second_shift": {"name": "Second Shift", "cost": 2,
+		"text": "the first killing blow leaves you at 1, once a run",
+		"field": "second_shift"},
+	"deadmans_switch": {"name": "Deadman's Switch", "cost": 2,
+		"text": "below a quarter the Boiler vents itself, once a wave",
+		"field": "deadmans_switch"},
+}
+
+
+static func owns(state: Dictionary, id: String) -> bool:
+	return bool((state.get("bought_articles", {}) as Dictionary).get(id, false))
+
+
+## Sigils are spent, not held: `sigils` is the running balance and every purchase
+## is permanent. There is no refund, deliberately — scrip buys experiments and
+## sigils buy commitments, and a side you can respec is not a commitment.
+static func can_take(state: Dictionary, id: String) -> bool:
+	if not ARTICLES.has(id) or not bool(state.unlocked) or owns(state, id):
+		return false
+	var article: Dictionary = ARTICLES[id]
+	if article.has("excludes") and owns(state, str(article.excludes)):
+		return false
+	return int(state.sigils) >= int(article.cost)
+
+
+static func take(state: Dictionary, id: String) -> bool:
+	if not can_take(state, id):
+		return false
+	state.sigils = int(state.sigils) - int(ARTICLES[id].cost)
+	if not state.has("bought_articles"):
+		state["bought_articles"] = {}
+	(state.bought_articles as Dictionary)[id] = true
+	save_state(state)
+	return true
+
+
+## Which Articles are live for this class. Kept here rather than at the call
+## site, so "the Boilerwright cannot Brace" is stated once.
+static func articles_for(state: Dictionary, class_id: String) -> Dictionary:
+	var out := {}
+	for id in ARTICLES.keys():
+		if not owns(state, id):
+			continue
+		if bool(ARTICLES[id].get("captain_only", false)) and class_id != "captain":
+			continue
+		out[str(ARTICLES[id].field)] = true
+	return out
+
+
 ## A tier opens once two nodes in its branch are bought. Gating on COUNT rather
 ## than on specific parents keeps the tree a shape you can read off a screen
 ## instead of a graph you have to trace.
@@ -159,9 +241,12 @@ const TIER_STEP := 2
 ## Opt-IN rather than opt-out, so a test that forgets it fails loudly by
 ## clobbering nothing rather than quietly by clobbering everything.
 static func fresh(ephemeral: bool = false) -> Dictionary:
+	## `articles` records which one-time FIRSTS have been claimed; the ones you
+	## have BOUGHT are `bought_articles`. Two dictionaries because they answer
+	## different questions and merging them once cost an afternoon.
 	return {"unlocked": false, "scrip": 0, "sigils": 0, "spent_sigils": 0,
-		"nodes": {}, "articles": {}, "seeds": [], "heat": 0, "best_heat": 0,
-		"ephemeral": ephemeral}
+		"nodes": {}, "articles": {}, "bought_articles": {}, "seeds": [],
+		"heat": 0, "best_heat": 0, "ephemeral": ephemeral}
 
 
 static func load_state() -> Dictionary:
