@@ -956,7 +956,7 @@ func _draw_draft() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.78))
 	_banner(size.x * 0.5, 88.0, 420.0)
 	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
-	_center_text("Every weapon is a shape crossed with an element.", 158.0, 18, Color("#b9afaa"))
+	_center_text("Click a card, or press its number.", 158.0, 18, Color("#b9afaa"))
 	# reroll: two per RUN, so spending one is a decision about which hand
 	var reroll := reroll_button(size)
 	var can_reroll: bool = game.rerolls > 0
@@ -977,9 +977,6 @@ func _draw_draft() -> void:
 		if hovered:
 			rect = rect.grow(4.0)
 		_panel(rect)
-		_center_in_rect("%d  ·  CLICK OR PRESS %d" % [i + 1, i + 1],
-			Rect2(rect.position + Vector2(0, 14), Vector2(rect.size.x, 30)), 13,
-			Color("#ffe08a") if hovered else Color("#8b8296"))
 
 		## The class band. Reported against the browser build in exactly these
 		## words: it is not visually clear whether an upgrade enhances a skill
@@ -988,11 +985,13 @@ func _draw_draft() -> void:
 		var tint: Color = card.get("color", Color("#b0813f"))
 		draw_rect(band, Color(tint.r, tint.g, tint.b, 0.16))
 		draw_rect(band, tint, false, 2.0)
-		_center_in_rect(str(card.get("class_label", "UPGRADE")),
+		_center_in_rect("%d  ·  %s" % [i + 1, str(card.get("class_label", "UPGRADE"))],
 			Rect2(band.position + Vector2(0, 3), band.size), 14, tint)
 
 		_center_in_rect(str(card.title), Rect2(rect.position + Vector2(15, 96), Vector2(card_width - 30, 72)), 22, tint)
-		_center_in_rect(str(card.text), Rect2(rect.position + Vector2(20, 150), Vector2(card_width - 40, 96)), 16, Color("#eee5d5"))
+		draw_multiline_string(font, rect.position + Vector2(20, 166),
+			str(card.text), HORIZONTAL_ALIGNMENT_CENTER, card_width - 40, 16, 3,
+			Color("#eee5d5"))
 
 		## The shape, as its glyph. A card that hands you a weapon should show
 		## you the weapon: nine shapes with nine icons already in `assets/`, and
@@ -1004,16 +1003,46 @@ func _draw_draft() -> void:
 			glyph_shape = str(card.shape)
 		if glyph_shape != "":
 			var glyph := _tex(str(SLOT_ICONS.get(glyph_shape, "")))
-			if glyph != null:
+			if glyph != null and SkyGearCards.preview(game, card).is_empty():
 				var at := rect.position + Vector2(card_width * 0.5 - 34.0, 214.0)
 				draw_texture_rect_region(glyph, Rect2(at, Vector2(68, 68)),
 					Rect2(Vector2.ZERO, glyph.get_size()), tint)
+
+		## BEFORE -> AFTER. The card said "hits harder" and left you to guess by
+		## how much, against a current value it also did not show.
+		var rows: Array = SkyGearCards.preview(game, card)
+		if not rows.is_empty():
+			var ry: float = rect.position.y + 202.0
+			var rx: float = rect.position.x + 22.0
+			var rw: float = card_width - 44.0
+			## A rule above them, so the numbers read as a consequence of the
+			## sentence rather than as more of it.
+			draw_line(Vector2(rx, ry - 12.0), Vector2(rx + rw, ry - 12.0),
+				Color(tint.r, tint.g, tint.b, 0.35), 1.0)
+			for r in rows.slice(0, SkyGearCards.PREVIEW_ROWS):
+				var good: bool = bool(r.better)
+				_label(str(r.label), Vector2(rx, ry), rw * 0.5,
+					HORIZONTAL_ALIGNMENT_LEFT, 12)
+				## Old value struck through in grey, new value lit. An arrow with
+				## two live-looking numbers reads as a range, not a change.
+				var old_at := Vector2(rx + rw * 0.52, ry)
+				draw_string(font, old_at, str(r.before), HORIZONTAL_ALIGNMENT_LEFT,
+					rw * 0.2, 12, Color("#6a6478"))
+				draw_string(font, Vector2(rx + rw * 0.72, ry), "->",
+					HORIZONTAL_ALIGNMENT_LEFT, 20, 12, Color("#6a6478"))
+				draw_string(font, Vector2(rx + rw * 0.80, ry), str(r.after),
+					HORIZONTAL_ALIGNMENT_LEFT, rw * 0.22, 12,
+					Color("#7be8a8") if good else Color("#ff9a5a"))
+				ry += 16.0
+			if rows.size() > SkyGearCards.PREVIEW_ROWS:
+				_label("+%d more" % (rows.size() - SkyGearCards.PREVIEW_ROWS),
+					Vector2(rx, ry), rw, HORIZONTAL_ALIGNMENT_LEFT, 11)
 
 		## And which of your skills it lands on, as glyphs, with the untouched
 		## ones dim. A card that touches no skill says what it does touch —
 		## four dark glyphs reads as "affects nothing".
 		var hit: Array = card.get("affects", [])
-		var row_y: float = rect.position.y + rect.size.y - 44.0
+		var row_y: float = rect.position.y + rect.size.y - 72.0
 		## A weapon card does not "affect" the skills you already hold — it takes
 		## a slot. Saying so beats four grey dots, which is what it was drawing.
 		if str(card.get("kind", "")) == "skill":

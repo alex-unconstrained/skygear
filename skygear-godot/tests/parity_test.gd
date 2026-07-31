@@ -1214,6 +1214,78 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## THE CARD PREVIEW. It computes before -> after by RUNNING the card against a
+	## copy of the state, which is the only way the preview cannot disagree with
+	## the effect — but it makes "does it change anything" the load-bearing test.
+	game.go_to_title()
+	game.set_seed_text("PREVIEW")
+	game.begin_run()
+	game.choose_draft(0)
+	game.open_draft()
+	var touched := 0
+	var previewed := 0
+	var rng_moved := 0
+	for option in game.draft_options:
+		var mods_before: String = JSON.stringify(game.mods)
+		var skills_before: String = JSON.stringify(game.skills)
+		var boiler_before: float = game.boiler_hp
+		var rerolls_before: int = game.rerolls
+		var rng_before: int = game.rng.state
+		var rows: Array = SkyGearCards.preview(game, option)
+		if not rows.is_empty():
+			previewed += 1
+		if JSON.stringify(game.mods) != mods_before 				or JSON.stringify(game.skills) != skills_before 				or game.boiler_hp != boiler_before or game.rerolls != rerolls_before:
+			touched += 1
+		if game.rng.state != rng_before:
+			rng_moved += 1
+	_check("preview", "previewing a card changes nothing", touched == 0,
+		"%d of %d cards leaked into the real state" % [touched, game.draft_options.size()])
+	_check("preview", "and does not advance the seeded stream", rng_moved == 0,
+		"%d cards moved the rng" % rng_moved)
+
+	## Every card in the catalogue, not only the three that happened to roll —
+	## a preview that crashes on the one epic card nobody drafted is a crash in
+	## front of the player at the best moment of the run.
+	game.skills = [SkyGearData.make_skill("CLOSEHIT", "EMBER"),
+		SkyGearData.make_skill("RANGED_AOE", "FROST"),
+		SkyGearData.make_skill("CHAIN", "ARC")]
+	var first_slot := func(list: Array) -> int:
+		return int(list[0]) if not list.is_empty() else 0
+	var swept := 0
+	var leaked := 0
+	var with_numbers := 0
+	for entry in SkyGearCards.catalogue():
+		if not (entry.get("can") as Callable).call(game):
+			continue
+		var instance: Dictionary = (entry.get("make") as Callable).call(game, first_slot)
+		var before: String = JSON.stringify(game.mods) + JSON.stringify(game.skills)
+		var rows: Array = SkyGearCards.preview(game, instance)
+		swept += 1
+		if not rows.is_empty():
+			with_numbers += 1
+		if JSON.stringify(game.mods) + JSON.stringify(game.skills) != before:
+			leaked += 1
+	_check("preview", "every offerable card previews without leaking",
+		leaked == 0 and swept > 0, "%d swept, %d leaked" % [swept, leaked])
+	## Most cards move a number a player can be shown. Not all — "the next draft
+	## offers four" has nothing to preview — so this is a floor, not a total.
+	_check("preview", "and most of them have numbers to show",
+		with_numbers >= swept / 2, "%d of %d swept" % [with_numbers, swept])
+
+	## And the direction has to be right, or a green number is worse than none.
+	var better := SkyGearCards.preview(game, {"apply": func(g):
+		g.skills[0].mods["damage"] = float(g.skills[0].mods.get("damage", 1.0)) * 2.0,
+		"affects": [0]})
+	_check("preview", "more damage reads as an improvement",
+		not better.is_empty() and bool(better[0].better),
+		"got %s" % str(better))
+	var worse := SkyGearCards.preview(game, {"apply": func(g):
+		g.skills[0].mods["cooldown"] = float(g.skills[0].mods.get("cooldown", 1.0)) * 2.0,
+		"affects": [0]})
+	_check("preview", "and a longer cooldown does not",
+		not worse.is_empty() and not bool(worse[0].better),
+		"got %s" % str(worse))
+
 	## THE SCREENS. Every one of these was a line of text naming a key: the title
 	## said "press Enter" and never mentioned the four other things you could do,
 	## the results screen said "C to copy, Enter for title" and hid the one thing

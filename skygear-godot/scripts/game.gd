@@ -1054,7 +1054,16 @@ func _process_skill_input() -> void:
 ## Base shape table x per-skill mods x global mods, in one place. Everything
 ## that fires reads this rather than the SHAPES table, so a card that says
 ## "+30% range" is felt by the cast, the preview and the harness alike.
+## The live numbers for a skill. Delegates, because the draft has to be able to
+## ask the same question about a HYPOTHETICAL set of mods — "what would this be
+## if I took that card" — and a function that can only read `self` cannot answer
+## it. Same arithmetic, one copy.
 func skill_stats(skill: Dictionary) -> Dictionary:
+	return stats_with(skill, mods, damage_multiplier)
+
+
+static func stats_with(skill: Dictionary, mods: Dictionary,
+		damage_multiplier: float) -> Dictionary:
 	var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
 	var m: Dictionary = skill.get("mods", {})
 	var element: String = skill.element

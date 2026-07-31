@@ -66,6 +66,210 @@ const CARD_ELEMENT := {
 }
 
 
+## WHAT WOULD THIS CARD ACTUALLY DO?
+##
+## The card face said "Ember Cleave hits harder" and left the player to guess by
+## how much, against what it currently is. Both numbers exist; neither was shown.
+## Reported against the browser in these words: it is not visually clear whether
+## an upgrade enhances a skill you have or hands you a new one.
+##
+## Computed by RUNNING THE CARD, not by describing it. A hand-written blurb per
+## card is forty-one chances to say 25% where the code says 20%, and the first
+## one to drift is the one nobody notices. This applies the real `apply` to a
+## copy of the state and diffs the result, so the preview cannot disagree with
+## the effect — if it is wrong, the card is wrong.
+##
+## Safe because of what cards are allowed to touch: `mods`, `skills`, `rng`,
+## `rerolls`, the boiler's two numbers, and four fields on the captain. The module
+## docstring says a card may never reach into the simulation and the code holds
+## to it, so a Dictionary carrying those is a complete stand-in — GDScript
+## resolves `g.mods` against a Dictionary key, so `apply` runs unmodified and
+## cannot tell the difference.
+##
+## The captain is a NODE, so it cannot be duplicated; the stand-in carries the
+## four numbers cards move. `preview` swept the whole catalogue and found these
+## by crashing on them, which is the only reliable way to find out what a
+## forty-one-entry table of closures actually reaches for.
+const PLAYER_FIELDS := ["hp", "max_hp", "dash_charges", "max_dash_charges"]
+const PREVIEW_ROWS := 3
+
+
+static func preview(game, card: Dictionary) -> Array:
+	var apply = card.get("apply")
+	if not (apply is Callable):
+		return []
+
+	## A DEEP copy. A shallow one shares the nested dictionaries `apply` mutates,
+	## so previewing a card would silently apply it — the worst possible bug in a
+	## function whose whole job is to not change anything.
+	var sandbox := {
+		"mods": game.mods.duplicate(true),
+		"skills": game.skills.duplicate(true),
+		"rng": game.rng,
+		"rerolls": int(game.rerolls),
+		"boiler_hp": float(game.boiler_hp),
+		"boiler_max_hp": float(game.boiler_max_hp),
+	}
+	var captain := {}
+	for field in PLAYER_FIELDS:
+		captain[field] = game.player.get(field) if game.player != null else 0.0
+	sandbox["player"] = captain
+	var before_mult: float = float(game.damage_multiplier)
+	sandbox["damage_multiplier"] = before_mult
+	var before_skills: Array = game.skills
+
+	## The RNG is shared rather than copied, so a card that rolls during `apply`
+	## would advance the real stream and change the run. None do today; the guard
+	## is that we restore the state afterwards.
+	var rng_state: int = game.rng.state if game.rng != null else 0
+	@warning_ignore("unsafe_call_argument")
+	apply.call(sandbox)
+	if game.rng != null:
+		game.rng.state = rng_state
+
+	var after_mult: float = float(sandbox.get("damage_multiplier", before_mult))
+	var rows: Array = []
+
+	## Per-skill, and only where something moved. A card that changes one number
+	## on one skill should print one line, not a table of unchanged ones.
+	var slots: Array = card.get("affects", [])
+	if slots.is_empty():
+		slots = range(before_skills.size())
+	for i in slots:
+		var index := int(i)
+		if index < 0 or index >= before_skills.size() or index >= sandbox.skills.size():
+			continue
+		var was: Dictionary = game.stats_with(before_skills[index], game.mods, before_mult)
+		var now: Dictionary = game.stats_with(sandbox.skills[index], sandbox.mods, after_mult)
+		var name: String = SkyGearData.skill_name(before_skills[index])
+		for field in [["damage", "dmg", 1.0, true], ["cooldown", "cd", 1.0, false],
+				["range", "rng", 1.0, true], ["radius", "area", 1.0, true],
+				["multi", "shots", 1.0, true], ["jumps", "jumps", 1.0, true],
+				["pierce", "pierce", 1.0, true]]:
+			var key := str(field[0])
+			var a := float(was.get(key, 0.0))
+			var b := float(now.get(key, 0.0))
+			if absf(a - b) < 0.005:
+				continue
+			rows.append({"label": "%s %s" % [name, str(field[1])],
+				"before": _num(a), "after": _num(b), "better": (b > a) == bool(field[3])})
+
+	## And every global that moved, found by diffing rather than listed. A
+	## whitelist means the next card to touch a new modifier previews as blank and
+	## nobody notices for a month; a diff means a preview exists the moment the
+	## card does.
+	for key in game.mods.keys():
+		var a = game.mods[key]
+		var b = sandbox.mods.get(key)
+		if a is Dictionary and b is Dictionary:
+			## Per-element tables: BRITTLE moves Frost and nothing else, and
+			## "elem_damage" as one line would have to lie about which.
+			for sub in (a as Dictionary).keys():
+				var ea := float((a as Dictionary)[sub])
+				var eb := float((b as Dictionary).get(sub, ea))
+				if absf(ea - eb) < 0.0005:
+					continue
+				rows.append(_row("%s %s" % [str(sub).to_lower(),
+					_pretty(str(key))], ea, eb, _higher_is_better(str(key))))
+			continue
+		if not ((a is float or a is int) and (b is float or b is int)):
+			continue
+		if absf(float(a) - float(b)) < 0.0005:
+			continue
+		rows.append(_row(_pretty(str(key)), float(a), float(b),
+			_higher_is_better(str(key)), str(key) in PLAIN_NUMBERS))
+
+	if absf(float(sandbox.boiler_max_hp) - float(game.boiler_max_hp)) > 0.5:
+		rows.append({"label": "Boiler HP", "before": _num(float(game.boiler_max_hp)),
+			"after": _num(float(sandbox.boiler_max_hp)), "better": true})
+
+	## The captain's own numbers, same rule: only the ones that moved.
+	for pair in [["max_hp", "max health"], ["max_dash_charges", "dashes"]]:
+		var field := str(pair[0])
+		if game.player == null:
+			break
+		var a := float(game.player.get(field))
+		var b := float(captain.get(field, a))
+		if absf(a - b) < 0.005:
+			continue
+		rows.append({"label": str(pair[1]), "before": _num(a), "after": _num(b),
+			"better": b > a})
+
+	if int(sandbox.rerolls) != int(game.rerolls):
+		rows.append({"label": "rerolls", "before": str(int(game.rerolls)),
+			"after": str(int(sandbox.rerolls)), "better": true})
+
+	## One line per thing. A dash card moves BOTH `mods.dash_charges` and the
+	## captain's own `max_dash_charges` — the same fact stored twice — and printing
+	## "dashes 2 -> 3" twice makes the preview look broken rather than thorough.
+	var seen := {}
+	var unique: Array = []
+	for r in rows:
+		var key := str(r.label)
+		if seen.has(key):
+			continue
+		seen[key] = true
+		unique.append(r)
+	return unique
+
+
+## Names a player would use. Anything not here falls back to the field name with
+## its underscores knocked out, which is readable for `crit_chance` and honest
+## about the ones nobody has bothered to name yet.
+const MOD_NAMES := {
+	"crit_chance": "crit", "crit_damage": "crit damage", "lifesteal": "lifesteal",
+	"move_speed": "speed", "knock_multiplier": "knockback",
+	"pressure_gain": "pressure", "salvage_rate": "salvage",
+	"burn_damage": "burn", "burn_duration": "burn time",
+	"slow_amount": "slow", "slow_damage": "damage vs slowed",
+	"stun_chance": "stun", "scrap_chance": "scrap",
+	"vent_radius": "vent size", "vent_heal": "vent heal", "vent_damage": "vent hit",
+	"dash_charges": "dashes", "elem_damage": "damage", "elem_cooldown": "cooldown",
+	"residue": "residue", "pierce": "pierce", "multi": "shots",
+	"heal_on_kill": "heal per kill", "draft_size": "cards offered",
+}
+
+## The few where UP is worse. Everything else in `mods` is a bonus, so listing
+## the exceptions is shorter and does not go stale when a bonus is added.
+const LOWER_IS_BETTER := ["elem_cooldown", "cooldown"]
+
+## Fields that are a COUNT or a flat AMOUNT rather than a scale. Without this
+## `dash_charges` prints "2.00x -> 3.00x", which is two dashes becoming three
+## dressed up as a multiplier, and `vent_heal` prints a heal of eight points as
+## "8.00x". Both are numbers a player cannot act on.
+const PLAIN_NUMBERS := ["dash_charges", "vent_heal", "vent_damage", "vent_radius",
+	"draft_size", "pierce", "multi", "jumps", "heal_on_kill", "burn_duration"]
+
+
+static func _pretty(key: String) -> String:
+	return str(MOD_NAMES.get(key, key.replace("_", " ")))
+
+
+static func _higher_is_better(key: String) -> bool:
+	return not (key in LOWER_IS_BETTER)
+
+
+## A percentage where the value reads as one, a multiplier where it does not.
+## `crit_chance` at 0.15 is "15%"; `burn_damage` at 1.4 is "1.40x", and printing
+## either in the other's clothes is a number a player cannot act on.
+static func _row(label: String, a: float, b: float, up_is_good: bool,
+		plain: bool = false) -> Dictionary:
+	if plain:
+		return {"label": label, "before": _num(a), "after": _num(b),
+			"better": (b > a) == up_is_good}
+	var as_percent: bool = maxf(absf(a), absf(b)) <= 1.001
+	var before := ("%d%%" % roundi(a * 100.0)) if as_percent else ("%.2fx" % a)
+	var after := ("%d%%" % roundi(b * 100.0)) if as_percent else ("%.2fx" % b)
+	return {"label": label, "before": before, "after": after,
+		"better": (b > a) == up_is_good}
+
+
+static func _num(v: float) -> String:
+	if absf(v - roundf(v)) < 0.005:
+		return "%d" % roundi(v)
+	return "%.2f" % v
+
+
 static func fresh_mods() -> Dictionary:
 	## Every global modifier a card can move, at its starting value. Mirrors
 	## freshMods() in the browser core.
