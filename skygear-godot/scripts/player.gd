@@ -11,7 +11,11 @@ const DASH_DISTANCE := 220.0
 const DASH_TIME := 0.16
 const DASH_SPEED := DASH_DISTANCE / DASH_TIME
 const DASH_RECHARGE := 1.0
-const MAX_DASH_CHARGES := 2
+## The STARTING number. The ceiling is `max_dash_charges`, which the draft can
+## raise — `cards.gd` has an epic that sets `mods.dash_charges` to 3 and nothing
+## read it, so the card was purchasable and did nothing. A const used as a
+## ceiling is a const that quietly outranks the upgrade system.
+const START_DASH_CHARGES := 2
 
 var game: Node
 var hp := MAX_HP
@@ -19,7 +23,8 @@ var max_hp := MAX_HP
 var pressure := 0.0
 var aim_direction := Vector2.UP
 var controls_enabled := false
-var dash_charges := MAX_DASH_CHARGES
+var dash_charges := START_DASH_CHARGES
+var max_dash_charges := START_DASH_CHARGES
 var dash_recharge_left := 0.0
 var dash_time_left := 0.0
 ## How long she is still mid-swing, for the renderer. A cast is instantaneous in
@@ -41,7 +46,7 @@ func reset_for_run() -> void:
 	hp = MAX_HP
 	max_hp = MAX_HP
 	pressure = 0.0
-	dash_charges = MAX_DASH_CHARGES
+	dash_charges = max_dash_charges
 	dash_recharge_left = 0.0
 	dash_time_left = 0.0
 	attack_time = 0.0
@@ -105,16 +110,16 @@ func _try_dash(move_direction: Vector2) -> void:
 	dash_started.emit()
 
 func _update_dash_recharge(delta: float) -> void:
-	if dash_charges >= MAX_DASH_CHARGES:
+	if dash_charges >= max_dash_charges:
 		dash_recharge_left = 0.0
 		return
 	dash_recharge_left -= delta
 	if dash_recharge_left <= 0.0:
 		dash_charges += 1
-		dash_recharge_left = DASH_RECHARGE if dash_charges < MAX_DASH_CHARGES else 0.0
+		dash_recharge_left = DASH_RECHARGE if dash_charges < max_dash_charges else 0.0
 
 func refund_dash(seconds: float) -> void:
-	if dash_charges < MAX_DASH_CHARGES:
+	if dash_charges < max_dash_charges:
 		dash_recharge_left = maxf(0.0, dash_recharge_left - seconds)
 
 func take_damage(amount: float) -> bool:

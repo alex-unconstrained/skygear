@@ -89,6 +89,8 @@ func _run() -> void:
 	_persistence()
 	await process_frame
 	_layout()
+	await process_frame
+	_dash()
 
 	print("")
 	if failures.is_empty():
@@ -1544,3 +1546,40 @@ func _depends_on_staging(path: String) -> bool:
 		if dep.contains("import_staging"):
 			return true
 	return false
+
+
+## --- the dash ceiling ---------------------------------------------------------
+## In its own pass, at the end. `enemy_count()` walks the whole tree, so a second
+## game alive at the same time as the view checks inflates their boarder count —
+## a test that breaks a different test is worse than the bug it was written for.
+func _dash() -> void:
+	## THE DASH UPGRADE WAS UNPURCHASABLE. `cards.gd` has an epic that raises
+	## `mods.dash_charges` to three, and `player.gd` used a const as the ceiling,
+	## so the card was in the draft, cost a pick, and did nothing.
+	var dash_game := _new_game()
+	_begin(dash_game)
+	dash_game._process(0.05)
+	var base_charges: int = dash_game.player.max_dash_charges
+	dash_game.mods.dash_charges = 3
+	dash_game._process(0.05)
+	_check("dash", "the draft can actually raise the dash ceiling",
+		dash_game.player.max_dash_charges == 3 and base_charges == 2,
+		"%d -> %d" % [base_charges, dash_game.player.max_dash_charges])
+	## And the third charge has to be spendable, not just counted.
+	dash_game.player.dash_charges = 3
+	var spent := 0
+	for i in 4:
+		var before: int = dash_game.player.dash_charges
+		dash_game.player._try_dash(Vector2.UP)
+		if dash_game.player.dash_charges < before:
+			spent += 1
+		dash_game.player.dash_time_left = 0.0
+	_check("dash", "and the third charge can be spent",
+		spent == 3, "%d dashes from 3 charges" % spent)
+	## A run reset must restore the raised ceiling, not the const.
+	dash_game.player.reset_for_run()
+	_check("dash", "and a fresh run starts with all of them",
+		dash_game.player.dash_charges == dash_game.player.max_dash_charges,
+		"%d of %d" % [dash_game.player.dash_charges, dash_game.player.max_dash_charges])
+	dash_game.queue_free()
+

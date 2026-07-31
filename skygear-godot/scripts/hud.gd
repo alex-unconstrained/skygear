@@ -461,8 +461,9 @@ func _draw_game_hud() -> void:
 		HORIZONTAL_ALIGNMENT_LEFT, 12)
 	var pips := l.item("captain", "dash_pips", panel)
 	var pip_art := _tex("res://assets/art/ui/dash_pip.png")
-	var pip_r: float = minf(pips.size.y, pips.size.x * 0.5) * 0.5
-	for i in 2:
+	var owned: int = maxi(1, player.max_dash_charges)
+	var pip_r: float = minf(pips.size.y, pips.size.x / float(owned)) * 0.5
+	for i in owned:
 		var lit := i < player.dash_charges
 		var at := Vector2(pips.position.x + pip_r + i * pip_r * 2.2, pips.get_center().y)
 		if pip_art != null:
@@ -472,6 +473,14 @@ func _draw_game_hud() -> void:
 				Color("#9ff5e2") if lit else Color(0.28, 0.26, 0.32))
 		else:
 			draw_circle(at, pip_r, Color("#37f0c8") if lit else Color("#201c28"))
+		## The one currently recharging fills, so "nearly" is visible. Waiting on
+		## a dash with no idea how long is the most common reason to walk into
+		## something.
+		if not lit and i == player.dash_charges and player.dash_recharge_left > 0.0:
+			var done: float = 1.0 - clampf(player.dash_recharge_left
+				/ maxf(0.01, SkyGearPlayer.DASH_RECHARGE), 0.0, 1.0)
+			draw_arc(at, pip_r - 1.0, -PI * 0.5, -PI * 0.5 + TAU * done, 20,
+				Color("#37f0c8"), 2.4)
 
 	## --- the objective, top centre ------------------------------------------
 	## The thing you lose by, where an eye goes first, rather than in a corner
@@ -547,8 +556,14 @@ func _draw_game_hud() -> void:
 		draw_arc(icon_at.get_center(), icon_at.size.x * 0.62, 0.0, TAU, 28,
 			Color(0.02, 0.015, 0.03, 0.9), 2.0)
 		if i >= game.skills.size():
-			_label("LOCKED", name_at.position + Vector2(0, name_at.size.y), name_at.size.x,
-				HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#5f5863"))
+			## "EMPTY", not "LOCKED". Nothing gates these by wave — a slot fills
+			## when you draft a weapon into it — and calling it locked tells a
+			## player to wait for something that is never going to arrive.
+			_label("EMPTY", name_at.position + Vector2(0, name_at.size.y), name_at.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#6f6878"))
+			_label("draft a weapon", Vector2(icon_at.position.x - 12.0,
+				icon_at.get_center().y + 4.0), icon_at.size.x + 24.0,
+				HORIZONTAL_ALIGNMENT_CENTER, 10, Color("#5f5863"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
@@ -562,6 +577,11 @@ func _draw_game_hud() -> void:
 			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)),
 				0.0, 1.0)
 			_cooldown(icon_at.grow(4.0), frac)
+			## The number, not just the wedge. "Can I press this in time" is a
+			## question an angle cannot answer.
+			_value("%.1f" % float(skill.cooldown_left),
+				Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
+				icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
 		_label(SkyGearData.skill_name(skill),
 			name_at.position + Vector2(0, name_at.size.y), name_at.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 12,

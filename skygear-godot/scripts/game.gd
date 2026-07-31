@@ -465,6 +465,10 @@ func _process(delta: float) -> void:
 	if delta <= 0.0:
 		queue_redraw()
 		return
+	## The draft can raise the dash ceiling, so the player has to be told. Synced
+	## here rather than at the card, because a card that reaches into the player
+	## is a card that has to be undone if the run is reset.
+	player.max_dash_charges = maxi(1, int(mods.dash_charges))
 	_update_cooldowns(delta)
 	_update_wave(delta)
 	_update_projectiles(delta)
