@@ -31,11 +31,39 @@ const BRASS_LIT := Color("#e8c376")
 const BONE := Color("#eee5d5")
 const TEAL := Color("#37f0c8")
 const DIM := Color("#5f5863")
-const INK := Color(0.03, 0.02, 0.045, 0.9)
 
 ## Emitted through a plain callback rather than a signal: this is a RefCounted
 ## helper owned by the HUD, and a signal would need a lifetime.
 var on_sound: Callable = Callable()
+
+## WHERE A WIDGET'S WORDS GO TO BE DRAWN.
+##
+## This layer used to call `draw_string` itself, which made it a second answer to
+## a question the HUD had already answered once: how big is the smallest text we
+## allow, how is a glyph separated from the plate behind it, and where does the
+## legibility audit find out what was drawn. Two answers to one question is the
+## bug that has bitten this project three times.
+##
+## So the HUD hands over its funnel and every button label, row value, slider
+## readout and key hint goes through it — which is also the only reason the audit
+## can see them at all. Falls back to a plain draw if nobody set it, because a
+## widget that vanishes when a callback is missing is worse than an unmeasured
+## one.
+var scribe: Callable = Callable()
+
+## WHICH PLATE IS OPEN RIGHT NOW.
+##
+## Asked rather than told, because a screen opens and closes several plates
+## while it draws and a value handed over at `begin` would be the wrong one by
+## the third panel.
+##
+## Two levels, and they are different bugs. A label belongs to its WIDGET — a
+## button whose text runs off its own edge is a clipped button. A widget belongs
+## to the PLATE — four pause buttons hanging off the left edge of their sheet is
+## a layout laid out from the wrong x, which is exactly what they were, and the
+## first version of this measured the labels against nothing at all and reported
+## sixteen screens clean while it was happening.
+var plate: Callable = Callable()
 
 var _focus: Dictionary = {}          ## screen -> focused index
 var _screen := ""
@@ -81,6 +109,30 @@ func focused() -> int:
 	return int(_focus.get(_screen, 0))
 
 
+## Every widget rectangle, tagged with the plate that was open when it was
+## declared. Kept here rather than recomputed by the audit, because "the plate
+## that was open at the time" is a fact about the frame that drew it and cannot
+## be reconstructed afterwards from a list of rectangles.
+func _declare(rect: Rect2, extra: Dictionary = {}) -> void:
+	var item := {"rect": rect, "disabled": false, "framed": false,
+		"frame": Rect2()}
+	item.merge(extra, true)
+	if plate.is_valid():
+		var open: Dictionary = plate.call()
+		item["framed"] = bool(open.open)
+		item["frame"] = open.rect as Rect2
+	_items.append(item)
+
+
+## The label belongs to the widget, so that is the frame it is measured against.
+func _text(owner: Rect2, at: Vector2, s: String, align: int, width: float,
+		pt: int, tint: Color) -> void:
+	if scribe.is_valid():
+		scribe.call(owner, s, at, width, align, pt, tint)
+	else:
+		SkyGearInk.write(_canvas, _font, at, s, align, width, pt, tint)
+
+
 ## A button. Returns true on the frame it is activated, by click or by key.
 func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	var index := _index
@@ -88,7 +140,7 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	var disabled: bool = bool(opts.get("disabled", false))
 	var primary: bool = bool(opts.get("primary", false))
 	var hint: String = str(opts.get("hint", ""))
-	_items.append({"rect": rect, "disabled": disabled})
+	_declare(rect, {"disabled": disabled})
 
 	var hot: bool = not disabled and rect.has_point(_mouse)
 	if hot and _hovered != index:
@@ -112,13 +164,19 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	_canvas.draw_rect(rect, edge, false, 2.0 if shown else 1.4)
 
 	var tint: Color = DIM if disabled else (TEAL if primary else BONE)
-	_canvas.draw_string(_font, rect.position + Vector2(1, rect.size.y * 0.5 + 7.0),
-		label, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 18, INK)
-	_canvas.draw_string(_font, rect.position + Vector2(0, rect.size.y * 0.5 + 6.0),
-		label, HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 18, tint)
+	_text(rect, rect.position + Vector2(0, rect.size.y * 0.5 + 6.0), label,
+		HORIZONTAL_ALIGNMENT_CENTER, rect.size.x, 18, tint)
 	if hint != "":
-		_canvas.draw_string(_font, Vector2(rect.end.x - 40.0, rect.position.y + 16.0),
-			hint, HORIZONTAL_ALIGNMENT_RIGHT, 34, 11, DIM if disabled else BRASS)
+		## 44, because "Alt+F4" at the smallest size the game is allowed to draw
+		## is 37 and this box was 34. It used to fit at 11pt, which is the size at
+		## which nobody read it.
+		##
+		## And BRASS_LIT rather than BRASS: the audit measured the key hints at
+		## 1.02 against the housing they are painted on, which is brass text on
+		## brass and the lowest contrast anywhere in the game. A hint is meant to
+		## be quiet, not absent.
+		_text(rect, Vector2(rect.end.x - 48.0, rect.position.y + 17.0), hint,
+			HORIZONTAL_ALIGNMENT_RIGHT, 44, 12, DIM if disabled else BRASS_LIT)
 
 	if disabled:
 		return false
@@ -138,12 +196,11 @@ func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bo
 	var tint: Color = DIM if bool(opts.get("disabled", false)) else BONE
 	## The hint owns the right edge when there is one, so the value steps left of
 	## it rather than printing on top of it.
-	var reserved: float = 14.0 + (34.0 if str(opts.get("hint", "")) != "" else 0.0)
-	_canvas.draw_string(_font, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0),
-		label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 28.0 - reserved, 16, tint)
-	_canvas.draw_string(_font, rect.position + Vector2(-reserved, rect.size.y * 0.5 + 6.0),
-		value, HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x, 16,
-		BRASS_LIT if shown else BRASS)
+	var reserved: float = 14.0 + (48.0 if str(opts.get("hint", "")) != "" else 0.0)
+	_text(rect, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0), label,
+		HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 28.0 - reserved, 16, tint)
+	_text(rect, rect.position + Vector2(-reserved, rect.size.y * 0.5 + 6.0), value,
+		HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x, 16, BRASS_LIT if shown else BRASS)
 	return fired
 
 
@@ -152,7 +209,7 @@ func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bo
 func slider(rect: Rect2, label: String, value: float, opts: Dictionary = {}) -> float:
 	var index := _index
 	_index += 1
-	_items.append({"rect": rect, "disabled": false, "slider": true})
+	_declare(rect, {"slider": true})
 	var shown: bool = (_keyboard and focused() == index) or rect.has_point(_mouse)
 	if rect.has_point(_mouse) and _hovered != index:
 		_hovered = index
@@ -161,13 +218,13 @@ func slider(rect: Rect2, label: String, value: float, opts: Dictionary = {}) -> 
 
 	var track := Rect2(rect.position.x + 150.0, rect.get_center().y - 5.0,
 		rect.size.x - 210.0, 10.0)
-	_canvas.draw_string(_font, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0),
-		label, HORIZONTAL_ALIGNMENT_LEFT, 140, 16, BONE)
+	_text(rect, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0), label,
+		HORIZONTAL_ALIGNMENT_LEFT, 140, 16, BONE)
 	_canvas.draw_rect(track, Color(0.04, 0.03, 0.06, 0.9))
 	_canvas.draw_rect(Rect2(track.position, Vector2(track.size.x * clampf(value, 0.0, 1.0),
 		track.size.y)), TEAL if shown else Color("#1c6f61"))
 	_canvas.draw_rect(track, BRASS_LIT if shown else BRASS, false, 1.4)
-	_canvas.draw_string(_font, Vector2(rect.end.x - 58.0, rect.size.y * 0.5 + rect.position.y + 6.0),
+	_text(rect, Vector2(rect.end.x - 58.0, rect.size.y * 0.5 + rect.position.y + 6.0),
 		"%d%%" % roundi(value * 100.0), HORIZONTAL_ALIGNMENT_RIGHT, 50, 16, BONE)
 
 	var out := value

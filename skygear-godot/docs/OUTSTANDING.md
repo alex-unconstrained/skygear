@@ -59,21 +59,26 @@ contradicts something I had asserted several times.
 
 What remains is the work it revealed, plus scenes for the HUD and the draft.
 
-### 3D models for the remaining objects
-Asked for. Deck props are all still billboards — crates, barrels, kegs, the
-lantern posts, braziers, cannons, vents, rope, salvage. An agent is on it with
-the Meshy pipeline.
+### 3D models for the remaining objects — MOSTLY DONE, three rejected
+Asked for. Ten generated through `tools/meshy.py run props`, 360 credits.
 
-The player's own workflow is worth matching: generate, strip the baked lighting,
-remesh to a sane polycount, import. Our prompts already ask for flat albedo and
-no baked light; the REMESH step is the one the pipeline does not do, and Meshy
-has an endpoint for it.
+**On the deck now:** the Boiler, the powder keg, the lantern post, the crate
+stack, the steam vent, the deck cannon and the salvage pile. `PROP_MODEL` in
+`view3d.gd` is the switch; deleting a row puts one back to painted.
 
-### A model for the Boilerwright
-Asked for. Harder than the props: he currently uses the captain's rig and her
-animation set, so a static mesh cannot be dropped in the way a crate can. Either
-the generated mesh gets retargeted onto the same skeleton, or he keeps her rig
-and only the silhouette changes.
+**Generated, on disk, deliberately not wired** — each reads worse at the real
+camera than the art it would replace, reasoning at the missing row in
+`tools/static_model.gd`: the **brazier** (grey rock instead of burning coals, and
+238 ground units across), **crate_small** (a bright orange treasure chest), and
+the **boarding hulk** (see its own item below).
+
+**Never generated:** `rope_coil`, 30 ground units tall, the shortest thing in
+`PROP_HEIGHT`. The prompt is written and costs 30 credits if anyone disagrees.
+
+Still worth doing: the REMESH step. Our prompts ask for flat albedo and no baked
+light and get it, but nothing downsamples the mesh after refine, and Meshy has an
+endpoint for it. Every one of these is ~10 MB of GLB for an object 60 to 200
+pixels tall.
 
 ### Text legibility, not containment
 Asked for: skills, cards and HUD elements are hard to READ. Distinct from the
@@ -154,13 +159,30 @@ Fixing it means putting real content ABOVE the horizon line and checking it from
 the positions where sky is actually visible — the parity tool now makes that
 easy.
 
-### A 3D model for the boarding hulk
-Reported: the enemy boarding vehicle above the lanes is still a 2D sprite and
-looks at odds with the rest. It is the largest sprite in the game after the
-Colossus and sits directly above the three lanes the player watches, so it is
-the most visible remaining one. Complication: it has three states — sealed, open
-and destroyed — and a single mesh that cannot show "open" is a downgrade from
-the sprite, which can.
+### A 3D model for the boarding hulk — TRIED TWICE, SPRITE KEPT
+Reported, and attempted: two Meshy generations, 60 credits, both rejected. Both
+are on disk at `assets/models/boarding_hulk/` and the full reasoning is at the
+missing row in `tools/static_model.gd`. Short version:
+
+v1 came back a submarine. v2 is a good model — a wide armoured box, a round door
+open with fire in its throat, a ramp down — and still loses, to something no
+prompt fixes. The sprite wins because a billboard **turns to face the camera**,
+so all 420 units of the hulk are always presented square-on as a wall of armour
+with a glowing hole in it. The mesh is as deep as it is wide; at 41 degrees its
+mass goes up out of frame and all that is left on screen is the ramp, lying
+across the middle of the deck like a staircase. Posed against the sprite at the
+bow and again from mid-deck, it loses both times.
+
+The three states turned out not to be the hard part: the ramps are down in all
+three PNGs and the whole difference is the door, and `game.gd` sets
+`hulk.vulnerable = true` on the frame it grapples on and never clears it, so
+SEALED is currently unreachable. One mesh of the OPEN state plus the painted
+wreck would have covered it.
+
+**If this is tried again it should be modelled by hand, not prompted** — it needs
+to be much wider and much shallower than text-to-3D will return, with the ramps
+as separate low geometry. The renderer wiring is already in place and inert
+(`HULK_MODEL` in `view3d.gd`); a wrapped `.tscn` appearing is all it takes.
 
 ### The sky gradient itself — subsumed by the item above
 Reported twice before that. It was near-black and fogged; it is now a dusk gradient with

@@ -17,6 +17,12 @@ var ui := SkyGearUI.new()
 
 func _ready() -> void:
 	font = ThemeDB.fallback_font
+	## The widget layer writes through the HUD's funnel rather than calling
+	## `draw_string` itself: one point-size floor, one outline, one recorder the
+	## legibility audit can attach to. Before this the button labels and the key
+	## hints were the only text in the game the audit could not see.
+	ui.scribe = _say_in
+	ui.plate = open_frame
 	ui.on_sound = func(kind: String) -> void:
 		if game != null:
 			game.play_sfx("ui/card_hover.ogg" if kind == "hover" else "ui/card_deal.ogg",
@@ -528,13 +534,15 @@ func _cooldown(rect: Rect2, remaining: float) -> void:
 ## Readability first.
 ##
 ## Reported after a playtest: "we've lost a lot of readability and clarity from
-## the browser version." The browser draws every HUD label with an ink shadow
-## under it and a bright value over it, and this build was putting small grey
-## text straight onto brass — the one background it disappears against.
+## the browser version", and again after the containment audit went green: "text
+## on skills and cards and HUD elements is hard to read". The first fix was an
+## ink shadow under `_label` and `_value`, which covered the two functions that
+## remembered to call it and one side of each stroke.
 ##
-## `_label` and `_value` are the fix and they are used for every piece of text on
-## the bar, so the contrast decision is made once.
-const INK := Color(0.03, 0.02, 0.045, 0.9)
+## The decision now lives in `scripts/ink.gd` and every glyph in the game passes
+## through it — including the widget layer's, which used to draw its own. Point
+## size floor, outline width, outline colour, contrast floor: one file, and
+## `tools/text_audit.gd` reads the same file to decide what fails.
 
 
 ## --- every string the HUD draws goes through here ----------------------------
@@ -547,6 +555,35 @@ const INK := Color(0.03, 0.02, 0.045, 0.9)
 ## The frame stack is pushed by `_panel`, so a string knows which plate it is on
 ## without every call site having to say.
 var audit = null                     ## Array when auditing, null in a real game
+
+## --- and how big it was, and what was behind it ------------------------------
+##
+## Containment is not legibility. Every string in this game already sits inside
+## its frame — the audit proves it at four resolutions — and the report was still
+## "text on skills and cards and HUD elements is hard to read". Fitting a label
+## into a box by shrinking it to 7pt is a containment PASS and a legibility
+## failure, and `_fits` does exactly that, silently.
+##
+## So the same funnel records the other two numbers: the point size the glyph was
+## actually drawn at after every clamp and shrink, and the tint, so the audit can
+## sample the rendered frame under the box and work out the contrast against the
+## pixels that are really there rather than against the panel colour somebody
+## assumed. `hide_text` renders the frame with every glyph suppressed and nothing
+## else changed, which is how you get the background under a word without the
+## word in the way.
+var ink = null                       ## Array when the legibility pass is attached
+var hide_text := false               ## draw the frame, but not a single glyph
+
+
+func _note(text: String, box: Rect2, pt: int, tint: Color) -> void:
+	if ink == null or text.strip_edges() == "":
+		return
+	## The halo goes in the record rather than being assumed by the reader. The
+	## contrast that matters for an outlined glyph is against the halo, not
+	## against the plate two pixels further out, and a reader that assumed every
+	## string was outlined would report the day somebody turns one off as clean.
+	ink.append({"text": text, "box": box, "pt": pt, "tint": tint,
+		"outline": SkyGearInk.OUTLINE, "halo": SkyGearInk.INK})
 
 ## The plate a string belongs to. ONE, not a stack: this is immediate mode and
 ## the panels here are siblings — three draft cards drawn in a loop, five HUD
@@ -564,21 +601,50 @@ func _open_frame(rect: Rect2) -> void:
 	_in_frame = true
 
 
+## A DARK FIELD STAMPED INTO A PLATE, and the frame for whatever is written on
+## it. Two problems, one object.
+##
+## The legibility one: the audit measured the weapon name in a skill slot at
+## 1.19 against the housing it is painted on — orange-on-brass, which is not a
+## contrast, it is a camouflage. An outline rescues the letterform and leaves the
+## word sitting in the middle of rivets and scratches that the eye keeps reading
+## as strokes.
+##
+## The containment one: a 128-wide slot with a 46px brass surround leaves 71px
+## for a weapon name, and "Ember Cleave" at a size you can read is 80. The old
+## answer was `_fits`, which shrank it to 10pt and then 7pt and called that a
+## pass. The right answer is that the name does not get smaller — it gets a
+## nameplate, and the nameplate is what it is measured against, because the
+## nameplate is genuinely the frame it is inside of.
+##
+## Which is also what the housing art is for. The browser build stamps every slot
+## label into a recessed strip and this is that strip.
+func _stamp(area: Rect2, strength: float = 0.62) -> Rect2:
+	SkyGearInk.recess(self, area, strength)
+	_frame = area
+	_in_frame = true
+	return area
+
+
 func _say(text: String, at: Vector2, width: float, align: int, pt: int,
 		tint: Color) -> void:
-	draw_string(font, at, text, align, width, pt, tint)
-	if audit == null or text.strip_edges() == "":
+	## THE FLOOR IS APPLIED AT THE FUNNEL, not at the forty call sites that pick a
+	## size. A call site asking for 10 is corrected rather than obeyed, `_fits`
+	## cannot shrink past it, and the audit is then measuring the size that was
+	## really drawn rather than the size somebody intended.
+	var size_pt: int = maxi(pt, SkyGearInk.MIN_PT)
+	if not hide_text:
+		SkyGearInk.write(self, font, at, text, align, width, size_pt, tint)
+	if (audit == null and ink == null) or text.strip_edges() == "":
 		return
-	var measured: float = font.get_string_size(text, align, -1, pt).x
+	var measured: float = font.get_string_size(text, align, -1, size_pt).x
 	## The box the string will actually occupy, given its alignment. A
 	## right-aligned string at x with width w ends at x + w and starts wherever
 	## it is long enough to start, which is not the same rectangle at all.
-	var left := at.x
-	if align == HORIZONTAL_ALIGNMENT_CENTER:
-		left = at.x + (width - measured) * 0.5
-	elif align == HORIZONTAL_ALIGNMENT_RIGHT:
-		left = at.x + width - measured
-	var box := Rect2(left, at.y - pt, minf(measured, width), float(pt) * 1.3)
+	var box := SkyGearInk.box(font, text, at, width, align, size_pt)
+	_note(text, box, size_pt, tint)
+	if audit == null:
+		return
 	if measured > width + 0.5:
 		audit.append({"kind": "OVERFLOW", "text": text, "box": box,
 			"measured": measured, "given": width,
@@ -597,12 +663,61 @@ func _say(text: String, at: Vector2, width: float, align: int, pt: int,
 			"measured": measured, "given": width, "frame": frame})
 
 
+## Text that belongs to no plate: the letter on a status chip, a boarder's
+## nameplate, a number leaving a body, a wave banner across the middle of the
+## deck. Measured for size and contrast like everything else — those are the
+## strings drawn over a LIT WOODEN FLOOR, which is the worst background in the
+## game — but there is no frame for them to be inside of, and checking them
+## against whichever plate happened to be open last reported the chips under the
+## captain's health bar as escaping her panel.
+func _say_free(text: String, at: Vector2, width: float, align: int, pt: int,
+		tint: Color) -> void:
+	var was := _in_frame
+	_in_frame = false
+	_say(text, at, width, align, pt, tint)
+	_in_frame = was
+
+
+## The plate that is open at this instant, for the widget layer to stamp onto
+## every rectangle it declares. Asked rather than pushed: a screen opens and
+## closes several plates while it draws.
+func open_frame() -> Dictionary:
+	return {"rect": _frame, "open": _in_frame}
+
+
+## A WIDGET'S LABEL BELONGS TO THE WIDGET.
+##
+## Not to the plate: a button positions its own text and a centred label in a
+## 300-wide button is inside that button wherever the button is. What must be
+## inside the plate is the BUTTON, and the audit checks that separately against
+## the rectangles `SkyGearUI.declared()` hands it.
+##
+## The first version of this routed widget text through `_say_free`, which
+## exempts a string from the frame check entirely. That silenced the detector at
+## exactly the moment it started working: the audit reported sixteen screens
+## clean while four pause buttons were hanging off the left edge of their sheet
+## and the build column's cooldowns were printing on the brass. A detector turned
+## off to make a screen pass is worse than no detector, and this project has
+## shipped one of those before.
+func _say_in(owner: Rect2, text: String, at: Vector2, width: float, align: int,
+		pt: int, tint: Color) -> void:
+	var was_frame := _frame
+	var was_in := _in_frame
+	_frame = owner
+	_in_frame = true
+	_say(text, at, width, align, pt, tint)
+	_frame = was_frame
+	_in_frame = was_in
+
+
 ## Wrapped text. Audited the same way — this is where the card bodies go, and a
 ## card body is the thing that was reported.
-func _says(text: String, at: Vector2, width: float, align: int, pt: int,
+func _says(text: String, at: Vector2, width: float, align: int, requested: int,
 		lines: int, tint: Color) -> void:
-	draw_multiline_string(font, at, text, align, width, pt, lines, tint)
-	if audit == null or text.strip_edges() == "":
+	var pt: int = maxi(requested, SkyGearInk.MIN_PT)
+	if not hide_text:
+		SkyGearInk.write_lines(self, font, at, text, align, width, pt, lines, tint)
+	if (audit == null and ink == null) or text.strip_edges() == "":
 		return
 	## Longest line after wrapping, which is what decides whether the block fits.
 	## Measuring the whole string would report a paragraph as one enormous line.
@@ -618,6 +733,15 @@ func _says(text: String, at: Vector2, width: float, align: int, pt: int,
 		else:
 			run = trial
 	widest = maxf(widest, font.get_string_size(run, align, -1, pt).x)
+	var span := at.x
+	if align == HORIZONTAL_ALIGNMENT_CENTER:
+		span = at.x + (width - widest) * 0.5
+	elif align == HORIZONTAL_ALIGNMENT_RIGHT:
+		span = at.x + width - widest
+	_note(text, Rect2(span, at.y - pt, widest, float(pt) * 1.3 * float(count)),
+		pt, tint)
+	if audit == null:
+		return
 
 	if count > lines:
 		audit.append({"kind": "OVERFLOW", "text": text,
@@ -627,12 +751,7 @@ func _says(text: String, at: Vector2, width: float, align: int, pt: int,
 		return
 	if not _in_frame:
 		return
-	var left := at.x
-	if align == HORIZONTAL_ALIGNMENT_CENTER:
-		left = at.x + (width - widest) * 0.5
-	elif align == HORIZONTAL_ALIGNMENT_RIGHT:
-		left = at.x + width - widest
-	var box := Rect2(left, at.y - pt, widest, float(pt) * 1.3 * count)
+	var box := Rect2(span, at.y - pt, widest, float(pt) * 1.3 * count)
 	if box.position.x < _frame.position.x - 0.5 or box.end.x > _frame.end.x + 0.5 			or box.position.y < _frame.position.y - 4.0 or box.end.y > _frame.end.y + 4.0:
 		audit.append({"kind": "OUTSIDE", "text": text, "box": box,
 			"measured": widest, "given": width, "frame": _frame})
@@ -641,23 +760,38 @@ func _says(text: String, at: Vector2, width: float, align: int, pt: int,
 ## The largest size at which this string fits. A slot label reading "Ember
 ## Cleav" is a slot label that has failed at its only job, and every one of these
 ## boxes is a fixed size set by the plate art — so the text yields, not the box.
-func _fits(text: String, width: float, pt: int, floor_pt: int = 9) -> int:
-	var size_pt := pt
-	while size_pt > floor_pt and font.get_string_size(text,
+##
+## BUT NOT PAST THE FLOOR. This is the function that produced the reported bug:
+## it will happily hand back 7pt, the call sites passed floors of 7, 8, 9 and 11,
+## and "draft a weapon" in an empty skill slot was being drawn at seven points on
+## painted brass. Containment is not the only thing that can fail. The floor is
+## `SkyGearInk.MIN_PT` and a caller cannot argue it down — a caller who wants
+## smaller text wants a shorter string or a wider box.
+func _fits(text: String, width: float, pt: int, floor_pt: int = SkyGearInk.MIN_PT) -> int:
+	var size_pt: int = maxi(pt, SkyGearInk.MIN_PT)
+	var stop: int = maxi(floor_pt, SkyGearInk.MIN_PT)
+	while size_pt > stop and font.get_string_size(text,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, size_pt).x > width:
 		size_pt -= 1
 	return size_pt
 
 
+## A caption, and a number. The two were the whole readability layer once: each
+## drew a one-pixel offset shadow under itself and then the glyph. On a flat
+## panel that works. On the painted brass housings it is worth nothing — the
+## shadow covers the lower right of each stem and leaves the other three sides of
+## every stroke on lit metal — and the audit measured the slot names at 1.2:1
+## with the shadow doing precisely as much for them as without it. The separation
+## now happens once, in `SkyGearInk.write`, for every string in the game rather
+## than for the two that remembered to ask. These stay because they are the
+## caption/value VOCABULARY: same size, same tint, everywhere.
 func _label(text: String, at: Vector2, width: float, align: int, pt: int = 12,
 		tint: Color = Color("#cfc4b4")) -> void:
-	draw_string(font, at + Vector2(1, 1), text, align, width, pt, INK)
 	_say(text, at, width, align, pt, tint)
 
 
 func _value(text: String, at: Vector2, width: float, align: int, pt: int = 15,
 		tint: Color = Color("#fff6e4")) -> void:
-	draw_string(font, at + Vector2(1.5, 1.5), text, align, width, pt, INK)
 	_say(text, at, width, align, pt, tint)
 
 
@@ -785,9 +919,12 @@ func _draw_game_hud() -> void:
 	var l_ship := l
 	for lane in 3:
 		var row := l.item("ship", "lane%d" % lane, right)
-		var name_w: float = minf(70.0, row.size.x * 0.34)
+		## STARBOARD is 71 wide at the smallest size the game is allowed to draw,
+		## and this box was 70. It used to fit because `_fits` was permitted to
+		## take the lane names down to 8pt on a lit brass rail.
+		var name_w: float = minf(80.0, row.size.x * 0.38)
 		_label(names[lane], row.position + Vector2(0, row.size.y - 3.0), name_w,
-			HORIZONTAL_ALIGNMENT_LEFT, _fits(names[lane], name_w, 11, 8))
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(names[lane], name_w, 12))
 		var track := Rect2(row.position.x + name_w + 4.0, row.get_center().y - 4.0,
 			maxf(20.0, row.size.x - name_w - 26.0), 9.0)
 		draw_rect(track, Color("#0b0910"))
@@ -837,20 +974,29 @@ func _draw_game_hud() -> void:
 		draw_circle(icon_at.get_center(), icon_at.size.x * 0.62, Color(0.05, 0.04, 0.07, 0.82))
 		draw_arc(icon_at.get_center(), icon_at.size.x * 0.62, 0.0, TAU, 28,
 			Color(0.02, 0.015, 0.03, 0.9), 2.0)
+		## THE NAMEPLATE. Every slot gets one whether it is armed or not, because a
+		## row of four slots where only the filled ones have a strip reads as a
+		## row of four different objects. Spans the plate rather than its interior:
+		## the strip IS the frame for the name, and 71px of interior cannot hold
+		## "Ember Cleave" at a size anyone can read.
+		var tag := Rect2(rect.position.x + 5.0, name_at.position.y - 3.0,
+			rect.size.x - 10.0, name_at.size.y + 4.0)
 		if i >= game.skills.size():
+			_stamp(tag)
 			## "EMPTY", not "LOCKED". Nothing gates these by wave — a slot fills
 			## when you draft a weapon into it — and calling it locked tells a
 			## player to wait for something that is never going to arrive.
-			_label("EMPTY", name_at.position + Vector2(0, name_at.size.y - 3.0),
-				name_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#6f6878"))
-			## Shrunk to the slot rather than clipped to "draft a wea", and given
-			## the whole slot to sit in rather than the icon plus a guess.
-			var hint_w: float = maxf(icon_at.size.x + 24.0, name_at.size.x)
-			_label("draft a weapon",
-				Vector2(name_at.get_center().x - hint_w * 0.5,
-					icon_at.get_center().y + 4.0), hint_w,
-				HORIZONTAL_ALIGNMENT_CENTER,
-				_fits("draft a weapon", hint_w, 10, 7), Color("#5f5863"))
+			_label("EMPTY", Vector2(tag.position.x, name_at.position.y + name_at.size.y - 3.0),
+				tag.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#8b8296"))
+			## And the instruction across the empty well, on a strip of its own.
+			## It was 7pt grey on brass — the single least legible string the pass
+			## found, and it is the one string in the HUD whose entire job is to be
+			## read by somebody who does not yet know what the slot is for.
+			var well := _stamp(Rect2(rect.position.x + 5.0,
+				icon_at.get_center().y - 9.0, rect.size.x - 10.0, 17.0), 0.5)
+			_label("draft a weapon", Vector2(well.position.x, well.end.y - 4.0),
+				well.size.x, HORIZONTAL_ALIGNMENT_CENTER,
+				_fits("draft a weapon", well.size.x, 12), Color("#9a92a6"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
@@ -870,9 +1016,10 @@ func _draw_game_hud() -> void:
 				Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
 				icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
 		var slot_name: String = SkyGearData.skill_name(skill)
-		_label(slot_name, name_at.position + Vector2(0, name_at.size.y - 3.0),
-			name_at.size.x, HORIZONTAL_ALIGNMENT_CENTER,
-			_fits(slot_name, name_at.size.x, 12, 9),
+		_stamp(tag)
+		_label(slot_name, Vector2(tag.position.x, name_at.position.y + name_at.size.y - 3.0),
+			tag.size.x, HORIZONTAL_ALIGNMENT_CENTER,
+			_fits(slot_name, tag.size.x, 13),
 			element if ready else Color("#8b8296"))
 
 
@@ -1024,13 +1171,12 @@ func _status_chips(centre: Vector2, chips: Array) -> void:
 		draw_rect(box.grow(1.0), Color(0.03, 0.02, 0.045, 0.9))
 		draw_rect(box, Color(look.tint.r, look.tint.g, look.tint.b, 0.30))
 		draw_rect(box, look.tint, false, 1.0)
-		draw_string(font, Vector2(box.position.x, box.end.y - 3.0), str(look.mark),
-			HORIZONTAL_ALIGNMENT_CENTER, CHIP_W, 11, look.tint.lightened(0.4))
+		_say_free(str(look.mark), Vector2(box.position.x, box.end.y - 3.0),
+			CHIP_W, HORIZONTAL_ALIGNMENT_CENTER, 11, look.tint.lightened(0.4))
 		## Stacks, where a status has them — three burns is not one burn.
 		if int(chip.get("stacks", 0)) > 1:
-			draw_string(font, Vector2(box.end.x - 7.0, box.position.y + 6.0),
-				str(int(chip.stacks)), HORIZONTAL_ALIGNMENT_LEFT, 10, 9,
-				Color("#fff6e4"))
+			_say_free(str(int(chip.stacks)), Vector2(box.end.x - 7.0, box.position.y + 6.0),
+				10, HORIZONTAL_ALIGNMENT_LEFT, 9, Color("#fff6e4"))
 		var left: float = clampf(float(chip.get("remaining", 1.0)), 0.0, 1.0)
 		draw_rect(Rect2(box.position.x, box.end.y + 1.0, CHIP_W * left, 2.0), look.tint)
 		x += CHIP_W + 3.0
@@ -1187,8 +1333,9 @@ func _draw_world_overlay() -> void:
 				48.0, HORIZONTAL_ALIGNMENT_LEFT, 10, Color("#cfc4b4"))
 		if elite:
 			# the plate is as wide as the NAME, not as wide as the health bar
-			draw_string(font, at - Vector2(80.0, 8.0), str(ENEMY_NAMES.get(enemy.kind, enemy.kind)),
-				HORIZONTAL_ALIGNMENT_CENTER, 160, 11, Color("#e8c376"))
+			_say_free(str(ENEMY_NAMES.get(enemy.kind, enemy.kind)),
+				at - Vector2(80.0, 8.0), 160, HORIZONTAL_ALIGNMENT_CENTER, 11,
+				Color("#e8c376"))
 		_status_row(enemy, at + Vector2(0.0, ENEMY_BAR_H + 11.0), wide)
 
 	## The objective, when it is not in the frame. Losing sight of the Boiler is
@@ -1210,9 +1357,9 @@ func _draw_world_overlay() -> void:
 				- SkyGearGame.DECK_RECT.position.y) / SkyGearGame.DECK_RECT.size.y, 0.0, 1.0))
 		if worst > 0.80:
 			var x: float = size.x * (0.24 + lane * 0.26)
-			draw_string(font, Vector2(x - 130.0, size.y * 0.22 + lane * 24.0),
-				"%s LANE BREAKING" % LANE_NAMES[lane], HORIZONTAL_ALIGNMENT_CENTER, 260, 18,
-				Color("#ff4d37"))
+			_say_free("%s LANE BREAKING" % LANE_NAMES[lane],
+				Vector2(x - 130.0, size.y * 0.22 + lane * 24.0), 260,
+				HORIZONTAL_ALIGNMENT_CENTER, 18, Color("#ff4d37"))
 
 	## Salvage on the deck, marked. It heals you and it times out, and until now
 	## the only sign of it was a small pile of scrap among a lot of small piles
@@ -1238,11 +1385,8 @@ func _draw_world_overlay() -> void:
 		var colour: Color = f.color
 		colour.a = clampf(1.0 - t * t, 0.0, 1.0)
 		var pt: int = 22 if bool(f.big) else 16
-		# an ink drop shadow, because a thin number over a lit deck is unreadable
-		draw_string(font, spot.at + Vector2(-39.0, 2.0), str(f.text),
-			HORIZONTAL_ALIGNMENT_CENTER, 80, pt, Color(0.03, 0.02, 0.04, colour.a * 0.85))
-		draw_string(font, spot.at + Vector2(-40.0, 0.0), str(f.text),
-			HORIZONTAL_ALIGNMENT_CENTER, 80, pt, colour)
+		_say_free(str(f.text), spot.at + Vector2(-40.0, 0.0), 80,
+			HORIZONTAL_ALIGNMENT_CENTER, pt, colour)
 
 	## Banners: wave numbers, IT TURNS, the run report having been copied.
 	for e in game.effects:
@@ -1250,8 +1394,8 @@ func _draw_world_overlay() -> void:
 			continue
 		var bt: float = float(e.time) / maxf(0.001, float(e.life))
 		var fade: float = clampf(minf(bt * 6.0, (1.0 - bt) * 4.0), 0.0, 1.0)
-		draw_string(font, Vector2(0.0, size.y * 0.26), str(e.text), HORIZONTAL_ALIGNMENT_CENTER,
-			size.x, 42, Color(0.91, 0.77, 0.46, fade))
+		_say_free(str(e.text), Vector2(0.0, size.y * 0.26), size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 42, Color(0.91, 0.77, 0.46, fade))
 
 
 ## A pointer pinned to the rim of the frame, aimed at something outside it.
@@ -1284,10 +1428,52 @@ func _edge_marker(toward: Vector2, inset: Rect2, colour: Color) -> void:
 ## which fits the longest card sentence in the catalogue at two lines. Everything
 ## below now measures from `interior(rect)` rather than from the card edge, so
 ## this number can move again without breaking the layout.
-const CARD_W := 330.0
+## 330 left 222 inside the rail. A preview row has to hold four things at the
+## smallest size the game is allowed to draw: "dash cooldown bonus" is 127 and
+## "30.00x" is 38, twice, with an arrow between them. That is 217 of content
+## against 222 of card, and it only ever fitted because `_fits` was allowed down
+## to 8pt. 368 leaves 244 after PLATE_BREATH, and three of them plus the gaps is
+## 1156 — inside the 1280 floor the audit checks.
+const CARD_W := 368.0
 const CARD_GAP := 26.0
 const CARD_TOP := 190.0
-const CARD_H := 372.0
+## 372 once, and taller now to pay for two things the face did not have room
+## for: the tag row that says the element, the rarity and the role, and
+## CARD_FOOT below.
+const CARD_H := 404.0
+
+## AND THE PAINTED CARD IS NOT THE SHAPE `interior()` THINKS IT IS.
+##
+## `interior()` asks the nine-slice how thick the rail is and gets 54. The
+## painted plate has an inner bevel BELOW the slice margin, so the real dark
+## field starts a few pixels further in on every side — and further still at the
+## bottom, where the middle row of the slice stretches 160 source rows to 276
+## destination rows on a card this tall and drags the bevel with it.
+##
+## Nothing in the containment audit could see this: it trusts `interior()`, and
+## `interior()` is what is optimistic. The contrast pass found it — "AFFECTS THE
+## CAPTAIN" measured 1.26 against `a0814c`, which is brass, on a row the layout
+## believed was well inside the dark — and a player found the rest of it: the
+## class band overlapping the top rail and COMMON clipped by the right one.
+##
+## Both numbers are measured off the rendered plate rather than off the slice
+## margin, and both live here rather than at the nine call sites that lay
+## something out on a card.
+## The foot is a FRACTION, not a constant, because the bevel is authored in the
+## plate's middle band and the slice stretches that band vertically — 160 source
+## rows into 276 on a card and into 348 on the pause sheet, dragging the bevel
+## further from the bottom edge the taller the plate is. Clamped at both ends so
+## a HUD strip does not lose a third of itself to it.
+const PLATE_BREATH := 8.0
+const PLATE_FOOT := 0.035
+
+
+## The writing area of a plate: the hole in the brass, honestly, as opposed to
+## `interior()`, which is the hole the nine-slice believes it cut.
+static func writing_area(rect: Rect2) -> Rect2:
+	var face := interior(rect).grow(-PLATE_BREATH)
+	face.size.y -= clampf(rect.size.y * PLATE_FOOT, 6.0, 22.0)
+	return face
 
 
 static func draft_cards(view: Vector2, count: int) -> Array[Rect2]:
@@ -1339,19 +1525,66 @@ func _draw_draft() -> void:
 		if hovered:
 			rect = rect.grow(4.0)
 		_panel(rect)
+		## RARITY, AS METAL. Hue is spoken for by the element, so the tier of a
+		## card is a heavier and brighter ring with rivets at the corners: iron,
+		## brass, steel. It reads at a distance and it costs one draw call, where
+		## a painted back per rarity x element x role is twenty-four textures.
+		var look: Dictionary = SkyGearCards.rarity_look(card)
+		if float(look.ring) > 0.0:
+			## Inside the brass rather than on the card's silhouette, or the ring
+			## reads as a box drawn around the card instead of as its frame.
+			draw_rect(rect.grow(-11.0), look.metal, false, float(look.ring))
+			for corner in [rect.position + Vector2(19, 19),
+				Vector2(rect.end.x - 19, rect.position.y + 19),
+				Vector2(rect.position.x + 19, rect.end.y - 19),
+				rect.end - Vector2(19, 19)]:
+				if int(look.rivets) > 0:
+					## A stud, which needs a dark rim. A plain bright disc on brass
+					## is a dot somebody stuck on rather than a rivet driven in.
+					draw_circle(corner, 4.0, Color(0.05, 0.04, 0.07, 0.85))
+					draw_circle(corner, 2.8, look.metal)
 		## EVERYTHING below is measured from here. The card is brass around a
-		## hole; the hole is what you may write in.
-		var face := interior(rect)
-
+		## hole, the hole is what you may write in, and `card_face` is the only
+		## thing that knows where the painted hole actually is.
+		var face := writing_area(rect)
+		
+		## THE HUE IS THE ELEMENT'S. Always, in both drafts. It used to be the
+		## SCOPE colour on a drafted card and the ELEMENT colour on an opening
+		## weapon, so the one channel a player reads before any words meant two
+		## different things depending on which draft they were looking at.
+		var tint: Color = SkyGearCards.hue_of(card)
 		## The class band. Reported against the browser build in exactly these
 		## words: it is not visually clear whether an upgrade enhances a skill
 		## you have or hands you a new one. Both were a card with a title on it.
 		var band := Rect2(face.position, Vector2(face.size.x, 26))
-		var tint: Color = card.get("color", Color("#b0813f"))
 		draw_rect(band, Color(tint.r, tint.g, tint.b, 0.16))
 		draw_rect(band, tint, false, 2.0)
 		_center_in_rect("%d  ·  %s" % [i + 1, str(card.get("class_label", "UPGRADE"))],
 			Rect2(band.position + Vector2(0, 3), band.size), 14, tint)
+		
+		## THE TAG ROW: element, rarity, role, in words as well as in colour.
+		## The player's test was whether all three can be told apart at a glance,
+		## and a glance at hue alone fails for one man in twelve — so the swatch
+		## has its element written beside it, the ring has its tier written under
+		## it, and the role is a word because the role is binary.
+		var tag_y: float = band.end.y + 16.0
+		var swatch := Rect2(face.position.x, tag_y - 9.0, 10.0, 10.0)
+		draw_rect(swatch, tint)
+		draw_rect(swatch, Color(0.03, 0.02, 0.045, 0.9), false, 1.0)
+		_label(SkyGearCards.element_label(card),
+			Vector2(face.position.x + 16.0, tag_y), face.size.x * 0.52,
+			HORIZONTAL_ALIGNMENT_LEFT, 12, tint)
+		var role := SkyGearCards.role_of(card)
+		if role != "":
+			## A badge, not a shade. You could draft a Field and not find out it
+			## has no key until the fight started.
+			var badge := Rect2(face.get_center().x - 34.0, tag_y - 12.0, 68.0, 16.0)
+			draw_rect(badge, Color(0.05, 0.04, 0.075, 0.7))
+			draw_rect(badge, Color(tint.r, tint.g, tint.b, 0.75), false, 1.2)
+			_label(role, Vector2(badge.position.x, tag_y), badge.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#e6ddd0"))
+		_label(str(look.name), Vector2(face.position.x, tag_y), face.size.x,
+			HORIZONTAL_ALIGNMENT_RIGHT, 12, look.metal)
 
 		## The title, shrunk to fit rather than clipped. "SLOW COMBUSTION" at 22pt
 		## is 216 wide against 222 of card; one longer name and it is over the
@@ -1362,9 +1595,9 @@ func _draw_draft() -> void:
 		while title_pt > 14 and font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER,
 				-1, title_pt).x > face.size.x:
 			title_pt -= 1
-		_say(title, Vector2(face.position.x, band.end.y + 34.0), face.size.x,
+		_say(title, Vector2(face.position.x, band.end.y + 52.0), face.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, title_pt, tint)
-		_says(str(card.text), Vector2(face.position.x, band.end.y + 74.0),
+		_says(str(card.text), Vector2(face.position.x, band.end.y + 90.0),
 			face.size.x, HORIZONTAL_ALIGNMENT_CENTER, 16, 3, Color("#eee5d5"))
 
 		## The shape, as its glyph. A card that hands you a weapon should show
@@ -1378,35 +1611,47 @@ func _draw_draft() -> void:
 		if glyph_shape != "":
 			var glyph := _tex(str(SLOT_ICONS.get(glyph_shape, "")))
 			if glyph != null and SkyGearCards.preview(game, card).is_empty():
-				var at := Vector2(face.get_center().x - 34.0, band.end.y + 96.0)
-				draw_texture_rect_region(glyph, Rect2(at, Vector2(68, 68)),
+				## 96, not 68. A weapon card has no before/after rows, so the glyph
+				## is the only thing in the middle two hundred pixels of it, and at
+				## 68 it read as a bullet point in an empty card. It is also the
+				## fastest read on the face: the shape of the swing.
+				var at := Vector2(face.get_center().x - 48.0, band.end.y + 100.0)
+				draw_circle(at + Vector2(48, 48), 56.0, Color(0.04, 0.03, 0.06, 0.35))
+				draw_texture_rect_region(glyph, Rect2(at, Vector2(96, 96)),
 					Rect2(Vector2.ZERO, glyph.get_size()), tint)
 
 		## BEFORE -> AFTER. The card said "hits harder" and left you to guess by
 		## how much, against a current value it also did not show.
 		var rows: Array = SkyGearCards.preview(game, card)
 		if not rows.is_empty():
-			var ry: float = band.end.y + 132.0
+			var ry: float = band.end.y + 150.0
 			var rx: float = face.position.x
 			var rw: float = face.size.x
 			## A rule above them, so the numbers read as a consequence of the
 			## sentence rather than as more of it.
 			draw_line(Vector2(rx, ry - 12.0), Vector2(rx + rw, ry - 12.0),
 				Color(tint.r, tint.g, tint.b, 0.35), 1.0)
+			## The label owns more of the row than it did. Half of 222 is 111 and
+			## the longest label in the catalogue is 127 at the floor size; the
+			## numbers on the right need far less than they were reserving.
 			for r in rows.slice(0, SkyGearCards.PREVIEW_ROWS):
 				var good: bool = bool(r.better)
-				_label(str(r.label), Vector2(rx, ry), rw * 0.5,
-					HORIZONTAL_ALIGNMENT_LEFT, _fits(str(r.label), rw * 0.5, 12, 8))
+				_label(str(r.label), Vector2(rx, ry), rw * 0.54,
+					HORIZONTAL_ALIGNMENT_LEFT, _fits(str(r.label), rw * 0.54, 12))
 				## Old value struck through in grey, new value lit. An arrow with
 				## two live-looking numbers reads as a range, not a change.
-				var old_at := Vector2(rx + rw * 0.52, ry)
-				_say(str(r.before), old_at, rw * 0.2, HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#6a6478"))
-				_say("->", Vector2(rx + rw * 0.72, ry), 20,
-					HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#6a6478"))
-				_say(str(r.after), Vector2(rx + rw * 0.80, ry), rw * 0.22,
+				##
+				## "30.00x" is 38 wide at the floor size and the BEFORE column was
+				## 37 — a one-pixel clip that only showed up once `_fits` stopped
+				## being allowed to shrink the row out of trouble.
+				_say(str(r.before), Vector2(rx + rw * 0.55, ry), rw * 0.17,
+					HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#6a6478"))
+				_say("->", Vector2(rx + rw * 0.73, ry), 20,
+					HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#8f8697"))
+				_say(str(r.after), Vector2(rx + rw * 0.81, ry), rw * 0.19,
 					HORIZONTAL_ALIGNMENT_LEFT, 12,
 					Color("#7be8a8") if good else Color("#ff9a5a"))
-				ry += 16.0
+				ry += 17.0
 			if rows.size() > SkyGearCards.PREVIEW_ROWS:
 				_label("+%d more" % (rows.size() - SkyGearCards.PREVIEW_ROWS),
 					Vector2(rx, ry), rw, HORIZONTAL_ALIGNMENT_LEFT, 11)
@@ -1415,14 +1660,15 @@ func _draw_draft() -> void:
 		## ones dim. A card that touches no skill says what it does touch —
 		## four dark glyphs reads as "affects nothing".
 		var hit: Array = card.get("affects", [])
-		var row_y: float = face.end.y - 22.0
+		var row_y: float = face.end.y - 24.0
 		## A weapon card does not "affect" the skills you already hold — it takes
 		## a slot. Saying so beats four grey dots, which is what it was drawing.
 		if str(card.get("kind", "")) == "skill":
 			var slot_note := "ARMS SLOT %d" % (int(card.get("slot", game.skills.size())) + 1)
 			if game.skills.size() >= 4:
 				slot_note = "REPLACES A SLOT"
-			_say(slot_note, Vector2(face.position.x, row_y + 13.0), face.size.x,
+			_stamp(Rect2(face.position.x, row_y, face.size.x, 20.0), 0.45)
+			_say(slot_note, Vector2(face.position.x, row_y + 15.0), face.size.x,
 				HORIZONTAL_ALIGNMENT_CENTER, 13, tint)
 		elif game.skills.is_empty() or hit.is_empty():
 			var label := "AFFECTS THE CAPTAIN"
@@ -1431,7 +1677,13 @@ func _draw_draft() -> void:
 				"deck": label = "AFFECTS THE DECK"
 				"meta": label = "AFFECTS FUTURE DRAFTS"
 				"new": label = "ARMS AN EMPTY SLOT"
-			_center_in_rect(label, Rect2(Vector2(rect.position.x, row_y), Vector2(card_width, 24)), 13, tint)
+			## On a field of its own. This is the string the contrast pass caught at
+			## 1.26 against brass, and moving it up is only half the answer — the
+			## bottom of a card is where the painted bevel starts whatever the
+			## layout believes.
+			var foot := _stamp(Rect2(face.position.x, row_y, face.size.x, 20.0), 0.45)
+			_center_in_rect(label, Rect2(foot.position + Vector2(0, 2), foot.size),
+				13, tint)
 		else:
 			var count: int = game.skills.size()
 			var step := 34.0
@@ -1486,7 +1738,7 @@ func _draw_keys() -> void:
 		_center_text("that key already runs %s" % game.rebind_conflict.replace("_", " "),
 			y + 14.0, 15, Color("#ff9a5a"))
 	_center_text("Backspace resets · Esc closes · F2 toggles",
-		interior(sheet).end.y - 4.0, 15,
+		writing_area(sheet).end.y, 15,
 		Color("#37f0c8"))
 
 
@@ -1505,7 +1757,10 @@ func _draw_pause() -> void:
 	## a screen that failed to load.
 	var rows: int = maxi(game.skills.size(), 1)
 	var body := 272.0 + (66.0 if game.audio != null else 0.0)
-	var tall: float = maxf(body, 26.0 + rows * 40.0) + 118.0
+	## Plus the banner's overhang. The buttons used to start 82 below the top of
+	## the sheet and the banner ornament reaches 115 past it, so RESUME was drawn
+	## through the bottom of the PAUSED plaque.
+	var tall: float = maxf(body, 26.0 + rows * 40.0) + 154.0
 	var top: float = maxf(70.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
 	_panel(sheet)
@@ -1515,9 +1770,19 @@ func _draw_pause() -> void:
 	_center_text("PAUSED", sheet.position.y + 48.0, 40, BRASS_LIT)
 
 	ui.begin("pause", self, font, get_local_mouse_position())
+	## FROM THE INTERIOR, not from the sheet.
+	##
+	## `interior()` carries a long note about three functions disagreeing over
+	## where the brass ends, and this was the place that never got the message:
+	## 26 in from a 660-wide sheet is 28 pixels inside a 54-pixel rail, so all
+	## four buttons and the whole build column were laid out on the frame. Every
+	## label was perfectly centred in its own button and the audit could not see
+	## it, because it had no way to ask whether the BUTTON was in the right place
+	## — it does now, and this was the first thing it found.
+	var room := interior(sheet)
 	var bw := 300.0
-	var bx := sheet.position.x + 26.0
-	var by := sheet.position.y + 82.0
+	var bx: float = room.position.x
+	var by: float = room.position.y + 62.0
 	if ui.button(Rect2(bx, by, bw, 40.0), "RESUME", {"primary": true, "hint": "Esc"}):
 		game.toggle_pause()
 	if ui.button(Rect2(bx, by + 46.0, bw, 40.0), "HOW TO PLAY", {"hint": "F1"}):
@@ -1538,7 +1803,6 @@ func _draw_pause() -> void:
 	## The build column, bounded by the plate rather than by a guess. The cooldown
 	## figures were right-aligned to a fixed 260 from a left edge that did not know
 	## where the brass was, so every one of them printed on the frame.
-	var room := interior(sheet)
 	var lx := bx + bw + 26.0
 	var lw: float = maxf(120.0, room.end.x - lx)
 	_label("YOUR BUILD", Vector2(lx, by + 4.0), lw, HORIZONTAL_ALIGNMENT_LEFT, 12)
@@ -1556,11 +1820,17 @@ func _draw_pause() -> void:
 		_label("%s · %s" % [str(SkyGearData.SHAPES[skill.shape].kind),
 			str(SkyGearData.ELEMENTS[skill.element].blurb)],
 			Vector2(lx + 34.0, ly + 27.0), lw - 74.0, HORIZONTAL_ALIGNMENT_LEFT, 11)
+		## BRASS_LIT, not BRASS. The contrast pass measured these at 1.32
+		## against the plate — b0813f text on a b0813f rivet, which is the
+		## same number twice.
 		_label("%.2fs" % float(st.cooldown), Vector2(lx, ly + 27.0), lw,
-			HORIZONTAL_ALIGNMENT_RIGHT, 11, BRASS)
+			HORIZONTAL_ALIGNMENT_RIGHT, 12, BRASS_LIT)
 		ly += 40.0
+	## Against the writing area rather than the interior: the interior's
+	## bottom edge is on the painted bevel, and the contrast pass measured
+	## this line at 1.59 against bright brass sitting exactly there.
 	_label("WASD move · mouse aim · Space dash · F4 layout · F3 stats",
-		Vector2(room.position.x, room.end.y - 4.0), room.size.x,
+		Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 
@@ -1628,7 +1898,10 @@ func _draw_how() -> void:
 	## one. The text yields rather than the page overflowing.
 	var pt := 16
 	var line_h := 21.0
-	while pt > 11:
+	## Stops at the floor rather than at a local 11, because `_says` clamps to the
+	## floor anyway — a loop that measures at 11 and a renderer that draws at 12
+	## is the two-functions-one-number bug in miniature.
+	while pt > SkyGearInk.MIN_PT:
 		var total := 0.0
 		for row in lines:
 			if str(row[0]) != "":
@@ -1707,7 +1980,9 @@ func _draw_workshop() -> void:
 	## the second line of Articles sat on the bottom rail — the audit found it,
 	## which is the third time that tool has caught a plate I sized by eye.
 	var art_lines: float = ceil(float(SkyGearWorkshop.ARTICLES.size()) / 4.0)
-	var wanted: float = tallest + art_lines * 38.0 + 16.0 + 58.0 + 92.0 + 108.0 + 62.0
+	## ...plus 32 for the description strip that replaced the sentence inside
+	## every node button.
+	var wanted: float = tallest + art_lines * 38.0 + 16.0 + 58.0 + 92.0 + 108.0 + 62.0 + 32.0
 	var tall: float = minf(size.y - 116.0, wanted)
 
 	## AND IF IT STILL DOES NOT FIT, THE ROWS COMPRESS. At 720p and 900p the plate
@@ -1720,7 +1995,7 @@ func _draw_workshop() -> void:
 	var step := 38.0
 	if wanted > tall:
 		var rows: float = (tallest - 16.0) / 38.0 + art_lines
-		step = clampf((tall - 92.0 - 108.0 - 62.0 - 16.0 - 58.0 - 16.0)
+		step = clampf((tall - 92.0 - 108.0 - 62.0 - 16.0 - 58.0 - 16.0 - 32.0)
 			/ maxf(1.0, rows), 26.0, 38.0)
 	var page := Rect2(size.x * 0.5 - 520.0, maxf(48.0, (size.y - tall) * 0.4),
 		1040.0, tall)
@@ -1734,6 +2009,20 @@ func _draw_workshop() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#37f0c8"))
 
 	ui.begin("workshop", self, font, get_local_mouse_position())
+	var deepest := 0.0
+	## WHAT THE THING UNDER YOUR HAND DOES, once, in a size you can read.
+	##
+	## Every node used to carry its own sentence inside its button — a 240px
+	## column holding "the first killing blow leaves you at 1, once a run", which
+	## `_fits` duly rendered at seven points. Twenty-eight of those on one screen
+	## is not information, it is texture, and no floor above 8pt can make that
+	## sentence fit that box: the box is the problem.
+	##
+	## So the sentence moves to one strip at the foot of the page and belongs to
+	## whatever is focused. Focus already follows the mouse and the keyboard both,
+	## so this costs no new interaction — and the grid it leaves behind is one
+	## line per node, which is what let the names go up to 13.
+	var explain := ""
 	var col_w: float = room.size.x / 4.0 - 10.0
 	for c in SkyGearWorkshop.BRANCHES.size():
 		var branch: String = str(SkyGearWorkshop.BRANCHES[c])
@@ -1758,7 +2047,7 @@ func _draw_workshop() -> void:
 					## most annoying word a menu can use.
 					_label("tier %d — buy %d in this branch" % [tier + 1,
 						tier * SkyGearWorkshop.TIER_STEP],
-						Vector2(x, y + 12.0), col_w, HORIZONTAL_ALIGNMENT_LEFT, 10,
+						Vector2(x, y + 12.0), col_w, HORIZONTAL_ALIGNMENT_LEFT, 12,
 						Color("#37f0c8") if open else Color("#5f5863"))
 					y += 18.0
 			var have := SkyGearWorkshop.rank(w, id)
@@ -1767,28 +2056,38 @@ func _draw_workshop() -> void:
 			var box := Rect2(x, y, col_w, step - 4.0)
 			var label := "%s %s" % [str(node.name),
 				("MAX" if maxed else "%d/%d" % [have, int(node.ranks)])]
+			## The index this button is about to take, so the strip at the foot
+			## can be told which node the hand is on. `declared()` is the list
+			## this frame built and `focused()` indexes into it, which is the one
+			## pairing that cannot drift apart.
+			var mine := ui.declared().size()
 			if ui.button(box, "", {"disabled": not afford}):
 				SkyGearWorkshop.buy(w, id)
+			if ui.focused() == mine:
+				explain = str(node.text)
 			## The button draws its own frame; the words go on top, left aligned,
-			## because a centred two-line node is unreadable in a 240px column.
+			## because a centred node name is unreadable in a 240px column.
 			var tint: Color = Color("#7be8a8") if maxed else 				(BONE if afford else Color("#6f6878"))
-			_label(label, Vector2(box.position.x + 8.0, box.position.y + 14.0),
-				box.size.x - 52.0, HORIZONTAL_ALIGNMENT_LEFT,
-				_fits(label, box.size.x - 52.0, 12, 9), tint)
-			_label(str(node.text), Vector2(box.position.x + 8.0, box.position.y + 27.0),
-				box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
-				_fits(str(node.text), box.size.x - 16.0, 10, 7), Color("#9a92a6"))
+			_label(label, Vector2(box.position.x + 8.0,
+				box.position.y + box.size.y * 0.5 + 5.0), box.size.x - 52.0,
+				HORIZONTAL_ALIGNMENT_LEFT, _fits(label, box.size.x - 52.0, 13), tint)
 			if not maxed:
 				_label("%d" % int(node.cost),
-					Vector2(box.position.x, box.position.y + 21.0), box.size.x - 8.0,
-					HORIZONTAL_ALIGNMENT_RIGHT, 12,
+					Vector2(box.position.x, box.position.y + box.size.y * 0.5 + 5.0),
+					box.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 13,
 					Color("#e8c376") if afford else Color("#5f5863"))
 			y += step
+		## The tallest column, measured rather than predicted. The Articles
+		## heading was placed from an estimate of the tallest branch and the
+		## Captain's Kit is one node longer than the estimate, so the heading
+		## printed through WOUND KIT.
+		deepest = maxf(deepest, y)
 
 	## THE ARTICLES, along the bottom. A separate row rather than a fifth column
 	## because they are a different object bought with a different currency —
 	## scrip buys experiments and sigils buy commitments, and there is no refund.
-	var art_y: float = room.position.y + 130.0 + (tallest - 16.0) * (step / 38.0)
+	var art_y: float = maxf(room.position.y + 130.0
+		+ (tallest - 16.0) * (step / 38.0), deepest + 12.0)
 	_label("THE ARTICLES  ·  sigils, and no respec", Vector2(room.position.x, art_y),
 		room.size.x, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#c9b6e8"))
 	art_y += 16.0
@@ -1799,6 +2098,7 @@ func _draw_workshop() -> void:
 		var barred: bool = art.has("excludes") 			and SkyGearWorkshop.owns(w, str(art.excludes))
 		var takeable: bool = SkyGearWorkshop.can_take(w, id)
 		var box := Rect2(ax, art_y, room.size.x / 4.0 - 10.0, step - 4.0)
+		var mine := ui.declared().size()
 		if ui.button(box, "", {"disabled": not takeable}):
 			SkyGearWorkshop.take(w, id)
 		var head := "%s  %d" % [str(art.name), int(art.cost)]
@@ -1807,27 +2107,44 @@ func _draw_workshop() -> void:
 		elif barred:
 			head = "%s  — barred" % str(art.name)
 		var tint: Color = Color("#c9b6e8") if held else 			(BONE if takeable else Color("#6f6878"))
-		_label(head, Vector2(box.position.x + 8.0, box.position.y + 14.0),
-			box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
-			_fits(head, box.size.x - 16.0, 12, 9), tint)
+		_label(head, Vector2(box.position.x + 8.0,
+			box.position.y + box.size.y * 0.5 + 5.0), box.size.x - 16.0,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(head, box.size.x - 16.0, 13), tint)
 		var blurb := str(art.text)
 		if bool(art.get("captain_only", false)):
 			blurb = "captain only · " + blurb
-		_label(blurb, Vector2(box.position.x + 8.0, box.position.y + 27.0),
-			box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
-			_fits(blurb, box.size.x - 16.0, 10, 7), Color("#9a92a6"))
+		if ui.focused() == mine:
+			explain = blurb
 		ax += room.size.x / 4.0 + 3.0
 		if ax + 40.0 > room.end.x:
 			ax = room.position.x
 			art_y += step
 
-	var foot: float = room.end.y - 40.0
-	if ui.button(Rect2(room.position.x, foot, 200.0, 34.0), "RESPEC (FREE)"):
+	## The foot row rides the writing area rather than the interior. On a page
+	## this tall the painted bevel reaches 22 past where the slice margin says
+	## it does, and BACK was parked half on the brass with its Esc hint fully
+	## on it.
+	var shelf := writing_area(page)
+	var foot: float = shelf.end.y - 34.0
+	## THE STRIP, above the respec row and on a field of its own, so a
+	## sentence laid over a painted plate is a sentence rather than a
+	## texture. Always says something, because focus is always somewhere.
+	if explain != "":
+		var strip := _stamp(Rect2(shelf.position.x, foot - 32.0,
+			shelf.size.x, 24.0), 0.5)
+		_label(explain, Vector2(strip.position.x + 8.0, strip.end.y - 7.0),
+			strip.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(explain, strip.size.x - 16.0, 14), Color("#dcd2c4"))
+	## And the plate goes back, or the two buttons under the strip are measured
+	## against a 24-pixel-tall description field and every audit is a lie.
+	_frame = room
+	_in_frame = true
+	if ui.button(Rect2(shelf.position.x, foot, 200.0, 34.0), "RESPEC (FREE)"):
 		SkyGearWorkshop.respec(w)
 	_label("free, and never mid-run — experimenting is all a tree this small has to offer",
-		Vector2(room.position.x + 212.0, foot + 22.0), room.size.x - 430.0,
-		HORIZONTAL_ALIGNMENT_LEFT, 11)
-	if ui.button(Rect2(room.end.x - 200.0, foot, 200.0, 34.0), "BACK",
+		Vector2(shelf.position.x + 212.0, foot + 22.0), shelf.size.x - 420.0,
+		HORIZONTAL_ALIGNMENT_LEFT, 12)
+	if ui.button(Rect2(shelf.end.x - 200.0, foot, 200.0, 34.0), "BACK",
 			{"primary": true, "hint": "Esc"}):
 		game.workshop_open = false
 
@@ -1835,8 +2152,11 @@ func _draw_workshop() -> void:
 func _draw_settings() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
-	var rows := 8
-	var tall: float = 118.0 + rows * 40.0 + 58.0
+	## Nine rows of chrome rather than eight, and the extra one is the banner:
+	## its ornament hangs 115 below the top of the sheet and the first slider was
+	## starting at 86.
+	var rows := 9
+	var tall: float = 150.0 + rows * 40.0 + 58.0
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
 	_panel(sheet)
@@ -1844,9 +2164,14 @@ func _draw_settings() -> void:
 	_center_text("SETTINGS", sheet.position.y + 48.0, 38, BRASS_LIT)
 
 	ui.begin("settings", self, font, get_local_mouse_position())
-	var w := 580.0
-	var x := sheet.position.x + 40.0
-	var y := sheet.position.y + 86.0
+	## Against the plate's interior, like everything else. 40 in from a 660-wide
+	## sheet is fourteen pixels inside a fifty-four pixel rail, and 580 wide out
+	## of 552 of interior overhangs it at both ends — every slider and every row
+	## on this screen was drawn across the brass.
+	var room := interior(sheet)
+	var w: float = room.size.x
+	var x: float = room.position.x
+	var y: float = room.position.y + 62.0
 	if game.audio != null:
 		for pair in [["master", "MASTER"], ["sfx", "EFFECTS"], ["music", "MUSIC"],
 				["voice", "VOICE"], ["ui", "INTERFACE"]]:
@@ -1877,9 +2202,10 @@ func _draw_settings() -> void:
 
 	## Settings are written on the way out, not on every drag of a slider — a save
 	## per mouse-move frame is a hundred file writes to move the volume.
-	var foot := interior(sheet)
+	## On the writing area's floor, not the interior's: the interior's bottom
+	## edge is the painted bevel, and this line was printed across it.
 	_label("changes are saved when you leave this screen",
-		Vector2(foot.position.x, foot.end.y - 4.0), foot.size.x,
+		Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 
