@@ -1,32 +1,30 @@
 extends SceneTree
 ## Look at every model in the project, and put things on the ones with bones.
 ##
-## `weapon_fit` was a WEAPON fitter: the captain, one sword, six fixed poses. The
-## ask was broader and I built the narrow thing — "a way to view, edit, tweak and
-## map 3D models we are using in-game". Two consequences followed. Every prop the
-## generator produced went straight into the game unlooked-at, because there was
-## nowhere to look at it. And the sword grip stayed wrong, because the fitter was
-## rebuilt and then never used.
+## MOUSE FIRST. The first version was keyboard-only and leaned on PgUp/PgDn,
+## which a laptop does not have — a tool nobody can drive is the same as no tool,
+## and this one already failed once by being too narrow to use. Everything can be
+## done by clicking and dragging; the keys are shortcuts, not the interface.
 ##
 ##   godot --path . --resolution 1600x900 --script tools/model_lab.gd
 ##   ... -- --model boiler        open on one
 ##
-## TWO MODES, on TAB.
+## VIEW
+##   click a name on the left        load it
+##   left-drag                       orbit
+##   wheel                           closer / further
+##   MOUNT button, or TAB            hang it off the captain
 ##
-##   VIEW    orbit and inspect anything. Triangles, height in ground units,
-##           material count, bones. Turntable on SPACE.
-##   MOUNT   hang the current model off a bone of the captain and adjust it live.
-##           Only offered when the model is small enough to be held.
+## MOUNT
+##   left-drag                       slide it across and up
+##   right-drag                      turn it
+##   shift + left-drag               run it along its own length
+##   wheel                           longer / shorter
+##   click a bone on the right       move it to that bone
+##   SAVE writes assets/models/weapons.json, the file the GAME reads
 ##
-##   PgUp / PgDn   previous / next model          TAB   swap mode
-##   A / D         orbit          W / S   pitch          [ / ]  dolly
-##   SPACE         turntable      G       ground grid + a 1m rule
-##   ENTER         save the mount (MOUNT mode)     R      revert it
-##   ESC           quit
-##
-## In MOUNT the arrow keys move it, PgUp/PgDn walk the blade axis, Q/E roll, and
-## B cycles the bone. Saving writes `assets/models/weapons.json`, the file the
-## game reads.
+## Keys that still work: A/D orbit, W/S pitch, Q/E roll, [ ] size, SPACE
+## turntable, R revert, ENTER save, ESC quit.
 func _initialize() -> void: call_deferred("_run")
 
 const RIG := "res://assets/models/captain/captain.tscn"
@@ -35,28 +33,34 @@ const TURN := 2.0
 const GROW := 0.02
 ## Above this it is scenery, not something a person holds, so MOUNT is pointless.
 const HOLDABLE_M := 2.6
+## Metres per pixel of drag, and degrees per pixel. Slow enough to place a grip.
+const DRAG_MOVE := 0.0016
+const DRAG_TURN := 0.35
+const ROW_H := 19.0
+const LIST_W := 168.0
 
 
-class Keys extends Node:
+class Hands extends Node:
 	var lab
 	func _ready() -> void:
-		set_process_unhandled_key_input(true)
-	func _unhandled_key_input(event: InputEvent) -> void:
+		set_process_unhandled_input(true)
+	func _unhandled_input(event: InputEvent) -> void:
 		if lab != null:
-			lab.key(event)
+			lab.hand(event)
 
 
 var _models: Array[String] = []
 var _at := 0
 var _mount := false
 var _spin := false
-var _grid := true
 var _yaw := 0.6
 var _pitch := -0.22
 var _dolly := 3.2
 var _world: Node3D
 var _cam: Camera3D
 var _label: Label
+var _list: VBoxContainer
+var _bonelist: VBoxContainer
 var _shown: Node3D
 var _rig: SkyGearRig3D
 var _bones: Array[String] = []
@@ -64,6 +68,9 @@ var _bone_at := 0
 var _fit := {}
 var _saved := {}
 var _stats := ""
+var _dragging := 0
+var _shift := false
+var _shot_to := ""
 
 
 func _run() -> void:
@@ -80,10 +87,12 @@ func _run() -> void:
 
 	var argv := OS.get_cmdline_user_args()
 	for i in argv.size():
-		if argv[i] == "--model" and i + 1 < argv.size():
-			var want := str(argv[i + 1])
-			if _models.has(want):
-				_at = _models.find(want)
+		if argv[i] == "--model" and i + 1 < argv.size() and _models.has(str(argv[i + 1])):
+			_at = _models.find(str(argv[i + 1]))
+		if argv[i] == "--mount":
+			_mount = true
+		if argv[i] == "--shot" and i + 1 < argv.size():
+			_shot_to = str(argv[i + 1])
 
 	_world = Node3D.new()
 	root.add_child(_world)
@@ -97,12 +106,12 @@ func _run() -> void:
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = e
 	_world.add_child(env)
-	## Two lamps and a rim, the same shape the deck uses, so a model judged here
-	## is judged under something close to the light it will actually stand in.
-	var key := DirectionalLight3D.new()
-	key.rotation = Vector3(deg_to_rad(-48.0), deg_to_rad(38.0), 0.0)
-	key.light_energy = 2.2
-	_world.add_child(key)
+	## Two lamps and a rim, the shape the deck uses, so a model judged here is
+	## judged under something close to the light it will actually stand in.
+	var key_light := DirectionalLight3D.new()
+	key_light.rotation = Vector3(deg_to_rad(-48.0), deg_to_rad(38.0), 0.0)
+	key_light.light_energy = 2.2
+	_world.add_child(key_light)
 	var fill := DirectionalLight3D.new()
 	fill.rotation = Vector3(deg_to_rad(-20.0), deg_to_rad(-140.0), 0.0)
 	fill.light_energy = 0.7
@@ -114,19 +123,102 @@ func _run() -> void:
 	_world.add_child(_cam)
 	_cam.current = true
 
+	_build_ui()
+	root.add_child(Hands.new())
+	(root.get_child(root.get_child_count() - 1) as Hands).lab = self
+	_load()
+	_tick()
+	## `--shot` renders one frame and leaves. Added so this tool could be VERIFIED
+	## rather than compile-checked — the last one shipped green and unusable — and
+	## kept because a reference render of any model is worth having on its own.
+	if _shot_to != "":
+		await process_frame
+		await process_frame
+		await process_frame
+		root.get_texture().get_image().save_png(_shot_to)
+		print("shot %s -> %s" % [_models[_at], _shot_to])
+		quit(0)
+
+
+func _build_ui() -> void:
+	## A clickable list, because "press PgUp seventeen times to reach the vent" is
+	## not a way to browse anything.
+	var frame := PanelContainer.new()
+	frame.position = Vector2(10, 10)
+	frame.custom_minimum_size = Vector2(LIST_W, 0)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.05, 0.04, 0.07, 0.88)
+	style.border_color = Color("#b0813f")
+	style.set_border_width_all(1)
+	style.set_content_margin_all(6)
+	frame.add_theme_stylebox_override("panel", style)
+	root.add_child(frame)
+	_list = VBoxContainer.new()
+	_list.add_theme_constant_override("separation", 1)
+	frame.add_child(_list)
+	for i in _models.size():
+		var row := Button.new()
+		row.text = _models[i]
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.custom_minimum_size = Vector2(LIST_W - 12.0, ROW_H)
+		row.add_theme_font_size_override("font_size", 12)
+		row.flat = true
+		row.pressed.connect(_pick.bind(i))
+		_list.add_child(row)
+
+	## And the bones, for the same reason — cycling with a key through 33 of them
+	## to find the left hand is not selection, it is a lottery.
+	var bone_frame := PanelContainer.new()
+	bone_frame.position = Vector2(1600.0 - LIST_W - 10.0, 10.0)
+	bone_frame.custom_minimum_size = Vector2(LIST_W, 0)
+	bone_frame.add_theme_stylebox_override("panel", style)
+	root.add_child(bone_frame)
+	_bonelist = VBoxContainer.new()
+	_bonelist.add_theme_constant_override("separation", 1)
+	bone_frame.add_child(_bonelist)
+
 	_label = Label.new()
-	_label.position = Vector2(16, 12)
+	_label.position = Vector2(LIST_W + 26.0, 12.0)
 	_label.add_theme_font_size_override("font_size", 14)
 	_label.add_theme_color_override("font_color", Color("#e6ddd0"))
 	_label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	_label.add_theme_constant_override("outline_size", 5)
 	root.add_child(_label)
 
-	var keys := Keys.new()
-	keys.lab = self
-	root.add_child(keys)
+	var buttons := HBoxContainer.new()
+	buttons.position = Vector2(LIST_W + 26.0, 1600.0 * 0.0 + 470.0)
+	root.add_child(buttons)
+	for pair in [["MOUNT", "mount"], ["SAVE", "save"], ["REVERT", "revert"],
+			["SPIN", "spin"]]:
+		var b := Button.new()
+		b.text = str(pair[0])
+		b.custom_minimum_size = Vector2(96, 30)
+		b.pressed.connect(_press.bind(str(pair[1])))
+		buttons.add_child(b)
 
+
+func _press(what: String) -> void:
+	match what:
+		"mount":
+			_mount = not _mount
+			_load()
+		"save": _save()
+		"revert":
+			_fit = _saved.duplicate(true)
+			_apply_mount()
+		"spin": _spin = not _spin
+	_tick()
+
+
+func _pick(which: int) -> void:
+	_at = which
 	_load()
+	_tick()
+
+
+func _pick_bone(which: int) -> void:
+	_bone_at = which
+	_apply_mount()
 	_tick()
 
 
@@ -143,13 +235,13 @@ func _load() -> void:
 		_rig.queue_free()
 		_rig = null
 	_bones.clear()
-	_bone_at = 0
+	for old in _bonelist.get_children():
+		old.queue_free()
 
 	var key := _models[_at]
-	var path := _path_for(key)
-	var packed := load(path) as PackedScene
+	var packed := load(_path_for(key)) as PackedScene
 	if packed == null:
-		_stats = "failed to load " + path
+		_stats = "failed to load " + _path_for(key)
 		return
 
 	## MEASURED IN GROUND UNITS, not metres. A model is only right or wrong
@@ -181,30 +273,28 @@ func _load() -> void:
 	var bone_count := skeleton.get_bone_count() if skeleton != null else 0
 	probe.queue_free()
 
-	var tall_m: float = box.size.y
-	var tall_ground: float = tall_m / SkyGearView3D.WORLD_SCALE
 	_stats = "%d tris - %d surfaces - %d bones - %.0f ground units tall (%.2f m)" % [
-		tris, mats, bone_count, tall_ground, tall_m]
+		tris, mats, bone_count, box.size.y / SkyGearView3D.WORLD_SCALE, box.size.y]
 	if tris > 20000:
-		_stats += "\nHEAVY: over 20k triangles. Remesh before this ships."
+		_stats += "\nHEAVY: over 20k triangles for something this size."
 
-	if _mount and _can_mount(tall_m):
+	for i in _models.size():
+		var row := _list.get_child(i) as Button
+		row.add_theme_color_override("font_color",
+			Color("#37f0c8") if i == _at else Color("#b9afaa"))
+
+	if _mount and box.size.y <= HOLDABLE_M and ResourceLoader.exists(RIG):
 		_build_mount()
 	else:
 		_mount = false
-		_shown = packed.instantiate() as Node3D
 		var holder := Node3D.new()
-		holder.add_child(_shown)
+		holder.add_child(packed.instantiate())
 		_world.add_child(holder)
 		_shown = holder
 		## Framed on its own bounding box, so a keg and a Colossus are both
-		## legible without touching the dolly.
+		## legible without touching the wheel.
 		_dolly = maxf(1.4, maxf(box.size.x, maxf(box.size.y, box.size.z)) * 2.1)
 		holder.position = -box.get_center() + Vector3(0.0, box.size.y * 0.5, 0.0)
-
-
-func _can_mount(tall_m: float) -> bool:
-	return tall_m <= HOLDABLE_M and ResourceLoader.exists(RIG)
 
 
 func _build_mount() -> void:
@@ -224,6 +314,21 @@ func _build_mount() -> void:
 				"offset": [0.0, 0.0, 0.0], "rotation": [-120.0, 0.0, 0.0]}
 		_saved = _fit.duplicate(true)
 	_bone_at = maxi(0, _bones.find(str(_fit.bone)))
+	## Only the bones anything is ever mounted to. Thirty-three rows of spine is
+	## a list nobody scrolls.
+	for i in _bones.size():
+		var name := _bones[i]
+		if not ("Hand" in name or "Arm" in name or "Shoulder" in name
+				or "Spine" in name or "Head" in name):
+			continue
+		var row := Button.new()
+		row.text = name.replace("mixamorig_", "")
+		row.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		row.custom_minimum_size = Vector2(LIST_W - 12.0, ROW_H)
+		row.add_theme_font_size_override("font_size", 12)
+		row.flat = true
+		row.pressed.connect(_pick_bone.bind(i))
+		_bonelist.add_child(row)
 	_dolly = 3.0
 	_apply_mount()
 
@@ -231,7 +336,8 @@ func _build_mount() -> void:
 func _apply_mount() -> void:
 	if _rig == null:
 		return
-	_fit["bone"] = _bones[_bone_at] if not _bones.is_empty() else str(_fit.bone)
+	if not _bones.is_empty():
+		_fit["bone"] = _bones[_bone_at]
 	_rig.hold(_path_for(_models[_at]), str(_fit.bone), _v3(_fit.offset),
 		_v3(_fit.rotation), float(_fit.length), 1)
 	if _rig.has_clip("idle"):
@@ -242,8 +348,6 @@ func _apply_mount() -> void:
 
 
 func _tick() -> void:
-	## The camera orbits a fixed point rather than the model, so switching models
-	## does not throw the view away.
 	var focus := Vector3(0.0, 0.9 if _mount else _dolly * 0.22, 0.0)
 	_cam.position = focus + Vector3(
 		sin(_yaw) * cos(_pitch), -sin(_pitch), cos(_yaw) * cos(_pitch)) * _dolly
@@ -253,24 +357,24 @@ func _tick() -> void:
 
 func _show() -> void:
 	var lines: Array[String] = []
-	lines.append("%s        [%d of %d]        %s" % [_models[_at].to_upper(),
-		_at + 1, _models.size(), "MOUNT" if _mount else "VIEW"])
+	lines.append("%s        %s" % [_models[_at].to_upper(),
+		"MOUNT" if _mount else "VIEW"])
 	lines.append(_stats)
 	lines.append("")
 	if _mount:
 		var o := _v3(_fit.offset)
 		var r := _v3(_fit.rotation)
-		lines.append("bone      %s" % str(_fit.bone))
+		lines.append("bone      %s" % str(_fit.bone).replace("mixamorig_", ""))
 		lines.append("offset    %+.3f  %+.3f  %+.3f" % [o.x, o.y, o.z])
 		lines.append("rotation  %+.0f  %+.0f  %+.0f" % [r.x, r.y, r.z])
-		lines.append("length    %.2f m        %s"
+		lines.append("length    %.2f m      %s"
 			% [float(_fit.length), "UNSAVED" if str(_fit) != str(_saved) else "saved"])
 		lines.append("")
-		lines.append("arrows move - PgUp/PgDn along it - Q/E roll - [ ] length")
-		lines.append("B bone - TAB back to view - ENTER save - R revert")
+		lines.append("drag to move - right-drag to turn - shift+drag along it")
+		lines.append("wheel resizes - click a bone on the right")
 	else:
-		lines.append("PgUp/PgDn model - TAB mount it - A/D orbit - W/S pitch")
-		lines.append("[ ] dolly - SPACE turntable - G grid - ESC quit")
+		lines.append("click a model - drag to orbit - wheel to zoom")
+		lines.append("MOUNT hangs it off the captain")
 	_label.text = "\n".join(lines)
 
 
@@ -291,19 +395,70 @@ func _process(delta: float) -> bool:
 	return false
 
 
-func key(event: InputEvent) -> void:
-	if event is not InputEventKey or not event.pressed or event.echo:
+func hand(event: InputEvent) -> void:
+	if event is InputEventKey:
+		_shift = (event as InputEventKey).shift_pressed
+		_key(event as InputEventKey)
 		return
-	var k := (event as InputEventKey).keycode
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		_shift = mb.shift_pressed
+		## Never over the lists, or dragging to pick a model orbits the camera.
+		if mb.position.x < LIST_W + 20.0 or mb.position.x > 1600.0 - LIST_W - 20.0:
+			return
+		match mb.button_index:
+			MOUSE_BUTTON_LEFT: _dragging = 1 if mb.pressed else 0
+			MOUSE_BUTTON_RIGHT: _dragging = 2 if mb.pressed else 0
+			MOUSE_BUTTON_WHEEL_UP: _wheel(-1.0)
+			MOUSE_BUTTON_WHEEL_DOWN: _wheel(1.0)
+		return
+	if event is InputEventMouseMotion and _dragging > 0:
+		_drag((event as InputEventMouseMotion).relative)
+
+
+func _wheel(notches: float) -> void:
+	if _mount:
+		_fit.length = maxf(0.15, float(_fit.length) - notches * GROW)
+		_apply_mount()
+	else:
+		_dolly = clampf(_dolly * (1.12 if notches > 0.0 else 0.89), 0.6, 80.0)
+	_tick()
+
+
+func _drag(by: Vector2) -> void:
+	if not _mount:
+		_yaw -= by.x * 0.006
+		_pitch = clampf(_pitch + by.y * 0.005, -1.3, 1.3)
+		_tick()
+		return
+	var o := _v3(_fit.offset)
+	var r := _v3(_fit.rotation)
+	if _dragging == 2:
+		r.y += by.x * DRAG_TURN
+		r.x += by.y * DRAG_TURN
+	elif _shift:
+		## Along its own length, which is the axis you cannot see from the front
+		## and the one a grip usually needs.
+		o.z += by.y * DRAG_MOVE
+	else:
+		o.x += by.x * DRAG_MOVE
+		o.y -= by.y * DRAG_MOVE
+	_set_v("offset", o)
+	_set_v("rotation", r)
+	_apply_mount()
+	_show()
+
+
+func _key(event: InputEventKey) -> void:
+	if not event.pressed or event.echo:
+		return
+	var k := event.keycode
 	if k == KEY_ESCAPE:
 		quit(0)
 		return
 	if k == KEY_TAB:
-		_mount = not _mount
-		_load()
-		_tick()
+		_press("mount")
 		return
-
 	if _mount:
 		var o := _v3(_fit.offset)
 		var r := _v3(_fit.rotation)
@@ -312,8 +467,6 @@ func key(event: InputEvent) -> void:
 			KEY_RIGHT: o.x += NUDGE
 			KEY_UP: o.y += NUDGE
 			KEY_DOWN: o.y -= NUDGE
-			KEY_PAGEUP: o.z += NUDGE
-			KEY_PAGEDOWN: o.z -= NUDGE
 			KEY_A: r.y -= TURN
 			KEY_D: r.y += TURN
 			KEY_W: r.x -= TURN
@@ -322,9 +475,6 @@ func key(event: InputEvent) -> void:
 			KEY_E: r.z += TURN
 			KEY_BRACKETLEFT: _fit.length = maxf(0.15, float(_fit.length) - GROW)
 			KEY_BRACKETRIGHT: _fit.length = float(_fit.length) + GROW
-			KEY_B:
-				if not _bones.is_empty():
-					_bone_at = (_bone_at + 1) % _bones.size()
 			KEY_SPACE: _spin = not _spin
 			KEY_R: _fit = _saved.duplicate(true)
 			KEY_ENTER, KEY_KP_ENTER:
@@ -337,12 +487,13 @@ func key(event: InputEvent) -> void:
 		_apply_mount()
 		_show()
 		return
-
 	match k:
-		KEY_PAGEUP:
+		## Z and X rather than PgUp/PgDn: a laptop has no page keys, which is how
+		## the first version of this ended up undriveable.
+		KEY_Z, KEY_COMMA:
 			_at = wrapi(_at - 1, 0, _models.size())
 			_load()
-		KEY_PAGEDOWN:
+		KEY_X, KEY_PERIOD:
 			_at = wrapi(_at + 1, 0, _models.size())
 			_load()
 		KEY_A: _yaw -= 0.12
@@ -352,7 +503,6 @@ func key(event: InputEvent) -> void:
 		KEY_BRACKETLEFT: _dolly = maxf(0.6, _dolly * 0.88)
 		KEY_BRACKETRIGHT: _dolly = minf(80.0, _dolly * 1.14)
 		KEY_SPACE: _spin = not _spin
-		KEY_G: _grid = not _grid
 		_:
 			return
 	_tick()
@@ -361,6 +511,8 @@ func key(event: InputEvent) -> void:
 ## Only the captain entry, and only the fields the mount owns. A tool that
 ## rewrites more than it was asked to is a tool nobody runs twice.
 func _save() -> void:
+	if not _mount:
+		return
 	var table = JSON.parse_string(
 		FileAccess.get_file_as_string(SkyGearRig3D.WEAPON_TABLE))
 	if table is not Dictionary:
@@ -373,7 +525,6 @@ func _save() -> void:
 	captain["offset"] = _fit.offset
 	captain["rotation"] = _fit.rotation
 	(table as Dictionary)["captain"] = captain
-	## And make sure the weapon it now names is one the table knows about.
 	var weapons: Dictionary = (table as Dictionary).get("weapons", {})
 	if not weapons.has(_models[_at]):
 		weapons[_models[_at]] = {"path": _path_for(_models[_at])}
