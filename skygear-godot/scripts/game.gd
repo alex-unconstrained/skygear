@@ -1110,12 +1110,39 @@ func reroll_draft() -> bool:
 	return true
 
 
+## The eight shapes, ordered by how much this class wants them. Deterministic
+## given the seed: the bias multiplies a per-shape roll, so a starved shape can
+## still come up and a favoured one is not guaranteed — the same run on the same
+## seed still deals the same cards.
+func _weighted_shapes() -> Array[String]:
+	var bias: Dictionary = class_data().get("shape_bias", {})
+	var scored: Array = []
+	for shape in ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY", "AURA",
+			"PULSE", "SENTRY"]:
+		scored.append({"shape": shape,
+			"score": rng.randf() * float(bias.get(shape, 1.0))})
+	scored.sort_custom(func(a, b): return float(a.score) > float(b.score))
+	var out: Array[String] = []
+	for row in scored:
+		out.append(str(row.shape))
+	return out
+
+
 func open_draft() -> void:
 	if voice != null:
 		voice.say("draft")
 	draft_options.clear()
 	if skills.size() < 4:
-		var shape_order: Array[String] = ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY", "AURA", "PULSE", "SENTRY"]
+		## THE ORDER IS WEIGHTED BY CLASS. Same eight shapes, same 36 cells — the
+		## draft simply reaches for his first. He wants ground he can hold and
+		## hazards he can plant; a Beam on a man who cannot chase is a weapon he
+		## will never be in position to use, and offering it is a wasted card
+		## rather than a hard choice.
+		##
+		## A bias of 0.25 does not forbid a shape, it makes it rare. Forbidding
+		## would mean two different matrices to balance, which is the thing the
+		## class design explicitly refused to do.
+		var shape_order: Array[String] = _weighted_shapes()
 		var element_order: Array[String] = ["EMBER", "FROST", "ARC", "STEAM"]
 		var used_shapes: Array[String] = []
 		for skill in skills:
@@ -1179,14 +1206,23 @@ func _process_basic_attack(delta: float) -> void:
 	basic_cooldown = maxf(0.0, basic_cooldown - delta)
 	if basic_cooldown > 0.0:
 		return
-	var target := nearest_enemy(player.global_position, 190.0)
+	var auto: Dictionary = class_data().get("auto", {})
+	if auto.is_empty():
+		return
+	var reach := float(auto.range)
+	var target := nearest_enemy(player.global_position, reach)
 	if target == null:
 		return
 	var direction := (target.global_position - player.global_position).normalized()
-	_damage_cone(player.global_position, direction, 190.0, 2.443, 22.0 * damage_multiplier, "EMBER", 150.0, true)
-	basic_cooldown = 0.45 * 0.8
-	_fx({"kind": "arc", "position": player.global_position, "direction": direction.angle(), "radius": 190.0, "color": Color("#ff7a2f"), "time": 0.0, "life": 0.16})
-	play_sfx("player/shape_cleave.ogg", -7.0)
+	_damage_cone(player.global_position, direction, reach, float(auto.arc),
+		float(auto.damage) * damage_multiplier * overpressure_multiplier(),
+		str(auto.element), float(auto.knock), true)
+	basic_cooldown = float(auto.period)
+	_fx({"kind": str(auto.kind), "position": player.global_position,
+		"direction": direction.angle(), "radius": reach, "arc": float(auto.arc),
+		"color": SkyGearData.ELEMENTS[str(auto.element)].color,
+		"time": 0.0, "life": 0.16, "follow": true})
+	play_sfx(str(auto.sound), -7.0)
 
 func _process_skill_input() -> void:
 	var actions := ["skill_1", "skill_2", "skill_3", "skill_4"]
@@ -1620,6 +1656,37 @@ func _fill_head(delta: float) -> void:
 
 ## Crack a main open where you are standing. His signature, and the only new
 ## object in the simulation.
+## BLEED JET. The dash key, for a class with no dash.
+##
+## Deliberately worse than hers in every way except one: it costs the gauge, it
+## grants no charge back, and it cannot be spammed because the bank runs out. The
+## one thing it does that hers does not is leave the lane behind you on fire —
+## so a retreat is also a wall, which is the only way a man who cannot outrun
+## anything gets to reposition at all.
+func bleed_jet(direction: Vector2) -> bool:
+	var spec: Dictionary = class_data().get("jet", {})
+	if spec.is_empty() or state != State.PLAY or pressure < float(spec.cost):
+		return false
+	var heading := direction.normalized() if direction.length_squared() > 0.0 \
+		else player.aim_direction
+	if heading.length_squared() == 0.0:
+		return false
+	pressure -= float(spec.cost)
+	player.set_pressure(pressure)
+	## The scald trail is laid BEFORE the move, along the path he is about to
+	## take — a trail placed afterwards starts where he ended, which is behind
+	## whatever he was running from.
+	var steps: int = maxi(1, int(spec.trail))
+	for i in steps:
+		var at: Vector2 = player.global_position \
+			+ heading * float(spec.distance) * (float(i) / float(steps))
+		_field({"position": at, "radius": float(spec.trail_radius),
+			"dps": float(spec.trail_dps), "time": float(spec.trail_life), "tick": 0.0})
+	player.jet(heading, float(spec.distance), float(spec.time))
+	play_sfx("player/dash.ogg", -4.0)
+	return true
+
+
 func tap_main() -> bool:
 	if not gauge_is_banked() or state != State.PLAY:
 		return false

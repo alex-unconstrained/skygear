@@ -120,6 +120,11 @@ const CLASSES := {
 		"gauge": "PRESSURE",
 		## Fills from fighting, decays out of it, discharges at the cap.
 		"gauge_from_damage": true, "gauge_decays": true, "gauge_auto_vents": true,
+		## EMBER CLEAVE. Was hardcoded inside `_process_basic_attack` as four
+		## magic numbers, which is fine with one class and wrong with two.
+		"auto": {"kind": "arc", "range": 190.0, "arc": 2.443, "damage": 22.0,
+			"period": 0.36, "element": "EMBER", "knock": 150.0,
+			"sound": "player/shape_cleave.ogg"},
 		"starting": [["CLOSEHIT", "EMBER"]],
 	},
 	"boilerwright": {
@@ -136,6 +141,24 @@ const CLASSES := {
 		## Where he fills. Standing still is the condition on all three, and the
 		## rates are deliberately slow enough that a commute costs real damage.
 		"boiler_rate": 45.0, "vent_rate": 18.0, "tap_rate": 26.0,
+		## SCALD. A narrower, slower, weaker cone of steam rather than her wide
+		## fast ember arc — he reaches slightly further and hits a third less
+		## often, which is the difference between a brawler and a man holding a
+		## line. Pure data; the simulation reads the same fields for both.
+		"auto": {"kind": "cone", "range": 210.0, "arc": 1.134, "damage": 18.0,
+			"period": 0.6, "element": "STEAM", "knock": 190.0,
+			"sound": "player/shape_gale.ogg"},
+		## BLEED JET. He has no dash, so the dash key does this instead: a short
+		## hop that COSTS the bank and leaves scalding steam in the lane behind
+		## him. Every dodge is damage he did not do, which is the sharpest thing
+		## about the class and the reason the 25% anchored resist exists at all.
+		"jet": {"distance": 220.0, "time": 0.16, "cost": 12.0,
+			"trail": 5, "trail_radius": 46.0, "trail_dps": 9.0, "trail_life": 2.4},
+		## He wants ground he can hold and hazards he can plant, not a rifle.
+		## Weights rather than a different matrix: the 36 cells stay 36 and the
+		## draft simply reaches for his shapes first.
+		"shape_bias": {"RANGED_AOE": 3.0, "AURA": 3.0, "PULSE": 3.0, "CONE": 2.0,
+			"SENTRY": 2.0, "CHAIN": 1.0, "RAY": 0.25, "LINE_BURST": 0.25},
 		"starting": [["CONE", "STEAM"]],
 	},
 }

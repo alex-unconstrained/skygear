@@ -1,6 +1,17 @@
 # The second class — the Boilerwright
 
-Status: design, not built. Written against v11.2 as the code stands today.
+Status: **BUILT**, as of the class commit. Head, Tap Main, Blowdown, Bleed Jet,
+Scald, Overpressure, the no-dash body and the per-class draft weighting are all
+in and covered by the harness. What is NOT built, and is still design:
+
+- the Anchored damage reduction is declared in `SkyGearData.TAP.anchor_resist`
+  and read by `game.anchored()`, but nothing applies it to incoming damage yet;
+- kills inside a tap do not extend it (`extend_on_kill` is data with no reader);
+- the crew speed bonus inside a tap;
+- the third deck vent in lane 1 that §4 asks for.
+
+Everything below is the reasoning, unchanged. Where the build disagrees with it,
+the build is the newer decision and the difference is commented at the code.
 
 ## 0. The question this class answers
 

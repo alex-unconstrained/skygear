@@ -1351,6 +1351,74 @@ func _view() -> void:
 	_check("class", "and repairing the ship with the ship is a loss",
 		gained < spent, "%.0f back for %.0f spent" % [gained, spent])
 
+	## SCALD. His auto-attack is a narrower, slower, weaker cone of steam rather
+	## than her wide fast ember arc — data now, where it used to be four magic
+	## numbers inside `_process_basic_attack`.
+	var his: Dictionary = SkyGearData.CLASSES.boilerwright.auto
+	var hers: Dictionary = SkyGearData.CLASSES.captain.auto
+	_check("class", "his auto-attack reaches further and swings slower",
+		float(his.range) > float(hers.range) and float(his.period) > float(hers.period),
+		"%.0f/%.2fs against %.0f/%.2fs" % [float(his.range), float(his.period),
+			float(hers.range), float(hers.period)])
+	_check("class", "and is narrower and weaker for it",
+		float(his.arc) < float(hers.arc) and float(his.damage) < float(hers.damage))
+
+	## And it actually fires, through the same path hers does.
+	game.set_class("boilerwright")
+	game.begin_run()
+	game.choose_draft(0)
+	game.start_wave(2)
+	game.basic_cooldown = 0.0
+	game.pressure = 0.0
+	game.player.global_position = Vector2.ZERO
+	game.spawn_enemy("SCRAPPER", 1)
+	var scalded: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			scalded = e
+	if scalded != null:
+		scalded.global_position = Vector2(0.0, -150.0)
+		scalded.hp = 1e9
+		scalded.max_hp = 1e9
+		game.player.aim_direction = Vector2(0.0, -1.0)
+		var untouched: float = scalded.hp
+		game._process_basic_attack(0.016)
+		_check("class", "and Scald lands", scalded.hp < untouched)
+		_check("class", "on his own clock, not hers",
+			is_equal_approx(game.basic_cooldown, float(his.period)),
+			"%.2fs" % game.basic_cooldown)
+		scalded.dead = true
+		scalded.queue_free()
+
+	## BLEED JET. His reposition costs the bank and lays scalding steam along the
+	## path he is about to take — a retreat that is also a wall.
+	game.fire_fields.clear()
+	game.pressure = 5.0
+	_check("class", "a jet cannot be paid for on an empty bank",
+		not game.bleed_jet(Vector2(0.0, 1.0)))
+	game.pressure = 80.0
+	var banked: float = game.pressure
+	_check("class", "but can on a full one", game.bleed_jet(Vector2(0.0, 1.0)))
+	_check("class", "and every dodge is damage he did not do",
+		game.pressure < banked, "%.0f -> %.0f" % [banked, game.pressure])
+	_check("class", "and it leaves the lane behind him scalding",
+		game.fire_fields.size() >= 4, "%d fields" % game.fire_fields.size())
+	_check("class", "and he is actually moving", game.player.dash_time_left > 0.0)
+
+	## The draft reaches for the shapes he can use. Not a different matrix — the
+	## 36 cells stay 36 — just an order that puts ground-holding first.
+	var his_first := {}
+	for _roll in 40:
+		var order: Array = game._weighted_shapes()
+		his_first[str(order[0])] = int(his_first.get(str(order[0]), 0)) + 1
+	var ground: int = int(his_first.get("RANGED_AOE", 0)) + int(his_first.get("AURA", 0)) 		+ int(his_first.get("PULSE", 0))
+	var rifles: int = int(his_first.get("RAY", 0)) + int(his_first.get("LINE_BURST", 0))
+	_check("class", "his draft favours ground over rifles", ground > rifles * 3,
+		"%d ground, %d rifle in 40 rolls" % [ground, rifles])
+	## Starved, not forbidden. Two matrices is two things to balance.
+	_check("class", "but never forbids a shape outright",
+		SkyGearData.CLASSES.boilerwright.shape_bias.values().min() > 0.0)
+
 	## The captain is untouched by all of it.
 	game.go_to_title()
 	game.set_class("captain")

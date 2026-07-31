@@ -38,6 +38,7 @@ var dash_charges := START_DASH_CHARGES
 var max_dash_charges := START_DASH_CHARGES
 var dash_recharge_left := 0.0
 var dash_time_left := 0.0
+var _dash_speed := 0.0
 ## How long she is still mid-swing, for the renderer. A cast is instantaneous in
 ## the simulation and has to last long enough to be a picture — the attack view
 ## and the swing cycle both key off this, and without it she casts six times a
@@ -83,7 +84,10 @@ func _physics_process(delta: float) -> void:
 	hurt_time = maxf(0.0, hurt_time - delta)
 	if dash_time_left > 0.0:
 		dash_time_left -= delta
-		velocity = dash_direction * DASH_SPEED
+		## From the distance the MOVE asked for, not the captain's constant — a
+		## Bleed Jet that travelled her 220-over-0.16 would be her dash with a
+		## different name.
+		velocity = dash_direction * (_dash_speed if _dash_speed > 0.0 else DASH_SPEED)
 		invulnerability_left = maxf(invulnerability_left, 0.08)
 		## The frame the dash ENDS, drop to running speed rather than decaying
 		## from 1375 down to 260 at the normal rate. That decay is a third of a
@@ -98,7 +102,13 @@ func _physics_process(delta: float) -> void:
 		var rate := ACCEL if input_direction.length_squared() > 0.0 else FRICTION
 		velocity = velocity.move_toward(target_velocity, rate * delta)
 		if Input.is_action_just_pressed("dash"):
-			_try_dash(input_direction)
+			## One key, two moves. Hers spends a charge; his spends the bank and
+			## leaves the lane scalding. The class decides which, so neither has
+			## to know the other exists.
+			if game != null and game.has_method("bleed_jet") 					and not (game.class_data().get("jet", {}) as Dictionary).is_empty():
+				game.bleed_jet(input_direction)
+			else:
+				_try_dash(input_direction)
 
 	move_and_slide()
 	global_position = game.correct_player_position(global_position, 17.0)
@@ -113,6 +123,19 @@ func _update_aim() -> void:
 		aim_direction = mouse_delta.normalized()
 		$Sprite.flip_h = aim_direction.x < 0.0
 
+## A move with no charge behind it. The Boilerwright's Bleed Jet pays in gauge
+## rather than in charges, so it cannot go through `_try_dash` — that function's
+## first line is a charge check, and he never has one.
+func jet(direction: Vector2, distance: float, time: float) -> void:
+	dash_direction = direction.normalized()
+	_dash_speed = distance / maxf(0.01, time)
+	dash_time_left = time
+	dash_serial += 1
+	## Briefly untouchable, same as a dash: the move is a dodge or it is nothing.
+	invulnerability_left = time + 0.08
+	dash_started.emit()
+
+
 func _try_dash(move_direction: Vector2) -> void:
 	if dash_charges <= 0:
 		return
@@ -120,6 +143,7 @@ func _try_dash(move_direction: Vector2) -> void:
 	if dash_direction.length_squared() == 0.0:
 		dash_direction = Vector2.UP
 	dash_charges -= 1
+	_dash_speed = DASH_SPEED
 	dash_time_left = DASH_TIME
 	dash_serial += 1
 	invulnerability_left = DASH_TIME + 0.08
