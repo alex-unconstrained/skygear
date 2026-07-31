@@ -226,10 +226,38 @@ grip itself has not been re-fitted** — the tool was rebuilt, the number was no
 changed. Two minutes in the fitter closes this.
 
 The lab can now show it MOVING, which is the part that was missing: MOUNT, then
-play `swing2` and scrub. At frame 75 of 136 the cutlass is out beside her hip
-rather than in her fist, so this is not a rest-pose offset problem — it is a
-grip that only holds at rest. Nudging is live at whatever frame you paused on,
-and SAVE writes `assets/models/weapons.json`.
+play `swing2` and scrub. Nudging is live at whatever frame you paused on, and
+SAVE writes `assets/models/weapons.json`.
+
+**A claim that was here and is wrong.** The lab agent reported that at frame 75
+of 136 of `swing2` the cutlass sits beside her hip rather than in her fist —
+"a grip that only holds at rest". It does not. Measured: the `BoneAttachment3D`
+tracks `mixamorig_RightHand` to **0.002 m at rest and 0.002 m at that exact
+frame**, and rendering the frame shows her right hand IS down at her hip in
+that pose, which is where the sword looked detached. The pose was misread.
+
+What is still possibly wrong is smaller and different: the fit carries a −120°
+pitch and no offset, tuned against the rest pose, and a wrist that rotates
+through a swing can make a correct attachment read badly. That is a fitting
+judgement to make in the lab with the timeline running, not a bug.
+
+### The captain is 30,634 triangles and was skipped by the remesh
+Found by the lab, which flags her HEAVY in its own readout. She is **5.7 MB of
+the 18 MB the models now cost** — a third of the budget on one asset — and she
+is not in `.model_originals/`, so the pass that took every prop from 182 MB to
+9 MB never touched her.
+
+Probably correct to have skipped her, and that is the point of writing it down
+rather than leaving it implied: decimating a 33-bone skinned mesh risks the
+skin weights, and Meshy's remesh would return no rig at all, so the route that
+worked for the props cannot be pointed at her. But by that pass's own budget —
+`0.021 x px²` at her on-screen height — she should be 3,000 to 8,000 triangles.
+She is 4 to 10 times over, and she is the one figure on screen 100% of the
+time.
+
+Needs a decision, not silence. The candidates are a skin-weight-preserving
+decimation done locally, a hand-authored LOD, or accepting the cost and saying
+so here.
 
 ### VFX plan items never started — TWO LEFT
 From `VFX-PLAN.md`. §3 and §4 landed on 2026-07-31; these two did not:
