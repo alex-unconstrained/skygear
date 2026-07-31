@@ -352,6 +352,12 @@ func _lanes() -> void:
 	target.global_position = Vector2(gate.position) + Vector2(0, -44)
 	target.state = "move"
 	target.state_time = 0.0
+	## AND THE CAPTAIN OUT OF THE WAY. A boarder within 280 units prefers her over
+	## anything else on the deck, and the cannon sits 244 from where she spawns —
+	## so this check was quietly measuring "does it attack the player" and passing
+	## on timing. It is about whether a gun in the way gets attacked, so the gun
+	## has to be the only thing worth attacking.
+	game.player.global_position = Vector2(0.0, 1050.0)
 	_advance(game, 6.0)
 	_check("lanes", "a boarder attacks the cannon in its way",
 		float(gate.hp) < gate_hp, "cannon %.0f -> %.0f" % [gate_hp, gate.hp])

@@ -31,7 +31,11 @@ extends RefCounted
 ##
 ## Crew `siege` is untouched: breaking the boarding hulk is their actual job and
 ## the one thing they are supposed to be better at than you.
-const TURRET := {"hp": 760.0, "range": 400.0, "damage": 4.0, "cooldown": 1.9, "radius": 34.0}
+## `shot_speed` is fast enough that a boarder walking at 150 cannot cross the
+## 400-unit range before the ball arrives — the shot is there to be SEEN, not to
+## be dodged, so making it visible must not quietly nerf the guns.
+const TURRET := {"hp": 760.0, "range": 400.0, "damage": 4.0, "cooldown": 1.9,
+	"radius": 34.0, "shot_speed": 900.0}
 const CREW := {
 	"hp": 68.0, "damage": 1.5, "siege": 22.0, "speed": 118.0, "radius": 15.0,
 	"reach": 52.0, "windup": 0.40, "recover": 0.5,

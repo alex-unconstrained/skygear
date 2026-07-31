@@ -1,71 +1,103 @@
-# SkyGear Godot port — where things stand
+# SkyGear Godot port -- where things stand
 
-Last updated 2026-07-28. Read this first after a break.
+Last updated 2026-07-31. **Read this first, then `docs/OUTSTANDING.md`.**
 
-## Shipped
+Playable end to end: twelve waves, two classes, a draft, persistent progression,
+a difficulty ladder. 382 harness checks. Build 27 is on itch at
+https://alex-unconstrained.itch.io/skygear-godot-test
 
-Live at https://alex-unconstrained.itch.io/skygear-godot-test — latest build
-`m6-melee-animations`. `python tools/pack_itch.py` builds; `butler push
-builds/itch/SkyGear-Windows.zip alex-unconstrained/skygear-godot-test:windows
---userversion <tag>` publishes.
+---
 
-**382 checks**, all passing: `godot --path . --headless --script
-tests/parity_test.gd`. Exit code is the failure count.
+## Three things to read before touching anything
 
-## Waiting on Alex
+**1. `docs/OUTSTANDING.md` is the ledger.** Only things the owner asked for,
+never things anyone thought of. An item leaves it when it is done or when it is
+dropped WITH A REASON -- not when it is partly done. `SkyGear Tools.bat todo`
+prints the open half. The file exists because the skybox was reported twice and
+slipped twice.
 
-1. **A HUD layout pass.** Press **F4** in game, drag panels, **Enter** to drill
-   into a panel and move the elements inside it, **Ctrl+S** to save. That writes
-   `%APPDATA%\Godot\app_userdata\SkyGear Godot\hud_layout.json`. Send it over
-   and it becomes the shipped default — it is a one-file copy.
-   `docs/HUD-LAYOUT.md` has the keys.
-2. **Which part of the browser UI/UX felt furthest ahead** — draft screens, the
-   in-fight HUD, or menus and controls. All three are fixable, they are
-   different jobs, and knowing which one hurt would beat guessing.
-3. **3D models for the other units.** Drop them in `tools/models.json` and run
-   `python tools/ingest_model.py <name>`; the renderer picks up
-   `assets/models/<kind>/<kind>.tscn` with no code change. Kinds: `scrapper`,
-   `gunner`, `armored`, `swarm`, `boss`, `crew`. No 2D character animation
-   cycles should be commissioned until this is decided — twelve of the fourteen
-   pending ones are for units that may become meshes.
+**2. Run the tools before believing anything.** `SkyGear Tools.bat` lists them,
+`all` runs every checker. Nearly every real bug found lately was found by a
+tool, and several were things a confident commit message had already declared
+fine.
 
-## Next up, in order, nothing blocking
+**3. The four recurring failure modes.** Each has happened more than once.
+Assume you are about to commit one:
 
-1. **Reserved pool capacity** (`docs/VFX-RESEARCH-AUDIT.md`, finding 2 remainder).
-   Pools are real now but share one free list, so a hostile telegraph and a
-   scorch mark compete for it. The audit has the budget table.
-2. **A frame profiler.** The port has never been measured. The browser has
-   `tools/profile.mjs`; there is no Godot equivalent, and every performance
-   complaint so far has been diagnosed without one.
-3. **Bolt and chain ribbons** (VFX plan item 3) — projectiles have a head and a
-   ground shadow but no body in the air.
-4. **Re-forge two HUD pieces at their real aspect.** `ui_bar_housing` is a 3:1
-   trough being squeezed into a 10:1 bar; `ui_lane_track` has end stops that are
-   most of an 8px rail. The prompts are right, the canvas was wrong.
-5. **A weapon mesh on `mixamorig_RightHand`.** The melee pack animates an axe
-   the character does not have. She reads acceptably because of the brass
-   gauntlet, but the animations do not mean what they were animated to mean.
+- **Data with no reader.** A table field nothing consumes, so a feature reads as
+  done and does nothing. FIVE times. Two harness guards exist now
+  (`shop - every talent field is read by something` and the article twin);
+  extend them rather than trusting yourself.
+- **Two functions disagreeing about one number.** Three visual bugs came from
+  this. `SkyGearHUD.rail()` and `scripts/ink.gd` exist because of it.
+- **A detector silenced to make a screen pass.** The harness once reported
+  192/192 while skipping a quarter of itself. The text audit exempted every
+  widget label and called 16 screens clean while 30 were broken.
+- **Claims asserted from memory rather than measured.** "The camera was ported
+  exactly" was said repeatedly and is false.
 
-## The tools, and why they exist
+---
 
-Standing instruction: before doing a piece of work, ask what tool makes this and
-every future instance cheaper, then build it.
+## The code
 
-| Tool | Does |
+| | |
 |---|---|
-| `tools/forge.py` | Art generation. Prompts live beside the manifest key they fill, so a change to the look is one edit. |
-| `tools/ingest_model.py` | A rigged character from an archive to a usable scene, verified after the sources are deleted. |
-| `tools/ingest_ui.py` | Forged HUD furniture into the port. |
-| `tools/pack_itch.py` | Export and zip. |
-| F4 in game | HUD layout, two levels, saved to disk. |
-| `tests/parity_test.gd` | 382 checks. |
-| `tests/_shot3d.gd`, `_shot_model.gd`, `_shot_screens.gd`, `_shot_anim.gd` | Screenshots for looking at things without launching. |
+| `scripts/game.gd` | the simulation: waves, damage, draft, classes, deckwork |
+| `scripts/game_data.gd` | every table: shapes, elements, enemies, waves, events, classes |
+| `scripts/view3d.gd` | the renderer; mirrors the hidden 2D sim into 3D |
+| `scripts/hud.gd` | every screen. All text goes through `_say` / `_says` |
+| `scripts/ink.gd` | one source of truth for point size, outline, contrast floors |
+| `scripts/ui.gd` | the widget layer: immediate mode, retained focus |
+| `scripts/cards.gd` | 41 draft cards. `preview()` runs a card on a sandbox copy |
+| `scripts/workshop.gd` | persistent progression, gated behind a first victory |
+| `scripts/deckwork.gd` | a verb table for acting on the deck. One verb so far |
+| `scripts/coach.gd` | one hint at a time, and mostly silence |
+| `tests/parity_test.gd` | 382 checks; the closest thing to a specification |
 
-## Known-wrong, deliberately
+A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
+`WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
+at 41 degrees -- **and the parity tool shows it framing tighter than the browser,
+unexplained.** Nothing has been changed there, because three other systems are
+calibrated against that solve.
 
-- Two HUD assets do not fit their slots (above).
-- Only Vulkan has been tested; D3D12 never has.
-- The port has never been profiled.
-- 14 of the 2D animation cycles are undelivered and listed `pending` in
-  `scripts/sprites.gd`; a missing strip falls back to the still, which is why
-  the game ships mid-pipeline.
+---
+
+## The tools
+
+`SkyGear Tools.bat <name>`, or `godot --path . --script tools/hub.gd -- <name>`.
+
+| | |
+|---|---|
+| `harness` | 382 checks. Green before anything ships |
+| `text` | every string on 16 screens x 4 sizes: containment, overlap, contrast |
+| `parity` | browser against Godot, same seed and tick count, stitched |
+| `lab` | any model: triangles, height in ground units, bones; mounts weapons |
+| `balance` `timing` `motion` `model` | simulated runs; clip-vs-skill; root drift; rigs |
+| `todo` | the open half of OUTSTANDING |
+| `all` | every checker in sequence, one verdict |
+
+**Two build gotchas.** The Windows export template lives in a GITIGNORED
+`skygear-godot/.templates/`, so a fresh clone cannot build. And when agents are
+working, build from a clean `git worktree` of HEAD or you ship a half-written
+file.
+
+---
+
+## Designed, not built
+
+- `docs/SHIP-AND-MAPS-DESIGN.md` -- maps, run diversity, ship progression,
+  between-run downtime. Its first recommendation is the Colossus wreck as a
+  permanent fitting: the art exists and has never been placed.
+- `docs/AUDIT-2026-07-31.md` -- an independent audit. Its top three findings are
+  fixed; its documentation recommendations are not.
+- Two Articles, Heat 3-5, and every `VFX-PLAN.md` item past section 2.
+
+## Generated assets
+
+Meshy, via `tools/meshy.py`. **The key must never reach a committed file** --
+read from `MESHY_API_KEY` or the gitignored `tools/.meshy_key`, and run
+`git grep "msy_"` before committing. `prune` strips the 77 MB an asset arrives
+as down to the ~10 MB GLB actually used, and refuses to run before the first
+import because extract-mode textures leave a scene with no meshes and no error.
+
+Nothing remeshes yet, which is why the build is 308 MB.

@@ -17,6 +17,38 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The lab needs animation and VFX playback
+Asked for, and not built. Right now the lab shows a model and mounts weapons.
+What it should also do:
+
+- **play the animation clips** and scrub them. `tools/anim_timing.gd` already
+  lists every clip and its length; the lab should let you WATCH one, at the
+  speed the game will play it, and step through it to judge a grip at the frame
+  that matters rather than at a fixed pose.
+- **play the VFX loops** and tweak them. The effects are built in `view3d.gd`
+  from code (`_fx`, `_decal`, `_spark`, the particle families in `impact.gd`)
+  and there is nowhere to see one on its own, so every VFX judgement so far has
+  been made mid-fight with boarders on screen.
+- **expose the modifiers**. Anything the renderer reads from a constant that
+  someone might want to tune should be a row in the lab, the way the mount axes
+  now are.
+
+The reference the player shared is the bar: view, run, tweak, map. It is at
+view and map, not run and tweak.
+
+### Player projectiles and VFX still read as 2D
+Reported. Two separate causes, and only one of them is a bug:
+
+- Most player skills are HITSCAN — arc, cone, line and aoe resolve on the frame
+  they are cast, so there is no projectile to see. That is a design decision
+  inherited from the browser and worth revisiting deliberately rather than by
+  default.
+- The effects that DO draw are flat: chains, bolts and beams are decal streaks
+  painted on the ground plane. `VFX-PLAN.md` §3 calls for `ImmediateMesh`
+  ribbons and §4 for `FogVolume` fields; neither has been started. This is the
+  single largest remaining item on the port's visual parity.
+
+
 ### THE CAMERA IS ZOOMED IN — found by the comparison, first time it has been run
 The single largest parity gap, and it contradicts a claim I have made
 repeatedly. I have said the camera was "ported exactly" from the browser's

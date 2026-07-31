@@ -1008,6 +1008,45 @@ func _close_share() -> int:
 		return 0
 	return roundi(float(rt.close) / span * 100.0)
 
+## WHERE A DRAFTED WEAPON LANDS.
+##
+## Skills used to append in draft order, so the first two you took owned the
+## left and right mouse buttons whatever they were — and AURA and PULSE are
+## PASSIVE. They fire on their own timer and ignore the press entirely, so a run
+## that drafted two passives early gave the player two dead mouse buttons and no
+## way to move either.
+##
+## Actives take the mouse from the left; passives fill from the far end. Neither
+## is locked — a fifth draft still has to go somewhere — but the common case
+## stops being wrong.
+func _slot_skill(skill: Dictionary) -> void:
+	var passive: bool = bool(SkyGearData.SHAPES[skill.shape].get("passive", false))
+	## Grow to the size we need, marking the gaps so they can be filled in
+	## whichever order the class of skill prefers.
+	while skills.size() < 4:
+		skills.append({})
+	var order: Array = [3, 2, 1, 0] if passive else [0, 1, 2, 3]
+	for slot in order:
+		if (skills[slot] as Dictionary).is_empty():
+			skills[slot] = skill
+			_trim_empty_slots()
+			return
+	## Nothing free: the oldest of its own kind gives way, so a fifth passive
+	## replaces a passive rather than evicting your Cleave.
+	skills[order[0]] = skill
+	_trim_empty_slots()
+
+
+## The rest of the game counts `skills.size()` to mean "how many you have", so
+## the placeholders cannot outlive the placement.
+func _trim_empty_slots() -> void:
+	var kept: Array[Dictionary] = []
+	for entry in skills:
+		if not (entry as Dictionary).is_empty():
+			kept.append(entry)
+	skills = kept
+
+
 func choose_draft(index: int) -> void:
 	if state != State.DRAFT or index < 0 or index >= draft_options.size():
 		return
@@ -1019,7 +1058,7 @@ func choose_draft(index: int) -> void:
 				option.apply.call(self)
 		"skill":
 			if skills.size() < 4:
-				skills.append(option.skill.duplicate(true))
+				_slot_skill(option.skill.duplicate(true))
 				if voice != null:
 					voice.say("slot", 1)
 		"damage":
@@ -2232,6 +2271,25 @@ func _update_projectiles(delta: float) -> void:
 		if trail.size() > 9:
 			trail.pop_back()
 		var remove := float(bolt.life) <= 0.0 or not DECK_RECT.grow(80.0).has_point(bolt.position)
+		## OURS OR THEIRS. Every bolt used to be hostile because every bolt WAS,
+		## and the cannon shot added above would otherwise fly down the lane and
+		## damage the captain and the Boiler it was fired to defend.
+		## OURS OR THEIRS. Every bolt used to be hostile because every bolt WAS,
+		## and a cannon shot would otherwise fly down the lane and damage the
+		## captain and the Boiler it was fired to defend. A friendly bolt looks
+		## for a boarder and is done either way — it never touches anything else.
+		if bool(bolt.get("friendly", false)):
+			if not remove:
+				var hit := nearest_enemy(bolt.position, 46.0)
+				if hit != null:
+					var was := src_slot
+					src_slot = -3             # allies: the ship's own guns
+					damage_enemy(hit, float(bolt.damage), "", 90.0, bolt.position, false)
+					src_slot = was
+					remove = true
+			if remove:
+				projectiles.remove_at(i)
+			continue
 		if not remove and bolt.position.distance_to(player.global_position) <= 27.0:
 			damage_player(float(bolt.damage), "bolt")
 			remove = true
@@ -2384,10 +2442,22 @@ func _update_turrets(delta: float) -> void:
 		## GUN CREW. Faster reload, which is a smaller number not a bigger one.
 		t.cooldown = float(SkyGearLanes.TURRET.cooldown) / (1.0 + talent("turret_rate"))
 		t.fire_flash = 0.14
-		var previous := src_slot
-		src_slot = -3                     # allies: the ship's own guns
-		damage_enemy(best, SkyGearLanes.TURRET.damage, "", 90.0, t.position, false)
-		src_slot = previous
+		## A CANNON FIRES SOMETHING. It used to deal its damage the instant the
+		## flash played — a gun with a muzzle flash, a bang, and no shot. So the
+		## most numerous ally on the deck was contributing damage a player could
+		## hear but never see, which is why the lanes read as decoration.
+		##
+		## A real travelling shot, resolved on arrival. Fast enough that a boarder
+		## walking at 150 cannot outrun it across 400 units of range, so this is a
+		## readability change and not a stealth nerf — but it CAN miss a target
+		## that dies first, which is correct: the shot was already in the air.
+		var to_target: Vector2 = best.global_position - Vector2(t.position)
+		_bolt({
+			"position": Vector2(t.position) + to_target.normalized() * 30.0,
+			"velocity": to_target.normalized() * SkyGearLanes.TURRET.shot_speed,
+			"damage": SkyGearLanes.TURRET.damage, "life": 1.4,
+			"friendly": true, "trail": [],
+		})
 		play_sfx("lane/cannon_fire_1.ogg", -9.0)
 
 

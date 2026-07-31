@@ -71,6 +71,8 @@ var _stats := ""
 var _dragging := 0
 var _shift := false
 var _shot_to := ""
+var _axes: VBoxContainer
+var _axis_value: Dictionary = {}
 
 
 func _run() -> void:
@@ -185,6 +187,44 @@ func _build_ui() -> void:
 	_label.add_theme_constant_override("outline_size", 5)
 	root.add_child(_label)
 
+	## PER-AXIS BUTTONS. Reported: "I had a really hard time trying to mount the
+	## weapon." Dragging is ambiguous — a drag moves two axes at once and you
+	## cannot tell which one moved, so a grip that is nearly right becomes a
+	## guessing game. Six labelled rows of minus/plus, each showing its live
+	## number.
+	##
+	## Named in WORDS, not X/Y/Z: nobody looking at a sword knows which way its
+	## Z points, and that was precisely the difficulty.
+	var axes := VBoxContainer.new()
+	axes.position = Vector2(LIST_W + 26.0, 232.0)
+	axes.add_theme_constant_override("separation", 3)
+	root.add_child(axes)
+	_axes = axes
+	for spec in [["mx", "ACROSS    left / right"], ["my", "UP        raise / lower"],
+			["mz", "ALONG     toward hilt / tip"],
+			["rx", "PITCH     tip up / tip down"], ["ry", "YAW       swing L / R"],
+			["rz", "ROLL      edge over"], ["len", "LENGTH    shorter / longer"]]:
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 4)
+		for way in [-1.0, 1.0]:
+			var b := Button.new()
+			b.text = "-" if way < 0.0 else "+"
+			b.custom_minimum_size = Vector2(30, 24)
+			b.pressed.connect(_axis.bind(str(spec[0]), way))
+			row.add_child(b)
+		var name_label := Label.new()
+		name_label.text = str(spec[1])
+		name_label.custom_minimum_size = Vector2(250, 24)
+		name_label.add_theme_font_size_override("font_size", 13)
+		name_label.add_theme_color_override("font_color", Color("#b9afaa"))
+		row.add_child(name_label)
+		var value := Label.new()
+		value.add_theme_font_size_override("font_size", 13)
+		value.add_theme_color_override("font_color", Color("#e8c376"))
+		_axis_value[str(spec[0])] = value
+		row.add_child(value)
+		axes.add_child(row)
+
 	var buttons := HBoxContainer.new()
 	buttons.position = Vector2(LIST_W + 26.0, 1600.0 * 0.0 + 470.0)
 	root.add_child(buttons)
@@ -195,6 +235,27 @@ func _build_ui() -> void:
 		b.custom_minimum_size = Vector2(96, 30)
 		b.pressed.connect(_press.bind(str(pair[1])))
 		buttons.add_child(b)
+
+
+## One nudge on one axis. Every button and every key lands here, so exactly one
+## place knows what a step is.
+func _axis(which: String, way: float) -> void:
+	if not _mount:
+		return
+	var o := _v3(_fit.offset)
+	var r := _v3(_fit.rotation)
+	match which:
+		"mx": o.x += NUDGE * way
+		"my": o.y += NUDGE * way
+		"mz": o.z += NUDGE * way
+		"rx": r.x += TURN * way
+		"ry": r.y += TURN * way
+		"rz": r.z += TURN * way
+		"len": _fit.length = maxf(0.15, float(_fit.length) + GROW * way)
+	_set_v("offset", o)
+	_set_v("rotation", r)
+	_apply_mount()
+	_show()
 
 
 func _press(what: String) -> void:
@@ -370,12 +431,21 @@ func _show() -> void:
 		lines.append("length    %.2f m      %s"
 			% [float(_fit.length), "UNSAVED" if str(_fit) != str(_saved) else "saved"])
 		lines.append("")
-		lines.append("drag to move - right-drag to turn - shift+drag along it")
-		lines.append("wheel resizes - click a bone on the right")
+		lines.append("drag or use the rows below - click a bone on the right")
 	else:
 		lines.append("click a model - drag to orbit - wheel to zoom")
 		lines.append("MOUNT hangs it off the captain")
 	_label.text = "\n".join(lines)
+	if _axes != null:
+		_axes.visible = _mount
+	if _mount and not _axis_value.is_empty():
+		var shown_o := _v3(_fit.offset)
+		var shown_r := _v3(_fit.rotation)
+		for pair in [["mx", "%+.3f" % shown_o.x], ["my", "%+.3f" % shown_o.y],
+				["mz", "%+.3f" % shown_o.z], ["rx", "%+.0f" % shown_r.x],
+				["ry", "%+.0f" % shown_r.y], ["rz", "%+.0f" % shown_r.z],
+				["len", "%.2f m" % float(_fit.length)]]:
+			(_axis_value[str(pair[0])] as Label).text = str(pair[1])
 
 
 func _v3(a) -> Vector3:
