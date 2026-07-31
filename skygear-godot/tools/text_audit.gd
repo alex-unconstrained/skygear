@@ -67,6 +67,14 @@ const SCREENS := [
 	{"name": "paused", "state": "PAUSE", "skills": 4},
 	{"name": "paused + controls", "state": "PAUSE", "skills": 4, "keys": true},
 	{"name": "settings mid-run", "state": "PAUSE", "skills": 4, "settings": true},
+	## TWO BANNERS AT ONCE. `start_wave` fires "WAVE n" with a 2.0s life and
+	## clearing fires "WAVE CLEAR" with 1.6s, both centred at the same y with
+	## no stacking between them — so any wave cleared inside two seconds of
+	## starting prints one through the other. Every other screen here poses a
+	## resting state; this one poses a MOMENT, which is the kind the list was
+	## missing.
+	{"name": "wave clear over wave start", "state": "PLAY", "skills": 4,
+		"banners": true},
 	{"name": "deck lost", "state": "GAMEOVER", "skills": 4},
 	{"name": "deck lost + workshop", "state": "GAMEOVER", "skills": 4, "banked": true},
 	{"name": "deck held", "state": "VICTORY", "skills": 4},
@@ -141,6 +149,57 @@ func _run() -> void:
 				## CONTRAST, at the one size the window agrees with.
 				if size == INK_AT:
 					await _shade(hud, measured)
+				## AND NO TWO STRINGS ON THE SAME PIXELS.
+				##
+				## There is already a COLLIDE check and it could not see this. It
+				## compares WIDGET rectangles out of `ui.declared()`, and the two things
+				## that actually collided in the shipped build were free-drawn
+				## announcements — "WAVE 1" and "WAVE CLEAR", both centred, both at the
+				## same y, printed through each other into something nobody can read.
+				## Neither is a widget, so neither was ever in the input set.
+				##
+				## The same shape of hole as the drift pass: the check existed, and the
+				## thing it was meant to catch was not among what it was handed.
+				##
+				## HALF the smaller box, and the number was measured rather than
+				## picked. A string's box is its LINE box, taller than the glyphs in it,
+				## so two stacked labels one leading apart overlap by real area while
+				## their ink never touches — BOILER over WAVE 1/12 on the objective
+				## plate is 44% and is perfectly readable on screen. The banner printed
+				## through a draft card is 51%. Between those two is the line, and it is
+				## narrow enough to say out loud: this pass finds text laid ON text, and
+				## a tight stack can still slip under it.
+				## The same string at the same box twice is a DOUBLE DRAW, not a
+				## collision — the end screens redraw once more inside the capture
+				## window and every label came back paired with itself. Worth its own
+				## check one day; it is not this one, and leaving it in here would
+				## have buried the real finding under forty copies of "Esc".
+				var once: Array = []
+				var seen_ink := {}
+				for entry in measured:
+					var key := "%s|%s" % [str(entry.text), str(entry.box)]
+					if seen_ink.has(key):
+						continue
+					seen_ink[key] = true
+					once.append(entry)
+				for a in once.size():
+					for b in range(a + 1, once.size()):
+						var ba: Rect2 = once[a].box
+						var bb: Rect2 = once[b].box
+						var shared: Rect2 = ba.intersection(bb)
+						if shared.size.x <= 0.0 or shared.size.y <= 0.0:
+							continue
+						var area: float = shared.size.x * shared.size.y
+						var smaller: float = minf(ba.size.x * ba.size.y,
+							bb.size.x * bb.size.y)
+						if smaller <= 0.0 or area < smaller * 0.50:
+							continue
+						findings.append({"kind": "OVERPRINT",
+							"text": "\"%s\" is printed through \"%s\"" % [
+								str(once[a].text), str(once[b].text)],
+							"box": ba, "frame": bb, "measured": 0.0, "given": 0.0,
+							"screen": str(screen.name),
+							"at": "%dx%d" % [int(size.x), int(size.y)]})
 				if hud.audit == null:
 					continue
 				for hit in hud.audit:
@@ -545,6 +604,14 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 		"VICTORY":
 			game.end_reason = "twelve waves repelled"
 			game._set_state(SkyGearGame.State.VICTORY)
+	if bool(screen.get("banners", false)):
+		## Fired the way the game fires them, not drawn by hand — a hand-drawn
+		## pair would prove the audit can see overlap and nothing about whether
+		## the game produces it.
+		game._fx({"kind": "banner", "text": "WAVE %d" % game.wave,
+			"time": 0.0, "life": 2.0})
+		game._fx({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0,
+			"life": 1.6})
 	game.keys_open = bool(screen.get("keys", false))
 	game.settings_open = bool(screen.get("settings", false))
 	game.how_open = bool(screen.get("how", false))
