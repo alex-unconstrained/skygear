@@ -631,6 +631,31 @@ func _draw_game_hud() -> void:
 		draw_arc(portrait_at.get_center(), portrait_at.size.x * 0.5 + 2.0, 0.0, TAU, 40,
 			BRASS, 2.4)
 
+	## THE AUTO-ATTACK, as a ring around her portrait.
+	##
+	## She swings every 0.36s at anything inside 190 units and nothing has ever
+	## said so. It is a fifth of a run's damage on most builds, it is the reason
+	## standing next to a boarder is not passive, and a player who does not know
+	## it exists reads "close range" as a risk with no upside — which is the same
+	## misreading the coach and HOW TO PLAY were both written to fix.
+	##
+	## On the portrait rather than in the slot row, because it is not a slot: it
+	## costs no key and cannot be drafted away. A sweep that fills, and a soft
+	## flare on the frame it lands.
+	var auto_period: float = 0.45 * 0.8
+	var auto_left: float = clampf(float(game.basic_cooldown), 0.0, auto_period)
+	var swung: float = 1.0 - auto_left / auto_period
+	var reach: float = portrait_at.size.x * 0.5 + 7.0
+	draw_arc(portrait_at.get_center(), reach, -PI * 0.5, -PI * 0.5 + TAU * swung,
+		36, Color("#ff9a4a"), 2.6)
+	if swung >= 0.999:
+		## Ready, and there is something in reach for it to hit. A full ring over
+		## an empty deck would read as a cooldown that never fires.
+		var prey = game.nearest_enemy(game.player.global_position, 190.0)
+		if prey != null:
+			draw_arc(portrait_at.get_center(), reach, 0.0, TAU, 36,
+				Color(1.0, 0.72, 0.36, 0.55), 4.4)
+
 	var health := l.item("captain", "health", panel)
 	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
 		"CAPTAIN", "%d / %d" % [player.hp, player.max_hp])

@@ -99,11 +99,24 @@ API = "https://api.meshy.ai"
 #    that. So every clause here has to earn its place, and the redundant
 #    negatives that are cheap in a 2D prompt ("no pedestal" AND "no base" AND
 #    "no ground plane") are collapsed to one.
+# TWO WORDS IN HERE COST US THE FURNACE KNIGHT AND THE COLOSSUS.
+#
+# "verdigris teal accents" was read by the refine pass as GLOWING teal rather
+# than as oxidised copper — so the one colour in the palette that means "cold and
+# old" became the one that means "powered", and both furnaces came back green.
+#
+# And the trailing "no glow" flatly contradicted the per-asset clause asking for
+# a glowing orange furnace grate, which is the only thing in this art direction
+# that is SUPPOSED to emit. A prompt that contains both instructions resolves
+# whichever way it likes; ours resolved against the furnace twice.
+#
+# The negative it was trying to express is "do not bake a bloom into the albedo",
+# which "flat albedo, no baked lighting" already says.
 PALETTE = (
     "blackened steel, riveted brass "
-    "fittings, oxblood leather, verdigris teal accents, honest wear at the "
+    "fittings, oxblood leather, oxidised copper accents, honest wear at the "
     "edges. Chunky readable forms and broad flat colour areas, not photoreal, "
-    "no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow."
+    "no micro-detail. Flat albedo, no baked lighting, no baked shadow."
 )
 
 # Two nouns, one vocabulary. Split out when the boarders arrived: calling a
@@ -129,9 +142,10 @@ PROP = (
 # there — it takes colour and material direction instead.
 SURFACE = (
     "Hand-painted stylised game texture: blackened gunmetal, warm polished brass, "
-    "deep oxblood leather, verdigris teal in the recesses, bare worn metal along "
-    "the working edges. Broad flat colour areas, no baked lighting, no baked "
-    "shadow, no text, no logos."
+    "deep oxblood leather, dull oxidised-copper patina settled in the recesses, "
+    "bare worn metal along the working edges. Any furnace, grate, vent or ember "
+    "is hot orange; nothing else emits light. Broad flat colour areas, no baked "
+    "lighting, no baked shadow, no text, no logos."
 )
 
 # The one boarder that is not made of metal. SURFACE names five metals and no
@@ -139,9 +153,10 @@ SURFACE = (
 # small brass statue — which is a different enemy.
 SURFACE_SKIN = (
     "Hand-painted stylised game texture: mottled green skin, worn oxblood "
-    "leather, warm polished brass, faded crimson cloth, verdigris teal in the "
-    "recesses. Broad flat colour areas, no baked lighting, no baked shadow, no "
-    "text, no logos."
+    "leather, warm polished brass, faded crimson cloth, dull oxidised-copper "
+    "patina in the recesses. Any furnace, grate, vent or ember is hot orange; "
+    "nothing else emits light. Broad flat colour areas, no baked lighting, no "
+    "baked shadow, no text, no logos."
 )
 
 

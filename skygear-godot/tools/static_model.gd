@@ -57,14 +57,25 @@ const MODELS := {
 	"gunner": 0.0,
 	"swarm": 0.0,
 	"boss": 0.0,
-	## "armored" is generated and on disk and is deliberately NOT here. The mesh
-	## came back a slim red knight with a teal lamp on its belt; the billboard is
-	## a barrel-chested hulk with an orange furnace burning in its chest and a
-	## chimney over one shoulder. Both are "an armoured figure with an axe" and
-	## only one of them is the enemy with 180 hp — the boarder the player is
-	## meant to read as the thing you cannot simply walk through. Re-prompt it
-	## (assets/models/armored/meshy.json has what was asked for) and add the line
-	## back; until then the painted knight is the better picture.
+	## "armored" is generated and on disk and is deliberately NOT here.
+	##
+	## TWO ATTEMPTS. The first came back a slim red knight with a teal lamp on its
+	## belt. The second — after fixing a real prompt contradiction, where PALETTE
+	## ended with "no glow" while the same prompt asked for a GLOWING orange
+	## furnace grate — came back a heavy plate knight with the right silhouette,
+	## a grey-and-yellow palette that is not ours, a dark grille where the furnace
+	## should burn, no chimney, and a teal axe blade.
+	##
+	## The billboard is a barrel-chested hulk in brass and oxblood with an orange
+	## furnace burning in its chest, a chimney over one shoulder and a pressure
+	## gauge on the pauldron. Both are "an armoured figure with an axe"; only one
+	## of them is unmistakably THIS game, and only one reads as the enemy with 180
+	## hp that you cannot simply walk through.
+	##
+	## The generator is good at silhouette and bad at a specific character, and
+	## sixty credits was a fair price for finding that out. The painted knight
+	## stays. If someone re-rolls again, the bar is the billboard, not the
+	## previous mesh.
 }
 
 

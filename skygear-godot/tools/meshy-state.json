@@ -44,21 +44,6 @@
    "gunner_thumb.png"
   ]
  },
- "armored": {
-  "preview": "019fb6c7-ae48-73a1-a908-537ed06d0707",
-  "refine": "019fb6c9-0680-74b3-9723-a1491bc3ffd2",
-  "credits": 30,
-  "files": [
-   "armored.glb",
-   "armored.fbx",
-   "armored_base_color.png",
-   "armored_metallic.png",
-   "armored_roughness.png",
-   "armored_normal.png",
-   "armored_emission.png",
-   "armored_thumb.png"
-  ]
- },
  "swarm": {
   "preview": "019fb6cb-1d48-708e-996f-a36d8e691b23",
   "refine": "019fb6cc-7aa7-70cb-8456-f087dbc82382",
@@ -102,6 +87,21 @@
    "scrapper_normal.png",
    "scrapper_emission.png",
    "scrapper_thumb.png"
+  ]
+ },
+ "armored": {
+  "preview": "019fb6fd-76ba-7d8b-92d5-240878b833b9",
+  "refine": "019fb6fe-d7b6-7dd1-91ca-8c95d78cf202",
+  "credits": 30,
+  "files": [
+   "armored.glb",
+   "armored.fbx",
+   "armored_base_color.png",
+   "armored_metallic.png",
+   "armored_roughness.png",
+   "armored_normal.png",
+   "armored_emission.png",
+   "armored_thumb.png"
   ]
  }
 }

@@ -80,17 +80,38 @@ func _run() -> void:
 	await process_frame
 	_boss()
 	await process_frame
-	_audio()
+	await _audio()
 	await process_frame
 	_endings()
 	await process_frame
-	_view()
+	## AWAITED. `_view` and `_audio` are coroutines — they suspend on their own
+	## `await` — and calling one without `await` hands control straight back here.
+	## `_run` then walked to the summary and called `quit()` while two thirds of
+	## `_view` had not run yet, and reported the checks that HAD run as a clean
+	## pass. It was silently masked for as long as the first suspension point
+	## happened to fall late in the function; adding a block near the top of
+	## `_view` moved it, and sixty-one checks quietly stopped existing.
+	##
+	## A harness that reports 192/192 while skipping a quarter of itself is worse
+	## than a harness that fails.
+	await _view()
 	await process_frame
 	_persistence()
 	await process_frame
 	_layout()
 	await process_frame
 	_dash()
+
+	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
+	## checks passed" while skipping a quarter of itself, because a coroutine pass
+	## was called without `await` and `quit()` beat it to the end. Every number in
+	## that report was true and the report was a lie. A floor cannot catch a pass
+	## that is one check short, but it catches a pass that vanished — which is the
+	## failure that actually happened.
+	const EXPECTED_AT_LEAST := 250
+	if checks < EXPECTED_AT_LEAST:
+		failures.append("the harness itself only ran %d of at least %d checks — a pass was skipped"
+			% [checks, EXPECTED_AT_LEAST])
 
 	print("")
 	if failures.is_empty():
@@ -1222,6 +1243,59 @@ func _view() -> void:
 	## paused game there was no way to restart or quit short of alt-F4.
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
+
+	## THE AUTO-ATTACK. It is a fifth of a run's damage on most builds and the
+	## HUD never mentioned it, so "fight close" read as a risk with no upside.
+	## The ring around the portrait is drawn from `basic_cooldown`, so the number
+	## the HUD shows and the number the simulation swings on have to be the same
+	## one — a decorative ring on its own timer is worse than no ring.
+	game.go_to_title()
+	game.set_seed_text("AUTO")
+	game.begin_run()
+	game.basic_cooldown = 0.0
+	game.player.global_position = Vector2.ZERO
+	game.spawn_enemy("SCRAPPER", 1)
+	var prey: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			prey = e
+	if prey != null:
+		prey.global_position = Vector2(90.0, 0.0)
+		prey.hp = 1e9
+		prey.max_hp = 1e9
+		var before: float = prey.hp
+		game._process_basic_attack(0.016)
+		_check("auto", "she swings at anything in reach without being asked",
+			prey.hp < before)
+		_check("auto", "and the ring the HUD draws is on that same clock",
+			game.basic_cooldown > 0.0,
+			"cooldown %.3f" % game.basic_cooldown)
+		## It KEEPS swinging while something is in reach — which is why the first
+		## version of this check, waiting for the cooldown to read zero, waited
+		## forever: it re-fires the instant it recovers and resets the clock.
+		## Count the swings instead.
+		var swings := 0
+		var last_cd: float = game.basic_cooldown
+		for _t in 200:
+			game._process_basic_attack(0.01)
+			if game.basic_cooldown > last_cd:
+				swings += 1
+			last_cd = game.basic_cooldown
+		_check("auto", "and it keeps swinging while something is in reach",
+			swings >= 4 and swings <= 8, "%d swings in 2 seconds" % swings)
+
+		## And stops the moment nothing is. A ring that fills over an empty deck
+		## is a promise the game does not keep.
+		prey.global_position = Vector2(4000.0, 0.0)
+		for _t in 100:
+			game._process_basic_attack(0.01)
+		_check("auto", "and stops when nothing is", game.basic_cooldown <= 0.0,
+			"cooldown %.3f" % game.basic_cooldown)
+		prey.dead = true
+		prey.queue_free()
+	game.spawn_queue.clear()
+	game.go_to_title()
+	await game.get_tree().process_frame
 
 	## THE COACH. Its whole design problem is shutting up: a hint that fires
 	## whenever a condition holds reads as noise inside a minute, and noise is
