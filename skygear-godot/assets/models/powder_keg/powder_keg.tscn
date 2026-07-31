@@ -2,10 +2,10 @@
 
 [ext_resource type="PackedScene" path="res://assets/models/powder_keg/powder_keg.glb" id="1_kc63s"]
 
-[node name="Powder Keg" type="Node3D" unique_id=52807107]
-metadata/model_height = 1.897877
+[node name="Powder Keg" type="Node3D" unique_id=77952935]
+metadata/model_height = 1.89577
 
-[node name="Holder" type="Node3D" parent="." unique_id=546383338]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4.0471554e-05, 0.949134, 0.0006789565)
+[node name="Holder" type="Node3D" parent="." unique_id=229570809]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0014654994, 0.94840693, 0.00093746185)
 
-[node name="Model" type="Node3D" parent="Holder" unique_id=268787911 instance=ExtResource("1_kc63s")]
+[node name="Model" type="Node3D" parent="Holder" unique_id=344955931 instance=ExtResource("1_kc63s")]

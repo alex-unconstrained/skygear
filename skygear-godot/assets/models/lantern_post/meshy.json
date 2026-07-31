@@ -17,5 +17,19 @@
     "lantern_post_normal.png",
     "lantern_post_emission.png",
     "lantern_post_thumb.png"
-  ]
+  ],
+  "screen_units": 200.0,
+  "remesh_task": "019fb8b6-54b3-7d2d-a925-5948814f12c3",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 632544,
+    "original_bytes": 11417396
+  }
 }

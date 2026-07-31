@@ -17,5 +17,19 @@
     "boiler_normal.png",
     "boiler_emission.png",
     "boiler_thumb.png"
-  ]
+  ],
+  "screen_units": 168.0,
+  "remesh_task": "019fb8b3-f1c7-7c9e-8efc-59dc8607132f",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 646596,
+    "original_bytes": 11669432
+  }
 }

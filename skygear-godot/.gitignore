@@ -8,3 +8,10 @@ import_staging/
 
 # Meshy API key, read by tools/meshy.py when MESHY_API_KEY is not set.
 tools/.meshy_key
+
+# The pre-remesh .glb of every generated asset, kept by `tools/meshy.py remesh`
+# so a remesh that reads worse can be walked away from. 182 MB of superseded
+# mesh that must never reach a commit — the whole point of the remesh was that
+# the committed copy is a tenth the size. Godot skips it too: it ignores any
+# directory whose name starts with a dot.
+.model_originals/

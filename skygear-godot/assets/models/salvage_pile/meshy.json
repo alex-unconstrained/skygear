@@ -17,5 +17,19 @@
     "salvage_pile_normal.png",
     "salvage_pile_emission.png",
     "salvage_pile_thumb.png"
-  ]
+  ],
+  "screen_units": 62.0,
+  "remesh_task": "019fb8b6-d5a9-71f8-b21c-24ae9f5b0ae3",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 369472,
+    "original_bytes": 11197976
+  }
 }

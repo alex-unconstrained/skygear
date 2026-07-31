@@ -22,6 +22,7 @@ third shape:
   python tools/meshy.py run sword               # generate the whole batch and download
   python tools/meshy.py run all --only sword_cutlass
   python tools/meshy.py fetch sword             # re-poll and download, submit nothing
+  python tools/meshy.py remesh props            # cut it down to what the screen shows
   python tools/meshy.py prune props             # drop the 67 MB per asset we never load
   python tools/meshy.py show sword_cutlass      # raw task JSON from the API
 
@@ -46,6 +47,33 @@ THE API, as of the docs at docs.meshy.ai (checked before this was written):
                   429 = RateLimitExceeded (per second) or NoMoreConcurrentTasks.
   cost            meshy-6 preview 20 credits, refine 10 (2k/4k) or 15 (8k).
                   meshy-5 preview is 5. So one finished asset here is 30 credits.
+  remesh          POST /openapi/v1/remesh, GET /openapi/v1/remesh/<id>, 5 credits.
+                  input_task_id (a SUCCEEDED text-to-3d/image-to-3d/retexture
+                  task) or model_url; target_polycount 100..300000, default
+                  30000; topology triangle|quad; decimation_mode 1-4 OVERRIDES
+                  target_polycount; target_formats as above. resize_height,
+                  resize_longest_side, auto_size and origin_at are deprecated in
+                  favour of the Resize API. Takes about 2.5 minutes.
+
+WHAT THE REMESH DOCS DO NOT TELL YOU, measured here on steam_vent:
+
+  Remesh does its job on geometry and quietly UNDOES it on texture. 10,196
+  triangles came back as 1,532 (0.55 MB of vertex data down to 0.09 MB) — and
+  the same file went from 11.04 MB to 30.35 MB, because the task re-encodes the
+  four 2048x2048 JPEG maps as PNG and UPSCALES two of them to 4096x4096:
+
+      original   4 x JPEG 2048        10.49 MB of images,  0.55 MB of geometry
+      remeshed   PNG 4096 emission    15.58 MB
+                 PNG 2048 normal       7.43 MB
+                 PNG 2048 base_color   6.43 MB
+                 PNG 4096 metal/rough  0.82 MB
+                                      30.26 MB of images,  0.09 MB of geometry
+
+  So `remesh` on its own is a 2.75x size REGRESSION and there is no request
+  parameter that prevents it — texture_resolution is a text-to-3d field and the
+  remesh schema has no equivalent. The command below therefore does two things
+  and is only worth running as both: it remeshes, and then it repacks the maps
+  locally. See SHRINKING, below.
 
 The key is read from $MESHY_API_KEY, falling back to tools/.meshy_key, which is
 gitignored. It is never written to state, never printed, and never committed.
@@ -265,10 +293,22 @@ FLYER = (
 #             three times more triangles than the silhouette can show
 # frame       the shared clauses appended to `subject`: PROP, FIGURE or FLYER
 # surface     the shared clauses appended to `texture`: SURFACE or SURFACE_SKIN
-def A(key, subject, texture, batch, polycount=12000, frame=None, surface=None):
+# screen      how tall this thing stands on the deck, in GROUND UNITS, copied
+#             from the renderer rather than guessed. It is the only input to
+#             both budgets below, so it has to be the number the game uses:
+#               PROP_HEIGHT / BOILER_HEIGHT / CAPTAIN_HEIGHT in view3d.gd,
+#               120 + radius*3 for a boarder (the `_sync_all` enemy line),
+#               weapons.json `length` in metres * 100 for a weapon.
+#             A wrong number here does not break anything; it buys the wrong
+#             amount of detail, which is the whole thing this file is about.
+# tris        OVERRIDES the derived triangle budget. Empty for sixteen of the
+#             seventeen; see `tri_budget` for why one asset needs it and why
+#             the answer is not to move the floor again for everyone.
+def A(key, subject, texture, batch, polycount=12000, frame=None, surface=None,
+      screen=100.0, tris=0):
     return dict(key=key, subject=subject, texture=texture, batch=batch,
                 polycount=polycount, frame=frame or PROP,
-                surface=surface or SURFACE)
+                surface=surface or SURFACE, screen=screen, tris=tris)
 
 
 ASSETS = [
@@ -286,7 +326,7 @@ ASSETS = [
       "Blackened gunmetal blade, polished brass fuller and knuckle-bow, deep "
       "oxblood leather grip wrap, verdigris settled in the recesses of the "
       "guard, bare bright steel along the cutting edge.",
-      "sword"),
+      "sword", screen=95.0),
 
     # v2. The first generation of this one came back wrong and is worth
     # recording, because the failures were all in the prompt rather than the
@@ -305,7 +345,7 @@ ASSETS = [
       "Blackened steel blade with brass gears and chain along the spine, dark "
       "iron vents, brass crossguard and valve pommel, worn oxblood leather "
       "grip binding, verdigris around the rivets.",
-      "sword"),
+      "sword", screen=95.0),
 
     # --- axe ----------------------------------------------------------------
     # The melee pack animates an axe OR a sword. Kept in the manifest so the
@@ -317,7 +357,7 @@ ASSETS = [
       "riveted haft wrapped in oxblood leather, with a brass butt cap.",
       "Blackened steel head with a brass cheek plate, oxblood leather haft "
       "wrap, brass butt cap, bare worn steel along the cutting edge.",
-      "axe"),
+      "axe", screen=95.0),
 
     # --- the five boarders ----------------------------------------------------
     # These are not new characters. Every one of them already exists as a
@@ -361,7 +401,7 @@ ASSETS = [
       "instead of a hand; short thick legs and wide flat feet.",
       "Blackened steel plating with warm polished brass rivets, a hot amber "
       "glass lens, verdigris in the seams, bare worn steel on the hooks.",
-      "boarders", 15000, FIGURE),
+      "boarders", 15000, FIGURE, screen=186.0),
 
     A("gunner",
       "A small steampunk airship drone: a riveted brass disc-shaped body with "
@@ -371,7 +411,8 @@ ASSETS = [
       "underneath with pointed iron weights.",
       "Polished brass shell with blackened steel banding, a cool pale blue "
       "glass lens, verdigris in the recesses, dark iron chains and weights.",
-      "boarders", 15000, FLYER),
+      # tris: four propellers made of thin flat blades. See tri_budget.
+      "boarders", 15000, FLYER, screen=183.0, tris=7000),
 
     A("armored",
       "A huge armoured steampunk furnace knight: heavy riveted plate armour "
@@ -382,7 +423,7 @@ ASSETS = [
       "Blackened steel plate with warm brass trim and rivets, a hot orange "
       "furnace grate, oxblood leather straps, verdigris on the chimney, bare "
       "worn steel on the axe heads.",
-      "boarders", 18000, FIGURE),
+      "boarders", 18000, FIGURE, screen=216.0),
 
     A("swarm",
       "A small scrawny green goblin sky-pirate: huge pointed ears, a worn "
@@ -393,7 +434,7 @@ ASSETS = [
       "Mottled green skin, worn oxblood leather cap and straps, faded crimson "
       "cloth hood, warm polished brass goggles and wrench, verdigris on the "
       "brass.",
-      "boarders", 15000, FIGURE, SURFACE_SKIN),
+      "boarders", 15000, FIGURE, SURFACE_SKIN, screen=165.0),
 
     A("boss",
       "A colossal steampunk siege mech: a vast riveted brass and iron barrel "
@@ -404,7 +445,7 @@ ASSETS = [
       "Blackened iron plate with heavy polished brass banding and rivets, a hot "
       "orange furnace grate, verdigris teal in the seams, bare worn steel "
       "around the cannon mouths.",
-      "boarders", 20000, FIGURE),
+      "boarders", 20000, FIGURE, screen=330.0),
 
     # --- the Boiler -----------------------------------------------------------
     # The objective. `boiler_hp` reaching zero ends the run, it sits at the
@@ -454,7 +495,7 @@ ASSETS = [
       "Warm polished brass barrel with dark riveted iron hoops, heavy soot "
       "blackening around the furnace door, hot orange fire burning behind the "
       "grate, oxidised copper patina on the chimney pipes, a cream gauge dial.",
-      "props", 20000, DECK),
+      "props", 20000, DECK, screen=168.0),
 
     # --- the boarding hulk ----------------------------------------------------
     # The largest sprite in the game after the Colossus, sitting at the bow
@@ -506,7 +547,7 @@ ASSETS = [
       "polished brass strap bands and rivets, oxidised copper pipework, bare "
       "worn steel along the ramp edges, a hot orange furnace burning inside the "
       "open round door.",
-      "props", 20000, HULK),
+      "props", 20000, HULK, screen=420.0),
 
     # --- the deck props -------------------------------------------------------
     # Same argument as the boarders and it is worth restating, because it is the
@@ -541,7 +582,7 @@ ASSETS = [
       "Weathered dark timber planks with open grain, warm polished brass corner "
       "brackets and rivets, coarse pale hemp rope lashing, one green oxidised "
       "copper patch plate.",
-      "props", 8000, DECK, SURFACE_WOOD),
+      "props", 8000, DECK, SURFACE_WOOD, screen=148.0),
 
     A("crate_small",
       "One small wooden shipping crate, a plank cube with dark blue-steel corner "
@@ -550,7 +591,7 @@ ASSETS = [
       "Warm brown timber planks with open grain, dark blue-steel corner brackets "
       "with brass rivets, a deep oxblood leather strap and a polished brass "
       "buckle.",
-      "props", 6000, DECK, SURFACE_WOOD),
+      "props", 6000, DECK, SURFACE_WOOD, screen=84.0),
 
     A("powder_keg",
       "A steampunk explosive powder keg: a squat egg-shaped riveted iron barrel; "
@@ -561,7 +602,7 @@ ASSETS = [
       "Dark blue-black riveted iron shell, two broad polished brass hoops, brass "
       "valve stack and gauge bezel, a bright red painted flame hazard triangle, "
       "oxidised copper patina in the seams.",
-      "props", 8000, DECK),
+      "props", 8000, DECK, screen=100.0),
 
     A("lantern_post",
       "A cast-iron airship deck lamp post: a stepped square flared foot; a tall "
@@ -572,7 +613,7 @@ ASSETS = [
       "Blackened cast iron column with warm polished brass bands and fittings, "
       "glowing warm amber glass panes in the lantern head, oxidised copper "
       "patina in the recesses.",
-      "props", 10000, DECK),
+      "props", 10000, DECK, screen=200.0),
 
     A("brazier",
       "A wide shallow iron fire bowl on three splayed iron legs, the bowl bound "
@@ -580,7 +621,7 @@ ASSETS = [
       "orange.",
       "Rust-brown weathered iron bowl with dark riveted bands, charred black "
       "timber, and coals burning hot orange in the centre.",
-      "props", 6000, DECK),
+      "props", 6000, DECK, screen=116.0),
 
     A("steam_vent",
       "A squat brass airship deck vent: a round riveted brass drum standing on a "
@@ -591,7 +632,7 @@ ASSETS = [
       "Warm polished brass drum with blackened steel cap and banding, bright "
       "copper pipes, oxidised copper patina in the recesses, hot orange light in "
       "the louvre slots at the base.",
-      "props", 10000, DECK),
+      "props", 10000, DECK, screen=52.0),
 
     A("cannon_deck",
       "A short steampunk deck cannon on a pivot mount: a heavy blackened steel "
@@ -602,7 +643,7 @@ ASSETS = [
       "Blackened gunmetal barrel with warm polished brass muzzle ring, bands and "
       "gear wheel, oxidised copper patina in the recesses, bare worn steel at "
       "the muzzle, dark red-brown iron base.",
-      "props", 12000, DECK),
+      "props", 12000, DECK, screen=130.0),
 
     A("salvage_pile",
       "A low loose heap of salvaged machinery lying flat: a dozen brass cogs of "
@@ -612,7 +653,7 @@ ASSETS = [
       "Warm polished brass cogs of varying tarnish, bright copper pipe, "
       "blue-steel spring, oxidised copper patina in the recesses, a cream gauge "
       "dial.",
-      "props", 8000, DECK),
+      "props", 8000, DECK, screen=62.0),
 
     # In the manifest, deliberately NOT generated, and the reason is the same one
     # that keeps the furnace knight painted: it would not be an improvement.
@@ -626,7 +667,7 @@ ASSETS = [
       "concentric turns, the free end tucked under the outermost turn.",
       "Coarse dark tarred hemp rope with a visible three-strand twist, pale "
       "worn fibres on the high points.",
-      "props", 6000, DECK, SURFACE_WOOD),
+      "props", 6000, DECK, SURFACE_WOOD, screen=30.0),
 ]
 
 BATCHES = ["sword", "axe", "boarders", "props"]
@@ -644,6 +685,166 @@ TARGET_FORMATS = ["glb", "fbx"]
 # with nothing generated and nothing charged. Checked here instead, because
 # finding out from a 400 halfway through a batch is a worse way to find out.
 MAX_PROMPT = 800
+
+
+# --- how big any of this actually gets on screen ------------------------------
+# THE MEASUREMENT THAT STARTED THIS. Seventeen finished assets came to 182 MB of
+# .glb, and the Windows build went from 170 MB to 308 MB when ten of them landed.
+# Taking the files apart says where it went, and it is not where the file name
+# suggests:
+#
+#     218,332 triangles across all seventeen  ->    11.5 MB of vertex data
+#     68 embedded 2048x2048 JPEG maps         ->   170.6 MB of images
+#
+# 94% of every one of these files is texture. A rope coil and a Colossus cost
+# about the same because they are both wearing four 2048x2048 maps, and 2048 is
+# the smallest thing Meshy's refine stage will paint (`texture_resolution: 2k`).
+# So target_polycount alone could not have fixed this: remesh every asset to a
+# tenth of its triangles and you save 10 MB of 182.
+#
+# Both budgets below therefore come off ONE number — how many pixels of the
+# screen this object actually covers — because that is the thing that makes a
+# 30-unit rope coil and a 330-unit Colossus different, and nothing else here
+# does.
+#
+# PX_PER_UNIT is that conversion, solved from the renderer's own camera rather
+# than eyeballed, so it moves if the camera does:
+#
+#     view3d.gd sets camera.fov = 2*atan(REF_HEIGHT/2 / FOCAL), so one ground
+#     unit at distance d is FOCAL/REF_HEIGHT * viewport_height / d pixels.
+#     FOCAL 1320, REF_HEIGHT 860, viewport_height 1080 (project.godot), and the
+#     camera sits CAM_HEIGHT 760 up and CAM_NEAR 460 back from its focus point,
+#     so d = hypot(760, 460) = 888.
+#
+#     1320/860 * 1080 / 888 = 1.87 pixels per ground unit at the focus point.
+#
+# Everything further up the deck is smaller than that, so this is the generous
+# end of the range and every budget derived from it is an over-estimate on
+# purpose.
+PX_PER_UNIT = 1.87
+
+
+def screen_px(a: dict) -> float:
+    return a["screen"] * PX_PER_UNIT
+
+
+# --- the triangle budget ------------------------------------------------------
+# Triangles pay for silhouette, and silhouette is an AREA on the screen, so the
+# budget goes with the square of the on-screen height. The constant is set from
+# the one asset nobody would argue is over-budget: the Colossus at 330 ground
+# units is 616 pixels tall and 8,000 triangles is a generous figure at that
+# size — tools/model_lab.gd draws its HEAVY warning at 20k, and 8k is well
+# inside it. Everything else scales down from there.
+#
+# THE FLOOR IS NOT AREA, and it is the number this file got wrong first time.
+# Below about 380 pixels the area rule asks for fewer than 3,000 triangles, and
+# what breaks at that point is not fidelity but FEATURES: the cannon's elevation
+# gear, the steam vent's flange rings, the lantern's six-sided head, the keg's
+# brass hoops. Those are what tell one prop from another at a glance, they are
+# separate pieces of geometry rather than detail on a surface, and area has
+# nothing to say about how many of them an object has.
+#
+# THE FLOOR WAS 1,500 AND THE DECK CANNON PROVED IT TOO LOW. Three of the five
+# assets that landed on that floor came back measurably worse at the real camera
+# distance — checked with tests/_shot_models.gd, not off a thumbnail:
+#
+#   cannon_deck   1,547 tris: the brass elevation gear lost its teeth and became
+#                 a smooth disc, the muzzle crown went to a lump, the base studs
+#                 rounded off. THE WORST OF THE BATCH and it is a prop the
+#                 player looks at all game.
+#   steam_vent    1,532 tris: the two side flange rings stopped being round.
+#   salvage_pile  1,541 tris: the thin plates and rods in the heap merged.
+#
+# The same cannon at 3,085 has the gear back as a ring with a hub, a crisp
+# muzzle crown and proper studs. So 3,000, and the reason it is affordable is
+# the other half of this file: once the maps are 512 instead of 2048, geometry
+# is about 0.1 MB of a 0.3 MB prop, and doubling it costs less than a tenth of
+# what one 2048 map cost. Triangles stopped being the expensive thing.
+#
+# Which means the area curve only actually bites above ~380 pixels — the boss,
+# the hulk, the furnace knight. Everything else is on the floor. That is the
+# honest shape of this problem at a locked 41-degree camera and it is worth
+# saying out loud rather than dressing up in a formula that looks per-asset.
+TRI_PER_PX2 = 0.021
+TRI_FLOOR = 3000
+TRI_CEIL = 8000
+
+
+# THE ONE OVERRIDE, and it is here rather than as a third rule because it is a
+# property of one model's geometry and not of any measurable thing about the
+# asset. The gunner is 342 pixels — mid-table, nothing special — and it came back
+# from 3,000 with its four propellers turned into thick faceted paddles, one with
+# a hole punched through a blade. Everything else on it survived: the body rings,
+# the ring mount on top, the blue lens, the hanging chains.
+#
+# The reason is that a propeller blade is a THIN FLAT PLATE, which is the one
+# shape a decimator cannot cheapen. Its two faces are a few millimetres apart, so
+# collapsing an edge across the plate does not lose a little accuracy, it welds
+# the front of the blade to the back. Area does not see that and the floor does
+# not either; both would have to move for all seventeen assets to catch it, and
+# sixteen of them do not need it. This is the cheapest honest answer: name the
+# asset, say what is thin about it, pay for the edges that keep it thin.
+def tri_budget(a: dict) -> int:
+    if a.get("tris"):
+        return int(a["tris"])
+    px = screen_px(a)
+    n = int(round(TRI_PER_PX2 * px * px / 500.0)) * 500
+    return max(TRI_FLOOR, min(TRI_CEIL, n))
+
+
+# --- SHRINKING: the texture budget --------------------------------------------
+# The other 94%, and the only lever we have for it is local: Meshy will not
+# paint below 2k and remesh makes the maps bigger still (see the header). So the
+# maps are re-encoded here, after download, to a side length set by the same
+# screen height.
+#
+# The precedent is already in this repo and it is the captain: ingest_model.py
+# downscales her albedo to 1024 because she is 176 ground units tall. This
+# file's own header has cited that since the first weapon batch — "the captain's
+# own albedo is downscaled to 1024 ... and the sword is smaller" — and then
+# shipped 2k anyway, seventeen times. TEX_FULL is that decision finally applied.
+#
+# So 1024 is the number a 176-unit figure was already agreed to be worth, and
+# the split below is deliberately MORE conservative than she is: anything from
+# 260 pixels up (about 140 ground units) keeps a full 1024 base colour, and only
+# the genuinely small deck furniture drops to 512.
+#
+# The other three maps are not base colour and are not judged the same way:
+#
+#   * normal at half. At 200-600 pixels a normal map is contributing broad
+#     shading across a rivet, not the rivet. Halving it is the cheapest 3 MB in
+#     the file and it is not visible at this camera.
+#   * metallic/roughness and emission at a quarter. Both are lighting
+#     modulators over broad regions — there is no such thing as a one-pixel
+#     change in roughness that anyone can see here. The emission map is
+#     already 0.07-0.13 MB in every asset because it is almost entirely black
+#     with one hot grate or lamp in it, and a hot grate is a blob.
+#
+# JPEG, not PNG, and at quality 88/92: the ORIGINALS Meshy ships are JPEG, so
+# this is not introducing a lossy stage that was not already there — it is
+# refusing the PNG the remesh task substitutes. Normals get the higher quality
+# because a chroma-subsampled normal map is the one map where JPEG ringing
+# turns into visible shading noise.
+TEX_FULL = 1024
+TEX_SMALL = 512
+TEX_FULL_ABOVE_PX = 260.0
+# role -> (fraction of the base side, JPEG quality). Roles are read out of the
+# glTF material rather than off the file name, because the remesh task hands
+# back its images in a DIFFERENT ORDER from the refine task (emission first) and
+# an index-order assumption would downscale the base colour to 256.
+TEX_ROLES = {
+    "base_color": (1.0, 88),
+    "normal": (0.5, 92),
+    "metallic_roughness": (0.25, 90),
+    "emission": (0.25, 88),
+}
+TEX_MIN_SIDE = 128
+
+
+def tex_budget(a: dict) -> dict:
+    base = TEX_FULL if screen_px(a) >= TEX_FULL_ABOVE_PX else TEX_SMALL
+    return {role: max(TEX_MIN_SIDE, int(base * frac))
+            for role, (frac, _q) in TEX_ROLES.items()}
 
 
 # --- plumbing ---------------------------------------------------------------
@@ -750,13 +951,18 @@ def submit_refine(a: dict, preview_id: str) -> str:
     })["result"]
 
 
-def poll(task_id: str, label: str, timeout: int = 1800, gap: int = 10) -> dict:
-    """Wait for one task. Reports progress; returns the terminal task object."""
+def poll(task_id: str, label: str, timeout: int = 1800, gap: int = 10,
+         endpoint: str = "/openapi/v2/text-to-3d/") -> dict:
+    """Wait for one task. Reports progress; returns the terminal task object.
+
+    `endpoint` because remesh is a v1 task type with its own path and polling a
+    remesh id against /v2/text-to-3d/ returns a 404, not a status.
+    """
     t0 = time.time()
     last = -1
     while time.time() - t0 < timeout:
         try:
-            task = api("GET", "/openapi/v2/text-to-3d/" + task_id)
+            task = api("GET", endpoint + task_id)
         except MeshyError as e:
             if e.code == 429:
                 time.sleep(15)
@@ -822,6 +1028,13 @@ def write_sidecar(a: dict, st: dict) -> None:
         "refine_task": rec.get("refine"),
         "credits": rec.get("credits"),
         "files": rec.get("files", []),
+        # What it was cut down to, and the one number both budgets come off.
+        # Without this the sidecar describes a 20,000-triangle 2k asset that is
+        # not the file sitting next to it.
+        "screen_units": a["screen"],
+        "remesh_task": rec.get("remesh"),
+        "remesh_credits": rec.get("remesh_credits"),
+        "remeshed": rec.get("remeshed"),
     }, indent=2), encoding="utf-8")
 
 
@@ -840,9 +1053,14 @@ def cmd_list(args) -> int:
         for x in rows:
             rec = st.get(x["key"], {})
             mark = "OK " if delivered(x["key"]) else ("job" if rec.get("preview") else "   ")
-            print("   %s %-16s preview=%-38s refine=%-38s %s credits"
-                  % (mark, x["key"], rec.get("preview") or "-",
-                     rec.get("refine") or "-", rec.get("credits") or "-"))
+            glb = outdir(x["key"]) / (x["key"] + ".glb")
+            cut = rec.get("remeshed")
+            print("   %s %-16s %6.2f MB %-22s preview=%-38s refine=%-38s %s credits"
+                  % (mark, x["key"], glb.stat().st_size / 1e6 if glb.exists() else 0.0,
+                     ("%d tris, %d px" % (cut["tris"], round(screen_px(x)))) if cut
+                     else "FULL SIZE, not remeshed",
+                     rec.get("preview") or "-", rec.get("refine") or "-",
+                     (rec.get("credits") or 0) + (rec.get("remesh_credits") or 0) or "-"))
     return 0
 
 
@@ -894,6 +1112,18 @@ def run_one(a: dict, st: dict, args) -> bool:
     save_state(st)
     write_sidecar(a, st)
     print("    %d credits, %d files in assets/models/%s/" % (credits, len(rec["files"]), key))
+
+    # --- remesh: the size the screen actually asks for -----------------------
+    # Third stage, in `run` rather than left to be remembered, because it was
+    # forgotten seventeen times: every asset before this shipped at 20,000
+    # triangles and four 2048x2048 maps for an object 60 to 200 pixels tall, and
+    # ten of them took the Windows build from 170 MB to 308 MB. Five credits on
+    # top of thirty, and the alternative is finding out at export time.
+    if not args.no_remesh:
+        if not remesh_one(a, st, args):
+            print("    remesh failed - the full-size mesh is on disk and usable;"
+                  " `remesh all --only %s` retries without regenerating" % key)
+        write_sidecar(a, st)
     return True
 
 
@@ -921,7 +1151,10 @@ def cmd_run(args) -> int:
                   (a["key"], AI_MODEL, a["polycount"], TEXTURE_RESOLUTION))
             print("-- prompt (%d/%d) --\n%s" % (len(p), MAX_PROMPT, p))
             print("-- texture_prompt (%d/%d) --\n%s" % (len(t), MAX_PROMPT, t))
-        print("\n%d assets, roughly %d credits" % (len(rows), 30 * len(rows)))
+            print("-- then remeshed to %d tris for %.0f px on screen --"
+                  % (tri_budget(a), screen_px(a)))
+        # 20 preview + 10 refine + 5 remesh.
+        print("\n%d assets, roughly %d credits" % (len(rows), 35 * len(rows)))
         return 0
 
     try:
@@ -967,6 +1200,351 @@ def cmd_fetch(args) -> int:
         save_state(st)
         write_sidecar(a, st)
     return rc
+
+
+# --- remeshing ----------------------------------------------------------------
+# NEVER DELETE AN ORIGINAL. A remesh that comes back worse has to be walked away
+# from, and there are three independent ways back, deliberately, because the one
+# that is easiest to reach is the one with an expiry date on it:
+#
+#   1. the previous .glb is copied here before it is overwritten. Leading dot so
+#      Godot skips the directory (it ignores anything starting with '.'), and
+#      gitignored so 182 MB of superseded meshes never reaches a commit.
+#   2. git. These files are committed, so `git checkout -- assets/models` is the
+#      whole undo as long as the remesh is still in the working tree.
+#   3. the Meshy task ids in meshy-state.json. `fetch all` re-downloads every
+#      original from the refine tasks that were already paid for, for nothing —
+#      but the signed URLs expire (the task carries `expires_at`, 30 days out),
+#      so this is the backstop and not the plan.
+ORIGINALS = ROOT / ".model_originals"
+
+
+def keep_original(key: str) -> Path | None:
+    """Copy the current .glb aside before anything overwrites it."""
+    src = outdir(key) / (key + ".glb")
+    if not src.exists():
+        return None
+    dest = ORIGINALS / key / (key + ".glb")
+    if dest.exists():
+        # Already kept. Do NOT refresh it: running remesh twice would otherwise
+        # overwrite the true original with the first remesh and lose the thing
+        # this directory exists for.
+        return dest
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(src.read_bytes())
+    return dest
+
+
+# --- glTF surgery -------------------------------------------------------------
+# A .glb is a 12-byte header and then length-prefixed chunks: one JSON chunk
+# describing the scene and one BIN chunk holding every buffer view end to end —
+# vertex data and embedded images in the same blob, told apart only by which
+# bufferView index the JSON points at them with.
+GLB_MAGIC = 0x46546C67
+GLB_JSON = 0x4E4F534A          # 'JSON'
+GLB_BIN = 0x004E4942           # 'BIN\0'
+
+
+def glb_read(path: Path) -> tuple[dict, bytes]:
+    raw = path.read_bytes()
+    import struct
+    magic, _ver, _len = struct.unpack_from("<III", raw, 0)
+    if magic != GLB_MAGIC:
+        raise SystemExit("%s is not a binary glTF" % path)
+    js: dict = {}
+    blob = b""
+    off = 12
+    while off < len(raw):
+        clen, ctype = struct.unpack_from("<II", raw, off)
+        chunk = raw[off + 8:off + 8 + clen]
+        if ctype == GLB_JSON:
+            js = json.loads(chunk.decode("utf-8").rstrip("\x00 "))
+        elif ctype == GLB_BIN:
+            blob = chunk
+        off += 8 + clen
+    return js, blob
+
+
+def glb_write(path: Path, js: dict, blob: bytes) -> int:
+    import struct
+    js_bytes = json.dumps(js, separators=(",", ":")).encode("utf-8")
+    js_bytes += b" " * ((4 - len(js_bytes) % 4) % 4)      # chunks are 4-aligned,
+    blob = blob + b"\x00" * ((4 - len(blob) % 4) % 4)     # JSON with spaces, BIN
+    total = 12 + 8 + len(js_bytes) + (8 + len(blob) if blob else 0)
+    out = bytearray()
+    out += struct.pack("<III", GLB_MAGIC, 2, total)
+    out += struct.pack("<II", len(js_bytes), GLB_JSON) + js_bytes
+    if blob:
+        out += struct.pack("<II", len(blob), GLB_BIN) + blob
+    path.write_bytes(bytes(out))
+    return len(out)
+
+
+def image_roles(js: dict) -> dict:
+    """image index -> which PBR channel it is, read off the materials.
+
+    By material, never by order. The refine task hands images back as
+    base_color, metallic, normal, emission; the remesh task hands the SAME four
+    back as emission, normal, base_color, metallic. Downscaling by index would
+    put the base colour at 256 on every remeshed asset and nothing would say so.
+    """
+    roles: dict = {}
+
+    def mark(info, role):
+        if not isinstance(info, dict):
+            return
+        tex = (js.get("textures") or [])[info["index"]]
+        src = tex.get("source")
+        if src is not None:
+            roles.setdefault(src, role)
+
+    for m in js.get("materials") or []:
+        pbr = m.get("pbrMetallicRoughness") or {}
+        mark(pbr.get("baseColorTexture"), "base_color")
+        mark(pbr.get("metallicRoughnessTexture"), "metallic_roughness")
+        mark(m.get("normalTexture"), "normal")
+        mark(m.get("emissiveTexture"), "emission")
+        # Ambient occlusion rides in the same texture as metallic/roughness in
+        # every Meshy asset so far, but if it ever arrives on its own it is a
+        # broad low-frequency map and belongs in the same bucket.
+        mark(m.get("occlusionTexture"), "metallic_roughness")
+    return roles
+
+
+def shrink_glb(path: Path, sides: dict, verbose: bool = True) -> tuple[int, int]:
+    """Re-encode every embedded map down to its budget. Returns (before, after).
+
+    Rebuilds the BIN chunk from the buffer views in offset order, which is the
+    only safe way to change one view's length: every accessor addresses its data
+    as an offset INSIDE a view, so as long as the views keep their indices and
+    their contents the geometry is untouched by construction.
+    """
+    try:
+        from PIL import Image, ImageFile
+    except ImportError:
+        raise SystemExit(
+            "shrinking the maps needs Pillow (`pip install Pillow`). Without it "
+            "a remesh is a 2.75x size REGRESSION - see the header - so this "
+            "stops here rather than writing the bigger file.")
+    import io
+
+    # Pillow's JPEG encoder writes through a fixed buffer, MAXBLOCK bytes at a
+    # time, and `optimize=True` needs the WHOLE scan in one block to build its
+    # Huffman tables. With subsampling off — which is what a normal map gets —
+    # a scan can exceed it, and the encoder does not grow the buffer, it raises
+    #   OSError: broken data stream when writing image file
+    # from a libjpeg "Suspension not allowed here". steam_vent's normal map died
+    # on exactly this, 2048 -> 256, after eleven assets had gone through
+    # untouched. Raising the block is the documented way out and costs 16 MB of
+    # transient memory.
+    ImageFile.MAXBLOCK = max(getattr(ImageFile, "MAXBLOCK", 65536), 16 * 1024 * 1024)
+
+    before = path.stat().st_size
+    js, blob = glb_read(path)
+    views = js.get("bufferViews") or []
+    roles = image_roles(js)
+
+    new_data: dict = {}
+    for i, img in enumerate(js.get("images") or []):
+        bv = img.get("bufferView")
+        if bv is None:
+            continue                       # a URI image; nothing embedded to shrink
+        role = roles.get(i, "metallic_roughness")
+        side = sides.get(role, TEX_SMALL)
+        quality = TEX_ROLES.get(role, (1.0, 88))[1]
+        view = views[bv]
+        start = view.get("byteOffset", 0)
+        raw = blob[start:start + view["byteLength"]]
+        pic = Image.open(io.BytesIO(raw))
+        was = pic.size
+        if pic.width > side or pic.height > side:
+            pic = pic.resize((min(side, pic.width), min(side, pic.height)),
+                             Image.LANCZOS)
+        # JPEG has no alpha and every one of these materials is alphaMode
+        # OPAQUE, so dropping it is dropping a channel nothing reads.
+        if pic.mode != "RGB":
+            pic = pic.convert("RGB")
+        buf = io.BytesIO()
+        pic.save(buf, format="JPEG", quality=quality, optimize=True,
+                 subsampling=0 if role == "normal" else 2)
+        new_data[bv] = buf.getvalue()
+        img["mimeType"] = "image/jpeg"
+        if verbose:
+            print("    %-20s %s -> %s  %6.2f -> %5.2f MB"
+                  % (role, "%dx%d" % was, "%dx%d" % pic.size,
+                     len(raw) / 1e6, len(new_data[bv]) / 1e6))
+
+    if not new_data:
+        return (before, before)
+
+    # Repack. Views are walked in their ON-DISK order so anything that relied on
+    # adjacency keeps it, and every one is 4-aligned because accessor component
+    # types up to 4 bytes must be aligned inside the buffer.
+    out = bytearray()
+    for idx in sorted(range(len(views)), key=lambda i: views[i].get("byteOffset", 0)):
+        view = views[idx]
+        if len(out) % 4:
+            out += b"\x00" * (4 - len(out) % 4)
+        data = new_data.get(idx)
+        if data is None:
+            start = view.get("byteOffset", 0)
+            data = blob[start:start + view["byteLength"]]
+        view["byteOffset"] = len(out)
+        view["byteLength"] = len(data)
+        out += data
+    js["buffers"][0]["byteLength"] = len(out)
+    after = glb_write(path, js, bytes(out))
+    return (before, after)
+
+
+def submit_remesh(a: dict, source_task: str) -> str:
+    return api("POST", "/openapi/v1/remesh", {
+        "input_task_id": source_task,
+        "topology": "triangle",           # quad would double the index data
+        "target_polycount": tri_budget(a),
+        # glb only. The fbx nobody imports is 30 MB of the same thing and
+        # `prune` deletes it four lines later anyway.
+        "target_formats": ["glb"],
+    })["result"]
+
+
+def remesh_one(a: dict, st: dict, args) -> bool:
+    """Remesh from the task already paid for, then shrink the maps it inflates.
+
+    Reads the REFINE task id out of state rather than re-generating from the
+    prompt: the refine task is the textured result and it is the thing we want
+    fewer triangles of. Nothing here re-runs a prompt, so nothing here can come
+    back a different object.
+    """
+    key = a["key"]
+    rec = st.setdefault(key, {})
+    source = rec.get("refine") or rec.get("preview")
+    if not source:
+        print("== %s\n    no task in state - `run` it first, or `remesh` has "
+              "nothing to remesh FROM" % key)
+        return False
+    print("== %s  %d tris, %s" % (key, tri_budget(a),
+                                  " ".join("%s %d" % (r, s) for r, s
+                                           in sorted(tex_budget(a).items()))))
+
+    if not rec.get("remesh"):
+        rec["remesh"] = submit_remesh(a, source)
+        save_state(st)          # before the wait, same rule as run_one: a crash
+        print("    remesh   -> %s" % rec["remesh"])   # must not re-submit and re-charge
+    else:
+        print("    remesh   resuming %s" % rec["remesh"])
+    task = poll(rec["remesh"], "remesh", args.timeout, endpoint="/openapi/v1/remesh/")
+    if task.get("status") != "SUCCEEDED":
+        print("    FAILED: %s %s" % (task.get("status"),
+                                     (task.get("task_error") or {}).get("message", "")))
+        return False
+    rec["remesh_credits"] = int(task.get("consumed_credits") or 0)
+
+    url = (task.get("model_urls") or {}).get("glb")
+    if not url:
+        print("    FAILED: the task succeeded with no glb in model_urls")
+        return False
+    kept = keep_original(key)
+    if kept is None:
+        print("    !! nothing on disk to keep a copy of; downloading anyway")
+    dest = outdir(key) / (key + ".glb")
+    got = download(url, dest)
+    print("    downloaded %6.2f MB" % (got / 1e6))
+    was, now = shrink_glb(dest, tex_budget(a))
+    rec["remeshed"] = {"tris": tri_budget(a), "tex": tex_budget(a),
+                       "bytes": now, "original_bytes": kept.stat().st_size if kept else None}
+    save_state(st)
+    # The sidecar too, or `remesh` leaves a meshy.json next to the file that
+    # describes a 20,000-triangle 2k asset which is no longer what is there.
+    # `run` calls this after us as well; writing it twice is free and forgetting
+    # it once is a file that lies.
+    write_sidecar(a, st)
+    print("    %-20s %6.2f -> %5.2f MB   (%d credits)"
+          % ("TOTAL", was / 1e6, now / 1e6, rec["remesh_credits"]))
+    return True
+
+
+def cmd_remesh(args) -> int:
+    st = load_state()
+    rows = [x for x in select(args.batch, args.only)
+            if args.force or not (st.get(x["key"], {}).get("remeshed"))]
+    rows = [x for x in rows if delivered(x["key"])]
+    if not rows:
+        print("nothing to remesh in '%s' (use --force to do it again)" % args.batch)
+        return 0
+
+    if args.dry:
+        print("%-16s %7s %7s  %-42s" % ("key", "units", "px", "budget"))
+        for a in rows:
+            t = tex_budget(a)
+            print("%-16s %7.0f %7.0f  %5d tris  base %d  normal %d  mr/em %d"
+                  % (a["key"], a["screen"], screen_px(a), tri_budget(a),
+                     t["base_color"], t["normal"], t["metallic_roughness"]))
+        print("\n%d assets, %d credits (5 each)" % (len(rows), 5 * len(rows)))
+        return 0
+
+    if args.force:
+        # Same trap as `run --force`: leaving the old remesh id in state makes
+        # --force re-download the very result you are replacing, for free, while
+        # looking like it worked.
+        for a in rows:
+            st.get(a["key"], {}).pop("remesh", None)
+        save_state(st)
+
+    print("balance %d credits" % api("GET", "/openapi/v1/balance")["balance"])
+    print("%d assets x 5 = %d credits\n" % (len(rows), 5 * len(rows)))
+
+    # Submitted in one pass and polled in a second. `run` is strictly serial
+    # because its two stages depend on each other; these seventeen do not, and
+    # serially they are 45 minutes of waiting for a queue that takes 10 at once.
+    for a in rows:
+        rec = st.setdefault(a["key"], {})
+        if rec.get("remesh"):
+            continue
+        # 429 here is NoMoreConcurrentTasks, not a rate limit on the request:
+        # the plan allows a fixed number of tasks IN FLIGHT and seventeen
+        # submitted back to back walks straight into it. The first run of this
+        # dropped cannon_deck and salvage_pile on the floor that way — they were
+        # reported and skipped, and only picked up because the poll loop
+        # re-submits anything still missing an id. Waiting is the whole fix.
+        for attempt in range(6):
+            try:
+                rec["remesh"] = submit_remesh(a, rec.get("refine") or rec.get("preview"))
+                save_state(st)
+                print("submitted %-16s %5d tris  -> %s"
+                      % (a["key"], tri_budget(a), rec["remesh"]))
+                break
+            except MeshyError as e:
+                if e.code in (401, 402):
+                    print("submit %-16s ERROR %s" % (a["key"], e))
+                    return 1
+                if e.code != 429 or attempt == 5:
+                    print("submit %-16s ERROR %s" % (a["key"], e))
+                    break
+                print("submit %-16s queue full, waiting" % a["key"])
+                time.sleep(30)
+    print()
+
+    failed = []
+    for a in rows:
+        try:
+            if not remesh_one(a, st, args):
+                failed.append(a["key"])
+        except MeshyError as e:
+            print("    ERROR %s" % e)
+            failed.append(a["key"])
+            if e.code in (401, 402):
+                break
+    print("\nbalance %d credits" % api("GET", "/openapi/v1/balance")["balance"])
+    print("originals kept in %s (gitignored, Godot skips dot-directories)"
+          % ORIGINALS.relative_to(ROOT))
+    print("now: godot --path . --headless --import\n"
+          "     python tools/meshy.py prune %s\n"
+          "     godot --path . --headless --script tools/static_model.gd" % args.batch)
+    if failed:
+        print("failed: %s" % ", ".join(failed))
+        return 1
+    return 0
 
 
 # --- pruning ----------------------------------------------------------------
@@ -1069,18 +1647,26 @@ def main() -> int:
     s.add_argument("key")
     s.set_defaults(fn=cmd_show)
 
-    for name, fn in (("run", cmd_run), ("fetch", cmd_fetch), ("prune", cmd_prune)):
+    for name, fn in (("run", cmd_run), ("fetch", cmd_fetch),
+                     ("remesh", cmd_remesh), ("prune", cmd_prune)):
         p = sub.add_parser(name)
         p.add_argument("batch", choices=BATCHES + ["all"])
         p.add_argument("--only", default="", help="comma-separated keys")
         if name != "prune":
             p.add_argument("--timeout", type=int, default=1800,
                            help="seconds per task")
-        if name in ("run", "prune"):
+        if name in ("run", "remesh", "prune"):
             p.add_argument("--dry", action="store_true",
                            help="print, change nothing")
+        if name in ("run", "remesh"):
+            p.add_argument("--force", action="store_true",
+                           help="do it again and pay again")
         if name == "run":
-            p.add_argument("--force", action="store_true", help="regenerate and pay again")
+            p.add_argument("--no-remesh", action="store_true",
+                           help="stop after refine, leaving the full-size mesh")
+        else:
+            # run_one reads this; nothing else has the flag to turn it off.
+            p.set_defaults(no_remesh=(name != "run"))
         p.set_defaults(fn=fn)
 
     args = ap.parse_args()

@@ -1,8 +1,8 @@
 {
   "key": "gunner",
   "ai_model": "meshy-6",
-  "prompt": "A small steampunk airship drone: a riveted brass disc-shaped body with one round glowing pale blue lens in the centre of its face; four short arms, one on top and one to each side and one below, each ending in a two-blade brass propeller in a ring mount; two short chains hanging underneath with pointed iron weights. One flying machine alone, hovering level, facing forward, symmetrical. No legs, no feet, no base, no stand, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
-  "texture_prompt": "Polished brass shell with blackened steel banding, a cool pale blue glass lens, verdigris in the recesses, dark iron chains and weights. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, verdigris teal in the recesses, bare worn metal along the working edges. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "A small steampunk airship drone: a riveted brass disc-shaped body with one round glowing pale blue lens in the centre of its face; four short arms, one on top and one to each side and one below, each ending in a two-blade brass propeller in a ring mount; two short chains hanging underneath with pointed iron weights. One flying machine alone, hovering level, facing forward, symmetrical. No legs, no feet, no base, no stand, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Polished brass shell with blackened steel banding, a cool pale blue glass lens, verdigris in the recesses, dark iron chains and weights. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 15000,
   "texture_resolution": "2k",
   "preview_task": "019fb6c4-49f3-731c-8247-66925fb9ade0",
@@ -17,5 +17,19 @@
     "gunner_normal.png",
     "gunner_emission.png",
     "gunner_thumb.png"
-  ]
+  ],
+  "screen_units": 183.0,
+  "remesh_task": "019fb8be-d207-78c0-b3ae-d83772c1d58f",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 7000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 903440,
+    "original_bytes": 11977820
+  }
 }

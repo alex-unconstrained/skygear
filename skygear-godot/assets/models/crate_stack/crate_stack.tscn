@@ -2,10 +2,10 @@
 
 [ext_resource type="PackedScene" path="res://assets/models/crate_stack/crate_stack.glb" id="1_v3vq0"]
 
-[node name="Crate Stack" type="Node3D" unique_id=410736569]
-metadata/model_height = 1.897851
+[node name="Crate Stack" type="Node3D" unique_id=223116743]
+metadata/model_height = 1.8963699
 
-[node name="Holder" type="Node3D" parent="." unique_id=650634711]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000485003, 0.950233, 0.005450994)
+[node name="Holder" type="Node3D" parent="." unique_id=1395354153]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0003964901, 0.9489219, 0.005494058)
 
-[node name="Model" type="Node3D" parent="Holder" unique_id=1285555405 instance=ExtResource("1_v3vq0")]
+[node name="Model" type="Node3D" parent="Holder" unique_id=1061012078 instance=ExtResource("1_v3vq0")]

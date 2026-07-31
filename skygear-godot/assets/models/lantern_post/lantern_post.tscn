@@ -2,10 +2,10 @@
 
 [ext_resource type="PackedScene" path="res://assets/models/lantern_post/lantern_post.glb" id="1_drkfb"]
 
-[node name="Lantern Post" type="Node3D" unique_id=283673049]
-metadata/model_height = 1.898697
+[node name="Lantern Post" type="Node3D" unique_id=1142133270]
+metadata/model_height = 1.8983481
 
-[node name="Holder" type="Node3D" parent="." unique_id=660825374]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0019319952, 0.950742, 0.0019470006)
+[node name="Holder" type="Node3D" parent="." unique_id=773802364]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.002531007, 0.9506801, 0.0014229566)
 
-[node name="Model" type="Node3D" parent="Holder" unique_id=1835512180 instance=ExtResource("1_drkfb")]
+[node name="Model" type="Node3D" parent="Holder" unique_id=1803156646 instance=ExtResource("1_drkfb")]

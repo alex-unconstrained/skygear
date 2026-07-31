@@ -1,8 +1,8 @@
 {
   "key": "swarm",
   "ai_model": "meshy-6",
-  "prompt": "A small scrawny green goblin sky-pirate: huge pointed ears, a worn leather flight cap with brass goggles pushed up on it, a torn crimson hood and short cape, one riveted brass shoulder plate, a little brass pressure tank strapped to its back, bare clawed feet, and an oversized brass pipe wrench gripped in both hands. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
-  "texture_prompt": "Mottled green skin, worn oxblood leather cap and straps, faded crimson cloth hood, warm polished brass goggles and wrench, verdigris on the brass. Hand-painted stylised game texture: mottled green skin, worn oxblood leather, warm polished brass, faded crimson cloth, verdigris teal in the recesses. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "A small scrawny green goblin sky-pirate: huge pointed ears, a worn leather flight cap with brass goggles pushed up on it, a torn crimson hood and short cape, one riveted brass shoulder plate, a little brass pressure tank strapped to its back, bare clawed feet, and an oversized brass pipe wrench gripped in both hands. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Mottled green skin, worn oxblood leather cap and straps, faded crimson cloth hood, warm polished brass goggles and wrench, verdigris on the brass. Hand-painted stylised game texture: mottled green skin, worn oxblood leather, warm polished brass, faded crimson cloth, dull oxidised-copper patina in the recesses. Any furnace, grate, vent or ember is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 15000,
   "texture_resolution": "2k",
   "preview_task": "019fb6cb-1d48-708e-996f-a36d8e691b23",
@@ -17,5 +17,19 @@
     "swarm_normal.png",
     "swarm_emission.png",
     "swarm_thumb.png"
-  ]
+  ],
+  "screen_units": 165.0,
+  "remesh_task": "019fb8b3-ed02-713c-9941-329198b93b0e",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 701032,
+    "original_bytes": 10593644
+  }
 }

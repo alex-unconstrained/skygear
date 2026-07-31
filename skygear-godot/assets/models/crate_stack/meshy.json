@@ -17,5 +17,19 @@
     "crate_stack_normal.png",
     "crate_stack_emission.png",
     "crate_stack_thumb.png"
-  ]
+  ],
+  "screen_units": 148.0,
+  "remesh_task": "019fb8b3-f699-713f-90d7-66d1e4f6b0ec",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 558640,
+    "original_bytes": 10025740
+  }
 }

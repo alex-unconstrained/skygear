@@ -17,5 +17,19 @@
     "steam_vent_normal.png",
     "steam_vent_emission.png",
     "steam_vent_thumb.png"
-  ]
+  ],
+  "screen_units": 52.0,
+  "remesh_task": "019fb8b6-5964-71de-a6ac-c1cebdce674e",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 361972,
+    "original_bytes": 11037072
+  }
 }

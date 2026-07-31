@@ -17,5 +17,19 @@
     "crate_small_normal.png",
     "crate_small_emission.png",
     "crate_small_thumb.png"
-  ]
+  ],
+  "screen_units": 84.0,
+  "remesh_task": "019fb8b5-d760-7d18-a3bb-4c94b398f066",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 287452,
+    "original_bytes": 8699888
+  }
 }

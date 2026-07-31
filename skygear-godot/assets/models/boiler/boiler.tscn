@@ -2,10 +2,10 @@
 
 [ext_resource type="PackedScene" path="res://assets/models/boiler/boiler.glb" id="1_5rh74"]
 
-[node name="Boiler" type="Node3D" unique_id=2019232150]
-metadata/model_height = 1.899238
+[node name="Boiler" type="Node3D" unique_id=1900813755]
+metadata/model_height = 1.8565111
 
-[node name="Holder" type="Node3D" parent="." unique_id=422580351]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0010579824, 0.950753, -0.0015640259)
+[node name="Holder" type="Node3D" parent="." unique_id=827857311]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00086951256, 0.9499121, 3.349781e-05)
 
-[node name="Model" type="Node3D" parent="Holder" unique_id=543738604 instance=ExtResource("1_5rh74")]
+[node name="Model" type="Node3D" parent="Holder" unique_id=1940388863 instance=ExtResource("1_5rh74")]

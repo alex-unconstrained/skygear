@@ -1,8 +1,8 @@
 {
   "key": "scrapper",
   "ai_model": "meshy-6",
-  "prompt": "A hunched, top-heavy steampunk salvage automaton. A huge riveted spherical brass and steel torso; the head sunk low between the shoulders, a small dome with a single amber lens and no other light; two long thick arms, each ending in one big curved steel boarding hook instead of a hand; short thick legs and wide flat feet. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
-  "texture_prompt": "Blackened steel plating with warm polished brass rivets, a hot amber glass lens, verdigris in the seams, bare worn steel on the hooks. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, verdigris teal in the recesses, bare worn metal along the working edges. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "A hunched, top-heavy steampunk salvage automaton. A huge riveted spherical brass and steel torso; the head sunk low between the shoulders, a small dome with a single amber lens and no other light; two long thick arms, each ending in one big curved steel boarding hook instead of a hand; short thick legs and wide flat feet. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Blackened steel plating with warm polished brass rivets, a hot amber glass lens, verdigris in the seams, bare worn steel on the hooks. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 15000,
   "texture_resolution": "2k",
   "preview_task": "019fb6d3-1049-7617-875a-307c965ba1a8",
@@ -17,5 +17,19 @@
     "scrapper_normal.png",
     "scrapper_emission.png",
     "scrapper_thumb.png"
-  ]
+  ],
+  "screen_units": 186.0,
+  "remesh_task": "019fb8b3-e5e2-7947-8861-196fa3f16529",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 659056,
+    "original_bytes": 11070968
+  }
 }

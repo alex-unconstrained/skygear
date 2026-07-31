@@ -1,8 +1,8 @@
 {
   "key": "sword_cutlass",
   "ai_model": "meshy-6",
-  "prompt": "A sky-pirate airship captain's cutlass: a broad, slightly curved single-edged blackened steel blade with a brass fuller and a bright worn edge; a heavy riveted brass knuckle-bow guard curving from crossguard to pommel; a long oxblood leather grip sized for a heavy gauntleted hand; a geared brass pommel cap. One weapon alone, upright, blade up. No stand, no base, no scabbard, no hand, no duplicate, no text. Blade, guard, grip and pommel clearly separated. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
-  "texture_prompt": "Blackened gunmetal blade, polished brass fuller and knuckle-bow, deep oxblood leather grip wrap, verdigris settled in the recesses of the guard, bare bright steel along the cutting edge. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, verdigris teal in the recesses, bare worn metal along the working edges. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "A sky-pirate airship captain's cutlass: a broad, slightly curved single-edged blackened steel blade with a brass fuller and a bright worn edge; a heavy riveted brass knuckle-bow guard curving from crossguard to pommel; a long oxblood leather grip sized for a heavy gauntleted hand; a geared brass pommel cap. One weapon alone, upright, blade up. No stand, no base, no scabbard, no hand, no duplicate, no text, no gems. Blade, guard, grip and pommel clearly separated. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Blackened gunmetal blade, polished brass fuller and knuckle-bow, deep oxblood leather grip wrap, verdigris settled in the recesses of the guard, bare bright steel along the cutting edge. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 12000,
   "texture_resolution": "2k",
   "preview_task": "019fb623-5b9e-7538-adb7-eb9ab6dab14a",
@@ -17,5 +17,19 @@
     "sword_cutlass_normal.png",
     "sword_cutlass_emission.png",
     "sword_cutlass_thumb.png"
-  ]
+  ],
+  "screen_units": 95.0,
+  "remesh_task": "019fb8b3-e0d9-7c91-b976-4dd2930524cd",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 232364,
+    "original_bytes": 9360196
+  }
 }

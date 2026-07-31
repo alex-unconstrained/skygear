@@ -17,5 +17,19 @@
     "brazier_normal.png",
     "brazier_emission.png",
     "brazier_thumb.png"
-  ]
+  ],
+  "screen_units": 116.0,
+  "remesh_task": "019fb8b6-570b-7d2e-96ec-6d047404f6d1",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 312580,
+    "original_bytes": 10252048
+  }
 }

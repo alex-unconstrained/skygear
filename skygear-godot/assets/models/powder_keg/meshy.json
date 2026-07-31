@@ -17,5 +17,19 @@
     "powder_keg_normal.png",
     "powder_keg_emission.png",
     "powder_keg_thumb.png"
-  ]
+  ],
+  "screen_units": 100.0,
+  "remesh_task": "019fb8b5-d9b9-71cc-bf90-0f625fd4b1e5",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 303664,
+    "original_bytes": 10240524
+  }
 }

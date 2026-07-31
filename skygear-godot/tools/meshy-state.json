@@ -12,7 +12,20 @@
    "sword_cutlass_normal.png",
    "sword_cutlass_emission.png",
    "sword_cutlass_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 232364,
+   "original_bytes": 9360196
+  },
+  "remesh": "019fb8b3-e0d9-7c91-b976-4dd2930524cd"
  },
  "sword_gearblade": {
   "preview": "019fb62b-05af-7aa0-b77a-af803a643d7c",
@@ -27,7 +40,20 @@
    "sword_gearblade_normal.png",
    "sword_gearblade_emission.png",
    "sword_gearblade_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 254584,
+   "original_bytes": 10922756
+  },
+  "remesh": "019fb8b3-e35b-7945-bca5-9bf6e630c0a7"
  },
  "gunner": {
   "preview": "019fb6c4-49f3-731c-8247-66925fb9ade0",
@@ -42,7 +68,20 @@
    "gunner_normal.png",
    "gunner_emission.png",
    "gunner_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 7000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 903440,
+   "original_bytes": 11977820
+  },
+  "remesh": "019fb8be-d207-78c0-b3ae-d83772c1d58f"
  },
  "swarm": {
   "preview": "019fb6cb-1d48-708e-996f-a36d8e691b23",
@@ -57,7 +96,20 @@
    "swarm_normal.png",
    "swarm_emission.png",
    "swarm_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 701032,
+   "original_bytes": 10593644
+  },
+  "remesh": "019fb8b3-ed02-713c-9941-329198b93b0e"
  },
  "boss": {
   "preview": "019fb6ce-7e48-74d9-9671-1de916672c92",
@@ -72,7 +124,20 @@
    "boss_normal.png",
    "boss_emission.png",
    "boss_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 8000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 993580,
+   "original_bytes": 12011736
+  },
+  "remesh": "019fb8b3-ef5c-7629-a232-9860fd410431"
  },
  "scrapper": {
   "preview": "019fb6d3-1049-7617-875a-307c965ba1a8",
@@ -87,7 +152,20 @@
    "scrapper_normal.png",
    "scrapper_emission.png",
    "scrapper_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 659056,
+   "original_bytes": 11070968
+  },
+  "remesh": "019fb8b3-e5e2-7947-8861-196fa3f16529"
  },
  "armored": {
   "preview": "019fb6fd-76ba-7d8b-92d5-240878b833b9",
@@ -102,7 +180,20 @@
    "armored_normal.png",
    "armored_emission.png",
    "armored_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3500,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 710560,
+   "original_bytes": 10828372
+  },
+  "remesh": "019fb8b3-ea9a-7c9c-99dc-993166ceb719"
  },
  "crate_stack": {
   "preview": "019fb82e-2dc1-72c2-ae29-acb91ffc20e5",
@@ -117,7 +208,20 @@
    "crate_stack_normal.png",
    "crate_stack_emission.png",
    "crate_stack_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 558640,
+   "original_bytes": 10025740
+  },
+  "remesh": "019fb8b3-f699-713f-90d7-66d1e4f6b0ec"
  },
  "crate_small": {
   "preview": "019fb831-6bcd-7f11-8a64-df64171c1bd8",
@@ -132,7 +236,20 @@
    "crate_small_normal.png",
    "crate_small_emission.png",
    "crate_small_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 287452,
+   "original_bytes": 8699888
+  },
+  "remesh": "019fb8b5-d760-7d18-a3bb-4c94b398f066"
  },
  "powder_keg": {
   "preview": "019fb836-6212-73fc-8e12-c812e8e03cb3",
@@ -147,7 +264,20 @@
    "powder_keg_normal.png",
    "powder_keg_emission.png",
    "powder_keg_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 303664,
+   "original_bytes": 10240524
+  },
+  "remesh": "019fb8b5-d9b9-71cc-bf90-0f625fd4b1e5"
  },
  "lantern_post": {
   "preview": "019fb83a-3a59-79ea-baf1-6d063c18d5b0",
@@ -162,7 +292,20 @@
    "lantern_post_normal.png",
    "lantern_post_emission.png",
    "lantern_post_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 632544,
+   "original_bytes": 11417396
+  },
+  "remesh": "019fb8b6-54b3-7d2d-a925-5948814f12c3"
  },
  "brazier": {
   "preview": "019fb83d-6b9d-755d-b7f3-205a5b473f74",
@@ -177,7 +320,20 @@
    "brazier_normal.png",
    "brazier_emission.png",
    "brazier_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 312580,
+   "original_bytes": 10252048
+  },
+  "remesh": "019fb8b6-570b-7d2e-96ec-6d047404f6d1"
  },
  "steam_vent": {
   "preview": "019fb841-94b8-7629-b06a-3e49743f489f",
@@ -192,7 +348,20 @@
    "steam_vent_normal.png",
    "steam_vent_emission.png",
    "steam_vent_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 361972,
+   "original_bytes": 11037072
+  },
+  "remesh": "019fb8b6-5964-71de-a6ac-c1cebdce674e"
  },
  "cannon_deck": {
   "preview": "019fb846-6a7a-7c08-a26d-d7e060b6d4df",
@@ -207,7 +376,20 @@
    "cannon_deck_normal.png",
    "cannon_deck_emission.png",
    "cannon_deck_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 312672,
+   "original_bytes": 9460772
+  },
+  "remesh": "019fb8b6-5bcf-7d2f-b35c-5208240035db"
  },
  "salvage_pile": {
   "preview": "019fb849-7135-7cb1-baf8-871fcc13b8c1",
@@ -222,7 +404,20 @@
    "salvage_pile_normal.png",
    "salvage_pile_emission.png",
    "salvage_pile_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 369472,
+   "original_bytes": 11197976
+  },
+  "remesh": "019fb8b6-d5a9-71f8-b21c-24ae9f5b0ae3"
  },
  "boiler": {
   "preview": "019fb85a-a5d3-79da-b3b5-1b0a26ad667e",
@@ -237,7 +432,20 @@
    "boiler_normal.png",
    "boiler_emission.png",
    "boiler_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 646596,
+   "original_bytes": 11669432
+  },
+  "remesh": "019fb8b3-f1c7-7c9e-8efc-59dc8607132f"
  },
  "boarding_hulk": {
   "preview": "019fb85f-7d1b-793c-8efb-18872cc8bc76",
@@ -252,6 +460,19 @@
    "boarding_hulk_normal.png",
    "boarding_hulk_emission.png",
    "boarding_hulk_thumb.png"
-  ]
+  ],
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 8000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 841328,
+   "original_bytes": 11334076
+  },
+  "remesh": "019fb8b3-f442-7c9f-8dbd-ebe18d54af8a"
  }
 }

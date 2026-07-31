@@ -2,7 +2,7 @@
   "key": "armored",
   "ai_model": "meshy-6",
   "prompt": "A huge armoured steampunk furnace knight: heavy riveted plate armour over a barrel chest with a glowing orange furnace grate in it; a domed helmet with a slotted visor and a spike on top; a brass chimney stack rising from the right shoulder; a pressure gauge on the left pauldron; a big double-bladed axe held across the body. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
-  "texture_prompt": "Blackened steel plate with warm brass trim and rivets, a hot orange furnace grate, oxblood leather straps, verdigris on the chimney, bare worn steel on the axe heads. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent or ember is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "texture_prompt": "Blackened steel plate with warm brass trim and rivets, a hot orange furnace grate, oxblood leather straps, verdigris on the chimney, bare worn steel on the axe heads. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 18000,
   "texture_resolution": "2k",
   "preview_task": "019fb6fd-76ba-7d8b-92d5-240878b833b9",
@@ -17,5 +17,19 @@
     "armored_normal.png",
     "armored_emission.png",
     "armored_thumb.png"
-  ]
+  ],
+  "screen_units": 216.0,
+  "remesh_task": "019fb8b3-ea9a-7c9c-99dc-993166ceb719",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3500,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 710560,
+    "original_bytes": 10828372
+  }
 }

@@ -17,5 +17,19 @@
     "boarding_hulk_normal.png",
     "boarding_hulk_emission.png",
     "boarding_hulk_thumb.png"
-  ]
+  ],
+  "screen_units": 420.0,
+  "remesh_task": "019fb8b3-f442-7c9f-8dbd-ebe18d54af8a",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 8000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 841328,
+    "original_bytes": 11334076
+  }
 }
