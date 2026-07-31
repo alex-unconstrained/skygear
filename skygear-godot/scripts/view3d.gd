@@ -1812,6 +1812,46 @@ func _sync_all(delta: float) -> void:
 		var busy: bool = str(c.get("state", "move")) != "move"
 		_draw_figure("c%d" % i, "CREW", c.position, Vector2(0, -1), 110.0,
 			busy, not busy, game.run_time + float(i) * 0.21, float(c.get("state_time", 0.0)))
+	## Deployed sentries. A short brass post with a live head on it, the range it
+	## covers written on the planking, and a wick that burns down — you should be
+	## able to tell at a glance, from across the deck, which of yours is about to
+	## expire and whether the lane you are worried about is inside one.
+	for s in game.sentries:
+		var sid: int = int(s.id)
+		var tint: Color = SkyGearData.ELEMENTS[str(s.element)].color
+		var left: float = clampf(float(s.life) / maxf(0.1, float(s.max_life)), 0.0, 1.0)
+		## The last two seconds pulse. Everything else about it is static, so the
+		## only thing that moves is the thing that is running out.
+		var urgent: bool = float(s.life) < 2.0
+		var beat: float = 1.0 if not urgent else 0.55 + 0.45 * absf(sin(_flicker * 9.0))
+		_shadow("sy%d" % sid, s.position, 92.0, 0.48)
+		## THE RANGE RING, ON ARRIVAL ONLY. Drawn permanently it is 840 units
+		## across — two of them cover the deck and the fight happens inside a pair
+		## of glowing hoops. It is the answer to "what does this cover?", which is
+		## a question you ask when you place it and never again, so it flares over
+		## the first three quarters of a second and then goes.
+		var age: float = game.run_time - float(s.born)
+		if age < 0.75:
+			var fade: float = 1.0 - age / 0.75
+			_decal("syr%d" % sid, s.position, 0.0, float(s.range) * 2.0,
+				float(s.range) * 2.0, _ring_texture(),
+				Color(tint.r, tint.g, tint.b, 0.34 * fade * fade))
+		## What stays is a small collar at its feet: enough to say "this one is
+		## yours, and it is an ARC one", without claiming a quarter of the deck.
+		_decal("syb%d" % sid, s.position, 0.0, 132.0, 132.0, _ring_texture(),
+			Color(tint.r, tint.g, tint.b, 0.5 * beat))
+		## The wick — a bar on the planking that shortens with the life left, so
+		## the countdown is legible from across the deck without a number.
+		_decal("syw%d" % sid, s.position + Vector2(0.0, 82.0), 0.0,
+			104.0 * left, 11.0, _streak_texture(),
+			Color(tint.r, tint.g, tint.b, 0.9 * beat))
+		## A ballista rather than a deck cannon. Sharing art with the ship's own
+		## cannons made a placed sentry invisible: five identical guns on the deck
+		## and no way to tell which two you put there.
+		_place("sy%d" % sid, _texture("res://assets/art/props/harpoon_ballista.png"),
+			s.position, 104.0, 0.0, Color(1.0, 1.0, 1.0).lerp(tint, 0.30))
+		_spark("syh%d" % sid, s.position, 104.0, 34.0 * beat, tint)
+
 	for i in game.turrets.size():
 		var t: Dictionary = game.turrets[i]
 		var art := "res://assets/art/props/cannon_deck_destroyed.png" if bool(t.dead) \
@@ -2098,7 +2138,7 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 ## sprite stand up and face the camera — which is exactly what the browser's
 ## renderer does by hand, and what the art is painted for.
 func _place(key: String, texture: Texture2D, ground: Vector2, height_units: float,
-		lift: float = 0.0) -> void:
+		lift: float = 0.0, tint: Color = Color.WHITE) -> void:
 	if texture == null:
 		return
 	_used[key] = true
@@ -2127,7 +2167,7 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 		_billboards[key] = node
 		_peak_billboards = maxi(_peak_billboards, _billboards.size())
 	node.texture = texture
-	node.modulate = Color.WHITE
+	node.modulate = tint
 	# scale so the sprite stands `height_units` tall in ground units, and lift it
 	# by half of that so its feet meet the deck rather than its middle
 	var pixel_height: float = maxf(1.0, float(texture.get_height()))

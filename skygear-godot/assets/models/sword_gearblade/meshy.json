@@ -1,0 +1,21 @@
+{
+  "key": "sword_gearblade",
+  "ai_model": "meshy-6",
+  "prompt": "A steampunk mechanical sword: one straight slim tapering single-edged blackened steel blade, with three narrow vents cut through the flat near the base and small brass cogs inset beside them; exactly one short riveted brass crossguard and no second guard higher up; a long oxblood leather grip for a gauntleted hand; a small round brass pommel. One weapon alone, upright, blade up. No stand, no base, no scabbard, no hand, no duplicate, no text, no gems. Blade, guard, grip and pommel clearly separated. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
+  "texture_prompt": "Blackened steel blade with brass gears and chain along the spine, dark iron vents, brass crossguard and valve pommel, worn oxblood leather grip binding, verdigris around the rivets. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, verdigris teal in the recesses, bare worn metal along the working edges. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 12000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb62b-05af-7aa0-b77a-af803a643d7c",
+  "refine_task": "019fb62c-0c37-773d-b4e5-5d7c72890d62",
+  "credits": 30,
+  "files": [
+    "sword_gearblade.glb",
+    "sword_gearblade.fbx",
+    "sword_gearblade_base_color.png",
+    "sword_gearblade_metallic.png",
+    "sword_gearblade_roughness.png",
+    "sword_gearblade_normal.png",
+    "sword_gearblade_emission.png",
+    "sword_gearblade_thumb.png"
+  ]
+}

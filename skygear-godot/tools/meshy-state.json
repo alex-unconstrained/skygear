@@ -1,0 +1,32 @@
+{
+ "sword_cutlass": {
+  "preview": "019fb623-5b9e-7538-adb7-eb9ab6dab14a",
+  "refine": "019fb624-0fd1-7c44-8ddb-0f0d9bb0cc6c",
+  "credits": 30,
+  "files": [
+   "sword_cutlass.glb",
+   "sword_cutlass.fbx",
+   "sword_cutlass_base_color.png",
+   "sword_cutlass_metallic.png",
+   "sword_cutlass_roughness.png",
+   "sword_cutlass_normal.png",
+   "sword_cutlass_emission.png",
+   "sword_cutlass_thumb.png"
+  ]
+ },
+ "sword_gearblade": {
+  "preview": "019fb62b-05af-7aa0-b77a-af803a643d7c",
+  "refine": "019fb62c-0c37-773d-b4e5-5d7c72890d62",
+  "credits": 30,
+  "files": [
+   "sword_gearblade.glb",
+   "sword_gearblade.fbx",
+   "sword_gearblade_base_color.png",
+   "sword_gearblade_metallic.png",
+   "sword_gearblade_roughness.png",
+   "sword_gearblade_normal.png",
+   "sword_gearblade_emission.png",
+   "sword_gearblade_thumb.png"
+  ]
+ }
+}

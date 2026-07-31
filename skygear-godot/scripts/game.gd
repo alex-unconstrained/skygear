@@ -204,6 +204,12 @@ func _unhandled_input(event: InputEvent) -> void:
 			reroll_draft()
 			get_viewport().set_input_as_handled()
 			return
+	## A menu that is open owns the pointer and the arrow keys. Checked before
+	## the game's own bindings, or Space dashes while you are choosing a button.
+	if state == State.PAUSE and not keys_open and hud.ui.handle(event):
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
 	if event is not InputEventKey or not event.pressed or event.echo:
 		return
 	## F11, always, in every state. A game that opens fullscreen and offers no
@@ -436,6 +442,25 @@ func _layout_input(event: InputEvent) -> bool:
 
 
 ## 1-9 then 0, so ten rows are reachable without a cursor.
+## Named, because a menu button calling `_set_state` directly is a menu button
+## that has to know about states.
+func toggle_pause() -> void:
+	if state == State.PLAY:
+		_set_state(State.PAUSE)
+	elif state == State.PAUSE:
+		_set_state(State.PLAY)
+
+
+## Start the same run again. The SAME seed, so "let me try that once more"
+## means the same twelve waves rather than a different game — which is the only
+## version of a restart that lets you learn anything.
+func restart_run() -> void:
+	var again := seed_text
+	go_to_title()
+	set_seed_text(again)
+	begin_run()
+
+
 func _digit_slot(code: int) -> int:
 	if code >= KEY_1 and code <= KEY_9:
 		return code - KEY_1
@@ -473,6 +498,7 @@ func _process(delta: float) -> void:
 	_update_wave(delta)
 	_update_projectiles(delta)
 	_update_passives(delta)
+	_update_sentries(delta)
 	_update_pressure(delta)
 	_update_salvage(delta)
 	_update_fire_fields(delta)
@@ -533,6 +559,7 @@ func begin_run() -> void:
 	draft_options.clear()
 	turrets = SkyGearLanes.make_turrets(LANE_CENTERS, BASE_Y)
 	crew.clear()
+	sentries.clear()
 	hulk = {}
 	crew_timer = 2.5
 	mods = SkyGearCards.fresh_mods()
@@ -1014,6 +1041,14 @@ func cast_skill(index: int, aim_at = null) -> void:
 	var direction: Vector2 = ((target - origin).normalized() if aim_at is Vector2
 		else player.aim_direction)
 	var st := skill_stats(skill)
+	## A deployable does not resolve into damage here — it puts an object down
+	## and that object does the work.
+	if str(st.kind) == "sentry":
+		SkyGearTelemetry.note_cast(tel, index, skill)
+		skill.casts = int(skill.get("casts", 0)) + 1
+		deploy_sentry(skill, target, true)
+		player.attack_time = 0.30
+		return
 	var previous_src := src_slot
 	src_slot = index
 	skill.casts = int(skill.get("casts", 0)) + 1
@@ -1104,6 +1139,18 @@ func _update_cooldowns(delta: float) -> void:
 	vent_cooldown = maxf(0.0, vent_cooldown - delta)
 	for skill in skills:
 		skill.cooldown_left = maxf(0.0, float(skill.cooldown_left) - delta)
+		## A ready sentry you have not placed places itself, after a grace period
+		## long enough that it never steals a press you were about to make.
+		if str(SkyGearData.SHAPES[skill.shape].kind) != "sentry":
+			continue
+		if float(skill.cooldown_left) > 0.0 or state != State.PLAY:
+			skill.sentry_idle = 0.0
+			continue
+		var idle := float(skill.get("sentry_idle", 0.0)) + delta
+		skill.sentry_idle = idle
+		var st := skill_stats(skill)
+		if idle >= float(st.get("auto_after", 2.5)):
+			deploy_sentry(skill, player.global_position, false)
 
 func _update_passives(delta: float) -> void:
 	for skill in skills:
@@ -1134,12 +1181,6 @@ func _update_passives(delta: float) -> void:
 				_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
 				_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
 				skill.passive_timer = float(st.cooldown)
-			"sentry":
-				var target := nearest_enemy(player.global_position, float(st.range))
-				if target != null:
-					damage_enemy(target, float(st.damage), skill.element, 60.0, player.global_position, true)
-					_fx({"kind": "line", "from": player.global_position, "to": target.global_position, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.12})
-				skill.passive_timer = 0.7
 		src_slot = previous_src
 
 ## The single funnel for damage dealt to a boarder. Crit, brittle, lifesteal,
@@ -1792,6 +1833,102 @@ func _distance_to_segment(point: Vector2, start: Vector2, end: Vector2) -> float
 ## fade, which is exactly what a passive build produces most of: a Field and a
 ## Sentry append and expire something several times a second.
 var _fx_seq := 0
+## Deployed sentries, oldest first. Dictionaries rather than nodes for the same
+## reason the crew and the turrets are: the simulation scene is never seen, and
+## `view3d` mirrors whatever is in this array.
+var sentries: Array[Dictionary] = []
+var _sentry_seq := 0
+
+
+## --- deployables ------------------------------------------------------------
+##
+## A sentry you place is a decision about WHERE the next ten seconds happen, and
+## that is the whole appeal of the shape. Two rules, from the report:
+##
+##   * pressing it puts one at the cursor, because a turret you cannot aim is a
+##     turret that always lands in the wrong lane;
+##   * ignoring it deploys one anyway, because it is drafted into the same four
+##     slots as everything else and a slot that demands a decision every nine
+##     seconds is a slot nobody picks.
+##
+## The auto is deliberately the WORSE of the two — at your feet, where you were
+## already standing — so aiming is rewarded without the lazy line being a trap.
+func deploy_sentry(skill: Dictionary, at: Vector2, manual: bool) -> void:
+	var st := skill_stats(skill)
+	var slot := skills.find(skill)
+	## Within arm's reach of the deck and of you: an unclamped cursor places one
+	## in the sky over the bow, and an unclamped range makes it a global turret.
+	var offset := at - player.global_position
+	var reach := float(st.get("deploy_range", 520.0))
+	if offset.length() > reach:
+		at = player.global_position + offset.normalized() * reach
+	at = Vector2(
+		clampf(at.x, DECK_RECT.position.x + 60.0, DECK_RECT.end.x - 60.0),
+		clampf(at.y, DECK_RECT.position.y + 60.0, DECK_RECT.end.y - 60.0))
+
+	## One slot's sentries retire oldest-first rather than stacking, or a nine
+	## second cooldown over a twelve wave run is a deck made of turrets.
+	var mine: Array = []
+	for s in sentries:
+		if int(s.slot) == slot:
+			mine.append(s)
+	var cap: int = maxi(1, int(st.get("max_live", 2)))
+	while mine.size() >= cap:
+		var oldest: Dictionary = mine.pop_front()
+		sentries.erase(oldest)
+
+	_sentry_seq += 1
+	sentries.append({
+		"id": _sentry_seq, "slot": slot, "position": at,
+		"element": str(skill.element), "damage": float(st.damage),
+		"range": float(st.range), "knock": float(st.get("knock", 70.0)),
+		"fire_period": 1.0 / maxf(0.1, float(st.get("fire_rate", 1.4))),
+		"fire_timer": 0.35,   ## a beat before the first shot, so it reads as arriving
+		"life": float(st.get("life", 14.0)), "max_life": float(st.get("life", 14.0)),
+		"born": run_time, "manual": manual, "facing": player.aim_direction.angle(),
+	})
+	skill.cooldown_left = float(st.cooldown)
+	skill.sentry_idle = 0.0
+	play_sfx("player/shape_mortar_land.ogg", -4.0)
+	## The arrival, so a placement you made on purpose is visibly acknowledged.
+	_fx({"kind": "circle", "position": at, "radius": 90.0,
+		"color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.34})
+
+
+func _update_sentries(delta: float) -> void:
+	var previous_src := src_slot
+	var i := sentries.size() - 1
+	while i >= 0:
+		var s: Dictionary = sentries[i]
+		s.life = float(s.life) - delta
+		if float(s.life) <= 0.0:
+			## It ends as a small vent rather than blinking out, or a player who
+			## is watching the lane never learns the thing expired.
+			_fx({"kind": "circle", "position": s.position, "radius": 70.0,
+				"color": SkyGearData.ELEMENTS[str(s.element)].color, "time": 0.0, "life": 0.3})
+			sentries.remove_at(i)
+			i -= 1
+			continue
+		s.fire_timer = float(s.fire_timer) - delta
+		if float(s.fire_timer) <= 0.0:
+			var target := nearest_enemy(s.position, float(s.range))
+			if target != null:
+				s.facing = (target.global_position - Vector2(s.position)).angle()
+				## Attributed to the SLOT that placed it. A turret whose damage
+				## lands in nobody's row is a turret the run report says is worth
+				## nothing, which is how the last balance pass got bad data.
+				src_slot = int(s.slot)
+				damage_enemy(target, float(s.damage), str(s.element),
+					float(s.knock), s.position, true)
+				_fx({"kind": "line", "from": s.position, "to": target.global_position,
+					"color": SkyGearData.ELEMENTS[str(s.element)].color,
+					"time": 0.0, "life": 0.14})
+				s.fire_timer = float(s.fire_period)
+			else:
+				## Idle scan, so an empty lane is cheap rather than a hot loop.
+				s.fire_timer = 0.25
+		i -= 1
+	src_slot = previous_src
 
 
 func _fx(d: Dictionary) -> void:

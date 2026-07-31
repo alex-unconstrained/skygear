@@ -5,3 +5,6 @@ builds/
 *.tmp
 
 import_staging/
+
+# Meshy API key, read by tools/meshy.py when MESHY_API_KEY is not set.
+tools/.meshy_key

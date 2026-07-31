@@ -1,7 +1,6 @@
 # The second class — the Boilerwright
 
-Status: design, not built. Written against v11.2 in `game.gd`, `game_data.gd`,
-`cards.gd`.
+Status: design, not built. Written against v11.2 as the code stands today.
 
 ## 0. The question this class answers
 
@@ -41,14 +40,14 @@ his fills only where he plants himself, never decays, and never spends itself.
 | **Tap Main**, cracked open anywhere | 26/s for 8s | 18 Head to open, 6s cooldown |
 
 **Spends — four sinks, so the gauge is a decision every second.** Three are abilities
-(§3); the fourth is **Overpressure**: while Head > 0 every drafted skill deals +45%
-and applies its element at double duration, at 10 Head a cast. At zero he is base
-damage, no dash, 205 speed — an empty Boilerwright is *strictly worse at kiting than
-the captain is*. The anti-kite argument is structural, not a number.
+(§3); the fourth is **Overpressure**: while Head > 0 every drafted skill deals +45% and
+applies its element at double duration, at 10 Head a cast. At zero he is base damage,
+no dash, 205 speed — an empty Boilerwright is *strictly worse at kiting than the
+captain*. The anti-kite argument is structural, not a number.
 
-**The cap is load-bearing.** A Tap Main pays 208 Head over its life and the gauge
-holds 100 — you cannot fill up and leave, you must spend while you hold the ground,
-which is the behaviour the class is for.
+**The cap is load-bearing.** A Tap Main pays 208 Head over its life and the gauge holds
+100, so you cannot fill up and leave — you spend while holding ground, which is the
+behaviour the class is for.
 
 **The failure state, named.** Hers was healing faster than three lanes can hurt you.
 His is **repairing the Boiler faster than three lanes can break it** — an objective
@@ -67,13 +66,12 @@ in order of how much work they do:
    0.6, the 0.35 and the 10/s are fixed, written down here because the first person
    to add a repair card will want to move them.
 
-He has almost no self-healing — no vent heal, no lifesteal, salvage only. She keeps
-herself alive; he keeps the ship alive. A second axis of difference, free.
+No vent heal, no lifesteal, salvage only: she keeps herself alive, he keeps the ship alive.
 
 ## 3. Abilities
 
-Four drafted slots on LMB/RMB/Q/E from the same 36-cell matrix, unchanged — pillar 3
-is not negotiable. Two new keybinds carry the class instead.
+Four drafted slots on LMB/RMB/Q/E from the same 36-cell matrix, unchanged — pillar 3 is
+not negotiable. Two new keybinds carry the class instead.
 
 | Ability | Fits the matrix? |
 |---|---|
@@ -83,15 +81,14 @@ is not negotiable. Two new keybinds carry the class instead.
 | **Blowdown** (`V`) — spend the gauge, min 20. Damage 0.9 × Head, radius 120 + 1.6 × Head, STEAM, knock 300; repairs 0.35 × Head to a Boiler or live cannon inside. Must call `hulk_splash` or push waves are unwinnable. | **No,** but it is `vent_pressure()` with the constants replaced by functions of Head, reusing the existing scaled `circle` effect. |
 | **Bleed Jet** (dash key) — 220 units over 0.16s for 12 Head, leaving five scald fields behind. **Anchored**, its passive counterpart: inside any live tap he is knockback immune with 25% DR. | **No,** but it is `_try_dash` with a cost and a call to `_field`; Anchored is two lines. |
 
-The last four rows are where it does not fit. None is a *shape* — nothing here enters
+The last three rows are where it does not fit. None is a *shape*: nothing here enters
 the draft matrix, the 36 cells stay 36, no new VFX kind appears, and Tap Main is the
-only genuinely new simulation object, itself a copy of one that ships.
+only new simulation object — itself a copy of one that ships.
 
 ## 4. Movement and positioning
 
-She has two recharging dashes, contact damage on them, and a dash refund on close
-kills — fast, evasive, her correct position defined *relative to boarders*, which
-moves, so she chases it.
+She has two recharging dashes with contact damage and a refund on close kills: fast,
+evasive, her correct position defined *relative to boarders* — it moves, she chases.
 
 He has **no dash**, moves at 205 against her 260, and carries 130 max HP. His
 reposition is Bleed Jet, which costs Head, so **every dodge is damage he did not
@@ -113,8 +110,8 @@ lane 1; it needs a third, which is one line of data.
 - **1–3.** Thin crowds, one lane at a time. He is weak here and knows it; the
   allowance is generous against a 500 HP Boiler and the commute is cheap. This is
   where he learns where the three vents are, which the rest of the run runs on.
-- **4 and 8, the pushes.** His hardest content and his best fantasy. The hulk sits
-  at y = −1000, 1850 from the Boiler, and a push does not end until it breaks. The
+- **4 and 8, the pushes.** His hardest content and his best fantasy. The hulk sits at
+  y = −1000, 1850 from the Boiler, and a push does not end until it breaks. The
   intended play is a forward main at the bow, held; the crew-speed bonus inside a tap
   means his installation is what breaks the hulk while he holds the lane. He is the
   only class with a reason to care the crew layer exists.
@@ -138,8 +135,8 @@ lane 1; it needs a third, which is one line of data.
 SCOPE_META, SCOPE_DECK (kegs are a Head source, so POWDER MONKEY gets *better*), and
 SCOPE_SHIP. Several are *better* than for her: `knock` and `scald` go from filler to
 core because shepherding is his verb, `residue` is a zone card on a zone class,
-`boilerhp` and `boilerdr` become build pieces rather than insurance, and Frost
-improves because a slowed boarder stays in a field.
+`boilerhp`/`boilerdr` become build pieces, and Frost improves because a slowed
+boarder stays in a field.
 
 **Dead — eight, all SCOPE_CAPTAIN:** `dashcd`, `dashchg`, `dashdmg` (no dash);
 `ventheal`, `ventdmg`, `pressrate`, `dressing` (all read `pressure`); `lifesteal`
@@ -174,26 +171,25 @@ removing them breaks her. Six new:
 | **A hose or wrench mesh on a hand bone** | **art, commissioned** | §13l already records that the axe pack ships no axe. Second instance — solve the attachment once, for both. |
 | Voice, 19 keys | audio, **deferrable** | policy is that an absent line is silence, never a synth impression. He can ship mute and it is not a bug. |
 
-Checks: Head rises only on a tap and only while stationary; a draw past allowance
-reduces `boiler_hp` and is not reduced by `boilerdr`; Boiler → Head → repair is
-net-negative for **every** card combination in the catalogue; repair respects its
-budget; Blowdown at zero does nothing and Blowdown splashes the hulk; taps expire and
-their pool is capped; the dash action is inert and the three dash cards never offered;
-a seed deals him the same hand twice.
+Checks: Head rises only on a tap and only while stationary; a draw past allowance cuts
+`boiler_hp` and is not reduced by `boilerdr`; Boiler → Head → repair is net-negative
+for **every** card combination in the catalogue; repair respects its budget; Blowdown
+at zero does nothing and Blowdown splashes the hulk; taps expire and their pool is
+capped; the dash action is inert and the dash cards never offered; a seed deals him
+the same hand twice.
 
 ## 8. The one risk, and the cheapest test
 
-**The commute is the game.** The failure is not that he is weak — it is that a wave
-is twenty-five seconds of walking to a tap, standing on it, and walking back, and
-walking is not gameplay. Everything above is arranged against it (the cap forces
-spending while you hold; three free deck vents; a portable main), but arrangement is
-not evidence.
+**The commute is the game.** The failure is not that he is weak — it is that a wave is
+twenty-five seconds of walking to a tap, standing on it and walking back, and walking
+is not gameplay. Everything above is arranged against it (the cap forces spending
+while you hold; three free vents; a portable main), but arrangement is not evidence.
 
-**Test it without building the class.** No model, no `cards.gd`, no Blowdown: take
-the captain as she is, add one float, and change three things in `game.gd` — damage
-×1.0 at zero Head and ×1.45 above it at 10 per cast; Head fills only while stationary
-within 130 units of the Boiler or a vent prop; `_try_dash` returns immediately. An
-afternoon, no art, no draft work, no new VFX. Play waves 1, 4 and 9.
+**Test it without building the class.** No model, no `cards.gd`, no Blowdown: take the
+captain as she is, add one float, and change three things in `game.gd` — damage ×1.0
+at zero Head and ×1.45 above it at 10 a cast; Head fills only while stationary within
+130 units of the Boiler or a vent; `_try_dash` returns immediately. An afternoon, no
+art, no draft work, no new VFX. Play waves 1, 4 and 9.
 
 **Then instrument the number rather than trusting the feeling.** `note_range` already
 buckets time by distance to the nearest boarder and `_close_share()` reduces a run to

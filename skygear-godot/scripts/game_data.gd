@@ -16,7 +16,14 @@ const SHAPES := {
 	"CHAIN": {"name": "Whip", "kind": "chain", "damage": 26.0, "cooldown": 2.0, "range": 480.0, "jumps": 3, "jump_range": 200.0, "knock": 90.0},
 	"AURA": {"name": "Field", "kind": "aura", "damage": 4.0, "cooldown": 0.0, "radius": 150.0, "tick_rate": 1.8, "passive": true},
 	"PULSE": {"name": "Pulse", "kind": "pulse", "damage": 34.0, "cooldown": 4.4, "radius": 210.0, "knock": 220.0, "passive": true},
-	"SENTRY": {"name": "Sentry", "kind": "sentry", "damage": 14.0, "cooldown": 9.0, "range": 420.0, "passive": true},
+	## Deployable, not passive. It was marked `passive: true`, which routed it to
+	## `_update_passives`, where "sentry" fired a beam out of the PLAYER at the
+	## nearest boarder. Nothing was ever placed on the deck — you drafted a turret
+	## and got an invisible one welded to your own ribs. It is an active now: the
+	## press puts an object on the planking where you are pointing.
+	"SENTRY": {"name": "Sentry", "kind": "sentry", "damage": 14.0, "cooldown": 9.0,
+		"range": 420.0, "deploy_range": 520.0, "life": 14.0, "fire_rate": 1.4,
+		"knock": 70.0, "auto_after": 2.5, "max_live": 2},
 	"RAY": {"name": "Beam", "kind": "ray", "damage": 7.0, "cooldown": 0.6, "range": 480.0, "width": 24.0, "knock": 40.0},
 }
 

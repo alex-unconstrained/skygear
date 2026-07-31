@@ -148,6 +148,21 @@ func _matrix() -> void:
 			if bool(SkyGearData.SHAPES[shape].get("passive", false)):
 				game.skills[0].passive_timer = 0.0
 				game._update_passives(0.05)
+			elif str(SkyGearData.SHAPES[shape].kind) == "sentry":
+				## A deployable does not damage on the press — the press puts an
+				## object down and the object fires. Which is the whole point of
+				## the shape, so the test asserts BOTH halves: something is on the
+				## planking, and it shoots on its own.
+				game.sentries.clear()
+				game.cast_skill(0, enemy.global_position)
+				if game.sentries.is_empty():
+					dead_cells.append(shape + "/" + element + ": nothing deployed")
+					enemy.dead = true
+					enemy.queue_free()
+					continue
+				for _t in 20:
+					game._update_sentries(0.1)
+				game.sentries.clear()
 			else:
 				game.cast_skill(0, enemy.global_position)
 			if enemy.hp >= before:
@@ -1156,6 +1171,144 @@ func _view() -> void:
 			timing._one_shot_until > first_end,
 			"%.2f then %.2f" % [first_end, timing._one_shot_until])
 	timing.queue_free()
+
+	## THE WIDGET LAYER. Every clickable thing was an ad-hoc rect test written
+	## where it was drawn: no keyboard, no focus, no disabled state, no sound.
+	## That is why there was no settings screen and no way to quit a paused run.
+	var panel := Control.new()
+	panel.size = Vector2(900, 600)
+	root.add_child(panel)
+	var widgets := SkyGearUI.new()
+	## Two passes: input is tested against the list drawn LAST frame, which is
+	## the one the player was looking at when they clicked.
+	for pass_index in 2:
+		widgets.begin("t", panel, ThemeDB.fallback_font, Vector2(-999, -999))
+		widgets.button(Rect2(10, 10, 200, 40), "ONE")
+		widgets.button(Rect2(10, 60, 200, 40), "TWO", {"disabled": true})
+		widgets.button(Rect2(10, 110, 200, 40), "THREE")
+	var down := InputEventKey.new()
+	down.keycode = KEY_DOWN
+	down.pressed = true
+	## One step from the top lands on index 2, not 1 — index 1 is disabled and a
+	## focus that stops on something it cannot activate is a focus that looks
+	## broken.
+	_check("widget", "the keyboard can reach a button", widgets.handle(down))
+	_check("widget", "and focus skips a disabled one",
+		widgets.focused() == 2, "landed on %d" % widgets.focused())
+	widgets.handle(down)
+	_check("widget", "and wraps rather than stopping at the end",
+		widgets.focused() == 0, "landed on %d" % widgets.focused())
+	## A disabled button must refuse the click rather than looking refused.
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	widgets.begin("t", panel, ThemeDB.fallback_font, Vector2(100, 80))
+	widgets.button(Rect2(10, 10, 200, 40), "ONE")
+	widgets.button(Rect2(10, 60, 200, 40), "TWO", {"disabled": true})
+	widgets.button(Rect2(10, 110, 200, 40), "THREE")
+	_check("widget", "a disabled button refuses the click", not widgets.handle(click))
+	panel.queue_free()
+
+	## And the pause menu can now end a run, which it could not before: from a
+	## paused game there was no way to restart or quit short of alt-F4.
+	_check("widget", "a paused run can be restarted and quit",
+		game.has_method("restart_run") and game.has_method("toggle_pause"))
+
+	## DEPLOYABLES. Reported from a real run: "I got the sentry ability and I
+	## didn't even see a sentry drop." There was nothing to see — the shape was
+	## marked passive and fired a beam out of the player's own body.
+	game.skills = [SkyGearData.make_skill("SENTRY", "ARC")]
+	game.sentries.clear()
+	game.player.global_position = Vector2.ZERO
+	game.cast_skill(0, Vector2(300, -200))
+	_check("sentry", "a press puts one on the deck", game.sentries.size() == 1)
+	if game.sentries.size() == 1:
+		_check("sentry", "and it lands where you were pointing",
+			Vector2(game.sentries[0].position).distance_to(Vector2(300, -200)) < 1.0,
+			"landed at %s" % str(game.sentries[0].position))
+
+	## Aimed past its reach it stops at the edge of reach rather than at the
+	## cursor, or the cooldown buys you a turret anywhere on the ship.
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.cast_skill(0, Vector2(4000, 0))
+	var reach: float = float(game.skill_stats(game.skills[0]).get("deploy_range", 520.0))
+	_check("sentry", "an out-of-reach cursor clamps to reach",
+		not game.sentries.is_empty()
+		and Vector2(game.sentries[0].position).length() <= reach + 1.0,
+		"at %.0f, reach %.0f" % [Vector2(game.sentries[0].position).length()
+			if not game.sentries.is_empty() else -1.0, reach])
+
+	## And a cursor off the ship clamps to the ship, or you place one in the sky.
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.player.global_position = Vector2(0, SkyGearGame.DECK_RECT.position.y + 100.0)
+	game.cast_skill(0, Vector2(0, SkyGearGame.DECK_RECT.position.y - 400.0))
+	_check("sentry", "and a cursor off the ship clamps to the ship",
+		not game.sentries.is_empty()
+		and SkyGearGame.DECK_RECT.has_point(Vector2(game.sentries[0].position)))
+
+	## The other half of the report: it must NOT require the press. A slot that
+	## demands a decision every nine seconds is a slot nobody drafts.
+	game.sentries.clear()
+	game.player.global_position = Vector2.ZERO
+	game.skills[0].cooldown_left = 0.0
+	game.skills[0].sentry_idle = 0.0
+	var grace: float = float(game.skill_stats(game.skills[0]).get("auto_after", 2.5))
+	game._update_cooldowns(grace * 0.5)
+	_check("sentry", "an unpressed one waits before auto-casting",
+		game.sentries.is_empty())
+	game._update_cooldowns(grace * 0.6)
+	_check("sentry", "and then places itself without a press",
+		game.sentries.size() == 1)
+
+	## Oldest-first retirement. Nine seconds of cooldown across twelve waves is a
+	## deck made of turrets otherwise.
+	game.sentries.clear()
+	var cap: int = int(game.skill_stats(game.skills[0]).get("max_live", 2))
+	for i in cap + 3:
+		game.skills[0].cooldown_left = 0.0
+		game.cast_skill(0, Vector2(float(i) * 30.0, 0.0))
+	_check("sentry", "they retire oldest-first rather than stacking",
+		game.sentries.size() == cap, "%d live, cap %d" % [game.sentries.size(), cap])
+
+	## It fires on its own, at range, and the damage is filed against the slot
+	## that placed it — a turret whose damage lands in nobody's row is a turret
+	## the run report says is worthless.
+	game.sentries.clear()
+	game.tel = SkyGearTelemetry.fresh()
+	game.skills[0].cooldown_left = 0.0
+	game.player.global_position = Vector2.ZERO
+	game.cast_skill(0, Vector2(200, 0))
+	game.spawn_enemy("SCRAPPER", 1)
+	var mark: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			mark = e
+	if mark != null:
+		mark.global_position = Vector2(260, 0)
+		mark.hp = 1e9
+		mark.max_hp = 1e9
+		var before_turret: float = mark.hp
+		for _t in 20:
+			game._update_sentries(0.1)
+		_check("sentry", "it shoots on its own once placed", mark.hp < before_turret)
+		_check("sentry", "and its damage is filed against the slot that placed it",
+			float(game.tel.per[0].damage) > 0.0,
+			"slot 0 recorded %.1f" % float(game.tel.per[0].damage))
+		mark.dead = true
+		mark.queue_free()
+
+	## And it expires, or one placement holds a lane for the rest of the run.
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.cast_skill(0, Vector2(120, 0))
+	var span: float = float(game.skill_stats(game.skills[0]).get("life", 14.0))
+	for _t in int(span / 0.2) + 4:
+		game._update_sentries(0.2)
+	_check("sentry", "and it expires rather than holding the lane forever",
+		game.sentries.is_empty())
+	game.sentries.clear()
 
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.

@@ -9,9 +9,18 @@ var font: Font
 ## world-to-screen, and in 3D that is the camera's job rather than a projection
 ## we write. Null in the plain 2D scene, where the entities draw their own.
 var view: SkyGearView3D
+## Buttons that behave like buttons. Every clickable thing here used to be an
+## ad-hoc rect test written where it was drawn — no keyboard, no focus, no
+## disabled state, no sound. That is why there was no settings screen and no way
+## to quit from a pause.
+var ui := SkyGearUI.new()
 
 func _ready() -> void:
 	font = ThemeDB.fallback_font
+	ui.on_sound = func(kind: String) -> void:
+		if game != null:
+			game.play_sfx("ui/card_hover.ogg" if kind == "hover" else "ui/card_deal.ogg",
+				-16.0 if kind == "hover" else -8.0)
 
 func _process(_delta: float) -> void:
 	queue_redraw()
@@ -34,7 +43,7 @@ func _draw() -> void:
 			if game.keys_open:
 				_draw_keys()
 			else:
-				_draw_overlay("PAUSED", _pause_text())
+				_draw_pause()
 		"GAMEOVER":
 			## The run report, not a sentence. `_draw_results` has existed since
 			## the report landed and nothing ever called it — the telemetry
@@ -1045,6 +1054,74 @@ func _draw_keys() -> void:
 			y + 14.0, 15, Color("#ff9a5a"))
 	_center_text("Backspace resets · Esc closes · F2 toggles", sheet.end.y - 22.0, 15,
 		Color("#37f0c8"))
+
+
+## The pause menu, as a menu.
+##
+## It was a static block of text, so from a paused run there was no way to
+## restart or quit to the title short of alt-F4. Five buttons, reachable by
+## mouse or keyboard, with the loadout underneath — the only place in the game a
+## player can read what their build actually does without being shot at.
+func _draw_pause() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.88))
+	## Sized to what is in it. The buttons are a fixed stack and the build list
+	## is one row per skill, so the height is arithmetic rather than a guess —
+	## and a frame with three hundred empty pixels under the last button reads as
+	## a screen that failed to load.
+	var rows: int = maxi(game.skills.size(), 1)
+	var body := 272.0 + (66.0 if game.audio != null else 0.0)
+	var tall: float = maxf(body, 26.0 + rows * 40.0) + 118.0
+	var top: float = maxf(70.0, (size.y - tall) * 0.5)
+	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
+	_panel(sheet)
+	## The banner rides the panel rather than a screen constant, or it lands on
+	## the first button the moment the panel moves.
+	_banner(size.x * 0.5, sheet.position.y - 10.0, 420.0)
+	_center_text("PAUSED", sheet.position.y + 48.0, 40, BRASS_LIT)
+
+	ui.begin("pause", self, font, get_local_mouse_position())
+	var bw := 300.0
+	var bx := sheet.position.x + 26.0
+	var by := sheet.position.y + 82.0
+	if ui.button(Rect2(bx, by, bw, 40.0), "RESUME", {"primary": true, "hint": "Esc"}):
+		game.toggle_pause()
+	if ui.button(Rect2(bx, by + 46.0, bw, 40.0), "CONTROLS", {"hint": "F2"}):
+		game.keys_open = true
+	if ui.button(Rect2(bx, by + 92.0, bw, 40.0), "RESTART RUN"):
+		game.restart_run()
+	if ui.button(Rect2(bx, by + 138.0, bw, 40.0), "QUIT TO TITLE"):
+		game.go_to_title()
+	if game.audio != null:
+		game.audio.set_volume("master", ui.slider(
+			Rect2(bx, by + 194.0, bw, 30.0), "VOLUME", float(game.audio.volumes.master)))
+		if ui.button(Rect2(bx, by + 230.0, bw, 34.0),
+				"UNMUTE" if game.audio.muted else "MUTE", {"hint": "M"}):
+			game.audio.toggle_mute()
+
+	## The loadout. Reading what your own build does should not require being
+	## shot at while you do it.
+	var lx := bx + bw + 26.0
+	_label("YOUR BUILD", Vector2(lx, by + 4.0), 260.0, HORIZONTAL_ALIGNMENT_LEFT, 12)
+	var ly := by + 26.0
+	for i in game.skills.size():
+		var skill: Dictionary = game.skills[i]
+		var tint: Color = SkyGearData.ELEMENTS[skill.element].color
+		var st: Dictionary = game.skill_stats(skill)
+		var icon := _tex(str(SLOT_ICONS.get(skill.shape, "")))
+		if icon != null:
+			draw_texture_rect_region(icon, Rect2(lx, ly, 26, 26),
+				Rect2(Vector2.ZERO, icon.get_size()), tint)
+		_value(SkyGearData.skill_name(skill), Vector2(lx + 34.0, ly + 13.0), 200.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 15, tint)
+		_label("%s · %s" % [str(SkyGearData.SHAPES[skill.shape].kind),
+			str(SkyGearData.ELEMENTS[skill.element].blurb)],
+			Vector2(lx + 34.0, ly + 27.0), 250.0, HORIZONTAL_ALIGNMENT_LEFT, 11)
+		_label("%.2fs" % float(st.cooldown), Vector2(lx, ly + 27.0), 260.0,
+			HORIZONTAL_ALIGNMENT_RIGHT, 11, BRASS)
+		ly += 40.0
+	_label("WASD move · mouse aim · Space dash · F4 layout · F3 stats",
+		Vector2(sheet.position.x, sheet.end.y - 18.0), sheet.size.x,
+		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 
 func _draw_overlay(title: String, subtitle: String) -> void:
