@@ -1366,6 +1366,58 @@ func _view() -> void:
 			and SkyGearWorkshop.save_state(shop)
 			and not bool(SkyGearWorkshop.load_state().get("ephemeral", false)))
 
+	## EVERY GRANT HAS A READER. The previous commit shipped thirteen fields that
+	## resolved correctly and did nothing — a node you could buy that changed no
+	## number. Data with no reader is the trap this project keeps falling into
+	## (three times on the Boilerwright alone), so this is the mechanical guard:
+	## every `field` in `NODES` must be named somewhere in the scripts.
+	##
+	## Grep rather than behaviour, deliberately. A behavioural check per node is
+	## twenty-four fragile tests; this one catches the failure that actually
+	## happens, which is a field nobody wired at all.
+	var readers := ""
+	for path in ["res://scripts/game.gd", "res://scripts/hud.gd",
+			"res://scripts/player.gd", "res://scripts/view3d.gd"]:
+		readers += FileAccess.get_file_as_string(path)
+	var inert := ""
+	for id in SkyGearWorkshop.NODES.keys():
+		var field := str(SkyGearWorkshop.NODES[id].field)
+		## Named in a reader, not merely in the table it came from.
+		if not readers.contains('"%s"' % field) and not readers.contains(".%s" % field):
+			inert += " " + field
+	_check("shop", "every talent field is read by something", inert == "",
+		"nothing reads:" + inert)
+
+	## And the ones with a number behind them actually move it.
+	var live := SkyGearWorkshop.fresh(true)
+	live.unlocked = true
+	live.scrip = 100000
+	for id in ["padded_coat", "bootblacking", "shot_locker", "spare_plate"]:
+		SkyGearWorkshop.buy(live, id)
+	var plain := _new_game()
+	plain.set_seed_text("NOSHOP")
+	plain.begin_run()
+	var base_hp: float = plain.player.max_hp
+	var base_speed: float = plain.player.move_speed
+	var base_boiler: float = plain.boiler_max_hp
+	var base_turret: float = float(plain.turrets[0].max_hp)
+	plain.queue_free()
+
+	var kitted := _new_game()
+	kitted.workshop = live
+	kitted.set_seed_text("NOSHOP")
+	kitted.begin_run()
+	_check("shop", "and a bought tree actually changes the run",
+		kitted.player.max_hp > base_hp
+			and kitted.player.move_speed > base_speed
+			and kitted.boiler_max_hp > base_boiler
+			and float(kitted.turrets[0].max_hp) > base_turret,
+		"hp %.0f/%.0f speed %.0f/%.0f boiler %.0f/%.0f cannon %.0f/%.0f"
+			% [kitted.player.max_hp, base_hp, kitted.player.move_speed, base_speed,
+				kitted.boiler_max_hp, base_boiler,
+				float(kitted.turrets[0].max_hp), base_turret])
+	kitted.queue_free()
+
 	## THE BOILERWRIGHT. A second class, and the point of it is that it is not a
 	## reskin — `docs/CLASS-2-DESIGN.md` argues at length that a class which
 	## simply fires further is the answer v11 deleted. So the checks are about

@@ -781,8 +781,14 @@ func _draw_game_hud() -> void:
 			draw_rect(Rect2(marker - Vector2(2, 3), Vector2(4, track.size.y + 6)),
 				Color("#ff4d37") if deepest > 0.72 else Color("#ffb347"))
 		draw_rect(track, Color("#0d0b12"), false, 1.4)
-		_value(str(count), row.position + Vector2(row.size.x - 20.0, row.size.y - 3.0),
-			20.0, HORIZONTAL_ALIGNMENT_RIGHT, 12)
+		## WATCH BILL turns "how many are here" into "how many are coming", which
+		## is the difference between reacting to a lane and choosing one.
+		var readout := str(count)
+		if game.talent("show_queue") > 0.0:
+			readout = "%d+%d" % [count, game.queued_in_lane(lane)]
+		_value(readout, row.position + Vector2(row.size.x - 20.0, row.size.y - 3.0),
+			20.0 + (18.0 if game.talent("show_queue") > 0.0 else 0.0),
+			HORIZONTAL_ALIGNMENT_RIGHT, _fits(readout, 38.0, 12, 9))
 
 	## --- the hand -----------------------------------------------------------
 	var labels := ["LMB", "RMB", "Q", "E"]
@@ -1144,6 +1150,12 @@ func _draw_world_overlay() -> void:
 			_health_bar(Rect2(at - Vector2(wide * 0.5, 0.0), Vector2(wide, ENEMY_BAR_H)),
 				enemy.hp / maxf(1.0, enemy.max_hp),
 				Color("#ffb347") if elite else Color("#e14f35"))
+		## TALLY. Numbers on the bar, for a player who has bought the right to
+		## stop estimating. Deliberately small and dim: this is a talent for
+		## someone who wants it, not a change to how the game reads by default.
+		if game.talent("show_numbers") > 0.0 and enemy.hp < enemy.max_hp:
+			_label("%d" % roundi(enemy.hp), at + Vector2(wide * 0.5 + 4.0, 6.0),
+				48.0, HORIZONTAL_ALIGNMENT_LEFT, 10, Color("#cfc4b4"))
 		if elite:
 			# the plate is as wide as the NAME, not as wide as the health bar
 			draw_string(font, at - Vector2(80.0, 8.0), str(ENEMY_NAMES.get(enemy.kind, enemy.kind)),
@@ -1272,6 +1284,12 @@ func _draw_draft() -> void:
 	_banner(size.x * 0.5, 88.0, 420.0)
 	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
 	_center_text("Click a card, or press its number.", 158.0, 18, Color("#b9afaa"))
+	## MANIFEST. What is coming, while you still have a choice about it.
+	if game.talent("show_manifest") > 0.0:
+		var coming: String = game.next_wave_manifest()
+		if coming != "":
+			_label(coming, Vector2(0.0, 180.0), size.x, HORIZONTAL_ALIGNMENT_CENTER,
+				_fits(coming, size.x, 14, 10), Color("#8fa6c9"))
 	# reroll: two per RUN, so spending one is a decision about which hand
 	var reroll := reroll_button(size)
 	var can_reroll: bool = game.rerolls > 0
@@ -1820,9 +1838,17 @@ func _draw_results(title: String, tint: Color) -> void:
 	## Sized to the report rather than to the window. A fixed plate left three
 	## hundred pixels of empty brass under a twelve-line run, which reads as a
 	## screen that failed to load something.
-	const RESULTS_CHROME := 360.0   ## banner, title, reason, buttons, the log note
+	## banner, title, reason, buttons, the log note — plus whatever the Workshop
+	## adds underneath. A constant here was fine until Ledger and the payout line
+	## started appearing, and then the footer sat on the bottom rail; the audit
+	## found it on the first run after.
+	var chrome := 360.0
+	if game.talent("show_ledger") > 0.0:
+		chrome += 18.0
+	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
+		chrome += 18.0
 	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0,
-		minf(size.y - 104.0, tall + RESULTS_CHROME)))
+		minf(size.y - 104.0, tall + chrome)))
 	_banner(size.x * 0.5, 62.0, 520.0)
 	_center_text(title, 110.0, 52, tint)
 	if game.end_reason != "":
@@ -1874,6 +1900,38 @@ func _draw_results(title: String, tint: Color) -> void:
 	## a player presses four times.
 	if game.copied_at > 0.0 and game.run_time - game.copied_at < 2.0:
 		_center_text("copied to the clipboard", y, 14, Color("#37f0c8"))
+	## LEDGER. This run against your best three, which is the difference between
+	## "wave 9" and "wave 9, and your best is 12" — a number only means something
+	## next to another number.
+	if game.talent("show_ledger") > 0.0:
+		var past: Array = SkyGearRunLog.load_all()
+		var waves: Array[int] = []
+		for entry in past:
+			if entry is Dictionary:
+				waves.append(int(entry.get("wave", 0)))
+		waves.sort()
+		waves.reverse()
+		var best: Array[String] = []
+		for i in mini(3, waves.size()):
+			best.append("%d" % waves[i])
+		if not best.is_empty():
+			_label("this run reached %d · your best three: %s"
+				% [game.wave, ", ".join(best)], Vector2(page.position.x, y + 14.0),
+				page.size.x, HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#8fa6c9"))
+			y += 18.0
+
+	## AND WHAT IT PAID. A run that quietly banked scrip is a run whose reward the
+	## player finds two screens later, if at all.
+	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
+		var earned := "+%d scrip" % int(game.banked.scrip)
+		if int(game.banked.get("sigils", 0)) > 0:
+			earned += "  ·  +%d sigil" % int(game.banked.sigils)
+		if bool(game.banked.get("first_win", false)):
+			earned = "THE WORKSHOP IS OPEN  ·  " + earned
+		_label(earned, Vector2(page.position.x, y + 14.0), page.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#e8c376"))
+		y += 18.0
+
 	var log_note := "saved to the run log" if game.run_logged 		else "COULD NOT WRITE THE RUN LOG — copy it before you leave"
 	_center_text(log_note, y + 18.0, 14,
 		Color("#6a6478") if game.run_logged else Color("#ff9a5a"))

@@ -17,7 +17,14 @@ const FRICTION := 5200.0
 const DASH_DISTANCE := 220.0
 const DASH_TIME := 0.16
 const DASH_SPEED := DASH_DISTANCE / DASH_TIME
+## SEA LEGS shortens this. A const cannot be the answer once a talent moves it —
+## the same lesson as `SPEED` and `START_DASH_CHARGES`, learned three times now.
 const DASH_RECHARGE := 1.0
+var dash_recharge_bonus := 0.0
+
+
+func dash_recharge_time() -> float:
+	return maxf(0.25, DASH_RECHARGE + dash_recharge_bonus)
 ## The STARTING number. The ceiling is `max_dash_charges`, which the draft can
 ## raise — `cards.gd` has an epic that sets `mods.dash_charges` to 3 and nothing
 ## read it, so the card was purchasable and did nothing. A const used as a
@@ -148,7 +155,7 @@ func _try_dash(move_direction: Vector2) -> void:
 	dash_serial += 1
 	invulnerability_left = DASH_TIME + 0.08
 	if dash_recharge_left <= 0.0:
-		dash_recharge_left = DASH_RECHARGE
+		dash_recharge_left = dash_recharge_time()
 	dash_started.emit()
 
 func _update_dash_recharge(delta: float) -> void:
@@ -158,7 +165,7 @@ func _update_dash_recharge(delta: float) -> void:
 	dash_recharge_left -= delta
 	if dash_recharge_left <= 0.0:
 		dash_charges += 1
-		dash_recharge_left = DASH_RECHARGE if dash_charges < max_dash_charges else 0.0
+		dash_recharge_left = dash_recharge_time() if dash_charges < max_dash_charges else 0.0
 
 func refund_dash(seconds: float) -> void:
 	if dash_charges < max_dash_charges:

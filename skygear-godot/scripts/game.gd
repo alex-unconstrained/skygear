@@ -77,6 +77,9 @@ var taps: Array[Dictionary] = []
 var tap_cooldown := 0.0
 var vent_cooldown := 0.0
 var damage_multiplier := 1.0
+## LONG ARMS. A separate multiplier from the per-skill one so a talent and a card
+## cannot overwrite each other.
+var range_multiplier := 1.0
 var projectiles: Array[Dictionary] = []
 var effects: Array[Dictionary] = []
 ## Damage and healing, as numbers that leave the body they came from. The
@@ -148,6 +151,17 @@ var workshop: Dictionary = SkyGearWorkshop.load_state()
 ## What the last run paid, so the results screen can say so rather than the
 ## player finding out two screens later.
 var banked: Dictionary = {}
+## THE TREE, RESOLVED, for the length of a run. Everything below reads this
+## rather than calling `resolved()` again — a talent that could change mid-run
+## would be a card, and cards are the draft's job.
+var talents: Dictionary = {}
+
+
+## One accessor, so a node whose field nobody reads is a grep away from being
+## found rather than silently inert. That is the trap this whole commit exists
+## to close: the last one shipped thirteen fields that resolved and did nothing.
+func talent(field: String) -> float:
+	return float(talents.get(field, 0.0))
 ## The one line of advice, if there is one worth giving. Read-only against the
 ## simulation, so a bad hint is a wrong sentence rather than a wrong game.
 var coach := SkyGearCoach.new()
@@ -697,6 +711,12 @@ func spend_overpressure() -> void:
 
 
 func begin_run() -> void:
+	## FIRST. Everything this run constructs — the cannons, the Boiler, the body —
+	## reads `talents`, so resolving it after any of them is a talent that applies
+	## to nothing. Shot Locker did exactly that until a check compared a kitted
+	## cannon against a bare one and found them identical.
+	talents = SkyGearWorkshop.resolved(workshop)
+	range_multiplier = 1.0 + talent("range")
 	## Never mid-run. A tree you can edit while being shot at is a fifth ability
 	## button, which is the one thing the design says it must not become.
 	workshop_open = false
@@ -730,6 +750,13 @@ func begin_run() -> void:
 	opening_draft = true
 	draft_options.clear()
 	turrets = SkyGearLanes.make_turrets(LANE_CENTERS, BASE_Y)
+	## SHOT LOCKER. Applied here rather than inside `make_turrets`, because the
+	## lanes module is shared with the harness's own fixtures and a talent
+	## reaching into it would make every lane test depend on a save file.
+	if talent("turret_hp") > 0.0:
+		for t in turrets:
+			t.max_hp = float(t.max_hp) * (1.0 + talent("turret_hp"))
+			t.hp = float(t.max_hp)
 	crew.clear()
 	sentries.clear()
 	hulk = {}
@@ -749,7 +776,7 @@ func begin_run() -> void:
 	##
 	## Applied BEFORE the class kit reads `hp`, so a Padded Coat stacks onto
 	## whichever body the class describes rather than onto the captain's.
-	var talents: Dictionary = SkyGearWorkshop.resolved(workshop)
+	player.dash_recharge_bonus = talent("dash_recharge")
 	mods.crit_chance = float(mods.crit_chance) + float(talents.get("crit_chance", 0.0))
 	mods.pressure_rate = float(mods.pressure_rate) + float(talents.get("pressure_rate", 0.0))
 	mods.vent_heal = float(mods.vent_heal) + float(talents.get("vent_heal", 0.0))
@@ -1186,6 +1213,41 @@ func _weighted_shapes() -> Array[String]:
 	return out
 
 
+## What the next wave is made of, as a line. MANIFEST buys the right to read it
+## during the draft instead of finding out when it walks at you — information
+## that widens the decision you are already making, which is the whole argument
+## for the Log branch.
+## WATCH BILL. How many boarders are still queued for a lane — the lane readout
+## shows what is ON the deck, which tells you where the fight is and nothing
+## about where it is going. Read straight off the spawn queue, so it is exactly
+## true rather than an estimate.
+func queued_in_lane(lane: int) -> int:
+	var n := 0
+	for entry in spawn_queue:
+		if int(entry.lane) == lane and float(entry.time) > wave_time:
+			n += 1
+	return n
+
+
+func next_wave_manifest() -> String:
+	var next := wave + 1
+	if next < 1 or next > SkyGearData.WAVES.size():
+		return ""
+	var counts := {}
+	for batch in SkyGearData.WAVES[next - 1].batches:
+		var kind := str(batch[1])
+		var lanes: int = 3 if (batch.size() > 3 and batch[3] is String) else 1
+		counts[kind] = int(counts.get(kind, 0)) + int(batch[2]) * lanes
+	var parts: Array[String] = []
+	for kind in counts.keys():
+		parts.append("%d %s" % [int(counts[kind]), str(kind).to_lower()])
+	var line := "wave %d — %s" % [next, ", ".join(parts)]
+	var event_id := event_for(next)
+	if event_id != "":
+		line += "  ·  %s" % str(SkyGearData.EVENTS[event_id].name)
+	return line
+
+
 func open_draft() -> void:
 	if voice != null:
 		voice.say("draft")
@@ -1206,7 +1268,12 @@ func open_draft() -> void:
 		for skill in skills:
 			used_shapes.append(skill.shape)
 		var cursor := rng.randi_range(0, shape_order.size() - 1)
-		for i in 3:
+		## FOURTH CARD. One more weapon on the opening hand only — the draft that
+		## decides the shape of the whole run is the one worth widening, and doing
+		## it every draft would be a multiplier on the card system rather than a
+		## bigger version of it.
+		var offers: int = 3 + (1 if talent("fourth_card") > 0.0 and wave <= 1 else 0)
+		for i in offers:
 			var shape: String = shape_order[(cursor + i) % shape_order.size()]
 			var guard := 0
 			while shape in used_shapes and guard < shape_order.size():
@@ -1296,11 +1363,11 @@ func _process_skill_input() -> void:
 ## if I took that card" — and a function that can only read `self` cannot answer
 ## it. Same arithmetic, one copy.
 func skill_stats(skill: Dictionary) -> Dictionary:
-	return stats_with(skill, mods, damage_multiplier)
+	return stats_with(skill, mods, damage_multiplier, range_multiplier)
 
 
 static func stats_with(skill: Dictionary, mods: Dictionary,
-		damage_multiplier: float) -> Dictionary:
+		damage_multiplier: float, range_multiplier: float = 1.0) -> Dictionary:
 	var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
 	var m: Dictionary = skill.get("mods", {})
 	var element: String = skill.element
@@ -1312,7 +1379,10 @@ static func stats_with(skill: Dictionary, mods: Dictionary,
 		"cooldown": float(shape.cooldown) * float(m.get("cooldown", 1.0)) * elem_cooldown * 0.8,
 		"knock": float(shape.get("knock", 0.0)) * float(m.get("knock", 1.0)) * float(mods.knock_multiplier),
 		"multi": int(m.get("multi", 1)),
-		"range": float(shape.get("range", 0.0)) * float(m.get("range", 1.0)),
+		## LONG ARMS is folded in through `damage_multiplier`'s sibling rather than
+		## through `m`, which belongs to the skill and is what a card writes.
+		"range": float(shape.get("range", 0.0)) * float(m.get("range", 1.0))
+			* range_multiplier,
 		"radius": float(shape.get("radius", 0.0)) * float(m.get("area", 1.0)),
 		"width": float(shape.get("width", 0.0)) * float(m.get("area", 1.0)),
 		"arc": float(shape.get("arc", 0.0)),
@@ -1643,7 +1713,10 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
 		if rng.randf() < float(SkyGearData.CLOSE.scrap_chance) * (1.0 + event_salvage_bonus()):
-			_scrap({"position": enemy.global_position, "heal": float(SkyGearData.CLOSE.scrap_heal), "time": 12.0})
+			## SALVAGER. Flat, on top of the base heal.
+			_scrap({"position": enemy.global_position,
+				"heal": float(SkyGearData.CLOSE.scrap_heal) + talent("salvage_heal"),
+				"time": 12.0})
 			tel.salvage += 1
 	if rng.randf() < float(mods.scrap_chance) * (1.0 + event_salvage_bonus()):
 		_scrap({"position": enemy.global_position, "heal": 12.0, "time": 12.0})
@@ -1958,6 +2031,16 @@ func restow_props() -> void:
 		add_child(prop)
 		prop.global_position = entry.position
 		prop.configure(self, entry.type)
+	## POWDER STORE. Extra ordnance, stowed away from the layout's own kegs so it
+	## reads as a stockpile rather than as one keg mysteriously duplicated. Placed
+	## with the cosmetic stream, or a talent would move every seeded roll after it.
+	for i in int(talent("extra_kegs")):
+		var keg: SkyGearProp = PROP_SCENE.instantiate()
+		add_child(keg)
+		keg.global_position = Vector2(
+			visual_rng.randf_range(DECK_RECT.position.x + 200.0, DECK_RECT.end.x - 200.0),
+			visual_rng.randf_range(-300.0, 500.0))
+		keg.configure(self, "keg")
 
 func on_prop_destroyed(prop: SkyGearProp) -> void:
 	if prop.prop_type == "crate":
@@ -2072,7 +2155,8 @@ func _update_turrets(delta: float) -> void:
 		t.angle = (best.global_position - Vector2(t.position)).angle()
 		if float(t.cooldown) > 0.0:
 			continue
-		t.cooldown = SkyGearLanes.TURRET.cooldown
+		## GUN CREW. Faster reload, which is a smaller number not a bigger one.
+		t.cooldown = float(SkyGearLanes.TURRET.cooldown) / (1.0 + talent("turret_rate"))
 		t.fire_flash = 0.14
 		var previous := src_slot
 		src_slot = -3                     # allies: the ship's own guns
@@ -2142,7 +2226,8 @@ func _update_crew(delta: float) -> void:
 	if crew_timer <= 0.0:
 		crew_timer = SkyGearLanes.CREW.push_every if pushing else SkyGearLanes.CREW.every
 		for lane in LANE_CENTERS.size():
-			for _i in int(SkyGearLanes.CREW.per_wave):
+			## MUSTER ROLL. One more hand per lane per muster.
+			for _i in int(SkyGearLanes.CREW.per_wave) + int(talent("extra_crew")):
 				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y, rng))
 		play_sfx("lane/crew_muster.ogg", -10.0)
 		if voice != null:

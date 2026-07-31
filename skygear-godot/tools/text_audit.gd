@@ -45,6 +45,7 @@ const SCREENS := [
 	{"name": "paused + controls", "state": "PAUSE", "skills": 4, "keys": true},
 	{"name": "settings mid-run", "state": "PAUSE", "skills": 4, "settings": true},
 	{"name": "deck lost", "state": "GAMEOVER", "skills": 4},
+	{"name": "deck lost + workshop", "state": "GAMEOVER", "skills": 4, "banked": true},
 	{"name": "deck held", "state": "VICTORY", "skills": 4},
 ]
 
@@ -210,6 +211,13 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 	game.keys_open = bool(screen.get("keys", false))
 	game.settings_open = bool(screen.get("settings", false))
 	game.how_open = bool(screen.get("how", false))
+	if bool(screen.get("banked", false)):
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.workshop.unlocked = true
+		game.workshop.scrip = 400
+		SkyGearWorkshop.buy(game.workshop, "ledger")
+		game.talents = SkyGearWorkshop.resolved(game.workshop)
+		game.banked = {"scrip": 193, "sigils": 1, "unlocked": true, "first_win": true}
 	if bool(screen.get("workshop", false)):
 		## Unlocked and part-bought, so the audit sees bought, affordable and
 		## locked nodes rather than one uniform dimmed column.

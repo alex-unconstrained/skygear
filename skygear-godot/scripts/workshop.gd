@@ -126,12 +126,21 @@ const NODES := {
 	"ledger": {"branch": "log", "tier": 1, "name": "Ledger",
 		"text": "results shown against your best three", "cost": 40, "ranks": 1,
 		"field": "show_ledger", "per": 1.0},
-	"quartermaster": {"branch": "log", "tier": 1, "name": "Quartermaster",
-		"text": "the opening draft always holds a new skill", "cost": 60,
-		"ranks": 1, "field": "opening_skill", "per": 1.0},
-	"foresight": {"branch": "log", "tier": 2, "name": "Foresight",
-		"text": "one card of each draft, shown a wave early", "cost": 100,
-		"ranks": 1, "field": "foresight", "per": 1.0},
+	## QUARTERMASTER AND FORESIGHT ARE NOT HERE, and the design lists both.
+	##
+	## Quartermaster — "the opening draft always holds a new skill" — is a no-op
+	## against the draft as built: below four skills `open_draft` offers ONLY
+	## weapons, so the guarantee already holds and buying it would change nothing.
+	## Foresight — "one card of each draft, shown a wave early" — needs the next
+	## draft pre-rolled without disturbing the seeded stream, which is real work
+	## and not started.
+	##
+	## Shipping either as a table entry with no reader is the exact trap that put
+	## thirteen inert fields in the previous commit. `shop · every talent field is
+	## read by something` now fails the build if one comes back unwired.
+	"watch_bill": {"branch": "log", "tier": 1, "name": "Watch Bill",
+		"text": "the lane readout counts who is still coming", "cost": 60,
+		"ranks": 1, "field": "show_queue", "per": 1.0},
 	"fourth_card": {"branch": "log", "tier": 2, "name": "Fourth Card",
 		"text": "the opening draft offers four", "cost": 160, "ranks": 1,
 		"field": "fourth_card", "per": 1.0},
