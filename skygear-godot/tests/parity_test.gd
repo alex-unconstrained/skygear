@@ -347,6 +347,75 @@ func _lanes() -> void:
 	## enough to get in the way, so a boarder that had to walk the last stretch
 	## sometimes never arrived — and this check is about whether it ATTACKS the
 	## gun, not about whether it can path to it.
+	## --- KNOCKBACK ------------------------------------------------------------
+	##
+	## Two separate reports, one root. Boarders were "suddenly thrown right next
+	## to the boiler", and the long-intended "knock them off the ship" had never
+	## once happened.
+	##
+	## THE CAP. `knock_velocity` accumulated with no bound against a decay of only
+	## 1050 a second, so anything hitting more than once before that ran out —
+	## a beam, an aura tick, a chain touching four — stacked shove on shove.
+	## Twelve hits at once is not a contrived number for a chain into a cluster.
+	var mule: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			mule = e
+			break
+	_check("knockback", "there is a boarder to shove", mule != null)
+	if mule != null:
+		mule.knock_velocity = Vector2.ZERO
+		for _hit in 12:
+			mule.take_damage(0.5, mule.global_position + Vector2(0, 90.0), "", 260.0)
+		_check("knockback", "a shove is capped however many things land at once",
+			mule.knock_velocity.length() <= SkyGearEnemy.KNOCK_MAX + 0.5,
+			"twelve hits stacked to %.0f against a cap of %.0f"
+				% [mule.knock_velocity.length(), SkyGearEnemy.KNOCK_MAX])
+		## And the cap has to mean something in DISTANCE, which is the thing that
+		## was actually wrong. Free travel is v^2/2a — the number a player feels.
+		var carry: float = pow(SkyGearEnemy.KNOCK_MAX, 2.0) / (2.0 * 1050.0)
+		_check("knockback", "and carries a fraction of the deck, not all of it",
+			carry < SkyGearGame.DECK_RECT.size.y * 0.25,
+			"%.0f units against a %.0f deck" % [carry, SkyGearGame.DECK_RECT.size.y])
+
+	## OVER THE SIDE. An outer-lane boarder shoved hard at the rail leaves.
+	game.spawn_enemy("SCRAPPER", 2)
+	var rail: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead and e.lane == 2:
+			rail = e
+	_check("knockback", "there is an outer-lane boarder to push", rail != null)
+	if rail != null:
+		rail.global_position = Vector2(700.0, 0.0)
+		rail.stun_time = 0.0
+		## Shoved outward from inboard, which is the direction a captain standing
+		## between the lane and the Boiler actually pushes.
+		rail.take_damage(0.5, Vector2(300.0, 0.0), "", 900.0)
+		_advance(game, 1.2)
+		_check("knockback", "a hard shove at the rail puts a boarder over the side",
+			rail == null or not is_instance_valid(rail) or rail.dead or rail.overboard,
+			"still aboard at x=%.0f" % (rail.global_position.x
+				if is_instance_valid(rail) else 0.0))
+
+	## AND NOT BY ACCIDENT. The same boarder, the same place, an ordinary hit.
+	## Without this the check above passes just as well with the rail removed
+	## altogether, which is the failure this whole suite keeps having.
+	game.spawn_enemy("SCRAPPER", 2)
+	var safe: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead and e.lane == 2:
+			safe = e
+	if safe != null:
+		safe.global_position = Vector2(700.0, 0.0)
+		safe.take_damage(0.5, Vector2(300.0, 0.0), "", 150.0)
+		_advance(game, 1.2)
+		_check("knockback", "and an ordinary hit leaves them on the deck",
+			is_instance_valid(safe) and not safe.dead and not safe.overboard,
+			"a 150 shove threw them off, which makes the rail a hazard "
+			+ "rather than a finisher")
+		if is_instance_valid(safe):
+			safe.kill()
+
 	var gate: Dictionary = game.turrets[1]
 	var gate_hp: float = gate.hp
 	target.global_position = Vector2(gate.position) + Vector2(0, -44)

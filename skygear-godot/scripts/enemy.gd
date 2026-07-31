@@ -16,7 +16,31 @@ var state := "climb"
 var state_time := 0.8
 var attack_direction := Vector2.DOWN
 var dead := false
+## HOW HARD A SHOVE CAN EVER BE.
+##
+## `knock_velocity` ACCUMULATED with nothing bounding it, and decays at only
+## 1050 a second — so any skill that hits more than once before that decay runs
+## out stacks shove on top of shove. A beam, an aura ticking, a chain touching
+## four boarders: each tick added its full `knock / mass` again. Reported as
+## boarders "suddenly thrown right next to the boiler", and the arithmetic
+## agrees — at 3000 a second the travel before it decays is about 4,300 units
+## down a deck that is 2,320 long.
+##
+## Capped, a full shove carries about 386 units. That is a real displacement you
+## can feel and use, and it is a sixth of the deck rather than all of it.
+const KNOCK_MAX := 900.0
+
+## And how hard it has to be to put someone over the rail. Well above a single
+## hit from anything — going overboard should be something you SET UP, with a
+## heavy shape or a stacked pair, not a thing that happens by accident to
+## whoever is standing nearest the edge.
+const OVERBOARD_SPEED := 520.0
+
 var knock_velocity := Vector2.ZERO
+## Past the rail and no longer the lane's problem. Kept as state rather than
+## resolved on the spot because the clamp has to STOP running for them, and a
+## boarder mid-fall is briefly outside every rule the deck has.
+var overboard := false
 var slow_time := 0.0
 var slow_amount := 0.0
 var stun_time := 0.0
@@ -90,7 +114,10 @@ func _physics_process(delta: float) -> void:
 		velocity = knock_velocity
 		knock_velocity = knock_velocity.move_toward(Vector2.ZERO, 900.0 * delta)
 		move_and_slide()
-		global_position = game.correct_enemy_position(global_position, lane, radius)
+		if _went_over():
+			return
+		global_position = game.correct_enemy_position(global_position, lane, radius,
+			knock_velocity.length() > OVERBOARD_SPEED)
 		return
 
 	## What this boarder is walking at, in priority order:
@@ -168,8 +195,35 @@ func _physics_process(delta: float) -> void:
 	velocity += knock_velocity
 	knock_velocity = knock_velocity.move_toward(Vector2.ZERO, 1050.0 * delta)
 	move_and_slide()
-	global_position = game.correct_enemy_position(global_position, lane, radius)
+	if _went_over():
+		return
+	## The lane clamp is RELAXED while a real shove is on them, and that single
+	## argument is the whole reason knocking someone off the ship was impossible
+	## before. Every frame ended by pinning each boarder back inside a band 190
+	## units either side of its lane centre — the outer bands stop at 750 and the
+	## rail is at 840, so the ninety units where you would go over the side were
+	## unreachable by construction, however hard you hit.
+	global_position = game.correct_enemy_position(global_position, lane, radius,
+		knock_velocity.length() > OVERBOARD_SPEED)
 	queue_redraw()
+
+## Are they past the rail? Called after the move and before the clamp, because
+## the clamp is what would put them back.
+##
+## Only the SIDES count. The bow and the stern are where boarders arrive and
+## where the Boiler stands, and a shove that deleted a boarder by pushing it off
+## the front would make the safest thing you can do to a boarding party be to
+## hit it back the way it came.
+func _went_over() -> bool:
+	if overboard or dead:
+		return false
+	var deck: Rect2 = SkyGearGame.DECK_RECT
+	if global_position.x > deck.position.x and global_position.x < deck.end.x:
+		return false
+	overboard = true
+	game.on_enemy_overboard(self)
+	return true
+
 
 func take_damage(amount: float, origin: Vector2, element: String, knock: float) -> float:
 	# The Colossus cannot be burst through its turn. The second beat is the
@@ -183,7 +237,7 @@ func take_damage(amount: float, origin: Vector2, element: String, knock: float) 
 	var away := (global_position - origin).normalized()
 	if away.length_squared() == 0.0:
 		away = Vector2.UP
-	knock_velocity += away * knock / mass
+	knock_velocity = (knock_velocity + away * knock / mass).limit_length(KNOCK_MAX)
 	_apply_element(element)
 	if hp <= 0.0:
 		dead = true

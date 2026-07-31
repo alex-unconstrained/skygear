@@ -1842,6 +1842,23 @@ func event_pressure_bonus() -> float:
 	return float(event_data().get("pressure_bonus", 0.0))
 
 
+## OVER THE SIDE.
+##
+## The intent from the start and it has never once happened, because the deck
+## clamp ran every frame and put everybody back. Now that a hard enough shove can
+## carry a boarder past the rail, this is what it is worth.
+##
+## It routes through the ordinary kill so every downstream thing — the gauge, the
+## close-kill dash refund, salvage, the wave counter — behaves exactly as it does
+## for a boarder killed with a sword. An enemy that leaves the deck is dealt
+## with; making it a second kind of death would mean auditing every one of those
+## for a case that differs only in the cue.
+func on_enemy_overboard(enemy: SkyGearEnemy) -> void:
+	add_floater("OVERBOARD", enemy.global_position, Color("#8fd6ff"), true)
+	play_sfx("world/wave_clear.ogg", -12.0)
+	enemy.kill()
+
+
 func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 	var close_kill := enemy.global_position.distance_to(player.global_position) <= float(SkyGearData.CLOSE.range)
 	if close_kill:
@@ -2693,9 +2710,21 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 ## making a stand rather than reading lanes.
 const MERGE_FROM := 380.0
 
-func correct_enemy_position(position: Vector2, lane: int, radius: float) -> Vector2:
+## `shoved` relaxes the lane band to the whole deck for exactly as long as a real
+## knockback is carrying someone. Without it a boarder can never reach the rail —
+## the band stops 90 units short of it — and "knock them off the ship" was
+## unreachable no matter how hard you hit, which is what was reported.
+##
+## Only the BAND is relaxed. The deck bounds below still hold, so a shoved
+## boarder walks to the edge and is caught there rather than sliding into the
+## void; going over is decided by `_went_over`, before this ever runs.
+func correct_enemy_position(position: Vector2, lane: int, radius: float,
+		shoved: bool = false) -> Vector2:
 	var centre: float = LANE_CENTERS[lane]
 	var half := 190.0
+	if shoved:
+		centre = DECK_RECT.get_center().x
+		half = DECK_RECT.size.x * 0.5
 	## How far into the merge this boarder is. 0 on the approach, 1 at the stern.
 	## Normalised against the BOILER, not the deck edge. Against the edge the
 	## merge is only 60% complete where the Boiler actually stands, which still
