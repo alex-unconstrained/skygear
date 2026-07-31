@@ -36,9 +36,11 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
 
   W A S D   move
   mouse     aim
-  LMB RMB   skills 1 and 2
+  LMB RMB   skills 1 and 2 (actives take these first)
   Q E       skills 3 and 4
   Space     dash (two charges)
+  F         work the deck — repair a dead cannon you are standing at
+  wheel     zoom
   1 2 3     pick a draft card
   R         reroll the draft
   Esc / P   pause
@@ -46,10 +48,13 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
 Keep the Boiler alive through twelve boarding waves. Every skill is a shape
 crossed with an element, and the draft after each wave rewrites them.
 
-This is the Godot port and it is an early build: the deck, the close-quarters
-pressure loop, the reactive ordnance and the full draft are in; deck cannons,
-crew, boarding hulks and the boss's second beat are not yet. The browser version
-at https://alex-unconstrained.github.io/skygear/ is the complete game.
+Two captains. The CAPTAIN dashes twice and fights at range. The BOILERWRIGHT
+has no dash at all — she banks Head from the Boiler itself and spends it on
+jets, blowdowns and taps, and the pressure she is carrying is the resource the
+whole class turns on. They do not play alike; the class screen says how.
+
+Every fourth wave is not a wave. The browser version at
+https://alex-unconstrained.github.io/skygear/ is the original.
 """
 
 
