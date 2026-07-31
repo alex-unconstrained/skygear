@@ -35,6 +35,8 @@ const SCREENS := [
 	{"name": "title", "state": "TITLE"},
 	{"name": "title + controls", "state": "TITLE", "keys": true},
 	{"name": "settings", "state": "TITLE", "settings": true},
+	{"name": "how to play", "state": "TITLE", "how": true},
+	{"name": "how to play mid-run", "state": "PAUSE", "skills": 4, "how": true},
 	{"name": "draft (weapons)", "state": "DRAFT", "skills": 0},
 	{"name": "draft (upgrades)", "state": "DRAFT", "skills": 4},
 	{"name": "playing", "state": "PLAY", "skills": 4},
@@ -173,6 +175,7 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 	hud.size = size
 	game.settings_open = false
 	game.keys_open = false
+	game.how_open = false
 	game.go_to_title()
 	game.set_seed_text("AUDIT")
 
@@ -204,4 +207,5 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 			game._set_state(SkyGearGame.State.VICTORY)
 	game.keys_open = bool(screen.get("keys", false))
 	game.settings_open = bool(screen.get("settings", false))
+	game.how_open = bool(screen.get("how", false))
 	await process_frame

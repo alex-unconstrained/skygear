@@ -134,6 +134,7 @@ var _layout_from := Vector2.ZERO
 
 var keys_open := false
 var settings_open := false
+var how_open := false
 ## The named event running this wave, or "". Every fourth wave has one.
 var active_event := ""
 var event_banner_left := 0.0
@@ -214,8 +215,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	## A menu that is open owns the pointer and the arrow keys. Checked before
 	## the game's own bindings, or Space dashes while you are choosing a button.
-	## Settings owns everything while it is up, including over a paused game.
-	if settings_open:
+	## How-to-play and settings each own everything while up, including over a
+	## paused game.
+	if how_open:
+		if hud.ui.handle(event):
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed 				and event.keycode in [KEY_ESCAPE, KEY_F1]:
+			how_open = false
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+	elif settings_open:
 		if hud.ui.handle(event):
 			hud.queue_redraw()
 			get_viewport().set_input_as_handled()
@@ -238,6 +250,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	## way out is a game people force-quit, and the choice is remembered.
 	if event.keycode == KEY_F11:
 		toggle_fullscreen()
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_F1:
+		how_open = not how_open
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
@@ -596,6 +613,7 @@ func _random_seed_text() -> String:
 func begin_run() -> void:
 	settings_open = false
 	keys_open = false
+	how_open = false
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	for prop in get_tree().get_nodes_in_group("props"):

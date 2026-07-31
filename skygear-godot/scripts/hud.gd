@@ -30,6 +30,10 @@ func _draw() -> void:
 		return
 	_in_frame = false
 	_banner_claim = false
+	if game.how_open:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+		_draw_how()
+		return
 	if game.settings_open:
 		match game.state_name:
 			"TITLE":
@@ -89,13 +93,15 @@ func _draw_title() -> void:
 	if ui.button(Rect2(tx, ty, tw, 44.0), "BEGIN RUN",
 			{"primary": true, "hint": "Enter"}):
 		game.begin_run()
-	if ui.button(Rect2(tx, ty + 52.0, tw, 38.0), "SETTINGS", {"hint": "F5"}):
+	if ui.button(Rect2(tx, ty + 52.0, tw, 38.0), "HOW TO PLAY", {"hint": "F1"}):
+		game.how_open = true
+	if ui.button(Rect2(tx, ty + 96.0, tw, 38.0), "SETTINGS", {"hint": "F5"}):
 		game.settings_open = true
-	if ui.button(Rect2(tx, ty + 96.0, tw, 38.0), "CONTROLS", {"hint": "F2"}):
+	if ui.button(Rect2(tx, ty + 140.0, tw, 38.0), "CONTROLS", {"hint": "F2"}):
 		game.keys_open = true
-	if ui.button(Rect2(tx, ty + 140.0, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
+	if ui.button(Rect2(tx, ty + 184.0, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
 		game.quit_game()
-	ty += 216.0
+	ty += 260.0
 	## What the machine remembers. A title screen with a best-wave on it is the
 	## cheapest possible reason to press Enter again.
 	var history: Dictionary = SkyGearRunLog.summary()
@@ -1371,8 +1377,8 @@ func _draw_pause() -> void:
 	var by := sheet.position.y + 82.0
 	if ui.button(Rect2(bx, by, bw, 40.0), "RESUME", {"primary": true, "hint": "Esc"}):
 		game.toggle_pause()
-	if ui.button(Rect2(bx, by + 46.0, bw, 40.0), "CONTROLS", {"hint": "F2"}):
-		game.keys_open = true
+	if ui.button(Rect2(bx, by + 46.0, bw, 40.0), "HOW TO PLAY", {"hint": "F1"}):
+		game.how_open = true
 	if ui.button(Rect2(bx, by + 92.0, bw, 40.0), "RESTART RUN"):
 		game.restart_run()
 	if ui.button(Rect2(bx, by + 138.0, bw, 40.0), "QUIT TO TITLE"):
@@ -1420,6 +1426,114 @@ func _draw_pause() -> void:
 ## channels rather than one, because the report that started this was "SFX with
 ## character audio weren't really easy to hear against the other sounds", and a
 ## single master slider cannot answer that.
+## HOW TO PLAY. The title screen said "keep the Boiler alive through twelve
+## boarding waves" and listed the keys, which tells you the controls and none of
+## the game — and this game has exactly one idea that is not obvious from the
+## controls: the gauge fills from fighting CLOSE, so the safe thing to do is the
+## losing thing to do. A player who does not know that kites, runs out of heals
+## and concludes the game is unfair.
+##
+## Numbers, not adjectives. "Fills faster when you fight close" is a sentence a
+## player can nod at and not act on; "inside 210 units" is a distance they can
+## learn. Read from the same tables the simulation reads, so this page cannot
+## drift away from the game.
+func _draw_how() -> void:
+	_in_frame = false
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.93))
+	var close: Dictionary = SkyGearData.CLOSE
+	var lines: Array = [
+		["THE ONE THING", ""],
+		["", "Your gauge fills from damage you land within %d units and from being crowded — and empties when you are not. It is not a reward for surviving, it is a reward for being in reach." % int(close.range)],
+		["", "At full it VENTS by itself: %d damage in a %d radius and %d health back. Kiting is the losing line; the ship heals you for standing in it." % [int(close.vent_damage), int(close.vent_radius), int(close.vent_heal)]],
+		["WHAT YOU LOSE BY", ""],
+		["", "The Boiler, not you. It sits at the stern and boarders walk to it. You have %d health and it has %d; dying costs you the run, but so does letting three lanes through while you are alive and well." % [int(SkyGearPlayer.MAX_HP), 500]],
+		["THE DECK FIGHTS", ""],
+		["", "Three lanes, each with a cannon and crew. They hold, they do not kill — treat them as time, not as damage. Kegs and lanterns explode when hit and count as yours."],
+		["YOUR HAND", ""],
+		["", "Four slots. Every weapon is a SHAPE crossed with an ELEMENT, so a Cone of Frost and a Cone of Ember are the same swing and different fights. Cards upgrade a slot, an element, you, the ship or the deck — the band across the top of a card says which."],
+		["EVERY FOURTH WAVE", ""],
+		["", "Waves 4, 8 and 12 are named events, announced before they start. They change what the wave asks of you, and two of the three pay you for engaging."],
+	]
+
+	## Sized to the copy. The width is fixed, so the interior width is known
+	## before the plate exists — 860 less a 54px rail each side — and the height
+	## follows from how many lines that width produces. A plate with a third of
+	## itself empty reads as a screen that failed to load something.
+	const PAGE_W := 860.0
+	var text_w: float = PAGE_W - 2.0 * (rail(Rect2(0, 0, PAGE_W, 600.0)) + RAIL_BREATH)
+	var wanted := 0.0
+	for row in lines:
+		if str(row[0]) != "":
+			wanted += 30.0
+		else:
+			wanted += _wrapped_lines(str(row[1]), text_w, 16) * 21.0 + 8.0
+	var page_h: float = minf(size.y - 112.0, wanted + 108.0 + 52.0 + 74.0)
+	## Slightly above centre. Dead centre puts a page of text lower than the eye
+	## expects to find it.
+	var page := Rect2(size.x * 0.5 - PAGE_W * 0.5,
+		maxf(56.0, (size.y - page_h) * 0.42), PAGE_W, page_h)
+	_sheet(page)
+	_banner(size.x * 0.5, page.position.y - 10.0, 460.0)
+	_center_text("HOW TO PLAY", page.position.y + 48.0, 36, BRASS_LIT)
+	var room := interior(page)
+	var top: float = room.position.y + 74.0
+	var space: float = room.end.y - top - 52.0   ## less the BACK button
+
+	## MEASURE, then draw. At 720p the page is 570 tall and this copy wants more,
+	## so the last section used to be written across the bottom rail — which is
+	## precisely the bug `tools/text_audit.gd` exists to catch, and it caught this
+	## one. The text yields rather than the page overflowing.
+	var pt := 16
+	var line_h := 21.0
+	while pt > 11:
+		var total := 0.0
+		for row in lines:
+			if str(row[0]) != "":
+				total += 30.0
+				continue
+			total += _wrapped_lines(str(row[1]), room.size.x, pt) * line_h + 8.0
+		if total <= space:
+			break
+		pt -= 1
+		line_h = float(pt) + 5.0
+
+	var y: float = top
+	for row in lines:
+		var heading := str(row[0])
+		var body := str(row[1])
+		if heading != "":
+			y += 10.0
+			_label(heading, Vector2(room.position.x, y), room.size.x,
+				HORIZONTAL_ALIGNMENT_LEFT, maxi(11, pt - 3), Color("#37f0c8"))
+			y += 20.0
+			continue
+		var wrapped: int = _wrapped_lines(body, room.size.x, pt)
+		_says(body, Vector2(room.position.x, y), room.size.x,
+			HORIZONTAL_ALIGNMENT_LEFT, pt, 5, Color("#e6ddd0"))
+		y += wrapped * line_h + 8.0
+
+	ui.begin("how", self, font, get_local_mouse_position())
+	if ui.button(Rect2(size.x * 0.5 - 110.0, room.end.y - 40.0, 220.0, 38.0),
+			"BACK", {"primary": true, "hint": "Esc"}):
+		game.how_open = false
+
+
+## How many lines this string takes at this width. Same wrap the renderer does,
+## because a page that guesses its own height overlaps itself.
+func _wrapped_lines(text: String, width: float, pt: int) -> int:
+	var count := 1
+	var run := ""
+	for word in text.split(" "):
+		var trial: String = word if run == "" else run + " " + word
+		if font.get_string_size(trial, HORIZONTAL_ALIGNMENT_LEFT, -1, pt).x > width \
+				and run != "":
+			run = word
+			count += 1
+		else:
+			run = trial
+	return count
+
+
 func _draw_settings() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))

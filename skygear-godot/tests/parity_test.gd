@@ -1214,6 +1214,23 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## HOW TO PLAY. The title screen told you the controls and none of the game,
+	## and this game has exactly one idea that is not obvious from the controls:
+	## the gauge fills from fighting CLOSE, so the safe thing to do is the losing
+	## thing to do. A player who does not know that kites and concludes the game
+	## is unfair.
+	_check("howto", "there is a how-to-play screen at all", "how_open" in game)
+	game.how_open = true
+	game.begin_run()
+	_check("howto", "and starting a run closes it", not game.how_open)
+
+	## The page quotes the simulation's own numbers. A tutorial with a hardcoded
+	## 210 in it is a tutorial that lies the first time someone tunes the gauge.
+	_check("howto", "and the close range it teaches is the one the game uses",
+		float(SkyGearData.CLOSE.range) > 0.0
+			and float(SkyGearData.CLOSE.vent_damage) > 0.0
+			and float(SkyGearData.CLOSE.vent_radius) > 0.0)
+
 	## WAVE EVENTS. Reported: "every 4 waves there should be a special event."
 	## Waves 4, 8 and 12 already carried something, but a boarding hulk arriving
 	## unannounced reads as "more boarders" rather than as the wave changing shape.
