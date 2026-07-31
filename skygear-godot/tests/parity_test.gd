@@ -104,6 +104,8 @@ func _run() -> void:
 	## than a harness that fails.
 	await _view()
 	await process_frame
+	await _cutscene()
+	await process_frame
 	_persistence()
 	await process_frame
 	_layout()
@@ -3826,3 +3828,243 @@ func _ink() -> void:
 		lit == [1] and SkyGearCards.element_of(brittle) == "FROST",
 		"lit %s" % str(lit))
 	card_game.queue_free()
+
+
+## CUTSCENES. Four things are being pinned here, and the third matters most.
+##
+## 1. The saved format loads and interpolates to the keyframes it was authored
+##    with, or a shot verified in the lab is not the shot the game plays.
+## 2. Every cue the table names is really CALLED somewhere in the shipped code.
+##    This is the direct guard against failure mode one — a saved file whose
+##    trigger point does not exist reads as a wired cutscene and is inert. The
+##    check reads the source rather than trusting the comment beside it.
+## 3. **THE GAMEPLAY CAMERA COMES BACK EXACTLY.** Three systems are calibrated
+##    against the shipped projection: every telegraph's size on the deck, every
+##    billboard's height, and every sprite in `assets/`, which was PAINTED for
+##    it. A cutscene that hands back a camera a fraction off leaves the rest of
+##    the run subtly wrong with nothing on screen to say so. This snapshots the
+##    full transform and the lens, runs a shot that moves the camera most of the
+##    way across the deck and changes the field of view, and demands both back.
+## 4. And that the shot really did move, so (3) cannot pass by doing nothing.
+func _cutscene() -> void:
+	var ids := SkyGearCutscene.list_ids()
+	_check("cutscene", "there is at least one saved shot on disk",
+		not ids.is_empty(), ", ".join(ids))
+
+	## The index and the directory have to agree, because `list_ids` unions them
+	## and an exported build may only be able to see one — a shot that plays in
+	## the lab and not in the build is the worst of the available failures.
+	var on_disk: Array[String] = []
+	for file in DirAccess.get_files_at(SkyGearCutscene.DIR):
+		if str(file).ends_with(".json") and str(file) != "index.json":
+			on_disk.append(str(file).substr(0, str(file).length() - 5))
+	on_disk.sort()
+	var indexed: Array[String] = []
+	var index = JSON.parse_string(FileAccess.get_file_as_string(SkyGearCutscene.INDEX))
+	if index is Dictionary:
+		for id in (index as Dictionary).get("cutscenes", []):
+			indexed.append(str(id))
+	indexed.sort()
+	_check("cutscene", "the index names exactly the files beside it",
+		indexed == on_disk, "index %s vs disk %s" % [str(indexed), str(on_disk)])
+
+	## EVERY CUE HAS A CALL SITE, read out of the source so the table cannot
+	## drift into fiction the way five previous saved formats did.
+	var uncalled: Array[String] = []
+	var source := ""
+	for file in DirAccess.get_files_at("res://scripts"):
+		if str(file).ends_with(".gd"):
+			source += FileAccess.get_file_as_string("res://scripts/%s" % str(file))
+	for name in SkyGearCutscene.CUES:
+		if not source.contains("cue(\"%s\"" % str(name)):
+			uncalled.append(str(name))
+	_check("cutscene", "every cue the table names is actually called in scripts/",
+		uncalled.is_empty(), "never fired: %s" % ", ".join(uncalled))
+
+	## And the other direction: a saved shot whose cue nothing knows about would
+	## never play, silently.
+	var orphans: Array[String] = []
+	for id in ids:
+		var loaded := SkyGearCutscene.load_scene(id)
+		if str(loaded.get("cue", "")) != "" and not SkyGearCutscene.CUES.has(str(loaded.cue)):
+			orphans.append("%s wants %s" % [id, str(loaded.cue)])
+	_check("cutscene", "and no saved shot names a cue that does not exist",
+		orphans.is_empty(), ", ".join(orphans))
+
+	## The wave-12 arrival, the one trigger wired end to end.
+	var wired := SkyGearCutscene.for_cue("boss_arrival")
+	_check("cutscene", "the Colossus arriving resolves to a real shot",
+		wired != "", wired if wired != "" else "nothing is wired to boss_arrival")
+
+	var shot := SkyGearCutscene.load_scene(wired)
+	var shot_keys: Array = shot.get("keys", [])
+	_check("cutscene", "and it is a movement rather than a pose",
+		shot_keys.size() >= 3 and SkyGearCutscene.length(shot) > 1.0,
+		"%d keys over %.2f s" % [shot_keys.size(), SkyGearCutscene.length(shot)])
+
+	## INTERPOLATION HITS ITS KEYFRAMES. A curve that is merely close at the keys
+	## is a curve that does not show you what you authored.
+	var missed := ""
+	for entry in shot_keys:
+		var key: Dictionary = entry
+		if str(key.get("from", "")) == "gameplay":
+			continue                        # resolved at play time, not authored
+		var at := SkyGearCutscene.sample(shot, float(key.t))
+		if (at.eye as Vector3).distance_to(SkyGearCutscene.to_vector(key.eye)) > 0.01 \
+				or (at.look as Vector3).distance_to(SkyGearCutscene.to_vector(key.look)) > 0.01 \
+				or absf(float(at.fov) - float(key.fov)) > 0.001:
+			missed += " t=%.2f" % float(key.t)
+	_check("cutscene", "sampling at a keyframe's own time returns that keyframe",
+		missed == "", missed)
+
+	## And it EASES rather than sliding. A camera that lerps linearly reads as a
+	## machine on a rail — full speed from the first frame, stopped dead on the
+	## last — which is the clearest tell there is of an unauthored shot. Each
+	## curve is pinned by shape rather than by value, so the names cannot swap.
+	_check("cutscene", "inout leaves and arrives slowly, linear does not",
+		SkyGearCutscene.ease_at("inout", 0.25) < 0.20
+			and SkyGearCutscene.ease_at("inout", 0.75) > 0.80
+			and is_equal_approx(SkyGearCutscene.ease_at("linear", 0.25), 0.25),
+		"inout(0.25) = %.3f" % SkyGearCutscene.ease_at("inout", 0.25))
+	_check("cutscene", "in accelerates, out decelerates, hold is a cut",
+		SkyGearCutscene.ease_at("in", 0.5) < 0.5
+			and SkyGearCutscene.ease_at("out", 0.5) > 0.5
+			and SkyGearCutscene.ease_at("hold", 0.99) == 0.0
+			and SkyGearCutscene.ease_at("hold", 1.0) == 1.0)
+	## Every curve must start at 0 and end at 1, or a segment jumps at its own
+	## keyframe and the shot ticks.
+	var bad_ends := ""
+	for kind in SkyGearCutscene.EASES:
+		if not is_equal_approx(SkyGearCutscene.ease_at(str(kind), 0.0), 0.0) \
+				or not is_equal_approx(SkyGearCutscene.ease_at(str(kind), 1.0), 1.0):
+			bad_ends += " " + str(kind)
+	_check("cutscene", "and every curve lands on both of its keyframes",
+		bad_ends == "", bad_ends)
+
+	## A PINNED KEY IS THE SHIPPED CAMERA. This is what lets a shot hand back
+	## without a cut, and the numbers come out of the renderer's own solve.
+	var focus := Vector2(-120.0, 480.0)
+	var bound := SkyGearCutscene.bind(shot, focus)
+	var bound_keys: Array = bound.keys
+	var last: Dictionary = bound_keys[bound_keys.size() - 1]
+	_check("cutscene", "a key pinned to the gameplay camera resolves to the shipped solve",
+		SkyGearCutscene.to_vector(last.eye).distance_to(
+			SkyGearCutscene.shipped_eye(focus)) < 0.01
+		and absf(float(last.fov) - SkyGearCutscene.shipped_fov()) < 0.01,
+		"eye %s" % str(SkyGearCutscene.to_vector(last.eye)))
+	_check("cutscene", "and the file still says pinned, so it re-resolves next run",
+		str((shot_keys[shot_keys.size() - 1] as Dictionary).get("from", "")) == "gameplay")
+
+	## Now the real renderer.
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	if game.impact != null:
+		game.impact.enabled = false
+	game.workshop = SkyGearWorkshop.fresh(true)
+	_begin(game)
+	game.player.global_position = Vector2(0, 200)
+	## The sway is deliberately never still, so it cannot also be the thing a
+	## framing check measures against — `_view` turns it off for the same reason.
+	view.sway = false
+	## SETTLED HARD, and this is not padding. `_build_world` already ran
+	## `_track_camera` once against the captain's default position, so the follow
+	## point starts 500 units out and eases in at `CAM_TAU`. Two frames leave a
+	## residual of about a sixth of a ground unit still decaying, and the restore
+	## check below then reads that decay as cutscene damage — which it did, at
+	## 0.166 units, on the first run of this pass. Six long frames put the residual
+	## under a millionth.
+	for _i in 6:
+		view._process(1.0)
+
+	var before: Transform3D = view.camera.global_transform
+	var before_fov: float = view.camera.fov
+	var before_near: float = view.camera.near
+	var before_hud: bool = game.hud.visible
+	var before_controls: bool = game.player.controls_enabled
+	var before_focus: Vector2 = view._focus
+	var before_zoom: float = view.zoom_amount()
+
+	_check("cutscene", "a shot can be played on the real renderer",
+		view.play_cutscene(wired) and view.cutscene_active())
+
+	## It has to MOVE, or the restore check below is satisfied by a cutscene that
+	## did nothing at all. Half a second in, this one is down at the bow.
+	view._process(0.5)
+	var travelled: float = view.camera.global_position.distance_to(before.origin) \
+		/ SkyGearView3D.WORLD_SCALE
+	_check("cutscene", "and it takes the camera somewhere else entirely",
+		travelled > 400.0, "%.0f ground units away" % travelled)
+	_check("cutscene", "and the captain is locked and the HUD is down while it runs",
+		not game.player.controls_enabled and not game.hud.visible)
+
+	## Run it out. Twelve half-seconds is well past its four, and a shot that
+	## will not end on its own is its own failure.
+	for _i in 12:
+		view._process(0.5)
+	_check("cutscene", "it ends on its own rather than holding the camera",
+		not view.cutscene_active())
+
+	## One clean frame with nothing overriding — which is exactly what the frame
+	## after a cutscene is.
+	view._process(0.1)
+	var after: Transform3D = view.camera.global_transform
+	var drift: float = after.origin.distance_to(before.origin) / SkyGearView3D.WORLD_SCALE
+	var turned: float = rad_to_deg(after.basis.get_rotation_quaternion().angle_to(
+		before.basis.get_rotation_quaternion()))
+	_check("cutscene", "THE GAMEPLAY CAMERA COMES BACK EXACTLY",
+		drift < 0.01 and turned < 0.01,
+		"%.5f ground units and %.5f degrees off" % [drift, turned])
+	_check("cutscene", "and so does the lens the whole game is calibrated to",
+		absf(view.camera.fov - before_fov) < 0.0001
+			and absf(view.camera.near - before_near) < 0.0001,
+		"%.4f deg vs %.4f" % [view.camera.fov, before_fov])
+	_check("cutscene", "and the HUD, the controls, the follow point and the zoom",
+		game.hud.visible == before_hud
+			and game.player.controls_enabled == before_controls
+			and view._focus.is_equal_approx(before_focus)
+			and is_equal_approx(view.zoom_amount(), before_zoom),
+		"hud %s  controls %s  focus %s" % [str(game.hud.visible),
+			str(game.player.controls_enabled), str(view._focus)])
+
+	## AND THE SAME AGAIN WITH A LENS THAT DOES NOT COME BACK BY ITSELF.
+	##
+	## Found by deliberately breaking `stop()` and watching which checks noticed:
+	## the two above did not. The Colossus shot ends on a key pinned to the
+	## gameplay camera, so its last field of view IS the shipped one and "the lens
+	## came back" was true whether anything restored it or not — a check that
+	## cannot fail is not evidence, which is this project's third named failure
+	## mode. This shot ends at seventy degrees, nine metres up and off to one side,
+	## and it is what makes the claim mean something.
+	var alien := SkyGearCutscene.normalise({"keys": [
+		{"t": 0.0, "eye": [0.0, 900.0, -900.0], "look": [0.0, 0.0, 0.0], "fov": 70.0},
+		{"t": 0.4, "eye": [700.0, 900.0, -900.0], "look": [0.0, 0.0, 0.0], "fov": 70.0}]})
+	_check("cutscene", "a shot may break the shipped solve entirely",
+		bool(view._cutscene.begin(alien)))
+	view._process(0.2)
+	_check("cutscene", "and it really is a different lens while it runs",
+		absf(view.camera.fov - 70.0) < 0.001, "%.2f deg" % view.camera.fov)
+	for _i in 4:
+		view._process(0.5)
+	view._process(0.1)
+	_check("cutscene", "and the shipped lens is put back when it ends",
+		absf(view.camera.fov - before_fov) < 0.0001,
+		"%.4f deg, wanted %.4f" % [view.camera.fov, before_fov])
+	var alien_drift: float = view.camera.global_position.distance_to(before.origin) \
+		/ SkyGearView3D.WORLD_SCALE
+	_check("cutscene", "and the camera with it", alien_drift < 0.01,
+		"%.5f ground units off" % alien_drift)
+
+	## A malformed file must never be able to take the camera away from the
+	## player. Each of these is a real shape a half-written file arrives in.
+	var refused := true
+	for broken in [{}, {"keys": []}, {"keys": [{"t": 0.0}]}]:
+		if bool(view._cutscene.begin(broken)):
+			refused = false
+	_check("cutscene", "a shot with no movement in it is refused rather than played",
+		refused and not view.cutscene_active())
+	_check("cutscene", "and an unknown cue plays nothing at all",
+		not view.cue("no_such_moment") and not view.play_cutscene("no_such_file"))
+
+	world.queue_free()

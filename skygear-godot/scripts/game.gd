@@ -1431,6 +1431,13 @@ func spawn_enemy(kind: String, lane: int) -> void:
 	enemy.global_position = Vector2(LANE_CENTERS[lane] + rng.randf_range(-58.0, 58.0), -1115.0)
 	enemy.configure(self, kind, lane, wave)
 	play_sfx("enemy/climb.ogg", -12.0)
+	## THE ONE MOMENT A CUTSCENE CANNOT READ OFF THE STATE. The other three cues
+	## are transitions the renderer already watches every frame; this is the frame
+	## the Colossus is instantiated, and only the spawn knows about it. The call
+	## does nothing at all unless a file in `assets/cutscenes/` claims the cue —
+	## see `SkyGearCutscene.CUES`.
+	if kind == "BOSS" and view != null:
+		view.cue("boss_arrival")
 	if voice != null:
 		if kind == "BOSS":
 			voice.say("boss_arrive", 3)

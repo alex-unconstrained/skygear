@@ -63,6 +63,10 @@ const TOOLS := [
 		"what": "just the captain and her weapon, six fixed poses",
 		"why": "narrower than `lab` and kept for that: six poses side by side rather than a timeline to scrub"},
 
+	{"id": "cutscene", "kind": "window", "script": "tools/cutscene_lab.gd",
+		"what": "author a camera move on the real deck: keyframes, easing, a timeline to scrub, and SAVE writes assets/cutscenes/<id>.json",
+		"why": "for framing a moment the fight cannot frame for itself — and the file is READ: a `cue` on the shot names one of four moments in the game, and the Colossus arriving at wave 12 already plays one"},
+
 	{"id": "captain", "kind": "make", "script": "tools/build_captain.gd",
 		"what": "rebuild the captain scene from the imported FBX",
 		"why": "after a new animation pack lands"},

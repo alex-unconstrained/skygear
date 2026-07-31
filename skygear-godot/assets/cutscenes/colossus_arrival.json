@@ -1,0 +1,49 @@
+{
+  "id": "colossus_arrival",
+  "name": "THE COLOSSUS",
+  "cue": "boss_arrival",
+  "wave": 0,
+  "hold": true,
+  "hide_hud": true,
+  "sway": true,
+  "letterbox": 0.12,
+  "caption": "THE COLOSSUS",
+  "keys": [
+    {
+      "t": 0.0,
+      "eye": [0.0, 230.0, -300.0],
+      "look": [0.0, 165.0, -1105.0],
+      "fov": 33.0,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 1.5,
+      "eye": [-520.0, 340.0, -380.0],
+      "look": [0.0, 165.0, -965.0],
+      "fov": 38.0,
+      "roll": 1.5,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 2.6,
+      "eye": [600.0, 620.0, -260.0],
+      "look": [0.0, 165.0, -880.0],
+      "fov": 36.0,
+      "roll": -1.5,
+      "ease": "in",
+      "from": ""
+    },
+    {
+      "t": 4.0,
+      "eye": [0.0, 760.0, 1480.0],
+      "look": [0.0, 0.0, 615.0],
+      "fov": 36.09,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": "gameplay"
+    }
+  ]
+}

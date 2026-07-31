@@ -251,6 +251,12 @@ func _ready() -> void:
 		if game.hud != null:
 			game.hud.view = self
 		game.view = self
+	## LAST, so it sits after the game scene in the tree — unhandled input is
+	## walked in reverse, and the skip has to reach the cutscene before the pause
+	## key reaches the game.
+	_cutscene = (load(CUTSCENE_PLAYER) as GDScript).new()
+	_cutscene.view = self
+	add_child(_cutscene)
 
 
 ## How far behind the captain the focus point sits, so she lands at STAND_FRAC.
@@ -2139,6 +2145,18 @@ func _process(delta: float) -> void:
 	_flicker += delta
 	_aim_from_cursor()
 	_track_camera(delta)
+	## AFTER the solve, never instead of it. `_track_camera` writes the gameplay
+	## transform every frame from state a cutscene is forbidden to touch, so a
+	## cutscene overwriting its RESULT here means "stop overwriting" is a complete
+	## restore — see the header of `scripts/cutscene_player.gd`.
+	_watch_cues()
+	if _cutscene != null:
+		## This frame's ship motion, in degrees, handed over rather than looked up:
+		## `SWAY_ROLL` and `SWAY_YAW` live here and a cutscene that recomputed them
+		## would be a second copy of a number `_track_camera` already owns.
+		_cutscene.sway_roll = SWAY_ROLL * _roll
+		_cutscene.sway_yaw = SWAY_YAW * _yaw
+		_cutscene.advance(delta)
 	_used.clear()
 	_decals_used.clear()
 	## The ribbon batch is written from scratch every frame between these two, the
@@ -2389,6 +2407,91 @@ func zoom_by(notches: float) -> void:
 
 func zoom_amount() -> float:
 	return _zoom_target
+
+
+## --- CUTSCENES ---------------------------------------------------------------
+##
+## The camera is the one thing in this renderer another system is allowed to
+## take, and this is the only door it can take it through. `cue()` names a
+## MOMENT; whether anything is wired to that moment is a question for the files
+## in `assets/cutscenes/`, and the answer is usually no. A cue with no cutscene
+## costs one directory listing and does nothing, which is what makes adding a
+## shot to an existing moment a data change rather than a code change.
+##
+## The four moments and where they are fired from are listed in
+## `SkyGearCutscene.CUES`, and the harness reads this source file to prove each
+## one of them is really called. Three of the four are fired below — the
+## renderer already watches the game's state every frame, so a moment that is
+## only a state transition needs nothing from `game.gd`. The fourth,
+## `boss_arrival`, is not a state: it is the frame the Colossus is instantiated,
+## and only the spawn knows about that.
+## LOADED BY PATH, NOT NAMED. `SkyGearCutscenePlayer` reaches
+## `SkyGearCutscene`, which reads the four camera constants at the top of this
+## file — so naming either class here closes a ring, and GDScript answers a ring
+## by refusing to compile a file at the far end of it with a message that points
+## at the wrong place. A runtime `load` costs one resource lookup at startup and
+## keeps the dependency one-way: cutscenes know about the camera, the camera does
+## not know about cutscenes.
+const CUTSCENE_PLAYER := "res://scripts/cutscene_player.gd"
+var _cutscene
+var _cue_state := -1
+var _cue_wave := -1
+## Off in `tools/cutscene_lab.gd`, and nowhere else. The lab stages wave 12 to
+## frame the Colossus, and without this that fires the very cutscene being
+## authored on top of the authoring — hiding the interface, locking the controls
+## and fighting for the camera.
+var cutscenes_enabled := true
+
+
+## Fire a moment. Returns whether a cutscene actually started, so a call site
+## can tell the difference between "nothing is wired here" and "it is running".
+func cue(name: String, wave_number: int = 0) -> bool:
+	if not cutscenes_enabled or _cutscene == null:
+		return false
+	return bool(_cutscene.cue(name, wave_number))
+
+
+func play_cutscene(id: String) -> bool:
+	if _cutscene == null:
+		return false
+	return bool(_cutscene.play(id))
+
+
+func cutscene_active() -> bool:
+	return _cutscene != null and _cutscene.active()
+
+
+func stop_cutscene() -> void:
+	if _cutscene != null:
+		_cutscene.stop()
+
+
+## Three of the four cues, from state the renderer is already reading. Edge
+## triggered on purpose: `state` and `wave` are levels, and a cutscene fired
+## from a level runs every frame the level holds.
+func _watch_cues() -> void:
+	if game == null or _cutscene == null:
+		return
+	var state := int(game.state)
+	var wave_number := int(game.wave)
+	var first := _cue_state < 0
+	var state_changed := state != _cue_state
+	var wave_changed := wave_number != _cue_wave
+	_cue_state = state
+	_cue_wave = wave_number
+	## The first frame is not a transition — everything has "changed" from -1,
+	## and firing a victory shot because the renderer just booted would be a very
+	## strange bug to chase.
+	if first or _cutscene.active():
+		return
+	if state_changed and state == int(SkyGearGame.State.VICTORY):
+		cue("victory")
+		return
+	if state_changed and state == int(SkyGearGame.State.GAMEOVER):
+		cue("defeat")
+		return
+	if wave_changed and wave_number > 0 and state == int(SkyGearGame.State.PLAY):
+		cue("wave_start", wave_number)
 
 
 func _aim_from_cursor() -> void:

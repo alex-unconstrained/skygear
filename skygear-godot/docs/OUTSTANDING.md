@@ -17,6 +17,40 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### A cutscene tool — BUILT, AND ONE SHOT IS WIRED. Three trigger points are empty
+Asked for: *"set up frame, key frame, camera movement… use the in-game renderer…
+save those so that they can play at certain times during the game."* All four
+halves are in. `SkyGear Tools.bat cutscene`.
+
+- **Author.** A timeline with keyframes you add, drag in time, delete and scrub.
+  Drag to orbit, right-drag to slide the shot across the deck, wheel to push in;
+  every one of those numbers is also a labelled minus/plus row with its live
+  value beside it, in GROUND UNITS. AUTO-KEY records a keyframe wherever you move
+  the camera. Five easing curves per segment, because a linear camera reads as a
+  machine on a rail. Nothing needs a key a laptop lacks.
+- **The real renderer.** It instantiates `scenes/main3d.tscn` — the real deck,
+  models, lighting and lens — the way the model lab's FX mode does. The STAGE
+  panel puts the Colossus or three boarders on the planking so there is something
+  to frame.
+- **Saved** to `assets/cutscenes/<id>.json`, with an index beside it.
+- **Played.** `scripts/cutscene.gd` is the reader and `scripts/cutscene_player.gd`
+  drives the camera; both existed before the first file did. A shot names a `cue`,
+  and the four cues are real call sites: `boss_arrival` in `game.gd::spawn_enemy`,
+  and `wave_start` / `victory` / `defeat` watched in `view3d.gd::_watch_cues`.
+  **`colossus_arrival` plays at wave 12** when the boss climbs aboard.
+
+**What is still open.** Three of the four cues have no shot in them —
+`wave_start`, `victory` and `defeat` are wired and empty, and filling them is
+now a data act with no code in it. A run opening was also suggested and has no
+cue at all; it needs one line wherever `begin_run` settles.
+
+**Two things worth knowing before authoring one.** The camera CAN break the
+shipped solve — a key carries its own field of view, height and roll — and the
+gameplay camera is put back exactly when the shot ends, pinned by
+`cutscene · THE GAMEPLAY CAMERA COMES BACK EXACTLY` and the four checks beside
+it. And a key can be PINNED to the live gameplay camera, which is how a shot
+hands back without a cut; the Colossus arrival ends on one.
+
 ### The lab needs animation and VFX playback — BUILT; one dial has no home
 Asked for, and now built. `SkyGear Tools.bat lab`, three modes on three buttons.
 
