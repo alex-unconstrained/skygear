@@ -49,22 +49,32 @@ func _draw() -> void:
 			"TITLE":
 				draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 			_:
-				_draw_world_overlay()
+				_draw_world_overlay(true)
 		_draw_settings()
 		if game.layout_edit:
 			_draw_layout_editor()
 		return
 	match game.state_name:
 		"TITLE":
-			_draw_title()
+			## INSTEAD OF the title, not over it — which is what the Workshop, the
+			## how-to and the settings sheet all already do, and the controls sheet
+			## was the one that did not. Its scrim is 0.92, so the title ghosted
+			## through at eight percent and the audit read SKYGEAR, DIFFICULTY and
+			## BEGIN RUN as printed through the rows.
+			##
+			## The part that is worse than the ghosting: `_draw_title` DECLARES its
+			## buttons as it draws them, so BEGIN RUN was still a live target sitting
+			## underneath the sheet.
 			if game.keys_open:
 				_draw_keys()
+			else:
+				_draw_title()
 		"DRAFT":
-			_draw_world_overlay()
+			_draw_world_overlay(true)
 			_draw_game_hud()
 			_draw_draft()
 		"PAUSE":
-			_draw_world_overlay()
+			_draw_world_overlay(true)
 			_draw_game_hud()
 			if game.keys_open:
 				_draw_keys()
@@ -1291,7 +1301,13 @@ func _draw_event(seconds_left: float) -> void:
 		Color(0.93, 0.90, 0.84, alpha))
 
 
-func _draw_world_overlay() -> void:
+## `under_menu` is true wherever this is the BACKDROP to a sheet rather than the
+## live game. The world still draws — a frozen deck behind the pause menu is the
+## right picture — but the two things made of TEXT stop, because a floating
+## damage number and a wave banner laid across a menu are just two pieces of
+## writing on the same pixels. The audit found the wave banner printed through
+## the draft, the pause sheet and the settings sheet.
+func _draw_world_overlay(under_menu: bool = false) -> void:
 	if view == null:
 		return
 	draw_texture_rect(_vignette_texture(), Rect2(Vector2.ZERO, size), false,
@@ -1437,6 +1453,8 @@ func _draw_world_overlay() -> void:
 				Color(0.22, 0.94, 0.78, fade))
 
 	## Numbers leaving bodies.
+	if under_menu:
+		return
 	for f in game.floaters:
 		var t: float = float(f.time) / maxf(0.001, float(f.life))
 		var spot := _to_screen(Vector2(f.position), 90.0)
@@ -1449,13 +1467,26 @@ func _draw_world_overlay() -> void:
 			HORIZONTAL_ALIGNMENT_CENTER, pt, colour)
 
 	## Banners: wave numbers, IT TURNS, the run report having been copied.
+	##
+	## STACKED, because more than one is alive more often than it looks.
+	## Starting a wave posts one with a two second life and clearing it posts
+	## another with 1.6, so any wave finished inside two seconds of beginning
+	## printed the two through each other at the same centred y — which is what
+	## a screenshot of the new sky caught, unreadable, dead centre. Every check
+	## passed: the collision pass compares WIDGET rectangles, and a banner is a
+	## free-drawn string that was never in its input set.
+	##
+	## Older ones pushed DOWN, so the line that just arrived is always in the
+	## place the eye already went.
+	var stack := 0
 	for e in game.effects:
 		if str(e.kind) != "banner":
 			continue
 		var bt: float = float(e.time) / maxf(0.001, float(e.life))
 		var fade: float = clampf(minf(bt * 6.0, (1.0 - bt) * 4.0), 0.0, 1.0)
-		_say_free(str(e.text), Vector2(0.0, size.y * 0.26), size.x,
+		_say_free(str(e.text), Vector2(0.0, size.y * 0.26 + stack * 48.0), size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 42, Color(0.91, 0.77, 0.46, fade))
+		stack += 1
 
 
 ## A pointer pinned to the rim of the frame, aimed at something outside it.

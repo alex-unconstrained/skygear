@@ -28,6 +28,18 @@ func _run() -> void:
 	await process_frame
 	var game: SkyGearGame = world.get_node("SkyGear")
 
+	## HAND-STEPPED, so the engine must not step it too.
+	##
+	## The loop below calls `game._process` and then awaits a frame, and the game
+	## node is in the tree — so the engine called `_process` on it as well, and
+	## every parity image this tool has produced had roughly TWICE the ticks it
+	## claimed. Which makes it exactly the wrong bug for this tool to carry: the
+	## whole point of counting ticks rather than seconds is that neither build is
+	## handed more simulation than the other.
+	##
+	## Found by the VFX agent, whose first draft of a different tool had it too.
+	game.set_process(false)
+
 	## No Workshop, no Heat. The browser build has neither, so a comparison with
 	## either turned on is a comparison of two different games.
 	game.workshop = SkyGearWorkshop.fresh(true)
