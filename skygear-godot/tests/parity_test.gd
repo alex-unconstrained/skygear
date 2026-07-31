@@ -1277,6 +1277,38 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## EVERY LANE CAN THREATEN THE OBJECTIVE. Found by a design pass, then
+	## measured: the enemy clamp pinned every boarder to its lane centre +- 190
+	## for its whole life, so lanes 0 and 2 could get no closer than 385 units to
+	## the Boiler against a 94-unit scrapper reach. Two of three lanes could not
+	## damage the thing you lose by, and "hold three lanes" was really "hold the
+	## middle one".
+	##
+	## Checked as REACHABILITY rather than as the merge constant, so re-tuning the
+	## merge cannot quietly recreate the bug.
+	var no_reach := ""
+	for lane in SkyGearGame.LANE_CENTERS.size():
+		## The closest a boarder in this lane can legally stand to the Boiler.
+		var at_boiler := SkyGearGame.BOILER_POSITION
+		var got: Vector2 = game.correct_enemy_position(at_boiler, lane, 15.0)
+		var reach: float = float(SkyGearData.ENEMIES.SCRAPPER.attack_range) + 28.0
+		if got.distance_to(SkyGearGame.BOILER_POSITION) > reach:
+			no_reach += " %d(%.0f)" % [lane,
+				got.distance_to(SkyGearGame.BOILER_POSITION)]
+	_check("lanes", "a boarder in every lane can reach the Boiler",
+		no_reach == "", "cannot, by:" + no_reach)
+
+	## But they are still LANES on the approach, or the readout is a lie and the
+	## whole three-lane read collapses into one crowd.
+	var separated := 0
+	for lane in [0, 2]:
+		var up := Vector2(0.0, SkyGearGame.DECK_RECT.position.y + 300.0)
+		var held: Vector2 = game.correct_enemy_position(up, lane, 15.0)
+		if absf(held.x - float(SkyGearGame.LANE_CENTERS[lane])) < 200.0:
+			separated += 1
+	_check("lanes", "and is still held in its own column on the way down",
+		separated == 2, "%d of 2 outer lanes stayed separated" % separated)
+
 	## DECKWORK. Asked for as "repair broken turrets", framed as the seed of the
 	## player shaping the ground. So the checks are about the SYSTEM — a verb
 	## table with one entry — rather than about repair specifically.

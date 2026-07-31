@@ -105,6 +105,21 @@ velocity (no new mesh, no solver, works with the animation blend); a separate
 The bone chain is almost certainly right for a figure this size on screen — at
 this camera distance the cape is about forty pixels tall.
 
+### Popup menus drifting right — REPORTED, NOT REPRODUCED
+Seen while watching screenshot runs go past. I measured it and could not find
+it: the pause panel's left edge sits at exactly x=869 and the draft's at x=611,
+identical on every frame across eight samples with the ship swaying underneath.
+The HUD control does not move and its size does not change.
+
+Two things I can think of that would produce the impression, neither confirmed:
+the camera sways continuously (0.42 degrees of yaw, 0.85 of roll), so the WORLD
+drifts behind a static menu and the relative motion can read as the menu
+moving; or a menu I did not test does it. Needs to know WHICH menu before it
+can be chased further.
+
+Left open rather than closed, because "I could not reproduce it" is not the
+same as "it does not happen."
+
 ### THE SKYBOX — the browser one had clouds, a moon and parallax
 Reported a third time, and this time with what it should be rather than that it
 is missing: *"such a cool skybox in the browser version that you could see over

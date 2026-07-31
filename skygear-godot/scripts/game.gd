@@ -965,6 +965,9 @@ func _set_state(next_state: State) -> void:
 			"rerolls": int(tel.rerolls),
 			"close_share": _close_share(),
 			"class_id": class_id,
+			## Without this a Heat 2 row cannot reproduce its own run: the seed
+			## replays the same waves against different enemy health.
+			"heat": heat,
 			"report": run_report(),
 		})
 		## And what it was worth. Nothing accrues before a first victory — the
@@ -2548,9 +2551,49 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 				corrected.y = expanded.end.y
 	return corrected
 
+## THE LANES MERGE AT THE STERN.
+##
+## Found by a design pass and then measured: this clamped every boarder to
+## `LANE_CENTERS[lane] +- 190` for its whole life, so a lane 0 or lane 2 boarder
+## could get no closer than 385 units to the Boiler — against an attack reach of
+## 94 for a scrapper and 148 for the Colossus. TWO OF THREE LANES COULD NEVER
+## DAMAGE THE OBJECTIVE. Melee in the outer lanes walked to the stern and stood
+## there; only lane 1, and gunners firing from anywhere, could ever hurt it.
+##
+## So "hold three lanes" was really "hold the middle one", and the lane readout
+## has been reporting threat from the outer two that could not materialise.
+##
+## The clamp is still right for most of the deck — it is what makes a lane a lane
+## and keeps the readout honest. It is only wrong at the END. Boarders converge
+## over the last stretch, which is what a boarding action looks like anyway: they
+## come up the ship in columns and pile onto the thing they came for.
+##
+## MERGE_FROM is chosen so the columns are unmistakably separate for the whole
+## approach and only close in the final quarter, where the player is already
+## making a stand rather than reading lanes.
+const MERGE_FROM := 380.0
+
 func correct_enemy_position(position: Vector2, lane: int, radius: float) -> Vector2:
+	var centre: float = LANE_CENTERS[lane]
+	var half := 190.0
+	## How far into the merge this boarder is. 0 on the approach, 1 at the stern.
+	## Normalised against the BOILER, not the deck edge. Against the edge the
+	## merge is only 60% complete where the Boiler actually stands, which still
+	## left the outer lanes 142 units away from a 94-unit reach — closer than the
+	## 385 they started at, and still unable to touch it. They are converging on
+	## the thing they are walking to, so that is what the merge should finish at.
+	var into: float = clampf((position.y - MERGE_FROM)
+		/ maxf(1.0, BOILER_POSITION.y - MERGE_FROM), 0.0, 1.0)
+	if into > 0.0:
+		## Eased, so the columns bend toward the Boiler rather than snapping to
+		## it — a linear merge reads as three lines kinking at the same y.
+		var pull: float = into * into
+		centre = lerpf(centre, BOILER_POSITION.x, pull)
+		## And the band widens as it converges, or three columns arriving at the
+		## same centre would overlap into one stack of bodies.
+		half = lerpf(half, 300.0, pull)
 	return Vector2(
-		clampf(position.x, LANE_CENTERS[lane] - 190.0 + radius, LANE_CENTERS[lane] + 190.0 - radius),
+		clampf(position.x, centre - half + radius, centre + half - radius),
 		clampf(position.y, DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
 	)
 
