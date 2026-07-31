@@ -133,12 +133,42 @@ func _text(owner: Rect2, at: Vector2, s: String, align: int, width: float,
 		SkyGearInk.write(_canvas, _font, at, s, align, width, pt, tint)
 
 
+## IS THE WIDGET AT THIS INDEX LIT — under the mouse, or holding the keyboard
+## focus? Only `bare` widgets need to ask; every other widget draws its own
+## highlight and never has to know.
+##
+## Indexed the same way the Workshop already indexes: the caller takes
+## `declared().size()` before the call, which is the index the widget is about to
+## occupy, and asks with it afterwards. That is the one pairing in this layer
+## that cannot drift, because both numbers come from the same list.
+func lit(index: int) -> bool:
+	if index < 0 or index >= _items.size():
+		return false
+	var item: Dictionary = _items[index]
+	if bool(item.get("disabled", false)):
+		return false
+	if _keyboard and focused() == index:
+		return true
+	return (item.rect as Rect2).has_point(_mouse)
+
+
 ## A button. Returns true on the frame it is activated, by click or by key.
+##
+## `bare` draws NOTHING and does everything else — declares the rectangle, takes
+## the hover, moves the focus, plays the sounds, fires on click and on Enter. It
+## exists for the Workshop, where a "button" is a brass fitting with a rim
+## colour, a row of rank rivets and a pipe running into it, and painting a plain
+## panel underneath all of that would only be something to cover up. The
+## alternative — an ad-hoc `Rect2.has_point()` test written where it is drawn —
+## is precisely the thing this file was written to end, and it is why this is a
+## flag here rather than a hand-rolled hit test over there. `declared()` still
+## sees every one of them, so the audit's COLLIDE and WIDGET passes are unchanged.
 func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	var index := _index
 	_index += 1
 	var disabled: bool = bool(opts.get("disabled", false))
 	var primary: bool = bool(opts.get("primary", false))
+	var bare: bool = bool(opts.get("bare", false))
 	var hint: String = str(opts.get("hint", ""))
 	_declare(rect, {"disabled": disabled})
 
@@ -148,6 +178,14 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 		_focus[_screen] = index
 		_beep("hover")
 	var shown: bool = (_keyboard and focused() == index) or hot
+	if bare:
+		if disabled:
+			return false
+		if _activate and focused() == index:
+			_activate = false
+			_beep("click")
+			return true
+		return false
 
 	var fill: Color = PANEL
 	if disabled:

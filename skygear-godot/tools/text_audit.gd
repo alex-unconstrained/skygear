@@ -48,42 +48,16 @@ extends SceneTree
 ##   godot --path . --script tools/text_audit.gd -- --ink      legibility only
 ##
 ## Exit code is the number of violations, so it can gate a build.
+const Screens := preload("res://tools/screens.gd")
+
 func _initialize() -> void: call_deferred("_run")
 
-## Screens, and what has to be true for the HUD to draw each one. Every state the
-## player can be looking at — a screen that is not in this list is a screen the
-## audit does not cover, which is why the list is explicit rather than derived.
-const SCREENS := [
-	{"name": "title", "state": "TITLE"},
-	{"name": "title + heat", "state": "TITLE", "heat": true},
-	{"name": "title + controls", "state": "TITLE", "keys": true},
-	{"name": "settings", "state": "TITLE", "settings": true},
-	{"name": "how to play", "state": "TITLE", "how": true},
-	{"name": "the workshop", "state": "TITLE", "workshop": true},
-	{"name": "how to play mid-run", "state": "PAUSE", "skills": 4, "how": true},
-	{"name": "draft (weapons)", "state": "DRAFT", "skills": 0},
-	{"name": "draft (upgrades)", "state": "DRAFT", "skills": 4},
-	{"name": "playing", "state": "PLAY", "skills": 4},
-	{"name": "paused", "state": "PAUSE", "skills": 4},
-	{"name": "paused + controls", "state": "PAUSE", "skills": 4, "keys": true},
-	{"name": "settings mid-run", "state": "PAUSE", "skills": 4, "settings": true},
-	## TWO BANNERS AT ONCE. `start_wave` fires "WAVE n" with a 2.0s life and
-	## clearing fires "WAVE CLEAR" with 1.6s, both centred at the same y with
-	## no stacking between them — so any wave cleared inside two seconds of
-	## starting prints one through the other. Every other screen here poses a
-	## resting state; this one poses a MOMENT, which is the kind the list was
-	## missing.
-	{"name": "wave clear over wave start", "state": "PLAY", "skills": 4,
-		"banners": true},
-	{"name": "deck lost", "state": "GAMEOVER", "skills": 4},
-	{"name": "deck lost + workshop", "state": "GAMEOVER", "skills": 4, "banked": true},
-	{"name": "deck held", "state": "VICTORY", "skills": 4},
-]
-
-## Widths a player might actually run at, including the two where a fixed layout
-## breaks: the smallest window the project allows, and an ultrawide.
-const SIZES := [Vector2(1280, 720), Vector2(1600, 900), Vector2(1920, 1080),
-	Vector2(2560, 1080)]
+## The screens, and the poses that produce them, live in `tools/screens.gd` —
+## shared with `tools/screen_shot.gd` so the frame you LOOK at is the same frame
+## this measures. They were here, and a screenshot tool that posed its own
+## Workshop would have been two answers to "what is on this screen".
+const SCREENS := Screens.SCREENS
+const SIZES := Screens.SIZES
 
 ## The one size the contrast pass runs at, because it is the only one where the
 ## numbers mean anything: contrast has to be read back off the GPU, and a
@@ -567,79 +541,10 @@ func _r(v) -> String:
 		rect.size.x, rect.size.y]
 
 
-## Put the game into the state a screen needs. Deliberately blunt — this is a
-## renderer audit, so the simulation only has to be plausible, not played.
+## Put the game into the state a screen needs. One line, because the poses moved
+## to `tools/screens.gd` where the screenshot tool can reach them too.
 func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
-	hud.size = size
-	game.settings_open = false
-	game.keys_open = false
-	game.how_open = false
-	game.workshop_open = false
-	game.go_to_title()
-	game.set_seed_text("AUDIT")
-
-	var want := str(screen.state)
-	if want != "TITLE":
-		game.begin_run()
-		if int(screen.get("skills", 0)) > 0:
-			game.skills.clear()
-			for pair in [["CLOSEHIT", "EMBER"], ["RANGED_AOE", "FROST"],
-					["CHAIN", "ARC"], ["SENTRY", "STEAM"]]:
-				game.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
-		game.start_wave(7)
-		for i in 8:
-			game.spawn_enemy("SCRAPPER", i % 3)
-		for i in 12:
-			game._process(0.05)
-			await process_frame
-
-	match want:
-		"DRAFT":
-			game.open_draft()
-		"PAUSE":
-			game._set_state(SkyGearGame.State.PAUSE)
-		"GAMEOVER":
-			game.end_reason = "the Boiler went cold on wave 7"
-			game._set_state(SkyGearGame.State.GAMEOVER)
-		"VICTORY":
-			game.end_reason = "twelve waves repelled"
-			game._set_state(SkyGearGame.State.VICTORY)
-	if bool(screen.get("banners", false)):
-		## Fired the way the game fires them, not drawn by hand — a hand-drawn
-		## pair would prove the audit can see overlap and nothing about whether
-		## the game produces it.
-		game._fx({"kind": "banner", "text": "WAVE %d" % game.wave,
-			"time": 0.0, "life": 2.0})
-		game._fx({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0,
-			"life": 1.6})
-	game.keys_open = bool(screen.get("keys", false))
-	game.settings_open = bool(screen.get("settings", false))
-	game.how_open = bool(screen.get("how", false))
-	if bool(screen.get("heat", false)):
-		## Unlocked with a rung cleared, so the Heat row and the Workshop button
-		## are both on the title at once — the fullest the screen ever gets.
-		game.workshop = SkyGearWorkshop.fresh(true)
-		game.workshop.unlocked = true
-		game.workshop.scrip = 240
-		game.workshop.best_heat = 1
-		game.heat = 2
-	if bool(screen.get("banked", false)):
-		game.workshop = SkyGearWorkshop.fresh(true)
-		game.workshop.unlocked = true
-		game.workshop.scrip = 400
-		SkyGearWorkshop.buy(game.workshop, "ledger")
-		game.talents = SkyGearWorkshop.resolved(game.workshop)
-		game.banked = {"scrip": 193, "sigils": 1, "unlocked": true, "first_win": true}
-	if bool(screen.get("workshop", false)):
-		## Unlocked and part-bought, so the audit sees bought, affordable and
-		## locked nodes rather than one uniform dimmed column.
-		game.workshop = SkyGearWorkshop.fresh(true)
-		game.workshop.unlocked = true
-		game.workshop.scrip = 640
-		for id in ["padded_coat", "bootblacking", "manifest", "tally"]:
-			SkyGearWorkshop.buy(game.workshop, id)
-		game.workshop_open = true
-	await process_frame
+	await Screens.pose(self, game, hud, screen, size)
 
 ## HOLD A SCREEN AND SEE IF IT MOVES.
 ##

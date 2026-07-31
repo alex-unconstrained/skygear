@@ -40,6 +40,10 @@ func _draw() -> void:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_workshop()
 		return
+	if game.compare_open:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+		_draw_compare()
+		return
 	if game.how_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_how()
@@ -104,7 +108,13 @@ func _draw_title() -> void:
 	_center_text("SKYGEAR", 150.0, 64, Color("#e8c376"))
 	_center_text("STORM-DUSK · GODOT PORT", 205.0, 24, Color("#37f0c8"))
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
-	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash", 330.0, 18, Color("#b9afaa"))
+	## The last clause is the class's, not a constant. "Space dash" is a lie for
+	## the man with no dash, and it is the one line on this screen that tells a
+	## player what their hands do.
+	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · %s"
+		% ("Space bleeds a jet · F, V" if not (game.class_data().get("jet", {}) as Dictionary).is_empty()
+			else "Space dash"),
+		330.0, 18, Color("#b9afaa"))
 	## ONE CURSOR DOWN THE PAGE, not six offsets from a shared anchor.
 	##
 	## Every row here was placed at `ty` plus or minus a magic number, and adding
@@ -136,7 +146,7 @@ func _draw_title() -> void:
 	## click a player pays every single run.
 	var ids: Array = SkyGearData.CLASSES.keys()
 	var at: int = maxi(0, ids.find(game.class_id))
-	var picked: int = ui.choice(Rect2(wx, y, wide, 32.0), "CAPTAIN",
+	var picked: int = ui.choice(Rect2(wx, y, wide, 32.0), "WHO IS ABOARD",
 		ids.map(func(k): return str(SkyGearData.CLASSES[k].name)), at)
 	if picked != at:
 		game.set_class(str(ids[picked]))
@@ -144,6 +154,16 @@ func _draw_title() -> void:
 	_says(str(game.class_data().get("blurb", "")), Vector2(wx, y + 12.0), wide,
 		HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
 	y += 32.0
+	## ...AND A WAY TO SEE WHAT THE OTHER ONE IS.
+	##
+	## A cycling row plus one sentence is enough to pick a class you already know
+	## and useless for choosing between two you do not. Reported after a playtest:
+	## "Boilerwright feels slower — and I'm not sure I understand what the class
+	## actually does?" He is slower, deliberately, and nothing on this screen ever
+	## said what the 55 units of speed bought.
+	if ui.button(Rect2(wx, y, wide, 30.0), "COMPARE THE TWO", {"hint": "F7"}):
+		game.compare_open = true
+	y += 38.0
 
 	if bool(game.workshop.unlocked):
 		if ui.button(Rect2(tx, y, tw, 34.0),
@@ -868,7 +888,29 @@ func _draw_game_hud() -> void:
 	_status_chips(Vector2(health.get_center().x, health.end.y + 5.0), mine)
 
 	var pressure_ratio: float = player.pressure / 100.0
-	_dial(l.item("captain", "dial", panel), pressure_ratio)
+	var dial_at := l.item("captain", "dial", panel)
+	_dial(dial_at, pressure_ratio)
+	## OVERPRESSURE, AS A RING ROUND THE DIAL.
+	##
+	## The Boilerwright's bank is a flat damage multiplier the whole time it is
+	## above zero and it has never appeared anywhere on screen — which is most of
+	## what "I'm not sure I understand what the class actually does" is about. A
+	## multiplier the player cannot see is not a mechanic, it is a comment.
+	##
+	## The same shape as the auto-attack ring round her portrait, deliberately: one
+	## vocabulary for "this is live right now and it is doing something for you".
+	## And it goes OUT, visibly, which is the half that teaches — the moment the
+	## bank empties the ring drops and a red one flares in its place for as long as
+	## `overpressure_lost` runs.
+	var boost: float = float(game.class_data().get("overpressure", 0.0))
+	if boost > 0.0:
+		var ring: float = dial_at.size.x * 0.5 + 4.0
+		if game.overpressure_multiplier() > 1.0:
+			draw_arc(dial_at.get_center(), ring, 0.0, TAU, 40, Color("#ff9a4a"), 2.6)
+		elif game.overpressure_lost > 0.0:
+			draw_arc(dial_at.get_center(), ring, 0.0, TAU, 40,
+				Color(1.0, 0.30, 0.22, clampf(game.overpressure_lost / 1.6, 0.0, 1.0)),
+				3.0)
 	var vent_at := l.item("captain", "vent_icon", panel)
 	var gauge_icon := _tex("res://assets/art/ui/icon_vent.png" if pressure_ratio >= 1.0
 		else "res://assets/art/ui/icon_pressure.png")
@@ -881,23 +923,56 @@ func _draw_game_hud() -> void:
 	## VENTING at the top is a promise the game does not keep.
 	var gauge_name: String = str(game.class_data().get("gauge", "PRESSURE"))
 	var venting: bool = pressure_ratio >= 1.0 			and bool(game.class_data().get("gauge_auto_vents", true))
+	## THE STRIP RIGHT OF THE DIAL, measured to the plate's own interior rather
+	## than to the item box. The two rows here are the only place either class's
+	## gauge is explained, and they were laid out against `pressure_label`'s 96 and
+	## a hard-coded 92 — which put "V BLOWDOWN" eight pixels past the brass. No
+	## screen in the audit posed the Boilerwright, so nothing ever said so.
+	var strip_x: float = pressure_at.position.x
+	var strip_w: float = maxf(60.0, interior(panel).end.x - strip_x)
 	_label("VENTING" if venting else gauge_name,
-		pressure_at.position + Vector2(0, pressure_at.size.y), pressure_at.size.x,
+		pressure_at.position + Vector2(0, pressure_at.size.y), 60.0,
 		HORIZONTAL_ALIGNMENT_LEFT, 12,
 		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#b4a8c4"))
+	## WHAT THE GAUGE IS BUYING, next to the gauge, in the units it is bought in.
+	## "HEAD 41" says how full a bar is; "x1.45 DAMAGE" says why anyone should
+	## care, and x1.00 in red says what was just lost.
+	if boost > 0.0:
+		var mult: float = game.overpressure_multiplier()
+		var lit: Color = Color("#ff9a4a")
+		if mult <= 1.0:
+			lit = Color("#ff4d37") if game.overpressure_lost > 0.0 else Color("#8f8697")
+		_label("x%.2f DAMAGE" % mult,
+			pressure_at.position + Vector2(0, pressure_at.size.y), strip_w,
+			HORIZONTAL_ALIGNMENT_RIGHT, 12, lit)
 	## THE DASH ROW IS THE CLASS ROW. She has two recharging dashes and he has
-	## none, so for him that strip is dead space — and it is exactly where his two
-	## bindings want to be. One row, two meanings, no new layout.
+	## none, so for him that strip is dead space — and it is exactly where his
+	## three bindings want to be. One row, two meanings, no new layout.
+	##
+	## All three, including the one on the dash key: he has no dash, so Space is a
+	## Bleed Jet that costs 12 Head, and a move living on a key labelled DASH for a
+	## class with no dash is a move nobody finds. Tinted by whether the bank can
+	## currently pay for it, which turns the row into the answer to "what can I do
+	## right now" rather than a list of letters.
 	var dash_at := l.item("captain", "dash_label", panel)
 	if player.max_dash_charges <= 0:
-		var tap_ready: bool = game.tap_cooldown <= 0.0 			and game.pressure >= float(SkyGearData.TAP.cost)
-		var blow_ready: bool = game.pressure >= float(SkyGearData.BLOWDOWN.min_head)
+		var jet_cost: float = float((game.class_data().get("jet", {}) as Dictionary)
+			.get("cost", 0.0))
 		var row := Vector2(dash_at.position.x, dash_at.position.y + dash_at.size.y)
-		_label("F  TAP MAIN", row, 88.0, HORIZONTAL_ALIGNMENT_LEFT, 11,
-			Color("#9be8d2") if tap_ready else Color("#5f5863"))
-		_label("V  BLOWDOWN", row + Vector2(92.0, 0.0), 92.0,
-			HORIZONTAL_ALIGNMENT_LEFT, 11,
-			Color("#ffb347") if blow_ready else Color("#5f5863"))
+		var keys := [
+			{"text": "F MAIN", "lit": Color("#9be8d2"),
+				"ready": game.tap_cooldown <= 0.0
+					and game.pressure >= float(SkyGearData.TAP.cost)},
+			{"text": "V BLOW", "lit": Color("#ffb347"),
+				"ready": game.pressure >= float(SkyGearData.BLOWDOWN.min_head)},
+			{"text": "SPC JET", "lit": Color("#c9b6e8"),
+				"ready": jet_cost > 0.0 and game.pressure >= jet_cost},
+		]
+		var cell: float = strip_w / float(keys.size())
+		for i in keys.size():
+			_label(str(keys[i].text), row + Vector2(float(i) * cell, 0.0), cell - 4.0,
+				HORIZONTAL_ALIGNMENT_LEFT, 12,
+				keys[i].lit if bool(keys[i].ready) else Color("#5f5863"))
 	else:
 		_dash_pips(dash_at, panel, player, l)
 	## --- the objective, top centre ------------------------------------------
@@ -1504,7 +1579,15 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 		var colour: Color = f.color
 		colour.a = clampf(1.0 - t * t, 0.0, 1.0)
 		var pt: int = 22 if bool(f.big) else 16
-		_say_free(str(f.text), spot.at + Vector2(-40.0, 0.0), 80,
+		## SIZED TO THE STRING, not to a constant 80. Every floater was a number
+		## until the Boilerwright's Overpressure started announcing itself in words,
+		## and "OVERPRESSURE LOST" at 22pt is 164 wide in an 80-wide box — clipped
+		## in the middle of the frame, which the audit reported the moment there was
+		## a screen posing him. Centred on the body either way.
+		var wide: float = maxf(80.0,
+			font.get_string_size(str(f.text), HORIZONTAL_ALIGNMENT_CENTER, -1,
+				maxi(pt, SkyGearInk.MIN_PT)).x + 6.0)
+		_say_free(str(f.text), spot.at + Vector2(-wide * 0.5, 0.0), wide,
 			HORIZONTAL_ALIGNMENT_CENTER, pt, colour)
 
 	## Banners: wave numbers, IT TURNS, the run report having been copied.
@@ -1852,6 +1935,13 @@ func _draw_keys() -> void:
 	for i in SkyGearKeybinds.REBINDABLE.size():
 		var action: String = SkyGearKeybinds.REBINDABLE[i][0]
 		var name: String = SkyGearKeybinds.REBINDABLE[i][1]
+		## THE DASH KEY IS NOT A DASH FOR EVERYONE. The Boilerwright has none —
+		## Space is a Bleed Jet that costs 12 Head and lays scalding steam behind
+		## him — and this page telling him it is a DASH is the reason the move goes
+		## undiscovered. The BINDING is still `dash`, because the two classes share
+		## one key and a second action would be a second thing to rebind.
+		if action == "dash" and not (game.class_data().get("jet", {}) as Dictionary).is_empty():
+			name = "BLEED JET"
 		var listening: bool = game.rebinding_index == i
 		var row := Rect2(page.position.x, y - 15.0, page.size.x, 30.0)
 		if listening:
@@ -1961,7 +2051,9 @@ func _draw_pause() -> void:
 	## Against the writing area rather than the interior: the interior's
 	## bottom edge is on the painted bevel, and the contrast pass measured
 	## this line at 1.59 against bright brass sitting exactly there.
-	_label("WASD move · mouse aim · Space dash · F4 layout · F3 stats",
+	_label("WASD move · mouse aim · %s · F7 classes · F4 layout · F3 stats"
+		% ("Space bleeds a jet" if not (game.class_data().get("jet", {}) as Dictionary).is_empty()
+			else "Space dash"),
 		Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
@@ -1971,6 +2063,219 @@ func _draw_pause() -> void:
 ## channels rather than one, because the report that started this was "SFX with
 ## character audio weren't really easy to hear against the other sounds", and a
 ## single master slider cannot answer that.
+## --- the two of them, side by side ------------------------------------------
+##
+## THE TABLE HAD NO READER. `CLASSES[*].compare` has carried eight parallel rows
+## — the question, the gauge, and it, what it buys, the vent, your keys, stand,
+## you lose by — since the Boilerwright landed, and nothing has ever drawn one of
+## them. The picker showed a single sentence, which is enough to confirm a class
+## you already know and no use at all for choosing between two you do not. That
+## is failure mode one in `STATUS.md`, and this is the fifth instance.
+##
+## What it cost the game, in the player's own words after a playtest:
+## "Boilerwright feels slower — and I'm not sure I understand what the class
+## actually does?" He IS slower — 205 against 260, and that is the design — but
+## nothing anywhere told him what the 55 units bought, so the class read as the
+## captain with worse numbers.
+##
+## PARALLEL ROWS, NOT TWO PARAGRAPHS. A description of each class in turn is two
+## things to hold in your head; a row is one question with two answers, and the
+## answer to "what am I giving up" is then a sideways glance rather than an act
+## of memory. The four numeric rows above the prose are DERIVED from `hp`,
+## `speed`, `dashes` and `overpressure` — see `SkyGearData.class_stats()` — so
+## the screen cannot drift away from the balance table the way a hand-written
+## "100 health, 260 speed" row would, and did.
+const COMPARE_MAX_W := 1220.0
+const COMPARE_MIN_W := 880.0
+const COMPARE_GAP := 18.0
+
+
+## Which colour a class is, taken from the element its own auto-attack throws.
+## Derived rather than picked, so the man who fights with steam is the pale
+## violet the steam already is, everywhere else in the game.
+func _class_hue(id: String) -> Color:
+	var kit: Dictionary = SkyGearData.CLASSES.get(id, {})
+	var element: String = str((kit.get("auto", {}) as Dictionary).get("element", ""))
+	if SkyGearData.ELEMENTS.has(element):
+		return SkyGearData.ELEMENTS[element].color
+	return BRASS_LIT
+
+
+func _draw_compare() -> void:
+	_in_frame = false
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.93))
+	var ids: Array = SkyGearData.CLASSES.keys()
+	var stats: Array = SkyGearData.class_stats()
+	## Row order comes from the first class's table and the second is read at the
+	## same keys, so a table that has grown a row on one side only draws blank
+	## rather than silently dropping it — and the harness fails on it.
+	var keys: Array = (SkyGearData.CLASSES[ids[0]].compare as Dictionary).keys()
+
+	## MEASURE THE COLUMNS BEFORE THE PAGE EXISTS. The width is fixed by the
+	## window, so the interior width is knowable from a probe of the right width
+	## and any plausible height — the rail is 48 flat above 246px tall, which every
+	## page this builds is.
+	var page_w: float = clampf(size.x - 80.0, COMPARE_MIN_W, COMPARE_MAX_W)
+	var head_room: float = maxf(320.0, size.y - 72.0)
+	var probe := writing_area(Rect2(0.0, 0.0, page_w, head_room))
+	var room_w: float = probe.size.x
+	## Both rails plus the bevel allowance at the foot, which is what the page has
+	## to buy before a single row of it is drawn.
+	var chrome: float = probe.position.y + (head_room - probe.end.y)
+	var gutter: float = clampf(room_w * 0.14, 96.0, 160.0)
+	var col_w: float = (room_w - gutter - COMPARE_GAP * 2.0) * 0.5
+
+	## THE COPY YIELDS, THE PAGE DOES NOT OVERFLOW.
+	##
+	## Eight rows of two answers is a lot of text and 720p leaves 648 pixels of
+	## page. The first version shrank the point size only, hit the 12pt floor with
+	## a hundred pixels still to lose, and printed YOU LOSE BY straight through the
+	## SAIL AS buttons — which is exactly the failure `_draw_how` grew its own
+	## shrink for. So there are two levers and they are pulled in the order that
+	## costs the reader least: the type comes down to the floor first, and only
+	## then does the air between the rows.
+	const TITLE_H := 68.0
+	const HEAD_H := 36.0
+	const STAT_H := 22.0
+	const RULE_H := 12.0
+	const FOOT_H := 52.0
+	const PAD_MAX := 11.0
+	const PAD_MIN := 4.0
+	var prose_height := func(p: int, pad: float) -> float:
+		var total := 0.0
+		for key in keys:
+			var lines := 1
+			for id in ids:
+				lines = maxi(lines, _wrapped_lines(
+					str((SkyGearData.CLASSES[id].compare as Dictionary).get(key, "—")),
+					col_w, p))
+			total += float(lines) * (float(p) + 5.0) + pad
+		return total
+	var fixed: float = TITLE_H + HEAD_H + float(stats.size()) * STAT_H 		+ RULE_H * 2.0 + FOOT_H + chrome
+	var pt := 15
+	var pad := PAD_MAX
+	while fixed + prose_height.call(pt, pad) > head_room:
+		if pt > SkyGearInk.MIN_PT:
+			pt -= 1
+		elif pad > PAD_MIN:
+			pad -= 1.0
+		else:
+			## Out of levers. The page is clamped to the window rather than allowed
+			## to grow off the bottom of it, and `tools/text_audit.gd` reports the
+			## overflow — which is the honest failure, not a silent one.
+			break
+	var line_h: float = float(pt) + 5.0
+	var page_h: float = minf(head_room, fixed + prose_height.call(pt, pad))
+	## Slightly above centre, for the same reason the how-to page is: a page of
+	## text dead-centred sits lower than the eye goes looking for it.
+	var page := Rect2(size.x * 0.5 - page_w * 0.5,
+		maxf(48.0, (size.y - page_h) * 0.42), page_w, page_h)
+	_sheet(page)
+	_banner(size.x * 0.5, page.position.y - 10.0, 470.0)
+	_center_text("WHO IS ABOARD", page.position.y + 48.0, 34, BRASS_LIT)
+	## THE HOLE IN THE BRASS, HONESTLY. `interior()` is where the nine-slice
+	## believes it cut and the painted corners curl further in than that — a SAIL
+	## AS button laid out to the interior's right edge sits on the ornament at
+	## 1280, where the page is nearly as wide as the window. `writing_area` is the
+	## measurement that already knows this, and the two-column body is the widest
+	## thing in the game to lay out against it.
+	var room := writing_area(page)
+
+	var col_x := [room.position.x + gutter + COMPARE_GAP,
+		room.position.x + gutter + COMPARE_GAP * 2.0 + col_w]
+	var y: float = room.position.y + TITLE_H
+	var foot_y: float = room.end.y - 38.0
+
+	## THE COLUMN YOU ARE CURRENTLY SAILING AS, lit down its whole length. Which
+	## one is selected is the single most important thing on a picker and a tick
+	## beside a name is easy to miss at a glance.
+	for c in ids.size():
+		var hue: Color = _class_hue(str(ids[c]))
+		var chosen: bool = str(ids[c]) == str(game.class_id)
+		var strip := Rect2(col_x[c] - 8.0, y - 24.0, col_w + 16.0,
+			foot_y - y - 8.0)
+		draw_rect(strip, Color(hue.r, hue.g, hue.b, 0.07 if chosen else 0.025))
+		draw_rect(strip, Color(hue.r, hue.g, hue.b, 0.55 if chosen else 0.16),
+			false, 2.0 if chosen else 1.0)
+
+	## The heading row: who they are, and which one is aboard right now.
+	_label("", Vector2(room.position.x, y), gutter, HORIZONTAL_ALIGNMENT_LEFT, 12)
+	for c in ids.size():
+		var id: String = str(ids[c])
+		var hue: Color = _class_hue(id)
+		var title: String = str(SkyGearData.CLASSES[id].name)
+		_value(title, Vector2(col_x[c], y), col_w, HORIZONTAL_ALIGNMENT_CENTER,
+			_fits(title, col_w, 22, 15), hue)
+		if id == str(game.class_id):
+			_label("ABOARD", Vector2(col_x[c], y + 17.0), col_w,
+				HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#37f0c8"))
+	y += HEAD_H
+	_compare_rule(room, y - RULE_H * 0.5)
+
+	## THE FOUR NUMBERS, with the winner of each lit and the loser dimmed. Two
+	## rows each way, which is the trade said without a sentence: he pays in speed
+	## and in the dash, and he is paid in health and in damage.
+	for row in stats:
+		_label(str(row.name), Vector2(room.position.x, y + 12.0), gutter,
+			HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#8fa6c9"))
+		for c in ids.size():
+			var id: String = str(ids[c])
+			var wins: bool = str(row.better) == id
+			var text: String = str((row.values as Dictionary).get(id, "—"))
+			_value(text, Vector2(col_x[c], y + 12.0), col_w,
+				HORIZONTAL_ALIGNMENT_CENTER, _fits(text, col_w, 15, 12),
+				BRASS_LIT if wins else Color("#8f8697"))
+		y += STAT_H
+	y += RULE_H
+	_compare_rule(room, y - RULE_H * 0.5)
+
+	## And the prose, one question per row.
+	for key in keys:
+		var tall := 1
+		for id in ids:
+			tall = maxi(tall, _wrapped_lines(
+				str((SkyGearData.CLASSES[id].compare as Dictionary).get(key, "—")),
+				col_w, pt))
+		_label(str(key).to_upper(), Vector2(room.position.x, y + float(pt)),
+			gutter, HORIZONTAL_ALIGNMENT_LEFT, _fits(str(key).to_upper(), gutter, 12),
+			Color("#8fa6c9"))
+		for c in ids.size():
+			var id2: String = str(ids[c])
+			_says(str((SkyGearData.CLASSES[id2].compare as Dictionary).get(key, "—")),
+				Vector2(col_x[c], y + float(pt)), col_w, HORIZONTAL_ALIGNMENT_LEFT,
+				pt, tall, Color("#e6ddd0"))
+		y += float(tall) * line_h + pad
+
+	## MOUSE-FIRST, and the screen is the picker rather than a page about the
+	## picker: the button that ends it is the choice it was asked about. Only at
+	## the title — swapping class mid-run is not a thing the simulation supports,
+	## so mid-run this is a page you read and close.
+	ui.begin("compare", self, font, get_local_mouse_position())
+	if game.state_name == "TITLE":
+		if ui.button(Rect2(room.position.x, foot_y, gutter, 34.0), "BACK",
+				{"hint": "Esc"}):
+			game.compare_open = false
+		for c in ids.size():
+			var id3: String = str(ids[c])
+			var chosen3: bool = id3 == str(game.class_id)
+			var label3: String = ("SAILING AS %s" if chosen3 else "SAIL AS %s") \
+				% str(SkyGearData.CLASSES[id3].name)
+			if ui.button(Rect2(col_x[c], foot_y, col_w, 34.0), label3,
+					{"primary": chosen3}):
+				game.set_class(id3)
+				game.compare_open = false
+	elif ui.button(Rect2(room.get_center().x - 110.0, foot_y, 220.0, 34.0), "BACK",
+			{"primary": true, "hint": "Esc"}):
+		game.compare_open = false
+
+
+## A hairline across the table. Drawn rather than a `_says` of dashes, because a
+## row of hyphens is a string the legibility pass has to have an opinion about.
+func _compare_rule(room: Rect2, y: float) -> void:
+	draw_line(Vector2(room.position.x, y), Vector2(room.end.x, y),
+		Color(0.69, 0.51, 0.25, 0.35), 1.0)
+
+
 ## HOW TO PLAY. The title screen said "keep the Boiler alive through twelve
 ## boarding waves" and listed the keys, which tells you the controls and none of
 ## the game — and this game has exactly one idea that is not obvious from the
@@ -1986,12 +2291,39 @@ func _draw_how() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.93))
 	var close: Dictionary = SkyGearData.CLOSE
-	var lines: Array = [
-		["THE ONE THING", ""],
-		["", "Your gauge fills from damage you land within %d units and from being crowded — and empties when you are not. It is not a reward for surviving, it is a reward for being in reach." % int(close.range)],
-		["", "At full it VENTS by itself: %d damage in a %d radius and %d health back. Kiting is the losing line; the ship heals you for standing in it." % [int(close.vent_damage), int(close.vent_radius), int(close.vent_heal)]],
+	var kit: Dictionary = game.class_data()
+	## THE ONE THING IS NOT THE SAME THING FOR BOTH OF THEM.
+	##
+	## Every sentence of this section is false by design for the Boilerwright —
+	## his gauge does not fill from damage, does not empty when he backs off and
+	## never vents itself — and the page said them at him anyway. A teaching
+	## surface that teaches the wrong loop is worse than one that teaches nothing,
+	## because the player acts on it and then cannot work out why it does not pay.
+	##
+	## Numbers from the tables, both sides, so neither half can drift.
+	var one_thing: Array = []
+	if game.gauge_is_banked():
+		one_thing = [
+			["THE ONE THING", ""],
+			["", "%s does not fill from fighting. It fills only where you plant yourself: standing on the Boiler (%d a second, and the ship pays for it), at a deck vent (%d), or inside a steam main you cracked open with F (%d). It never decays and it never spends itself."
+				% [str(kit.get("gauge", "HEAD")), int(kit.get("boiler_rate", 0)),
+					int(kit.get("vent_rate", 0)), int(kit.get("tap_rate", 0))]],
+			["", "WHILE THERE IS ANYTHING IN IT, EVERY WEAPON YOU OWN HITS %d%% HARDER. That is Overpressure and it is the whole class — the bank is not a resource you are saving for later, it is a damage bonus that is switched on right now. Every cast, every Bleed Jet, every Blowdown turns some of it off."
+				% roundi(float(kit.get("overpressure", 0.0)) * 100.0)],
+			["", "You have no dash. Space is a BLEED JET: %d units for %d Head, leaving scalding steam in the lane behind you — so every dodge is damage you did not do. Inside your own main you take %d%% less and cannot be knocked about."
+				% [int((kit.get("jet", {}) as Dictionary).get("distance", 0)),
+					int((kit.get("jet", {}) as Dictionary).get("cost", 0)),
+					roundi(float(SkyGearData.TAP.anchor_resist) * 100.0)]],
+		]
+	else:
+		one_thing = [
+			["THE ONE THING", ""],
+			["", "Your gauge fills from damage you land within %d units and from being crowded — and empties when you are not. It is not a reward for surviving, it is a reward for being in reach." % int(close.range)],
+			["", "At full it VENTS by itself: %d damage in a %d radius and %d health back. Kiting is the losing line; the ship heals you for standing in it." % [int(close.vent_damage), int(close.vent_radius), int(close.vent_heal)]],
+		]
+	var lines: Array = one_thing + [
 		["WHAT YOU LOSE BY", ""],
-		["", "The Boiler, not you. It sits at the stern and boarders walk to it. You have %d health and it has %d; dying costs you the run, but so does letting three lanes through while you are alive and well." % [int(SkyGearPlayer.MAX_HP), 500]],
+		["", "The Boiler, not you. It sits at the stern and boarders walk to it. You have %d health and it has %d; dying costs you the run, but so does letting three lanes through while you are alive and well." % [int(kit.get("hp", SkyGearPlayer.MAX_HP)), 500]],
 		["THE DECK FIGHTS", ""],
 		["", "Three lanes, each with a cannon and crew. They hold, they do not kill — treat them as time, not as damage. Kegs and lanterns explode when hit and count as yours."],
 		["YOUR HAND", ""],
@@ -2082,90 +2414,380 @@ func _wrapped_lines(text: String, width: float, pt: int) -> int:
 	return count
 
 
-## THE WORKSHOP. Four columns, one per branch, because the tree is four
-## independent ladders rather than a graph — and a graph you have to trace is a
-## screen a player reads once and then clicks through from memory.
+## --- THE WORKSHOP -------------------------------------------------------------
 ##
-## A locked tier is drawn, dimmed, with its condition on it. Hiding it would make
-## the branch look finished at two nodes; showing it is what makes the second
-## purchase in a branch feel like it opened something.
+## Reported: "we need to also work on making the workshop more of a visual tree —
+## love the abilities and such, but the menu itself is quite dull/boring."
+##
+## The content is not the problem and none of it moves: the same 23 nodes at the
+## same costs with the same rank counts, the same seven Articles, the same tier
+## rule. What was wrong is that the dependency structure was IMPLIED — by the
+## order of a list and by a grey sentence between two rows — and everything else
+## on the screen was a rectangle with a name in it. Twenty-eight identical
+## rectangles is a form, and a form is what it read as.
+##
+## So the structure is DRAWN. Four brass mains run down from four manifolds, one
+## per branch; a handwheel valve sits at each tier gate and is visibly open or
+## visibly shut; a spur runs off the main into every fitting and is hot if you
+## own it, warm if you can buy it and cold if you cannot. The tier rule was
+## always "two more in this branch" and now it is a valve you can see is closed.
+##
+## FIVE STATES, EACH SAID THREE WAYS, because a state said only in colour is a
+## state a colour-blind player cannot read:
+##
+##   FULL    every rank fitted     green rim · every rivet filled
+##   HELD    fitted, more to buy   brass rim, warm plate · some rivets · a cost
+##   READY   affordable right now  brass rim, dark plate · no rivets · lit cost
+##   DEAR    open, cannot pay      copper rim, cold spur · dimmed cost
+##   LOCKED  the valve above is shut   iron rim · no cost · a shut wheel above it
+##
+## RANK IS RIVETS. Eleven of the twenty-three nodes have more than one rank and
+## the only way to see it was to read "1/3" off the end of the name — inside the
+## name's own box, competing with it for the width that made the name shrink.
+##
+## THE ARTICLES ARE A SIDEBAR, not a fifth column and not a row of buttons. They
+## are a different object bought with a different currency and there is no
+## refund, so they get a different shape: wax seals down the right-hand edge in
+## the sigil violet, against the tree's rectangular brass. Moving them sideways
+## also bought the vertical space the tree needed — the old two-row band of
+## Articles was printing through the description strip at 1280x720, which every
+## check passed because a stamped strip is not a widget and the overlap was
+## forty-nine percent of a box rather than fifty.
+
+## THE FIVE STATES, in the order they appear above.
+enum Fit {LOCKED, DEAR, READY, HELD, FULL}
+
+## The ink for each. Every one is either a bone/brass/green that clears the
+## contrast floor on a dark plate, or one of `SkyGearInk.MUTED` — a fitting you
+## cannot buy is SUPPOSED to recede, and the muted floor is what says how far it
+## is allowed to.
+const FIT_INK := [Color("#6f6878"), Color("#8f8697"), Color("#eee5d5"),
+	Color("#e8c376"), Color("#7be8a8")]
+## The rim, which is metal rather than text and so has no floor to clear. Copper
+## for DEAR — it is a real fitting and it is not yours; cold iron-violet for
+## LOCKED — there is nothing here to want yet.
+const FIT_RIM := [Color("#4a4356"), Color("#8a5236"), Color("#b0813f"),
+	Color("#e8c376"), Color("#5fc79a")]
+const FIT_FILL := [Color(0.050, 0.045, 0.072, 0.90), Color(0.070, 0.048, 0.052, 0.88),
+	Color(0.058, 0.052, 0.082, 0.90), Color(0.112, 0.084, 0.050, 0.94),
+	Color(0.048, 0.098, 0.078, 0.94)]
+## How hot the pipe feeding a fitting runs. The spur is the fourth channel and
+## the cheapest one: a lit spur is a fitting you own, read across the whole board
+## at a glance without looking at a single word.
+const FIT_HEAT := [0.08, 0.30, 0.62, 1.0, 1.0]
+
+## The Articles' violet, and the cold pipe. Named because they are each used in
+## four places and a fifth shade of purple is how a palette dies.
+const SIGIL_VIOLET := Color("#c9b6e8")
+
+## THE BOARD'S FURNITURE. `SHOP_HEAD` is the only one of these that is measured
+## rather than chosen: `frame_hud.png`'s banner region is 391x117, drawn 480 wide
+## and therefore 143 tall, ten pixels above the plate — so anything above
+## room.y + 82 is drawn on its lower brass, and the old scrip line was.
+const SHOP_HEAD := 82.0
+const SHOP_LEDGER := 28.0
+const SHOP_LEDGER_GAP := 14.0
+const SHOP_BRANCH_HEAD := 24.0
+const SHOP_GATE := 18.0
+## Board floor to plate floor: the description strip, the gap over it, the two
+## buttons, and the painted bevel `writing_area` already knows about.
+const SHOP_TAIL := 78.0
+const SHOP_STEP_MAX := 42.0
+const SHOP_STEP_MIN := 26.0
+## The gutter the main runs down, inside each branch column, and the gap between
+## two branches.
+const SHOP_SPINE := 28.0
+const SHOP_COL_GAP := 12.0
+## One rivet every nine pixels. Three ranks is the most any node has, so the
+## widest rank readout on the board is 26 pixels — against 30 for " 1/3" at the
+## size the names want to be drawn at.
+const SHOP_RIVET_STEP := 9.0
+
+
+## A LENGTH OF BRASS PIPE. Three strokes, and the middle one is the only one
+## carrying the state: the casing so it reads as a solid rather than as a
+## coloured line, the metal, and the light along its upper side, because a pipe
+## is a cylinder and one bright edge is the cheapest thing that says so.
+func _pipe(from: Vector2, to: Vector2, bore: float, warm: float) -> void:
+	var metal: Color = Color("#37303e").lerp(Color("#bb8b40"), warm)
+	var shine: Color = Color("#4e4756").lerp(Color("#f8dcaa"), warm)
+	draw_line(from, to, Color(0.02, 0.015, 0.03, 0.95), bore + 3.0)
+	draw_line(from, to, metal, bore)
+	var along := (to - from).normalized()
+	var off := Vector2(-along.y, along.x) * (bore * 0.30)
+	draw_line(from - off, to - off, shine, maxf(1.0, bore * 0.26))
+
+
+## A FLANGE ACROSS A PIPE. Where two lengths meet, which on this board is every
+## place the eye needs a full stop: under a manifold, either side of a valve.
+func _collar(at: Vector2, along: Vector2, bore: float, warm: float) -> void:
+	var across := Vector2(-along.y, along.x) * (bore * 1.05)
+	var thick: float = maxf(3.0, bore * 0.55)
+	draw_line(at - across, at + across, Color(0.02, 0.015, 0.03, 0.95), thick + 2.0)
+	draw_line(at - across, at + across,
+		Color("#443d4c").lerp(Color("#d7a75c"), warm), thick)
+
+
+## THE TIER GATE, AS A HANDWHEEL. "tier 2 — buy 2 in this branch" was a grey
+## sentence between two rows and it was doing the most important job on the
+## screen: saying that the branch continues and what opens it.
+##
+## Shut, the wheel is turned forty-five degrees and drawn in cold iron, so the
+## state is in the SHAPE as well as in the colour. Open, it is brass and square
+## on, and the pipe either side of it runs hot.
+func _valve(at: Vector2, radius: float, open: bool) -> void:
+	var metal: Color = Color("#e0ad5e") if open else Color("#4f4859")
+	draw_circle(at, radius + 2.0, Color(0.02, 0.015, 0.03, 0.95))
+	draw_arc(at, radius, 0.0, TAU, 22, metal, 2.6)
+	var turn: float = 0.0 if open else PI * 0.25
+	for i in 4:
+		var a: float = turn + PI * 0.5 * float(i)
+		draw_line(at, at + Vector2(cos(a), sin(a)) * radius, metal, 2.0)
+	draw_circle(at, maxf(1.5, radius * 0.30), metal)
+
+
+## RANK, AS RIVETS. Filled is fitted. The unfilled ones are drawn as empty holes
+## rather than omitted, because "this node has three ranks and you have one" and
+## "this node has one rank and you have it" have to look different from across
+## the board — that is most of what the pass was asked for.
+func _rivets(at: Vector2, count: int, filled: int, tint: Color) -> void:
+	for i in count:
+		var c := at + Vector2(float(i) * SHOP_RIVET_STEP, 0.0)
+		draw_circle(c, 3.7, Color(0.02, 0.015, 0.03, 0.9))
+		if i >= filled:
+			draw_arc(c, 2.8, 0.0, TAU, 12, Color("#6d6478"), 1.4)
+			continue
+		draw_circle(c, 2.9, tint)
+		draw_circle(c - Vector2(0.8, 0.8), 1.0, Color(1, 1, 1, 0.4))
+
+
+## How wide a run of rivets is, so the name beside them can be given the rest.
+static func _rivet_span(count: int) -> float:
+	return float(maxi(1, count) - 1) * SHOP_RIVET_STEP + 8.0
+
+
+## WHAT KIND OF FITTING THIS IS, in twelve pixels of line work.
+##
+## `docs/META-PROGRESSION-DESIGN.md` §7 books 34 node icons as the most expensive
+## art item in the project relative to what it buys, and says to ship on
+## typography and shape glyphs instead. This is that: one glyph per BRANCH rather
+## than one per node, which is four drawings instead of thirty-four and is also
+## the distinction a player actually needs — the branch is the thing you scan for.
+func _branch_glyph(centre: Vector2, branch: String, tint: Color) -> void:
+	var r := 6.0
+	match branch:
+		"kit":
+			## A blade. Her kit is the only branch that is about the captain.
+			draw_polyline(PackedVector2Array([centre + Vector2(-r, r * 0.9),
+				centre + Vector2(r * 0.35, -r), centre + Vector2(r, -r * 0.15)]),
+				tint, 1.7)
+		"gauge":
+			draw_arc(centre, r * 0.92, 0.0, TAU, 18, tint, 1.5)
+			draw_line(centre, centre + Vector2(r * 0.62, -r * 0.55), tint, 1.6)
+		"ship":
+			## A hull section: a deck line and a keel under it.
+			draw_line(centre + Vector2(-r, -r * 0.45), centre + Vector2(r, -r * 0.45),
+				tint, 1.6)
+			draw_polyline(PackedVector2Array([centre + Vector2(-r * 0.85, -r * 0.45),
+				centre + Vector2(0.0, r), centre + Vector2(r * 0.85, -r * 0.45)]),
+				tint, 1.6)
+		_:
+			## Ruled lines. The Log is the branch that hands you information.
+			for i in 3:
+				var y: float = -r * 0.62 + float(i) * r * 0.62
+				draw_line(centre + Vector2(-r, y), centre + Vector2(r, y), tint, 1.4)
+
+
+## A FITTING'S PLATE. Dark field, rim in the state's metal, and a warm inner
+## glow once it is yours — so a bought branch reads as lit pipework rather than
+## as a column of ticks.
+func _fitting(box: Rect2, state: int, lit: bool) -> void:
+	draw_rect(box, FIT_FILL[state])
+	if state >= Fit.HELD:
+		## The glow sits inside the rim rather than under the plate, so it cannot
+		## bleed into the node above at the compressed step 720p forces.
+		draw_rect(box.grow(-2.0), Color(FIT_RIM[state].r, FIT_RIM[state].g,
+			FIT_RIM[state].b, 0.10))
+	var rim: Color = FIT_RIM[state]
+	if lit:
+		rim = rim.lerp(Color("#ffe6b0"), 0.55)
+		draw_rect(box.grow(2.0), Color(rim.r, rim.g, rim.b, 0.16))
+	draw_rect(box, rim, false, 2.0 if lit else 1.3)
+	## Two rivets in the left edge, which is what makes it a plate bolted to a
+	## machine rather than a rounded rectangle.
+	for y in [box.position.y + 5.0, box.end.y - 5.0]:
+		draw_circle(Vector2(box.position.x + 4.0, y), 1.3,
+			Color(rim.r, rim.g, rim.b, 0.8))
+
+
+## A WAX SEAL. The Articles' shape, and deliberately nothing like a fitting: a
+## disc where the tree has rectangles, violet where the tree is brass, and no
+## refund where the tree is free to respec. Three objects, three languages.
+func _seal(centre: Vector2, radius: float, rim: Color, face: Color,
+		lit: bool) -> void:
+	draw_circle(centre, radius + 2.0, Color(0.02, 0.015, 0.03, 0.95))
+	draw_circle(centre, radius, face)
+	draw_arc(centre, radius, 0.0, TAU, 30, rim, 2.4 if lit else 1.7)
+	for i in 8:
+		var a: float = TAU * float(i) / 8.0 + PI * 0.125
+		draw_circle(centre + Vector2(cos(a), sin(a)) * (radius - 3.2), 1.2,
+			Color(rim.r, rim.g, rim.b, 0.85))
+
+
 func _draw_workshop() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
 	var w: Dictionary = game.workshop
-	var tallest := 0.0
+
+	## --- how deep the board wants to be -------------------------------------
+	##
+	## MEASURED, never estimated. The Captain's Kit is one node longer than every
+	## estimate anyone has written into this file, and an estimate is what once
+	## printed THE ARTICLES through WOUND KIT.
+	var rows := 0
+	var gates := 0
 	for branch in SkyGearWorkshop.BRANCHES:
-		var height := 16.0
-		var seen := -1
+		var n := 0
+		var tiers := {}
 		for id in SkyGearWorkshop.NODES.keys():
 			if str(SkyGearWorkshop.NODES[id].branch) != branch:
 				continue
-			var t := int(SkyGearWorkshop.NODES[id].tier)
-			if t != seen:
-				seen = t
-				if t > 0:
-					height += 18.0
-			height += 38.0
-		tallest = maxf(tallest, height)
-	## Plus the Articles underneath: seven of them, four to a line, a heading
-	## above and the respec row below. The first version counted only the rows and
-	## the second line of Articles sat on the bottom rail — the audit found it,
-	## which is the third time that tool has caught a plate I sized by eye.
-	var art_lines: float = ceil(float(SkyGearWorkshop.ARTICLES.size()) / 4.0)
-	## ...plus 32 for the description strip that replaced the sentence inside
-	## every node button.
-	var wanted: float = tallest + art_lines * 38.0 + 16.0 + 58.0 + 92.0 + 108.0 + 62.0 + 32.0
-	var tall: float = minf(size.y - 116.0, wanted)
+			n += 1
+			tiers[int(SkyGearWorkshop.NODES[id].tier)] = true
+		rows = maxi(rows, n)
+		gates = maxi(gates, tiers.size() - 1)
 
-	## AND IF IT STILL DOES NOT FIT, THE ROWS COMPRESS. At 720p and 900p the plate
-	## is clamped by the window and the Articles ran off the bottom rail — sizing
-	## to content only helps while the content is smaller than the screen. The
-	## step shrinks to 26 before anything is allowed to leave the frame.
-	##
-	## Everything below measures from `step` rather than from 38, so this is one
-	## number rather than a rule people have to remember.
-	var step := 38.0
+	## Everything that is not a row of fittings, once: the two writing-area
+	## insets, the banner's overhang, the ledger, the manifold nameplates, the
+	## gates, and the foot. `wanted` is then one multiplication.
+	var fixed: float = 62.0 + SHOP_HEAD + SHOP_LEDGER + SHOP_LEDGER_GAP \
+		+ SHOP_BRANCH_HEAD + float(gates) * SHOP_GATE + SHOP_TAIL + 84.0
+	var wanted: float = fixed + float(rows) * SHOP_STEP_MAX
+	var tall: float = minf(size.y - 116.0, wanted)
+	## AND IF IT DOES NOT FIT, THE ROWS CLOSE UP — never the chrome, and never the
+	## point size. 1280x720 is the size this screen has broken at twice.
+	var step := SHOP_STEP_MAX
 	if wanted > tall:
-		var rows: float = (tallest - 16.0) / 38.0 + art_lines
-		step = clampf((tall - 92.0 - 108.0 - 62.0 - 16.0 - 58.0 - 16.0 - 32.0)
-			/ maxf(1.0, rows), 26.0, 38.0)
-	var page := Rect2(size.x * 0.5 - 520.0, maxf(48.0, (size.y - tall) * 0.4),
-		1040.0, tall)
+		step = clampf((tall - fixed) / float(maxi(1, rows)),
+			SHOP_STEP_MIN, SHOP_STEP_MAX)
+
+	## THE PLATE TAKES THE WINDOW IT IS GIVEN. It was a fixed 1040 at every
+	## resolution, which is 120 pixels of empty desk either side at 1280 while the
+	## node names inside were being shrunk to fit, and a postage stamp adrift in
+	## the middle of a 2560 ultrawide.
+	var page_w: float = clampf(size.x - 96.0, 1040.0, 1420.0)
+	var page := Rect2(size.x * 0.5 - page_w * 0.5,
+		maxf(48.0, (size.y - tall) * 0.4), page_w, tall)
 	_sheet(page)
+	## The plate the audit measures every string on. `_stamp` moves it to whatever
+	## strip is being written and each one hands it back here.
+	var plate := _frame
 	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
 	_center_text("THE WORKSHOP", page.position.y + 48.0, 34, BRASS_LIT)
-	var room := interior(page)
-	## Below the banner, not under it. The banner art overhangs the plate.
-	_label("%d SCRIP · %d SIGILS" % [int(w.scrip), int(w.sigils)],
-		Vector2(room.position.x, room.position.y + 76.0), room.size.x,
-		HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#37f0c8"))
 
+	var room := writing_area(page)
 	ui.begin("workshop", self, font, get_local_mouse_position())
-	var deepest := 0.0
+
+	## --- the ledger ---------------------------------------------------------
+	##
+	## What you hold, what you have committed, and what a respec would hand back —
+	## which is the same number, said once, where a player can find it before
+	## pressing the button rather than after. The board used to say "480 SCRIP · 2
+	## SIGILS" in one teal line and nothing else about the state of your account.
+	var committed := 0
+	var fitted := 0
+	var steps := 0
+	for id in SkyGearWorkshop.NODES.keys():
+		var have := SkyGearWorkshop.rank(w, id)
+		committed += int(SkyGearWorkshop.NODES[id].cost) * have
+		fitted += have
+		steps += int(SkyGearWorkshop.NODES[id].ranks)
+	var ledger := _stamp(Rect2(room.position.x, room.position.y + SHOP_HEAD,
+		room.size.x, SHOP_LEDGER), 0.55)
+	var cell: float = ledger.size.x / 4.0
+	var base: float = ledger.position.y + 19.0
+	var readouts := [
+		["SCRIP", "%d" % int(w.scrip), Color("#37f0c8")],
+		["COMMITTED", "%d" % committed, BRASS_LIT],
+		["SIGILS", "%d" % int(w.sigils), SIGIL_VIOLET],
+		["FITTINGS", "%d of %d" % [fitted, steps], BONE],
+	]
+	for i in readouts.size():
+		var at: float = ledger.position.x + float(i) * cell
+		if i > 0:
+			draw_line(Vector2(at, ledger.position.y + 4.0),
+				Vector2(at, ledger.end.y - 4.0), Color("#4a4356"), 1.0)
+		_label(str(readouts[i][0]), Vector2(at + 12.0, base), cell - 24.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#8f8697"))
+		_value(str(readouts[i][1]), Vector2(at + 12.0, base), cell - 24.0,
+			HORIZONTAL_ALIGNMENT_RIGHT, 15, readouts[i][2] as Color)
+	_frame = plate
+	_in_frame = true
+
+	## --- the board ----------------------------------------------------------
+	var board_top: float = ledger.end.y + SHOP_LEDGER_GAP
+	var board_h: float = SHOP_BRANCH_HEAD + float(rows) * step \
+		+ float(gates) * SHOP_GATE
+	var side_w: float = clampf(room.size.x * 0.20, 190.0, 260.0)
+	var tree_w: float = room.size.x - side_w - 22.0
+	var col_w: float = (tree_w - SHOP_COL_GAP * 3.0) / 4.0
+	var node_w: float = col_w - SHOP_SPINE
+
 	## WHAT THE THING UNDER YOUR HAND DOES, once, in a size you can read.
 	##
 	## Every node used to carry its own sentence inside its button — a 240px
 	## column holding "the first killing blow leaves you at 1, once a run", which
-	## `_fits` duly rendered at seven points. Twenty-eight of those on one screen
-	## is not information, it is texture, and no floor above 8pt can make that
-	## sentence fit that box: the box is the problem.
+	## `_fits` duly rendered at seven points. The sentence lives at the foot of
+	## the page and belongs to whatever is focused; focus follows the mouse and
+	## the keyboard both, so it costs no new interaction.
 	##
-	## So the sentence moves to one strip at the foot of the page and belongs to
-	## whatever is focused. Focus already follows the mouse and the keyboard both,
-	## so this costs no new interaction — and the grid it leaves behind is one
-	## line per node, which is what let the names go up to 13.
-	var explain := ""
-	var col_w: float = room.size.x / 4.0 - 10.0
+	## THREE FIELDS now, not one. The old strip said what a node does and never
+	## said what it costs, whether you can afford it, or why it is locked — so
+	## every one of those had to be worked out from a colour.
+	var told := {}
+
 	for c in SkyGearWorkshop.BRANCHES.size():
 		var branch: String = str(SkyGearWorkshop.BRANCHES[c])
-		var x: float = room.position.x + c * (col_w + 13.0)
-		var y: float = room.position.y + 104.0
-		_label(str(SkyGearWorkshop.BRANCH_NAMES[branch]), Vector2(x, y), col_w,
-			HORIZONTAL_ALIGNMENT_LEFT,
-			_fits(str(SkyGearWorkshop.BRANCH_NAMES[branch]), col_w, 13, 10),
-			Color("#e8c376"))
-		y += 16.0
+		var x: float = room.position.x + float(c) * (col_w + SHOP_COL_GAP)
+		var spine_x: float = x + SHOP_SPINE * 0.5
+		var node_x: float = x + SHOP_SPINE
+
+		## THE MANIFOLD. The branch's name, its glyph, and how much of it is
+		## yours — as a figure and as a fill along the bottom of the plate, which
+		## is the one place on this screen a bar is worth more than a number.
+		var have_here := 0
+		var steps_here := 0
+		for id in SkyGearWorkshop.NODES.keys():
+			if str(SkyGearWorkshop.NODES[id].branch) != branch:
+				continue
+			have_here += SkyGearWorkshop.rank(w, id)
+			steps_here += int(SkyGearWorkshop.NODES[id].ranks)
+		var head := Rect2(x, board_top, col_w, SHOP_BRANCH_HEAD - 5.0)
+		_stamp(head, 0.5)
+		draw_rect(head, Color("#7a5c30"), false, 1.0)
+		var fill_w: float = head.size.x * float(have_here) / maxf(1.0, float(steps_here))
+		draw_rect(Rect2(head.position.x, head.end.y - 2.0, fill_w, 2.0), BRASS_LIT)
+		_branch_glyph(head.position + Vector2(12.0, head.size.y * 0.5), branch,
+			BRASS_LIT if have_here > 0 else Color("#8a7d5e"))
+		var head_name := str(SkyGearWorkshop.BRANCH_NAMES[branch])
+		_label(head_name, Vector2(head.position.x + 22.0,
+			head.position.y + head.size.y * 0.5 + 5.0), head.size.x - 62.0,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(head_name, head.size.x - 62.0, 13),
+			BRASS_LIT)
+		_label("%d/%d" % [have_here, steps_here],
+			Vector2(head.position.x, head.position.y + head.size.y * 0.5 + 5.0),
+			head.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
+			BONE if have_here > 0 else Color("#8f8697"))
+		_frame = plate
+		_in_frame = true
+
+		var y: float = head.end.y + 5.0
 		var shown_tier := -1
+		## THE OUTLET. A flange where the main leaves the manifold, so the branch
+		## reads as one run of plumbing from the nameplate down rather than as a
+		## column of plates with a line beside them.
+		_collar(Vector2(spine_x, y + 2.0), Vector2(0.0, 1.0), 7.0, 1.0)
+		var last_y: float = y
 		for id in SkyGearWorkshop.NODES.keys():
 			var node: Dictionary = SkyGearWorkshop.NODES[id]
 			if str(node.branch) != branch:
@@ -2175,108 +2797,249 @@ func _draw_workshop() -> void:
 			if tier != shown_tier:
 				shown_tier = tier
 				if tier > 0:
-					## The condition, spelled out. "Locked" with no reason is the
-					## most annoying word a menu can use.
-					_label("tier %d — buy %d in this branch" % [tier + 1,
-						tier * SkyGearWorkshop.TIER_STEP],
-						Vector2(x, y + 12.0), col_w, HORIZONTAL_ALIGNMENT_LEFT, 12,
-						Color("#37f0c8") if open else Color("#5f5863"))
-					y += 18.0
+					## THE GATE. The wheel on the main, and the condition beside
+					## it — spelled out as PROGRESS rather than as a target,
+					## because "buy 2 in this branch" never said how many of the
+					## two you already had.
+					var gate_y: float = y + SHOP_GATE * 0.5
+					_pipe(Vector2(spine_x, y), Vector2(spine_x, gate_y - 9.0),
+						7.0, 1.0 if open else 0.12)
+					_valve(Vector2(spine_x, gate_y), 8.0, open)
+					var need: int = tier * SkyGearWorkshop.TIER_STEP
+					var got: int = mini(SkyGearWorkshop.bought_in(w, branch), need)
+					var gate_text := "TIER %d · %d of %d fitted" % [tier + 1, got, need]
+					if open:
+						gate_text = "TIER %d · OPEN" % (tier + 1)
+					_label(gate_text, Vector2(spine_x + 14.0, gate_y + 4.0),
+						col_w - SHOP_SPINE * 0.5 - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
+						_fits(gate_text, col_w - SHOP_SPINE * 0.5 - 16.0, 12),
+						Color("#37f0c8") if open else Color("#8f8697"))
+					## AND THE MAIN RESUMES BELOW THE WHEEL. It used to resume at the
+					## previous fitting, so the next segment was drawn straight over
+					## the valve and every gate on the board was half a circle.
+					last_y = gate_y + 9.0
+					y += SHOP_GATE
 			var have := SkyGearWorkshop.rank(w, id)
-			var maxed: bool = have >= int(node.ranks)
-			var afford: bool = SkyGearWorkshop.can_buy(w, id)
-			var box := Rect2(x, y, col_w, step - 4.0)
-			var label := "%s %s" % [str(node.name),
-				("MAX" if maxed else "%d/%d" % [have, int(node.ranks)])]
-			## The index this button is about to take, so the strip at the foot
-			## can be told which node the hand is on. `declared()` is the list
-			## this frame built and `focused()` indexes into it, which is the one
-			## pairing that cannot drift apart.
-			var mine := ui.declared().size()
-			if ui.button(box, "", {"disabled": not afford}):
-				SkyGearWorkshop.buy(w, id)
-			if ui.focused() == mine:
-				explain = str(node.text)
-			## The button draws its own frame; the words go on top, left aligned,
-			## because a centred node name is unreadable in a 240px column.
-			var tint: Color = Color("#7be8a8") if maxed else 				(BONE if afford else Color("#6f6878"))
-			_label(label, Vector2(box.position.x + 8.0,
-				box.position.y + box.size.y * 0.5 + 5.0), box.size.x - 52.0,
-				HORIZONTAL_ALIGNMENT_LEFT, _fits(label, box.size.x - 52.0, 13), tint)
-			if not maxed:
-				_label("%d" % int(node.cost),
-					Vector2(box.position.x, box.position.y + box.size.y * 0.5 + 5.0),
-					box.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 13,
-					Color("#e8c376") if afford else Color("#5f5863"))
-			y += step
-		## The tallest column, measured rather than predicted. The Articles
-		## heading was placed from an estimate of the tallest branch and the
-		## Captain's Kit is one node longer than the estimate, so the heading
-		## printed through WOUND KIT.
-		deepest = maxf(deepest, y)
+			var ranks := int(node.ranks)
+			var cost := int(node.cost)
+			var state: int = Fit.READY
+			if have >= ranks:
+				state = Fit.FULL
+			elif have > 0:
+				state = Fit.HELD
+			elif not open:
+				state = Fit.LOCKED
+			elif int(w.scrip) < cost:
+				state = Fit.DEAR
 
-	## THE ARTICLES, along the bottom. A separate row rather than a fifth column
-	## because they are a different object bought with a different currency —
-	## scrip buys experiments and sigils buy commitments, and there is no refund.
-	var art_y: float = maxf(room.position.y + 130.0
-		+ (tallest - 16.0) * (step / 38.0), deepest + 12.0)
-	_label("THE ARTICLES  ·  sigils, and no respec", Vector2(room.position.x, art_y),
-		room.size.x, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#c9b6e8"))
-	art_y += 16.0
-	var ax: float = room.position.x
+			var box := Rect2(node_x, y + 3.0, node_w, step - 6.0)
+			var cy: float = box.get_center().y
+			## The main down to this fitting, then the spur into it.
+			_pipe(Vector2(spine_x, last_y), Vector2(spine_x, cy), 7.0,
+				1.0 if open else 0.12)
+			_pipe(Vector2(spine_x, cy), Vector2(box.position.x, cy), 5.0,
+				FIT_HEAT[state])
+			_collar(Vector2(spine_x, cy), Vector2(0.0, 1.0), 7.0,
+				1.0 if open else 0.12)
+			last_y = cy
+
+			## EVERY FITTING IS FOCUSABLE, including the ones you cannot buy.
+			##
+			## They used to be `disabled`, which is right for a menu and wrong for
+			## a board: `disabled` refuses the hover, so the description strip
+			## went silent over exactly the nodes a player most wants to read
+			## about — the expensive ones and the ones behind a shut valve. The
+			## purchase is still refused, by `can_buy`, which is where that
+			## decision belongs.
+			var mine := ui.declared().size()
+			if ui.button(box, "", {"bare": true}):
+				SkyGearWorkshop.buy(w, id)
+			var hot: bool = ui.lit(mine)
+			_fitting(box, state, hot)
+			_branch_glyph(Vector2(box.position.x + 12.0, cy), branch,
+				Color(FIT_RIM[state].r, FIT_RIM[state].g, FIT_RIM[state].b, 0.9))
+			## THE NAME GETS WHATEVER IS LEFT, and what is left was measured rather
+			## than eyeballed: the longest node name in the table is Deep Pockets at
+			## 85 pixels at 13pt, and the narrowest column this board ever draws
+			## leaves it 85. One pixel of slack is not comfortable, so `_fits` is
+			## still behind it — but it now yields at 12 rather than at 8, because
+			## the rank no longer competes with the name for the same box.
+			var span := _rivet_span(ranks)
+			_rivets(Vector2(box.end.x - 34.0 - span + 4.0, cy), ranks, have,
+				FIT_INK[state])
+			var name_w: float = node_w - 22.0 - span - 10.0 - 24.0 - 8.0
+			_label(str(node.name), Vector2(box.position.x + 22.0, cy + 5.0),
+				name_w, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(str(node.name), name_w, 13), FIT_INK[state])
+			## No price on a finished fitting. Every rivet is filled and the rim
+			## is green; a number there would be a number that means nothing.
+			if state != Fit.FULL:
+				_label("%d" % cost, Vector2(box.position.x, cy + 5.0),
+					node_w - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
+					BRASS_LIT if state in [Fit.READY, Fit.HELD] else FIT_INK[state])
+
+			if ui.focused() == mine:
+				var status := "%d scrip · rank %d of %d" % [cost, have, ranks]
+				match state:
+					Fit.FULL:
+						status = "every rank fitted"
+					Fit.LOCKED:
+						status = "locked · %d of %d fitted in this branch" % [
+							mini(SkyGearWorkshop.bought_in(w, branch),
+								tier * SkyGearWorkshop.TIER_STEP),
+							tier * SkyGearWorkshop.TIER_STEP]
+					Fit.DEAR:
+						status = "%d scrip · you hold %d" % [cost, int(w.scrip)]
+				told = {"name": str(node.name), "text": str(node.text),
+					"status": status, "tint": FIT_INK[state]}
+			y += step
+		## AND THE MAIN IS CAPPED. A pipe that stops in mid-air says the branch
+		## continues off the bottom of the plate, which is the one thing about
+		## this tree that is not true — it is finite, and that is the point of it.
+		_pipe(Vector2(spine_x, last_y), Vector2(spine_x, last_y + 9.0), 7.0, 1.0)
+		_collar(Vector2(spine_x, last_y + 10.0), Vector2(0.0, 1.0), 8.0, 1.0)
+
+	## --- the Articles -------------------------------------------------------
+	## Six pixels off the writing area's right edge. The painted bevel runs
+	## further in than the slice margin admits and the sigil pips were landing
+	## on it — the one thing on this board that is drawn hard against the rail.
+	var side := Rect2(room.end.x - side_w - 6.0, board_top, side_w, board_h)
+	var side_head := Rect2(side.position.x, side.position.y, side.size.x,
+		SHOP_BRANCH_HEAD - 5.0)
+	_stamp(side_head, 0.5)
+	draw_rect(side_head, Color("#5d4a73"), false, 1.0)
+	_label("THE ARTICLES", Vector2(side_head.position.x + 10.0,
+		side_head.position.y + side_head.size.y * 0.5 + 5.0),
+		side_head.size.x - 20.0, HORIZONTAL_ALIGNMENT_LEFT, 13, SIGIL_VIOLET)
+	_label("no refund", Vector2(side_head.position.x,
+		side_head.position.y + side_head.size.y * 0.5 + 5.0),
+		side_head.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#8f8697"))
+	_frame = plate
+	_in_frame = true
+
+	var art_step: float = (board_h - SHOP_BRANCH_HEAD) \
+		/ maxf(1.0, float(SkyGearWorkshop.ARTICLES.size()))
+	var art_y: float = side_head.end.y + 5.0
+	## THE CORD THE SEALS ARE STRUNG ON. The Articles are not a tree and must
+	## not grow one, but seven discs floating in a column read as seven
+	## unrelated buttons. A cord threaded behind them says they are one set,
+	## which is what they are and what "you can never own the whole side" is
+	## about. Drawn before the seals, so they sit on it.
+	draw_line(Vector2(side.position.x + 20.0, art_y + art_step * 0.5),
+		Vector2(side.position.x + 20.0,
+			art_y + art_step * (float(SkyGearWorkshop.ARTICLES.size()) - 0.5)),
+		Color(0.35, 0.28, 0.45, 0.75), 2.0)
 	for id in SkyGearWorkshop.ARTICLES.keys():
 		var art: Dictionary = SkyGearWorkshop.ARTICLES[id]
 		var held: bool = SkyGearWorkshop.owns(w, id)
-		var barred: bool = art.has("excludes") 			and SkyGearWorkshop.owns(w, str(art.excludes))
+		var barred: bool = art.has("excludes") \
+			and SkyGearWorkshop.owns(w, str(art.excludes))
 		var takeable: bool = SkyGearWorkshop.can_take(w, id)
-		var box := Rect2(ax, art_y, room.size.x / 4.0 - 10.0, step - 4.0)
+		var row := Rect2(side.position.x, art_y, side.size.x, art_step - 5.0)
 		var mine := ui.declared().size()
-		if ui.button(box, "", {"disabled": not takeable}):
+		if ui.button(row, "", {"bare": true}):
 			SkyGearWorkshop.take(w, id)
-		var head := "%s  %d" % [str(art.name), int(art.cost)]
-		if held:
-			head = "%s  ✓" % str(art.name)
-		elif barred:
-			head = "%s  — barred" % str(art.name)
-		var tint: Color = Color("#c9b6e8") if held else 			(BONE if takeable else Color("#6f6878"))
-		_label(head, Vector2(box.position.x + 8.0,
-			box.position.y + box.size.y * 0.5 + 5.0), box.size.x - 16.0,
-			HORIZONTAL_ALIGNMENT_LEFT, _fits(head, box.size.x - 16.0, 13), tint)
-		var blurb := str(art.text)
-		if bool(art.get("captain_only", false)):
-			blurb = "captain only · " + blurb
-		if ui.focused() == mine:
-			explain = blurb
-		ax += room.size.x / 4.0 + 3.0
-		if ax + 40.0 > room.end.x:
-			ax = room.position.x
-			art_y += step
+		var hot: bool = ui.lit(mine)
 
-	## The foot row rides the writing area rather than the interior. On a page
-	## this tall the painted bevel reaches 22 past where the slice margin says
-	## it does, and BACK was parked half on the brass with its Esc hint fully
-	## on it.
-	var shelf := writing_area(page)
-	var foot: float = shelf.end.y - 34.0
-	## THE STRIP, above the respec row and on a field of its own, so a
-	## sentence laid over a painted plate is a sentence rather than a
-	## texture. Always says something, because focus is always somewhere.
-	if explain != "":
-		var strip := _stamp(Rect2(shelf.position.x, foot - 32.0,
-			shelf.size.x, 24.0), 0.5)
-		_label(explain, Vector2(strip.position.x + 8.0, strip.end.y - 7.0),
-			strip.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
-			_fits(explain, strip.size.x - 16.0, 14), Color("#dcd2c4"))
-	## And the plate goes back, or the two buttons under the strip are measured
-	## against a 24-pixel-tall description field and every audit is a lie.
-	_frame = room
+		var ink: Color = SIGIL_VIOLET if held else \
+			(BONE if takeable else Color("#8f8697"))
+		var rim: Color = Color("#a98fd6") if held else \
+			(Color("#7a6a96") if takeable else Color("#4a4356"))
+		if hot:
+			rim = rim.lerp(Color("#efe2ff"), 0.5)
+			draw_rect(row.grow(-1.0), Color(rim.r, rim.g, rim.b, 0.09))
+		var radius: float = minf(13.0, row.size.y * 0.40)
+		var disc := Vector2(row.position.x + 14.0, row.get_center().y)
+		_seal(disc, radius, rim,
+			Color(0.16, 0.12, 0.22, 0.95) if held else Color(0.05, 0.042, 0.075, 0.92),
+			hot)
+		if held:
+			## A signature, not a tick: two strokes, and the only mark on this
+			## board that is not made of pipework.
+			draw_polyline(PackedVector2Array([
+				disc + Vector2(-radius * 0.45, 0.0),
+				disc + Vector2(-radius * 0.08, radius * 0.42),
+				disc + Vector2(radius * 0.52, -radius * 0.45)]), SIGIL_VIOLET, 2.0)
+		elif barred:
+			## Struck through. An Article you can never hold while you hold its
+			## twin is not the same thing as one you cannot afford.
+			draw_line(disc + Vector2(-radius * 0.7, radius * 0.7),
+				disc + Vector2(radius * 0.7, -radius * 0.7), Color("#8a5236"), 2.2)
+
+		## The cost in sigil pips rather than a numeral, because the Articles cost
+		## one to three of a currency you hold two of — a bar chart at that scale
+		## is faster to read than arithmetic.
+		var pips: float = _rivet_span(int(art.cost))
+		if not held:
+			_rivets(Vector2(row.end.x - 10.0 - pips + 4.0, row.get_center().y),
+				int(art.cost), int(art.cost) if takeable else 0, ink)
+		var key := str(art.get("key", ""))
+		var key_w: float = 0.0
+		if key != "":
+			## The binding, on the seal. Brace, Recall and Scuttle are the three
+			## Articles that are a KEY rather than a passive, and the one thing a
+			## player has to know about them before buying is which key.
+			key_w = 16.0
+			var tab := Rect2(row.end.x - 12.0 - pips - key_w, row.get_center().y - 8.0,
+				14.0, 16.0)
+			draw_rect(tab, Color(0.05, 0.042, 0.075, 0.9))
+			draw_rect(tab, rim, false, 1.0)
+			_label(key, Vector2(tab.position.x, tab.position.y + 12.0), tab.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 12, ink)
+		var art_name_w: float = row.size.x - 30.0 - pips - key_w - 14.0
+		_label(str(art.name), Vector2(row.position.x + 30.0,
+			row.get_center().y + 5.0), art_name_w, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(str(art.name), art_name_w, 13), ink)
+
+		if ui.focused() == mine:
+			var blurb := str(art.text)
+			if bool(art.get("captain_only", false)):
+				blurb = "captain only · " + blurb
+			var status := "%d sigils · you hold %d" % [int(art.cost), int(w.sigils)]
+			if int(art.cost) == 1:
+				status = "1 sigil · you hold %d" % int(w.sigils)
+			if held:
+				status = "signed"
+			elif barred:
+				status = "barred by %s" % str(
+					SkyGearWorkshop.ARTICLES[str(art.excludes)].name)
+			told = {"name": str(art.name), "text": blurb, "status": status,
+				"tint": ink}
+		art_y += art_step
+
+	## --- the foot -----------------------------------------------------------
+	##
+	## On the writing area's floor rather than the interior's: on a page this tall
+	## the painted bevel reaches 22 past where the slice margin says it does, and
+	## BACK was parked half on the brass with its Esc hint fully on it.
+	var foot: float = room.end.y - 34.0
+	var strip := _stamp(Rect2(room.position.x, foot - 34.0, room.size.x, 26.0), 0.55)
+	if not told.is_empty():
+		## Name, then what it does, then what it costs and whether you can pay —
+		## three fields, left to right, because that is the order the question is
+		## asked in.
+		var lead := "%s  ·  %s" % [str(told.name), str(told.text)]
+		var lead_w: float = strip.size.x * 0.62
+		_label(lead, Vector2(strip.position.x + 10.0, strip.end.y - 8.0), lead_w,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(lead, lead_w, 14), Color("#dcd2c4"))
+		_label(str(told.status), Vector2(strip.end.x - 10.0 - strip.size.x * 0.34,
+			strip.end.y - 8.0), strip.size.x * 0.34, HORIZONTAL_ALIGNMENT_RIGHT,
+			13, told.tint as Color)
+	_frame = plate
 	_in_frame = true
-	if ui.button(Rect2(shelf.position.x, foot, 200.0, 34.0), "RESPEC (FREE)"):
+
+	## RESPEC SAYS WHAT IT RETURNS. "RESPEC (FREE)" told you the price of pressing
+	## it and not the consequence, which is the number a player actually wants.
+	var respec_label := "RESPEC · RETURNS %d" % committed
+	if committed <= 0:
+		respec_label = "NOTHING FITTED YET"
+	if ui.button(Rect2(room.position.x, foot, 220.0, 34.0), respec_label,
+			{"disabled": committed <= 0}) and committed > 0:
 		SkyGearWorkshop.respec(w)
 	_label("free, and never mid-run — experimenting is all a tree this small has to offer",
-		Vector2(shelf.position.x + 212.0, foot + 22.0), shelf.size.x - 420.0,
+		Vector2(room.position.x + 232.0, foot + 22.0), room.size.x - 460.0,
 		HORIZONTAL_ALIGNMENT_LEFT, 12)
-	if ui.button(Rect2(shelf.end.x - 200.0, foot, 200.0, 34.0), "BACK",
+	if ui.button(Rect2(room.end.x - 200.0, foot, 200.0, 34.0), "BACK",
 			{"primary": true, "hint": "Esc"}):
 		game.workshop_open = false
 

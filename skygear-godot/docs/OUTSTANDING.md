@@ -310,6 +310,36 @@ Two Meshy attempts; neither read as the 180-hp thing you cannot walk through.
 Not a bug — a deliberate call — but it is the one boarder breaking the 3D
 consistency that was asked for, so it stays here until it is solved or dropped.
 
+### The Workshop is a visual tree now — HEAT IS STILL A ROW
+> *"We need to also work on making the workshop more of a visual tree — love the
+> abilities and such, but the menu itself is quite dull/boring. Needs a visual
+> pass."*
+
+Done, and the ask listed four things to use judgement about. Three landed: node
+state at a glance, rank as rivets, what a node does on hover, the running total
+including what a respec returns, and the Articles as their own object — a
+sidebar of wax seals on a cord rather than more rows.
+
+**The fourth did not.** "Articles and Heat given their own visual identity
+rather than more rows" — Heat is not in the Workshop at all. It is a single
+cycling `ui.choice` row on the TITLE screen, which is exactly the treatment the
+ask objects to, and it is still that. The two candidate fixes, and why neither
+was taken in the same pass:
+
+- **A rung ladder on the title.** Five clickable rungs with the cleared ones lit
+  and the next one reachable, instead of one row you cycle. Small, contained,
+  mouse-first, and the right answer. Not done because the title screen is the
+  one screen where a widget-count change has already produced a COLLIDE — the
+  Heat row is what put DIFFICULTY, CAPTAIN and THE WORKSHOP on top of each other
+  — and it wanted its own audit pass rather than the tail of someone else's.
+- **Moving the picker into the Workshop.** Rejected rather than deferred. Heat
+  is a per-run choice made on the way into a run; the Workshop is where you
+  spend between runs. Putting it there makes you visit two screens to start.
+
+There is also a smaller thing worth writing down while it is fresh: **Heat 3, 4
+and 5 do not exist**, so the ladder a rung display would draw is two rungs long.
+Whoever builds the display should probably build it after the rungs.
+
 ---
 
 ## Done
