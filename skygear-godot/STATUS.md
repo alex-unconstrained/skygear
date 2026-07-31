@@ -9,7 +9,7 @@ Live at https://alex-unconstrained.itch.io/skygear-godot-test — latest build
 builds/itch/SkyGear-Windows.zip alex-unconstrained/skygear-godot-test:windows
 --userversion <tag>` publishes.
 
-**161 checks**, all passing: `godot --path . --headless --script
+**382 checks**, all passing: `godot --path . --headless --script
 tests/parity_test.gd`. Exit code is the failure count.
 
 ## Waiting on Alex
@@ -58,7 +58,7 @@ every future instance cheaper, then build it.
 | `tools/ingest_ui.py` | Forged HUD furniture into the port. |
 | `tools/pack_itch.py` | Export and zip. |
 | F4 in game | HUD layout, two levels, saved to disk. |
-| `tests/parity_test.gd` | 161 checks. |
+| `tests/parity_test.gd` | 382 checks. |
 | `tests/_shot3d.gd`, `_shot_model.gd`, `_shot_screens.gd`, `_shot_anim.gd` | Screenshots for looking at things without launching. |
 
 ## Known-wrong, deliberately

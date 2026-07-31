@@ -13,9 +13,9 @@ extends RefCounted
 ## deliberate is a bug nobody will find:
 ##
 ##   id      stable identifier, same string as the browser card
-##   rarity  common | rare | epic
-##   scope   which class of thing it touches; drives the card's colour band and
-##           the row of affected-skill glyphs on the card face
+##   rarity  common | rare | epic; drives the frame's metal on the card face
+##   scope   which class of thing it touches; drives the word in the card's band
+##           and the row of affected-skill glyphs under it
 ##   weight  how badly the draft wants to offer it right now, given the build
 ##   can     may it be offered at all
 ##   make    build a concrete instance: title, text, target slot, apply()
@@ -33,18 +33,19 @@ const SCOPE_DECK := "deck"
 const SCOPE_ALL := "all"
 const SCOPE_META := "meta"
 
-## Colour per scope. The browser draws these as a band across the top of the
-## card; the class of a card should be readable before any of its words are.
-const SCOPE_COLOR := {
-	SCOPE_NEW: Color("#ffd52e"),
-	SCOPE_SKILL: Color("#37f0c8"),
-	SCOPE_ELEMENT: Color("#c9b6e8"),
-	SCOPE_CAPTAIN: Color("#e8542e"),
-	SCOPE_SHIP: Color("#e8c376"),
-	SCOPE_DECK: Color("#ff9a4a"),
-	SCOPE_ALL: Color("#9be8d2"),
-	SCOPE_META: Color("#8fa6c9"),
-}
+## SCOPE HAS NO COLOUR ANY MORE, and the table that gave it one is deleted
+## rather than left unread.
+##
+## It had one — a per-scope hue for the band — and the opening draft painted
+## its weapons by ELEMENT instead, so the same channel meant "this is a Frost
+## weapon" on one screen and "this affects the Boiler" on the next. Reported
+## as element and rarity and role having been lost, and the reason they were
+## lost is that the one channel that carries a category at a glance was already
+## spent on a fourth category the player had not asked to see.
+##
+## Scope keeps SCOPE_LABEL, which is a word, in the band where it always was.
+## A word is the right shape for it: there are eight scopes and eight hues no
+## one can learn, where CAPTAIN and THE BOILER need no learning at all.
 const SCOPE_LABEL := {
 	SCOPE_NEW: "NEW SKILL",
 	SCOPE_SKILL: "SKILL UPGRADE",
@@ -64,6 +65,121 @@ const CARD_ELEMENT := {
 	"stun": "ARC",
 	"knock": "STEAM", "scald": "STEAM",
 }
+
+
+## --- THE THREE THINGS A CARD IS ----------------------------------------------
+##
+## Reported: "the browser did a great job of visually colouring and marking card
+## choices to convey the ELEMENT, RARITY, and ACTIVE/PASSIVE role. This feels
+## lost." It was not faded, it was absent, and each one failed differently:
+##
+##   RARITY  `game.gd` writes `instance["rarity"]` on every drafted card and no
+##           reader has ever existed. Three rarities in this file, none of them
+##           on screen. Same shape of bug as the Workshop's unread talent
+##           fields, which is why the harness now guards this one too.
+##   ELEMENT the colour channel was already spent, and spent on two different
+##           things: a drafted card was tinted by SCOPE and an opening-draft
+##           weapon by ELEMENT, so the same channel meant two things depending
+##           on which draft you were looking at. Worse than conveying neither.
+##   ROLE    `SHAPES` marks AURA and PULSE `passive: true` and the card face
+##           never said so. You could draft a Field and not learn until the
+##           fight that it has no key.
+##
+## ONE AXIS PER CHANNEL, and each one resolved here so the card face, the audit
+## and the harness cannot disagree:
+##
+##   element -> HUE. Everywhere, both drafts, and brass when a card has none —
+##              a colour that means "Frost" on one card must not mean "affects
+##              the Boiler" on the next.
+##   rarity  -> METAL. Ring weight and corner rivets in a value ramp, because
+##              hue is taken. Iron, brass, steel.
+##   role    -> A WORD. It is binary and binary things read as a mark, not a
+##              shade — and a shade cannot be read by someone who is colour-blind
+##              while a word can.
+##
+## Every one of the three is ALSO written out in the tag row, because the test
+## the player set is "can you tell them apart at a glance" and a glance that
+## needs a legend is not a glance.
+const RARITY_LOOK := {
+	## Pewter rather than the dull brass it started as. The contrast pass measured
+	## "COMMON" at 4.35 against the housing it is written on, which is under the
+	## floor — a tier that means "unremarkable" still has to be a word you can
+	## read, and this is still obviously the dullest of the three.
+	"common": {"rank": 0, "name": "COMMON", "metal": Color("#b3a68f"),
+		"ring": 0.0, "rivets": 0},
+	"rare": {"rank": 1, "name": "RARE", "metal": Color("#e8c376"),
+		"ring": 2.4, "rivets": 0},
+	## Warm steel, not white. #f4eee1 at three pixels read as a SELECTION ring
+	## rather than as a material, which is a different message and one the card
+	## under the cursor is already using.
+	"epic": {"rank": 2, "name": "EPIC", "metal": Color("#e4dac2"),
+		"ring": 3.0, "rivets": 4},
+}
+const RARITY_DEFAULT := "common"
+
+
+## What rarity this card is, always one of RARITY_LOOK. The opening draft hands
+## out starting weapons and never set the field; defaulting here rather than at
+## the one call site that noticed is the difference between a default and a
+## coincidence.
+static func rarity_of(card: Dictionary) -> String:
+	var r := str(card.get("rarity", RARITY_DEFAULT))
+	return r if RARITY_LOOK.has(r) else RARITY_DEFAULT
+
+
+static func rarity_look(card: Dictionary) -> Dictionary:
+	return RARITY_LOOK[rarity_of(card)]
+
+
+## The element this card IS, or "" for the ones that are not about an element.
+##
+## Deliberately not "the element of the slot it happens to target": a card that
+## makes slot 2 hit harder is a slot upgrade, and painting it Frost because slot
+## 2 is Frost today is a lie the moment the player retunes it. `affects` reads
+## this too, so the row of lit skill glyphs and the card's hue can never point at
+## different things.
+static func element_of(card: Dictionary) -> String:
+	if str(card.get("kind", "")) == "skill" and card.has("skill"):
+		return str((card.skill as Dictionary).get("element", ""))
+	var direct := str(card.get("element", ""))
+	if direct != "":
+		return direct
+	return str(CARD_ELEMENT.get(str(card.get("id", "")), ""))
+
+
+## The hue of the card, which is its element's or brass. Brass is a real answer
+## rather than a fallback: it says "this card is not about an element", and that
+## is a thing a player needs to be able to see at a glance too.
+const NO_ELEMENT := Color("#e8c376")
+
+
+static func hue_of(card: Dictionary) -> Color:
+	var e := element_of(card)
+	return SkyGearData.ELEMENTS[e].color if SkyGearData.ELEMENTS.has(e) else NO_ELEMENT
+
+
+## The element's name, or "NO ELEMENT". Written out next to the swatch, because
+## the test is a glance and a glance at a colour alone fails for one man in
+## twelve.
+static func element_label(card: Dictionary) -> String:
+	var e := element_of(card)
+	if not SkyGearData.ELEMENTS.has(e):
+		return "NO ELEMENT"
+	return str(SkyGearData.ELEMENTS[e].name).to_upper()
+
+
+## ACTIVE, PASSIVE, or "" when the card is not about a weapon at all. A Field and
+## a Pulse fire by themselves; everything else waits for a key.
+static func role_of(card: Dictionary) -> String:
+	var shape := ""
+	if str(card.get("kind", "")) == "skill" and card.has("skill"):
+		shape = str((card.skill as Dictionary).get("shape", ""))
+	elif card.has("shape"):
+		shape = str(card.shape)
+	if shape == "" or not SkyGearData.SHAPES.has(shape):
+		return ""
+	return "PASSIVE" if bool(SkyGearData.SHAPES[shape].get("passive", false)) \
+		else "ACTIVE"
 
 
 ## WHAT WOULD THIS CARD ACTUALLY DO?
@@ -297,6 +413,12 @@ static func filled_slots(game) -> Array:
 	for i in game.skills.size():
 		out.append(i)
 	return out
+
+
+## Does whoever is aboard have a dash at all? One place, because three cards ask
+## and three copies of a class check is three chances for one to drift.
+static func _has_dash(game) -> bool:
+	return int(game.class_data().get("dashes", 2)) > 0
 
 
 static func slots_where(game, predicate: Callable) -> Array:
@@ -533,7 +655,7 @@ static func catalogue() -> Array:
 	cards.append({
 		"id": "dashcd", "rarity": "common", "scope": SCOPE_CAPTAIN,
 		"weight": func(_g): return 9.0,
-		"can": func(g): return g.mods.dash_cooldown_bonus < 0.5,
+		"can": func(g): return g.mods.dash_cooldown_bonus < 0.5 and _has_dash(g),
 		"make": func(_g, _pick: Callable):
 			return {"title": "SPRING COILS", "text": "Dash recharges 0.25s faster.",
 				"apply": func(gg): gg.mods.dash_cooldown_bonus += 0.25},
@@ -541,7 +663,7 @@ static func catalogue() -> Array:
 	cards.append({
 		"id": "dashdmg", "rarity": "rare", "scope": SCOPE_CAPTAIN,
 		"weight": func(_g): return 10.0,
-		"can": func(g): return g.mods.dash_damage < 200.0,
+		"can": func(g): return g.mods.dash_damage < 200.0 and _has_dash(g),
 		"make": func(_g, _pick: Callable):
 			return {"title": "RAMMING GEAR", "text": "Dash deals 60 more damage to everything you pass through.",
 				"apply": func(gg): gg.mods.dash_damage += 60.0},
@@ -549,7 +671,7 @@ static func catalogue() -> Array:
 	cards.append({
 		"id": "dashchg", "rarity": "epic", "scope": SCOPE_CAPTAIN,
 		"weight": func(_g): return 8.0,
-		"can": func(g): return g.mods.dash_charges < 3,
+		"can": func(g): return g.mods.dash_charges < 3 and _has_dash(g),
 		"make": func(_g, _pick: Callable):
 			return {"title": "SECOND WIND", "text": "+1 dash charge.",
 				"apply": func(gg):
@@ -723,7 +845,9 @@ static func affects(game, card: Dictionary) -> Array:
 	if scope == SCOPE_NEW or scope == SCOPE_SKILL:
 		return [] if not card.has("slot") else [card.slot]
 	if scope == SCOPE_ELEMENT:
-		var e: String = card.get("element", CARD_ELEMENT.get(card.get("id", ""), ""))
+		## Through `element_of`, so the row of lit skill glyphs and the hue the
+		## card is painted in cannot point at two different elements.
+		var e: String = element_of(card)
 		var out: Array = []
 		for i in game.skills.size():
 			if e == "" or game.skills[i].element == e:

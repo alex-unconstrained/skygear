@@ -109,6 +109,8 @@ func _run() -> void:
 	_layout()
 	await process_frame
 	_dash()
+	await process_frame
+	_ink()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -1772,6 +1774,94 @@ func _view() -> void:
 	_check("class", "and standing nowhere loses nothing", game.pressure >= 59.9,
 		"drained to %.1f" % game.pressure)
 
+	## NO CARD MAY GIVE HIM A DASH. The class ceiling had an escape hatch — it
+	## only forced zero while `mods.dash_charges` was at or below the default, so
+	## the one epic that raises it handed the no-dash class three. Checked at BOTH
+	## ends now, because a guard and an offer are different failures: the card
+	## should not be dealt, and if it somehow is, it must not work.
+	var forced := _new_game()
+	forced.set_class("boilerwright")
+	forced.set_seed_text("NODASH")
+	forced.begin_run()
+	forced.mods.dash_charges = 3
+	forced._update_cooldowns(0.05)
+	_check("class", "no card can give the dashless class a dash",
+		forced.player.max_dash_charges == 0,
+		"%d charges" % forced.player.max_dash_charges)
+	## And it is not offered one in the first place, or it is a dead card taking
+	## a slot in a three-card draft.
+	var dash_offers := 0
+	for entry in SkyGearCards.catalogue():
+		if str(entry.id) in ["dashcd", "dashdmg", "dashchg"] 				and (entry.get("can") as Callable).call(forced):
+			dash_offers += 1
+	_check("class", "and is never offered one", dash_offers == 0,
+		"%d dash cards offerable to him" % dash_offers)
+	## The captain still gets all three, or the gate is in the wrong place.
+	var hers_offers := 0
+	forced.set_class("captain")
+	forced.begin_run()
+	for entry in SkyGearCards.catalogue():
+		if str(entry.id) in ["dashcd", "dashdmg", "dashchg"] 				and (entry.get("can") as Callable).call(forced):
+			hers_offers += 1
+	_check("class", "while the captain still is", hers_offers == 3,
+		"%d of 3" % hers_offers)
+	forced.queue_free()
+
+	## THE NEGATIVE SPACE, which is where the bug lived. `CLASS-2-DESIGN.md` §7
+	## named this check verbatim and it was never written: the class block tested
+	## only that the gauge FILLS, never that it does not. So `register_damage` and
+	## `on_enemy_killed` granted Head unguarded for weeks behind a green harness,
+	## and a 40-damage close hit filled it by 68 — faster than eight seconds
+	## inside his own Tap Main.
+	##
+	## "Head fills only where he plants himself" is the one sentence the class is,
+	## so it gets a check that fails when it stops being true.
+	game.taps.clear()
+	game.pressure = 0.0
+	game.player.global_position = Vector2(0.0, -700.0)   ## no Boiler, no vent, no tap
+	game.spawn_enemy("SCRAPPER", 1)
+	var punchbag: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			punchbag = e
+	if punchbag != null:
+		punchbag.global_position = game.player.global_position + Vector2(60.0, 0.0)
+		punchbag.hp = 1e9
+		punchbag.max_hp = 1e9
+		game.damage_enemy(punchbag, 40.0, "STEAM", 0.0, game.player.global_position, true)
+		_check("class", "landing a hit grants him NO Head", game.pressure <= 0.0,
+			"filled to %.1f by one hit" % game.pressure)
+		## And a close KILL, which is the other unguarded path.
+		punchbag.hp = 1.0
+		game.damage_enemy(punchbag, 999.0, "STEAM", 0.0, game.player.global_position, true)
+		_check("class", "and killing one grants him none either",
+			game.pressure <= 0.0, "filled to %.1f by a kill" % game.pressure)
+		punchbag.dead = true
+		punchbag.queue_free()
+
+	## The captain must still fill from exactly those paths, or the gate was put
+	## in the wrong place and one class was fixed by breaking the other.
+	var her := _new_game()
+	her.set_class("captain")
+	her.set_seed_text("HERFILL")
+	her.begin_run()
+	her.choose_draft(0)
+	her.start_wave(2)
+	her.pressure = 0.0
+	her.spawn_enemy("SCRAPPER", 1)
+	var hers_target: SkyGearEnemy = null
+	for e in her.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			hers_target = e
+	if hers_target != null:
+		hers_target.global_position = her.player.global_position + Vector2(60.0, 0.0)
+		hers_target.hp = 1e9
+		hers_target.max_hp = 1e9
+		her.damage_enemy(hers_target, 40.0, "EMBER", 0.0, her.player.global_position, true)
+		_check("class", "but the captain still fills from landing one",
+			her.pressure > 0.0, "%.1f" % her.pressure)
+	her.queue_free()
+
 	## And it fills on the Boiler, which is the one tap he does not have to make.
 	game.pressure = 0.0
 	game.player.global_position = game.boiler_position
@@ -1836,11 +1926,30 @@ func _view() -> void:
 	_check("class", "but fires on a full one", game.blowdown())
 	_check("class", "and empties the bank", game.pressure <= 0.0)
 	_check("class", "and repairs the Boiler it is standing on", game.boiler_hp > hurt)
-	## The exchange rate has to be a loss, or the ship repairs itself forever.
-	var gained: float = game.boiler_hp - hurt
-	var spent: float = 100.0 * 0.6
-	_check("class", "and repairing the ship with the ship is a loss",
-		gained < spent, "%.0f back for %.0f spent" % [gained, spent])
+	## THE ROUND TRIP, MEASURED. This compared the repair against `100 * 0.6` —
+	## a constant from a design that had been REMOVED, so it compared a real
+	## number against a number the game did not contain and could not fail. An
+	## audit measured 300 Boiler HP repaired free in thirty seconds behind it.
+	##
+	## Now it plays the loop: stand on the Boiler, take its heat, spend it back
+	## into the Boiler, and compare what the ship actually lost against what it
+	## actually got. If Boiler to Head to Boiler is ever a profit, the objective
+	## cannot be lost and the game is a formality.
+	game.pressure = 0.0
+	game.boiler_hp = game.boiler_max_hp
+	game.player.global_position = game.boiler_position
+	for _t in 40:
+		game._update_pressure(0.05)
+	var ship_paid: float = game.boiler_max_hp - game.boiler_hp
+	var banked_head: float = game.pressure
+	_check("class", "taking the ship's heat costs the ship", ship_paid > 0.0,
+		"%.1f HP for %.0f Head" % [ship_paid, banked_head])
+	var before_blowdown: float = game.boiler_hp
+	game.blowdown()
+	var ship_got: float = game.boiler_hp - before_blowdown
+	_check("class", "and giving it back returns less than it cost",
+		ship_got < ship_paid,
+		"%.1f back for %.1f spent" % [ship_got, ship_paid])
 
 	## SCALD. His auto-attack is a narrower, slower, weaker cone of steam rather
 	## than her wide fast ember arc — data now, where it used to be four magic
@@ -3069,3 +3178,215 @@ func _dash() -> void:
 		"%d of %d" % [dash_game.player.dash_charges, dash_game.player.max_dash_charges])
 	dash_game.queue_free()
 
+
+## --- text you can read, and cards you can read at a glance --------------------
+##
+## Two reports, one pass. "Text on skills and cards and HUD elements is hard to
+## read" and "the element, rarity and active/passive role feel lost". Neither is
+## a containment bug and `tools/text_audit.gd` was green through both of them,
+## which is why the audit grew a legibility pass and why these checks exist: the
+## audit renders and looks, and this asserts the RULES the renderer is supposed
+## to follow, read from the one place they are written down.
+func _ink() -> void:
+	## THE FLOOR IS A FLOOR. `_fits` is the function that produced the bug — it
+	## shrinks a label until it fits its box, the call sites passed floors of 7,
+	## 8, 9 and 11, and "draft a weapon" in an empty skill slot was drawn at seven
+	## points on painted brass. A caller may ask for smaller and must not get it.
+	var hud := SkyGearHUD.new()
+	hud.font = ThemeDB.fallback_font
+	var squeezed: int = hud._fits("a very long label that will never fit", 10.0, 20, 6)
+	_check("ink", "a caller cannot argue the size floor down",
+		squeezed == SkyGearInk.MIN_PT,
+		"got %d, floor is %d" % [squeezed, SkyGearInk.MIN_PT])
+	_check("ink", "and cannot ask for a size below it either",
+		hud._fits("x", 400.0, 7) == SkyGearInk.MIN_PT,
+		"got %d" % hud._fits("x", 400.0, 7))
+	## A string that fits keeps the size it asked for, or the floor is a
+	## flattener rather than a floor.
+	_check("ink", "and a string that fits keeps the size it asked for",
+		hud._fits("x", 400.0, 22) == 22, "got %d" % hud._fits("x", 400.0, 22))
+	hud.free()
+
+	## AND THE WIDGET LAYER IS NOT EXEMPT.
+	##
+	## Two levels: a label is measured against its WIDGET, a widget against the
+	## PLATE it was declared on. The first version of the legibility work routed
+	## widget text through the escape hatch for strings that belong to no plate,
+	## which silenced the check at the moment it started working — the audit
+	## reported sixteen screens clean while four pause buttons hung off the left
+	## edge of their sheet. This is the guard against that coming back, and it
+	## asserts the plumbing rather than the pixels: if either callback is
+	## unhooked, the audit goes quiet and nothing else says so.
+	var wired := SkyGearHUD.new()
+	wired._ready()
+	_check("ink", "widget text goes through the HUD's funnel, not its own",
+		wired.ui.scribe.is_valid() and wired.ui.plate.is_valid())
+	## A widget declared while a plate is open carries that plate, so the audit
+	## can ask whether the BUTTON is in the right place rather than only whether
+	## its label is centred in it.
+	var sheet := Rect2(100, 100, 660, 400)
+	wired._open_frame(sheet)
+	wired.ui.begin("guard", wired, ThemeDB.fallback_font, Vector2(-999, -999))
+	wired.ui.button(Rect2(120, 140, 300, 40), "OFF THE PLATE")
+	var declared: Array = wired.ui.declared()
+	var stamped := Rect2()
+	var framed := false
+	if not declared.is_empty():
+		stamped = declared[0].get("frame", Rect2()) as Rect2
+		framed = bool(declared[0].get("framed", false))
+	_check("ink", "and every widget carries the plate it was declared on",
+		framed and stamped.is_equal_approx(SkyGearHUD.interior(sheet)),
+		str(stamped))
+	## The one that was actually broken. A button laid out from the sheet rather
+	## than from its interior lands on the brass, and this is the arithmetic that
+	## says so.
+	_check("ink", "and a button laid out from the sheet edge is caught",
+		not SkyGearHUD.interior(sheet).encloses(Rect2(sheet.position.x + 26.0,
+			sheet.position.y + 82.0, 300.0, 40.0)))
+	wired.ui.begin("guard", wired, ThemeDB.fallback_font, Vector2(-999, -999))
+	wired.free()
+	
+
+	## THE MEASURE ITSELF. `tools/text_audit.gd` fails builds on these numbers, so
+	## a sign error here is a whole category of bug going unreported. Black on
+	## white is 21:1 and a colour against itself is 1:1 — the two ends of WCAG,
+	## which pin the direction as well as the scale.
+	_check("ink", "contrast runs 1 to 21, the WCAG way",
+		absf(SkyGearInk.contrast(Color.BLACK, Color.WHITE) - 21.0) < 0.01
+			and absf(SkyGearInk.contrast(Color("#b0813f"), Color("#b0813f")) - 1.0) < 0.01,
+		"%.2f and %.2f" % [SkyGearInk.contrast(Color.BLACK, Color.WHITE),
+			SkyGearInk.contrast(Color("#b0813f"), Color("#b0813f"))])
+	## Linearised, not averaged. Mid grey against white is 3.95 on the sRGB curve
+	## and 2.0 if you skip it, and skipping it is the difference between "brass on
+	## brass is fine" and the truth.
+	_check("ink", "and linearises sRGB rather than averaging bytes",
+		absf(SkyGearInk.contrast(Color("#808080"), Color.WHITE) - 3.95) < 0.05,
+		"%.2f" % SkyGearInk.contrast(Color("#808080"), Color.WHITE))
+	## The halo has to be a dark enough surround for the whole palette. Every tint
+	## the HUD draws is lit; if the outline colour ever drifts pale, every string
+	## in the game loses its separation at once and nothing else would say so.
+	var worst := 99.0
+	var worst_name := ""
+	for hex in ["#eee5d5", "#e8c376", "#37f0c8", "#ff7a2f", "#cfc4b4", "#b0813f",
+			"#c9b6e8", "#7adcff", "#b3a68f"]:
+		var ratio: float = SkyGearInk.contrast(Color(hex), SkyGearInk.INK)
+		if ratio < worst:
+			worst = ratio
+			worst_name = hex
+	_check("ink", "the outline is a dark enough surround for every HUD tint",
+		worst >= SkyGearInk.CONTRAST_FLOOR, "%s scores %.2f" % [worst_name, worst])
+	_check("ink", "and it is actually drawn, not a constant nobody reads",
+		SkyGearInk.OUTLINE > 0.0, "%.1f px" % SkyGearInk.OUTLINE)
+	## The dimmed floor is a concession, not a second standard.
+	_check("ink", "the dimmed floor is under the body floor and over nothing",
+		SkyGearInk.CONTRAST_FLOOR_MUTED < SkyGearInk.CONTRAST_FLOOR
+			and SkyGearInk.CONTRAST_FLOOR_MUTED > 1.0)
+
+	## --- and every field on a card is read by something ----------------------
+	##
+	## `rarity` was written onto every drafted card by `game.gd` and read by
+	## nothing, for the whole life of the port: three rarities in `cards.gd`, none
+	## of them ever on screen. That is the fourth time this project has carried
+	## data with no reader, and the Workshop already has a guard of this shape.
+	var card_game := _new_game()
+	_begin(card_game)
+	var first := func(list: Array) -> int:
+		return int(list[0]) if not list.is_empty() else 0
+	var rarities := {}
+	var seen_cards := 0
+	var unresolved := ""
+	for entry in SkyGearCards.catalogue():
+		if not (entry.get("can") as Callable).call(card_game):
+			continue
+		var made: Dictionary = (entry.get("make") as Callable).call(card_game, first)
+		made["id"] = str(entry.id)
+		made["rarity"] = str(entry.rarity)
+		made["scope"] = str(entry.scope)
+		seen_cards += 1
+		rarities[SkyGearCards.rarity_of(made)] = true
+		## Every field the card face reads has to resolve for every card in the
+		## catalogue, or the first one that does not takes a draft down with it.
+		if str(entry.rarity) != SkyGearCards.rarity_of(made):
+			unresolved = "%s has rarity %s" % [str(entry.id), str(entry.rarity)]
+		if not SkyGearCards.SCOPE_LABEL.has(str(entry.scope)):
+			unresolved = "%s has scope %s" % [str(entry.id), str(entry.scope)]
+	_check("card", "every card in the catalogue resolves what the face draws",
+		seen_cards > 20 and unresolved == "",
+		unresolved if unresolved != "" else "%d cards" % seen_cards)
+	_check("card", "and the rarity field is read at last — all three tiers appear",
+		rarities.size() == SkyGearCards.RARITY_LOOK.size(),
+		"%s of %s" % [", ".join(rarities.keys()), str(SkyGearCards.RARITY_LOOK.keys())])
+	## Rarity is a value ramp, not a hue, because hue belongs to the element. A
+	## ramp that is not monotonic reads as three unrelated colours.
+	var ring_ramp := true
+	var last_ring := -1.0
+	for name in ["common", "rare", "epic"]:
+		var look: Dictionary = SkyGearCards.RARITY_LOOK[name]
+		if float(look.ring) < last_ring:
+			ring_ramp = false
+		last_ring = float(look.ring)
+	_check("card", "and reads as a ramp — heavier metal for a better card", ring_ramp)
+	## And no rarity may wear an element's colour, or the two channels collide on
+	## exactly the cards where telling them apart matters most.
+	var clash := ""
+	for name in SkyGearCards.RARITY_LOOK:
+		for key in SkyGearData.ELEMENTS:
+			var metal: Color = SkyGearCards.RARITY_LOOK[name].metal
+			var hue: Color = SkyGearData.ELEMENTS[key].color
+			if metal.is_equal_approx(hue):
+				clash = "%s is %s" % [str(name), str(key)]
+	_check("card", "and no rarity metal is an element's hue", clash == "", clash)
+
+	## ROLE. `SHAPES` marks AURA and PULSE passive and the card face never said
+	## so — you could draft a Field and not find out it has no key until the
+	## fight started. Every shape must answer, and both answers must occur.
+	var role_answers := {}
+	for shape in SkyGearData.SHAPES:
+		role_answers[SkyGearCards.role_of({"kind": "skill",
+			"skill": {"shape": shape, "element": "EMBER"}})] = true
+	_check("card", "every weapon shape says whether it is active or passive",
+		role_answers.size() == 2 and role_answers.has("ACTIVE")
+			and role_answers.has("PASSIVE"),
+		", ".join(role_answers.keys()))
+	_check("card", "and a card that is not a weapon says neither",
+		SkyGearCards.role_of({"kind": "card", "id": "hp"}) == "")
+
+	## ELEMENT OWNS THE HUE, IN BOTH DRAFTS. This is the one that was actually
+	## broken: an opening-draft weapon was tinted by its ELEMENT and a drafted
+	## card by its SCOPE, so the one channel a player reads before any of the
+	## words meant two different things depending on which draft they were in.
+	card_game.skills.clear()
+	card_game.open_draft()
+	var opening_ok: bool = not card_game.draft_options.is_empty()
+	for option in card_game.draft_options:
+		var want: Color = SkyGearData.ELEMENTS[str(option.skill.element)].color
+		if not SkyGearCards.hue_of(option).is_equal_approx(want):
+			opening_ok = false
+	_check("card", "an opening-draft weapon is painted its element's colour",
+		opening_ok, "%d options" % card_game.draft_options.size())
+	_check("card", "and a Frost card is Frost wherever the element came from",
+		SkyGearCards.hue_of({"id": "brittle"}).is_equal_approx(
+			SkyGearData.ELEMENTS.FROST.color)
+		and SkyGearCards.hue_of({"element": "ARC"}).is_equal_approx(
+			SkyGearData.ELEMENTS.ARC.color))
+	## A card with no element says so rather than borrowing one, and brass must
+	## not be any element's colour or brass would read as a fifth element.
+	var brass_clash := false
+	for key in SkyGearData.ELEMENTS:
+		if SkyGearCards.NO_ELEMENT.is_equal_approx(SkyGearData.ELEMENTS[key].color):
+			brass_clash = true
+	_check("card", "and a card with no element is brass, which is not an element",
+		SkyGearCards.hue_of({"id": "hp"}).is_equal_approx(SkyGearCards.NO_ELEMENT)
+			and not brass_clash
+			and SkyGearCards.element_label({"id": "hp"}) == "NO ELEMENT")
+	## The lit-glyph row and the hue have to name the same element, or the card
+	## says Frost at the top and lights an Ember slot at the bottom.
+	card_game.skills.clear()
+	for pair in [["CLOSEHIT", "EMBER"], ["RANGED_AOE", "FROST"]]:
+		card_game.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
+	var brittle := {"id": "brittle", "scope": SkyGearCards.SCOPE_ELEMENT}
+	var lit: Array = SkyGearCards.affects(card_game, brittle)
+	_check("card", "the lit slots and the card's hue name the same element",
+		lit == [1] and SkyGearCards.element_of(brittle) == "FROST",
+		"lit %s" % str(lit))
+	card_game.queue_free()

@@ -211,6 +211,11 @@ const BLOWDOWN := {
 	## deck at a vent or a main. That inequality is the whole guard against the
 	## failure this class could have had.
 	"repair_per_head": 0.35,
+	## What the Boiler charges for its own heat, per point of Head. Against the
+	## 0.35 above this is a 42% loss, which is the inequality that makes the
+	## objective loseable — see `_fill_head`. The two numbers only mean anything
+	## next to each other, so they live next to each other.
+	"boiler_cost_per_head": 0.6,
 }
 
 

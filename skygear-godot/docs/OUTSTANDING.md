@@ -120,6 +120,21 @@ can be chased further.
 Left open rather than closed, because "I could not reproduce it" is not the
 same as "it does not happen."
 
+### Documentation claims that are not enforceable
+From the Fable audit. The pattern is right — every design doc ends with a list
+of where the build departs from it — but the claims inside are not checkable, so
+they rot silently:
+
+- three documents restate "the whole tree is worth less than three draft cards"
+  and the check behind it compares only `crit_chance` (x1.06 against x2.28). It
+  cannot fail, which means it is not evidence of anything.
+- `CLASS-2-DESIGN.md` says "BUILT AND COMPLETE" over an omissions list missing at
+  least four entries.
+
+The audit's proposed rule is the fix and it should be adopted: **any claim of
+harness coverage must name the check string**, so an untested claim is visibly
+untested. Not done.
+
 ### THE SKYBOX — the browser one had clouds, a moon and parallax
 Reported a third time, and this time with what it should be rather than that it
 is missing: *"such a cool skybox in the browser version that you could see over

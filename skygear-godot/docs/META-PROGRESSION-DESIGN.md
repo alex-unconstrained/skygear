@@ -1,5 +1,11 @@
 # Meta-progression — the Workshop and the Articles
 
+**Counts in this document describe the DESIGN, not the build.** The build has 23
+Workshop nodes (Second Breath was dropped and the doc was not updated), 7
+Articles, and 5 sigil sources. An audit found the doc claiming 24 and "eleven
+sigils" while the code said otherwise, which is the kind of drift that makes a
+coding agent build to the wrong number.
+
 Status: **BUILT**, both sides. The gate, both currencies, 24 Workshop nodes,
 7 Articles, respec, and the whole thing on one screen behind a first victory.
 Every field is wired — two harness checks fail the build if a node or an article

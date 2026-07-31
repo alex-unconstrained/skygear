@@ -668,8 +668,13 @@ func _process(delta: float) -> void:
 	## the same way a const once outranked the card that raises this number — the
 	## HUD showed him a dash pip he could not use. A class that starts at zero
 	## stays at zero unless a card explicitly moves it.
-	var class_dashes: int = int(class_data().get("dashes", SkyGearPlayer.START_DASH_CHARGES))
-	if class_dashes <= 0 and int(mods.dash_charges) <= SkyGearPlayer.START_DASH_CHARGES:
+	## A CLASS WITH NO DASH HAS NO DASH, unconditionally. The first version of
+	## this let a card through: it only forced zero while `mods.dash_charges` was
+	## at or below the default, so the one epic that RAISES it handed the
+	## Boilerwright three dashes. A guard with an escape hatch is not a guard, and
+	## the cards are now gated too — belt and braces, because this exact number
+	## has escaped its ceiling twice before.
+	if int(class_data().get("dashes", SkyGearPlayer.START_DASH_CHARGES)) <= 0:
 		player.max_dash_charges = 0
 	else:
 		player.max_dash_charges = maxi(1, int(mods.dash_charges))
@@ -860,9 +865,12 @@ func begin_run() -> void:
 		var instance := SkyGearData.make_skill(skill.shape, skill.element)
 		draft_options.append({
 			"kind": "skill",
+			"scope": SkyGearCards.SCOPE_NEW,
+			"class_label": SkyGearCards.SCOPE_LABEL[SkyGearCards.SCOPE_NEW],
+			"rarity": SkyGearCards.RARITY_DEFAULT,
+			"slot": draft_options.size(),
 			"title": SkyGearData.skill_name(instance).to_upper(),
 			"text": "%s · %s" % [SkyGearData.SHAPES[instance.shape].kind, SkyGearData.ELEMENTS[instance.element].blurb],
-			"color": SkyGearData.ELEMENTS[instance.element].color,
 			"skill": instance,
 		})
 	_set_state(State.DRAFT)
@@ -1243,7 +1251,6 @@ func roll_upgrade_cards(count: int) -> Array[Dictionary]:
 		instance["kind"] = "card"
 		instance["rarity"] = chosen.rarity
 		instance["scope"] = chosen.scope
-		instance["color"] = SkyGearCards.SCOPE_COLOR[chosen.scope]
 		instance["class_label"] = SkyGearCards.SCOPE_LABEL[chosen.scope]
 		out.append(instance)
 	return out
@@ -1363,7 +1370,10 @@ func open_draft() -> void:
 				"slot": skills.size(),
 				"title": SkyGearData.skill_name(instance).to_upper(),
 				"text": "%s · %s" % [SkyGearData.SHAPES[shape].kind, SkyGearData.ELEMENTS[element].blurb],
-				"color": SkyGearData.ELEMENTS[element].color,
+				## A weapon is common; the card face reads the field either way, and a
+				## field that is present on two drafts out of three is a field somebody
+				## eventually indexes into and crashes on.
+				"rarity": SkyGearCards.RARITY_DEFAULT,
 				"skill": instance,
 			})
 	else:
@@ -1683,7 +1693,15 @@ func register_damage(amount: float, hit_position: Vector2) -> void:
 	# the browser build this was the fix for a run that healed faster than three
 	# lanes of boarders could hurt it, from maximum range.
 	if player.global_position.distance_to(hit_position) <= float(SkyGearData.CLOSE.range):
-		pressure = minf(100.0, pressure + amount * float(SkyGearData.CLOSE.pressure_per_damage) * float(mods.pressure_rate))
+		## HERS ONLY. A banked gauge fills from the GROUND, never from the fight —
+		## that one sentence is the whole class. I added `_fill_head` and never
+		## gated the two paths it was meant to REPLACE, so the Boilerwright was
+		## getting both: an audit measured a single 40-damage close hit filling
+		## Head by 68, which is faster than eight seconds standing inside his own
+		## Tap Main. As shipped he was the captain with a free 45% multiplier —
+		## the exact collapse `CLASS-2-DESIGN.md` §0 exists to refuse.
+		if not gauge_is_banked():
+			pressure = minf(100.0, pressure + amount * float(SkyGearData.CLOSE.pressure_per_damage) * float(mods.pressure_rate))
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.set_pressure(pressure)
 		if float(mods.lifesteal) > 0.0:
@@ -1778,7 +1796,8 @@ func event_pressure_bonus() -> float:
 func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 	var close_kill := enemy.global_position.distance_to(player.global_position) <= float(SkyGearData.CLOSE.range)
 	if close_kill:
-		pressure = minf(100.0, pressure + 9.0 * (1.0 + event_pressure_bonus()))
+		if not gauge_is_banked():
+			pressure = minf(100.0, pressure + 9.0 * (1.0 + event_pressure_bonus()))
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
 		## PRESS-GANG. A close kill sometimes gets back up on your side. Rolled on
@@ -1854,9 +1873,19 @@ func _update_pressure(delta: float) -> void:
 func _fill_head(delta: float) -> void:
 	var kit: Dictionary = class_data()
 	var rate := 0.0
-	## The Boiler is the fastest and the only one that costs — it is the ship's
+	## The Boiler is the fastest and the only one that COSTS — it is the ship's
 	## own heat, and taking it is taking the thing you are defending.
-	if player.global_position.distance_to(boiler_position) <= 220.0:
+	##
+	## I cut this charge when the class was built, on the argument that Blowdown's
+	## repair rate already encoded the loss. That was wrong and the design said so
+	## in advance: guard #1 of three, and the only one that makes Boiler to Head
+	## to Boiler a LOSS. Without it an audit measured 300 Boiler HP repaired for
+	## free in thirty seconds — the named failure state, live.
+	##
+	## 0.6 HP per point, against Blowdown returning 0.35, is a 42% loss by
+	## construction. You cannot repair the ship with the ship.
+	var on_boiler: bool = player.global_position.distance_to(boiler_position) <= 220.0
+	if on_boiler:
 		rate = maxf(rate, float(kit.get("boiler_rate", 0.0)))
 	for prop in get_tree().get_nodes_in_group("props"):
 		if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
@@ -1868,7 +1897,15 @@ func _fill_head(delta: float) -> void:
 			rate = maxf(rate, float(kit.get("tap_rate", 0.0)))
 	if rate <= 0.0:
 		return
+	var before := pressure
 	pressure = minf(100.0, pressure + rate * delta)
+	## And the ship pays for what it gave. Charged on what was actually BANKED,
+	## not on the rate, so a full gauge stops costing anything the moment it can
+	## hold no more.
+	if on_boiler:
+		var taken: float = pressure - before
+		boiler_hp = maxf(1.0, boiler_hp
+			- taken * float(SkyGearData.BLOWDOWN.boiler_cost_per_head))
 
 
 ## Crack a main open where you are standing. His signature, and the only new
