@@ -22,7 +22,9 @@ Where the build departs from what is written below, and why:
   signature or inventing a third key nobody remembers were both worse than
   saying so on the node.
 - **Head does not cost Boiler HP** — see `CLASS-2-DESIGN.md` for that one.
-- **Heat is not built.** §5 is untouched.
+- **Heat 1 and 2 are built; 3, 4 and 5 are not** — which is what §5 itself
+  recommends. Rust and Short Fuse ship; Cold Deck, Boarders Aloft and Skeleton
+  Crew do not. Each rung needs a playthrough to be worth having.
 
 Written against the port as it stands 2026-07-31.
 

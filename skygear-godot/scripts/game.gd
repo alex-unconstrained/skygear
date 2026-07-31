@@ -146,6 +146,10 @@ var keys_open := false
 var settings_open := false
 var how_open := false
 var workshop_open := false
+## The Heat this run is being played at. Chosen at the title, fixed for the run,
+## and zero until a first victory — so there is exactly one difficulty until the
+## game has been beaten and every harness claim is against that one.
+var heat := 0
 ## What you keep between runs. Loaded once; nothing before a first victory.
 var workshop: Dictionary = SkyGearWorkshop.load_state()
 ## What the last run paid, so the results screen can say so rather than the
@@ -747,6 +751,8 @@ func begin_run() -> void:
 	## reads `talents`, so resolving it after any of them is a talent that applies
 	## to nothing. Shot Locker did exactly that until a check compared a kitted
 	## cannon against a bare one and found them identical.
+	## Clamped on the way in, so a save file edited to Heat 9 is Heat 2.
+	heat = clampi(heat, 0, SkyGearWorkshop.heat_available(workshop))
 	talents = SkyGearWorkshop.resolved(workshop)
 	articles = SkyGearWorkshop.articles_for(workshop, class_id)
 	article_used = {}
@@ -948,6 +954,7 @@ func _set_state(next_state: State) -> void:
 			"seed": seed_text, "vents": int(tel.vents),
 			"healed": roundi(float(tel.healed)),
 			"close_share": _close_share(), "class_id": class_id,
+			"heat": heat,
 		})
 	hud.queue_redraw()
 

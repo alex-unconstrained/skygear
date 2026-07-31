@@ -30,13 +30,24 @@ var spawn_serial := 0
 var beat := 0
 var turn_time := 0.0
 
+func _windup_scale() -> float:
+	if game == null or not ("heat" in game):
+		return 1.0
+	return SkyGearWorkshop.windup_for(int(game.heat))
+
+
 func configure(owner_game: Node, enemy_kind: String, enemy_lane: int, wave: int) -> void:
 	mass = 2.6 if enemy_kind == "ARMORED" else (24.0 if enemy_kind == "BOSS" else 1.0)
 	game = owner_game
 	kind = enemy_kind
 	lane = enemy_lane
 	config = SkyGearData.ENEMIES[kind]
-	var scaling := 1.0 + 0.06 * maxf(0.0, wave - 1.0)
+	## HEAT 1 · RUST hardens this. The 0.06 was a literal here and nowhere else,
+	## which is fine until a difficulty wants to move it.
+	var per_wave: float = SkyGearWorkshop.BASE_HP_SCALING
+	if game != null and "heat" in game:
+		per_wave = SkyGearWorkshop.hp_scaling_for(int(game.heat))
+	var scaling := 1.0 + per_wave * maxf(0.0, wave - 1.0)
 	max_hp = float(config.hp) * scaling
 	hp = max_hp
 	radius = float(config.radius)
@@ -120,7 +131,10 @@ func _physics_process(delta: float) -> void:
 	if state == "move":
 		if distance <= attack_range:
 			state = "windup"
-			state_time = float(config.windup)
+			## HEAT 2 · SHORT FUSE. Faster to swing, not harder — the telegraph is
+			## still there and still readable, which is the pillar this ladder is
+			## not allowed to break.
+			state_time = float(config.windup) * _windup_scale()
 			attack_direction = direction
 			velocity = Vector2.ZERO
 			game.play_sfx("enemy/telegraph.ogg", -10.0)

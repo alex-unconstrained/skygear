@@ -68,6 +68,15 @@ func begin(screen: String, canvas: CanvasItem, font: Font, mouse: Vector2) -> vo
 		_focus[screen] = 0
 
 
+## Every rectangle declared this frame, for the audit. Two widgets on the same
+## pixels is a bug the text audit cannot see — it measures a string against the
+## frame it is IN, and two overlapping buttons each contain their own label
+## perfectly well. Adding the Heat picker put three rows on top of each other on
+## the title screen and every check passed.
+func declared() -> Array[Dictionary]:
+	return _items.duplicate()
+
+
 func focused() -> int:
 	return int(_focus.get(_screen, 0))
 

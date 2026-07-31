@@ -228,6 +228,57 @@ static func articles_for(state: Dictionary, class_id: String) -> Dictionary:
 	return out
 
 
+## HEAT. A permanently stronger captain makes twelve waves permanently easier,
+## and the answer is not to take the power back — it is an earned, opt-in,
+## per-run difficulty chosen at the title, unlocked by the same first victory
+## that opens the tree.
+##
+## So there is exactly ONE difficulty until you have beaten the game, and every
+## balance claim the harness makes is against that one. That is the property
+## worth having: a moving baseline makes every check in this project ambiguous.
+##
+## REJECTED: scaling enemies to talent points spent. It removes exactly what it
+## grants, makes buying a talent ambiguous, and hands the harness a target that
+## moves whenever the player shops.
+##
+## Each step is one NAMED modifier rather than a multiplier, because "Rust" is
+## something a player can hold in their head and "difficulty 3" is not. Two of
+## the design's five ship: each step needs a playthrough to be worth having, and
+## five is more work than the tree is.
+const HEAT := [
+	{"name": "STOKED", "blurb": "the deck as it was built."},
+	{"name": "RUST", "blurb": "boarders harden faster — wave 12 at twice their opening health.",
+		"hp_scaling": 0.09},
+	{"name": "SHORT FUSE", "blurb": "and they wind up 15% quicker. Still readable, but only just.",
+		"hp_scaling": 0.09, "windup": 0.85},
+]
+
+## The scaling every run used before Heat existed, and the number Heat 0 must
+## still be. A difficulty ladder whose bottom rung is not the shipped game is a
+## rebalance wearing a ladder's clothes.
+const BASE_HP_SCALING := 0.06
+
+
+static func heat_data(level: int) -> Dictionary:
+	return HEAT[clampi(level, 0, HEAT.size() - 1)]
+
+
+static func hp_scaling_for(level: int) -> float:
+	return float(heat_data(level).get("hp_scaling", BASE_HP_SCALING))
+
+
+static func windup_for(level: int) -> float:
+	return float(heat_data(level).get("windup", 1.0))
+
+
+## You may pick any Heat up to one above your best clear, so the ladder is
+## climbed rather than skipped — and never at all before the first victory.
+static func heat_available(state: Dictionary) -> int:
+	if not bool(state.unlocked):
+		return 0
+	return mini(HEAT.size() - 1, int(state.best_heat) + 1)
+
+
 ## A tier opens once two nodes in its branch are bought. Gating on COUNT rather
 ## than on specific parents keeps the tree a shape you can read off a screen
 ## instead of a graph you have to trace.
@@ -320,6 +371,9 @@ static func bank(state: Dictionary, row: Dictionary) -> Dictionary:
 		(state.articles as Dictionary)[first] = true
 		sigils += 1
 	state.sigils = int(state.sigils) + sigils
+	## And the rung is recorded, which is what opens the next one.
+	if won:
+		state.best_heat = maxi(int(state.best_heat), int(row.get("heat", 0)))
 	save_state(state)
 	return {"scrip": gained, "sigils": sigils, "unlocked": true,
 		"first_win": was_locked}
@@ -341,6 +395,11 @@ static func firsts_in(state: Dictionary, row: Dictionary) -> Array[String]:
 		out.append("won_close")
 	if won and int(row.get("healed", 0)) <= 0 and not had.has("won_unhealed"):
 		out.append("won_unhealed")
+	## A first clear at each rung pays a sigil — once, like every other sigil, so
+	## the ladder is content rather than a farm.
+	var at: int = int(row.get("heat", 0))
+	if won and at > 0 and not had.has("heat_%d" % at):
+		out.append("heat_%d" % at)
 	return out
 
 

@@ -1247,6 +1247,31 @@ func _view() -> void:
 	_check("widget", "a disabled button refuses the click", not widgets.handle(click))
 	panel.queue_free()
 
+	## AND THE WIDGET LIST IS REPORTABLE. `tools/text_audit.gd` uses `declared()`
+	## to catch two widgets sharing pixels — a bug the string audit structurally
+	## cannot see, because each overlapping button contains its own label
+	## perfectly. If this ever returned nothing the collision check would pass
+	## vacuously forever, which is the quietest way for a detector to die.
+	panel.queue_free()
+	var canvas := Control.new()
+	canvas.size = Vector2(400, 300)
+	root.add_child(canvas)
+	var reported := SkyGearUI.new()
+	reported.begin("t2", canvas, ThemeDB.fallback_font, Vector2.ZERO)
+	reported.button(Rect2(10, 10, 100, 30), "A")
+	reported.button(Rect2(10, 50, 100, 30), "B")
+	_check("widget", "the widget list is reportable, so overlaps can be caught",
+		reported.declared().size() == 2, "%d declared" % reported.declared().size())
+	## And it really is the rectangles, not a count.
+	var overlapping := SkyGearUI.new()
+	overlapping.begin("t3", canvas, ThemeDB.fallback_font, Vector2.ZERO)
+	overlapping.button(Rect2(10, 10, 100, 30), "A")
+	overlapping.button(Rect2(10, 20, 100, 30), "B")
+	var stacked: Array = overlapping.declared()
+	_check("widget", "and two stacked widgets are visibly stacked in it",
+		(stacked[0].rect as Rect2).intersects(stacked[1].rect as Rect2))
+	canvas.queue_free()
+
 	## And the pause menu can now end a run, which it could not before: from a
 	## paused game there was no way to restart or quit short of alt-F4.
 	_check("widget", "a paused run can be restarted and quit",
@@ -1417,6 +1442,90 @@ func _view() -> void:
 				kitted.boiler_max_hp, base_boiler,
 				float(kitted.turrets[0].max_hp), base_turret])
 	kitted.queue_free()
+
+	## HEAT. The reason a permanently stronger captain does not make twelve waves
+	## permanently easier — an opt-in ladder, earned by the same first victory,
+	## so there is exactly ONE difficulty until the game has been beaten.
+	##
+	## That last property is the load-bearing one: every balance claim this
+	## harness makes is against Heat 0, and a baseline that moved when the player
+	## shopped would make all of them ambiguous.
+	_check("heat", "Heat 0 is exactly the shipped scaling",
+		is_equal_approx(SkyGearWorkshop.hp_scaling_for(0),
+			SkyGearWorkshop.BASE_HP_SCALING)
+		and is_equal_approx(SkyGearWorkshop.windup_for(0), 1.0))
+
+	var ladder := SkyGearWorkshop.fresh(true)
+	_check("heat", "and there is no ladder before a first victory",
+		SkyGearWorkshop.heat_available(ladder) == 0)
+	ladder.unlocked = true
+	_check("heat", "a first win opens exactly one rung",
+		SkyGearWorkshop.heat_available(ladder) == 1)
+	ladder.best_heat = 1
+	_check("heat", "and clearing that one opens the next",
+		SkyGearWorkshop.heat_available(ladder) == 2)
+	## Climbed, not skipped, and never past what is built.
+	ladder.best_heat = 9
+	_check("heat", "but never past the top of what exists",
+		SkyGearWorkshop.heat_available(ladder) == SkyGearWorkshop.HEAT.size() - 1)
+
+	## Each rung is strictly harder than the one below, or it is not a ladder.
+	var softer := ""
+	for i in range(1, SkyGearWorkshop.HEAT.size()):
+		if SkyGearWorkshop.hp_scaling_for(i) < SkyGearWorkshop.hp_scaling_for(i - 1) 				or SkyGearWorkshop.windup_for(i) > SkyGearWorkshop.windup_for(i - 1):
+			softer += " %d" % i
+	_check("heat", "and every rung is harder than the one below", softer == "",
+		"softer at:" + softer)
+
+	## A boarder actually hardens. Wave 12 at Heat 1 against wave 12 at Heat 0.
+	var cool := _new_game()
+	cool.set_seed_text("HEAT0")
+	cool.begin_run()
+	cool.choose_draft(0)
+	cool.spawn_enemy("SCRAPPER", 1)
+	var cool_hp := 0.0
+	for e in cool.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			e.configure(cool, "SCRAPPER", 1, 12)
+			cool_hp = e.max_hp
+	cool.queue_free()
+
+	var hot := _new_game()
+	hot.workshop = SkyGearWorkshop.fresh(true)
+	hot.workshop.unlocked = true
+	hot.heat = 1
+	hot.set_seed_text("HEAT1")
+	hot.begin_run()
+	hot.choose_draft(0)
+	hot.spawn_enemy("SCRAPPER", 1)
+	var hot_hp := 0.0
+	for e in hot.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			e.configure(hot, "SCRAPPER", 1, 12)
+			hot_hp = e.max_hp
+	_check("heat", "Rust actually hardens a late boarder", hot_hp > cool_hp * 1.15,
+		"%.0f against %.0f at wave 12" % [hot_hp, cool_hp])
+	## And a save edited past what is available is clamped on the way in.
+	hot.heat = 9
+	hot.begin_run()
+	_check("heat", "and a run cannot start above the rung you have earned",
+		hot.heat <= SkyGearWorkshop.heat_available(hot.workshop),
+		"started at %d" % hot.heat)
+	hot.queue_free()
+
+	## A first clear at a rung pays a sigil, once — the ladder is content, not a
+	## farm, same rule as every other sigil.
+	var climb := SkyGearWorkshop.fresh(true)
+	climb.unlocked = true
+	SkyGearWorkshop.bank(climb,
+		{"won": true, "wave": 12, "seed": "H1", "heat": 1, "close_share": 50})
+	var after_first: int = int(climb.sigils)
+	_check("heat", "clearing a rung records it", int(climb.best_heat) == 1)
+	SkyGearWorkshop.bank(climb,
+		{"won": true, "wave": 12, "seed": "H2", "heat": 1, "close_share": 50})
+	_check("heat", "and clearing it twice pays once",
+		int(climb.sigils) == after_first,
+		"%d -> %d" % [after_first, int(climb.sigils)])
 
 	## THE ARTICLES. The sigil side: commitments rather than experiments, no
 	## refund, and two of them fight over the same key.

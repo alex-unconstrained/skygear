@@ -89,41 +89,69 @@ func _draw_title() -> void:
 	_center_text("STORM-DUSK · GODOT PORT", 205.0, 24, Color("#37f0c8"))
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
 	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash", 330.0, 18, Color("#b9afaa"))
-	## The title had one instruction — press Enter — and four more things you
-	## could do that it never mentioned. All of them are buttons now.
+	## ONE CURSOR DOWN THE PAGE, not six offsets from a shared anchor.
+	##
+	## Every row here was placed at `ty` plus or minus a magic number, and adding
+	## the Heat picker put DIFFICULTY on top of CAPTAIN on top of THE WORKSHOP —
+	## three overlapping widgets that the text audit passed, because every string
+	## was inside its OWN frame. A cursor cannot produce that class of bug.
 	ui.begin("title", self, font, get_local_mouse_position())
 	var tw := 300.0
 	var tx: float = size.x * 0.5 - tw * 0.5
-	var ty := 402.0
-	## WHO IS ABOARD. A cycling row rather than a screen of its own: there are two
-	## classes, the difference is one sentence, and a separate screen for a binary
-	## choice is a click a player pays every single run.
+	var wide: float = tw + 180.0
+	var wx: float = size.x * 0.5 - wide * 0.5
+	var y := 372.0
+
+	## DIFFICULTY, only once there is more than one rung to choose between.
+	if SkyGearWorkshop.heat_available(game.workshop) > 0:
+		var rungs: Array = []
+		for i in SkyGearWorkshop.heat_available(game.workshop) + 1:
+			rungs.append("HEAT %d · %s" % [i, str(SkyGearWorkshop.HEAT[i].name)])
+		game.heat = ui.choice(Rect2(wx, y, wide, 32.0), "DIFFICULTY", rungs,
+			clampi(game.heat, 0, rungs.size() - 1))
+		y += 34.0
+		_says(str(SkyGearWorkshop.HEAT[clampi(game.heat, 0, rungs.size() - 1)].blurb),
+			Vector2(wx, y + 12.0), wide, HORIZONTAL_ALIGNMENT_CENTER, 13, 2,
+			Color("#ff9a4a") if game.heat > 0 else Color("#8f8697"))
+		y += 30.0
+
+	## WHO IS ABOARD. A cycling row rather than a screen of its own: two classes,
+	## one sentence of difference, and a separate screen for a binary choice is a
+	## click a player pays every single run.
 	var ids: Array = SkyGearData.CLASSES.keys()
 	var at: int = maxi(0, ids.find(game.class_id))
-	var picked: int = ui.choice(Rect2(tx - 90.0, ty - 56.0, tw + 180.0, 34.0),
-		"CAPTAIN", ids.map(func(k): return str(SkyGearData.CLASSES[k].name)), at)
+	var picked: int = ui.choice(Rect2(wx, y, wide, 32.0), "CAPTAIN",
+		ids.map(func(k): return str(SkyGearData.CLASSES[k].name)), at)
 	if picked != at:
 		game.set_class(str(ids[picked]))
-	## The one sentence that makes the choice a choice.
-	_says(str(game.class_data().get("blurb", "")),
-		Vector2(tx - 90.0, ty - 14.0), tw + 180.0, HORIZONTAL_ALIGNMENT_CENTER,
-		14, 2, Color("#b9afaa"))
-	if ui.button(Rect2(tx, ty, tw, 44.0), "BEGIN RUN",
-			{"primary": true, "hint": "Enter"}):
-		game.begin_run()
+	y += 34.0
+	_says(str(game.class_data().get("blurb", "")), Vector2(wx, y + 12.0), wide,
+		HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
+	y += 32.0
+
 	if bool(game.workshop.unlocked):
-		if ui.button(Rect2(tx, ty - 46.0, tw, 34.0),
+		if ui.button(Rect2(tx, y, tw, 34.0),
 				"THE WORKSHOP  ·  %d" % int(game.workshop.scrip), {"hint": "F6"}):
 			game.workshop_open = true
-	if ui.button(Rect2(tx, ty + 52.0, tw, 38.0), "HOW TO PLAY", {"hint": "F1"}):
+		y += 40.0
+
+	if ui.button(Rect2(tx, y, tw, 44.0), "BEGIN RUN",
+			{"primary": true, "hint": "Enter"}):
+		game.begin_run()
+	y += 52.0
+	if ui.button(Rect2(tx, y, tw, 38.0), "HOW TO PLAY", {"hint": "F1"}):
 		game.how_open = true
-	if ui.button(Rect2(tx, ty + 96.0, tw, 38.0), "SETTINGS", {"hint": "F5"}):
+	y += 44.0
+	if ui.button(Rect2(tx, y, tw, 38.0), "SETTINGS", {"hint": "F5"}):
 		game.settings_open = true
-	if ui.button(Rect2(tx, ty + 140.0, tw, 38.0), "CONTROLS", {"hint": "F2"}):
+	y += 44.0
+	if ui.button(Rect2(tx, y, tw, 38.0), "CONTROLS", {"hint": "F2"}):
 		game.keys_open = true
-	if ui.button(Rect2(tx, ty + 184.0, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
+	y += 44.0
+	if ui.button(Rect2(tx, y, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
 		game.quit_game()
-	ty += 260.0
+	y += 56.0
+
 	## What the machine remembers. A title screen with a best-wave on it is the
 	## cheapest possible reason to press Enter again.
 	var history: Dictionary = SkyGearRunLog.summary()
@@ -133,8 +161,9 @@ func _draw_title() -> void:
 			line += " · %d held" % int(history.wins)
 			if str(history.best_time) != "":
 				line += " (best %s)" % str(history.best_time)
-		_center_text(line, ty, 17, Color("#b0813f"))
-	_center_text("Milestone 1 · v11 combat vertical slice", ty + 46.0, 15,
+		_center_text(line, y, 17, Color("#b0813f"))
+		y += 30.0
+	_center_text("Milestone 1 · v11 combat vertical slice", y + 16.0, 15,
 		Color("#8f8697"))
 
 ## The HUD, brought up to the browser build.

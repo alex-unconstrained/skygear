@@ -33,6 +33,7 @@ func _initialize() -> void: call_deferred("_run")
 ## audit does not cover, which is why the list is explicit rather than derived.
 const SCREENS := [
 	{"name": "title", "state": "TITLE"},
+	{"name": "title + heat", "state": "TITLE", "heat": true},
 	{"name": "title + controls", "state": "TITLE", "keys": true},
 	{"name": "settings", "state": "TITLE", "settings": true},
 	{"name": "how to play", "state": "TITLE", "how": true},
@@ -82,6 +83,23 @@ func _run() -> void:
 					hit["screen"] = str(screen.name)
 					hit["at"] = "%dx%d" % [int(size.x), int(size.y)]
 					findings.append(hit)
+				## AND NO TWO WIDGETS ON THE SAME PIXELS. The string audit cannot
+				## see this: it measures each label against the frame it is in,
+				## and two overlapping buttons each contain their own label
+				## perfectly. Adding the Heat row put DIFFICULTY, CAPTAIN and THE
+				## WORKSHOP on top of one another and every check passed.
+				var rects: Array = hud.ui.declared()
+				for a in rects.size():
+					for b in range(a + 1, rects.size()):
+						var ra: Rect2 = rects[a].rect
+						var rb: Rect2 = rects[b].rect
+						if not ra.grow(-1.0).intersects(rb.grow(-1.0)):
+							continue
+						findings.append({"kind": "COLLIDE",
+							"text": "two widgets share pixels",
+							"box": ra, "frame": rb, "measured": 0.0, "given": 0.0,
+							"screen": str(screen.name),
+							"at": "%dx%d" % [int(size.x), int(size.y)]})
 				hud.audit = null
 
 	## Grouped by what is broken rather than by where it was found: the same
@@ -122,6 +140,8 @@ func _run() -> void:
 		var f: Dictionary = g.sample
 		if str(f.kind) == "OUTSIDE":
 			outside += 1
+		elif str(f.kind) == "COLLIDE":
+			outside += 1
 		else:
 			overflow += 1
 		if str(f.screen) != last_screen:
@@ -133,6 +153,8 @@ func _run() -> void:
 		print("    %-8s \"%s\"" % [str(f.kind), quoted])
 		if str(f.kind) == "OVERFLOW":
 			print("             needs %.0f, given %.0f" % [float(f.measured), float(f.given)])
+		elif str(f.kind) == "COLLIDE":
+			print("             %s overlaps %s" % [_r(f.box), _r(f.frame)])
 		else:
 			print("             box %s, frame interior %s" % [_r(f.box), _r(f.frame)])
 		if verbose:
@@ -211,6 +233,14 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 	game.keys_open = bool(screen.get("keys", false))
 	game.settings_open = bool(screen.get("settings", false))
 	game.how_open = bool(screen.get("how", false))
+	if bool(screen.get("heat", false)):
+		## Unlocked with a rung cleared, so the Heat row and the Workshop button
+		## are both on the title at once — the fullest the screen ever gets.
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.workshop.unlocked = true
+		game.workshop.scrip = 240
+		game.workshop.best_heat = 1
+		game.heat = 2
 	if bool(screen.get("banked", false)):
 		game.workshop = SkyGearWorkshop.fresh(true)
 		game.workshop.unlocked = true
