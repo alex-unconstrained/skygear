@@ -1,0 +1,152 @@
+class_name SkyGearCoach
+extends RefCounted
+
+## One line, when it will change what you do next.
+##
+## The game has a single idea that is not visible from the controls — the gauge
+## fills from damage landed inside 210 units, so the safe play is the losing play
+## — and the HOW TO PLAY page now says so. But a page you read once at the title
+## is not where a player learns; a player learns in the third wave, while making
+## the mistake. This watches for the four mistakes that actually end runs and
+## says one short thing about the one they are making now.
+##
+## THE HARD PART IS SHUTTING UP. A coach that fires whenever a condition holds is
+## a coach that reads as noise inside a minute, and noise is worse than silence
+## because it teaches the player to ignore the place hints appear — which is the
+## same strip the Boiler warnings use. Four rules, and they are the whole design:
+##
+##   1. ONE at a time, highest priority, never a queue. A player mid-wave reads
+##      one line or none.
+##   2. Every hint has to be EARNED over seconds, not caught on a frame. Kiting
+##      for one second is repositioning; kiting for twelve is a strategy.
+##   3. Each hint fires at most twice a run, with a long gap. If it did not land
+##      the second time it is not going to.
+##   4. Nothing fires in the first wave. The first wave is where you find the
+##      keys, and being corrected while you do that is insulting.
+##
+## Read-only: it is handed the game each frame and returns a string. It cannot
+## change the simulation, which means a bad hint is a wrong sentence rather than
+## a wrong game.
+
+## How long a mistake has to persist before it is a mistake.
+const DWELL := {
+	"kiting": 11.0,      ## long, because backing off IS correct sometimes
+	"gauge": 8.0,        ## sitting on a full gauge with nothing to vent into
+	"lane": 6.0,         ## a lane unattended while it is being walked down
+	"idle_skill": 9.0,   ## a drafted weapon you have never pressed
+}
+const MAX_SHOWS := 2
+const REPEAT_GAP := 42.0
+const HOLD := 4.5        ## how long a hint stays up once it fires
+const FIRST_WAVE := 2    ## nothing before this
+
+## Priority order. The first one whose condition holds is the one shown, so this
+## list IS the editorial judgement about which mistake costs the most.
+const ORDER := ["gauge", "kiting", "lane", "idle_skill"]
+
+const TEXT := {
+	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
+	"gauge": "Gauge is full. Get among them: it vents by itself and heals you for it.",
+	"lane": "A lane is walking through. The cannon holds, it does not kill.",
+	"idle_skill": "You have a weapon you have never fired. Q and E are drafted too.",
+}
+
+var _dwell := {}
+var _shown := {}
+var _last_at := {}
+var _current := ""
+var _current_until := -1.0
+
+
+func reset() -> void:
+	_dwell.clear()
+	_shown.clear()
+	_last_at.clear()
+	_current = ""
+	_current_until = -1.0
+
+
+## Returns the line to draw, or "". Call every frame while playing.
+func advise(game, delta: float) -> String:
+	if game == null or game.state_name != "PLAY" or int(game.wave) < FIRST_WAVE:
+		return _still_showing(game)
+
+	var now: float = float(game.run_time)
+	var holding := ""
+	for id in ORDER:
+		var wrong: bool = _is(id, game)
+		var seconds: float = float(_dwell.get(id, 0.0))
+		_dwell[id] = (seconds + delta) if wrong else 0.0
+		if wrong and float(_dwell[id]) >= float(DWELL[id]) and holding == "":
+			holding = id
+
+	if holding != "" and _may_fire(holding, now):
+		_current = holding
+		_current_until = now + HOLD
+		_shown[holding] = int(_shown.get(holding, 0)) + 1
+		_last_at[holding] = now
+		## The dwell resets on firing, so a hint that is still true does not fire
+		## again the instant its gap expires — it has to be re-earned.
+		_dwell[holding] = 0.0
+	return _still_showing(game)
+
+
+func _still_showing(game) -> String:
+	if game == null or _current == "":
+		return ""
+	if float(game.run_time) > _current_until:
+		_current = ""
+		return ""
+	return str(TEXT.get(_current, ""))
+
+
+func _may_fire(id: String, now: float) -> bool:
+	if int(_shown.get(id, 0)) >= MAX_SHOWS:
+		return false
+	if now - float(_last_at.get(id, -999.0)) < REPEAT_GAP:
+		return false
+	## And never over another hint that is still up.
+	return now > _current_until
+
+
+## --- the four mistakes -------------------------------------------------------
+func _is(id: String, game) -> bool:
+	match id:
+		"kiting":
+			## Not "far away" — far away with something to hit. A player alone on
+			## an empty deck between waves is not kiting, and telling them they
+			## are is how a coach loses its credibility on the first line.
+			var near = game.nearest_enemy(game.player.global_position, 1e9)
+			if near == null:
+				return false
+			var reach: float = float(SkyGearData.CLOSE.range)
+			return game.player.global_position.distance_to(near.global_position) > reach * 1.6
+		"gauge":
+			## A full gauge is only wasted if there is something in reach of the
+			## vent to waste it on.
+			if float(game.pressure) < 99.0:
+				return false
+			return game.nearest_enemy(game.player.global_position,
+				float(SkyGearData.CLOSE.vent_radius) * 2.2) != null
+		"lane":
+			## A boarder past the halfway line with the captain nowhere near it.
+			var deck: Rect2 = SkyGearGame.DECK_RECT
+			var half: float = deck.get_center().y
+			for enemy in game.get_tree().get_nodes_in_group("enemies"):
+				if not is_instance_valid(enemy) or enemy.dead:
+					continue
+				if enemy.global_position.y < half:
+					continue
+				if game.player.global_position.distance_to(enemy.global_position) > 620.0:
+					return true
+			return false
+		"idle_skill":
+			## Only once the hand is worth having: a slot drafted and never cast.
+			## `casts` is already on the skill, so this costs nothing to know.
+			if game.skills.size() < 3:
+				return false
+			for skill in game.skills:
+				if int(skill.get("casts", 0)) == 0:
+					return true
+			return false
+	return false

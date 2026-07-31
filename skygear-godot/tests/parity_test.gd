@@ -650,6 +650,12 @@ func _view() -> void:
 
 	## Every living thing gets a body in the mirror, or it is in the fight
 	## without being on the screen.
+	##
+	## A body is a billboard OR a rig. This counted only billboards until the
+	## scrapper became a mesh, at which point it failed with five boarders on the
+	## deck and five of them visible — the check had quietly encoded which
+	## renderer a boarder uses, which is exactly the thing that was always going
+	## to change one kind at a time.
 	for i in 5:
 		game.spawn_enemy("SCRAPPER", i % 3)
 	view._process(0.05)
@@ -657,7 +663,10 @@ func _view() -> void:
 	for key in view._billboards.keys():
 		if str(key).begins_with("e"):
 			bodies += 1
-	_check("view", "every boarder gets a billboard",
+	for key in view._rigs.keys():
+		if str(key).begins_with("e"):
+			bodies += 1
+	_check("view", "every boarder gets a body, mesh or billboard",
 		bodies == game.enemy_count(), "%d bodies / %d boarders" % [bodies, game.enemy_count()])
 
 	## Dressing is dressing. Braziers and rope were added to fill the deck out,
@@ -1214,6 +1223,114 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## THE COACH. Its whole design problem is shutting up: a hint that fires
+	## whenever a condition holds reads as noise inside a minute, and noise is
+	## worse than silence because it teaches the player to ignore the strip the
+	## Boiler warnings use. So the tests are almost all about NOT firing.
+	game.go_to_title()
+	game.set_seed_text("COACH")
+	game.begin_run()
+	game.choose_draft(0)
+	game.coach.reset()
+	game.player.global_position = Vector2.ZERO
+	game.pressure = 100.0
+
+	## Wave 1 is where you find the keys. Being corrected while you do that is
+	## insulting, so nothing fires there however wrong you are.
+	game.start_wave(1)
+	game.spawn_enemy("SCRAPPER", 1)
+	var wave_one := ""
+	for _t in 200:
+		wave_one = game.coach.advise(game, 0.1)
+	_check("coach", "nothing is said during the first wave", wave_one == "",
+		"said '%s'" % wave_one)
+
+	## And a mistake has to be EARNED over seconds. Kiting for one second is
+	## repositioning.
+	game.coach.reset()
+	game.start_wave(3)
+	game.pressure = 100.0
+	var coach_mark: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			coach_mark = e
+	if coach_mark != null:
+		coach_mark.global_position = Vector2(120.0, 0.0)
+		coach_mark.hp = 1e9
+		var early := game.coach.advise(game, 0.5)
+		_check("coach", "and one bad second is not a mistake", early == "",
+			"said '%s'" % early)
+
+		## Held long enough, it speaks — once.
+		var spoke := ""
+		for _t in 200:
+			var said: String = game.coach.advise(game, 0.1)
+			game.run_time += 0.1
+			if said != "":
+				spoke = said
+				break
+		_check("coach", "but a held one earns a line", spoke != "")
+
+		## One at a time, never a queue. Both the gauge and the kiting conditions
+		## are true here; a player mid-wave reads one line or none.
+		game.coach.reset()
+		game.run_time += 100.0
+		var lines := {}
+		for _t in 400:
+			var said: String = game.coach.advise(game, 0.1)
+			game.run_time += 0.1
+			if said != "":
+				lines[said] = true
+		_check("coach", "and never two at once", lines.size() <= 1,
+			"%d different lines in one window" % lines.size())
+
+		## Twice a run, then it stops. If it did not land the second time it is
+		## not going to.
+		game.coach.reset()
+		var fired := 0
+		var last := ""
+		for _t in 6000:
+			var said: String = game.coach.advise(game, 0.1)
+			game.run_time += 0.1
+			if said != "" and said != last:
+				fired += 1
+			last = said
+		_check("coach", "and says the same thing at most twice", fired <= 2,
+			"fired %d times" % fired)
+		coach_mark.dead = true
+		coach_mark.queue_free()
+
+	## An empty deck is not kiting. A player alone between waves being told they
+	## are at range is how a coach loses its credibility on the first line.
+	game.coach.reset()
+	## Stop the wave BEFORE yielding. `game` is in the tree, so an awaited frame
+	## runs `_process` and spawns the next boarders out of the queue — the first
+	## version of this cleared the deck, awaited, and then tested "empty deck"
+	## against four fresh scrappers.
+	game.spawn_queue.clear()
+	for stray in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(stray):
+			stray.dead = true
+			stray.queue_free()
+	await game.get_tree().process_frame
+	for stray in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(stray):
+			stray.dead = true
+			stray.queue_free()
+	game.pressure = 0.0
+	var alone := ""
+	for _t in 400:
+		var said: String = game.coach.advise(game, 0.1)
+		game.run_time += 0.1
+		if said != "":
+			alone = said
+	_check("coach", "and an empty deck is never a mistake", alone == "",
+		"said '%s'" % alone)
+
+	game.spawn_queue.clear()
+	game.go_to_title()
+	await game.get_tree().process_frame
+
 	## HOW TO PLAY. The title screen told you the controls and none of the game,
 	## and this game has exactly one idea that is not obvious from the controls:
 	## the gauge fills from fighting CLOSE, so the safe thing to do is the losing
@@ -1667,11 +1784,91 @@ func _view() -> void:
 		SkyGearView3D.model_path("SCRAPPER"))
 	_check("view", "and the captain's own model is where that rule says it is",
 		SkyGearView3D.model_path("CAPTAIN") == SkyGearView3D.CAPTAIN_SCENE)
+
+	## A BOARDER MODEL IS NOT A RIGGED ONE.
+	##
+	## `SkyGearRig3D` was written for the captain: 33 bones, 14 clips, an
+	## AnimationPlayer and a Skeleton3D. What Meshy returns for a boarder is a
+	## single static mesh with none of that. The component has to survive being
+	## handed a lump, because `_sync_rig` calls `want()` on every boarder every
+	## frame and does not know which kind came with clips — and the alternative,
+	## a second code path for figures that do not animate, is the thing this
+	## class exists to avoid.
+	var lump_scene := SkyGearView3D.model_path("SCRAPPER")
+	_check("view", "the scrapper is a mesh rather than a billboard",
+		ResourceLoader.exists(lump_scene), lump_scene)
+	if ResourceLoader.exists(lump_scene):
+		var lump := SkyGearRig3D.new()
+		root.add_child(lump)
+		## The renderer's own arithmetic — see `_sync_all`, which is where a
+		## boarder's height comes from — rather than a number typed here twice.
+		var tall: float = (120.0 + float(SkyGearData.ENEMIES.SCRAPPER.radius) * 3.0) \
+			* SkyGearView3D.WORLD_SCALE
+		var stood: bool = lump.setup(lump_scene, tall, SkyGearView3D.LAYER_FIGURES)
+		_check("rig", "a model with no AnimationPlayer still builds",
+			stood and lump.anim == null)
+		if stood:
+			var measured: float = float(lump.model.get_meta("model_height", 0.0))
+			_check("rig", "and the wrapper measured it, so nothing guesses its height",
+				measured > 0.0, "%.4f model units" % measured)
+			_check("rig", "and it is scaled to the height the renderer asked for",
+				absf(measured * lump.height_scale - tall) < 0.001,
+				"%.3f m, wanted %.3f" % [measured * lump.height_scale, tall])
+			## Driving it has to be a no-op rather than a crash. `want` returns on a
+			## null player before it touches `state`, which is why nothing here is
+			## expected to change.
+			lump.want("swing", 200.0, 0.4)
+			lump.want("run", 200.0)
+			_check("rig", "and asking a clipless model to swing changes nothing",
+				lump.state == "idle" and lump._clip == "", lump.state)
+			lump.place(Vector2(120.0, -40.0), Vector2(0.0, 1.0),
+				SkyGearView3D.WORLD_SCALE, 1.0)
+			_check("rig", "and it still stands where the simulation put it",
+				lump.position.is_equal_approx(Vector3(1.2, 0.0, -0.4)), str(lump.position))
+			## FEET ON THE DECK. `place()` puts the root at y=0 and Meshy centres a
+			## mesh on its own bounding box, so a boarder wrapped without the lift
+			## stands in the planking up to the waist — which is not a crash, not a
+			## warning, and invisible until somebody looks at a screenshot.
+			var floor_y := INF
+			var ceiling_y := -INF
+			for child in lump.model.find_children("*", "MeshInstance3D", true, false):
+				var mi := child as MeshInstance3D
+				if mi.mesh == null:
+					continue
+				var box: AABB = mi.global_transform * mi.get_aabb()
+				floor_y = minf(floor_y, box.position.y)
+				ceiling_y = maxf(ceiling_y, box.position.y + box.size.y)
+			_check("rig", "and it stands ON the deck rather than in it",
+				absf(floor_y) < 0.02, "lowest point at %.4f m" % floor_y)
+			## The height it actually occupies, not the height it was told. A model
+			## that arrived in several pieces and was measured by the tallest one
+			## passes every check above and is still the wrong size.
+			_check("rig", "and it fills the height it was given, crown to sole",
+				absf((ceiling_y - floor_y) - tall) < 0.02,
+				"%.3f m of %.3f" % [ceiling_y - floor_y, tall])
+			## Decals project onto whatever is inside their box. A boarder on the
+			## world layer wears every mortar ring it walks through.
+			for child in lump.model.find_children("*", "MeshInstance3D", true, false):
+				if (child as MeshInstance3D).layers != SkyGearView3D.LAYER_FIGURES:
+					stood = false
+			_check("rig", "and every piece of it is on the figures layer", stood,
+				"layer %d" % SkyGearView3D.LAYER_FIGURES)
+			## A flinch rides on the scale so it cannot disturb where the figure is
+			## standing. On a clipless model it is the ONLY reaction there is —
+			## there is no hurt clip to fall back to — so it had better work.
+			lump.react_hit(1.0)
+			lump.place(Vector2(120.0, -40.0), Vector2(0.0, 1.0),
+				SkyGearView3D.WORLD_SCALE, 1.0)
+			_check("rig", "and a hit squashes it without moving it",
+				lump.position.is_equal_approx(Vector3(1.2, 0.0, -0.4))
+					and lump.scale.y < lump.height_scale,
+				"scale %.3f of %.3f" % [lump.scale.y, lump.height_scale])
+		lump.queue_free()
 	var billboards := 0
 	for key in view._billboards.keys():
 		if str(key).begins_with("e"):
 			billboards += 1
-	_check("view", "with no boarder models yet, every boarder is still drawn",
+	_check("view", "and whichever renderer a kind uses, every boarder is drawn",
 		billboards + view._rigs.size() >= game.enemy_count(),
 		"%d billboards, %d rigs, %d boarders"
 			% [billboards, view._rigs.size(), game.enemy_count()])

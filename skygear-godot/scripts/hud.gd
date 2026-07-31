@@ -72,6 +72,7 @@ func _draw() -> void:
 			_draw_world_overlay()
 			_draw_game_hud()
 			_draw_event(game.event_banner_left)
+			_draw_coach()
 	if game.layout_edit:
 		_draw_layout_editor()
 	if game.show_profiler:
@@ -982,6 +983,27 @@ func _vignette_texture() -> ImageTexture:
 
 ## The event card. Not a banner that flashes and goes — an event that changes
 ## how a wave should be played has to be readable for long enough to read.
+## The coach's one line. Deliberately quiet: no plate, no icon, no sound — a
+## line of text under the objective, where the eye already goes for the wave
+## number. A hint that announces itself is a hint that interrupts, and this
+## fires while a player is being shot at.
+func _draw_coach() -> void:
+	var line: String = str(game.coach_line)
+	if line == "":
+		return
+	## Drawn after the HUD plates, and it belongs to none of them — without this
+	## the audit measures it against whichever plate was opened last.
+	_in_frame = false
+	var band := Rect2(size.x * 0.5 - 380.0, size.y * 0.115, 760.0, 26.0)
+	## A dark strip behind it, because this is drawn over the deck and the deck is
+	## a lit wooden floor at the top of frame where the boarders are.
+	draw_rect(band, Color(0.03, 0.02, 0.045, 0.62))
+	draw_rect(Rect2(band.position, Vector2(3.0, band.size.y)), Color("#37f0c8"))
+	_label(line, Vector2(band.position.x + 12.0, band.position.y + 18.0),
+		band.size.x - 24.0, HORIZONTAL_ALIGNMENT_LEFT,
+		_fits(line, band.size.x - 24.0, 15, 11), Color("#bfe9df"))
+
+
 func _draw_event(seconds_left: float) -> void:
 	var data: Dictionary = game.event_data()
 	if data.is_empty() or seconds_left <= 0.0:

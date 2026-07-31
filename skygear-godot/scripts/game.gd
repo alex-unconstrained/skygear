@@ -135,6 +135,10 @@ var _layout_from := Vector2.ZERO
 var keys_open := false
 var settings_open := false
 var how_open := false
+## The one line of advice, if there is one worth giving. Read-only against the
+## simulation, so a bad hint is a wrong sentence rather than a wrong game.
+var coach := SkyGearCoach.new()
+var coach_line := ""
 ## The named event running this wave, or "". Every fourth wave has one.
 var active_event := ""
 var event_banner_left := 0.0
@@ -570,6 +574,7 @@ func _process(delta: float) -> void:
 	## is a card that has to be undone if the run is reset.
 	player.max_dash_charges = maxi(1, int(mods.dash_charges))
 	event_banner_left = maxf(0.0, event_banner_left - delta)
+	coach_line = coach.advise(self, delta)
 	_update_cooldowns(delta)
 	_update_wave(delta)
 	_update_projectiles(delta)
@@ -611,6 +616,8 @@ func _random_seed_text() -> String:
 
 
 func begin_run() -> void:
+	coach.reset()
+	coach_line = ""
 	settings_open = false
 	keys_open = false
 	how_open = false
