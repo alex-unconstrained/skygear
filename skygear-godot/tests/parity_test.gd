@@ -1277,6 +1277,75 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## DECKWORK. Asked for as "repair broken turrets", framed as the seed of the
+	## player shaping the ground. So the checks are about the SYSTEM — a verb
+	## table with one entry — rather than about repair specifically.
+	var deck := _new_game()
+	deck.set_seed_text("DECK")
+	deck.begin_run()
+	deck.choose_draft(0)
+	deck.start_wave(3)
+	deck.spawn_queue.clear()
+	for stray in deck.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(stray):
+			stray.dead = true
+			stray.queue_free()
+
+	var gun: Dictionary = deck.turrets[0]
+	deck.player.global_position = Vector2(gun.position)
+	_check("deck", "a healthy cannon offers no work",
+		SkyGearDeckwork.available(deck).is_empty())
+
+	## Only a broken one. A damaged gun still shoots, and topping it up mid-wave
+	## would make deckwork a chore you perform constantly rather than a decision.
+	gun.dead = true
+	gun.hp = 0.0
+	var offered: Dictionary = SkyGearDeckwork.available(deck)
+	_check("deck", "but a broken one does", not offered.is_empty())
+	deck.player.global_position = Vector2(gun.position) + Vector2(900.0, 0.0)
+	_check("deck", "and only when you are standing at it",
+		SkyGearDeckwork.available(deck).is_empty())
+	deck.player.global_position = Vector2(gun.position)
+
+	## THE COST IS TIME AND ONLY TIME, so the interruptions are the design. Three
+	## ways to lose it, all the same idea: you were doing something else.
+	_check("deck", "it takes real seconds",
+		float(offered.spec.seconds) > 1.0, "%.1fs" % float(offered.spec.seconds))
+
+	## Boarders standing on it stop you — repairing with a scrapper swinging at
+	## your back is a free action with extra steps.
+	deck.spawn_enemy("SCRAPPER", 1)
+	var squatter: SkyGearEnemy = null
+	for e in deck.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			squatter = e
+	if squatter != null:
+		squatter.global_position = Vector2(gun.position) + Vector2(40.0, 0.0)
+		_check("deck", "and boarders on it contest the work",
+			bool(SkyGearDeckwork.available(deck).contested))
+		squatter.global_position = Vector2(5000.0, 0.0)
+		_check("deck", "but not from across the deck",
+			not bool(SkyGearDeckwork.available(deck).contested))
+		squatter.dead = true
+		squatter.queue_free()
+
+	## It comes back damaged. A cannon you can restore to new is a cannon that
+	## never really broke, and the lane pressure that broke it stops meaning
+	## anything.
+	SkyGearDeckwork.perform(deck, offered.spec, gun)
+	_check("deck", "a repaired cannon fires again", not bool(gun.dead))
+	_check("deck", "but not as good as new",
+		float(gun.hp) > 0.0 and float(gun.hp) < float(gun.max_hp),
+		"%.0f of %.0f" % [float(gun.hp), float(gun.max_hp)])
+
+	## And it is a TABLE, which is the whole point of the framing — laning and
+	## funnelling are entries here, not a rewrite of a repair button.
+	_check("deck", "and it is a verb table, not one hardcoded action",
+		SkyGearDeckwork.actions().size() >= 1
+			and SkyGearDeckwork.actions()[0].has("verb")
+			and SkyGearDeckwork.actions()[0].has("at"))
+	deck.queue_free()
+
 	## MOVEMENT FEEL, as a shape rather than as numbers. Both directions of this
 	## have now been wrong: first a third of a second of post-dash skating, then
 	## an over-correction that braked in 0.05s and was reported as the game
@@ -2711,9 +2780,29 @@ func _persistence() -> void:
 	SkyGearKeybinds.reset()
 	_check("keys", "and resets to what the project ships with",
 		SkyGearKeybinds.label("dash") == original, SkyGearKeybinds.label("dash"))
-	_check("keys", "menu keys are deliberately not rebindable",
-		not _rebindable_contains("copy_report") and SkyGearKeybinds.REBINDABLE.size() == 10,
-		"%d rebindable actions" % SkyGearKeybinds.REBINDABLE.size())
+	## The PROPERTY, not the count. This asserted `size() == 10` and went red the
+	## moment a legitimate eleventh binding was added — a check that fails when
+	## the code is right teaches people to edit checks, which is worse than not
+	## having it.
+	##
+	## What actually matters: a key that closes a menu, copies the report or opens
+	## a tool must never be rebindable, because rebinding your way out of the
+	## rebind screen leaves no way back in.
+	var menu_only := ""
+	for reserved in ["copy_report", "layout", "profiler", "fullscreen",
+			"how_to_play", "settings", "workshop", "controls"]:
+		if _rebindable_contains(reserved):
+			menu_only += " " + reserved
+	_check("keys", "menu keys are deliberately not rebindable", menu_only == "",
+		"rebindable but should not be:" + menu_only)
+	## And every rebindable action must actually exist in the input map, or the
+	## controls screen offers a row that binds nothing.
+	var phantom := ""
+	for binding in SkyGearKeybinds.REBINDABLE:
+		if not InputMap.has_action(str(binding[0])):
+			phantom += " " + str(binding[0])
+	_check("keys", "and every one of them is a real action", phantom == "",
+		"listed but not in the input map:" + phantom)
 
 
 func _reloaded_dash_is_f() -> bool:

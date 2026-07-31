@@ -87,6 +87,24 @@ Asked for. There are full descriptions in `CLASSES` that nothing reads, and the
 picker shows one line. Comparable rows are now in the data; the screen that lays
 them side by side is not built yet.
 
+### Deckwork needs a prompt, and then it needs more verbs
+The system is in and repairing a dead cannon works (hold R while standing at
+it), but there is NO ON-SCREEN PROMPT yet — an interaction nobody is told about
+is an interaction nobody performs. `hud.gd` was being rewritten by another
+agent when this landed, so the prompt and the progress ring are still owed.
+
+Then the verbs the ask was actually about: dragging a crate to close a lane,
+funnelling, shaping where the fight happens. Each is one entry in the table.
+
+### A cloak with cloth physics
+Raised again. Godot has `SoftBody3D`, which is the obvious route, but it wants a
+mesh with pinned vertices and the captain's rig came out of Mixamo without one.
+Options, cheapest first: a bone chain on the existing skeleton driven by her
+velocity (no new mesh, no solver, works with the animation blend); a separate
+`SoftBody3D` cape pinned to a shoulder bone; or a vertex shader that fakes it.
+The bone chain is almost certainly right for a figure this size on screen — at
+this camera distance the cape is about forty pixels tall.
+
 ### The sky is better, not right
 Reported twice. It was near-black and fogged; it is now a dusk gradient with
 `fog_sky_affect` turned down. But the warm horizon band sits behind the bow at

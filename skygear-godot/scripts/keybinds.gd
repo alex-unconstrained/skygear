@@ -27,6 +27,8 @@ const REBINDABLE := [
 	["skill_3", "SKILL 3"],
 	["skill_4", "SKILL 4"],
 	["dash", "DASH"],
+	## Deckwork. Held, not pressed — see `scripts/deckwork.gd`.
+	["deckwork", "REPAIR / WORK"],
 	["pause", "PAUSE"],
 ]
 

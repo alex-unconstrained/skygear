@@ -150,6 +150,12 @@ var workshop_open := false
 ## and zero until a first victory — so there is exactly one difficulty until the
 ## game has been beaten and every harness claim is against that one.
 var heat := 0
+## DECKWORK. What you are standing next to that you could work on, and how far
+## through doing it you are. See `scripts/deckwork.gd` — a verb table rather than
+## a repair button, because the ask was framed as the seed of the player shaping
+## the ground rather than as one feature.
+var deckwork: Dictionary = {}
+var deckwork_progress := 0.0
 ## What you keep between runs. Loaded once; nothing before a first victory.
 var workshop: Dictionary = SkyGearWorkshop.load_state()
 ## What the last run paid, so the results screen can say so rather than the
@@ -667,6 +673,7 @@ func _process(delta: float) -> void:
 		player.max_dash_charges = 0
 	else:
 		player.max_dash_charges = maxi(1, int(mods.dash_charges))
+	_update_deckwork(delta)
 	event_banner_left = maxf(0.0, event_banner_left - delta)
 	coach_line = coach.advise(self, delta)
 	_update_cooldowns(delta)
@@ -1985,6 +1992,42 @@ func use_article_v() -> bool:
 	article_used["scuttle"] = true
 	_fx({"kind": "banner", "text": "SCUTTLE", "time": 0.0, "life": 1.4})
 	return true
+
+
+## HELD, not pressed. A repair is a commitment you can abandon by walking away,
+## which is the whole point — the cost is the seconds, and seconds you can take
+## back are not a cost.
+func _update_deckwork(delta: float) -> void:
+	if state != State.PLAY:
+		deckwork = {}
+		deckwork_progress = 0.0
+		return
+	var here := SkyGearDeckwork.available(self)
+	## A different target, or none, resets. Progress that survives walking to
+	## another cannon is progress you did not pay for.
+	if here.is_empty() or (not deckwork.is_empty()
+			and str(deckwork.spec.id) + str(deckwork.target) != str(here.spec.id) + str(here.target)):
+		deckwork = here
+		deckwork_progress = 0.0
+		if here.is_empty():
+			return
+	deckwork = here
+	if not Input.is_action_pressed("deckwork"):
+		deckwork_progress = 0.0
+		return
+	## Three ways to lose it, and all three are the same idea: you were doing
+	## something else. Standing still and unbothered is the only way through.
+	if bool(here.contested) or player.velocity.length() > 24.0 			or player.attack_time > 0.0 or player.hurt_time > 0.0:
+		deckwork_progress = 0.0
+		return
+	deckwork_progress += delta / maxf(0.1, float(here.spec.seconds))
+	if deckwork_progress >= 1.0:
+		SkyGearDeckwork.perform(self, here.spec, here.target)
+		deckwork_progress = 0.0
+		deckwork = {}
+		play_sfx("lane/crew_muster.ogg", -6.0)
+		_fx({"kind": "circle", "position": player.global_position, "radius": 90.0,
+			"color": Color("#37f0c8"), "time": 0.0, "life": 0.32})
 
 
 func _update_taps(delta: float) -> void:
