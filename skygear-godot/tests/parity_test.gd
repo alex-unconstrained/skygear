@@ -1419,6 +1419,100 @@ func _view() -> void:
 	_check("class", "but never forbids a shape outright",
 		SkyGearData.CLASSES.boilerwright.shape_bias.values().min() > 0.0)
 
+	## THE THREE FIELDS THAT WERE DECLARED AND NEVER READ. A table entry with no
+	## reader is worse than a missing feature: it reads as done. Each of these
+	## now has a check whose failure means "the data lies again".
+	game.taps.clear()
+	game.player.global_position = Vector2.ZERO
+	game.pressure = 60.0
+	game.tap_cooldown = 0.0
+	game.tap_main()
+	game.player.hp = game.player.max_hp
+
+	## ANCHORED. Standing in his own steam is the compensation for having no
+	## dash, and it was 25% in the table and 0% in the game.
+	## The Bleed Jet check above left him mid-dodge, and a dodge ignores damage —
+	## so the first version of this measured 0 against 0 and called it a bug in
+	## the resist. Land the hit on a captain who is actually standing there.
+	var full_hp: float = game.player.hp
+	game.player.invulnerability_left = 0.0
+	game.damage_player(40.0)
+	var inside: float = full_hp - game.player.hp
+	game.player.hp = game.player.max_hp
+	game.player.global_position = Vector2(2000.0, 0.0)   ## out of his own main
+	_check("class", "and he is only anchored inside it", not game.anchored())
+	game.player.invulnerability_left = 0.0
+	game.damage_player(40.0)
+	var outside: float = game.player.max_hp - game.player.hp
+	_check("class", "standing in his own steam actually reduces damage",
+		inside < outside - 0.5, "%.1f inside against %.1f outside" % [inside, outside])
+	_check("class", "by the amount the table says",
+		is_equal_approx(inside, outside * (1.0 - float(SkyGearData.TAP.anchor_resist))),
+		"%.2f against an expected %.2f"
+			% [inside, outside * (1.0 - float(SkyGearData.TAP.anchor_resist))])
+
+	## A KILL INSIDE A MAIN EXTENDS IT — the loop the whole class is built on.
+	game.taps.clear()
+	game.player.global_position = Vector2.ZERO
+	game.pressure = 60.0
+	game.tap_cooldown = 0.0
+	game.tap_main()
+	game.taps[0].life = 4.0
+	game.spawn_enemy("SWARM", 1)
+	var doomed: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			doomed = e
+	if doomed != null:
+		doomed.global_position = Vector2(20.0, 0.0)   ## inside the main
+		doomed.hp = 1.0
+		var before_life: float = float(game.taps[0].life)
+		game.damage_enemy(doomed, 999.0, "STEAM", 0.0, Vector2.ZERO, false)
+		_check("class", "a kill inside a main extends it",
+			float(game.taps[0].life) > before_life,
+			"%.2f -> %.2f" % [before_life, float(game.taps[0].life)])
+		doomed.dead = true
+		doomed.queue_free()
+	## But not forever, or a good position becomes a permanent one.
+	game.taps[0].life = float(SkyGearData.TAP.max_life)
+	game.spawn_enemy("SWARM", 1)
+	var second: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			second = e
+	if second != null:
+		second.global_position = Vector2(20.0, 0.0)
+		second.hp = 1.0
+		game.damage_enemy(second, 999.0, "STEAM", 0.0, Vector2.ZERO, false)
+		_check("class", "but it cannot be extended past its cap",
+			float(game.taps[0].life) <= float(SkyGearData.TAP.max_life) + 0.01,
+			"%.2f against a cap of %.2f" % [float(game.taps[0].life),
+				float(SkyGearData.TAP.max_life)])
+		second.dead = true
+		second.queue_free()
+
+	## CREW INSIDE A MAIN SWING FASTER — the reason he is the only class with a
+	## reason to care the crew layer exists.
+	_check("class", "crew inside a main work faster",
+		game._crew_haste(Vector2(20.0, 0.0)) > 1.0
+			and is_equal_approx(game._crew_haste(Vector2(3000.0, 0.0)), 1.0),
+		"%.2f inside, %.2f outside" % [game._crew_haste(Vector2(20.0, 0.0)),
+			game._crew_haste(Vector2(3000.0, 0.0))])
+
+	## And the middle lane has somewhere to refill. Two vents in lanes 0 and 2
+	## and none in the centre is not a decision, it is a lane nobody holds.
+	var vent_lanes := {}
+	for entry in SkyGearData.PROP_LAYOUT:
+		if str(entry.type) != "vent":
+			continue
+		var x: float = Vector2(entry.position).x
+		vent_lanes[0 if x < -240.0 else (2 if x > 240.0 else 1)] = true
+	_check("class", "and every lane has a vent to refill at",
+		vent_lanes.size() == 3, "vents in lanes %s" % str(vent_lanes.keys()))
+
+	game.taps.clear()
+	game.spawn_queue.clear()
+
 	## The captain is untouched by all of it.
 	game.go_to_title()
 	game.set_class("captain")

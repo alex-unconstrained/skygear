@@ -1,14 +1,21 @@
 # The second class — the Boilerwright
 
-Status: **BUILT**, as of the class commit. Head, Tap Main, Blowdown, Bleed Jet,
-Scald, Overpressure, the no-dash body and the per-class draft weighting are all
-in and covered by the harness. What is NOT built, and is still design:
+Status: **BUILT AND COMPLETE.** Head, Tap Main, Blowdown, Bleed Jet, Scald,
+Overpressure, the no-dash body, the per-class draft weighting, the Anchored
+resist, kills extending a main, the crew haste inside one and the third deck
+vent are all in and covered by the harness.
 
-- the Anchored damage reduction is declared in `SkyGearData.TAP.anchor_resist`
-  and read by `game.anchored()`, but nothing applies it to incoming damage yet;
-- kills inside a tap do not extend it (`extend_on_kill` is data with no reader);
-- the crew speed bonus inside a tap;
-- the third deck vent in lane 1 that §4 asks for.
+Two things §3 describes that are deliberately NOT built, and are not oversights:
+
+- **Head does not cost Boiler HP.** §2 charges 0.6 Boiler HP per point past a
+  40-per-wave allowance. The allowance, the meter and the per-wave reset are
+  three pieces of bookkeeping for a cost the player pays at the moment they are
+  least able to read a new number, and Blowdown's repair rate already encodes
+  the loss the charge was there to guarantee. If the Boiler tap turns out to be
+  the dominant fill in play, this is the first thing to add back.
+- **No per-class card weighting.** The SHAPES are weighted; the 41 cards are not.
+  A card table that offers differently per class is a second table to balance,
+  and the shape bias already steers the build.
 
 Everything below is the reasoning, unchanged. Where the build disagrees with it,
 the build is the newer decision and the difference is commented at the code.

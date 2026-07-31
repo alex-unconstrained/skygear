@@ -1462,6 +1462,17 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 			tint = SkyGearData.ELEMENTS[element].color
 		add_floater("%d" % roundi(dealt), hit_at, Color("#ffe08a") if crit else tint, crit)
 	SkyGearTelemetry.note_damage(tel, src_slot, dealt, killed)
+	## A KILL INSIDE A MAIN EXTENDS IT. `extend_on_kill` was data nothing read.
+	## This is the loop the class is built around: hold the ground and the ground
+	## holds longer, so a main placed where the fight actually is pays for itself
+	## and one placed out of the way simply expires. Capped at `max_life`, or a
+	## good position becomes a permanent one.
+	if killed and not taps.is_empty():
+		for tap in taps:
+			if hit_at.distance_to(Vector2(tap.position)) <= float(tap.radius):
+				tap.life = minf(float(SkyGearData.TAP.max_life),
+					float(tap.life) + float(SkyGearData.TAP.extend_on_kill))
+				break
 	if crit and float(mods.crit_explode) > 0.0:
 		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false)
 	if grants_pressure:
@@ -1707,6 +1718,17 @@ func tap_main() -> bool:
 	return true
 
 
+## How much faster a crewman at this spot works. One inside a live main swings
+## thirty percent quicker; everyone else is unchanged.
+func _crew_haste(at: Vector2) -> float:
+	if taps.is_empty():
+		return 1.0
+	for tap in taps:
+		if at.distance_to(Vector2(tap.position)) <= float(tap.radius):
+			return 1.0 + float(SkyGearData.TAP.crew_haste)
+	return 1.0
+
+
 func _update_taps(delta: float) -> void:
 	tap_cooldown = maxf(0.0, tap_cooldown - delta)
 	var i := taps.size() - 1
@@ -1790,6 +1812,16 @@ func vent_pressure() -> void:
 func damage_player(amount: float, _source: String = "") -> void:
 	if state != State.PLAY:
 		return
+	## ANCHORED. Declared in `SkyGearData.TAP.anchor_resist` and read by
+	## `anchored()` since the class landed, and until now nothing applied it —
+	## the table said 25% and the player took full damage, which is worse than
+	## not having the field at all.
+	##
+	## It is the compensation for having no dash: he cannot leave, so standing
+	## his ground has to be worth something. Only inside a main he opened
+	## himself, so it is a reward for the placement rather than a passive.
+	if anchored():
+		amount *= 1.0 - float(SkyGearData.TAP.anchor_resist)
 	if player.take_damage(amount):
 		play_sfx("player/hurt.ogg", -3.0)
 		player.hurt_time = 0.34
@@ -2093,7 +2125,11 @@ func _update_crew(delta: float) -> void:
 				else:
 					c.position = Vector2(c.position) + to_goal.normalized() * float(SkyGearLanes.CREW.speed) * delta
 			"windup":
-				c.state_time = float(c.state_time) - delta
+				## CREW INSIDE A MAIN SWING FASTER. The last unread field, and the
+				## one that makes the Boilerwright the only class with a reason to
+				## care the crew layer exists: his installation is what lets four
+				## sailors break a hulk while he holds the lane.
+				c.state_time = float(c.state_time) - delta * _crew_haste(c.position)
 				if float(c.state_time) <= 0.0:
 					c.state = "recover"
 					c.state_time = SkyGearLanes.CREW.recover

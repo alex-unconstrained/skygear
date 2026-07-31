@@ -172,8 +172,12 @@ const TAP := {
 	## Kills inside extend it, so holding a main is rewarded by the main lasting
 	## longer, which is the loop the class is built around.
 	"extend_on_kill": 0.6, "max_life": 14.0,
-	## Anchored: inside your own main you cannot be pushed and you take less.
+	## Anchored: inside your own main you take a quarter less.
 	"anchor_resist": 0.25,
+	## And the crew work faster in it. The reason he is the only class with a
+	## reason to care the crew layer exists — his installation is what breaks a
+	## hulk while he holds the lane.
+	"crew_haste": 0.30,
 }
 
 ## Blowdown. `vent_pressure` with the constants replaced by functions of Head —
@@ -230,6 +234,12 @@ const PROP_LAYOUT := [
 	{"type": "hatch", "position": Vector2(300, -740)},
 	{"type": "vent", "position": Vector2(-680, 620)},
 	{"type": "vent", "position": Vector2(700, 120)},
+	## THE THIRD VENT. There were two, in lanes 0 and 2, and none in the middle —
+	## which for the Boilerwright means the centre lane is the one place he
+	## cannot refill without walking off it. Two free taps and one starved lane
+	## is not a decision, it is a lane nobody holds. On the y = +15 cross-passage,
+	## so it covers the gap between the cargo runs rather than sitting inside one.
+	{"type": "vent", "position": Vector2(40, 15)},
 	{"type": "ballista", "position": Vector2(-700, -820)},
 	{"type": "ballista", "position": Vector2(700, -820)},
 	{"type": "railing", "position": Vector2(-780, -300)},
