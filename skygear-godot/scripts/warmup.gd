@@ -72,6 +72,34 @@ func warm(view: SkyGearView3D) -> void:
 		view.add_child(sprite)
 		_props.append(sprite)
 
+	## The ribbon batch, which is one material and therefore one pipeline — but a
+	## pipeline built the first time something is DRAWN with it, and the first
+	## thing drawn with it is the player's opening Cleave. Two triangles under the
+	## hull pay for it here instead.
+	if view._ribbon_mesh != null:
+		var strip := PackedVector3Array([HIDE_AT / SkyGearView3D.WORLD_SCALE,
+			HIDE_AT / SkyGearView3D.WORLD_SCALE + Vector3(0.0, 0.0, 8.0)])
+		var wide := PackedFloat32Array([4.0, 4.0])
+		var lit := PackedColorArray([Color.WHITE, Color.WHITE])
+		view._ribbons_begin()
+		view._ribbon(strip, wide, lit)
+		view._ribbons_end()
+
+	## A FogVolume, for the same reason and with more of it to pay for: the
+	## volumetric pass allocates its froxel buffers the first time a volume is
+	## actually inside the camera's range, and a Field appearing in wave 6 is a
+	## Field appearing at the worst moment to allocate anything.
+	if SkyGearView3D.VOLUMETRIC_FIELDS:
+		var haze := FogVolume.new()
+		haze.shape = RenderingServer.FOG_VOLUME_SHAPE_CYLINDER
+		var hm := FogMaterial.new()
+		hm.density = 0.01
+		haze.material = hm
+		haze.size = Vector3(0.6, 0.6, 0.6)
+		haze.position = HIDE_AT
+		view.add_child(haze)
+		_props.append(haze)
+
 	## And one particle from each emitter. The particle shader is compiled on
 	## first emission, not on creation, so an emitter that has never fired is an
 	## emitter that will hitch the first time something dies.

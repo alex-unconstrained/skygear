@@ -26,7 +26,7 @@ func _initialize() -> void: call_deferred("_run")
 ##   make    changes files or spends money; never in `all`
 const TOOLS := [
 	{"id": "harness", "kind": "check", "script": "tests/parity_test.gd",
-		"what": "the whole simulation, 382 checks",
+		"what": "the whole simulation, 401 checks",
 		"why": "the one thing that must be green before anything ships"},
 	{"id": "text", "kind": "check", "script": "tools/text_audit.gd", "window": true,
 		"what": "every string on 16 screens at 4 resolutions — fit, size and contrast",
@@ -43,6 +43,18 @@ const TOOLS := [
 	{"id": "model", "kind": "check", "script": "tools/verify_model.gd",
 		"what": "an ingested rig: height, bones, clips, materials",
 		"why": "whether a model will actually stand on the deck"},
+
+	{"id": "sky", "kind": "window", "script": "tools/sky_shot.gd",
+		"what": "the sky, from the four places on the deck it is actually visible",
+		"why": "at 41 degrees the horizon is off the top of the frame, so a shot from mid-deck cannot show you the sky is empty — and three times it did not"},
+
+	## A `make` rather than a `check`: it writes PNGs and it needs a real window,
+	## so `all` must not pick it up. It is here because a VFX tool nobody can find
+	## is a VFX judgement made from memory, which is how a beam stayed a scratch on
+	## the planking for eleven builds.
+	{"id": "vfx", "kind": "make", "script": "tools/vfx_shot.gd",
+		"what": "one posed frame per skill into .shots/vfx — arc, cone, line, aoe, chain, ray, pulse, aura, cannons",
+		"why": "the only way to judge an effect without three others on screen; run it before AND after"},
 
 	{"id": "lab", "kind": "window", "script": "tools/model_lab.gd",
 		"what": "every model: view it, RUN its animations, mount a weapon, run the effects, save",

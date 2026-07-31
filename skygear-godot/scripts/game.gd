@@ -1463,6 +1463,7 @@ func _process_basic_attack(delta: float) -> void:
 	basic_cooldown = float(auto.period)
 	_fx({"kind": str(auto.kind), "position": player.global_position,
 		"direction": direction.angle(), "radius": reach, "arc": float(auto.arc),
+		"element": str(auto.element),
 		"color": SkyGearData.ELEMENTS[str(auto.element)].color,
 		"time": 0.0, "life": 0.16, "follow": true})
 	play_sfx(str(auto.sound), -7.0)
@@ -1586,30 +1587,34 @@ func _resolve_cast(st: Dictionary, skill: Dictionary, origin: Vector2, direction
 	match str(st.kind):
 		"arc":
 			_damage_cone(origin, direction, float(st.range), float(st.arc), damage, skill.element, float(st.knock), true)
-			_fx({"kind": "arc", "position": origin, "direction": direction.angle(), "radius": float(st.range), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.2, "follow": true})
+			_fx({"kind": "arc", "position": origin, "direction": direction.angle(), "radius": float(st.range), "arc": float(st.arc), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.2, "follow": true})
 			land = origin + direction * float(st.range) * 0.62
 		"line":
 			var end := origin + direction * float(st.range)
 			_damage_line(origin, end, float(st.width), damage, skill.element, float(st.knock), true)
-			_fx({"kind": "line", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.18})
+			_fx({"kind": "line", "from": origin, "to": end, "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.18})
 			land = origin + direction * float(st.range) * 0.5
 		"cone":
 			_damage_cone(origin, direction, float(st.range), float(st.arc), damage, skill.element, float(st.knock), true)
-			_fx({"kind": "cone", "position": origin, "direction": direction.angle(), "radius": float(st.range), "arc": float(st.arc), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.22, "follow": true})
+			_fx({"kind": "cone", "position": origin, "direction": direction.angle(), "radius": float(st.range), "arc": float(st.arc), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.22, "follow": true})
 			land = origin + direction * float(st.range) * 0.55
 		"aoe":
 			var offset := target - origin
 			if offset.length() > float(st.range):
 				target = origin + offset.normalized() * float(st.range)
 			_damage_circle(target, float(st.radius), damage, skill.element, float(st.knock), true, true)
-			_fx({"kind": "circle", "position": target, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.28})
+			## `from` is the THROW. The renderer arcs a shell out of her hand to
+			## where the ring landed, and a Mortar is the only shape in the game
+			## that has a throw — everything else either starts on her or is
+			## already there, which is why nothing else writes this field.
+			_fx({"kind": "circle", "position": target, "from": origin, "radius": float(st.radius), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.28})
 			land = target
 		"chain":
 			land = _cast_chain(origin, target, st, skill.element, damage)
 		"ray":
 			var end := origin + direction * float(st.range)
 			_damage_line(origin, end, float(st.width), damage * 4.0, skill.element, float(st.knock), true)
-			_fx({"kind": "beam", "from": origin, "to": end, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.32})
+			_fx({"kind": "beam", "from": origin, "to": end, "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.32})
 			land = origin + direction * float(st.range) * 0.5
 	return land
 
@@ -1627,7 +1632,12 @@ func _cast_chain(origin: Vector2, target_position: Vector2, st: Dictionary, elem
 			break
 		visited[current.get_instance_id()] = true
 		damage_enemy(current, damage * pow(0.85, jump), element, float(st.knock), from, true)
-		_fx({"kind": "line", "from": from, "to": current.global_position, "color": SkyGearData.ELEMENTS[element].color, "time": 0.0, "life": 0.22})
+		## `lift` is what makes a chain a chain. A Whip jump between two boarders
+		## is an arc THROUGH THE AIR, and drawing it as a straight segment on the
+		## deck — which is what it was — is the single clearest example of the
+		## thing that was reported: the effect existed, and it was painted on the
+		## floor. 150 units is head height on a SCRAPPER plus a little.
+		_fx({"kind": "line", "from": from, "to": current.global_position, "lift": 150.0, "element": element, "color": SkyGearData.ELEMENTS[element].color, "time": 0.0, "life": 0.22})
 		from = current.global_position
 		current = nearest_enemy_excluding(from, float(st.jump_range), visited)
 	return from
@@ -1676,7 +1686,7 @@ func _update_passives(delta: float) -> void:
 				skill.passive_timer = 1.0 / maxf(0.2, float(st.tick_rate))
 			"pulse":
 				_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
-				_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
+				_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
 				skill.passive_timer = float(st.cooldown)
 		src_slot = previous_src
 
@@ -1995,6 +2005,7 @@ func tap_main() -> bool:
 	})
 	_fx({"kind": "circle", "position": player.global_position,
 		"radius": float(spec.radius),
+		"element": "STEAM",
 		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.4})
 	play_sfx("player/shape_gale.ogg", -3.0)
 	return true
@@ -2022,6 +2033,7 @@ func _check_deadman() -> void:
 	article_used["deadmans_switch"] = true
 	_damage_circle(boiler_position, 700.0, 200.0, "STEAM", 320.0, false, false)
 	_fx({"kind": "circle", "position": boiler_position, "radius": 700.0,
+		"element": "STEAM",
 		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.5})
 	_fx({"kind": "banner", "text": "THE BOILER VENTS", "time": 0.0, "life": 1.8})
 	if impact != null:
@@ -2164,6 +2176,7 @@ func blowdown() -> bool:
 		if player.global_position.distance_to(Vector2(turret.position)) <= radius:
 			turret.hp = minf(float(SkyGearLanes.TURRET.hp), float(turret.hp) + repair)
 	_fx({"kind": "circle", "position": player.global_position, "radius": radius,
+		"element": "STEAM",
 		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.42})
 	if impact != null:
 		impact.note_hit(60.0, true)
@@ -2182,7 +2195,7 @@ func vent_pressure() -> void:
 	_damage_circle(player.global_position, radius, float(SkyGearData.CLOSE.vent_damage) * float(mods.vent_damage), "STEAM", float(SkyGearData.CLOSE.vent_knock), false, false)
 	heal_player(float(SkyGearData.CLOSE.vent_heal) + float(mods.vent_heal), "vent")
 	tel.vents += 1
-	_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": radius, "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
+	_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": radius, "element": "STEAM", "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
 	if impact != null:
 		impact.note_explosion(7.0)
 	play_sfx("player/vent.ogg", -2.0)
@@ -2817,6 +2830,7 @@ func deploy_sentry(skill: Dictionary, at: Vector2, manual: bool) -> void:
 	play_sfx("player/shape_mortar_land.ogg", -4.0)
 	## The arrival, so a placement you made on purpose is visibly acknowledged.
 	_fx({"kind": "circle", "position": at, "radius": 90.0,
+		"element": skill.element,
 		"color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.34})
 
 
@@ -2830,6 +2844,7 @@ func _update_sentries(delta: float) -> void:
 			## It ends as a small vent rather than blinking out, or a player who
 			## is watching the lane never learns the thing expired.
 			_fx({"kind": "circle", "position": s.position, "radius": 70.0,
+				"element": str(s.element),
 				"color": SkyGearData.ELEMENTS[str(s.element)].color, "time": 0.0, "life": 0.3})
 			sentries.remove_at(i)
 			i -= 1
@@ -2845,7 +2860,12 @@ func _update_sentries(delta: float) -> void:
 				src_slot = int(s.slot)
 				damage_enemy(target, float(s.damage), str(s.element),
 					float(s.knock), s.position, true)
+				## A sentry sits on the planking, so its shot leaves LOWER than a
+				## cast does and there is no arc on it: it is a mounted gun, not a
+				## thrown thing. `lift` stays absent and the renderer draws it flat,
+				## which is what separates it from a Whip jump.
 				_fx({"kind": "line", "from": s.position, "to": target.global_position,
+					"element": str(s.element),
 					"color": SkyGearData.ELEMENTS[str(s.element)].color,
 					"time": 0.0, "life": 0.14})
 				s.fire_timer = float(s.fire_period)

@@ -171,17 +171,89 @@ renderer owns the particles and the light.
 Fourteen checks, and every one of them asserts a **cap** rather than a look:
 sixty hits in a frame create nothing new.
 
-Remaining: item 3 (bolt and chain ribbons), item 6 (weapon trail, wants the
-boarder meshes first), item 4 (volumetric fields, measure before committing).
+## DONE, 2026-07-31 — items 3 and 4
+
+Reported again, and more bluntly: *"projectiles and vfx from the player still
+look like 2D instead of 3D."* Two separate faults, and only the second was on
+this list.
+
+**§3, the ribbons.** Chains, bolts and beams were `_streak_texture` DECALS, and
+a decal is a mark projected onto whatever is under it, which for these was
+always the planking. At 41 degrees a mark on the floor and an object in the air
+are the same picture only when the object in the air is lying on the floor, so a
+bolt of lightning read as a scuff. They are geometry now — a strip of triangles
+whose width is offset perpendicular to the LINE OF SIGHT at every point, so it
+turns its face to the camera instead of vanishing to a hairline.
+
+Every shape in the game got one, not only the three the plan named, because the
+most-seen effect in this game is not a Whip: it is the captain's Cleave firing
+every 0.36 s for an entire run, and it was a painted fan on the floor.
+
+- **arc** — the blade leads, the trail follows it round, and the ribbon descends
+  from 132 units to 58 across the sweep so it reads as a chop through a body.
+- **cone** — five plumes blown out of her instead of one wedge on the deck.
+- **line** — the head runs out along the shot over the first 42% of the effect's
+  life and the tail chases it: **hitscan skills now have a projectile**, drawn
+  inside the window the effect already existed for, with no simulation change.
+- **chain** — `lift` on the effect, so a Whip jump is an arc over a boarder's
+  head rather than a line between two pairs of feet.
+- **beam** — a wide soft sleeve with a narrow hot core running inside it.
+- **circle** — the ring on the planking stays and a wall of air stands up off it.
+- **aoe** — the Mortar records where it was thrown FROM and a shell arcs out.
+- **projectiles** — the deck cannons' shots and the drones' now have trails in
+  the air, in two colours, because two kinds of ordnance cross the same lanes in
+  opposite directions.
+
+Each element has its own handwriting in `ELEMENT_RIBBON` — width, wander, kink,
+rise — so Frost is a narrow straight shard that sags and Steam is a broad
+wandering cloud that rises, and the two are told apart in grayscale. The
+palette colour is SATURATED before it is brightened, because additive blending
+turns a pale hue into white and the first pass drew all four elements the same.
+
+**The cost, and what it forced.** Written the obvious way — `ImmediateMesh` and
+`surface_add_vertex`, which is what this document proposed — it cost **6.4 ms of
+the frame** at the bench's sixty-boarder load, more than twice the whole rest of
+the renderer. Three engine calls per vertex at three and a half thousand
+vertices is ten thousand crossings out of GDScript every frame, and the crossing
+is the cost rather than the geometry. Rewritten as preallocated `Packed*Array`s
+handed to one `ArrayMesh` call, the same triangles cost **0.6 ms**.
+
+**§4, the fog.** `FogVolume` per aura, global volumetric density at zero so only
+the volumes contribute. Measured, as this document asked: `tests/bench.gd` at 60
+boarders reports avg 7.79 / p99 9.54 ms without it and 7.92 / 10.70 with — but
+only with temporal reprojection left ON. Off, as the research audit recommends
+for a volume that follows a moving player, the tail goes to 13.6 ms, and four
+milliseconds of it is not a price a passive that most runs never draft gets to
+charge every frame. The trade bought back is a short smear of haze behind the
+captain while she runs, which on a Steam Field is what steam does.
+
+Nine checks, and they assert the same thing every other item on this list
+asserts: the **cap**. Five hundred ribbons in one frame write no more than the
+budget and the ones that do not fit are dropped whole rather than half-drawn.
+Plus two that are not about caps at all — every skill effect must NAME the
+element its trail is shaped from, and a chain jump must arc where a lance does
+not, because both are the "data with no reader" failure inverted and both fail
+silently by drawing everything as Ember.
+
+Whole-frame cost of the two items together, three runs each at 60 boarders:
+avg **7.6 → 8.4 ms**, p99 unchanged inside its own noise. Budget is 16.7.
+
+Remaining: item 6 (the captain's weapon trail — the Cleave sweep covers the
+swing visually now, but it is not bone-driven and does not follow the clip), and
+the parts of item 5 the research audit argued against on readability grounds.
+
+Remaining before this pass: item 3 (bolt and chain ribbons), item 6 (weapon
+trail, wants the boarder meshes first), item 4 (volumetric fields, measure
+before committing).
 
 | # | Item | Answers | Cost | Do |
 | - | ---- | ------- | ---- | -- |
 | 1 | Impact particles | hit landed | ~200 ln | now |
 | 5 | Hit-stop + additive shake | hit landed | ~40 ln | now |
 | 2 | Element light flashes | which element | ~80 ln | now |
-| 3 | Bolt/chain ribbons | about to hit me | ~150 ln | next |
+| 3 | Bolt/chain ribbons | about to hit me | ~150 ln | DONE 07-31 |
 | 6 | Weapon trail | hit landed | ~120 ln | after boarder meshes |
-| 4 | Volumetric fields | edge of my ability | ~60 ln | measure first |
+| 4 | Volumetric fields | edge of my ability | ~60 ln | DONE 07-31 |
 
 Every one of these gets a harness check that asserts the **pool is capped**,
 because every performance problem this project has had — the browser's audio

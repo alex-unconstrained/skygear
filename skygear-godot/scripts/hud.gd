@@ -1120,6 +1120,10 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 const ENEMY_BAR_H := 7.0
 const ENEMY_BAR_W := {"BOSS": 120.0, "ARMORED": 68.0, "SCRAPPER": 52.0,
 	"GUNNER": 50.0, "SWARM": 40.0}
+## And the deck cannons. Wider than a SCRAPPER's and narrower than the boss's,
+## because a gun is a piece of the ship rather than a body: it should read as the
+## most important thing in its lane without competing with the Colossus.
+const TURRET_BAR_W := 82.0
 
 ## Each status is a chip: the colour, a letter, and a bar underneath that drains
 ## with the time left. Colour alone fails for a colour-blind player and a dot
@@ -1337,6 +1341,62 @@ func _draw_world_overlay() -> void:
 				at - Vector2(80.0, 8.0), 160, HORIZONTAL_ALIGNMENT_CENTER, 11,
 				Color("#e8c376"))
 		_status_row(enemy, at + Vector2(0.0, ENEMY_BAR_H + 11.0), wide)
+
+	## THE DECK CANNONS. Reported as "cannons should fire visible projectiles, and
+	## have clear health bars".
+	##
+	## They already HAD a health readout — the lane panel in the bottom right
+	## draws a teal track per lane — and the corner is the wrong place for it,
+	## which is what the report is really about. A gauge over there tells you that
+	## a cannon is dying; it does not tell you WHICH of the three guns in front of
+	## you it is, and that answer has to arrive in the same glance as the boarders
+	## breaking it. So the same number is now also over the gun, in exactly the
+	## language a boarder's health is in: `_health_bar`, the same bed, the same
+	## height, the same segment ticks, unprojected from the world so it sits over
+	## the object and stays legible when the wheel pulls the camera back.
+	##
+	## Hidden at full health and shown while hurt or down, which is the boarders'
+	## rule too. Three permanent bars over three permanent objects is furniture the
+	## eye learns to skip; a bar that appears only when something is wrong is a bar
+	## that means something when it appears.
+	for turret in game.turrets:
+		var down: bool = bool(turret.dead)
+		var life: float = clampf(float(turret.hp) / maxf(1.0, float(turret.max_hp)),
+			0.0, 1.0)
+		if not down and life >= 0.999:
+			continue
+		## 160 ground units: the gun stands 130 and its barrel is the highest part
+		## of it, so a bar at the model's own height would be drawn through the
+		## muzzle rather than over it.
+		var gun := _to_screen(Vector2(turret.position), 160.0)
+		if not gun.ok or not frame.has_point(gun.at):
+			continue
+		var mid := Vector2(gun.at.x, maxf(gun.at.y, 20.0))
+		var bar := Rect2(mid - Vector2(TURRET_BAR_W * 0.5, 0.0),
+			Vector2(TURRET_BAR_W, ENEMY_BAR_H))
+		if not down:
+			## The Boiler's own thresholds, because both are things of yours that
+			## the boarders are trying to break and a player should not have to
+			## learn two colour scales.
+			_health_bar(bar, life,
+				Color("#37f0c8") if life > 0.34 else Color("#ffb347"))
+			continue
+		## A dead gun gets an EMPTY BED rather than no bar at all. "There is a bar
+		## here and it is empty" is a different statement from "there is nothing
+		## here", and the difference is whether the player ever learns the thing
+		## can come back.
+		_health_bar(bar, 0.0, Color("#ff4d37"))
+		## And it fills the other way while you are repairing it, so the progress
+		## is on the object being worked on rather than only under the prompt.
+		## `is_same`, not `==`: Dictionary equality compares CONTENTS in Godot 4,
+		## and three cannons at full health are three equal dictionaries.
+		var job: Dictionary = game.deckwork
+		if not job.is_empty() and is_same(job.get("target"), turret) 				and game.deckwork_progress > 0.0:
+			draw_rect(Rect2(bar.position, Vector2(
+				bar.size.x * clampf(game.deckwork_progress, 0.0, 1.0), bar.size.y)),
+				Color("#ffb347"))
+		_say_free("DOWN", mid - Vector2(50.0, 8.0), 100,
+			HORIZONTAL_ALIGNMENT_CENTER, 11, Color("#ff8b6a"))
 
 	## The objective, when it is not in the frame. Losing sight of the Boiler is
 	## normal — losing track of whether it is being hit is not.

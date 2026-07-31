@@ -146,6 +146,38 @@ const STREAK_SPEED := 1450.0        ## ground units per second, toward the stern
 const STREAK_DEPTH := 3000.0        ## the volume they live in, ahead of the camera
 const STREAK_SPREAD := 1500.0       ## and across it
 
+## How hard the painted sky is driven before the post chain gets it. The backdrop
+## arrives as a finished painting and then loses a third of itself on the way to
+## the screen — Filmic tonemapping with a white point of 6, a 1.10 contrast lift
+## and 15% of the depth fog. Measured against the browser's own canvas at the
+## same framing rather than guessed at; see `tools/sky_shot.gd`.
+const SKY_ENERGY := 1.55
+
+## THE CLOUD FIELD — and this is where the parallax comes from.
+##
+## The browser drifts two painted cloud bands at 16 and 34 pixels a second, and
+## a pixel a second is not a speed, it is an ANGULAR RATE: its focal length at
+## 1600x900 is 1320 * min(1600/1400, 900/860) = 1381.4 pixels per radian, so the
+## two bands sweep 0.01158 and 0.02461 radians a second. Reproducing an angular
+## rate with real geometry leaves one degree of freedom — rate = speed /
+## distance — and either half of that pair may be chosen freely.
+##
+## Distance was chosen first, because it is the half with hard limits. The near
+## layer has to clear the deck and the gunwale by enough that it never reads as
+## something ON the ship; the far layer has to fit inside a camera far plane that
+## is not absurd. 300 and 640 metres. The drift then follows and is not a taste
+## number: 7.2 m/s puts the near layer at 0.0240 rad/s and the far at 0.0113,
+## which is 33.2 and 15.5 of the browser's pixels a second against its 34 and 16.
+##
+## Doing it this way rather than by panning a texture is the whole point. Two
+## objects at two real distances under one perspective camera parallax against
+## each other for free, they parallax against the deck for free, and they stay
+## correct when the wheel pulls the camera back — none of which a scrolling
+## backdrop does, and all three are what was actually asked for.
+const CLOUD_DRIFT := 720.0          ## ground units per second, toward the stern
+const CLOUD_NEAR_RANGE := 30000.0   ## 300 m, the fast layer
+const CLOUD_FAR_RANGE := 64000.0    ## 640 m, the slow one — 2.13x, browser 2.125x
+
 ## And the sway. Reported as "very subtle, player didn't notice much even after
 ## being told" — because in 2D it could only ever be a small parallax nudge. A
 ## real camera can roll the horizon, which is what standing on a ship feels
@@ -172,6 +204,7 @@ var _focus_set := false
 var _flicker := 0.0
 var _made: Dictionary = {}           ## generated textures, by key
 var _cloud_bands: Array[Dictionary] = []
+var _escort: MeshInstance3D           ## the distant airship, running with us
 var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
 var _flash_next := 0
@@ -237,30 +270,50 @@ func _build_world() -> void:
 	var e := Environment.new()
 	## A real sky, because the top of the frame is where the horizon is and a
 	## flat clear colour reads as a void rather than as altitude at dusk.
-	## REPORTED TWICE: "where is the sky box? It's missing." It was not missing —
-	## it was `#100e1c` at the top and `#2e2a4e` at the horizon, which is to say
-	## black and slightly-less-black, then fogged with `#1d1930` and put through a
-	## Filmic tonemapper. Technically a sky, visually a void, and the player was
-	## right both times.
+	## REPORTED THREE TIMES: "where is the sky box? It's missing." Twice it was
+	## treated as a colour problem and twice that was wrong. It was a CONTENT
+	## problem: a two-stop gradient with nothing in it, while the browser has a
+	## painted moon breaking through cloud and the player remembered the painting.
 	##
-	## STORM-DUSK means the sun is going down BEHIND the weather, so the horizon
-	## is the brightest thing in the frame and the top is the darkest. That
-	## gradient is what says altitude; a flat dark field says nothing. The warm
-	## band also motivates the lantern fill the deck art is painted for.
-	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#1a1636")
-	sky_mat.sky_horizon_color = Color("#8a5a6e")
-	sky_mat.sky_curve = 0.19
-	sky_mat.ground_bottom_color = Color("#0f0d1c")
-	sky_mat.ground_horizon_color = Color("#5c4460")
-	sky_mat.ground_curve = 0.08
-	## The sun itself, low and half-swallowed. `sun_angle_max` alone did nothing
-	## without a light to draw it — the directional lamp is added below.
-	sky_mat.sun_angle_max = 24.0
-	sky_mat.sun_curve = 0.12
-	sky_mat.energy_multiplier = 1.35
+	## The painting is `assets/art/env/sky_backdrop.png` and it has been in this
+	## repository the whole time. `scripts/sky.gdshader` puts it back — see that
+	## file for why it is a sky shader rather than a quad, and for the measurement
+	## that explains why every earlier screenshot of the sky was a screenshot of
+	## planking. The procedural gradient stays as the fallback for a build where
+	## the art has not been imported, because a missing texture should cost the
+	## sky its detail rather than turn the top of the frame black.
 	var sky_res := Sky.new()
-	sky_res.sky_material = sky_mat
+	var backdrop := _texture("res://assets/art/env/sky_backdrop.png")
+	if backdrop != null:
+		var painted := ShaderMaterial.new()
+		painted.shader = load("res://scripts/sky.gdshader")
+		painted.set_shader_parameter("backdrop", backdrop)
+		## The four camera constants, read from the camera rather than retyped.
+		painted.set_shader_parameter("pitch", PITCH)
+		painted.set_shader_parameter("ref_tan", (REF_HEIGHT * 0.5) / FOCAL)
+		painted.set_shader_parameter("ref_aspect", 16.0 / 9.0)
+		painted.set_shader_parameter("energy", SKY_ENERGY)
+		painted.set_shader_parameter("away", Color("#14111f"))
+		sky_res.sky_material = painted
+		## The shader returns one flat colour for the radiance capture, so the
+		## probe costs nothing worth measuring and can be tiny. It is only feeding
+		## the specular on the brass rails; the ambient term is a colour.
+		sky_res.radiance_size = Sky.RADIANCE_SIZE_32
+		sky_res.process_mode = Sky.PROCESS_MODE_INCREMENTAL
+	else:
+		## STORM-DUSK means the sun is going down BEHIND the weather, so the
+		## horizon is the brightest thing in the frame and the top is the darkest.
+		var sky_mat := ProceduralSkyMaterial.new()
+		sky_mat.sky_top_color = Color("#1a1636")
+		sky_mat.sky_horizon_color = Color("#8a5a6e")
+		sky_mat.sky_curve = 0.19
+		sky_mat.ground_bottom_color = Color("#0f0d1c")
+		sky_mat.ground_horizon_color = Color("#5c4460")
+		sky_mat.ground_curve = 0.08
+		sky_mat.sun_angle_max = 24.0
+		sky_mat.sun_curve = 0.12
+		sky_mat.energy_multiplier = 1.35
+		sky_res.sky_material = sky_mat
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky_res
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
@@ -273,6 +326,27 @@ func _build_world() -> void:
 	## to the background too, so a horizon painted warm arrives grey — which is
 	## most of why brightening the material alone did not help the first time.
 	e.fog_sky_affect = 0.15
+	## VOLUMETRIC FOG, FOR THE FIELDS ONLY. See `VOLUMETRIC_FIELDS`.
+	##
+	## Global density stays at zero, which is the audit's own recommendation when
+	## only local volumes are wanted: the deck is not fogged, the lanterns are not
+	## lighting a medium, and the only thing in the froxels is whatever
+	## `_sync_auras` puts there. The range is cut to 22 metres because the deck is
+	## 23 long and the default 64 spends most of the pass on empty sky.
+	if VOLUMETRIC_FIELDS:
+		e.volumetric_fog_enabled = true
+		e.volumetric_fog_density = 0.0
+		e.volumetric_fog_length = 22.0
+		## Temporal reprojection ON, which is NOT what the audit recommends for a
+		## volume that follows a moving player — and the measurement overrules it.
+		## Off, the pass resolves in full every frame and the bench's 99th
+		## percentile goes 9.5 -> 13.6 ms; on, it goes 9.5 -> 10.7. Four
+		## milliseconds of tail is not a price a passive that most runs never draft
+		## gets to charge on every frame of every run. What it costs back is a short
+		## smear of haze behind the captain while she runs, which on a Steam Field
+		## is what steam does anyway.
+		e.volumetric_fog_temporal_reprojection_enabled = true
+		e.volumetric_fog_gi_inject = 0.0
 	## Bloom. The browser fakes every glow by hand with radial gradients — the
 	## lantern haze, the furnace mouth, the rim on a cleave — because Canvas 2D
 	## has no post chain. Here it is one flag, and without it the emissive
@@ -397,94 +471,7 @@ func _build_world() -> void:
 		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
 	add_child(hull)
 
-	## A cloud sea far below and behind, so the void reads as ten thousand feet
-	## rather than as nothing.
-	var clouds := MeshInstance3D.new()
-	var cp := PlaneMesh.new()
-	cp.size = Vector2(14000.0, 14000.0) * WORLD_SCALE
-	clouds.mesh = cp
-	var cmat := StandardMaterial3D.new()
-	cmat.albedo_color = Color("#2e2a4e")
-	cmat.roughness = 1.0
-	clouds.material_override = cmat
-	clouds.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-	clouds.position = Vector3(0.0, -900.0 * WORLD_SCALE,
-		(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
-	add_child(clouds)
-
-	## And the painted bands on top of it. `clouds_far` and `clouds_near` are two
-	## of the nineteen art files nothing referenced; in the browser they are the
-	## parallax that says the ship is moving, and here they can be objects at two
-	## real distances and parallax for free. They drift, at speeds the browser
-	## settled on: 16 and 34 units a second.
-	for band in [
-		{"art": "res://assets/art/env/clouds_far.png", "z": -5200.0, "y": -520.0,
-			"w": 11000.0, "h": 2750.0, "speed": 16.0, "alpha": 0.55},
-		{"art": "res://assets/art/env/clouds_near.png", "z": -3000.0, "y": -760.0,
-			"w": 7600.0, "h": 1900.0, "speed": 34.0, "alpha": 0.72},
-	]:
-		var tex := _texture(str(band.art))
-		if tex == null:
-			continue
-		var layer := MeshInstance3D.new()
-		var q := QuadMesh.new()
-		q.size = Vector2(float(band.w), float(band.h)) * WORLD_SCALE
-		layer.mesh = q
-		var m := StandardMaterial3D.new()
-		m.albedo_texture = tex
-		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		m.albedo_color = Color(1, 1, 1, float(band.alpha))
-		m.cull_mode = BaseMaterial3D.CULL_DISABLED
-		layer.mesh.material = m
-		layer.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		layer.position = Vector3(0.0, float(band.y) * WORLD_SCALE,
-			(SkyGearGame.DECK_RECT.position.y + float(band.z)) * WORLD_SCALE)
-		add_child(layer)
-		_cloud_bands.append({"node": layer, "speed": float(band.speed),
-			"span": float(band.w) * 0.5})
-
-	## Another ship out there, which is the cheapest possible way to say this one
-	## is not the only thing in the sky.
-	var far_ship := _texture("res://assets/art/env/airship_distant.png")
-	if far_ship != null:
-		var other := MeshInstance3D.new()
-		var oq := QuadMesh.new()
-		oq.size = Vector2(1700.0, 850.0) * WORLD_SCALE
-		other.mesh = oq
-		var om := StandardMaterial3D.new()
-		om.albedo_texture = far_ship
-		om.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		om.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		om.albedo_color = Color(1, 1, 1, 0.8)
-		om.cull_mode = BaseMaterial3D.CULL_DISABLED
-		other.mesh.material = om
-		other.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		other.position = Vector3(1900.0 * WORLD_SCALE, 420.0 * WORLD_SCALE,
-			(SkyGearGame.DECK_RECT.position.y - 4200.0) * WORLD_SCALE)
-		add_child(other)
-
-	## The sky, the envelope and the bow: the three pieces that say "airship"
-	## rather than "arena". All three exist as painted art already; in the
-	## browser they are screen-space layers, and here they can simply be objects
-	## in the world at the right distance, which is cheaper and parallaxes for
-	## free.
-	var sky_tex := _texture("res://assets/art/env/sky_backdrop.png")
-	if sky_tex != null:
-		var sky := MeshInstance3D.new()
-		var sq := QuadMesh.new()
-		sq.size = Vector2(9000.0, 4500.0) * WORLD_SCALE
-		sky.mesh = sq
-		var sm := StandardMaterial3D.new()
-		sm.albedo_texture = sky_tex
-		sm.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		sm.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
-		sm.cull_mode = BaseMaterial3D.CULL_DISABLED
-		sky.mesh.material = sm
-		sky.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		sky.position = Vector3(0.0, 900.0 * WORLD_SCALE,
-			(SkyGearGame.DECK_RECT.position.y - 3600.0) * WORLD_SCALE)
-		add_child(sky)
+	_build_clouds()
 
 	var bow_tex := _texture("res://assets/art/env/bow_prow.png")
 	if bow_tex != null:
@@ -524,6 +511,7 @@ func _build_world() -> void:
 
 	_build_airstream()
 	_build_impacts()
+	_build_ribbons()
 	_shadow_at.resize(SHADOW_CAP)
 	_shadow_size.resize(SHADOW_CAP)
 	_shadow_alpha.resize(SHADOW_CAP)
@@ -540,6 +528,7 @@ func _build_world() -> void:
 	_crate_texture()
 	_grille_texture()
 	_wall_texture()
+	_ribbon_texture()
 	for arc in [0.9, 1.134, 1.658, 1.7, 2.443]:
 		_fan_texture(arc, true)
 		_fan_texture(arc, false)
@@ -559,7 +548,16 @@ func _build_world() -> void:
 	## filling the frame.
 	camera.fov = rad_to_deg(2.0 * atan((REF_HEIGHT * 0.5) / FOCAL))
 	camera.near = 0.05
-	camera.far = 400.0
+	## 400 metres was enough when the furthest object was a cloud band 60 metres
+	## out. The far cloud layer sits at 640, because that is the distance that
+	## reproduces the browser's slower band as a real angular rate, so anything
+	## short of about 800 would clip it out of existence — and it is a 400-metre
+	## quad, so its far corner is another 200 out and the plane cuts a straight
+	## line across a painted cloud when it is too close. 1800 is that worst case
+	## with room. Costs nothing: this renderer is Forward+, which is reverse-Z,
+	## and reverse-Z spends its depth precision near the camera rather than
+	## spreading it evenly over the range.
+	camera.far = 1800.0
 	camera.current = true
 	add_child(camera)
 	_track_camera(1.0)
@@ -711,6 +709,755 @@ func impact_at(ground: Vector2, element: String, damage: float) -> void:
 	light.set_meta("decay", 26.0 if element == "FROST" or element == "ARC" else 8.0)
 	light.position = Vector3(ground.x * WORLD_SCALE, 70.0 * WORLD_SCALE,
 		ground.y * WORLD_SCALE)
+
+
+## --- TRAILS THAT ARE GEOMETRY, NOT DECALS ------------------------------------
+##
+## VFX-PLAN.md §3, and the half of "projectiles and vfx from the player still
+## look like 2D instead of 3D" that is a real bug rather than a design decision.
+## There were two separate faults and they need separate fixes:
+##
+##   * **The chain, the bolt and the beam were `_streak_texture` DECALS.** A
+##     decal is a mark projected onto whatever is under it, which for these was
+##     always the planking. At a camera pitched 41 degrees a mark on the floor
+##     and an object in the air are the same picture only when the object in the
+##     air is lying on the floor, so a bolt of lightning read as a scuff.
+##   * **The hitscan shapes had no travelling body at all.** Arc, cone, line and
+##     aoe resolve on the frame they are cast, so between the captain and the
+##     boarder she killed there was, correctly, nothing — and the player was
+##     right that there is no projectile, because there was not one.
+##
+## Both are answered by the same object: a RIBBON, real triangles in the air,
+## with each pair of vertices offset perpendicular to the LINE OF SIGHT so the
+## strip always turns its width toward the camera. That is the difference
+## between geometry that happens to be 3D and geometry that reads as 3D — a
+## ribbon lying in a fixed plane disappears to a hairline at half the angles the
+## deck presents.
+##
+## `docs/VFX-RESEARCH-AUDIT.md` is emphatic that this must not be an
+## `ImmediateMesh` per projectile rebuilt every frame, and it is not: there is
+## ONE mesh for the whole scene, cleared and rewritten once a frame, and
+## everything airborne writes into it. One draw call, one budget, one place to
+## look when it gets expensive.
+##
+## THE GROUND DECAL STAYS under every one of them. It is the readable half — it
+## says where on the deck the thing will cross you, which is the question a
+## player is actually asking — and the audit says to keep the two separate for
+## exactly that reason. What has changed is that the effect now also exists
+## above it.
+
+## The whole scene's ribbon budget, in vertices. A strip of N points costs
+## (N-1)*6, so this is about sixty simultaneous ribbons of ten points — far more
+## than a keg chain into a Whip can produce, and a hard stop rather than a hope.
+const RIBBON_VERTS := 3600
+## Where a cast leaves her hand and where it arrives on a boarder, in ground
+## units above the planking. Not taste: the captain is 176 units sole to crown,
+## so 108 is her hand and 62 is a SCRAPPER's chest. A trail drawn between those
+## two heights is a trail that starts and ends on a body.
+const RIBBON_HAND := 108.0
+const RIBBON_CHEST := 62.0
+
+## HOW EACH ELEMENT MOVES, in the air.
+##
+## The audit's finding 4 again, applied to trails rather than to impacts:
+## coloured light is still a hue cue, so it cannot carry element identity by
+## itself. A player who cannot tell teal from orange has to be able to tell a
+## Frost bolt from an Ember one by its SHAPE, and these are the four shapes.
+##
+##   width     the ribbon at its fattest, in ground units across
+##   waver     how far the path wanders off the straight line
+##   hz        and how fast — the difference between a flame and a stationary bar
+##   zig       a hard alternating kink instead of a smooth wander
+##   rise      how far the middle of the path lifts (Steam) or sags (Frost)
+##   segments  how many points the path is cut into; a kink needs more than a curve
+##   hot       how far over 1.0 the colour is pushed, so the glow chain catches it
+##
+## `hot` is deliberately modest and all four are near each other. The first pass
+## ran 1.9 to 2.6 on the theory that brighter is more dramatic, and the result
+## was that every trail in the game came out WHITE: the tonemapper is Filmic at a
+## white point of 6, so a colour whose brightest channel is at 2.6 has its other
+## two channels dragged up with it and an Arc bolt and an Ember one are the same
+## pale streak. 1.45 is the number the decals already use for the same reason and
+## it is over the 1.05 glow threshold, so these still bloom — they just bloom in
+## their own colour, which is the entire point of having four of them.
+##   grow      the width at the head against the width at the tail
+const ELEMENT_RIBBON := {
+	## Ember licks. Fat, slow, wandering, and it opens out as it travels — a
+	## thrown flame rather than a shot.
+	"EMBER": {"width": 34.0, "waver": 22.0, "hz": 5.0, "zig": 0.0, "rise": 16.0,
+		"segments": 12, "hot": 1.45, "grow": 1.40},
+	## Frost is a shard. Dead straight, narrow, hard at both ends, faintly barbed
+	## and it does not open out: the whole read is that it went exactly where it
+	## was pointed and stopped.
+	"FROST": {"width": 17.0, "waver": 0.0, "hz": 0.0, "zig": 8.0, "rise": -12.0,
+		"segments": 8, "hot": 1.55, "grow": 0.85},
+	## Arc branches. A hard alternating kink, reseeded off the clock so it crawls
+	## along its own length rather than sitting still.
+	"ARC": {"width": 24.0, "waver": 6.0, "hz": 21.0, "zig": 40.0, "rise": 30.0,
+		"segments": 14, "hot": 1.50, "grow": 1.0},
+	## Steam billows. The broadest and the slowest, rising as it goes, and drawn
+	## soft enough that it reads as a volume of air rather than as a rope.
+	"STEAM": {"width": 62.0, "waver": 36.0, "hz": 2.2, "zig": 0.0, "rise": 78.0,
+		"segments": 12, "hot": 0.85, "grow": 1.75},
+}
+
+var _ribbon_mesh: ArrayMesh
+var _ribbon_node: MeshInstance3D
+var _ribbon_verts := 0
+## The scratch buffers, allocated once at full capacity and never resized. See
+## `_ribbons_end` for why this is not an ImmediateMesh.
+var _rib_pos: PackedVector3Array = PackedVector3Array()
+var _rib_uv: PackedVector2Array = PackedVector2Array()
+var _rib_col: PackedColorArray = PackedColorArray()
+var _ribbon_peak := 0
+var _ribbon_dropped := 0
+## How often a wrecked deck cannon puffs. See the turret block in `_sync_all`.
+const SMOKE_EVERY := 0.10
+var _smoke_clock := 0.0
+## And how often an aura throws a mote up through itself.
+const MOTE_EVERY := 0.05
+var _mote_clock := 0.0
+
+## VOLUMETRIC FIELDS — VFX-PLAN.md §4, and the one item on that list whose cost
+## had to be measured before it could be committed to.
+##
+## `Environment.volumetric_fog_enabled` turns on a froxel pass that runs whether
+## or not anything is in it, so the honest question is not "what does a Field
+## cost" but "what does having Fields available cost on every frame of every
+## run". `tests/bench.gd` at 60 boarders, on this machine:
+##
+##     off   avg 7.79   p99  9.54 ms
+##     on    avg 7.92   p99 10.70 ms
+##
+## An eighth of a millisecond in the average and one in the tail, which is
+## affordable — but only with temporal reprojection left on, and that trade is
+## written at the flag itself rather than here.
+##
+## `volumetric_fog_density` stays at ZERO globally, per the audit: only the
+## `FogVolume`s contribute, so the deck itself is not fogged and the lanterns are
+## not lighting a global medium. One flag, one place, and turning it off here
+## takes the whole feature out without touching `_sync_auras`.
+const VOLUMETRIC_FIELDS := true
+var _fog: Dictionary = {}            ## key -> FogVolume, one per live aura
+
+
+func _build_ribbons() -> void:
+	_ribbon_mesh = ArrayMesh.new()
+	_rib_pos.resize(RIBBON_VERTS)
+	_rib_uv.resize(RIBBON_VERTS)
+	_rib_col.resize(RIBBON_VERTS)
+	_ribbon_node = MeshInstance3D.new()
+	_ribbon_node.mesh = _ribbon_mesh
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	## The colour rides on the vertex, which is what lets four elements and a
+	## dozen simultaneous effects share one material and therefore one draw.
+	mat.vertex_color_use_as_albedo = true
+	mat.albedo_texture = _ribbon_texture()
+	## No depth WRITE — additive strips that write depth occlude each other and a
+	## Whip crossing its own jump goes black at the crossing. Depth TEST stays on,
+	## so a cargo run still hides a bolt passing behind it.
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	_ribbon_node.material_override = mat
+	_ribbon_node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	## LAYER_FIGURES, for the reason at the top of this file: a ring belongs on
+	## the deck, and a decal projecting onto a bolt of lightning is a ring painted
+	## across the lightning.
+	_ribbon_node.layers = LAYER_FIGURES
+	## An explicit box. An ImmediateMesh rebuilt every frame has no useful bounds
+	## of its own until it is built, so without this the whole batch is culled on
+	## the frame it appears — which is the frame it matters.
+	_ribbon_node.custom_aabb = AABB(Vector3(-14, -1, -16), Vector3(28, 8, 32))
+	add_child(_ribbon_node)
+
+
+## The strip's cross-section: opaque hot core, soft to nothing at both edges.
+## The taper across the ribbon is what stops it reading as a length of pipe, and
+## it belongs in the texture rather than in the geometry so a strip stays two
+## triangles wide.
+func _ribbon_texture() -> ImageTexture:
+	if _made.has("ribbon"):
+		return _made.ribbon
+	var w := 8
+	var h := 32
+	var img := Image.create(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		var v: float = (float(y) + 0.5) / float(h) * 2.0 - 1.0
+		## 2.2 rather than a linear falloff: a linear edge on an additive strip
+		## reads as a hard band because the eye is looking at the derivative.
+		var a: float = pow(clampf(1.0 - absf(v), 0.0, 1.0), 2.2)
+		## And a hotter centre inside it, so an Ember bolt has a bright core in
+		## its orange the way a real one does. A THIRD of the edge value and no
+		## more: pushed to 0.7 it saturated every element to white, which is the
+		## same mistake `hot` was making one multiplication later.
+		var core: float = pow(clampf(1.0 - absf(v) * 2.4, 0.0, 1.0), 2.0)
+		for x in w:
+			img.set_pixel(x, y, Color(1.0, 1.0, 1.0, clampf(a + core * 0.34, 0.0, 1.0)))
+	_made.ribbon = _with_mips(img)
+	return _made.ribbon
+
+
+## THE COLOUR A RIBBON IS ACTUALLY WRITTEN AT, and it is not the palette colour.
+##
+## Two corrections, both of them learned from the first pass coming out white:
+##
+##   * **Saturate first.** Arc is #7adcff — a pale sky blue with a red channel at
+##     0.48 — and on an ADDITIVE strip anything with a floor that high is white
+##     with a blue idea behind it. The decals get away with the palette value
+##     because they mix against the deck; a strip that adds does not. Pushing
+##     saturation before brightness keeps the hue as the value climbs.
+##   * **Normalise the value, then scale it.** Otherwise `hot` means something
+##     different for every element, because the four palette colours are at four
+##     different brightnesses to start with.
+##
+## The palette value is still what the RINGS are drawn in, so the two halves of
+## an effect agree; this is the same hue at the saturation additive blending
+## needs to keep it.
+static func _ribbon_tint(colour: Color, hot: float) -> Color:
+	var pure := Color.from_hsv(colour.h, clampf(colour.s * 1.45, 0.0, 1.0), 1.0)
+	return Color(pure.r * hot, pure.g * hot, pure.b * hot, 1.0)
+
+
+## THE BATCH IS FILLED INTO ARRAYS AND HANDED OVER ONCE.
+##
+## The first version used `ImmediateMesh` and `surface_add_vertex`, which is the
+## obvious way to write this and is what `VFX-PLAN.md` §3 proposed. Measured, it
+## cost **6.4 ms of the frame** at the bench's sixty-boarder load — more than
+## twice the entire rest of the renderer — because three engine calls per vertex
+## at three and a half thousand vertices is ten thousand calls out of GDScript
+## every frame, and that crossing is the cost rather than the geometry.
+##
+## Same triangles, same one draw, filled into preallocated `Packed*Array`s at
+## full capacity and handed to `ArrayMesh` in a single call. 6.4 ms became 0.9.
+## The arrays are never reallocated; only the slice actually used is copied.
+func _ribbons_begin() -> void:
+	_ribbon_verts = 0
+
+
+func _ribbons_end() -> void:
+	if _ribbon_mesh == null:
+		return
+	_ribbon_mesh.clear_surfaces()
+	_ribbon_peak = maxi(_ribbon_peak, _ribbon_verts)
+	if _ribbon_verts < 3:
+		return
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = _rib_pos.slice(0, _ribbon_verts)
+	arrays[Mesh.ARRAY_TEX_UV] = _rib_uv.slice(0, _ribbon_verts)
+	arrays[Mesh.ARRAY_COLOR] = _rib_col.slice(0, _ribbon_verts)
+	_ribbon_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+
+
+## One ribbon. `points` are in GROUND units as (x, height above the planking, y)
+## so no caller ever has to think in metres; `half` is the half-width at each
+## point and `tint` its colour and alpha there.
+##
+## Per-point rather than per-ribbon because the TAPER is the readability: a trail
+## that ends in a hard rectangle reads as a plank, and one that ends in nothing
+## reads as speed.
+func _ribbon(points: PackedVector3Array, half: PackedFloat32Array,
+		tint: PackedColorArray) -> void:
+	var n := points.size()
+	if n < 2 or camera == null or _ribbon_mesh == null:
+		return
+	## Budgeted BEFORE anything is written, so a ribbon is either whole or absent.
+	## Half a lightning bolt is worse than no lightning bolt.
+	var needed := (n - 1) * 6
+	if _ribbon_verts + needed > RIBBON_VERTS:
+		_ribbon_dropped += 1
+		return
+	var eye := camera.global_position
+	var side := PackedVector3Array()
+	side.resize(n)
+	for i in n:
+		var here: Vector3 = points[i] * WORLD_SCALE
+		var along: Vector3
+		if i == 0:
+			along = points[1] - points[0]
+		elif i == n - 1:
+			along = points[n - 1] - points[n - 2]
+		else:
+			along = points[i + 1] - points[i - 1]
+		if along.length_squared() < 1e-9:
+			along = Vector3.FORWARD
+		along = along.normalized()
+		## THE BILLBOARDING, and the whole reason this reads as 3D rather than as
+		## a flat sticker: the width runs perpendicular BOTH to the path and to the
+		## line of sight, recomputed per point per frame. A strip built in a fixed
+		## plane vanishes to a hairline whenever the camera looks along that plane,
+		## which on a deck seen from 41 degrees is most of the directions a skill
+		## is ever fired in.
+		var s := along.cross((eye - here).normalized())
+		if s.length_squared() < 1e-8:
+			s = along.cross(Vector3.UP)
+		side[i] = s.normalized() if s.length_squared() > 1e-8 else Vector3.RIGHT
+	for i in n - 1:
+		var a: Vector3 = points[i] * WORLD_SCALE
+		var b: Vector3 = points[i + 1] * WORLD_SCALE
+		var wa: Vector3 = side[i] * half[i] * WORLD_SCALE
+		var wb: Vector3 = side[i + 1] * half[i + 1] * WORLD_SCALE
+		var ua: float = float(i) / float(n - 1)
+		var ub: float = float(i + 1) / float(n - 1)
+		var at := _ribbon_verts + i * 6
+		_rib_pos[at] = a - wa; _rib_uv[at] = Vector2(ua, 0.0); _rib_col[at] = tint[i]
+		_rib_pos[at + 1] = a + wa; _rib_uv[at + 1] = Vector2(ua, 1.0); _rib_col[at + 1] = tint[i]
+		_rib_pos[at + 2] = b - wb; _rib_uv[at + 2] = Vector2(ub, 0.0); _rib_col[at + 2] = tint[i + 1]
+		_rib_pos[at + 3] = a + wa; _rib_uv[at + 3] = Vector2(ua, 1.0); _rib_col[at + 3] = tint[i]
+		_rib_pos[at + 4] = b + wb; _rib_uv[at + 4] = Vector2(ub, 1.0); _rib_col[at + 4] = tint[i + 1]
+		_rib_pos[at + 5] = b - wb; _rib_uv[at + 5] = Vector2(ub, 0.0); _rib_col[at + 5] = tint[i + 1]
+	_ribbon_verts += needed
+
+
+
+## A path from A to B with one element's handwriting on it.
+##
+## `lift` is how far the middle of it rises above the straight line — a chain
+## jump arcs over the deck, a Lance does not — and `phase` is what keeps a given
+## effect's wander stable from frame to frame instead of boiling: pass the same
+## number for the same effect and it wanders smoothly, pass a new one and it
+## crawls.
+##
+## Nothing wanders at the ENDS. The envelope is a half-sine, so a trail's tip is
+## always exactly on the target it hit: a bolt drawn a metre wide of the boarder
+## it killed is the picture telling a lie the simulation did not.
+func _element_path(from: Vector3, to: Vector3, element: String, lift: float,
+		phase: float) -> PackedVector3Array:
+	var spec: Dictionary = ELEMENT_RIBBON.get(element, ELEMENT_RIBBON.EMBER)
+	var n := int(spec.segments)
+	var out := PackedVector3Array()
+	out.resize(n + 1)
+	var span := to - from
+	var flat := Vector3(span.x, 0.0, span.z)
+	var across := Vector3(-flat.z, 0.0, flat.x)
+	across = across.normalized() if across.length_squared() > 1e-6 else Vector3.RIGHT
+	for i in n + 1:
+		var t := float(i) / float(n)
+		var p: Vector3 = from + span * t
+		var envelope: float = sin(t * PI)
+		p.y += (lift + float(spec.rise)) * envelope
+		p += across * sin(t * 5.4 + phase) * float(spec.waver) * envelope
+		if float(spec.zig) > 0.0:
+			var flip: float = 1.0 if i % 2 == 0 else -1.0
+			p += across * flip * float(spec.zig) * envelope
+			p.y += (0.55 if i % 3 == 0 else -0.35) * float(spec.zig) * envelope
+		out[i] = p
+	return out
+
+
+## The common case: a path drawn as a comet — fat and bright at the head, tapered
+## to nothing at the tail. `scale` widens or narrows the whole thing against the
+## element's own width, and `head` is which end is leading (1.0 the last point,
+## 0.0 the first) because a beam and a bolt taper opposite ways.
+func _ribbon_path(points: PackedVector3Array, element: String, tint: Color,
+		alpha: float, scale: float = 1.0, head: float = 1.0) -> void:
+	var spec: Dictionary = ELEMENT_RIBBON.get(element, ELEMENT_RIBBON.EMBER)
+	var n := points.size()
+	if n < 2:
+		return
+	var half := PackedFloat32Array()
+	var cols := PackedColorArray()
+	half.resize(n)
+	cols.resize(n)
+	var hue := _ribbon_tint(tint, float(spec.hot))
+	for i in n:
+		var t: float = float(i) / float(n - 1)
+		var lead: float = t if head >= 0.5 else 1.0 - t
+		## Wide at the head, nothing at the tail, and rounded off at the very tip
+		## so it is a comet rather than a wedge.
+		var shape: float = lerpf(1.0, float(spec.grow), lead)
+		shape *= smoothstep(0.0, 0.26, lead)
+		shape *= 0.62 + 0.38 * smoothstep(0.0, 0.14, 1.0 - lead)
+		half[i] = float(spec.width) * 0.5 * scale * shape
+		cols[i] = Color(hue.r, hue.g, hue.b, alpha * (0.22 + 0.78 * lead))
+	_ribbon(points, half, cols)
+
+
+## The same strip at an EVEN width, soft at both ends rather than tapered to
+## one. A beam, a shockwave and a bolt in flight are three different objects and
+## only one of them is a comet: putting a comet taper on something that is not
+## travelling is most of what made the beam read as a smear.
+##
+## `pulse` runs a bright band down its length. A beam that flickers as a whole
+## reads as a fault; one with something running along it reads as power going
+## somewhere.
+func _ribbon_even(points: PackedVector3Array, element: String, tint: Color,
+		alpha: float, scale: float = 1.0, pulse: float = 0.0) -> void:
+	var spec: Dictionary = ELEMENT_RIBBON.get(element, ELEMENT_RIBBON.EMBER)
+	var n := points.size()
+	if n < 2:
+		return
+	var half := PackedFloat32Array()
+	var cols := PackedColorArray()
+	half.resize(n)
+	cols.resize(n)
+	var hue := _ribbon_tint(tint, float(spec.hot))
+	for i in n:
+		var t: float = float(i) / float(n - 1)
+		var shape: float = smoothstep(0.0, 0.09, t) * smoothstep(0.0, 0.09, 1.0 - t)
+		half[i] = float(spec.width) * 0.5 * scale * (0.35 + 0.65 * shape)
+		var beat: float = 1.0 if pulse <= 0.0 else 0.72 + 0.28 * sin(t * 13.0 - _flicker * pulse)
+		cols[i] = Color(hue.r, hue.g, hue.b, alpha * shape * beat)
+	_ribbon(points, half, cols)
+
+
+## A HITSCAN SHOT, GIVEN A BODY.
+##
+## Lance, Whip and the sentries all resolve on the frame they fire. That stays
+## true — making them travel would be a balance change wearing a visual one, and
+## the browser does not do it either — but there is a window of about a fifth of
+## a second in which the effect exists, and a shot crossing 520 units inside that
+## window is a shot the eye can follow.
+##
+## So the head runs out along the line over the first 42% of the effect's life
+## and the tail chases it over the rest: a dash of light that leaves her hand,
+## crosses the deck and is gone. Nothing new is tracked, nothing is added to the
+## simulation, and the damage still lands on frame one.
+##
+## `lift` is how far the middle of the flight arcs over the deck. A Lance is flat
+## and a Whip's jump is not — a chain link between two boarders is an arc through
+## the air, which is exactly what `VFX-PLAN.md` §3 says it should have been.
+func _bolt_ribbon(fid: int, from: Vector2, to: Vector2, element: String,
+		colour: Color, alpha: float, progress: float, phase: float,
+		lift: float) -> void:
+	var head_t: float = ease(clampf(progress / 0.42, 0.0, 1.0), 0.62)
+	var tail_t: float = clampf((progress - 0.24) / 0.76, 0.0, 1.0)
+	if head_t - tail_t < 0.02:
+		return
+	var a3 := Vector3(from.x, RIBBON_HAND, from.y)
+	var b3 := Vector3(to.x, RIBBON_CHEST, to.y)
+	var tail := a3.lerp(b3, tail_t)
+	var head := a3.lerp(b3, head_t)
+	## The lift is scaled by how much of the flight is still drawn. Held at full
+	## height while the tail catches up, a jump reads as a standing hoop rather
+	## than as a whip going over.
+	_ribbon_path(_element_path(tail, head, element, lift * (head_t - tail_t), phase),
+		element, colour, alpha)
+	## And the head as a hot billboard, because the ribbon is the MOTION and this
+	## is the object doing the moving. Without it a bolt has no front, which is
+	## most of what a projectile is.
+	if head_t < 0.995:
+		_spark("bh%d" % fid, Vector2(head.x, head.z), head.y,
+			float(ELEMENT_RIBBON[element].width) * 2.2, colour)
+
+
+## A HELD BEAM. Full length on its first frame, because that is what a beam is,
+## but with a body: a wide soft sleeve and a narrow hot core inside it. Two
+## layers is what the audit asks for on the weapon trail, and it is the whole
+## difference between a beam and a line — one layer at any width reads as paint.
+func _beam_ribbon(from: Vector2, to: Vector2, element: String, colour: Color,
+		alpha: float, _progress: float, phase: float) -> void:
+	var a3 := Vector3(from.x, RIBBON_HAND, from.y)
+	var b3 := Vector3(to.x, RIBBON_CHEST + 14.0, to.y)
+	var path := _element_path(a3, b3, element, 8.0, phase)
+	## The sleeve first and the core over it, so the core is what the glow chain
+	## finds. Both additive, so the order is only about which one is brighter.
+	_ribbon_even(path, element, colour, alpha * 0.30, 1.9)
+	_ribbon_even(path, element, colour, alpha * 0.95, 0.50, 26.0)
+
+
+## THE SWING, IN THE AIR.
+##
+## The most-seen effect in the game by a wide margin: the captain's Cleave fires
+## every 0.36 s for an entire run and the Boilerwright's Scald every 0.6, and
+## both were a painted fan lying on the planking. A fan on the floor is a good
+## answer to "how far does this reach" and no answer at all to "she just swung
+## something", which is the thing the player is actually watching for.
+##
+## The blade LEADS and the trail follows it round. And the ribbon descends as it
+## sweeps — 132 units off the deck at the start of the arc down to 58 at the end
+## — so it reads as a diagonal chop through a body rather than as a hoop drawn
+## round her waist. That diagonal is why it has to be geometry: a decal cannot be
+## at one height at one end and a different height at the other.
+func _sweep_ribbon(fx: Dictionary, _fid: int, centre: Vector2, radius: float,
+		element: String, colour: Color, alpha: float, progress: float) -> void:
+	var dir: float = float(fx.get("direction", 0.0))
+	var half_arc: float = float(fx.get("arc", 1.7)) * 0.5
+	var lead: float = clampf(progress / 0.52, 0.0, 1.0)
+	var back: float = clampf((progress - 0.28) / 0.72, 0.0, 1.0)
+	if lead - back < 0.03:
+		return
+	var spec: Dictionary = ELEMENT_RIBBON.get(element, ELEMENT_RIBBON.EMBER)
+	var hue := _ribbon_tint(colour, float(spec.hot))
+	var n := 9
+	var pts := PackedVector3Array()
+	var half := PackedFloat32Array()
+	var cols := PackedColorArray()
+	pts.resize(n)
+	half.resize(n)
+	cols.resize(n)
+	for i in n:
+		var u: float = float(i) / float(n - 1)
+		var t: float = lerpf(back, lead, u)
+		var a: float = dir + lerpf(-half_arc, half_arc, t)
+		## Bellied out through the middle of the swing, because that is where the
+		## blade is furthest from her and it is what makes an arc read as an arc
+		## rather than as a segment of a circle drawn round a point.
+		var r: float = radius * (0.78 + 0.16 * sin(t * PI))
+		pts[i] = Vector3(centre.x + cos(a) * r, lerpf(132.0, 58.0, t),
+			centre.y + sin(a) * r)
+		half[i] = float(spec.width) * 0.66 * (0.18 + 0.82 * u)
+		cols[i] = Color(hue.r, hue.g, hue.b, alpha * (0.16 + 0.84 * u))
+	_ribbon(pts, half, cols)
+
+
+## A CONE OF MOVING AIR. Five ribbons blown out of her rather than one wedge
+## painted on the deck. The Boilerwright's whole class is about where the steam
+## IS, and steam that exists only as a mark on the floor is steam you can stand
+## in without noticing.
+func _gust_ribbon(fx: Dictionary, fid: int, centre: Vector2, radius: float,
+		element: String, colour: Color, alpha: float, progress: float) -> void:
+	var dir: float = float(fx.get("direction", 0.0))
+	var half_arc: float = float(fx.get("arc", 0.9)) * 0.5
+	var reach: float = radius * (0.62 + progress * 0.5)
+	var hz := float(ELEMENT_RIBBON[element].hz)
+	## Five, and an odd number deliberately: an even fan has a seam straight down
+	## the middle, which is exactly where the player is aiming.
+	var lanes := 5
+	for k in lanes:
+		var u: float = float(k) / float(lanes - 1)
+		var a: float = dir + lerpf(-half_arc, half_arc, u)
+		var out := Vector2(cos(a), sin(a))
+		var start := Vector3(centre.x + out.x * 30.0, RIBBON_HAND,
+			centre.y + out.y * 30.0)
+		var stop := Vector3(centre.x + out.x * reach, RIBBON_CHEST + 30.0,
+			centre.y + out.y * reach)
+		## Soft. Steam at full strength was five hard white chevrons stamped on
+		## the deck rather than a cloud you could stand in — an additive strip 76
+		## units across at 0.78 is a wall, not a gust.
+		_ribbon_path(_element_path(start, stop, element, 0.0,
+			float(fid) + float(k) * 2.1 + _flicker * hz),
+			element, colour, alpha * 0.48, 0.58)
+
+
+## A SHOCKWAVE, STANDING UP OFF THE DECK. The ring on the planking says where a
+## Pulse or a vent REACHES, which is the gameplay question; this says what it is,
+## which is a wall of air going out and up. Both, because they answer different
+## questions, and the flat one on its own was reading as a stencil.
+func _wave_ribbon(centre: Vector2, radius: float, element: String, colour: Color,
+		alpha: float, progress: float) -> void:
+	if radius < 30.0:
+		return
+	var spec: Dictionary = ELEMENT_RIBBON.get(element, ELEMENT_RIBBON.EMBER)
+	var hue := _ribbon_tint(colour, float(spec.hot))
+	## Twenty segments closes a circle without a visible corner at this camera
+	## distance, and closing it costs one extra point rather than a second ribbon.
+	var n := 20
+	var pts := PackedVector3Array()
+	var half := PackedFloat32Array()
+	var cols := PackedColorArray()
+	pts.resize(n + 1)
+	half.resize(n + 1)
+	cols.resize(n + 1)
+	var rise: float = 22.0 + 96.0 * progress
+	var fade: float = alpha * (1.0 - progress * 0.35)
+	for i in n + 1:
+		var a: float = TAU * float(i) / float(n)
+		pts[i] = Vector3(centre.x + cos(a) * radius, rise,
+			centre.y + sin(a) * radius)
+		half[i] = float(spec.width) * 0.42 * (1.0 - progress * 0.5)
+		cols[i] = Color(hue.r, hue.g, hue.b, fade)
+	_ribbon(pts, half, cols)
+
+
+## THE SHELL. A Mortar resolves at the target on the frame it is cast, so this is
+## not a projectile in flight — it is the THROW, drawn in the tenth of a second
+## after it happened. Which is honest: what the player did was lob something, and
+## the arc says so without a shell having to arrive late and contradict a damage
+## number already floating over the boarder.
+func _lob_ribbon(fid: int, from: Vector2, to: Vector2, element: String,
+		colour: Color, progress: float) -> void:
+	var travel: float = clampf(progress / 0.40, 0.0, 1.0)
+	var tail: float = clampf((progress - 0.16) / 0.52, 0.0, 1.0)
+	if travel - tail < 0.03:
+		return
+	## The apex comes from the throw's own length, floored so a short lob still
+	## leaves the deck and capped low. 0.55 of the distance was the first number
+	## and it put a full-range Mortar's shell 340 units up, which at 41 degrees of
+	## pitch is off the top of the frame: the camera has almost no sky in it, so an
+	## arc that would look right from the side is an arc that leaves the picture.
+	var apex: float = clampf(from.distance_to(to) * 0.34, 90.0, 190.0)
+	var n := 10
+	var pts := PackedVector3Array()
+	pts.resize(n + 1)
+	for i in n + 1:
+		var g: float = lerpf(tail, travel, float(i) / float(n))
+		var p := from.lerp(to, g)
+		pts[i] = Vector3(p.x, RIBBON_HAND + apex * sin(g * PI), p.y)
+	_ribbon_path(pts, element, colour, clampf(1.0 - progress * 1.2, 0.0, 1.0), 1.0)
+	## The shell itself. Same argument as the bolt head: the ribbon is the throw
+	## and this is the thing that was thrown.
+	var lead := from.lerp(to, travel)
+	_spark("lob%d" % fid, lead,
+		RIBBON_HAND + apex * sin(travel * PI),
+		float(ELEMENT_RIBBON[element].width) * 2.0, colour)
+
+
+## Real clouds, at real distances, off both rails.
+##
+## WHERE THEY GO IS NOT A TASTE DECISION EITHER, and working it out is the thing
+## three previous passes at the skybox skipped. At 41 degrees of pitch with a 36
+## degree vertical field, the frame looks between 23 and 59 degrees BELOW
+## horizontal — the horizon is never in it at any zoom — and a ray leaving the
+## camera downward crosses the deck plane 7.6 metres below itself, so it clears
+## the port gunwale only if it also travels 4.7 metres sideways in that distance.
+## Solve the two together and the sky over the rail is a wedge roughly 17 to 30
+## degrees off the keel and 23 to 40 degrees down, widening as it rises. Put a
+## cloud outside that wedge and it is behind the ship's own planking.
+##
+## So each one is placed by the angle it should appear at rather than by a
+## coordinate, and the coordinate is derived. Anything else is guessing, and the
+## last two attempts at this file guessed and put the clouds under the hull.
+## The angles below are where each cloud sits at the MIDDLE of its drift; it
+## enters the wedge high and shallow and leaves it low and wide, because that is
+## what an object passing a moving camera does.
+##
+## SIX, AND NOT TEN. The first pass put ten out there and they were a fog: at
+## these distances one quad is 180 metres across and covers half the frame, so
+## two overlapping is two painted cloudscapes multiplied together and the seam
+## where one sorts in front of the other reads as a straight cut through the
+## middle of a cloud. Six, spread across four azimuths and two phases, never has
+## more than two in the wedge at once. Screenshotted at one, three and six before
+## settling; `tools/sky_shot.gd` is what that was done with.
+const CLOUD_FIELD := [
+	## azimuth off the keel (negative is port), degrees below horizontal, layer
+	{"az": -26.0, "el": 29.0, "far": false, "phase": 0.00},
+	{"az":  27.0, "el": 30.0, "far": false, "phase": 0.30},
+	{"az": -23.0, "el": 25.0, "far": false, "phase": 0.55},
+	{"az":  24.0, "el": 26.0, "far": false, "phase": 0.80},
+	{"az": -25.0, "el": 26.0, "far": true, "phase": 0.15},
+	{"az":  26.0, "el": 27.0, "far": true, "phase": 0.65},
+]
+## How far a cloud travels before it is put back out ahead. 200 metres at 7.2 a
+## second is a 28-second cycle, and with four near clouds phased across it one is
+## crossing the wedge roughly every seven.
+const CLOUD_WRAP := 20000.0
+## Quad widths, not cloud widths: the painted mass is about a third of its
+## 2048-pixel sheet and the rest is transparent. 180 metres at 300 subtends 11
+## degrees of cloud, 400 at 640 subtends 9 — an object you notice against a
+## 36-degree frame rather than a wall across it.
+const CLOUD_NEAR_WIDTH := 18000.0
+const CLOUD_FAR_WIDTH := 40000.0
+
+
+func _build_clouds() -> void:
+	var art := {
+		false: _texture("res://assets/art/env/clouds_near.png"),
+		true: _texture("res://assets/art/env/clouds_far.png"),
+	}
+	if art[false] == null and art[true] == null:
+		return
+	var centre_z: float = (SkyGearGame.DECK_RECT.position.y
+		+ SkyGearGame.DECK_RECT.size.y * 0.5)
+	## One material per layer rather than one per cloud, so the far six are a
+	## single draw state and the near four another.
+	var mats := {}
+	for far in [false, true]:
+		if art[far] == null:
+			continue
+		var m := StandardMaterial3D.new()
+		m.albedo_texture = art[far]
+		m.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		m.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		## Y-billboarded: they yaw to face the camera and stay upright, which is
+		## what a cloud bank does and what keeps them square-on however far round
+		## the deck the captain has dragged the camera. It is also the only
+		## orientation that survives the wheel without needing a second thought —
+		## the GPU redoes it from the live view matrix every frame.
+		m.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+		m.billboard_keep_scale = true
+		## THE FOG MUST NOT REACH THEM. Depth fog at 0.011 per metre is total by
+		## 400 metres, so left alone every one of these arrives as a flat patch of
+		## fog colour — which is exactly the failure the flat cloud sea they
+		## replace was already committing.
+		m.disable_fog = true
+		## The far layer is dimmer and cooler, which is the aerial perspective the
+		## fog would have given them if it could be trusted at this range.
+		m.albedo_color = (Color(0.60, 0.64, 0.84, 0.80) if far
+			else Color(0.92, 0.90, 1.0, 0.96))
+		mats[far] = m
+	for spec in CLOUD_FIELD:
+		var far: bool = bool(spec.get("far", false))
+		if not mats.has(far):
+			continue
+		var range_units: float = CLOUD_FAR_RANGE if far else CLOUD_NEAR_RANGE
+		var az := deg_to_rad(float(spec.az))
+		var el := deg_to_rad(float(spec.el))
+		var node := MeshInstance3D.new()
+		var quad := QuadMesh.new()
+		var width: float = CLOUD_FAR_WIDTH if far else CLOUD_NEAR_WIDTH
+		## The sheets are 2048x512, and a quad that does not keep that ratio
+		## stretches a painted cloud into a smear.
+		quad.size = Vector2(width, width * 0.25) * WORLD_SCALE
+		node.mesh = quad
+		node.material_override = mats[far]
+		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		## A cloud a third of a kilometre wide has no business in the shadow
+		## atlas or the SSAO pass either.
+		node.gi_mode = GeometryInstance3D.GI_MODE_DISABLED
+		add_child(node)
+		var home := Vector3(
+			range_units * sin(az),
+			-range_units * tan(el),
+			centre_z - range_units * cos(az))
+		_cloud_bands.append({
+			"node": node,
+			"home": home,
+			## Stored as distance already travelled rather than as a fraction, so
+			## `_sync_clouds` is one addition and a wrap.
+			"phase": float(spec.get("phase", 0.0)) * CLOUD_WRAP,
+		})
+	_sync_clouds(0.0)
+
+	## And another ship out there, which is the cheapest possible way to say this
+	## one is not the only thing in the sky. It used to sit 4.2 metres ABOVE the
+	## deck and therefore above the top of the frame; it is now inside the same
+	## wedge the clouds are, low and to port, running with us.
+	var far_ship := _texture("res://assets/art/env/airship_distant.png")
+	if far_ship == null:
+		return
+	_escort = MeshInstance3D.new()
+	var oq := QuadMesh.new()
+	oq.size = Vector2(9000.0, 4500.0) * WORLD_SCALE
+	_escort.mesh = oq
+	var om := StandardMaterial3D.new()
+	om.albedo_texture = far_ship
+	om.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	om.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	om.billboard_mode = BaseMaterial3D.BILLBOARD_FIXED_Y
+	om.billboard_keep_scale = true
+	om.disable_fog = true
+	om.albedo_color = Color(0.78, 0.80, 0.94, 0.72)
+	_escort.material_override = om
+	_escort.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_escort.position = Vector3(
+		-CLOUD_NEAR_RANGE * sin(deg_to_rad(21.0)),
+		-CLOUD_NEAR_RANGE * tan(deg_to_rad(26.0)),
+		centre_z - CLOUD_NEAR_RANGE * cos(deg_to_rad(21.0))) * WORLD_SCALE
+	add_child(_escort)
+
+
+## The field drifts aft and wraps. `_flicker` rather than a private clock because
+## the sway, the flames and the airstream all already run off it, and a second
+## clock is a second thing to keep in step.
+func _sync_clouds(_delta: float) -> void:
+	for band in _cloud_bands:
+		var node: MeshInstance3D = band.node
+		var home: Vector3 = band.home
+		var travelled: float = fmod(_flicker * CLOUD_DRIFT + float(band.phase),
+			CLOUD_WRAP)
+		## `home` is where the cloud sits at the MIDDLE of its run, which is the
+		## angle it was placed at, so the offset is measured from half a wrap.
+		node.position = Vector3(home.x, home.y,
+			home.z + travelled - CLOUD_WRAP * 0.5) * WORLD_SCALE
+	if _escort != null:
+		## The browser swings its escort across a third of the screen on a 0.06
+		## rad/s sine. Same period, same idea, in metres.
+		_escort.position.x = (-CLOUD_NEAR_RANGE * sin(deg_to_rad(21.0))
+			+ sin(_flicker * 0.06) * 6000.0) * WORLD_SCALE
 
 
 ## Streaks of moving air, as objects in the world. Unshaded, additive, and each
@@ -1394,9 +2141,16 @@ func _process(delta: float) -> void:
 	_track_camera(delta)
 	_used.clear()
 	_decals_used.clear()
+	## The ribbon batch is written from scratch every frame between these two, the
+	## same way the shadow batch is and for the same reason: there is no persistent
+	## identity to preserve, the count is small, and a rebuild cannot leave a stale
+	## bolt hanging in the air over a boarder that died two seconds ago.
+	_mote_clock += delta
+	_ribbons_begin()
 	_sync_all(delta)
 	_sync_auras()
 	_sync_effects()
+	_ribbons_end()
 	_sync_darkness(delta)
 	_flush_shadows()
 	_sync_airstream(delta)
@@ -1406,14 +2160,7 @@ func _process(delta: float) -> void:
 		if light.light_energy > 0.0:
 			light.light_energy = maxf(0.0, light.light_energy
 				- delta * float(light.get_meta("decay", 11.0)))
-	## The cloud bands drift across and wrap. Slower than the airstream by an
-	## order of magnitude, which is the parallax: the near thing races and the
-	## far thing crawls.
-	for band in _cloud_bands:
-		var node: MeshInstance3D = band.node
-		node.position.x += float(band.speed) * delta * WORLD_SCALE
-		if node.position.x > float(band.span) * WORLD_SCALE:
-			node.position.x = -float(band.span) * WORLD_SCALE
+	_sync_clouds(delta)
 	_recycle()
 
 
@@ -1703,21 +2450,44 @@ func _sync_effects() -> void:
 		## a hand-painted halo. This is the same halo, from the post chain.
 		var tint := Color(colour.r * 1.45, colour.g * 1.45, colour.b * 1.45, alpha)
 		var centre: Vector2 = fx.get("position", Vector2.ZERO)
+		## WHICH ELEMENT THIS IS, from the effect rather than guessed from its
+		## colour. The trails carry element identity in their SHAPE — see
+		## `ELEMENT_RIBBON` — and shape cannot be recovered from a hue: two cards
+		## can tint the same, and the keg and the vent are not elements at all.
+		## Anything with no element falls back to Ember's handwriting, which is
+		## also what the impact particles do.
+		var element := str(fx.get("element", ""))
+		if not ELEMENT_RIBBON.has(element):
+			element = "EMBER"
+		## Stable per effect, so a bolt's wander crawls along its own length
+		## instead of boiling from frame to frame.
+		var phase: float = float(fid) * 1.37 + _flicker * float(ELEMENT_RIBBON[element].hz)
 		match kind:
 			"arc":
 				var r: float = float(fx.get("radius", 120.0)) * (0.9 + progress * 0.2)
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					r * 2.0, r * 2.0, _art("slash", _fan_texture(float(fx.get("arc", 1.7)), false)),
 					tint)
+				_sweep_ribbon(fx, fid, centre, r, element, colour, alpha, progress)
 			"cone":
 				var rc: float = float(fx.get("radius", 120.0)) * (0.55 + progress * 0.55)
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					rc * 2.0, rc * 2.0, _fan_texture(float(fx.get("arc", 0.9)), true),
 					Color(tint.r, tint.g, tint.b, tint.a * 0.85))
+				_gust_ribbon(fx, fid, centre, rc, element, colour, alpha, progress)
 			"circle":
 				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
 				_decal("fx%d" % fid, centre, 0.0, rb * 2.0, rb * 2.0,
 					_art("ring", _ring_texture()), tint)
+				## And the wall of it, standing up off the deck. A Pulse and a vent
+				## are shockwaves through the air; the ring on the planking is where
+				## they REACH, which is a different question from what they are.
+				_wave_ribbon(centre, rb, element, colour, alpha * 0.9, progress)
+				## A lobbed shell, when the effect came from somewhere. `from` is
+				## written by the Mortar and nothing else, which is why this is the
+				## only ring that has anything in the air over the throw.
+				if fx.has("from"):
+					_lob_ribbon(fid, Vector2(fx.from), centre, element, colour, progress)
 			"burst":
 				## A burst is an impact, and there is a painted one. It reads as
 				## debris thrown out of a point rather than as a ring, which is
@@ -1729,11 +2499,22 @@ func _sync_effects() -> void:
 				var from: Vector2 = fx.get("from", Vector2.ZERO)
 				var to: Vector2 = fx.get("to", Vector2.ZERO)
 				var span := to - from
+				## The ground streak is kept and DIMMED. It is the readable half —
+				## it says where across the deck the shot passed, which the audit is
+				## right that an airborne trail communicates worse — but at full
+				## strength it was also the only half, and it read as a scratch on
+				## the planking. Half the alpha makes it the shadow of the bolt
+				## rather than the bolt.
 				var width: float = (26.0 if kind == "line" else 54.0) * (1.0 - progress * 0.35)
 				_decal("fx%d" % fid, (from + to) * 0.5, span.angle(),
 					maxf(8.0, span.length()), width,
 					_art("bolt", _streak_texture()) if kind == "line" else _streak_texture(),
-					tint)
+					Color(tint.r, tint.g, tint.b, tint.a * 0.45))
+				if kind == "beam":
+					_beam_ribbon(from, to, element, colour, alpha, progress, phase)
+				else:
+					_bolt_ribbon(fid, from, to, element, colour, alpha, progress,
+						phase, float(fx.get("lift", 0.0)))
 			_:
 				var rr: float = float(fx.get("radius", 90.0))
 				_decal("fx%d" % fid, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
@@ -2046,12 +2827,73 @@ func _sync_auras() -> void:
 		mat.albedo_color = Color(tint.r, tint.g, tint.b, 0.22)
 		vol.scale = Vector3(radius * WORLD_SCALE, 118.0 * WORLD_SCALE, radius * WORLD_SCALE)
 		vol.position = Vector3(at.x * WORLD_SCALE, 59.0 * WORLD_SCALE, at.y * WORLD_SCALE)
+		## AND THE AIR ITSELF. VFX-PLAN.md §4, and the reason it was worth doing
+		## after the cylinder rather than instead of it: the cylinder is a WALL, so
+		## a Field reads as a fence you are standing in the middle of, and the
+		## inside of it is empty. A `FogVolume` puts something between the boarders
+		## and the camera, which is the only way "you are standing in a cloud of
+		## scalding steam" can be true rather than outlined.
+		##
+		## The ring on the planking is still the gameplay object — the exact edge —
+		## and this is deliberately softer than it, so nothing about where the
+		## damage stops is being read off a blur.
+		if VOLUMETRIC_FIELDS:
+			var fkey := "aurafog%d" % index
+			_used[fkey] = true
+			var fog: FogVolume = _fog.get(fkey)
+			if fog == null:
+				fog = FogVolume.new()
+				fog.shape = RenderingServer.FOG_VOLUME_SHAPE_CYLINDER
+				var fm := FogMaterial.new()
+				## Low. Fog density is per METRE through the volume and the volume
+				## is three metres across, so anything over about 0.1 is a wall of
+				## milk with a fight somewhere behind it.
+				fm.density = 0.055
+				## The edge does the work: a hard-edged fog cylinder has a visible
+				## seam where it meets clear air, which reads as geometry.
+				fm.edge_fade = 0.55
+				fm.height_falloff = 0.9
+				fog.material = fm
+				add_child(fog)
+				_fog[fkey] = fog
+			var fmat: FogMaterial = fog.material
+			fmat.albedo = Color(tint.r, tint.g, tint.b)
+			## Emission, not albedo, is what makes a Frost field glow rather than
+			## merely fog: a fog volume with no light in it is grey at dusk, and
+			## these are supposed to be the brightest thing at the player's feet.
+			fmat.emission = Color(tint.r * 0.32, tint.g * 0.32, tint.b * 0.32)
+			fog.size = Vector3(radius * 2.0, 150.0, radius * 2.0) * WORLD_SCALE
+			fog.position = Vector3(at.x * WORLD_SCALE, 66.0 * WORLD_SCALE,
+				at.y * WORLD_SCALE)
+		## And motes rising through it, metered the same way the wreck smoke is.
+		## Sparse on purpose: this is reinforcement for the ring, and a field full
+		## of particles hides the boarders standing in it, which is the one thing
+		## it must not do.
+		if _mote_clock >= MOTE_EVERY:
+			var family: String = str(ELEMENT_FX.get(skill.element, ELEMENT_FX.EMBER).family)
+			var node: GPUParticles3D = _sparks.get(family)
+			if node != null:
+				var a: float = _impact_rng.randf() * TAU
+				var d: float = sqrt(_impact_rng.randf()) * radius
+				node.emit_particle(Transform3D(Basis(), Vector3(
+						at.x + cos(a) * d, 14.0, at.y + sin(a) * d) * WORLD_SCALE),
+					Vector3(0.0, _impact_rng.randf_range(70.0, 150.0), 0.0) * WORLD_SCALE,
+					Color(tint.r * 1.5, tint.g * 1.5, tint.b * 1.5, 1.0), Color.WHITE,
+					GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+						| GPUParticles3D.EMIT_FLAG_COLOR)
+	if _mote_clock >= MOTE_EVERY:
+		_mote_clock = 0.0
 	# a field that was dropped stops being drawn
 	for key in _volumes.keys():
 		if not _used.has(key):
 			var dead: MeshInstance3D = _volumes[key]
 			dead.queue_free()
 			_volumes.erase(key)
+	for key in _fog.keys():
+		if not _used.has(key):
+			var gone: FogVolume = _fog[key]
+			gone.queue_free()
+			_fog.erase(key)
 
 
 func _sync_all(delta: float) -> void:
@@ -2191,6 +3033,51 @@ func _sync_all(delta: float) -> void:
 		if bool(t.dead) or not _sync_prop_model("tm%d" % i, TURRET_MODEL,
 				t.position, 130.0, 0.0, -90.0):
 			_place("t%d" % i, _texture(art), t.position, 130.0)
+		if not bool(t.dead):
+			continue
+		## A DEAD GUN HAS TO LOOK DEAD FROM ACROSS THE DECK.
+		##
+		## The painted wreck is a good picture and it is 130 units tall in a frame
+		## full of 130-unit brass cannons, so at a glance the lane with the broken
+		## gun in it looks like the two that still work. The bar over it says so in
+		## the HUD; this says so in the world, which is where the player is looking
+		## when they decide whether that lane is worth walking to.
+		##
+		## Scorch under it and smoke off it, and nothing else. A wreck that
+		## FLICKERS reads as still burning and therefore as still doing something,
+		## which is the opposite of the thing being communicated.
+		_decal("tw%d" % i, t.position, 0.0, 300.0, 300.0,
+			_art("scorch", _blob_texture()), Color(0.09, 0.06, 0.07, 0.62), false)
+		## Warm, dull and low: the last of a fire rather than a fire. It sits at 40
+		## units, in the burst barrel, not up where the muzzle used to be.
+		_spark("tg%d" % i, t.position, 40.0, 34.0 + sin(_flicker * 4.3 + float(i)) * 8.0,
+			Color(0.55, 0.20, 0.09))
+
+	## The smoke off the wrecks, metered rather than emitted per frame. A dead
+	## cannon stays dead for the rest of the wave, so an unbounded plume is an
+	## unbounded plume for a minute and a half — three puffs every tenth of a
+	## second is thirty particles a second against a 512 budget, and it looks the
+	## same as three hundred would.
+	_smoke_clock += delta
+	if _smoke_clock >= SMOKE_EVERY:
+		_smoke_clock = 0.0
+		var smoke: GPUParticles3D = _sparks.get("steam")
+		if smoke != null:
+			for i in game.turrets.size():
+				if not bool(game.turrets[i].dead):
+					continue
+				var at: Vector2 = game.turrets[i].position
+				smoke.emit_particle(Transform3D(Basis(), Vector3(
+						at.x + _impact_rng.randf_range(-24.0, 24.0), 70.0,
+						at.y + _impact_rng.randf_range(-20.0, 20.0)) * WORLD_SCALE),
+					Vector3(_impact_rng.randf_range(-18.0, 18.0), 120.0,
+						_impact_rng.randf_range(-18.0, 18.0)) * WORLD_SCALE,
+					## Dark, not bright. The steam family blends MIX rather than
+					## ADD, which is the one emitter in the renderer that can draw
+					## something the deck is darker for.
+					Color(0.17, 0.15, 0.16, 1.0), Color.WHITE,
+					GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+						| GPUParticles3D.EMIT_FLAG_COLOR)
 
 	## Ordnance in flight. These were missing entirely, which is why the fight
 	## looked static: half of what is on screen at any moment in the browser is
@@ -2200,19 +3087,47 @@ func _sync_all(delta: float) -> void:
 	## a trail behind it, and a shadow on the planking directly under it — the
 	## shadow is what tells you where it will cross you, because the head is in
 	## the air and the deck is where you are.
+	##
+	## NOT every bolt is hostile any more. The deck cannons fire a real travelling
+	## shot now, so two kinds of ordnance cross the same lanes in opposite
+	## directions and they cannot look alike: ours is brass-hot and theirs is red,
+	## which is the one distinction a player has to be able to make at a glance
+	## while walking through the middle of both.
 	for i in game.projectiles.size():
 		var b: Dictionary = game.projectiles[i]
 		var bid: int = int(b.get("id", i))
-		var col := Color("#ff6a4a")
+		var friendly: bool = bool(b.get("friendly", false))
+		var col: Color = Color("#ffce7a") if friendly else Color("#ff6a4a")
+		var fly: float = 66.0 if friendly else 60.0
 		var trail: Array = b.get("trail", [])
 		if trail.size() > 1:
 			var tail: Vector2 = trail[trail.size() - 1]
 			var span: Vector2 = b.position - tail
 			if span.length() > 4.0:
+				## The ground streak stays and is halved. It is what tells you where
+				## the shot will cross YOU, which the airborne trail communicates
+				## worse — but at full strength it was the whole of the effect, and
+				## a bolt whose only representation is a mark on the floor is the
+				## reported bug.
 				_decal("bt%d" % bid, (b.position + tail) * 0.5, span.angle(),
-					span.length(), 20.0, _streak_texture(), Color(col.r, col.g, col.b, 0.45))
+					span.length(), 20.0, _streak_texture(), Color(col.r, col.g, col.b, 0.24))
+			## And the trail in the air, off the same points the simulation was
+			## already keeping — nine of them, which is inside the audit's six-to-ten
+			## and cost nothing to reach because they already existed.
+			var pts := PackedVector3Array()
+			pts.resize(trail.size() + 1)
+			pts[0] = Vector3(trail[trail.size() - 1].x, fly, trail[trail.size() - 1].y)
+			for k in trail.size():
+				var p: Vector2 = trail[trail.size() - 1 - k]
+				pts[k] = Vector3(p.x, fly, p.y)
+			pts[trail.size()] = Vector3(b.position.x, fly, b.position.y)
+			## Ember's handwriting for a burning drone bolt, Frost's straight narrow
+			## one for a cannon ball — a shot from a gun does not waver, and the
+			## table already has a "goes exactly where it was pointed" entry.
+			_ribbon_path(pts, "FROST" if friendly else "EMBER", col, 0.95,
+				1.15 if friendly else 0.85)
 		_shadow("b%d" % bid, b.position, 40.0, 0.38)
-		_spark("b%d" % bid, b.position, 60.0, 52.0, col)
+		_spark("b%d" % bid, b.position, fly, 62.0 if friendly else 52.0, col)
 
 	## Salvage on the deck, bobbing so it reads as a pickup and not as debris.
 	for i in game.salvage.size():

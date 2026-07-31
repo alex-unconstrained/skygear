@@ -51,18 +51,6 @@ one, already in the tree. It cannot be fixed by reading the field, either:
 `emit_particle` has no per-particle lifetime flag, so honouring it means one
 emitter per element rather than per behaviour.
 
-### Player projectiles and VFX still read as 2D
-Reported. Two separate causes, and only one of them is a bug:
-
-- Most player skills are HITSCAN — arc, cone, line and aoe resolve on the frame
-  they are cast, so there is no projectile to see. That is a design decision
-  inherited from the browser and worth revisiting deliberately rather than by
-  default.
-- The effects that DO draw are flat: chains, bolts and beams are decal streaks
-  painted on the ground plane. `VFX-PLAN.md` §3 calls for `ImmediateMesh`
-  ribbons and §4 for `FogVolume` fields; neither has been started. This is the
-  single largest remaining item on the port's visual parity.
-
 
 ### THE CAMERA IS ZOOMED IN — found by the comparison, first time it has been run
 The single largest parity gap, and it contradicts a claim I have made
@@ -187,24 +175,24 @@ The audit's proposed rule is the fix and it should be adopted: **any claim of
 harness coverage must name the check string**, so an untested claim is visibly
 untested. Not done.
 
-### THE SKYBOX — the browser one had clouds, a moon and parallax
-Reported a third time, and this time with what it should be rather than that it
-is missing: *"such a cool skybox in the browser version that you could see over
-the side of the skyship — clouds, a moon, interesting detail. Some parallax
-scrolling to really add visual interest."*
+### The airstream washes over the sky now that there is a sky
+Not reported — found while doing the skybox, and written down rather than fixed
+because fixing it means moving a number three other things are calibrated
+against.
 
-My previous two passes both treated this as a colour problem. It is not. The
-Godot build has a `ProceduralSkyMaterial` gradient and a cloud SEA at y = -760,
-which is BELOW the deck — there is nothing above the horizon at all. No moon, no
-cloud layers, no parallax. The browser draws layered scrolling bands and a moon,
-and that is why it reads as altitude and ours reads as a dark edge.
+The 48 airstream ribbons live 0.7 to 4.9 metres above the deck and spread
+`STREAK_SPREAD` = 1500 ground units across, which is 7.5 metres either side of
+the keel against a deck that is 8.4. Close to the lens they project wide, so
+several of them cross the open air past the gunwale, and additive pale streaks
+over what used to be a flat dark slab were invisible while over a moonlit
+cloudscape they read as horizontal bars. Visible in every shot in
+`.shots/sky/`, clearest in `starboard-z1.55.png`.
 
-The camera pitch is why it keeps getting missed: at 41 degrees over the deck the
-horizon sits behind the bow at most positions, so the sky only shows in the top
-corners and I have kept judging it from screenshots where it barely appears.
-Fixing it means putting real content ABOVE the horizon line and checking it from
-the positions where sky is actually visible — the parity tool now makes that
-easy.
+Two candidate fixes, neither measured: narrow `STREAK_SPREAD` so the air stays
+over the planking, or fade a ribbon out as it passes outside the deck rectangle.
+The second is more correct and costs a per-ribbon test. Left alone for now
+because the airstream is F-03 and its width was tuned against how the deck
+reads, not against how the sky does.
 
 ### A 3D model for the boarding hulk — TRIED TWICE, SPRITE KEPT
 Reported, and attempted: two Meshy generations, 60 credits, both rejected. Both
@@ -231,12 +219,6 @@ to be much wider and much shallower than text-to-3D will return, with the ramps
 as separate low geometry. The renderer wiring is already in place and inert
 (`HULK_MODEL` in `view3d.gd`); a wrapped `.tscn` appearing is all it takes.
 
-### The sky gradient itself — subsumed by the item above
-Reported twice before that. It was near-black and fogged; it is now a dusk gradient with
-`fog_sky_affect` turned down. But the warm horizon band sits behind the bow at
-most camera positions, so what you actually see is still mostly dark corners.
-Needs either high cloud above the horizon, or a rethink of what is visible at
-this camera pitch.
 
 ### The captain's grip on the sword
 Reported. `weapon_fit` is interactive now (arrows nudge, ENTER saves) but **the
@@ -249,13 +231,21 @@ rather than in her fist, so this is not a rest-pose offset problem — it is a
 grip that only holds at rest. Nudging is live at whatever frame you paused on,
 and SAVE writes `assets/models/weapons.json`.
 
-### VFX plan items never started
-From `VFX-PLAN.md`, with no code at all behind them:
-- §3 chain and bolt trails as `ImmediateMesh` ribbons — still decal streaks
-- §4 `FogVolume` for fields — still flat
-- §6 the captain's weapon trail — and she now has a visible sword, so this
-  matters more than when it was written
-- §5 chromatic hit and radial blur — shake is done, these are not
+### VFX plan items never started — TWO LEFT
+From `VFX-PLAN.md`. §3 and §4 landed on 2026-07-31; these two did not:
+
+- **§6 the captain's weapon trail.** The Cleave now draws a sweeping ribbon
+  through the air, which covers the swing visually, but it is driven by the
+  EFFECT's clock rather than by the `swing` clip through a `BoneAttachment3D` on
+  her hand — so it is an arc where the blade approximately is, not a trail the
+  blade actually left. The audit's two-layer construction (hot core, wide outer)
+  exists in `_beam_ribbon` and would port straight across.
+- **§5 chromatic hit and radial blur.** Shake and hit-stop are done. The
+  research audit argues against the other two on readability grounds
+  (`VFX-RESEARCH-AUDIT.md`, "Screen effects": avoid continuous chromatic
+  aberration and radial blur, and if used restrict them to a prewarmed sub-150ms
+  boss transition). Not started, and should probably be dropped rather than
+  built — but that is a decision, not an omission, and nobody has made it.
 
 ### The Boilerwright looks exactly like the captain
 Asked for as "a model for the second player class", and it is the one thing on
@@ -295,6 +285,56 @@ consistency that was asked for, so it stays here until it is solved or dropped.
 ---
 
 ## Done
+
+- **Player projectiles and VFX reading as 2D.** Both halves. The hitscan shapes
+  now draw a travelling bolt inside the window the effect already lived for —
+  the head runs out along the line and the tail chases it — so a Lance has
+  something in the air without the simulation gaining a projectile. And chains,
+  beams, sweeps, cones, shockwaves and the Mortar's shell are GEOMETRY now
+  rather than decal streaks: strips of triangles whose width is offset
+  perpendicular to the line of sight, so they face the camera instead of lying
+  on the planking. Every element has its own width, wander, kink and rise, so
+  the four are distinguishable by shape and not only by hue. Ground decals stay
+  underneath all of them, dimmed — they are still the half that says where on
+  the deck a thing will cross you. `VFX-PLAN.md` §3 and §4; nine harness checks,
+  all of them on the cap. Whole-frame cost avg 7.6 → 8.4 ms against 16.7.
+- **Deck cannons: visible shots and clear health bars.** The shot landed in the
+  previous pass; the bar is here. The lane panel in the corner already carried
+  the number and the corner was the wrong place for it — it says a cannon is
+  dying without saying which of the three guns in front of you it is. Now the
+  same number is over the gun as well, in the boarders' own language
+  (`_health_bar`, same bed, same ticks), unprojected from the world so it holds
+  its size when the wheel pulls the camera back. Hidden at full health. A dead
+  gun shows an empty red bed, the word DOWN, and fills the bar back up as you
+  repair it; in the world it gets a scorch, a guttering ember and a plume of
+  vented steam, so the broken lane reads as broken from across the deck.
+- **THE SKYBOX — clouds, a moon, and parallax.** Reported three times. The
+  first two passes treated it as a colour problem and the third found out why
+  they could not have worked: the browser's `drawEnvironment` stretches
+  `assets/env/sky_backdrop.png` over the WHOLE viewport behind the deck, and
+  that painting — a moon breaking through cloud upper left, banked purple
+  cumulus, a warm ember lower right — is what the player remembers. Its two
+  scrolling cloud bands are pinned to the horizon and `CAM.horizonY()` returns
+  **-761.58** at 1600x900, so they have been drawn off the top of the screen for
+  the life of the build; nobody has ever seen them.
+
+  Here the painting is a **sky shader** rather than a quad: it is sampled by view
+  direction through the browser's own projection, so at the shipped framing it
+  lands where the browser puts it to the pixel, and being at infinity it cannot
+  shear or slide when the wheel pulls the camera back. The parallax comes from
+  **six real cloud quads at two real distances** — 300 and 640 metres, the pair
+  that turns the browser's 16 and 34 pixels a second into an angular rate at one
+  drift speed — so the layers part against each other and against the deck for
+  free under the perspective camera. `tools/sky_shot.gd` (or
+  `SkyGear Tools.bat sky`) poses the four places the sky is actually visible;
+  before and after are in `.shots/sky-before/` and `.shots/sky/`. Measured at
+  under 0.1 ms on the GPU, which is inside the noise floor. Seven harness
+  checks, `sky · the backdrop is the browser's painting, not a gradient`
+  through `sky · the far plane clears the furthest corner of the field`.
+
+- **The sky gradient itself** — the same item, one layer down, and closed by the
+  same change. There is no gradient any more except as the fallback for a build
+  with the art missing.
 
 - **Sentries drop nothing** — were `passive: true`, firing an invisible beam from
   the player. Now placed at the cursor or auto-dropped.

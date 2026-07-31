@@ -3,7 +3,7 @@
 Last updated 2026-07-31. **Read this first, then `docs/OUTSTANDING.md`.**
 
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
-a difficulty ladder. 382 harness checks. Build 27 is on itch at
+a difficulty ladder. 401 harness checks. Build 27 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test
 
 ---
@@ -14,7 +14,8 @@ https://alex-unconstrained.itch.io/skygear-godot-test
 never things anyone thought of. An item leaves it when it is done or when it is
 dropped WITH A REASON -- not when it is partly done. `SkyGear Tools.bat todo`
 prints the open half. The file exists because the skybox was reported twice and
-slipped twice.
+slipped twice -- and then a third time, which is when it was measured instead of
+guessed at and finally built.
 
 **2. Run the tools before believing anything.** `SkyGear Tools.bat` lists them,
 `all` runs every checker. Nearly every real bug found lately was found by a
@@ -52,13 +53,21 @@ Assume you are about to commit one:
 | `scripts/workshop.gd` | persistent progression, gated behind a first victory |
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One verb so far |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
-| `tests/parity_test.gd` | 382 checks; the closest thing to a specification |
+| `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
+| `tests/parity_test.gd` | 401 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
 at 41 degrees -- **and the parity tool shows it framing tighter than the browser,
 unexplained.** Nothing has been changed there, because three other systems are
 calibrated against that solve.
+
+**One consequence of that solve is worth knowing before you judge any
+screenshot.** At 41 degrees with a 36 degree vertical field, the top of the
+frame looks 23 degrees BELOW horizontal, so the horizon is off the top of the
+picture at every zoom and mid-deck shots contain no sky at all. That is why the
+skybox was reported three times and missed three times. `SkyGear Tools.bat sky`
+poses the four places sky is actually visible; judge it from those.
 
 ---
 
@@ -68,9 +77,10 @@ calibrated against that solve.
 
 | | |
 |---|---|
-| `harness` | 382 checks. Green before anything ships |
+| `harness` | 401 checks. Green before anything ships |
 | `text` | every string on 16 screens x 4 sizes: containment, overlap, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
+| `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |
 | `balance` `timing` `motion` `model` | simulated runs; clip-vs-skill; root drift; rigs |
 | `todo` | the open half of OUTSTANDING |

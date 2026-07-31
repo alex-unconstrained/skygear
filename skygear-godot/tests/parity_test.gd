@@ -756,6 +756,108 @@ func _view() -> void:
 	_check("view", "the ship rolls enough to see",
 		absf(rad_to_deg(view.camera.rotation.z)) > 0.15,
 		"%.2f deg" % rad_to_deg(view.camera.rotation.z))
+	view.sway = false
+
+	## THE SKY. Reported three times and missed three times, and the reason it
+	## kept being missed is geometric rather than aesthetic: at 41 degrees of
+	## pitch the horizon is above the top of the frame at every zoom, so a
+	## screenshot from the middle of the deck contains no sky and cannot show
+	## anyone that there is nothing in it. These checks are the arithmetic that
+	## screenshot could not do.
+	var sky_mat := view._environment.sky.sky_material
+	_check("sky", "the backdrop is the browser's painting, not a gradient",
+		sky_mat is ShaderMaterial
+			and (sky_mat as ShaderMaterial).get_shader_parameter("backdrop") != null,
+		sky_mat.get_class())
+
+	## The one number two functions could disagree about. The shader reproduces
+	## the browser's own screen mapping, so if it is handed a different lens from
+	## the one the camera is using, the moon moves off where the painting puts it
+	## and nothing in a screenshot says why.
+	if sky_mat is ShaderMaterial:
+		var shader_tan: float = float((sky_mat as ShaderMaterial)
+			.get_shader_parameter("ref_tan"))
+		_check("sky", "the shader is given the camera's own lens, not a second copy",
+			absf(shader_tan - tan(deg_to_rad(view.camera.fov * 0.5))) < 1e-4,
+			"%.6f vs %.6f" % [shader_tan, tan(deg_to_rad(view.camera.fov * 0.5))])
+
+	## Where a cloud may stand. Half the vertical field above and below the
+	## pitch is the band the frame sees; the horizontal half-field at 16:9 is the
+	## widest it can be off the keel; and a sightline steeper than the gunwale
+	## allows is a sightline into planking. All three failed for the cloud bands
+	## this replaces, which sat BELOW the hull.
+	var half_v: float = deg_to_rad(view.camera.fov * 0.5)
+	var half_h: float = atan(tan(half_v) * 16.0 / 9.0)
+	var top_el: float = SkyGearView3D.PITCH - half_v
+	var bottom_el: float = SkyGearView3D.PITCH + half_v
+	## The camera can be dragged this far off the keel and no further, so this is
+	## the widest the rail ever is from the eye — the hardest case to clear.
+	var rail_gap: float = SkyGearGame.DECK_RECT.size.x * (0.5 - 0.22)
+	var sky_outside := 0
+	var sky_blocked := 0
+	for spec in SkyGearView3D.CLOUD_FIELD:
+		var az: float = deg_to_rad(absf(float(spec.az)))
+		var el: float = deg_to_rad(float(spec.el))
+		if az > half_h or el < top_el or el > bottom_el:
+			sky_outside += 1
+		## Zoom only ever raises the camera, so the shipped height is the case
+		## where the sightline crosses the deck plane soonest and clears least.
+		elif SkyGearView3D.CAM_HEIGHT / tan(el) * sin(az) < rail_gap:
+			sky_blocked += 1
+	_check("sky", "every cloud is inside the wedge the camera can actually see",
+		sky_outside == 0, "%d of %d outside %.1f x [%.1f, %.1f] deg"
+			% [sky_outside, SkyGearView3D.CLOUD_FIELD.size(), rad_to_deg(half_h),
+				rad_to_deg(top_el), rad_to_deg(bottom_el)])
+	_check("sky", "and clears the gunwale rather than sitting behind it",
+		sky_blocked == 0, "%d of %d blocked" % [sky_blocked, SkyGearView3D.CLOUD_FIELD.size()])
+
+	## The parallax, as the browser's own two numbers. Its bands run at 16 and 34
+	## pixels a second against a focal length of 1381.4 px/rad at 1600x900, which
+	## is 0.01158 and 0.02461 rad/s. Rate is speed over distance, so two layers at
+	## these two distances drifting at this one speed are those two rates.
+	var browser_f := 1381.4
+	var near_px: float = SkyGearView3D.CLOUD_DRIFT / SkyGearView3D.CLOUD_NEAR_RANGE * browser_f
+	var far_px: float = SkyGearView3D.CLOUD_DRIFT / SkyGearView3D.CLOUD_FAR_RANGE * browser_f
+	_check("sky", "the two layers drift at the browser's own angular rates",
+		absf(near_px - 34.0) < 2.0 and absf(far_px - 16.0) < 2.0,
+		"%.1f and %.1f px/s against 34 and 16" % [near_px, far_px])
+
+	## And the parallax MEASURED rather than asserted from the constants that
+	## produced it: two clouds, one behind the other, the same second of drift,
+	## and the near one has to move further across the screen. A backdrop panned
+	## as one layer passes every check above and fails this one.
+	var near_node: MeshInstance3D = null
+	var far_node: MeshInstance3D = null
+	for i in SkyGearView3D.CLOUD_FIELD.size():
+		var node: MeshInstance3D = view._cloud_bands[i].node
+		if bool(SkyGearView3D.CLOUD_FIELD[i].get("far", false)):
+			if far_node == null:
+				far_node = node
+		elif near_node == null:
+			near_node = node
+	var near_before := view.camera.unproject_position(near_node.global_position)
+	var far_before := view.camera.unproject_position(far_node.global_position)
+	view._flicker += 1.0
+	view._sync_clouds(1.0)
+	var near_moved: float = view.camera.unproject_position(
+		near_node.global_position).distance_to(near_before)
+	var far_moved: float = view.camera.unproject_position(
+		far_node.global_position).distance_to(far_before)
+	## Half a ratio rather than the 2.13 the distances imply, because screen
+	## travel also depends on where in its run each cloud happens to be. What is
+	## being pinned is that there IS depth between the layers, not a number.
+	_check("sky", "the near layer crosses the screen faster than the far one",
+		near_moved > far_moved * 1.5 and far_moved > 0.1,
+		"%.1f px against %.1f in one second" % [near_moved, far_moved])
+
+	## A cloud that pokes through the far plane is sliced by a dead straight line
+	## across the middle of a painted cumulus, which is what 400 metres was doing.
+	var cloud_reach: float = (SkyGearView3D.CLOUD_FAR_RANGE
+		+ SkyGearView3D.CLOUD_WRAP * 0.5
+		+ SkyGearView3D.CLOUD_FAR_WIDTH * 0.5) * SkyGearView3D.WORLD_SCALE
+	_check("sky", "the far plane clears the furthest corner of the field",
+		view.camera.far > cloud_reach, "far %.0f m against a reach of %.0f m"
+			% [view.camera.far, cloud_reach])
 
 	## The VFX layer. Reported from a build: "targeted vfx and auras were all
 	## rendering strangely."
@@ -1020,6 +1122,166 @@ func _view() -> void:
 			lit += 1
 	_check("impact", "a hit lights the deck as well as colouring it", lit > 0,
 		"%d of %d lit" % [lit, view._flashes.size()])
+
+	## RIBBONS — VFX-PLAN.md §3, and the reported half of "projectiles and vfx
+	## from the player still look like 2D".
+	##
+	## These assert the two things a screenshot cannot: that the batch is CAPPED,
+	## which is the rule every effect on this list is held to, and that every skill
+	## effect carries the element the trail's shape is chosen from. The look is
+	## judged from `tools/vfx_shot.gd`, which is what it is for.
+	_check("ribbon", "trails are one batch and one draw, not a mesh per projectile",
+		view._ribbon_node != null and view._ribbon_mesh != null,
+		"one ArrayMesh")
+	_check("ribbon", "every element has its own shape in the air, not only a colour",
+		SkyGearView3D.ELEMENT_RIBBON.size() == SkyGearData.ELEMENTS.size(),
+		"%d written" % SkyGearView3D.ELEMENT_RIBBON.size())
+	## Shape, not hue. A colour-blind player has to be able to tell a Frost bolt
+	## from a Steam one, and these are the two that are furthest apart: Frost is
+	## narrow, straight and sags; Steam is broad, wandering and rises.
+	var frost_rib: Dictionary = SkyGearView3D.ELEMENT_RIBBON.FROST
+	var steam_rib: Dictionary = SkyGearView3D.ELEMENT_RIBBON.STEAM
+	var arc_rib: Dictionary = SkyGearView3D.ELEMENT_RIBBON.ARC
+	_check("ribbon", "and the shapes actually differ where it counts",
+		float(frost_rib.width) < float(steam_rib.width) * 0.5
+			and float(frost_rib.rise) < 0.0 and float(steam_rib.rise) > 0.0
+			and float(arc_rib.zig) > float(steam_rib.zig),
+		"frost %.0f wide and sinks, steam %.0f wide and rises, arc kinks"
+			% [float(frost_rib.width), float(steam_rib.width)])
+	## THE CAP. The whole family of performance problems this project has had was
+	## an unbounded collection, so what is asserted is the budget rather than the
+	## picture: three hundred ribbons in one frame write no more vertices than one
+	## frame is allowed, and nothing is half-drawn.
+	view._ribbons_begin()
+	var many := PackedVector3Array([Vector3(0, 60, 0), Vector3(100, 60, 0),
+		Vector3(200, 60, 0)])
+	var many_w := PackedFloat32Array([10.0, 10.0, 10.0])
+	var many_c := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE])
+	for i in 500:
+		view._ribbon(many, many_w, many_c)
+	view._ribbons_end()
+	_check("ribbon", "five hundred trails in a frame stay inside the vertex budget",
+		view._ribbon_verts <= SkyGearView3D.RIBBON_VERTS,
+		"%d of %d" % [view._ribbon_verts, SkyGearView3D.RIBBON_VERTS])
+	_check("ribbon", "and the ones that do not fit are dropped whole, never half",
+		view._ribbon_verts % 6 == 0 and view._ribbon_dropped > 0,
+		"%d dropped" % view._ribbon_dropped)
+	## And the buffers are allocated once. `_ribbons_end` slices them; if the fill
+	## ever resized them this would be the frame it started allocating per frame.
+	_check("ribbon", "the scratch buffers are allocated once, not per frame",
+		view._rib_pos.size() == SkyGearView3D.RIBBON_VERTS
+			and view._rib_col.size() == SkyGearView3D.RIBBON_VERTS,
+		"%d vertices reserved" % view._rib_pos.size())
+
+	## THE ELEMENT HAS TO REACH THE RENDERER. The trail's shape is chosen from it,
+	## and it cannot be recovered from the colour — two cards can tint the same and
+	## a keg is not an element at all. This is the "data with no reader" failure
+	## inverted: a reader with no data, which fails silently by drawing everything
+	## as Ember.
+	var elemental: SkyGearGame = _new_game()
+	_begin(elemental)
+	elemental.skills.clear()
+	for pair in [["LINE_BURST", "ARC"], ["RANGED_AOE", "FROST"],
+			["CONE", "STEAM"], ["RAY", "EMBER"], ["CHAIN", "ARC"]]:
+		elemental.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
+	elemental.start_wave(3)
+	## ARMOURED, and spread out. Four SCRAPPERs stacked on one point are four
+	## corpses by the time the fifth cast goes off, and a Whip with nothing left to
+	## jump between emits no effect at all — which the first version of this check
+	## read as "chains do not arc" rather than as "there was no chain".
+	for i in 4:
+		elemental.spawn_enemy("ARMORED", i % 3)
+	var spread := 0
+	for e in elemental.get_tree().get_nodes_in_group("enemies"):
+		e.state = "move"
+		e.global_position = elemental.player.global_position + Vector2(
+			-120.0 + 80.0 * float(spread), -240.0)
+		spread += 1
+	elemental.effects.clear()
+	for slot in elemental.skills.size():
+		elemental.skills[slot].cooldown_left = 0.0
+		elemental.cast_skill(slot, elemental.player.global_position + Vector2(0, -260))
+	## Only the kinds that DRAW a trail. A `burst` is a body coming apart and a
+	## `banner` is a word across the middle of the deck; neither has an element and
+	## neither asks the ribbon table for a shape, so demanding one of them would be
+	## a check measuring the wrong thing in order to pass.
+	var shaped_kinds := ["arc", "cone", "line", "beam", "circle"]
+	var shaped := 0
+	var unshaped: Array[String] = []
+	for fx in elemental.effects:
+		if not shaped_kinds.has(str(fx.kind)):
+			continue
+		if SkyGearView3D.ELEMENT_RIBBON.has(str(fx.get("element", ""))):
+			shaped += 1
+		else:
+			unshaped.append(str(fx.kind))
+	_check("ribbon", "every skill effect names the element its trail is shaped from",
+		unshaped.is_empty() and shaped > 0,
+		"%d shaped, missing on %s" % [shaped, ", ".join(unshaped)])
+	## And a Mortar is the only shape that writes where it was THROWN from, which
+	## is what the arcing shell is drawn along.
+	var throws := 0
+	for fx in elemental.effects:
+		if fx.has("from") and str(fx.kind) == "circle":
+			throws += 1
+	_check("ribbon", "a Mortar records the throw, so the shell has an arc to fly",
+		throws == 1, "%d circles carry a from" % throws)
+	## A chain jump arcs and a sentry's shot does not. Both are `line` effects, so
+	## `lift` is the only thing separating a whip over a boarder's head from a gun
+	## firing along the deck.
+	var lifted := 0
+	var flat := 0
+	for fx in elemental.effects:
+		if str(fx.kind) != "line":
+			continue
+		if float(fx.get("lift", 0.0)) > 0.0:
+			lifted += 1
+		else:
+			flat += 1
+	_check("ribbon", "a chain jump arcs through the air and a lance does not",
+		lifted > 0 and flat > 0, "%d arcing, %d flat" % [lifted, flat])
+	elemental.queue_free()
+
+	## THE CANNON HEALTH BARS. Asked for as "cannons should ... have clear health
+	## bars", and the readable-at-a-glance part of that is a placement problem, not
+	## a drawing one: the bar is unprojected from the gun's own position 160 ground
+	## units up, so if that point is behind the camera or outside the frame there
+	## is no bar over that gun no matter how well `_health_bar` draws.
+	##
+	## Checked at BOTH ends of the wheel, because the report is specifically about
+	## reading them while zoomed out and the zoom moves the camera rather than the
+	## lens. The screen rectangle is grown by the bar's own half-width, since a bar
+	## whose centre is one pixel inside the frame is still half off it.
+	##
+	## From WHERE SHE STARTS, which is the position that matters: `reset_for_run`
+	## puts her at y = 720 and the three guns are at y = 520, so for the whole
+	## opening of every run they are the objects immediately up-deck of her. This
+	## check was first written from wherever the earlier camera checks had left her
+	## (y = 200, past the guns) and reported one bar of three, which is a true
+	## statement about a place the player is rarely standing and not the claim
+	## anybody wanted made.
+	game.player.global_position = Vector2(0, 720)
+	view._process(2.0)
+	var screen_rect := Rect2(Vector2.ZERO,
+		view.camera.get_viewport().get_visible_rect().size)
+	for zoom_notches in [0.0, 99.0]:
+		view.zoom_by(zoom_notches)
+		view._process(2.0)              ## long enough for the eased zoom to land
+		var framed := 0
+		for turret in game.turrets:
+			var top := Vector3(float(turret.position.x), 160.0,
+				float(turret.position.y)) * SkyGearView3D.WORLD_SCALE
+			if view.camera.is_position_behind(top):
+				continue
+			if screen_rect.grow(-SkyGearHUD.TURRET_BAR_W * 0.5).has_point(
+					view.camera.unproject_position(top)):
+				framed += 1
+		_check("cannon", "every deck cannon's bar has somewhere to be drawn %s"
+			% ("at the shipped framing" if zoom_notches == 0.0 else "at full zoom-out"),
+			framed == game.turrets.size(),
+			"%d of %d, zoom %.2f" % [framed, game.turrets.size(), view.zoom_amount()])
+	view.zoom_by(-99.0)
+	view._process(2.0)
 
 	## POOLING, for real this time. The rendering audit was blunt and correct: the
 	## first version freed every unclaimed node each frame and built a new one
