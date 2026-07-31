@@ -293,9 +293,15 @@ func _lanes() -> void:
 		target.hp < before, "%.0f -> %.0f" % [before, target.hp])
 
 	# and a boarder breaks the cannon rather than strolling past it
+	##
+	## Placed inside its own reach rather than seventy units short of it. Crew
+	## were raised to 68 health in the ally balance pass and now survive long
+	## enough to get in the way, so a boarder that had to walk the last stretch
+	## sometimes never arrived — and this check is about whether it ATTACKS the
+	## gun, not about whether it can path to it.
 	var gate: Dictionary = game.turrets[1]
 	var gate_hp: float = gate.hp
-	target.global_position = Vector2(gate.position) + Vector2(0, -70)
+	target.global_position = Vector2(gate.position) + Vector2(0, -44)
 	target.state = "move"
 	target.state_time = 0.0
 	_advance(game, 6.0)
@@ -1397,15 +1403,27 @@ func _layout() -> void:
 
 	## And it is all in the bottom band. The top of the frame is where boarders
 	## arrive from; the objective plate and the lane readout used to sit in it.
+	## Everything is in the bottom band EXCEPT the objective, which is
+	## deliberately at the top: it is the thing you lose by, an eye goes there
+	## first, and it is slim enough to cost almost none of the deck the boarders
+	## cross. The exception is named rather than implied, so a plate that drifts
+	## upward by accident is still caught.
 	var probe := Vector2(1366, 768)
 	var band := true
-	var highest := 0.0
-	for rect in SkyGearHUD.hud_plates(probe).values():
-		highest = maxf(highest, probe.y - (rect as Rect2).position.y)
-		if (rect as Rect2).position.y < probe.y * 0.60:
+	var stray := ""
+	var plates_at := SkyGearHUD.hud_plates(probe)
+	for name in plates_at:
+		if name in SkyGearHudLayout.TOP_ALLOWED:
+			continue
+		if (plates_at[name] as Rect2).position.y < probe.y * 0.60:
 			band = false
-	_check("layout", "and none of it is in the top 60% of the screen, where they come from",
-		band, "tallest plate reaches %d px up" % highest)
+			stray = str(name)
+	_check("layout", "everything but the objective is in the bottom band", band, stray)
+	## And the objective earns its place by staying out of the way.
+	var objective: Rect2 = plates_at.objective
+	_check("layout", "the objective is at the top and slim enough to be there",
+		objective.position.y < probe.y * 0.2 and objective.size.y <= probe.y * 0.16,
+		"%d px tall at y %d" % [objective.size.y, objective.position.y])
 
 	## THE LAYOUT IS DATA NOW, and a person edits it. Everything below is about
 	## that being safe: a hand-edited file is a file that will one day have a

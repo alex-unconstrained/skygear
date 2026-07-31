@@ -4,13 +4,13 @@
 [ext_resource type="Skin" path="res://assets/models/captain/captain_skin.res" id="2_hxr0o"]
 [ext_resource type="AnimationLibrary" path="res://assets/models/captain/captain_anims.res" id="3_mp0p4"]
 
-[node name="Captain" type="Node3D" unique_id=682014005]
+[node name="Captain" type="Node3D" unique_id=963107302]
 metadata/model_height = 0.017796721
 metadata/target_height = 176.0
 metadata/facing_degrees = 0.0
 metadata/clips = PackedStringArray("block", "combo", "dash", "hurt", "idle", "idle_alt", "run", "run_back", "spin", "swing", "swing2", "swing3", "taunt", "walk")
 
-[node name="Skeleton3D" type="Skeleton3D" parent="." unique_id=2055852612]
+[node name="Skeleton3D" type="Skeleton3D" parent="." unique_id=1692830125]
 bones/0/name = "mixamorig_Hips"
 bones/0/parent = -1
 bones/0/rest = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.0804832e-05, -0.0010709163, -5.1525865e-05)
@@ -243,10 +243,10 @@ bones/32/position = Vector3(-5.5902087e-14, 0.000993572, 1.2640223e-13)
 bones/32/rotation = Quaternion(-9.665327e-11, -8.624829e-17, -1.387779e-17, 1)
 bones/32/scale = Vector3(1, 1, 1)
 
-[node name="Meshy_AI_Crimson_Gearbound_0728033432_texture" type="MeshInstance3D" parent="Skeleton3D" unique_id=1395111458]
+[node name="Meshy_AI_Crimson_Gearbound_0728033432_texture" type="MeshInstance3D" parent="Skeleton3D" unique_id=1800217112]
 mesh = ExtResource("1_1w7yq")
 skin = ExtResource("2_hxr0o")
 skeleton = NodePath("..")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1787908761]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1563152223]
 libraries/ = ExtResource("3_mp0p4")

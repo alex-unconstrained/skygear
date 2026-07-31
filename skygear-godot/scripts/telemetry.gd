@@ -34,6 +34,16 @@ static func fresh() -> Dictionary:
 	}
 
 
+## A passive claims its row without claiming a cast. It has no button, so
+## counting presses would be a lie, but it still has to appear in the report or
+## its damage is invisible and every share on the sheet is wrong.
+static func note_passive(tel: Dictionary, slot: int, skill: Dictionary) -> void:
+	if slot < 0 or slot >= tel.per.size():
+		return
+	tel.per[slot].shape = skill.shape
+	tel.per[slot].element = skill.element
+
+
 static func note_cast(tel: Dictionary, slot: int, skill: Dictionary) -> void:
 	if slot < 0:
 		tel.basic.casts += 1

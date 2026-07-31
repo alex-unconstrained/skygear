@@ -58,15 +58,25 @@ const DEFAULT := {
 			"dash_pips": {"anchor": "bottom_left", "offset": [184, -14], "size": [48, 20]},
 		},
 	},
-	"ship": {
-		"anchor": "bottom_right", "offset": [-24, -24], "size": [350, 186],
+	## THE OBJECTIVE, TOP CENTRE. It is the thing you lose by and it was in a
+	## corner competing with three lane tracks. Top centre is where the browser
+	## puts it and where an eye goes first — and it is a slim centred plate, so
+	## it costs almost none of the deck the boarders arrive across, which is why
+	## the rest of the HUD is still along the bottom.
+	"objective": {
+		"anchor": "top_centre", "offset": [0, 12], "size": [420, 76],
 		"items": {
-			"boiler": {"anchor": "top_left", "offset": [0, 12], "size": [268, 26]},
-			"wave": {"anchor": "top_left", "offset": [0, 48], "size": [130, 20]},
-			"boarders": {"anchor": "top_right", "offset": [0, 48], "size": [140, 20]},
-			"lane0": {"anchor": "top_left", "offset": [0, 72], "size": [268, 16]},
-			"lane1": {"anchor": "top_left", "offset": [0, 90], "size": [268, 16]},
-			"lane2": {"anchor": "top_left", "offset": [0, 108], "size": [268, 16]},
+			"boiler": {"anchor": "top_centre", "offset": [0, 8], "size": [340, 26]},
+			"wave": {"anchor": "bottom_left", "offset": [0, 0], "size": [150, 20]},
+			"boarders": {"anchor": "bottom_right", "offset": [0, 0], "size": [160, 20]},
+		},
+	},
+	"ship": {
+		"anchor": "bottom_right", "offset": [-24, -24], "size": [350, 118],
+		"items": {
+			"lane0": {"anchor": "top_left", "offset": [0, 6], "size": [268, 16]},
+			"lane1": {"anchor": "top_left", "offset": [0, 26], "size": [268, 16]},
+			"lane2": {"anchor": "top_left", "offset": [0, 46], "size": [268, 16]},
 		},
 	},
 	## Centre-relative, because that is what a centre anchor means: the offset is
@@ -87,7 +97,12 @@ const SLOT_ITEMS := {
 	"name": {"anchor": "bottom_centre", "offset": [0, 1], "size": [74, 13]},
 }
 
-const ORDER := ["captain", "slot0", "slot1", "slot2", "slot3", "ship"]
+const ORDER := ["objective", "captain", "slot0", "slot1", "slot2", "slot3", "ship"]
+
+## The one plate allowed above the halfway line, because it is the objective and
+## it is deliberately slim. Everything else stays in the bottom band, which is
+## the whole reason the HUD was moved there.
+const TOP_ALLOWED := ["objective"]
 
 var plates: Dictionary = {}
 var slot_items: Dictionary = {}
@@ -308,8 +323,12 @@ func problems(view: Vector2) -> Array[String]:
 		var r: Rect2 = rects[name]
 		if not frame.encloses(r):
 			out.append("%s is off screen" % name)
-		if r.position.y < view.y * 0.5:
+		if r.position.y < view.y * 0.5 and not name in TOP_ALLOWED:
 			out.append("%s is in the top half, where boarders arrive" % name)
+		## And the one that is allowed up there has to stay slim, or it becomes
+		## the thing the HUD was moved out of the way of.
+		if name in TOP_ALLOWED and r.size.y > view.y * 0.16:
+			out.append("%s is too tall for the top of the screen" % name)
 		## An item outside its own plate is the failure this whole second level
 		## exists to make visible: a glyph sitting off the edge of its slot.
 		var inside := interior(r)

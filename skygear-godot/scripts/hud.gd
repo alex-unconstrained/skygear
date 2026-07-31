@@ -431,6 +431,15 @@ func _draw_game_hud() -> void:
 	var health := l.item("captain", "health", panel)
 	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
 		"CAPTAIN", "%d / %d" % [player.hp, player.max_hp])
+	## And what is true of HER right now, in the same chips the boarders use, so
+	## there is one vocabulary rather than two. Only states that change what she
+	## should do: untouchable mid-dash, and a gauge that is ready to vent.
+	var mine: Array = []
+	if player.invulnerability_left > 0.0:
+		mine.append({"kind": "invuln", "remaining": player.invulnerability_left / 0.4})
+	if player.pressure >= 100.0:
+		mine.append({"kind": "vent", "remaining": 1.0})
+	_status_chips(Vector2(health.get_center().x, health.end.y + 5.0), mine)
 
 	var pressure_ratio: float = player.pressure / 100.0
 	_dial(l.item("captain", "dial", panel), pressure_ratio)
@@ -464,23 +473,32 @@ func _draw_game_hud() -> void:
 		else:
 			draw_circle(at, pip_r, Color("#37f0c8") if lit else Color("#201c28"))
 
-	## --- the ship -----------------------------------------------------------
-	var right: Rect2 = plates.ship
-	_panel(right)
-	_bar(l.item("ship", "boiler", right), game.boiler_hp / game.boiler_max_hp,
-		Color("#37f0c8"), Color("#1c6f61"), "BOILER",
+	## --- the objective, top centre ------------------------------------------
+	## The thing you lose by, where an eye goes first, rather than in a corner
+	## competing with three lane tracks for attention.
+	var top: Rect2 = plates.objective
+	_panel(top)
+	var ratio: float = game.boiler_hp / maxf(1.0, game.boiler_max_hp)
+	_bar(l.item("objective", "boiler", top), ratio,
+		Color("#37f0c8") if ratio > 0.34 else Color("#ff6a3a"),
+		Color("#1c6f61") if ratio > 0.34 else Color("#8b2418"), "BOILER",
 		"%d / %d" % [game.boiler_hp, game.boiler_max_hp])
-	var wave_at := l.item("ship", "wave", right)
+	var wave_at := l.item("objective", "wave", top)
 	_value("WAVE %d / 12" % game.wave,
 		wave_at.position + Vector2(0, wave_at.size.y), wave_at.size.x,
 		HORIZONTAL_ALIGNMENT_LEFT, 16, BRASS_LIT)
-	var boarders_at := l.item("ship", "boarders", right)
+	var boarders_at := l.item("objective", "boarders", top)
 	_value("BOARDERS %d" % game.enemy_count(),
 		boarders_at.position + Vector2(0, boarders_at.size.y), boarders_at.size.x,
 		HORIZONTAL_ALIGNMENT_RIGHT, 16)
 
+	## --- the lanes ----------------------------------------------------------
+	var right: Rect2 = plates.ship
+	_panel(right)
+
 	## Which lane is breaking, without having to look at it.
 	var names := ["PORT", "CENTRE", "STARBOARD"]
+	var l_ship := l
 	for lane in 3:
 		var row := l.item("ship", "lane%d" % lane, right)
 		_label(names[lane], row.position + Vector2(0, row.size.y - 3.0), 70.0,
@@ -600,6 +618,96 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 		HORIZONTAL_ALIGNMENT_RIGHT, 13)
 
 
+## --- health, and what is wrong with you -------------------------------------
+##
+## The bars were five pixels tall and thirty-four wide with three-pixel dots
+## under them for burning, slowed and stunned. At the distance this camera sits
+## that is not a readout, it is a rumour — and the statuses matter: a slowed
+## boarder is one you can walk away from, a stunned one is a free hit, and a
+## burning one is going to die whether you keep hitting it or not.
+##
+## Bigger, but not by much: the fix for legibility is contrast and structure
+## rather than size. A dark bed so the bar reads against a lit deck, an ink edge
+## so it reads against anything, a lighter top edge so it has a shape, and
+## segment ticks so a half-full bar is countable rather than estimated.
+const ENEMY_BAR_H := 7.0
+const ENEMY_BAR_W := {"BOSS": 120.0, "ARMORED": 68.0, "SCRAPPER": 52.0,
+	"GUNNER": 50.0, "SWARM": 40.0}
+
+## Each status is a chip: the colour, a letter, and a bar underneath that drains
+## with the time left. Colour alone fails for a colour-blind player and a dot
+## alone cannot show how long is left, which is the only actionable part.
+const STATUS_LOOK := {
+	"burn": {"tint": Color("#ff7a2f"), "mark": "B"},
+	"slow": {"tint": Color("#6fd8ff"), "mark": "S"},
+	"stun": {"tint": Color("#ffe08a"), "mark": "!"},
+	"vent": {"tint": Color("#c9b6e8"), "mark": "V"},
+	"invuln": {"tint": Color("#37f0c8"), "mark": "I"},
+}
+const CHIP_W := 15.0
+const CHIP_H := 13.0
+
+
+## One health bar, drawn the same way everywhere so the captain's and a
+## boarder's are read with the same eye.
+func _health_bar(rect: Rect2, ratio: float, tint: Color) -> void:
+	draw_rect(rect.grow(2.0), Color(0.03, 0.02, 0.045, 0.92))
+	draw_rect(rect, Color(0.10, 0.07, 0.11, 0.95))
+	var fill := Rect2(rect.position,
+		Vector2(rect.size.x * clampf(ratio, 0.0, 1.0), rect.size.y))
+	if fill.size.x > 0.5:
+		draw_rect(fill, tint)
+		## A lit top edge. Two pixels, and it is the difference between a
+		## coloured rectangle and something with a surface.
+		draw_rect(Rect2(fill.position, Vector2(fill.size.x, 2.0)),
+			tint.lightened(0.42))
+	## Segment ticks, so a bar is countable rather than estimated. Capped, or a
+	## boss bar becomes a comb.
+	var segments: int = clampi(int(rect.size.x / 17.0), 1, 8)
+	for i in range(1, segments):
+		var x: float = rect.position.x + rect.size.x * float(i) / float(segments)
+		draw_line(Vector2(x, rect.position.y), Vector2(x, rect.end.y),
+			Color(0.03, 0.02, 0.045, 0.55), 1.0)
+	draw_rect(rect, Color(0.03, 0.02, 0.045, 0.9), false, 1.0)
+
+
+## A row of status chips, centred under a bar. `remaining` drives the drain, so
+## a chip about to expire looks like one.
+func _status_chips(centre: Vector2, chips: Array) -> void:
+	if chips.is_empty():
+		return
+	var total: float = chips.size() * CHIP_W + (chips.size() - 1) * 3.0
+	var x: float = centre.x - total * 0.5
+	for chip in chips:
+		var look: Dictionary = STATUS_LOOK.get(str(chip.kind), STATUS_LOOK.burn)
+		var box := Rect2(x, centre.y, CHIP_W, CHIP_H)
+		draw_rect(box.grow(1.0), Color(0.03, 0.02, 0.045, 0.9))
+		draw_rect(box, Color(look.tint.r, look.tint.g, look.tint.b, 0.30))
+		draw_rect(box, look.tint, false, 1.0)
+		draw_string(font, Vector2(box.position.x, box.end.y - 3.0), str(look.mark),
+			HORIZONTAL_ALIGNMENT_CENTER, CHIP_W, 11, look.tint.lightened(0.4))
+		## Stacks, where a status has them — three burns is not one burn.
+		if int(chip.get("stacks", 0)) > 1:
+			draw_string(font, Vector2(box.end.x - 7.0, box.position.y + 6.0),
+				str(int(chip.stacks)), HORIZONTAL_ALIGNMENT_LEFT, 10, 9,
+				Color("#fff6e4"))
+		var left: float = clampf(float(chip.get("remaining", 1.0)), 0.0, 1.0)
+		draw_rect(Rect2(box.position.x, box.end.y + 1.0, CHIP_W * left, 2.0), look.tint)
+		x += CHIP_W + 3.0
+
+
+func _status_row(enemy, at: Vector2, _wide: float) -> void:
+	var chips: Array = []
+	if enemy.burn_stacks > 0:
+		chips.append({"kind": "burn", "remaining": enemy.burn_time / 3.0,
+			"stacks": enemy.burn_stacks})
+	if enemy.slow_time > 0.0:
+		chips.append({"kind": "slow", "remaining": enemy.slow_time / 2.0})
+	if enemy.stun_time > 0.0:
+		chips.append({"kind": "stun", "remaining": enemy.stun_time / 0.45})
+	_status_chips(at, chips)
+
+
 ## --- what is drawn over the fight -------------------------------------------
 const ENEMY_NAMES := {
 	"SCRAPPER": "SCRAPPER", "GUNNER": "DRONE", "ARMORED": "FURNACE KNIGHT",
@@ -675,26 +783,16 @@ func _draw_world_overlay() -> void:
 		## nothing up there to collide with any more, which is the entire point
 		## of having moved it.
 		var at := Vector2(head.at.x, maxf(head.at.y, 20.0))
-		var wide: float = 78.0 if enemy.kind == "BOSS" else (48.0 if elite else 34.0)
+		var wide: float = ENEMY_BAR_W.get(enemy.kind, 52.0)
 		if enemy.hp < enemy.max_hp or elite:
-			var bar := Rect2(at - Vector2(wide * 0.5, 0.0), Vector2(wide, 5.0))
-			draw_rect(bar.grow(1.5), Color(0.04, 0.03, 0.06, 0.85))
-			draw_rect(Rect2(bar.position, Vector2(bar.size.x * clampf(enemy.hp / enemy.max_hp,
-				0.0, 1.0), bar.size.y)), Color("#e14f35") if not elite else Color("#ffb347"))
+			_health_bar(Rect2(at - Vector2(wide * 0.5, 0.0), Vector2(wide, ENEMY_BAR_H)),
+				enemy.hp / maxf(1.0, enemy.max_hp),
+				Color("#ffb347") if elite else Color("#e14f35"))
 		if elite:
 			# the plate is as wide as the NAME, not as wide as the health bar
-			draw_string(font, at - Vector2(80.0, 6.0), str(ENEMY_NAMES.get(enemy.kind, enemy.kind)),
+			draw_string(font, at - Vector2(80.0, 8.0), str(ENEMY_NAMES.get(enemy.kind, enemy.kind)),
 				HORIZONTAL_ALIGNMENT_CENTER, 160, 11, Color("#e8c376"))
-		# status pips, left to right in the order they matter
-		var pips: Array = []
-		if enemy.burn_stacks > 0:
-			pips.append(Color("#ff7a2f"))
-		if enemy.slow_time > 0.0:
-			pips.append(Color("#6fd8ff"))
-		if enemy.stun_time > 0.0:
-			pips.append(Color("#ffe08a"))
-		for p in pips.size():
-			draw_circle(at + Vector2(-wide * 0.5 + 4.0 + p * 9.0, 12.0), 3.2, pips[p])
+		_status_row(enemy, at + Vector2(0.0, ENEMY_BAR_H + 11.0), wide)
 
 	## The objective, when it is not in the frame. Losing sight of the Boiler is
 	## normal — losing track of whether it is being hit is not.

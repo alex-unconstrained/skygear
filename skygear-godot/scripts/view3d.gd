@@ -1953,7 +1953,13 @@ func _sync_captain(delta: float) -> bool:
 		doing = "swing"
 	elif player.dash_time_left > 0.0:
 		doing = "dash"
-	elif speed > 35.0:
+	elif speed > (28.0 if _captain.state == "run" else 62.0):
+		## HYSTERESIS. A single threshold at 35 meant a captain drifting near it
+		## — which is most of the time, because friction decays speed through
+		## that band every time you let go — flipped between run and idle every
+		## frame. Each flip restarts a crossfade, and a crossfade restarted every
+		## frame never gets anywhere: that is the popping. Enter the run fast,
+		## leave it slow, and the band between is where she stays put.
 		doing = "run"
 	## The window travels with the state, so the rig can fit the clip to it.
 	var window := 0.0

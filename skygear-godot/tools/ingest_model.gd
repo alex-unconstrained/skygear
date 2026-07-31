@@ -85,6 +85,41 @@ func _retarget(anim: Animation, from: Skeleton3D, to_rest: Dictionary,
 	return {"moved": moved, "repathed": repathed, "unknown": unknown}
 
 
+## Bake a clip in place: keep the root bone where it started, horizontally.
+##
+## Mixamo clips that are not the "in place" variant translate the root, and the
+## pack we were given did not include the in-place ones. The simulation owns
+## where the captain is; an animation that ALSO moves her draws the mesh
+## somewhere she is not, and she catches on geometry she appears to be clear of.
+## Measured before this existed: the run clip slid the mesh 129 ground units,
+## which is six times a boarder's radius.
+##
+## Horizontal only. The vertical channel is a jump leaving the deck and a stride
+## bobbing, and flattening that makes every clip glide.
+func _strip_root_motion(anim: Animation) -> bool:
+	var changed := false
+	for t in anim.get_track_count():
+		if anim.track_get_type(t) != Animation.TYPE_POSITION_3D:
+			continue
+		var path := anim.track_get_path(t)
+		if path.get_subname_count() == 0:
+			continue
+		var bone := String(path.get_subname(0))
+		if not (bone.ends_with("Hips") or bone.ends_with("Root")):
+			continue
+		var keys := anim.track_get_key_count(t)
+		if keys == 0:
+			continue
+		var anchor: Vector3 = anim.track_get_key_value(t, 0)
+		for k in keys:
+			var v: Vector3 = anim.track_get_key_value(t, k)
+			if is_equal_approx(v.x, anchor.x) and is_equal_approx(v.z, anchor.z):
+				continue
+			anim.track_set_key_value(t, k, Vector3(anchor.x, v.y, anchor.z))
+			changed = true
+	return changed
+
+
 func _run() -> void:
 	var file := FileAccess.open(STAGING + "job.json", FileAccess.READ)
 	if file == null:
@@ -145,12 +180,14 @@ func _run() -> void:
 					.angle_to(sk.get_bone_rest(b).basis.get_rotation_quaternion()))
 		var anim: Animation = player.get_animation(picked).duplicate(true)
 		anim.loop_mode = Animation.LOOP_LINEAR if clip in loops else Animation.LOOP_NONE
+		var slid := _strip_root_motion(anim)
 		var fixes := _retarget(anim, sk, base_rest, skeleton_path)
 		library.add_animation(clip, anim)
-		print("  %-9s %5.2fs %2d tracks  rest %5.1f deg  retargeted %2d  repathed %2d%s"
+		print("  %-9s %5.2fs %2d tracks  rest %5.1f deg  retargeted %2d  repathed %2d%s%s"
 			% [clip, anim.length, anim.get_track_count(), rad_to_deg(worst),
 				int(fixes.moved), int(fixes.repathed),
-				"  UNKNOWN BONES %d" % int(fixes.unknown) if int(fixes.unknown) > 0 else ""])
+				"  UNKNOWN BONES %d" % int(fixes.unknown) if int(fixes.unknown) > 0 else "",
+				"  in-placed" if slid else ""])
 		scene.queue_free()
 	ResourceSaver.save(library, out + name + "_anims.res")
 

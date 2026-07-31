@@ -16,9 +16,24 @@ extends RefCounted
 ## Tuning is the browser's, which was itself tuned down hard after the first v5
 ## playtest — crew were arriving nine at a time and the lanes held themselves.
 
-const TURRET := {"hp": 480.0, "range": 400.0, "damage": 15.0, "cooldown": 1.45, "radius": 34.0}
+## ALLIES HOLD LANES. THEY DO NOT CLEAR THEM.
+##
+## Measured over three full runs with `tools/balance.gd`: crew and cannons were
+## doing 67% of all damage in the game. A real playtest put it at 46% with a
+## better player at the controls. Either way the deck was largely defending
+## itself, which makes the twelve waves a spectator sport and makes every
+## upgrade the player drafts matter less than the two cannons they did not.
+##
+## So their damage comes down hard and their health goes up. A cannon is a gate
+## a boarder has to break, and crew are bodies in the way — both of them buy the
+## player TIME to be somewhere else, which is the decision the lane layer exists
+## to create. Neither should be the reason a wave died.
+##
+## Crew `siege` is untouched: breaking the boarding hulk is their actual job and
+## the one thing they are supposed to be better at than you.
+const TURRET := {"hp": 760.0, "range": 400.0, "damage": 4.0, "cooldown": 1.9, "radius": 34.0}
 const CREW := {
-	"hp": 34.0, "damage": 5.0, "siege": 22.0, "speed": 118.0, "radius": 15.0,
+	"hp": 68.0, "damage": 1.5, "siege": 22.0, "speed": 118.0, "radius": 15.0,
 	"reach": 52.0, "windup": 0.40, "recover": 0.5,
 	"every": 14.0, "push_every": 9.0, "per_wave": 2,
 }

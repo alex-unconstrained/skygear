@@ -101,6 +101,25 @@ BAND = (
 )
 
 
+# For a REFERENCE SHEET that a 3D generator turns into a mesh, rather than for
+# anything the game draws. Different rules from every other frame here: a
+# painterly billboard makes a terrible image-to-3D input, because the model
+# inherits the brush strokes as geometry. Flat orthographic side-on, even
+# lighting, no drama.
+CONCEPT = (
+    "A single weapon presented as a clean orthographic side-on concept sheet for "
+    "3D modelling: the whole object in frame, perfectly level, blade pointing "
+    "left and pommel right, filling 92% of the canvas width. Even neutral studio "
+    "lighting with no strong shadow, no rim light, no glow, no motion, no hand "
+    "holding it, no background scene, no ground plane. Crisp readable silhouette "
+    "with every part distinguishable — blade, guard, grip, pommel. Steampunk "
+    "airship-captain weapon: blackened steel, brass fittings, riveted plates, "
+    "oxblood leather wrap, honest wear at the edges. Deep indigo, teal, brass, "
+    "oxblood and warm leather palette. No text, no lettering, no watermark, no "
+    "extra objects, no duplicate views."
+)
+
+
 # The Loom appends its own background clause from the `chroma_key` form field,
 # and that clause wins. The first job sent from here asked for green in the
 # prompt text, was submitted with the default magenta key, and came back on
@@ -411,9 +430,31 @@ ASSETS = [
       "empty and dark. A track for a marker to slide along. No marker, no fill, "
       "no markings.",
       PLATE, "#00FF00", n=1, fill=0.98, anchor=0.5, batch="hud"),
+
+    # --- 9 · weapon -----------------------------------------------------------
+    # NOT a game asset. The melee pack animates a weapon the captain does not
+    # have, and these are reference sheets to put through image-to-3D. Four
+    # candidates because the whole point is choosing.
+    A("weapon_cutlass",
+      "A sky-pirate captain's cutlass: a broad slightly curved single-edged "
+      "blade of blackened steel with a brass fuller down its length, a heavy "
+      "riveted brass knuckle-bow guard, an oxblood leather-wrapped grip and a "
+      "geared brass pommel.",
+      CONCEPT, "#00FF00", n=4, fill=0.94, anchor=0.5, batch="weapon"),
+    A("weapon_gearblade",
+      "A steampunk mechanical sword: a straight heavy blade with an exposed "
+      "brass gear and chain mechanism running along its spine, vents cut into "
+      "the flat that glow faintly amber, a compact brass crossguard and a "
+      "leather-bound grip.",
+      CONCEPT, "#00FF00", n=4, fill=0.94, anchor=0.5, batch="weapon"),
+    A("weapon_boarding_axe",
+      "A boarding axe for an airship crew: a broad blackened steel head with a "
+      "brass-reinforced cheek and a back-spike, mounted on a short riveted haft "
+      "wrapped in oxblood leather, with a brass butt cap.",
+      CONCEPT, "#00FF00", n=4, fill=0.94, anchor=0.5, batch="weapon"),
 ]
 
-BATCHES = ["ground", "ui", "fx", "colossus", "props", "env", "v11", "hud"]
+BATCHES = ["ground", "ui", "fx", "colossus", "props", "env", "v11", "hud", "weapon"]
 
 
 # --- plumbing ---------------------------------------------------------------

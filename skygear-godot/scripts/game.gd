@@ -1114,6 +1114,13 @@ func _update_passives(delta: float) -> void:
 		# attribute it to its slot the same way a cast is.
 		var previous_src := src_slot
 		src_slot = skills.find(skill)
+		## A passive never goes through `cast_skill`, so its telemetry row never
+		## had a shape written to it — and `run_report` skips rows with no shape.
+		## The damage was counted in the total and then not printed, so a build
+		## with a Sentry and a Field showed shares summing to 87% and the missing
+		## thirteen was the player's own passives. A balance pass run against that
+		## report would have been a balance pass against bad data.
+		SkyGearTelemetry.note_passive(tel, src_slot, skill)
 		var st := skill_stats(skill)
 		match str(st.kind):
 			"aura":
