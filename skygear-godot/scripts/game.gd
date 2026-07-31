@@ -260,6 +260,20 @@ func _unhandled_input(event: InputEvent) -> void:
 			reroll_draft()
 			get_viewport().set_input_as_handled()
 			return
+	## THE WHEEL ZOOMS. Checked before anything else consumes a mouse button —
+	## wheel events ARE button events in Godot, and the draft's card hit-test runs
+	## on any press.
+	if event is InputEventMouseButton and event.pressed and view != null:
+		var wheel := event as InputEventMouseButton
+		if wheel.button_index == MOUSE_BUTTON_WHEEL_UP:
+			view.zoom_by(-1.0)
+			get_viewport().set_input_as_handled()
+			return
+		if wheel.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			view.zoom_by(1.0)
+			get_viewport().set_input_as_handled()
+			return
+
 	## A menu that is open owns the pointer and the arrow keys. Checked before
 	## the game's own bindings, or Space dashes while you are choosing a button.
 	## How-to-play and settings each own everything while up, including over a

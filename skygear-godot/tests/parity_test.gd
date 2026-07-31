@@ -1277,6 +1277,30 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## MOVEMENT FEEL, as a shape rather than as numbers. Both directions of this
+	## have now been wrong: first a third of a second of post-dash skating, then
+	## an over-correction that braked in 0.05s and was reported as the game
+	## feeling slower. The checks pin the SHAPE so the next tuning pass cannot
+	## quietly walk off either edge.
+	var stop_time: float = SkyGearPlayer.SPEED / SkyGearPlayer.FRICTION
+	var start_time: float = SkyGearPlayer.SPEED / SkyGearPlayer.ACCEL
+	_check("feel", "stopping is quicker than starting", stop_time < start_time,
+		"%.3fs to stop, %.3fs to start" % [stop_time, start_time])
+	## But not instantly. Under about a twentieth of a second there is no
+	## deceleration left to feel and it reads as walking into glue.
+	_check("feel", "but not so quick it reads as glue", stop_time > 0.055,
+		"%.3fs" % stop_time)
+
+	## A dash lands with something left. Exiting at exactly walking speed stops
+	## the move dead on its last frame and takes the travel out of it.
+	_check("feel", "a dash carries past its own end",
+		SkyGearPlayer.DASH_EXIT > 1.2, "x%.2f" % SkyGearPlayer.DASH_EXIT)
+	## And the carry is over fast. This is the number that was 0.36s and made
+	## every dash feel like ice.
+	var carry: float = SkyGearPlayer.SPEED * (SkyGearPlayer.DASH_EXIT - 1.0) 		/ SkyGearPlayer.FRICTION
+	_check("feel", "and is over in a tenth of a second", carry < 0.10,
+		"%.3fs of carry" % carry)
+
 	## THE WORKSHOP. `V10-PLAN.md` cut meta-progression as "a way to postpone the
 	## moment this game becomes excellent", and the park was right when written.
 	## What makes it safe now is one constraint doing most of the work.

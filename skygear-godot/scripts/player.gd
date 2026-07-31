@@ -13,9 +13,28 @@ const SPEED := 260.0
 ## them. Starting soft and stopping hard is the shape almost every action game
 ## uses, and this had them nearly equal.
 const ACCEL := 3400.0
-const FRICTION := 5200.0
-const DASH_DISTANCE := 220.0
+## 5200 was an over-correction and it cost the game its pace. Reported straight
+## back: "the removal of the skating makes the game feel slower."
+##
+## The skating was three things and only two of them were the slide. The wrong
+## animation cycle and the third-of-a-second post-dash glide were real bugs and
+## stay fixed. Braking in 0.05s was me fixing a fourth thing that was not broken
+## — a stop that instant reads as walking into glue, and every step costs the
+## distance the old brake used to carry you.
+##
+## 3600 stops in 0.072s against 0.096s before: still crisper than it was, no
+## longer a wall.
+const FRICTION := 3600.0
+## And the dash covers more ground, because the OLD dash effectively did — it
+## travelled 220 and then glided for another third of a second. Removing the
+## glide without lengthening the dash took real distance out of the move.
+const DASH_DISTANCE := 265.0
 const DASH_TIME := 0.16
+## What a dash hands back when it ends, as a multiple of walking speed. The bug
+## was exiting at 1375 and decaying for 0.36s with no control; the over-fix was
+## exiting at exactly walking speed, which stops a dash dead the frame it ends.
+## 1.55 decays back in about 0.08s — you feel the landing, you do not skate.
+const DASH_EXIT := 1.55
 const DASH_SPEED := DASH_DISTANCE / DASH_TIME
 ## SEA LEGS shortens this. A const cannot be the answer once a talent moves it —
 ## the same lesson as `SPEED` and `START_DASH_CHARGES`, learned three times now.
@@ -102,7 +121,7 @@ func _physics_process(delta: float) -> void:
 		## authority, after every dash, and it is most of what "slippery" means
 		## here. Keep the direction, lose the excess.
 		if dash_time_left <= 0.0:
-			velocity = dash_direction * move_speed
+			velocity = dash_direction * move_speed * DASH_EXIT
 	else:
 		var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
 		var target_velocity := input_direction * move_speed

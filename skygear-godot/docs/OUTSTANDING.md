@@ -59,6 +59,34 @@ contradicts something I had asserted several times.
 
 What remains is the work it revealed, plus scenes for the HUD and the draft.
 
+### 3D models for the remaining objects
+Asked for. Deck props are all still billboards — crates, barrels, kegs, the
+lantern posts, braziers, cannons, vents, rope, salvage. An agent is on it with
+the Meshy pipeline.
+
+The player's own workflow is worth matching: generate, strip the baked lighting,
+remesh to a sane polycount, import. Our prompts already ask for flat albedo and
+no baked light; the REMESH step is the one the pipeline does not do, and Meshy
+has an endpoint for it.
+
+### A model for the Boilerwright
+Asked for. Harder than the props: he currently uses the captain's rig and her
+animation set, so a static mesh cannot be dropped in the way a crate can. Either
+the generated mesh gets retargeted onto the same skeleton, or he keeps her rig
+and only the silhouette changes.
+
+### Text legibility, not containment
+Asked for: skills, cards and HUD elements are hard to READ. Distinct from the
+text audit, which only proves text is inside its frame — a 7pt label perfectly
+contained on textured brass passes that check and is still unreadable. `_fits`
+shrinking text to fit is itself a suspect. An agent is measuring contrast and
+point size before changing anything.
+
+### Telling the player how the two classes differ
+Asked for. There are full descriptions in `CLASSES` that nothing reads, and the
+picker shows one line. Comparable rows are now in the data; the screen that lays
+them side by side is not built yet.
+
 ### The sky is better, not right
 Reported twice. It was near-black and fogged; it is now a dusk gradient with
 `fog_sky_affect` turned down. But the warm horizon band sits behind the bow at
@@ -118,3 +146,12 @@ consistency that was asked for, so it stays here until it is solved or dropped.
 - **A HUD alignment tool** — F4, with sub-element positioning.
 - **Old versions demoable on the website.**
 - **All the tools in one place** — `SkyGear Tools.bat`.
+- **Movement felt slower after the skating fix** — I over-corrected. Braking
+  went 2700 to 5200, which stops in 0.05s and reads as glue, and the dash was
+  made to exit at exactly walking speed so it covered less ground than the old
+  gliding one. 3600 and a 1.55x dash exit; the checks now pin the SHAPE
+  (stopping quicker than starting, but not instantly) rather than the numbers.
+- **Mousewheel zoom** — pulls the camera back along its own axis rather than
+  widening the field of view, so the projection every telegraph and billboard
+  height is calibrated against does not move. Out only, never closer than the
+  shipped framing.

@@ -1332,9 +1332,19 @@ func _track_camera(delta: float) -> void:
 	## writing the camera transform is two systems fighting, and the sway is the
 	## one the ship is doing.
 	var kick := game.impact.shake_offset() if game.impact != null else Vector2.ZERO
+	## ZOOM. Requested, and it is also the honest short-term answer to the parity
+	## finding — side by side the port shows materially less deck than the browser
+	## and nobody has diagnosed why yet. A wheel does not fix that, but it stops
+	## the player being stuck inside it while I work out what moved.
+	##
+	## The camera pulls BACK ALONG ITS OWN AXIS rather than changing FOV. Both
+	## show more deck; only one keeps the projection the whole game is calibrated
+	## to. Changing the field of view would change the perspective every telegraph,
+	## decal and billboard height was solved against.
+	_zoom = lerpf(_zoom, _zoom_target, 1.0 - exp(-delta / ZOOM_TAU))
 	camera.position = Vector3((_focus.x + kick.x) * WORLD_SCALE,
-		(CAM_HEIGHT + heave + kick.y) * WORLD_SCALE,
-		(_focus.y + CAM_NEAR) * WORLD_SCALE)
+		(CAM_HEIGHT * _zoom + heave + kick.y) * WORLD_SCALE,
+		(_focus.y + CAM_NEAR * _zoom) * WORLD_SCALE)
 	camera.rotation = Vector3(-PITCH, deg_to_rad(SWAY_YAW * _yaw),
 		deg_to_rad(SWAY_ROLL * _roll))
 	if _envelope != null:
@@ -1430,6 +1440,25 @@ func _sync_darkness(delta: float) -> void:
 		## And the fog thickens, so the far end of the deck goes first — the bow
 		## is where a push comes from, so that is the part worth losing.
 		_environment.fog_enabled = true
+
+
+## How far back the wheel has pulled the camera. 1.0 is the shipped framing, and
+## it is the DEFAULT and the floor — you may pull out, never push in past the
+## composition the art was built for.
+var _zoom := 1.0
+var _zoom_target := 1.0
+const ZOOM_MIN := 1.0
+const ZOOM_MAX := 1.55
+const ZOOM_STEP := 0.09
+const ZOOM_TAU := 0.11      ## eased, because a wheel notch that teleports is nausea
+
+
+func zoom_by(notches: float) -> void:
+	_zoom_target = clampf(_zoom_target + notches * ZOOM_STEP, ZOOM_MIN, ZOOM_MAX)
+
+
+func zoom_amount() -> float:
+	return _zoom_target
 
 
 func _aim_from_cursor() -> void:

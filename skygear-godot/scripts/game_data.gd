@@ -125,6 +125,16 @@ const CLASSES := {
 		"auto": {"kind": "arc", "range": 190.0, "arc": 2.443, "damage": 22.0,
 			"period": 0.36, "element": "EMBER", "knock": 150.0,
 			"sound": "player/shape_cleave.ogg"},
+		"compare": {
+			"the question": "How long can you stand in it?",
+			"body": "100 health, 260 speed, two recharging dashes",
+			"the gauge": "PRESSURE — fills from damage you land inside 210 units",
+			"and it": "empties when you are not, and VENTS ITSELF at full",
+			"the vent": "40 damage around you and 10 health back, free",
+			"your keys": "Space dashes. Nothing else to press.",
+			"stand": "wherever the boarders are — her spot moves, and she chases it",
+			"you lose by": "kiting. Range is the losing line and the gauge says so.",
+		},
 		"starting": [["CLOSEHIT", "EMBER"]],
 	},
 	"boilerwright": {
@@ -159,6 +169,16 @@ const CLASSES := {
 		## draft simply reaches for his shapes first.
 		"shape_bias": {"RANGED_AOE": 3.0, "AURA": 3.0, "PULSE": 3.0, "CONE": 2.0,
 			"SENTRY": 2.0, "CHAIN": 1.0, "RAY": 0.25, "LINE_BURST": 0.25},
+		"compare": {
+			"the question": "Where will the fight happen, and did you get there first?",
+			"body": "130 health, 205 speed, NO DASH AT ALL",
+			"the gauge": "HEAD — fills only where you plant yourself",
+			"and it": "never decays and never spends itself. It is a bank.",
+			"the vent": "V spends the whole bank: bigger the more you saved",
+			"your keys": "F cracks a steam main. V blows it down. Space costs Head.",
+			"stand": "behind your own steam, between it and the Boiler",
+			"you lose by": "spending the bank. Empty, he is worse at everything.",
+		},
 		"starting": [["CONE", "STEAM"]],
 	},
 }
