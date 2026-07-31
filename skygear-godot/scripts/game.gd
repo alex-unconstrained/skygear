@@ -206,6 +206,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	if event is not InputEventKey or not event.pressed or event.echo:
 		return
+	## F11, always, in every state. A game that opens fullscreen and offers no
+	## way out is a game people force-quit, and the choice is remembered.
+	if event.keycode == KEY_F11:
+		var full: bool = DisplayServer.window_get_mode() in [
+			DisplayServer.WINDOW_MODE_FULLSCREEN,
+			DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full
+			else DisplayServer.WINDOW_MODE_FULLSCREEN)
+		if audio != null:
+			audio.fullscreen = not full
+			audio.save_settings()
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F3:
 		show_profiler = not show_profiler
 		if show_profiler:
@@ -1021,7 +1034,11 @@ func cast_skill(index: int, aim_at = null) -> void:
 		_field({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
 			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
-	player.attack_time = 0.26
+	## How long the swing is allowed to last, from the SKILL. It was a flat 0.26
+	## for everything, so a Beam at a 0.48 cooldown and a Mortar at 2.08 got the
+	## same animation window and neither matched. Floored so a fast skill still
+	## shows a swing, capped so a slow one does not leave her posing.
+	player.attack_time = clampf(float(st.cooldown) * 0.85, 0.24, 0.62)
 	play_sfx(_shape_sound(skill.shape), -5.0)
 	src_slot = previous_src
 

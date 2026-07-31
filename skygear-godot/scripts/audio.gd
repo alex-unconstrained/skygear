@@ -52,6 +52,9 @@ const DUCK_RELEASE := 5.0     ## and coming back, slower, so it does not pump
 var _duck := 0.0              ## 0 = clear, 1 = fully ducked
 var speaking := false
 var muted := false
+## Not audio, but this is the file that already persists preferences and a
+## second settings file for one boolean is a second settings file.
+var fullscreen := true
 
 
 func _ready() -> void:
@@ -173,6 +176,7 @@ func save_settings() -> void:
 	for key in volumes.keys():
 		cfg.set_value("audio", key, volumes[key])
 	cfg.set_value("audio", "muted", muted)
+	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -184,4 +188,5 @@ func load_settings() -> void:
 	for key in volumes.keys():
 		volumes[key] = float(cfg.get_value("audio", key, volumes[key]))
 	muted = bool(cfg.get_value("audio", "muted", false))
+	fullscreen = bool(cfg.get_value("display", "fullscreen", true))
 	apply_volumes()

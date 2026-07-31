@@ -62,6 +62,22 @@ const BLEND := {
 ## by actual speed over this, so the feet stop skating at any move-speed card.
 const AUTHORED_RUN_SPEED := 210.0
 
+## ONE-SHOTS ARE FITTED TO THE WINDOW THEY GET.
+##
+## Measured by `tools/anim_timing.gd`: a Cleave has a 0.36 second cooldown and
+## the shortest swing in the pack is 2.27 seconds — thirteen times too long. The
+## clip played its first eight per cent and cut back to idle, which is exactly
+## what "the swing is not synced" looks like. Every attack in the game had the
+## same problem because the animation pack was authored for a game with slower
+## attacks, which is true of every animation pack.
+##
+## So a one-shot is told how long it has and plays at whatever rate fits. Capped,
+## because past about four times a swing stops reading as a swing and starts
+## reading as a glitch — beyond that the shortest variant is chosen instead and
+## the tail is what gets lost, which is the right thing to lose.
+const ATTACK_RATE_MAX := 4.0
+const ATTACK_RATE_MIN := 0.75
+
 ## Radians per second the figure can turn. Fast enough to feel responsive,
 ## slow enough that a flicked mouse does not spin her like a top.
 const TURN_RATE := 12.0
@@ -122,7 +138,7 @@ func has_clip(clip: String) -> bool:
 
 ## Ask for a state. Idempotent — call it every frame with whatever the
 ## simulation says and it only acts when something changed.
-func want(next: String, speed: float = 0.0) -> void:
+func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 	if anim == null:
 		return
 	## A one-shot owns the figure until its own timer runs out, unless something
@@ -134,16 +150,29 @@ func want(next: String, speed: float = 0.0) -> void:
 	## clip it is already playing, or an attack would reshuffle every frame.
 	var starting: bool = next != state
 	state = next
-	var clip := _variant_of(next) if starting else _clip
+	var clip := _variant_of(next, window) if starting else _clip
 	if clip == "" or not has_clip(clip):
 		clip = next if has_clip(next) else _fallback(next)
 	if clip == "":
 		return
-	if clip != _clip:
+	## A one-shot RESTARTS whenever it is newly asked for, even when the clip that
+	## came up is the one already playing. Skipping the replay because the name
+	## matched meant casting the same skill twice in a row played the swing once:
+	## the second cast found `clip == _clip`, did not seek back, and did not
+	## extend the window — so the animation ended mid-attack and she stood still
+	## through the rest of it.
+	if clip != _clip or (starting and ONE_SHOT.get(next, false)):
 		anim.play(clip, float(BLEND.get(next, 0.15)))
+		if starting and ONE_SHOT.get(next, false):
+			anim.seek(0.0, true)
 		_clip = clip
 		if ONE_SHOT.get(next, false):
-			_one_shot_until = _clock + anim.get_animation(clip).length
+			## The window, not the clip length: a swing owns the figure for as
+			## long as the SKILL takes, and the clip is stretched or compressed
+			## to match. Using the clip length here is what let a 2.4 second
+			## animation block a 0.36 second attack.
+			_one_shot_until = _clock + (window if window > 0.0
+				else anim.get_animation(clip).length)
 	elif not anim.is_playing():
 		anim.play(clip)
 	## Speed-matched playback. A run authored for 210 units a second played by
@@ -151,6 +180,9 @@ func want(next: String, speed: float = 0.0) -> void:
 	## the ground it is covering.
 	if next == "run" or next == "walk":
 		anim.speed_scale = clampf(speed / AUTHORED_RUN_SPEED, 0.55, 1.9)
+	elif ONE_SHOT.get(next, false) and window > 0.0 and has_clip(clip):
+		anim.speed_scale = clampf(anim.get_animation(clip).length / window,
+			ATTACK_RATE_MIN, ATTACK_RATE_MAX)
 	else:
 		anim.speed_scale = 1.0
 
@@ -159,7 +191,7 @@ func want(next: String, speed: float = 0.0) -> void:
 ## slow run; a hurt is a very short idle; anything else falls to idle.
 ## The next delivered variant of a state, round robin. Falls back to the state
 ## itself when no variants exist, which is every state but the attack.
-func _variant_of(next: String) -> String:
+func _variant_of(next: String, window: float = 0.0) -> String:
 	var options: Array = VARIANTS.get(next, [])
 	var live: Array[String] = []
 	for name in options:
@@ -167,6 +199,24 @@ func _variant_of(next: String) -> String:
 			live.append(str(name))
 	if live.is_empty():
 		return next
+	## When the window is tight, only the variants that can actually be played
+	## inside it at the maximum rate are candidates. Rotating a 4.7 second combo
+	## into a 0.36 second attack shows a twelfth of it, which is not a variation,
+	## it is a different bug every fifth cast.
+	if window > 0.0:
+		var fits: Array[String] = []
+		for name in live:
+			if anim.get_animation(name).length <= window * ATTACK_RATE_MAX:
+				fits.append(name)
+		if not fits.is_empty():
+			live = fits
+		else:
+			## Nothing fits: take the shortest rather than whatever is next.
+			var best := live[0]
+			for name in live:
+				if anim.get_animation(name).length < anim.get_animation(best).length:
+					best = name
+			return best
 	_variant = (_variant + 1) % live.size()
 	return live[_variant]
 

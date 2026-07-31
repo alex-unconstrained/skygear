@@ -1090,6 +1090,65 @@ func _view() -> void:
 	_check("budget", "and a telegraph still gets drawn on a flooded deck",
 		view._decals.has("tg_reserved"))
 
+	## ANIMATION TIMING. Reported as swings not looking synced, and it was
+	## measurable: a Cleave has a 0.36 s cooldown against a 2.27 s clip.
+	var timing := SkyGearRig3D.new()
+	root.add_child(timing)
+	if timing.setup(SkyGearView3D.CAPTAIN_SCENE, 1.76, SkyGearView3D.LAYER_FIGURES):
+		var over := 0
+		var cut := 0
+		for shape in SkyGearData.SHAPES.keys():
+			if bool(SkyGearData.SHAPES[shape].get("passive", false)):
+				continue
+			var st: Dictionary = game.skill_stats(SkyGearData.make_skill(shape, "EMBER"))
+			var win: float = clampf(float(st.cooldown) * 0.85, 0.24, 0.62)
+			timing.state = "idle"
+			timing.want("swing", 0.0, win)
+			var rate: float = timing.anim.speed_scale
+			var shown: float = win * rate / timing.anim.get_animation(timing._clip).length
+			if rate > SkyGearRig3D.ATTACK_RATE_MAX + 0.01:
+				over += 1
+			if shown < 0.34:
+				cut += 1
+		_check("timing", "every attack plays at a rate you can read",
+			over == 0, "%d over the cap" % over)
+		_check("timing", "and none of them is cut off before it lands",
+			cut == 0, "%d showing under a third of the clip" % cut)
+		## A one-shot must own the figure for the ACTION's length, not the
+		## clip's — using the clip length is what let a 2.4 s animation block a
+		## 0.36 s attack.
+		timing.state = "idle"
+		timing.want("swing", 0.0, 0.3)
+		_check("timing", "a one-shot is held for the action, not for the clip",
+			timing._one_shot_until - timing._clock <= 0.35,
+			"held %.2fs" % (timing._one_shot_until - timing._clock))
+		## A tight window must not pick the four-second combo. When NOTHING fits —
+		## which is the case at 0.25 s against a 2.27 s shortest clip — the rule
+		## is the shortest available, not whatever came next in the rotation.
+		timing.state = "idle"
+		timing.want("swing", 0.0, 0.25)
+		var shortest := 999.0
+		for name in SkyGearRig3D.VARIANTS.swing:
+			if timing.has_clip(str(name)):
+				shortest = minf(shortest, timing.anim.get_animation(str(name)).length)
+		_check("timing", "and when nothing fits it takes the shortest, not the next",
+			is_equal_approx(timing.anim.get_animation(timing._clip).length, shortest),
+			"%s at %.2fs, shortest is %.2fs" % [timing._clip,
+				timing.anim.get_animation(timing._clip).length, shortest])
+		## Re-casting the same skill has to replay the swing. It did not: the
+		## variant came up the same, the clip name matched, and the replay was
+		## skipped — so the second cast of a repeated skill animated nothing.
+		timing.state = "idle"
+		timing.want("swing", 0.0, 0.4)
+		var first_end: float = timing._one_shot_until
+		timing._clock += 0.2
+		timing.state = "idle"
+		timing.want("swing", 0.0, 0.4)
+		_check("timing", "and casting the same skill again replays the swing",
+			timing._one_shot_until > first_end,
+			"%.2f then %.2f" % [first_end, timing._one_shot_until])
+	timing.queue_free()
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY

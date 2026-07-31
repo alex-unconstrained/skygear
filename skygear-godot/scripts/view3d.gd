@@ -1955,7 +1955,15 @@ func _sync_captain(delta: float) -> bool:
 		doing = "dash"
 	elif speed > 35.0:
 		doing = "run"
-	_captain.want(doing, speed)
+	## The window travels with the state, so the rig can fit the clip to it.
+	var window := 0.0
+	if doing == "swing":
+		window = player.attack_time
+	elif doing == "dash":
+		window = maxf(0.12, player.dash_time_left)
+	elif doing == "hurt":
+		window = maxf(0.2, player.hurt_time)
+	_captain.want(doing, speed, window)
 	## A flinch is worth seeing on the model as well as in the numbers.
 	if player.hurt_time > 0.30:
 		_captain.react_hit(1.0)
@@ -2012,7 +2020,7 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		doing = "swing"
 	elif moving and speed > 12.0:
 		doing = "run"
-	rig.want(doing, speed)
+	rig.want(doing, speed, attack_clock if attacking else 0.0)
 	rig.place(ground, heading, WORLD_SCALE, delta)
 	return true
 

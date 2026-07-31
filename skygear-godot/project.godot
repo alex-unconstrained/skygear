@@ -10,10 +10,19 @@ run/main_scene="res://scenes/main3d.tscn"
 
 [display]
 
-window/size/viewport_width=1280
-window/size/viewport_height=720
-window/size/window_width_override=1280
-window/size/window_height_override=720
+; 1080p base rather than 720p. With `canvas_items` stretch the 3D scene renders
+; at the VIEWPORT size and is then scaled to the window, so a 1280x720 base was
+; rendering the deck at 720p and upscaling it on every monitor this will ever
+; run on. The HUD layout matrix already asserts the panels fit at 1920x1080.
+window/size/viewport_width=1920
+window/size/viewport_height=1080
+window/size/window_width_override=1600
+window/size/window_height_override=900
+; Fullscreen by default: this is a Windows download now, not a browser tab.
+; Borderless rather than exclusive, so alt-tab behaves and a second monitor
+; keeps working. F11 toggles, because a game that opens fullscreen with no way
+; out is a game people force-quit.
+window/size/mode=3
 window/stretch/mode="canvas_items"
 window/vsync/vsync_mode=1
 
@@ -27,6 +36,17 @@ anti_aliasing/quality/screen_space_aa=1
 textures/default_filters/anisotropic_filtering_level=2
 ; B2. The dusk sky and the fog gradient are prime banding candidates.
 anti_aliasing/quality/use_debanding=true
+; Rendered at the full viewport. Left at 1.0 and exposed rather than hidden:
+; this is the dial to turn down on a weak machine, and turning it down is a
+; better trade than dropping the effects that carry the fight.
+scaling_3d/mode=0
+scaling_3d/scale=1.0
+; The deck is one plane seen edge-on. Sixteen taps is the difference between
+; plank detail and mush at the bow.
+textures/default_filters/anisotropic_filtering_level=4
+; Softer shadow edges at the tightened 34 m distance.
+lights_and_shadows/directional_shadow/soft_shadow_filter_quality=3
+lights_and_shadows/positional_shadow/soft_shadow_filter_quality=3
 window/size/resizable=true
 
 ; Windows-first, hardware accelerated. The port started on gl_compatibility
