@@ -237,6 +237,12 @@ func _build_world() -> void:
 	lantern.light_energy = 0.38
 	lantern.rotation_degrees = Vector3(-28, -150, 0)
 	add_child(lantern)
+	_moon = moon
+	_lantern = lantern
+	_moon_energy = moon.light_energy
+	_lantern_energy = lantern.light_energy
+	_ambient_energy = e.ambient_light_energy
+	_environment = e
 
 	deck = MeshInstance3D.new()
 	var plane := PlaneMesh.new()
@@ -1205,6 +1211,7 @@ func _process(delta: float) -> void:
 	_sync_all(delta)
 	_sync_auras()
 	_sync_effects()
+	_sync_darkness(delta)
 	_flush_shadows()
 	_sync_airstream(delta)
 	## The flashes fade. Ember lingers, Frost is instant — the decay carries the
@@ -1362,6 +1369,49 @@ func _sync_airstream(delta: float) -> void:
 ##
 ## The browser has `CAM.unproject` for exactly this and it is the same three
 ## lines: take the ray under the cursor and intersect it with the deck plane.
+## THE LIGHTS GO OUT. Wave 8's event, and the reason it is not a second boarding
+## hulk: an event should change how the deck plays, and darkness changes every
+## decision on it at once — where you can afford to be, whether that shape at the
+## rail is a crate or a boarder, whether chasing salvage into the bow is worth it.
+##
+## Eased rather than switched, over about a second and a half. A hard cut reads
+## as a bug, and the slow failure of the lamps is most of the drama.
+var _moon: DirectionalLight3D
+var _lantern: DirectionalLight3D
+var _environment: Environment
+var _moon_energy := 1.45
+var _lantern_energy := 0.38
+var _ambient_energy := 0.62
+var _darkness := 0.0
+var _darkness_target := 0.0
+const DARKNESS_TAU := 0.55
+## Never fully black. At 1.0 the deck is unplayable rather than dangerous, and
+## the moon is the one thing that should still be up there.
+const DARKNESS_FLOOR := 0.22
+
+
+func set_darkness(amount: float) -> void:
+	_darkness_target = clampf(amount, 0.0, 1.0)
+
+
+func _sync_darkness(delta: float) -> void:
+	if is_equal_approx(_darkness, _darkness_target) and _darkness <= 0.0001:
+		return
+	_darkness = lerpf(_darkness, _darkness_target, 1.0 - exp(-delta / DARKNESS_TAU))
+	var keep: float = lerpf(1.0, DARKNESS_FLOOR, _darkness)
+	if _moon != null:
+		## The moon dims least. Losing the rim light entirely turns every figure
+		## into a silhouette you cannot identify, which is unfair rather than dark.
+		_moon.light_energy = _moon_energy * lerpf(1.0, 0.52, _darkness)
+	if _lantern != null:
+		_lantern.light_energy = _lantern_energy * keep
+	if _environment != null:
+		_environment.ambient_light_energy = _ambient_energy * keep
+		## And the fog thickens, so the far end of the deck goes first — the bow
+		## is where a push comes from, so that is the part worth losing.
+		_environment.fog_enabled = true
+
+
 func _aim_from_cursor() -> void:
 	if camera == null:
 		return

@@ -134,6 +134,10 @@ var _layout_from := Vector2.ZERO
 
 var keys_open := false
 var settings_open := false
+## The named event running this wave, or "". Every fourth wave has one.
+var active_event := ""
+var event_banner_left := 0.0
+const EVENT_BANNER_TIME := 4.0
 ## When the run report was last put on the clipboard, so the button can say so.
 ## A button that does something invisible is a button a player presses four times.
 var copied_at := -99.0
@@ -548,6 +552,7 @@ func _process(delta: float) -> void:
 	## here rather than at the card, because a card that reaches into the player
 	## is a card that has to be undone if the run is reset.
 	player.max_dash_charges = maxi(1, int(mods.dash_charges))
+	event_banner_left = maxf(0.0, event_banner_left - delta)
 	_update_cooldowns(delta)
 	_update_wave(delta)
 	_update_projectiles(delta)
@@ -796,6 +801,45 @@ func choose_draft(index: int) -> void:
 ## breaking it on wave 4 left it permanently dead — and wave 8 then satisfied
 ## its "ends when their hulk does" condition on the first frame.
 ## A boarding hulk grapples on and keeps sending them until it is broken.
+## The event for a wave, or "" — the single place anything asks the question.
+static func event_for(wave_number: int) -> String:
+	return str(SkyGearData.WAVE_EVENTS.get(wave_number, ""))
+
+
+func event_data() -> Dictionary:
+	if active_event == "":
+		return {}
+	return SkyGearData.EVENTS.get(active_event, {})
+
+
+## Announce it and turn it on. Announced BEFORE the first boarder rather than
+## alongside them: an event you notice halfway through is a difficulty spike.
+func _begin_event(id: String) -> void:
+	active_event = id
+	var data: Dictionary = SkyGearData.EVENTS.get(id, {})
+	if data.is_empty():
+		return
+	event_banner_left = EVENT_BANNER_TIME
+	if voice != null:
+		voice.say(str(data.get("voice", "wave_start")), 3)
+	play_sfx("world/wave_start.ogg", -2.0)
+	## No `_fx` banner. The event CARD says the name, and a flying banner saying it
+	## again lands on top of the card — which is exactly how it looked.
+	## The blackout is the only one that changes the deck rather than what is on
+	## it, so the renderer has to be told.
+	if view != null and view.has_method("set_darkness"):
+		view.set_darkness(float(data.get("darkness", 0.0)))
+
+
+func _end_event() -> void:
+	if active_event == "" :
+		return
+	active_event = ""
+	event_banner_left = 0.0
+	if view != null and view.has_method("set_darkness"):
+		view.set_darkness(0.0)
+
+
 func _begin_push(wave_number: int) -> void:
 	if voice != null:
 		voice.say("push", 2)
@@ -819,9 +863,13 @@ func start_wave(next_wave: int) -> void:
 		_set_state(State.VICTORY)
 		return
 	restow_props()
+	_end_event()
 	if next_wave >= 1 and next_wave <= SkyGearData.WAVES.size():
 		if bool(SkyGearData.WAVES[next_wave - 1].get("push", false)):
 			_begin_push(next_wave)
+		var event_id := event_for(next_wave)
+		if event_id != "":
+			_begin_event(event_id)
 	spawn_queue = _build_spawn_queue(wave)
 	if voice != null and wave > 0:
 		voice.say("wave_start", 1)
@@ -1372,16 +1420,26 @@ func nearest_enemy_excluding(origin: Vector2, max_distance: float, excluded: Dic
 			nearest = enemy
 	return nearest
 
+## What the running event is worth. Kept as one function so a card that reads
+## "salvage" and an event that grants it cannot disagree about the total.
+func event_salvage_bonus() -> float:
+	return float(event_data().get("salvage_bonus", 0.0))
+
+
+func event_pressure_bonus() -> float:
+	return float(event_data().get("pressure_bonus", 0.0))
+
+
 func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 	var close_kill := enemy.global_position.distance_to(player.global_position) <= float(SkyGearData.CLOSE.range)
 	if close_kill:
-		pressure = minf(100.0, pressure + 9.0)
+		pressure = minf(100.0, pressure + 9.0 * (1.0 + event_pressure_bonus()))
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
-		if rng.randf() < float(SkyGearData.CLOSE.scrap_chance):
+		if rng.randf() < float(SkyGearData.CLOSE.scrap_chance) * (1.0 + event_salvage_bonus()):
 			_scrap({"position": enemy.global_position, "heal": float(SkyGearData.CLOSE.scrap_heal), "time": 12.0})
 			tel.salvage += 1
-	if float(mods.scrap_chance) > 0.0 and rng.randf() < float(mods.scrap_chance):
+	if rng.randf() < float(mods.scrap_chance) * (1.0 + event_salvage_bonus()):
 		_scrap({"position": enemy.global_position, "heal": 12.0, "time": 12.0})
 		tel.salvage += 1
 	if float(mods.kill_explode) > 0.0:

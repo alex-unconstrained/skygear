@@ -67,6 +67,7 @@ func _draw() -> void:
 		_:
 			_draw_world_overlay()
 			_draw_game_hud()
+			_draw_event(game.event_banner_left)
 	if game.layout_edit:
 		_draw_layout_editor()
 	if game.show_profiler:
@@ -971,6 +972,36 @@ func _vignette_texture() -> ImageTexture:
 			img.set_pixel(x, y, Color(0, 0, 0, clampf(pow(maxf(0.0, d - 0.52) / 0.62, 1.7), 0.0, 1.0)))
 	_vignette = ImageTexture.create_from_image(img)
 	return _vignette
+
+
+## The event card. Not a banner that flashes and goes — an event that changes
+## how a wave should be played has to be readable for long enough to read.
+func _draw_event(seconds_left: float) -> void:
+	var data: Dictionary = game.event_data()
+	if data.is_empty() or seconds_left <= 0.0:
+		return
+	## Fades in fast and out slow, so it does not steal the moment the wave
+	## starts and does not vanish while you are still reading it.
+	var age: float = game.EVENT_BANNER_TIME - seconds_left
+	var alpha: float = clampf(minf(age / 0.25, seconds_left / 0.9), 0.0, 1.0)
+	var tint := Color(str(data.get("tint", "#ff9a4a")))
+	var card := Rect2(size.x * 0.5 - 330.0, size.y * 0.20, 660.0, 96.0)
+	draw_rect(card, Color(0.03, 0.02, 0.045, 0.80 * alpha))
+	draw_rect(card, Color(tint.r, tint.g, tint.b, 0.85 * alpha), false, 2.0)
+	## A bar of the event colour down the leading edge, so the kind of event is
+	## legible before the words are.
+	draw_rect(Rect2(card.position, Vector2(5.0, card.size.y)),
+		Color(tint.r, tint.g, tint.b, alpha))
+	var room := card.grow(-18.0)
+	_label("WAVE %d · EVENT" % game.wave, Vector2(room.position.x, room.position.y + 12.0),
+		room.size.x, HORIZONTAL_ALIGNMENT_LEFT, 12,
+		Color(tint.r, tint.g, tint.b, 0.85 * alpha))
+	_say(str(data.name), Vector2(room.position.x, room.position.y + 40.0),
+		room.size.x, HORIZONTAL_ALIGNMENT_LEFT,
+		_fits(str(data.name), room.size.x, 30, 18), Color(tint.r, tint.g, tint.b, alpha))
+	_says(str(data.blurb), Vector2(room.position.x, room.position.y + 62.0),
+		room.size.x, HORIZONTAL_ALIGNMENT_LEFT, 15, 2,
+		Color(0.93, 0.90, 0.84, alpha))
 
 
 func _draw_world_overlay() -> void:

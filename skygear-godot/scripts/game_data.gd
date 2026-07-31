@@ -36,6 +36,49 @@ const ENEMIES := {
 }
 
 # batch = [time, type, count, lane]. Lane is 0/1/2, "all", or omitted.
+## EVERY FOURTH WAVE IS AN EVENT.
+##
+## Waves 4, 8 and 12 already carried something — two boarding pushes and the
+## Colossus — but a push arrives as an unannounced hulk at the bow and reads as
+## "more boarders" rather than as the shape of the wave changing. Twelve waves
+## with no punctuation is twelve of the same wave.
+##
+## Three rules, all of them about the event being READABLE:
+##
+##   * it is named, on screen, before it starts;
+##   * it changes what you should DO, not only how many arrive — otherwise it is
+##     a difficulty number wearing a title;
+##   * it pays out, so choosing to engage with it is a choice rather than a tax.
+##
+## Wave 8 is deliberately not a second hulk. The same event twice is the problem
+## this is fixing.
+const EVENTS := {
+	"grapple": {
+		"name": "GRAPPLE RUN",
+		"blurb": "A boarding hulk has locked on at the bow. Break it or it keeps unloading.",
+		"voice": "push", "tint": "#ff9a4a",
+	},
+	"blackout": {
+		"name": "BOILER BLACKOUT",
+		"blurb": "The lamps are out and the gauge is cold. Salvage pays double while it lasts.",
+		"voice": "push", "tint": "#8fa6c9",
+		## Dark, and worth being out in. The lanterns dying is the whole picture:
+		## you fight by the light of your own weapons, and the deck is suddenly
+		## somewhere you have to remember rather than somewhere you can see.
+		"darkness": 0.86, "salvage_bonus": 1.0, "pressure_bonus": 0.45,
+	},
+	"colossus": {
+		"name": "THE COLOSSUS",
+		"blurb": "It came aboard itself. Nothing else on this ship will matter for a while.",
+		"voice": "boss", "tint": "#ff4d37",
+	},
+}
+
+## Which wave gets which. Every fourth, and the table says so rather than the
+## code doing arithmetic on the wave number — wave 16 is one line away.
+const WAVE_EVENTS := {4: "grapple", 8: "blackout", 12: "colossus"}
+
+
 const WAVES := [
 	{"batches": [[0.0, "SCRAPPER", 2, 1], [4.0, "SCRAPPER", 2, 0], [8.0, "SCRAPPER", 2, 2]]},
 	{"batches": [[0.0, "SCRAPPER", 2, "all"], [6.0, "GUNNER", 1, 1], [10.0, "SCRAPPER", 3, 1]]},

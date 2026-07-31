@@ -1214,6 +1214,76 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## WAVE EVENTS. Reported: "every 4 waves there should be a special event."
+	## Waves 4, 8 and 12 already carried something, but a boarding hulk arriving
+	## unannounced reads as "more boarders" rather than as the wave changing shape.
+	var evented: Array[int] = []
+	for w in range(1, SkyGearData.WAVES.size() + 1):
+		if SkyGearGame.event_for(w) != "":
+			evented.append(w)
+	_check("event", "every fourth wave has one",
+		str(evented) == str([4, 8, 12] as Array[int]), "got %s" % str(evented))
+	## And no two of them are the same. The whole complaint was repetition; two
+	## boarding pushes with different numbers is not an event, it is a difficulty
+	## curve with a name on it.
+	var kinds := {}
+	for w in evented:
+		kinds[SkyGearGame.event_for(w)] = true
+	_check("event", "and no two of them are the same event",
+		kinds.size() == evented.size(), "%d kinds for %d waves"
+			% [kinds.size(), evented.size()])
+	## Each one has to say what it is, or the player learns it by dying to it.
+	var unnamed := ""
+	for id in SkyGearData.EVENTS.keys():
+		var data: Dictionary = SkyGearData.EVENTS[id]
+		if str(data.get("name", "")) == "" or str(data.get("blurb", "")) == "":
+			unnamed += " " + str(id)
+	_check("event", "and each announces itself before it starts", unnamed == "",
+		unnamed)
+
+	## Running one turns it on, and the NEXT wave turns it off — an event that
+	## leaks into wave 9 is a permanent difficulty change nobody chose.
+	game.go_to_title()
+	game.set_seed_text("EVENTS")
+	game.begin_run()
+	game.start_wave(8)
+	_check("event", "starting wave 8 runs the blackout",
+		game.active_event == "blackout", "got '%s'" % game.active_event)
+	_check("event", "and it announces itself for a few seconds",
+		game.event_banner_left > 1.0)
+	## It pays, which is what makes engaging with it a choice rather than a tax.
+	_check("event", "and the blackout is worth being out in",
+		game.event_salvage_bonus() > 0.0 and game.event_pressure_bonus() > 0.0)
+	game.start_wave(9)
+	_check("event", "and wave 9 is a normal wave again",
+		game.active_event == "" and game.event_salvage_bonus() == 0.0,
+		"still '%s'" % game.active_event)
+
+	## The banner has to expire on its own, or it sits over the fight.
+	game.start_wave(4)
+	_check("event", "wave 4 runs the grapple", game.active_event == "grapple")
+	for _t in 60:
+		game._process(0.1)
+	_check("event", "and the announcement clears itself",
+		game.event_banner_left <= 0.0, "%.1fs left" % game.event_banner_left)
+	_check("event", "while the event itself keeps running",
+		game.active_event == "grapple")
+
+	## The renderer has to be able to hear about the dark one.
+	_check("event", "the deck can be darkened for the blackout",
+		game.view != null and game.view.has_method("set_darkness"))
+
+	## Sweep the deck. Four `start_wave` calls queued four waves of boarders, and
+	## `enemy_count` is tree-wide — leaving them alive fails a view check two
+	## hundred lines later with a number nobody can trace back to here.
+	for stray in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(stray):
+			stray.dead = true
+			stray.queue_free()
+	game.spawn_queue.clear()
+	game.go_to_title()
+	await game.get_tree().process_frame
+
 	## FRAMES. Reported: "the text begins outside of the frame and continues over
 	## onto the right so it's hard to read." The cause was two functions answering
 	## "where does the brass end" differently — `SkyGearHUD._nine` drew a rail of
