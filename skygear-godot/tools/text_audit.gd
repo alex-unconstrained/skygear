@@ -36,6 +36,7 @@ const SCREENS := [
 	{"name": "title + controls", "state": "TITLE", "keys": true},
 	{"name": "settings", "state": "TITLE", "settings": true},
 	{"name": "how to play", "state": "TITLE", "how": true},
+	{"name": "the workshop", "state": "TITLE", "workshop": true},
 	{"name": "how to play mid-run", "state": "PAUSE", "skills": 4, "how": true},
 	{"name": "draft (weapons)", "state": "DRAFT", "skills": 0},
 	{"name": "draft (upgrades)", "state": "DRAFT", "skills": 4},
@@ -176,6 +177,7 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 	game.settings_open = false
 	game.keys_open = false
 	game.how_open = false
+	game.workshop_open = false
 	game.go_to_title()
 	game.set_seed_text("AUDIT")
 
@@ -208,4 +210,13 @@ func _pose(game, hud, screen: Dictionary, size: Vector2) -> void:
 	game.keys_open = bool(screen.get("keys", false))
 	game.settings_open = bool(screen.get("settings", false))
 	game.how_open = bool(screen.get("how", false))
+	if bool(screen.get("workshop", false)):
+		## Unlocked and part-bought, so the audit sees bought, affordable and
+		## locked nodes rather than one uniform dimmed column.
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.workshop.unlocked = true
+		game.workshop.scrip = 640
+		for id in ["padded_coat", "bootblacking", "manifest", "tally"]:
+			SkyGearWorkshop.buy(game.workshop, id)
+		game.workshop_open = true
 	await process_frame

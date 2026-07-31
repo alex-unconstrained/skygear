@@ -38,6 +38,14 @@ func _new_game() -> SkyGearGame:
 	## seconds would advance less depending on how many boarders died in them.
 	if game.impact != null:
 		game.impact.enabled = false
+	## AND NO WORKSHOP. `game.workshop` loads from `user://` at construction, so
+	## without this the harness measures whatever the developer running it has
+	## unlocked — an earlier version of this file left a fully-bought tree on disk
+	## and three unrelated checks went red with a buffed captain and a buffed
+	## cannon. A harness that depends on a save file is not a harness.
+	##
+	## Ephemeral, so nothing a test does here can write back out either.
+	game.workshop = SkyGearWorkshop.fresh(true)
 	return game
 
 
@@ -1243,6 +1251,120 @@ func _view() -> void:
 	## paused game there was no way to restart or quit short of alt-F4.
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
+
+	## THE WORKSHOP. `V10-PLAN.md` cut meta-progression as "a way to postpone the
+	## moment this game becomes excellent", and the park was right when written.
+	## What makes it safe now is one constraint doing most of the work.
+	## EPHEMERAL. Everything below buys, banks and respecs, and every one of those
+	## writes to disk — this block would otherwise hand whoever ran the harness a
+	## fully-bought Workshop and erase what they had earned.
+	var shop := SkyGearWorkshop.fresh(true)
+
+	## THE GATE. Nothing exists before a first victory — not unlocked, not shown,
+	## not banked-and-hidden, not retroactive. Every run up to a first DECK HELD
+	## is exactly the shipped game at today's numbers, which is what forecloses
+	## being behind a curve that has not started.
+	var lost := SkyGearWorkshop.bank(shop,
+		{"won": false, "wave": 11, "seed": "A", "vents": 9, "close_share": 70})
+	_check("shop", "a loss before your first win pays nothing",
+		int(lost.scrip) == 0 and not bool(shop.unlocked),
+		"paid %d" % int(lost.scrip))
+	_check("shop", "and there is nothing to spend it on either",
+		not SkyGearWorkshop.can_buy(shop, "padded_coat"))
+
+	var won := SkyGearWorkshop.bank(shop,
+		{"won": true, "wave": 12, "seed": "B", "vents": 9, "close_share": 70})
+	_check("shop", "the first win opens it", bool(shop.unlocked)
+		and int(won.scrip) > 0, "%d scrip" % int(won.scrip))
+	_check("shop", "and pays a sigil for the first of a thing",
+		int(shop.sigils) > 0, "%d sigils" % int(shop.sigils))
+
+	## SIGILS COME ONLY FROM FIRSTS, so the impactful currency cannot be farmed.
+	var sigils_before: int = int(shop.sigils)
+	SkyGearWorkshop.bank(shop,
+		{"won": true, "wave": 12, "seed": "C", "vents": 9, "close_share": 70})
+	_check("shop", "and a second identical win pays no more sigils",
+		int(shop.sigils) == sigils_before,
+		"%d -> %d" % [sigils_before, int(shop.sigils)])
+
+	## A REPEATED SEED PAYS A QUARTER, or the run log becomes a spreadsheet you
+	## farm your best seed on.
+	var fresh_seed := SkyGearWorkshop.scrip_for(
+		{"won": true, "wave": 12, "vents": 9, "close_share": 70}, false)
+	var again := SkyGearWorkshop.scrip_for(
+		{"won": true, "wave": 12, "vents": 9, "close_share": 70}, true)
+	_check("shop", "and replaying a seed you have beaten pays a quarter",
+		again < fresh_seed and again > 0, "%d against %d" % [again, fresh_seed])
+
+	## TIERS OPEN ON COUNT. A tier that is simply hidden makes a branch look
+	## finished at two nodes.
+	shop.scrip = 100000
+	_check("shop", "a branch starts with only its first tier open",
+		SkyGearWorkshop.can_buy(shop, "padded_coat")
+			and not SkyGearWorkshop.can_buy(shop, "long_arms"))
+	SkyGearWorkshop.buy(shop, "padded_coat")
+	SkyGearWorkshop.buy(shop, "bootblacking")
+	_check("shop", "and two purchases open the next",
+		SkyGearWorkshop.can_buy(shop, "sea_legs"))
+	## Ranks are capped.
+	for _i in 8:
+		SkyGearWorkshop.buy(shop, "padded_coat")
+	_check("shop", "and a node cannot be bought past its ranks",
+		SkyGearWorkshop.rank(shop, "padded_coat")
+			== int(SkyGearWorkshop.NODES.padded_coat.ranks),
+		"%d ranks" % SkyGearWorkshop.rank(shop, "padded_coat"))
+
+	## RESPEC IS FREE AND TOTAL. Charging for it taxes experimenting, which is
+	## the only thing a tree this small has to offer.
+	var before_respec: int = int(shop.scrip)
+	SkyGearWorkshop.respec(shop)
+	_check("shop", "respec refunds everything", int(shop.scrip) > before_respec
+		and (shop.nodes as Dictionary).is_empty())
+
+	## THE LOAD-BEARING BALANCE CLAIM: the whole tree, fully bought, is worth
+	## less than three draft cards. Compared as resolved numbers rather than
+	## trusted — the tree is flat and additive, the cards are multiplicative, and
+	## the moment that stops being true the draft stops deciding the run.
+	shop.scrip = 100000
+	for _pass in 4:
+		for id in SkyGearWorkshop.NODES.keys():
+			for _r in int(SkyGearWorkshop.NODES[id].ranks):
+				SkyGearWorkshop.buy(shop, id)
+	var everything: Dictionary = SkyGearWorkshop.resolved(shop)
+	## Three typical cards: +30% damage, +35% area, +30% range on one slot.
+	var tree_damage: float = 1.0 + float(everything.get("crit_chance", 0.0))
+	var three_cards := 1.30 * 1.35 * 1.30
+	_check("shop", "the whole tree is worth less than three cards",
+		tree_damage < three_cards,
+		"tree x%.2f against cards x%.2f" % [tree_damage, three_cards])
+	## And no node is a multiplier on damage at all — that is the draft's job.
+	var multiplies := ""
+	for id in SkyGearWorkshop.NODES.keys():
+		if str(SkyGearWorkshop.NODES[id].field) in ["damage", "elem_damage",
+				"crit_damage", "multi", "pierce", "residue"]:
+			multiplies += " " + id
+	_check("shop", "and no talent takes a card's exclusive", multiplies == "",
+		multiplies)
+
+	## Every node has to be reachable, or it is a line in a table nobody can buy.
+	var unreachable := ""
+	for id in SkyGearWorkshop.NODES.keys():
+		var node: Dictionary = SkyGearWorkshop.NODES[id]
+		var in_branch := 0
+		for other in SkyGearWorkshop.NODES.keys():
+			if str(SkyGearWorkshop.NODES[other].branch) == str(node.branch):
+				in_branch += 1
+		if int(node.tier) * SkyGearWorkshop.TIER_STEP >= in_branch:
+			unreachable += " " + id
+	_check("shop", "and every node can actually be reached", unreachable == "",
+		unreachable)
+
+	## And the harness cannot reach a real save, which is the check that stops
+	## the check above being dangerous.
+	_check("shop", "a test workshop never touches the file on disk",
+		bool(shop.get("ephemeral", false))
+			and SkyGearWorkshop.save_state(shop)
+			and not bool(SkyGearWorkshop.load_state().get("ephemeral", false)))
 
 	## THE BOILERWRIGHT. A second class, and the point of it is that it is not a
 	## reskin — `docs/CLASS-2-DESIGN.md` argues at length that a class which

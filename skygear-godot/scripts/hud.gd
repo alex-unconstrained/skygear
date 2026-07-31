@@ -30,6 +30,10 @@ func _draw() -> void:
 		return
 	_in_frame = false
 	_banner_claim = false
+	if game.workshop_open:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+		_draw_workshop()
+		return
 	if game.how_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_how()
@@ -107,6 +111,10 @@ func _draw_title() -> void:
 	if ui.button(Rect2(tx, ty, tw, 44.0), "BEGIN RUN",
 			{"primary": true, "hint": "Enter"}):
 		game.begin_run()
+	if bool(game.workshop.unlocked):
+		if ui.button(Rect2(tx, ty - 46.0, tw, 34.0),
+				"THE WORKSHOP  ·  %d" % int(game.workshop.scrip), {"hint": "F6"}):
+			game.workshop_open = true
 	if ui.button(Rect2(tx, ty + 52.0, tw, 38.0), "HOW TO PLAY", {"hint": "F1"}):
 		game.how_open = true
 	if ui.button(Rect2(tx, ty + 96.0, tw, 38.0), "SETTINGS", {"hint": "F5"}):
@@ -1620,6 +1628,106 @@ func _wrapped_lines(text: String, width: float, pt: int) -> int:
 		else:
 			run = trial
 	return count
+
+
+## THE WORKSHOP. Four columns, one per branch, because the tree is four
+## independent ladders rather than a graph — and a graph you have to trace is a
+## screen a player reads once and then clicks through from memory.
+##
+## A locked tier is drawn, dimmed, with its condition on it. Hiding it would make
+## the branch look finished at two nodes; showing it is what makes the second
+## purchase in a branch feel like it opened something.
+func _draw_workshop() -> void:
+	_in_frame = false
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
+	var w: Dictionary = game.workshop
+	var tallest := 0.0
+	for branch in SkyGearWorkshop.BRANCHES:
+		var height := 16.0
+		var seen := -1
+		for id in SkyGearWorkshop.NODES.keys():
+			if str(SkyGearWorkshop.NODES[id].branch) != branch:
+				continue
+			var t := int(SkyGearWorkshop.NODES[id].tier)
+			if t != seen:
+				seen = t
+				if t > 0:
+					height += 18.0
+			height += 38.0
+		tallest = maxf(tallest, height)
+	var tall: float = minf(size.y - 116.0, tallest + 92.0 + 108.0 + 62.0)
+	var page := Rect2(size.x * 0.5 - 520.0, maxf(48.0, (size.y - tall) * 0.4),
+		1040.0, tall)
+	_sheet(page)
+	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
+	_center_text("THE WORKSHOP", page.position.y + 48.0, 34, BRASS_LIT)
+	var room := interior(page)
+	## Below the banner, not under it. The banner art overhangs the plate.
+	_label("%d SCRIP · %d SIGILS" % [int(w.scrip), int(w.sigils)],
+		Vector2(room.position.x, room.position.y + 76.0), room.size.x,
+		HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#37f0c8"))
+
+	ui.begin("workshop", self, font, get_local_mouse_position())
+	var col_w: float = room.size.x / 4.0 - 10.0
+	for c in SkyGearWorkshop.BRANCHES.size():
+		var branch: String = str(SkyGearWorkshop.BRANCHES[c])
+		var x: float = room.position.x + c * (col_w + 13.0)
+		var y: float = room.position.y + 104.0
+		_label(str(SkyGearWorkshop.BRANCH_NAMES[branch]), Vector2(x, y), col_w,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(str(SkyGearWorkshop.BRANCH_NAMES[branch]), col_w, 13, 10),
+			Color("#e8c376"))
+		y += 16.0
+		var shown_tier := -1
+		for id in SkyGearWorkshop.NODES.keys():
+			var node: Dictionary = SkyGearWorkshop.NODES[id]
+			if str(node.branch) != branch:
+				continue
+			var tier := int(node.tier)
+			var open: bool = SkyGearWorkshop.tier_open(w, branch, tier)
+			if tier != shown_tier:
+				shown_tier = tier
+				if tier > 0:
+					## The condition, spelled out. "Locked" with no reason is the
+					## most annoying word a menu can use.
+					_label("tier %d — buy %d in this branch" % [tier + 1,
+						tier * SkyGearWorkshop.TIER_STEP],
+						Vector2(x, y + 12.0), col_w, HORIZONTAL_ALIGNMENT_LEFT, 10,
+						Color("#37f0c8") if open else Color("#5f5863"))
+					y += 18.0
+			var have := SkyGearWorkshop.rank(w, id)
+			var maxed: bool = have >= int(node.ranks)
+			var afford: bool = SkyGearWorkshop.can_buy(w, id)
+			var box := Rect2(x, y, col_w, 34.0)
+			var label := "%s %s" % [str(node.name),
+				("MAX" if maxed else "%d/%d" % [have, int(node.ranks)])]
+			if ui.button(box, "", {"disabled": not afford}):
+				SkyGearWorkshop.buy(w, id)
+			## The button draws its own frame; the words go on top, left aligned,
+			## because a centred two-line node is unreadable in a 240px column.
+			var tint: Color = Color("#7be8a8") if maxed else 				(BONE if afford else Color("#6f6878"))
+			_label(label, Vector2(box.position.x + 8.0, box.position.y + 14.0),
+				box.size.x - 52.0, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(label, box.size.x - 52.0, 12, 9), tint)
+			_label(str(node.text), Vector2(box.position.x + 8.0, box.position.y + 27.0),
+				box.size.x - 16.0, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(str(node.text), box.size.x - 16.0, 10, 7), Color("#9a92a6"))
+			if not maxed:
+				_label("%d" % int(node.cost),
+					Vector2(box.position.x, box.position.y + 21.0), box.size.x - 8.0,
+					HORIZONTAL_ALIGNMENT_RIGHT, 12,
+					Color("#e8c376") if afford else Color("#5f5863"))
+			y += 38.0
+
+	var foot: float = room.end.y - 40.0
+	if ui.button(Rect2(room.position.x, foot, 200.0, 34.0), "RESPEC (FREE)"):
+		SkyGearWorkshop.respec(w)
+	_label("free, and never mid-run — experimenting is all a tree this small has to offer",
+		Vector2(room.position.x + 212.0, foot + 22.0), room.size.x - 430.0,
+		HORIZONTAL_ALIGNMENT_LEFT, 11)
+	if ui.button(Rect2(room.end.x - 200.0, foot, 200.0, 34.0), "BACK",
+			{"primary": true, "hint": "Esc"}):
+		game.workshop_open = false
 
 
 func _draw_settings() -> void:

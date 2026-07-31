@@ -142,6 +142,12 @@ var _layout_from := Vector2.ZERO
 var keys_open := false
 var settings_open := false
 var how_open := false
+var workshop_open := false
+## What you keep between runs. Loaded once; nothing before a first victory.
+var workshop: Dictionary = SkyGearWorkshop.load_state()
+## What the last run paid, so the results screen can say so rather than the
+## player finding out two screens later.
+var banked: Dictionary = {}
 ## The one line of advice, if there is one worth giving. Read-only against the
 ## simulation, so a bad hint is a wrong sentence rather than a wrong game.
 var coach := SkyGearCoach.new()
@@ -228,7 +234,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	## the game's own bindings, or Space dashes while you are choosing a button.
 	## How-to-play and settings each own everything while up, including over a
 	## paused game.
-	if how_open:
+	if workshop_open:
+		if hud.ui.handle(event):
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			workshop_open = false
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+	elif how_open:
 		if hud.ui.handle(event):
 			hud.queue_redraw()
 			get_viewport().set_input_as_handled()
@@ -274,6 +290,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		if blowdown():
 			get_viewport().set_input_as_handled()
 			return
+	if event.keycode == KEY_F6 and bool(workshop.unlocked):
+		workshop_open = not workshop_open
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
 	if event.keycode == KEY_F1:
 		how_open = not how_open
 		hud.queue_redraw()
@@ -676,6 +697,9 @@ func spend_overpressure() -> void:
 
 
 func begin_run() -> void:
+	## Never mid-run. A tree you can edit while being shot at is a fifth ability
+	## button, which is the one thing the design says it must not become.
+	workshop_open = false
 	coach.reset()
 	coach_line = ""
 	settings_open = false
@@ -720,12 +744,26 @@ func begin_run() -> void:
 	src_slot = -1
 	if seed_text == "":
 		set_seed_text("")
+	## WHAT THE WORKSHOP GRANTS, resolved once here and never again. A talent that
+	## could change mid-run would be a card, and cards are the draft's job.
+	##
+	## Applied BEFORE the class kit reads `hp`, so a Padded Coat stacks onto
+	## whichever body the class describes rather than onto the captain's.
+	var talents: Dictionary = SkyGearWorkshop.resolved(workshop)
+	mods.crit_chance = float(mods.crit_chance) + float(talents.get("crit_chance", 0.0))
+	mods.pressure_rate = float(mods.pressure_rate) + float(talents.get("pressure_rate", 0.0))
+	mods.vent_heal = float(mods.vent_heal) + float(talents.get("vent_heal", 0.0))
+	mods.vent_radius = float(mods.vent_radius) + float(talents.get("vent_radius", 0.0))
+	rerolls += int(talents.get("rerolls", 0.0))
+	boiler_max_hp += float(talents.get("boiler_hp", 0.0))
+	boiler_hp = boiler_max_hp
+
 	## The body the class describes. Done here rather than in `SkyGearPlayer`
 	## because the class is a run-level choice and the player node outlives runs.
 	var kit: Dictionary = class_data()
-	player.max_hp = float(kit.get("hp", SkyGearPlayer.MAX_HP))
+	player.max_hp = float(kit.get("hp", SkyGearPlayer.MAX_HP)) 		+ float(talents.get("max_hp", 0.0))
 	player.hp = player.max_hp
-	player.move_speed = float(kit.get("speed", SkyGearPlayer.SPEED))
+	player.move_speed = float(kit.get("speed", SkyGearPlayer.SPEED)) 		* (1.0 + float(talents.get("move_speed", 0.0)))
 	player.max_dash_charges = int(kit.get("dashes", SkyGearPlayer.START_DASH_CHARGES))
 	player.dash_charges = player.max_dash_charges
 	for skill in SkyGearData.STARTING_SKILLS:
@@ -836,7 +874,17 @@ func _set_state(next_state: State) -> void:
 			"salvage": int(tel.salvage),
 			"rerolls": int(tel.rerolls),
 			"close_share": _close_share(),
+			"class_id": class_id,
 			"report": run_report(),
+		})
+		## And what it was worth. Nothing accrues before a first victory — the
+		## gate lives in `SkyGearWorkshop.bank`, not here, so there is exactly one
+		## place that knows the rule.
+		banked = SkyGearWorkshop.bank(workshop, {
+			"won": next_state == State.VICTORY, "wave": wave,
+			"seed": seed_text, "vents": int(tel.vents),
+			"healed": roundi(float(tel.healed)),
+			"close_share": _close_share(), "class_id": class_id,
 		})
 	hud.queue_redraw()
 
@@ -968,6 +1016,16 @@ func start_wave(next_wave: int) -> void:
 	spawn_queue = _build_spawn_queue(wave)
 	if voice != null and wave > 0:
 		voice.say("wave_start", 1)
+	## Wave-start talents. Flat, capped, and paid at the one moment a player is
+	## reading the screen rather than being shot at.
+	var granted: Dictionary = SkyGearWorkshop.resolved(workshop)
+	if float(granted.get("wave_heal", 0.0)) > 0.0:
+		player.heal(float(granted.wave_heal))
+	if float(granted.get("wave_pressure", 0.0)) > 0.0:
+		pressure = maxf(pressure, float(granted.wave_pressure))
+		player.set_pressure(pressure)
+	if float(granted.get("boiler_repair", 0.0)) > 0.0 and wave > 1:
+		boiler_hp = minf(boiler_max_hp, boiler_hp + float(granted.boiler_repair))
 	wave_time = 0.0
 	wave_clear_time = -1.0
 	projectiles.clear()
