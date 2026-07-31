@@ -17,6 +17,20 @@ set "GODOT=%LOCALAPPDATA%\..\..\.local\bin\godot.exe"
 if not exist "%GODOT%" set "GODOT=%USERPROFILE%\.local\bin\godot.exe"
 if not exist "%GODOT%" set "GODOT=godot"
 
+REM The two Python tools worth reaching for directly.
+if /i "%~1"=="parity" (
+  cd /d "%~dp0skygear-godot"
+  python tools/parity.py --open
+  pause
+  exit /b
+)
+if /i "%~1"=="pack" (
+  cd /d "%~dp0skygear-godot"
+  python tools/pack_itch.py
+  pause
+  exit /b
+)
+
 if "%~1"=="" goto menu
 
 "%GODOT%" --path . --headless --script tools/hub.gd -- %*

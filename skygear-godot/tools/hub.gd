@@ -60,6 +60,9 @@ const TOOLS := [
 ## of it — a launcher you still have to remember things outside of is a launcher
 ## nobody trusts.
 const SCRIPTS := [
+	{"id": "parity", "run": "python tools/parity.py --open",
+		"what": "browser against Godot, same moment, side by side",
+		"why": "the only evidence for a parity claim that is not my memory"},
 	{"id": "pack", "run": "python tools/pack_itch.py",
 		"what": "export the Windows build and zip it",
 		"why": "what goes to itch"},
@@ -89,6 +92,14 @@ func _run() -> void:
 		quit(0)
 		return
 
+	## The open list, in front of me whenever I reach for a tool. The skybox was
+	## reported twice and slipped twice because there was nowhere for it to sit
+	## between being said and being done.
+	if want == "todo":
+		_todo()
+		quit(0)
+		return
+
 	if want == "all":
 		quit(_run_all())
 		return
@@ -108,6 +119,23 @@ func _run() -> void:
 	quit(1)
 
 
+## Prints the Open half of `docs/OUTSTANDING.md`. Deliberately the file rather
+## than a copy in here: two lists disagree within a week, and the file is the one
+## a human edits.
+func _todo() -> void:
+	var text := FileAccess.get_file_as_string("res://docs/OUTSTANDING.md")
+	if text == "":
+		print("docs/OUTSTANDING.md is missing")
+		return
+	var open_at := text.find("## Open")
+	var done_at := text.find("## Done")
+	if open_at < 0:
+		print(text)
+		return
+	print("")
+	print(text.substr(open_at, (done_at - open_at) if done_at > open_at else -1))
+
+
 func _list() -> void:
 	print("")
 	print("SKYGEAR TOOLS      godot --path . --script tools/hub.gd -- <name>")
@@ -124,6 +152,10 @@ func _list() -> void:
 			if str(tool.why) != "":
 				print("               %s" % str(tool.why))
 		print("")
+	print("  THE LIST")
+	print("    todo       what has been asked for and is not done")
+	print("               read from docs/OUTSTANDING.md, which is the real one")
+	print("")
 	print("  NOT GODOT — run these yourself")
 	for tool in SCRIPTS:
 		print("    %-10s %s" % [str(tool.id), str(tool.what)])
