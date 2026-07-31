@@ -1489,12 +1489,68 @@ func _view() -> void:
 			for _r in int(SkyGearWorkshop.NODES[id].ranks):
 				SkyGearWorkshop.buy(shop, id)
 	var everything: Dictionary = SkyGearWorkshop.resolved(shop)
+	## EVERY FIELD THE TREE CAN GRANT HAS TO BE ACCOUNTED FOR.
+	##
+	## This check used to read ONE of them. It resolved the fully-bought tree,
+	## took `crit_chance`, and compared 1.06 against 2.28 — a constant against a
+	## constant, with the other twenty-nine fields unexamined. It could not go red.
+	## A talent granting +100% damage under any other name would have sailed past
+	## it green, which is the precise opposite of what a load-bearing balance
+	## claim restated in three design documents is supposed to be protected by.
+	##
+	## So the table below is the check. A field that is not in it FAILS, and that
+	## is the feature: the next person to add a node either classifies what it
+	## does to a run or the harness stops them. Only the offensive buckets are
+	## measured against the cards, because only those are the draft's exclusive —
+	## the tree is allowed to be generous with health and rerolls and is not
+	## allowed to be generous with damage.
+	const OFFENCE := ["damage", "reach"]
+	var buckets := {
+		## multiplies the harm the captain herself does — the draft's territory
+		"crit_chance": "damage",
+		## makes that harm land further out, which is output by another route
+		"range": "reach", "vent_radius": "reach",
+		## staying alive longer is not the same as hitting harder
+		"max_hp": "survival", "brace": "survival", "boiler_hp": "survival",
+		"boiler_repair": "survival", "salvage_heal": "survival",
+		"vent_heal": "survival", "wave_heal": "survival", "recall": "survival",
+		"deadmans_switch": "survival", "scuttle": "survival",
+		"keel_hauling": "survival",
+		"move_speed": "mobility", "dash_recharge": "mobility",
+		## the ship fights for you; capped separately by the crew balance checks
+		"turret_rate": "allies", "turret_hp": "allies", "extra_crew": "allies",
+		"extra_kegs": "allies", "press_gang": "allies", "second_shift": "allies",
+		## and the rest buys information and choices, not power
+		"rerolls": "economy", "fourth_card": "economy",
+		"pressure_rate": "economy", "wave_pressure": "economy",
+		"show_queue": "readout", "show_numbers": "readout",
+		"show_manifest": "readout", "show_ledger": "readout",
+	}
+	var unclassified := ""
+	for id in SkyGearWorkshop.NODES.keys():
+		var field := str(SkyGearWorkshop.NODES[id].field)
+		if not buckets.has(field):
+			unclassified += " %s(%s)" % [id, field]
+	_check("shop", "every talent's field is classified as power or not",
+		unclassified == "",
+		"unclassified:%s — say what it does to a run" % unclassified)
+
+	## Now the claim itself, over every offensive field rather than one of them.
+	## Multiplied, because that is how the run applies them and how the cards
+	## stack; a tree that granted +40% crit and +40% range would be 1.96 and would
+	## have to answer for it.
+	var tree_damage := 1.0
+	var counted := ""
+	for field in everything.keys():
+		if str(buckets.get(field, "")) in OFFENCE:
+			tree_damage *= 1.0 + float(everything[field])
+			counted += " %s+%.0f%%" % [field, float(everything[field]) * 100.0]
 	## Three typical cards: +30% damage, +35% area, +30% range on one slot.
-	var tree_damage: float = 1.0 + float(everything.get("crit_chance", 0.0))
 	var three_cards := 1.30 * 1.35 * 1.30
 	_check("shop", "the whole tree is worth less than three cards",
 		tree_damage < three_cards,
-		"tree x%.2f against cards x%.2f" % [tree_damage, three_cards])
+		"tree x%.2f (%s ) against cards x%.2f"
+			% [tree_damage, counted, three_cards])
 	## And no node is a multiplier on damage at all — that is the draft's job.
 	var multiplies := ""
 	for id in SkyGearWorkshop.NODES.keys():

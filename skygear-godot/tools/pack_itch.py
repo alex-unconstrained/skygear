@@ -39,8 +39,10 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
   LMB RMB   skills 1 and 2 (actives take these first)
   Q E       skills 3 and 4
   Space     dash (two charges)
-  F         work the deck — repair a dead cannon you are standing at
-  wheel     zoom
+  R (hold)  work the deck — repair a dead cannon you are standing at.
+            Holding is the point: it is a commitment, and walking away,
+            casting or taking a hit all abandon it.
+  wheel     zoom out (the shipped framing is as close as it gets)
   1 2 3     pick a draft card
   R         reroll the draft
   Esc / P   pause
