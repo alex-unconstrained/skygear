@@ -1,0 +1,21 @@
+{
+  "key": "boss",
+  "ai_model": "meshy-6",
+  "prompt": "A colossal steampunk siege mech: a vast riveted brass and iron barrel torso with a glowing orange furnace grate at its centre; a tiny domed head with one amber lens; two enormous cannon barrels over the shoulders angled up and outward; huge oversized armoured fists on short arms; thick armoured legs with anchor-shaped feet. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, verdigris teal accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow.",
+  "texture_prompt": "Blackened iron plate with heavy polished brass banding and rivets, a hot orange furnace grate, verdigris teal in the seams, bare worn steel around the cannon mouths. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, verdigris teal in the recesses, bare worn metal along the working edges. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 20000,
+  "texture_resolution": "2k",
+  "preview_task": "019fb6ce-7e48-74d9-9671-1de916672c92",
+  "refine_task": "019fb6d0-28f2-75bf-ad4f-903906a408d3",
+  "credits": 30,
+  "files": [
+    "boss.glb",
+    "boss.fbx",
+    "boss_base_color.png",
+    "boss_metallic.png",
+    "boss_roughness.png",
+    "boss_normal.png",
+    "boss_emission.png",
+    "boss_thumb.png"
+  ]
+}

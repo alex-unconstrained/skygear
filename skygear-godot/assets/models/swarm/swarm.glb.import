@@ -3,13 +3,13 @@
 importer="scene"
 importer_version=1
 type="PackedScene"
-uid="uid://cde5sjxy04kux"
-path="res://.godot/imported/sword_gearblade.glb-b223de933a9fb66c713eb90d085a1cac.scn"
+uid="uid://bemjenu02dpmq"
+path="res://.godot/imported/swarm.glb-b0952912d01c506b0f6ceff74b3fade9.scn"
 
 [deps]
 
-source_file="res://assets/models/sword_gearblade/sword_gearblade.glb"
-dest_files=["res://.godot/imported/sword_gearblade.glb-b223de933a9fb66c713eb90d085a1cac.scn"]
+source_file="res://assets/models/swarm/swarm.glb"
+dest_files=["res://.godot/imported/swarm.glb-b0952912d01c506b0f6ceff74b3fade9.scn"]
 
 [params]
 

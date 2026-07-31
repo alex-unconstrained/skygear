@@ -28,5 +28,80 @@
    "sword_gearblade_emission.png",
    "sword_gearblade_thumb.png"
   ]
+ },
+ "gunner": {
+  "preview": "019fb6c4-49f3-731c-8247-66925fb9ade0",
+  "refine": "019fb6c5-ccb2-7363-b6f9-0b938c490d33",
+  "credits": 30,
+  "files": [
+   "gunner.glb",
+   "gunner.fbx",
+   "gunner_base_color.png",
+   "gunner_metallic.png",
+   "gunner_roughness.png",
+   "gunner_normal.png",
+   "gunner_emission.png",
+   "gunner_thumb.png"
+  ]
+ },
+ "armored": {
+  "preview": "019fb6c7-ae48-73a1-a908-537ed06d0707",
+  "refine": "019fb6c9-0680-74b3-9723-a1491bc3ffd2",
+  "credits": 30,
+  "files": [
+   "armored.glb",
+   "armored.fbx",
+   "armored_base_color.png",
+   "armored_metallic.png",
+   "armored_roughness.png",
+   "armored_normal.png",
+   "armored_emission.png",
+   "armored_thumb.png"
+  ]
+ },
+ "swarm": {
+  "preview": "019fb6cb-1d48-708e-996f-a36d8e691b23",
+  "refine": "019fb6cc-7aa7-70cb-8456-f087dbc82382",
+  "credits": 30,
+  "files": [
+   "swarm.glb",
+   "swarm.fbx",
+   "swarm_base_color.png",
+   "swarm_metallic.png",
+   "swarm_roughness.png",
+   "swarm_normal.png",
+   "swarm_emission.png",
+   "swarm_thumb.png"
+  ]
+ },
+ "boss": {
+  "preview": "019fb6ce-7e48-74d9-9671-1de916672c92",
+  "refine": "019fb6d0-28f2-75bf-ad4f-903906a408d3",
+  "credits": 30,
+  "files": [
+   "boss.glb",
+   "boss.fbx",
+   "boss_base_color.png",
+   "boss_metallic.png",
+   "boss_roughness.png",
+   "boss_normal.png",
+   "boss_emission.png",
+   "boss_thumb.png"
+  ]
+ },
+ "scrapper": {
+  "preview": "019fb6d3-1049-7617-875a-307c965ba1a8",
+  "refine": "019fb6d4-6868-7654-a11a-9bcf24e661ca",
+  "credits": 30,
+  "files": [
+   "scrapper.glb",
+   "scrapper.fbx",
+   "scrapper_base_color.png",
+   "scrapper_metallic.png",
+   "scrapper_roughness.png",
+   "scrapper_normal.png",
+   "scrapper_emission.png",
+   "scrapper_thumb.png"
+  ]
  }
 }

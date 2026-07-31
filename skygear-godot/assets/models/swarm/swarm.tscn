@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/swarm/swarm.glb" id="1_pa0mg"]
+
+[node name="Swarm" type="Node3D" unique_id=2063047407]
+metadata/model_height = 1.8977649
+
+[node name="Holder" type="Node3D" parent="." unique_id=1415640388]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0014509559, 0.95066, 0.0010894835)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=751823129 instance=ExtResource("1_pa0mg")]

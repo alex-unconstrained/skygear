@@ -1318,6 +1318,18 @@ func _view() -> void:
 			stray.dead = true
 			stray.queue_free()
 	game.pressure = 0.0
+	## ASSERT THE PRECONDITION. This check went red about one run in six and the
+	## message — "said: you have been at range a while" — pointed at the coach,
+	## when the truth was that the deck was not empty: `queue_free` does not leave
+	## the group until the node is actually removed, and one clear plus one frame
+	## is not always enough. A test whose setup can silently fail is a test that
+	## accuses the wrong code.
+	var left := 0
+	for stray in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(stray) and not stray.dead:
+			left += 1
+	_check("coach", "the deck really is empty before we test an empty deck",
+		left == 0, "%d boarders still aboard" % left)
 	var alone := ""
 	for _t in 400:
 		var said: String = game.coach.advise(game, 0.1)

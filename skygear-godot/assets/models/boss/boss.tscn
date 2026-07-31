@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/boss/boss.glb" id="1_rsb1p"]
+
+[node name="Boss" type="Node3D" unique_id=885279140]
+metadata/model_height = 1.897141
+
+[node name="Holder" type="Node3D" parent="." unique_id=1270232425]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0013549924, 0.950332, 0.00048401952)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1868615435 instance=ExtResource("1_rsb1p")]

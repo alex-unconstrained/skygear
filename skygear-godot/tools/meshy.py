@@ -99,12 +99,20 @@ API = "https://api.meshy.ai"
 #    that. So every clause here has to earn its place, and the redundant
 #    negatives that are cheap in a 2D prompt ("no pedestal" AND "no base" AND
 #    "no ground plane") are collapsed to one.
-STYLE_3D = (
-    "Stylised game-ready steampunk airship prop: blackened steel, riveted brass "
+PALETTE = (
+    "blackened steel, riveted brass "
     "fittings, oxblood leather, verdigris teal accents, honest wear at the "
     "edges. Chunky readable forms and broad flat colour areas, not photoreal, "
     "no micro-detail. Flat albedo, no baked lighting, no baked shadow, no glow."
 )
+
+# Two nouns, one vocabulary. Split out when the boarders arrived: calling a
+# character a "prop" got Meshy to hand back a suit of armour on a display stand
+# rather than a knight. The palette sentence is deliberately shared and
+# deliberately not re-typed — it is the one clause that has to stay identical
+# across thirty painted assets and everything generated beside them.
+STYLE_3D = "Stylised game-ready steampunk airship prop: " + PALETTE
+STYLE_FIGURE = "Stylised game-ready steampunk airship character: " + PALETTE
 
 # The frame every weapon in this manifest is generated in. CONCEPT's job in the
 # 2D tool was to keep the reference sheet legible; this one's job is to keep the
@@ -126,6 +134,36 @@ SURFACE = (
     "shadow, no text, no logos."
 )
 
+# The one boarder that is not made of metal. SURFACE names five metals and no
+# skin, and a texture prompt that never says "skin" paints the gremlin as a
+# small brass statue — which is a different enemy.
+SURFACE_SKIN = (
+    "Hand-painted stylised game texture: mottled green skin, worn oxblood "
+    "leather, warm polished brass, faded crimson cloth, verdigris teal in the "
+    "recesses. Broad flat colour areas, no baked lighting, no baked shadow, no "
+    "text, no logos."
+)
+
+
+# The frame for a boarder. PROP's clauses are all about a single object on no
+# stand; a character needs the opposite half of the same argument — one figure,
+# both feet down, arms out of the torso's silhouette. That last clause is the
+# one that matters at this camera: the deck is seen from 41 degrees and an arm
+# folded across the chest disappears into the body at that angle.
+FIGURE = (
+    "One character alone, standing upright, facing forward, feet flat on the "
+    "ground, arms clear of the body. No base, no plinth, no ground plane, no "
+    "scenery, no duplicate, no text. " + STYLE_FIGURE
+)
+
+# The gunner is the one boarder with nothing to stand on. Telling a flying
+# machine its feet are flat on the ground is how you get feet.
+FLYER = (
+    "One flying machine alone, hovering level, facing forward, symmetrical. No "
+    "legs, no feet, no base, no stand, no ground plane, no scenery, no "
+    "duplicate, no text. " + STYLE_FIGURE
+)
+
 
 # --- what to make -----------------------------------------------------------
 # key         directory under assets/models/ and the state key
@@ -134,9 +172,12 @@ SURFACE = (
 # batch       what `run <batch>` selects
 # polycount   a weapon held by a 176-unit character; 30k (the API default) is
 #             three times more triangles than the silhouette can show
-def A(key, subject, texture, batch, polycount=12000):
+# frame       the shared clauses appended to `subject`: PROP, FIGURE or FLYER
+# surface     the shared clauses appended to `texture`: SURFACE or SURFACE_SKIN
+def A(key, subject, texture, batch, polycount=12000, frame=None, surface=None):
     return dict(key=key, subject=subject, texture=texture, batch=batch,
-                polycount=polycount)
+                polycount=polycount, frame=frame or PROP,
+                surface=surface or SURFACE)
 
 
 ASSETS = [
@@ -186,9 +227,96 @@ ASSETS = [
       "Blackened steel head with a brass cheek plate, oxblood leather haft "
       "wrap, brass butt cap, bare worn steel along the cutting edge.",
       "axe"),
+
+    # --- the five boarders ----------------------------------------------------
+    # These are not new characters. Every one of them already exists as a
+    # painted billboard in assets/art/enemies/, the player has been fighting
+    # them for twelve waves, and the ONLY job of these prompts is to describe
+    # the picture that is already on disk well enough that the mesh reads as the
+    # same enemy. So each subject is written off the billboard, feature by
+    # feature, and the distinguishing feature is named first: the player tells a
+    # scrapper from a swarm at a locked 41-degree camera by the silhouette and
+    # one colour, not by the rivets.
+    #
+    # The key is the enemy kind in lower case, because that is what
+    # SkyGearView3D.model_path() looks for. Renaming one of these silently turns
+    # its boarder back into a billboard.
+    #
+    # Polycount is up from the weapons' 12k: these are 165 to 330 ground units
+    # tall against a sword's 95, and the boss is the one thing on the deck the
+    # camera ever gets close to.
+    # v2. The first one came back a spindly red spider-legged thing with two
+    # amber eyes, and all three failures were in the prompt:
+    #
+    #   * "one large exposed cog set into the chest" became a SECOND glowing
+    #     lens. A round thing on the chest, described one clause after a round
+    #     glowing thing on the head, is read as a matching pair. Same mistake as
+    #     sword_gearblade's second crossguard: the generator resolves an
+    #     unfamiliar part into the nearest familiar shape, and the nearest
+    #     familiar shape was the one in the previous sentence. The cog is gone —
+    #     it was never how you tell a scrapper from anything else.
+    #   * "boarding hooks" alone became small crab pincers. v1 of this line said
+    #     "instead of hands" and it was cut to get under 800 characters, which
+    #     is the single clause that was doing the work. One hook, per arm,
+    #     instead of a hand.
+    #   * proportion was described once, at the front, and lost. "Hunched" and
+    #     "stubby" against the frame's "standing upright" is one word against
+    #     two; it now leads and is repeated as mass rather than as posture.
+    A("scrapper",
+      "A hunched, top-heavy steampunk salvage automaton. A huge riveted "
+      "spherical brass and steel torso; the head sunk low between the "
+      "shoulders, a small dome with a single amber lens and no other light; two "
+      "long thick arms, each ending in one big curved steel boarding hook "
+      "instead of a hand; short thick legs and wide flat feet.",
+      "Blackened steel plating with warm polished brass rivets, a hot amber "
+      "glass lens, verdigris in the seams, bare worn steel on the hooks.",
+      "boarders", 15000, FIGURE),
+
+    A("gunner",
+      "A small steampunk airship drone: a riveted brass disc-shaped body with "
+      "one round glowing pale blue lens in the centre of its face; four short "
+      "arms, one on top and one to each side and one below, each ending in a "
+      "two-blade brass propeller in a ring mount; two short chains hanging "
+      "underneath with pointed iron weights.",
+      "Polished brass shell with blackened steel banding, a cool pale blue "
+      "glass lens, verdigris in the recesses, dark iron chains and weights.",
+      "boarders", 15000, FLYER),
+
+    A("armored",
+      "A huge armoured steampunk furnace knight: heavy riveted plate armour "
+      "over a barrel chest with a glowing orange furnace grate in it; a domed "
+      "helmet with a slotted visor and a spike on top; a brass chimney stack "
+      "rising from the right shoulder; a pressure gauge on the left pauldron; a "
+      "big double-bladed axe held across the body.",
+      "Blackened steel plate with warm brass trim and rivets, a hot orange "
+      "furnace grate, oxblood leather straps, verdigris on the chimney, bare "
+      "worn steel on the axe heads.",
+      "boarders", 18000, FIGURE),
+
+    A("swarm",
+      "A small scrawny green goblin sky-pirate: huge pointed ears, a worn "
+      "leather flight cap with brass goggles pushed up on it, a torn crimson "
+      "hood and short cape, one riveted brass shoulder plate, a little brass "
+      "pressure tank strapped to its back, bare clawed feet, and an oversized "
+      "brass pipe wrench gripped in both hands.",
+      "Mottled green skin, worn oxblood leather cap and straps, faded crimson "
+      "cloth hood, warm polished brass goggles and wrench, verdigris on the "
+      "brass.",
+      "boarders", 15000, FIGURE, SURFACE_SKIN),
+
+    A("boss",
+      "A colossal steampunk siege mech: a vast riveted brass and iron barrel "
+      "torso with a glowing orange furnace grate at its centre; a tiny domed "
+      "head with one amber lens; two enormous cannon barrels over the shoulders "
+      "angled up and outward; huge oversized armoured fists on short arms; "
+      "thick armoured legs with anchor-shaped feet.",
+      "Blackened iron plate with heavy polished brass banding and rivets, a hot "
+      "orange furnace grate, verdigris teal in the seams, bare worn steel "
+      "around the cannon mouths.",
+      "boarders", 20000, FIGURE),
 ]
 
-BATCHES = ["sword", "axe"]
+BATCHES = ["sword", "axe", "boarders"]
 
 # Generation settings. meshy-6 costs 20 credits at preview against meshy-5's 5,
 # and is the difference between a sword and a sword-shaped lump at this
@@ -274,11 +402,11 @@ def bounded(text: str, key: str, field: str) -> str:
 
 
 def prompt_for(a: dict) -> str:
-    return bounded(a["subject"] + " " + PROP, a["key"], "prompt")
+    return bounded(a["subject"] + " " + a["frame"], a["key"], "prompt")
 
 
 def texture_prompt_for(a: dict) -> str:
-    return bounded(a["texture"] + " " + SURFACE, a["key"], "texture_prompt")
+    return bounded(a["texture"] + " " + a["surface"], a["key"], "texture_prompt")
 
 
 # --- tasks ------------------------------------------------------------------
