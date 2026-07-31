@@ -26,7 +26,7 @@ func _initialize() -> void: call_deferred("_run")
 ##   make    changes files or spends money; never in `all`
 const TOOLS := [
 	{"id": "harness", "kind": "check", "script": "tests/parity_test.gd",
-		"what": "the whole simulation, 338 checks",
+		"what": "the whole simulation, 382 checks",
 		"why": "the one thing that must be green before anything ships"},
 	{"id": "text", "kind": "check", "script": "tools/text_audit.gd", "window": true,
 		"what": "every string on 16 screens at 4 resolutions — fit, size and contrast",
@@ -45,11 +45,11 @@ const TOOLS := [
 		"why": "whether a model will actually stand on the deck"},
 
 	{"id": "lab", "kind": "window", "script": "tools/model_lab.gd",
-		"what": "every model in the project: look at it, mount it, save it",
-		"why": "triangles, height in GROUND units, bones — and TAB hangs a small one off the captain"},
+		"what": "every model: view it, RUN its animations, mount a weapon, run the effects, save",
+		"why": "the one place to answer \"is this the right size, does the grip hold through the swing, and what does that effect actually look like\" — and MOUNT/SAVE writes assets/models/weapons.json, which the game reads"},
 	{"id": "fit", "kind": "window", "script": "tools/weapon_fit.gd",
-		"what": "just the captain and her weapon, six poses",
-		"why": "narrower than `lab` and kept for that: six fixed poses to judge a grip against"},
+		"what": "just the captain and her weapon, six fixed poses",
+		"why": "narrower than `lab` and kept for that: six poses side by side rather than a timeline to scrub"},
 
 	{"id": "captain", "kind": "make", "script": "tools/build_captain.gd",
 		"what": "rebuild the captain scene from the imported FBX",

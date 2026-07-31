@@ -17,24 +17,39 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
-### The lab needs animation and VFX playback
-Asked for, and not built. Right now the lab shows a model and mounts weapons.
-What it should also do:
+### The lab needs animation and VFX playback — BUILT; one dial has no home
+Asked for, and now built. `SkyGear Tools.bat lab`, three modes on three buttons.
 
-- **play the animation clips** and scrub them. `tools/anim_timing.gd` already
-  lists every clip and its length; the lab should let you WATCH one, at the
-  speed the game will play it, and step through it to judge a grip at the frame
-  that matters rather than at a fixed pose.
-- **play the VFX loops** and tweak them. The effects are built in `view3d.gd`
-  from code (`_fx`, `_decal`, `_spark`, the particle families in `impact.gd`)
-  and there is nowhere to see one on its own, so every VFX judgement so far has
-  been made mid-fight with boarders on screen.
-- **expose the modifiers**. Anything the renderer reads from a constant that
-  someone might want to tune should be a row in the lab, the way the mount axes
-  now are.
+- **Animation** plays. A timeline along the bottom in VIEW and MOUNT: click any
+  of the fourteen clips, PLAY, drag the bar to scrub, STEP one 60th of a second
+  at a time, and five speed presets down to a tenth. Mounting no longer resets
+  the pose, so a weapon can be nudged AT the frame it slips. `--clip <name>
+  --at <0..1> --shot <png>` renders one named frame headless, which is what a
+  before-and-after on a grip needs.
+- **VFX** loop. FX mode instantiates the real `main3d.tscn` — the real renderer,
+  the real deck, the real camera — and fires the same `_fx` dictionary the skill
+  code fires, on a period you set. Six shapes, four elements, and dials for
+  radius, arc, life, damage, glow, particle size, particle lifetime and a
+  slow-motion time scale. Nothing is re-implemented; a second copy of the effect
+  code was the thing to avoid.
+- **Modifiers** are exposed: wireframe, clay, flat lighting, a grid in GROUND
+  units with a 176-unit ruler post, the skeleton drawn over the mesh, RGB axes
+  on the selected bone, five backdrops, and the key light swung, raised and
+  dimmed. Everything is a button or a drag; nothing needs a key a laptop lacks.
 
-The reference the player shared is the bar: view, run, tweak, map. It is at
-view and map, not run and tweak.
+**What it still cannot do, and why.** The FX dials do not write to a file. Every
+one of them is a *constant* in `view3d.gd` or a literal in a `_fx({...})` call,
+and inventing a JSON for them would be the sixth time this project shipped a
+table nothing reads. SAVE in FX mode puts the numbers on the clipboard next to
+the exact constant they belong to instead. Giving them a real home means giving
+the renderer a reader first — that is a renderer change, not a tool change.
+
+**And one thing the lab found:** `ELEMENT_FX[*].life` in `view3d.gd` is dead.
+Four elements declare a particle lifetime and `impact_at` never reads it — the
+emitter's own `lifetime = 1.0` governs all three families. That is failure mode
+one, already in the tree. It cannot be fixed by reading the field, either:
+`emit_particle` has no per-particle lifetime flag, so honouring it means one
+emitter per element rather than per behaviour.
 
 ### Player projectiles and VFX still read as 2D
 Reported. Two separate causes, and only one of them is a bug:
@@ -227,6 +242,12 @@ this camera pitch.
 Reported. `weapon_fit` is interactive now (arrows nudge, ENTER saves) but **the
 grip itself has not been re-fitted** — the tool was rebuilt, the number was not
 changed. Two minutes in the fitter closes this.
+
+The lab can now show it MOVING, which is the part that was missing: MOUNT, then
+play `swing2` and scrub. At frame 75 of 136 the cutlass is out beside her hip
+rather than in her fist, so this is not a rest-pose offset problem — it is a
+grip that only holds at rest. Nudging is live at whatever frame you paused on,
+and SAVE writes `assets/models/weapons.json`.
 
 ### VFX plan items never started
 From `VFX-PLAN.md`, with no code at all behind them:
