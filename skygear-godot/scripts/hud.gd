@@ -90,7 +90,20 @@ func _draw_title() -> void:
 	ui.begin("title", self, font, get_local_mouse_position())
 	var tw := 300.0
 	var tx: float = size.x * 0.5 - tw * 0.5
-	var ty := 380.0
+	var ty := 402.0
+	## WHO IS ABOARD. A cycling row rather than a screen of its own: there are two
+	## classes, the difference is one sentence, and a separate screen for a binary
+	## choice is a click a player pays every single run.
+	var ids: Array = SkyGearData.CLASSES.keys()
+	var at: int = maxi(0, ids.find(game.class_id))
+	var picked: int = ui.choice(Rect2(tx - 90.0, ty - 56.0, tw + 180.0, 34.0),
+		"CAPTAIN", ids.map(func(k): return str(SkyGearData.CLASSES[k].name)), at)
+	if picked != at:
+		game.set_class(str(ids[picked]))
+	## The one sentence that makes the choice a choice.
+	_says(str(game.class_data().get("blurb", "")),
+		Vector2(tx - 90.0, ty - 14.0), tw + 180.0, HORIZONTAL_ALIGNMENT_CENTER,
+		14, 2, Color("#b9afaa"))
 	if ui.button(Rect2(tx, ty, tw, 44.0), "BEGIN RUN",
 			{"primary": true, "hint": "Enter"}):
 		game.begin_run()
@@ -658,7 +671,11 @@ func _draw_game_hud() -> void:
 
 	var health := l.item("captain", "health", panel)
 	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
-		"CAPTAIN", "%d / %d" % [player.hp, player.max_hp])
+		## Whose health this is. It said CAPTAIN for both, which is wrong the
+		## moment there are two of them — and the short name rather than the full
+		## one, because the bar is 212 wide and "THE BOILERWRIGHT" is not.
+		str(game.class_data().get("name", "CAPTAIN")).replace("THE ", ""),
+		"%d / %d" % [player.hp, player.max_hp])
 	## And what is true of HER right now, in the same chips the boarders use, so
 	## there is one vocabulary rather than two. Only states that change what she
 	## should do: untouchable mid-dash, and a gauge that is ready to vent.
@@ -679,37 +696,29 @@ func _draw_game_hud() -> void:
 			Rect2(Vector2.ZERO, gauge_icon.get_size()),
 			Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#a79bb5"))
 	var pressure_at := l.item("captain", "pressure_label", panel)
-	_label("VENTING" if pressure_ratio >= 1.0 else "PRESSURE",
+	## The gauge is named by the class. His does not vent, so a label that says
+	## VENTING at the top is a promise the game does not keep.
+	var gauge_name: String = str(game.class_data().get("gauge", "PRESSURE"))
+	var venting: bool = pressure_ratio >= 1.0 			and bool(game.class_data().get("gauge_auto_vents", true))
+	_label("VENTING" if venting else gauge_name,
 		pressure_at.position + Vector2(0, pressure_at.size.y), pressure_at.size.x,
 		HORIZONTAL_ALIGNMENT_LEFT, 12,
 		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#b4a8c4"))
-
+	## THE DASH ROW IS THE CLASS ROW. She has two recharging dashes and he has
+	## none, so for him that strip is dead space — and it is exactly where his two
+	## bindings want to be. One row, two meanings, no new layout.
 	var dash_at := l.item("captain", "dash_label", panel)
-	_label("DASH", dash_at.position + Vector2(0, dash_at.size.y), dash_at.size.x,
-		HORIZONTAL_ALIGNMENT_LEFT, 12)
-	var pips := l.item("captain", "dash_pips", panel)
-	var pip_art := _tex("res://assets/art/ui/dash_pip.png")
-	var owned: int = maxi(1, player.max_dash_charges)
-	var pip_r: float = minf(pips.size.y, pips.size.x / float(owned)) * 0.5
-	for i in owned:
-		var lit := i < player.dash_charges
-		var at := Vector2(pips.position.x + pip_r + i * pip_r * 2.2, pips.get_center().y)
-		if pip_art != null:
-			draw_texture_rect_region(pip_art,
-				Rect2(at - Vector2(pip_r, pip_r), Vector2(pip_r * 2, pip_r * 2)),
-				Rect2(Vector2.ZERO, pip_art.get_size()),
-				Color("#9ff5e2") if lit else Color(0.28, 0.26, 0.32))
-		else:
-			draw_circle(at, pip_r, Color("#37f0c8") if lit else Color("#201c28"))
-		## The one currently recharging fills, so "nearly" is visible. Waiting on
-		## a dash with no idea how long is the most common reason to walk into
-		## something.
-		if not lit and i == player.dash_charges and player.dash_recharge_left > 0.0:
-			var done: float = 1.0 - clampf(player.dash_recharge_left
-				/ maxf(0.01, SkyGearPlayer.DASH_RECHARGE), 0.0, 1.0)
-			draw_arc(at, pip_r - 1.0, -PI * 0.5, -PI * 0.5 + TAU * done, 20,
-				Color("#37f0c8"), 2.4)
-
+	if player.max_dash_charges <= 0:
+		var tap_ready: bool = game.tap_cooldown <= 0.0 			and game.pressure >= float(SkyGearData.TAP.cost)
+		var blow_ready: bool = game.pressure >= float(SkyGearData.BLOWDOWN.min_head)
+		var row := Vector2(dash_at.position.x, dash_at.position.y + dash_at.size.y)
+		_label("F  TAP MAIN", row, 88.0, HORIZONTAL_ALIGNMENT_LEFT, 11,
+			Color("#9be8d2") if tap_ready else Color("#5f5863"))
+		_label("V  BLOWDOWN", row + Vector2(92.0, 0.0), 92.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 11,
+			Color("#ffb347") if blow_ready else Color("#5f5863"))
+	else:
+		_dash_pips(dash_at, panel, player, l)
 	## --- the objective, top centre ------------------------------------------
 	## The thing you lose by, where an eye goes first, rather than in a corner
 	## competing with three lane tracks for attention.
@@ -822,6 +831,38 @@ func _draw_game_hud() -> void:
 			name_at.size.x, HORIZONTAL_ALIGNMENT_CENTER,
 			_fits(slot_name, name_at.size.x, 12, 9),
 			element if ready else Color("#8b8296"))
+
+
+## The dash charges. Extracted when the Boilerwright arrived: he has none, and
+## that strip of plate becomes his two bindings instead — one row, two meanings,
+## no new layout. Inlining the branch would have meant an early `return` in the
+## middle of `_draw_game_hud`, which silently drops the objective and the lanes.
+func _dash_pips(dash_at: Rect2, panel: Rect2, player: SkyGearPlayer,
+		l: SkyGearHudLayout) -> void:
+	_label("DASH", dash_at.position + Vector2(0, dash_at.size.y), dash_at.size.x,
+		HORIZONTAL_ALIGNMENT_LEFT, 12)
+	var pips := l.item("captain", "dash_pips", panel)
+	var pip_art := _tex("res://assets/art/ui/dash_pip.png")
+	var owned: int = maxi(1, player.max_dash_charges)
+	var pip_r: float = minf(pips.size.y, pips.size.x / float(owned)) * 0.5
+	for i in owned:
+		var lit := i < player.dash_charges
+		var at := Vector2(pips.position.x + pip_r + i * pip_r * 2.2, pips.get_center().y)
+		if pip_art != null:
+			draw_texture_rect_region(pip_art,
+				Rect2(at - Vector2(pip_r, pip_r), Vector2(pip_r * 2, pip_r * 2)),
+				Rect2(Vector2.ZERO, pip_art.get_size()),
+				Color("#9ff5e2") if lit else Color(0.28, 0.26, 0.32))
+		else:
+			draw_circle(at, pip_r, Color("#37f0c8") if lit else Color("#201c28"))
+		## The one currently recharging fills, so "nearly" is visible. Waiting on
+		## a dash with no idea how long is the most common reason to walk into
+		## something.
+		if not lit and i == player.dash_charges and player.dash_recharge_left > 0.0:
+			var done: float = 1.0 - clampf(player.dash_recharge_left
+				/ maxf(0.01, SkyGearPlayer.DASH_RECHARGE), 0.0, 1.0)
+			draw_arc(at, pip_r - 1.0, -PI * 0.5, -PI * 0.5 + TAU * done, 20,
+				Color("#37f0c8"), 2.4)
 
 
 func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, value: String) -> void:

@@ -94,6 +94,79 @@ const WAVES := [
 	{"batches": [[0.0, "BOSS", 1, 1], [5.0, "SWARM", 4, "all"], [11.0, "SCRAPPER", 3, "all"]], "boss": true},
 ]
 
+## TWO CLASSES, AND THE SECOND IS NOT A RESKIN.
+##
+## Full reasoning in `docs/CLASS-2-DESIGN.md`. The short version is that the
+## captain's question is "how long can you stand in it?" — her gauge fills from
+## damage landed inside 210 units — and a class that simply fires further is not
+## a second question, it is the answer v11 deleted when range-kiting turned out
+## to heal faster than three lanes could hurt you.
+##
+## The Boilerwright's question is "where will the fight happen, and did you get
+## there first?" He built the Boiler and keeps it lit, and he fights by cracking
+## the ship's own steam mains open — so everything he throws is borrowed from the
+## thing he is defending.
+##
+## HEAD is the same gauge with the opposite polarity. Hers fills by itself when
+## the fight goes well and discharges automatically. His fills ONLY where he
+## plants himself, never decays, and never spends itself: it is a bank, and every
+## point in it is a point he chose not to spend.
+const CLASSES := {
+	"captain": {
+		"name": "THE CAPTAIN",
+		"blurb": "Fills her gauge by fighting close, and it vents itself.",
+		"long": "Two recharging dashes with contact damage. Her gauge fills from damage landed inside 210 units and empties when it is not, and at full it vents by itself for damage and health. Fast, evasive, and correct only where the boarders are.",
+		"hp": 100.0, "speed": 260.0, "dashes": 2,
+		"gauge": "PRESSURE",
+		## Fills from fighting, decays out of it, discharges at the cap.
+		"gauge_from_damage": true, "gauge_decays": true, "gauge_auto_vents": true,
+		"starting": [["CLOSEHIT", "EMBER"]],
+	},
+	"boilerwright": {
+		"name": "THE BOILERWRIGHT",
+		"blurb": "Banks a head of steam where he stands, and spends it deliberately.",
+		"long": "No dash, slower, tougher. Head fills only where he plants himself — on the Boiler, at a deck vent, or inside a main he cracked open — never decays, and never spends itself. While he has any, every weapon hits 45% harder. Slower to start and impossible to move once he has decided where the fight is.",
+		"hp": 130.0, "speed": 205.0, "dashes": 0,
+		"gauge": "HEAD",
+		"gauge_from_damage": false, "gauge_decays": false, "gauge_auto_vents": false,
+		## OVERPRESSURE. The reason banking is not hoarding: the gauge is a damage
+		## multiplier the whole time it is above zero, so the choice is never
+		## "spend or save", it is "spend now or keep the bonus".
+		"overpressure": 0.45, "overpressure_cost": 10.0,
+		## Where he fills. Standing still is the condition on all three, and the
+		## rates are deliberately slow enough that a commute costs real damage.
+		"boiler_rate": 45.0, "vent_rate": 18.0, "tap_rate": 26.0,
+		"starting": [["CONE", "STEAM"]],
+	},
+}
+
+## A cracked steam main. His only new simulation object, and deliberately shaped
+## exactly like `fire_fields` — same array-of-dictionaries, same tick, same
+## `_damage_circle` — because a new kind of thing is renderer work and a copy of
+## an existing one is not.
+const TAP := {
+	"radius": 130.0, "life": 8.0, "dps": 6.0, "cost": 18.0, "cooldown": 6.0,
+	## Kills inside extend it, so holding a main is rewarded by the main lasting
+	## longer, which is the loop the class is built around.
+	"extend_on_kill": 0.6, "max_life": 14.0,
+	## Anchored: inside your own main you cannot be pushed and you take less.
+	"anchor_resist": 0.25,
+}
+
+## Blowdown. `vent_pressure` with the constants replaced by functions of Head —
+## the same explosion, sized by what you banked.
+const BLOWDOWN := {
+	"min_head": 20.0, "damage_per_head": 0.9, "base_radius": 120.0,
+	"radius_per_head": 1.6, "knock": 300.0,
+	## Repairs the Boiler or a live cannon inside it. 0.35 per Head against the
+	## Boiler charging 0.6 per Head is a 42% LOSS by construction: you cannot
+	## repair the ship with the ship, and net-positive requires being out on the
+	## deck at a vent or a main. That inequality is the whole guard against the
+	## failure this class could have had.
+	"repair_per_head": 0.35,
+}
+
+
 const STARTING_SKILLS := [
 	{"shape": "RANGED_AOE", "element": "FROST"},
 	{"shape": "CONE", "element": "EMBER"},

@@ -1244,6 +1244,126 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## THE BOILERWRIGHT. A second class, and the point of it is that it is not a
+	## reskin — `docs/CLASS-2-DESIGN.md` argues at length that a class which
+	## simply fires further is the answer v11 deleted. So the checks are about
+	## the ways the two are STRUCTURALLY different, not about numbers.
+	game.go_to_title()
+	game.set_class("boilerwright")
+	game.set_seed_text("BOILER")
+	game.begin_run()
+	_check("class", "the body comes from the class", game.player.max_hp == 130.0
+		and game.player.move_speed == 205.0, "%.0f hp, %.0f speed"
+			% [game.player.max_hp, game.player.move_speed])
+	## No dash at all. His reposition costs gauge, which is the sharpest thing
+	## about him — a free recharging escape would undo the whole class.
+	_check("class", "and he has no recharging dash", game.player.max_dash_charges == 0)
+
+	## And the HUD is told. `_update_cooldowns` re-synced the dash ceiling from
+	## `mods` every frame with a `maxi(1, ...)` floor written when everyone had at
+	## least one dash — so he was drawn a dash pip he could not use, one frame
+	## after `begin_run` had correctly given him none.
+	game.choose_draft(0)
+	game.start_wave(2)
+	for _t in 5:
+		game._update_cooldowns(0.05)
+	_check("class", "and nothing quietly gives it back",
+		game.player.max_dash_charges == 0,
+		"%d charges" % game.player.max_dash_charges)
+
+	## The gauge is a BANK. Hers fills from damage landed close and decays out of
+	## it; his fills only where he plants himself and never leaks.
+	_check("class", "his gauge is banked, not measured", game.gauge_is_banked())
+	game.pressure = 60.0
+	game.player.global_position = Vector2(0.0, -900.0)   ## nowhere near anything
+	for _t in 40:
+		game._update_pressure(0.1)
+	_check("class", "and standing nowhere loses nothing", game.pressure >= 59.9,
+		"drained to %.1f" % game.pressure)
+
+	## And it fills on the Boiler, which is the one tap he does not have to make.
+	game.pressure = 0.0
+	game.player.global_position = game.boiler_position
+	for _t in 10:
+		game._update_pressure(0.1)
+	_check("class", "but standing on the Boiler fills it", game.pressure > 20.0,
+		"%.1f after a second" % game.pressure)
+
+	## OVERPRESSURE: the bank is a damage multiplier the whole time it is above
+	## zero, and every cast spends some. That is what stops banking being
+	## hoarding — the bonus is the reason to hold it AND it runs out.
+	game.pressure = 100.0
+	_check("class", "a full bank makes every weapon hit harder",
+		game.overpressure_multiplier() > 1.4,
+		"x%.2f" % game.overpressure_multiplier())
+	var before_head: float = game.pressure
+	game.spend_overpressure()
+	_check("class", "and a cast spends some of it", game.pressure < before_head)
+	game.pressure = 0.0
+	_check("class", "an empty one is strictly base damage",
+		is_equal_approx(game.overpressure_multiplier(), 1.0))
+
+	## TAP MAIN. His one new simulation object, and the only source of gauge he
+	## can put where he wants.
+	##
+	## Both his bindings refuse to fire outside PLAY — you cannot crack a main
+	## open during the opening draft — so the run has to actually be running. The
+	## first version of this block tested them straight after `begin_run`, which
+	## leaves the game in DRAFT, and read the refusal as a bug.
+	game.choose_draft(0)
+	game.start_wave(3)
+	game.taps.clear()
+	game.tap_cooldown = 0.0
+	game.pressure = 5.0
+	_check("class", "a main cannot be opened on an empty bank", not game.tap_main())
+	game.pressure = 60.0
+	game.player.global_position = Vector2(0.0, 200.0)
+	_check("class", "but can be on a full one", game.tap_main())
+	_check("class", "and it costs what it says", game.pressure < 60.0)
+	_check("class", "and it is on the deck", game.taps.size() == 1)
+	## Standing in your own steam fills you and anchors you.
+	_check("class", "standing in it anchors him", game.anchored())
+	var in_tap: float = game.pressure
+	for _t in 10:
+		game._update_pressure(0.1)
+	_check("class", "and refills the bank", game.pressure > in_tap)
+	## It expires. A main that never closed would be a permanent gauge.
+	for _t in int(float(SkyGearData.TAP.life) / 0.1) + 4:
+		game._update_taps(0.1)
+	_check("class", "and it burns out", game.taps.is_empty())
+	_check("class", "and he is no longer anchored", not game.anchored())
+
+	## BLOWDOWN. Spend the bank as an explosion that also repairs — at a rate
+	## that makes Boiler to Head to Boiler a LOSS, which is the guard against the
+	## failure this class could have had.
+	game.pressure = 10.0
+	_check("class", "blowdown refuses a bank that is too small", not game.blowdown())
+	game.pressure = 100.0
+	game.boiler_hp = game.boiler_max_hp - 200.0
+	game.player.global_position = game.boiler_position
+	var hurt: float = game.boiler_hp
+	_check("class", "but fires on a full one", game.blowdown())
+	_check("class", "and empties the bank", game.pressure <= 0.0)
+	_check("class", "and repairs the Boiler it is standing on", game.boiler_hp > hurt)
+	## The exchange rate has to be a loss, or the ship repairs itself forever.
+	var gained: float = game.boiler_hp - hurt
+	var spent: float = 100.0 * 0.6
+	_check("class", "and repairing the ship with the ship is a loss",
+		gained < spent, "%.0f back for %.0f spent" % [gained, spent])
+
+	## The captain is untouched by all of it.
+	game.go_to_title()
+	game.set_class("captain")
+	game.begin_run()
+	_check("class", "and the captain is exactly as she was",
+		game.player.max_hp == 100.0 and game.player.move_speed == 260.0
+			and game.player.max_dash_charges == 2 and not game.gauge_is_banked())
+	_check("class", "with no overpressure bonus to speak of",
+		is_equal_approx(game.overpressure_multiplier(), 1.0))
+	game.spawn_queue.clear()
+	game.go_to_title()
+	await game.get_tree().process_frame
+
 	## THE AUTO-ATTACK. It is a fifth of a run's damage on most builds and the
 	## HUD never mentioned it, so "fight close" read as a risk with no upside.
 	## The ring around the portrait is drawn from `basic_cooldown`, so the number

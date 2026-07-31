@@ -68,6 +68,13 @@ var end_reason := ""
 var basic_cooldown := 0.0
 var pressure := 0.0
 var pressure_grace := 0.0
+## Which captain is aboard. The gauge, the speed, the health and whether there
+## is a dash at all come from here — see `SkyGearData.CLASSES`.
+var class_id := "captain"
+## Cracked steam mains, the Boilerwright's one new simulation object. Same shape
+## as `fire_fields` on purpose.
+var taps: Array[Dictionary] = []
+var tap_cooldown := 0.0
 var vent_cooldown := 0.0
 var damage_multiplier := 1.0
 var projectiles: Array[Dictionary] = []
@@ -257,6 +264,16 @@ func _unhandled_input(event: InputEvent) -> void:
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
+	## The Boilerwright's two bindings. Both no-ops for the captain, and both
+	## deliberately outside the four drafted slots — the 36-cell matrix stays 36.
+	if event.keycode == KEY_F and state == State.PLAY:
+		if tap_main():
+			get_viewport().set_input_as_handled()
+			return
+	if event.keycode == KEY_V and state == State.PLAY:
+		if blowdown():
+			get_viewport().set_input_as_handled()
+			return
 	if event.keycode == KEY_F1:
 		how_open = not how_open
 		hud.queue_redraw()
@@ -572,7 +589,16 @@ func _process(delta: float) -> void:
 	## The draft can raise the dash ceiling, so the player has to be told. Synced
 	## here rather than at the card, because a card that reaches into the player
 	## is a card that has to be undone if the run is reset.
-	player.max_dash_charges = maxi(1, int(mods.dash_charges))
+	## A CLASS WITH NO DASH KEEPS NO DASH. The `maxi(1, ...)` floor was written
+	## when everyone had at least one, and it silently outranked the Boilerwright
+	## the same way a const once outranked the card that raises this number — the
+	## HUD showed him a dash pip he could not use. A class that starts at zero
+	## stays at zero unless a card explicitly moves it.
+	var class_dashes: int = int(class_data().get("dashes", SkyGearPlayer.START_DASH_CHARGES))
+	if class_dashes <= 0 and int(mods.dash_charges) <= SkyGearPlayer.START_DASH_CHARGES:
+		player.max_dash_charges = 0
+	else:
+		player.max_dash_charges = maxi(1, int(mods.dash_charges))
 	event_banner_left = maxf(0.0, event_banner_left - delta)
 	coach_line = coach.advise(self, delta)
 	_update_cooldowns(delta)
@@ -583,6 +609,7 @@ func _process(delta: float) -> void:
 	_update_pressure(delta)
 	_update_salvage(delta)
 	_update_fire_fields(delta)
+	_update_taps(delta)
 	run_time += delta
 	_update_turrets(delta)
 	_update_crew(delta)
@@ -615,6 +642,39 @@ func _random_seed_text() -> String:
 	return out
 
 
+## The class table, for whoever is aboard.
+func class_data() -> Dictionary:
+	return SkyGearData.CLASSES.get(class_id, SkyGearData.CLASSES.captain)
+
+
+func set_class(id: String) -> void:
+	if SkyGearData.CLASSES.has(id):
+		class_id = id
+
+
+## Is the gauge a bank rather than a meter? Everything about the Boilerwright
+## follows from this one answer, so it is asked in one place.
+func gauge_is_banked() -> bool:
+	return not bool(class_data().get("gauge_from_damage", true))
+
+
+## OVERPRESSURE. Every weapon hits harder while there is anything in the bank,
+## and each cast spends some — so the bonus is not a reward for hoarding, it is
+## the thing hoarding is FOR, and it runs out.
+func overpressure_multiplier() -> float:
+	if pressure <= 0.0:
+		return 1.0
+	return 1.0 + float(class_data().get("overpressure", 0.0))
+
+
+func spend_overpressure() -> void:
+	var cost: float = float(class_data().get("overpressure_cost", 0.0))
+	if cost <= 0.0:
+		return
+	pressure = maxf(0.0, pressure - cost)
+	player.set_pressure(pressure)
+
+
 func begin_run() -> void:
 	coach.reset()
 	coach_line = ""
@@ -638,6 +698,8 @@ func begin_run() -> void:
 	damage_multiplier = 1.0
 	pressure = 0.0
 	pressure_grace = 0.0
+	taps.clear()
+	tap_cooldown = 0.0
 	vent_cooldown = 0.0
 	basic_cooldown = 0.0
 	end_reason = ""
@@ -658,6 +720,14 @@ func begin_run() -> void:
 	src_slot = -1
 	if seed_text == "":
 		set_seed_text("")
+	## The body the class describes. Done here rather than in `SkyGearPlayer`
+	## because the class is a run-level choice and the player node outlives runs.
+	var kit: Dictionary = class_data()
+	player.max_hp = float(kit.get("hp", SkyGearPlayer.MAX_HP))
+	player.hp = player.max_hp
+	player.move_speed = float(kit.get("speed", SkyGearPlayer.SPEED))
+	player.max_dash_charges = int(kit.get("dashes", SkyGearPlayer.START_DASH_CHARGES))
+	player.dash_charges = player.max_dash_charges
 	for skill in SkyGearData.STARTING_SKILLS:
 		var instance := SkyGearData.make_skill(skill.shape, skill.element)
 		draft_options.append({
@@ -1198,6 +1268,12 @@ func cast_skill(index: int, aim_at = null) -> void:
 	if bool(mods.fifth_gear) and int(skill.casts) % 5 == 0:
 		damage *= 2.0
 		free_cast = true
+	## OVERPRESSURE. Every weapon hits harder while there is anything in the bank,
+	## and the cast spends some. Applied here rather than inside `skill_stats`
+	## because it is a property of the MOMENT, not of the weapon — the card
+	## preview would otherwise show a number that changes while you read it.
+	damage *= overpressure_multiplier()
+	spend_overpressure()
 	var shots: int = maxi(1, int(st.multi))
 	if shots > 1:
 		damage *= 0.7
@@ -1493,7 +1569,12 @@ func _update_pressure(delta: float) -> void:
 	# both budgets refill continuously
 	heal_budget = minf(float(SkyGearData.CLOSE.heal_cap_per_sec), heal_budget + float(SkyGearData.CLOSE.heal_cap_per_sec) * delta)
 	steal_budget = minf(float(SkyGearData.CLOSE.lifesteal_cap_per_sec), steal_budget + float(SkyGearData.CLOSE.lifesteal_cap_per_sec) * delta)
-	if nearby >= 2:
+	## A BANKED gauge fills from the GROUND, not from the fight, and never leaks.
+	## Hers is a meter that reads how well the last few seconds went; his is a
+	## bank that reads how much ground he has held. Same widget, opposite meaning.
+	if gauge_is_banked():
+		_fill_head(delta)
+	elif nearby >= 2:
 		pressure = minf(100.0, pressure + float(SkyGearData.CLOSE.pressure_idle) * float(mods.pressure_rate) * delta * (1.0 + (nearby - 2) * 0.25))
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 	else:
@@ -1504,9 +1585,122 @@ func _update_pressure(delta: float) -> void:
 	# full health is a comeback, one that runs all run is a difficulty setting.
 	if float(mods.dressing) > 0.0 and pressure >= 50.0 and player.hp < player.max_hp * 0.60:
 		heal_player(float(mods.dressing) * delta, "regen")
-	if pressure >= 100.0 and vent_cooldown <= 0.0:
+	## Only hers discharges by itself. His sits there until he decides, which is
+	## the entire difference between a meter and a bank.
+	if bool(class_data().get("gauge_auto_vents", true)) 			and pressure >= 100.0 and vent_cooldown <= 0.0:
 		vent_pressure()
 	player.set_pressure(pressure)
+
+## STANDING STILL IS THE CONDITION ON ALL THREE. He fills on the Boiler, at a
+## deck vent, or inside a main he cracked open — and a main is the only one he
+## can put where he wants, which is why the class is about choosing ground.
+##
+## Moving does not empty the bank; it simply stops filling it. A gauge that
+## drained the moment you repositioned would make the class a statue rather than
+## a man who picks his spot.
+func _fill_head(delta: float) -> void:
+	var kit: Dictionary = class_data()
+	var rate := 0.0
+	## The Boiler is the fastest and the only one that costs — it is the ship's
+	## own heat, and taking it is taking the thing you are defending.
+	if player.global_position.distance_to(boiler_position) <= 220.0:
+		rate = maxf(rate, float(kit.get("boiler_rate", 0.0)))
+	for prop in get_tree().get_nodes_in_group("props"):
+		if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
+			continue
+		if player.global_position.distance_to(prop.global_position) <= 150.0:
+			rate = maxf(rate, float(kit.get("vent_rate", 0.0)))
+	for tap in taps:
+		if player.global_position.distance_to(Vector2(tap.position)) <= float(tap.radius):
+			rate = maxf(rate, float(kit.get("tap_rate", 0.0)))
+	if rate <= 0.0:
+		return
+	pressure = minf(100.0, pressure + rate * delta)
+
+
+## Crack a main open where you are standing. His signature, and the only new
+## object in the simulation.
+func tap_main() -> bool:
+	if not gauge_is_banked() or state != State.PLAY:
+		return false
+	var spec: Dictionary = SkyGearData.TAP
+	if tap_cooldown > 0.0 or pressure < float(spec.cost):
+		return false
+	pressure -= float(spec.cost)
+	player.set_pressure(pressure)
+	tap_cooldown = float(spec.cooldown)
+	taps.append({
+		"position": player.global_position, "radius": float(spec.radius),
+		"life": float(spec.life), "max_life": float(spec.max_life), "tick": 0.0,
+	})
+	_fx({"kind": "circle", "position": player.global_position,
+		"radius": float(spec.radius),
+		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.4})
+	play_sfx("player/shape_gale.ogg", -3.0)
+	return true
+
+
+func _update_taps(delta: float) -> void:
+	tap_cooldown = maxf(0.0, tap_cooldown - delta)
+	var i := taps.size() - 1
+	while i >= 0:
+		var tap: Dictionary = taps[i]
+		tap.life = float(tap.life) - delta
+		if float(tap.life) <= 0.0:
+			taps.remove_at(i)
+			i -= 1
+			continue
+		tap.tick = float(tap.tick) - delta
+		if float(tap.tick) <= 0.0:
+			tap.tick = 0.5
+			_damage_circle(Vector2(tap.position), float(tap.radius),
+				float(SkyGearData.TAP.dps) * 0.5, "STEAM", 0.0, false, false)
+		i -= 1
+
+
+## Is he standing in his own steam? Anchored: no knockback, and less damage.
+func anchored() -> bool:
+	if not gauge_is_banked():
+		return false
+	for tap in taps:
+		if player.global_position.distance_to(Vector2(tap.position)) <= float(tap.radius):
+			return true
+	return false
+
+
+## BLOWDOWN. `vent_pressure` with the constants replaced by functions of Head:
+## the same explosion, sized by what you banked, and it repairs.
+func blowdown() -> bool:
+	if not gauge_is_banked() or state != State.PLAY:
+		return false
+	var spec: Dictionary = SkyGearData.BLOWDOWN
+	if pressure < float(spec.min_head):
+		return false
+	var head := pressure
+	pressure = 0.0
+	player.set_pressure(pressure)
+	var radius: float = float(spec.base_radius) + float(spec.radius_per_head) * head
+	_damage_circle(player.global_position, radius,
+		float(spec.damage_per_head) * head, "STEAM", float(spec.knock), false, true)
+	## It has to bite the hulk, or a push is unwinnable for him.
+	hulk_splash(player.global_position, float(spec.damage_per_head) * head)
+	## And it repairs — at a rate that makes Boiler to Head to Boiler a 42% loss,
+	## so you cannot repair the ship with the ship.
+	var repair: float = float(spec.repair_per_head) * head
+	if player.global_position.distance_to(boiler_position) <= radius:
+		boiler_hp = minf(boiler_max_hp, boiler_hp + repair)
+	for turret in turrets:
+		if bool(turret.dead):
+			continue
+		if player.global_position.distance_to(Vector2(turret.position)) <= radius:
+			turret.hp = minf(float(SkyGearLanes.TURRET.hp), float(turret.hp) + repair)
+	_fx({"kind": "circle", "position": player.global_position, "radius": radius,
+		"color": SkyGearData.ELEMENTS.STEAM.color, "time": 0.0, "life": 0.42})
+	if impact != null:
+		impact.note_hit(60.0, true)
+	play_sfx("player/shape_mortar_land.ogg", -2.0)
+	return true
+
 
 func vent_pressure() -> void:
 	pressure = 0.0

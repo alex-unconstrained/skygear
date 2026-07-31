@@ -30,6 +30,10 @@ var max_hp := MAX_HP
 var pressure := 0.0
 var aim_direction := Vector2.UP
 var controls_enabled := false
+## The class sets this. `SPEED` stays as the default and as the number the
+## animation's authored pace is measured against, but a const cannot be the
+## answer when two captains move at different speeds.
+var move_speed := SPEED
 var dash_charges := START_DASH_CHARGES
 var max_dash_charges := START_DASH_CHARGES
 var dash_recharge_left := 0.0
@@ -87,10 +91,10 @@ func _physics_process(delta: float) -> void:
 		## authority, after every dash, and it is most of what "slippery" means
 		## here. Keep the direction, lose the excess.
 		if dash_time_left <= 0.0:
-			velocity = dash_direction * SPEED
+			velocity = dash_direction * move_speed
 	else:
 		var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		var target_velocity := input_direction * SPEED
+		var target_velocity := input_direction * move_speed
 		var rate := ACCEL if input_direction.length_squared() > 0.0 else FRICTION
 		velocity = velocity.move_toward(target_velocity, rate * delta)
 		if Input.is_action_just_pressed("dash"):

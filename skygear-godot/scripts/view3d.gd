@@ -1520,6 +1520,32 @@ func _sync_effects() -> void:
 			_art("ring", _ring_texture()),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
 
+	## CRACKED MAINS. The Boilerwright's ground, and the only thing on the deck a
+	## player put there on purpose — so it has to read as a place rather than as
+	## an effect. A hard rim you can stand on the edge of, a soft fill, and steam
+	## boiling off it; the rim is what matters, because the class is about knowing
+	## exactly where the line is.
+	for i in game.taps.size():
+		var tap: Dictionary = game.taps[i]
+		var left: float = clampf(float(tap.life) / maxf(0.1, float(tap.max_life)),
+			0.0, 1.0)
+		## The last two seconds pulse, same language the sentries use.
+		var dying: bool = float(tap.life) < 2.0
+		var beat: float = 1.0 if not dying else 0.55 + 0.45 * absf(sin(_flicker * 9.0))
+		var span: float = float(tap.radius) * 2.0
+		var steam := Color("#9be8d2")
+		_decal("tapf%d" % i, tap.position, 0.0, span, span, _blob_texture(),
+			Color(steam.r, steam.g, steam.b, 0.16 * beat), false)
+		_decal("tapr%d" % i, tap.position, 0.0, span, span, _ring_texture(),
+			Color(steam.r, steam.g, steam.b, 0.72 * beat))
+		## And it is venting, visibly — three plumes off the rim rather than one
+		## in the middle, because a main is a crack in the deck, not a fountain.
+		for plume in 3:
+			var angle: float = _flicker * 0.5 + float(plume) * TAU / 3.0
+			var at: Vector2 = Vector2(tap.position) + Vector2(cos(angle), sin(angle)) 				* float(tap.radius) * 0.62
+			_spark("tapv%d_%d" % [i, plume], at, 60.0 + sin(_flicker * 3.0 + plume) * 24.0,
+				52.0 * beat, steam)
+
 	## The ordnance the deck already knows about: a lit keg draws its blast.
 	for prop in game.get_tree().get_nodes_in_group("props"):
 		if is_instance_valid(prop) and not prop.dead and prop.fuse_left > 0.0:
