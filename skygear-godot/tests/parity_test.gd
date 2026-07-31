@@ -1050,6 +1050,46 @@ func _view() -> void:
 	_check("render", "every generated texture exists before the first frame of play",
 		view._made.size() >= 14, "%d built at load" % view._made.size())
 
+	## SHADOWS IN ONE DRAW. Every figure, prop, cannon, crewman, bolt and pickup
+	## had its own Decal for the blob underneath it — about seventy clustered
+	## decals before a single telegraph.
+	_check("shadow", "contact shadows are one batch, not one decal each",
+		view._shadow_batch != null and view._shadow_batch.multimesh != null,
+		"batch present")
+	var shadow_decals := 0
+	for key in view._decals.keys():
+		if str(key).begins_with("sh_"):
+			shadow_decals += 1
+	_check("shadow", "and none of them is a decal any more", shadow_decals == 0,
+		"%d shadow decals left" % shadow_decals)
+	_check("shadow", "the batch is capped",
+		view._shadow_batch.multimesh.instance_count == SkyGearView3D.SHADOW_CAP,
+		"%d instances" % view._shadow_batch.multimesh.instance_count)
+	## Off its own layer the effect decals would project onto the shadows, and a
+	## mortar ring painted across a boarder's shadow reads as a second ring.
+	_check("shadow", "and decals do not paint onto it",
+		(view._shadow_batch.layers & SkyGearView3D.LAYER_SHADOWS) != 0)
+
+	## RESERVED DECAL CAPACITY. On a bad frame the thing dropped must never be
+	## the thing telling you a boarder is about to hit you.
+	_check("budget", "a telegraph draws from its own reserve",
+		SkyGearView3D._decal_class("tg42") == SkyGearView3D.DecalClass.TELEGRAPH
+			and SkyGearView3D._decal_class("scorch9") == SkyGearView3D.DecalClass.DECOR
+			and SkyGearView3D._decal_class("fx3") == SkyGearView3D.DecalClass.PLAYER)
+	## Flood the decorative budget, then check a telegraph still gets drawn.
+	for i in 200:
+		view._decal("glow_flood%d" % i, Vector2(i, 0), 0.0, 20.0, 20.0,
+			view._blob_texture(), Color.WHITE)
+	var decor_live: int = view._decal_live[SkyGearView3D.DecalClass.DECOR]
+	view._decal("tg_reserved", Vector2.ZERO, 0.0, 20.0, 20.0,
+		view._blob_texture(), Color.WHITE)
+	_check("budget", "decoration cannot spend past its own allowance",
+		decor_live <= int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.DECOR]),
+		"%d live against a budget of %d" % [decor_live,
+			int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.DECOR])])
+	_check("budget", "and a telegraph still gets drawn on a flooded deck",
+		view._decals.has("tg_reserved"))
+
 	## The animation engine. State selection, one-shot ownership and the turn are
 	## the parts that were written inline for one character and had to stop being.
 	var order: Array = SkyGearRig3D.PRIORITY

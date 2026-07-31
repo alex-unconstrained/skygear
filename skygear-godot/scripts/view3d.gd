@@ -50,6 +50,10 @@ const WORLD_SCALE := 0.01           ## ground units -> metres, so Godot's units 
 ## Splitting the layers is the fix: a ring belongs on the deck.
 const LAYER_WORLD := 1
 const LAYER_FIGURES := 2
+## Contact shadows get their own layer so the effect decals do not project onto
+## them — a mortar ring painted across a boarder's shadow is a ring that looks
+## like it is on the deck twice.
+const LAYER_SHADOWS := 4
 
 ## How tall each prop stands, in ground units. The browser's `PROP_H`.
 const PROP_HEIGHT := {
@@ -111,6 +115,11 @@ var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
 var _flash_next := 0
 var _impact_rng := RandomNumberGenerator.new()
+var _shadow_batch: MultiMeshInstance3D
+var _shadow_at: PackedVector2Array = PackedVector2Array()
+var _shadow_size: PackedFloat32Array = PackedFloat32Array()
+var _shadow_alpha: PackedFloat32Array = PackedFloat32Array()
+var _shadow_count := 0
 var _warmup := SkyGearWarmup.new()
 var _warm_frames := 0
 ## The actual free lists. `_billboards` and `_decals` hold what is IN USE this
@@ -422,6 +431,10 @@ func _build_world() -> void:
 
 	_build_airstream()
 	_build_impacts()
+	_shadow_at.resize(SHADOW_CAP)
+	_shadow_size.resize(SHADOW_CAP)
+	_shadow_alpha.resize(SHADOW_CAP)
+	_build_shadows()
 	## A4. Build every generated texture NOW rather than the first time it is
 	## drawn. `_glow_map` runs a per-pixel GDScript loop and `_fan_texture` runs
 	## atan2 and exp per pixel — the first cone cast was paying for a 128x128
@@ -707,7 +720,7 @@ func _build_cargo() -> void:
 			var z: float = lerpf(rect.position.y + 34.0, rect.end.y - 34.0, t)
 			if module != null:
 				var skin := Decal.new()
-				skin.cull_mask = 0xFFFFF & ~LAYER_FIGURES
+				skin.cull_mask = 0xFFFFF & ~LAYER_FIGURES & ~LAYER_SHADOWS
 				skin.texture_albedo = module
 				skin.albedo_mix = 1.0
 				skin.upper_fade = 0.05
@@ -1192,6 +1205,7 @@ func _process(delta: float) -> void:
 	_sync_all(delta)
 	_sync_auras()
 	_sync_effects()
+	_flush_shadows()
 	_sync_airstream(delta)
 	## The flashes fade. Ember lingers, Frost is instant — the decay carries the
 	## element as much as the colour does.
@@ -1236,6 +1250,7 @@ func _recycle() -> void:
 			node.visible = false
 			_free_decals.append(node)
 			_decals.erase(key)
+			_decal_live[_decal_class(key)] -= 1
 	## Rigs are the exception: a character is a whole scene with a skeleton and an
 	## animation player, and keeping a dead boarder's one alive to re-skin later
 	## is holding far more than a sprite.
@@ -1512,8 +1527,43 @@ func _sync_effects() -> void:
 ##
 ## `angle` aims the texture's +X down a direction in ground coordinates; `sx`/`sy`
 ## are its size along and across that.
+## What a decal is FOR, and how many of each we will draw.
+##
+## The pooling was real but the budget was not: `_decal` would allocate an
+## unbounded number of live decals, and a decorative scorch competed on equal
+## footing with an enemy windup rune. On a bad frame the thing that gets dropped
+## should never be the thing that tells you a boarder is about to hit you.
+##
+## Reserved rather than shared. A telegraph is guaranteed its capacity even when
+## the deck is covered in scorch marks.
+enum DecalClass { TELEGRAPH, PLAYER, DECOR }
+const DECAL_BUDGET := {
+	DecalClass.TELEGRAPH: 48,      ## enemy windups and turn rings — never dropped
+	DecalClass.PLAYER: 24,         ## your own shapes, fields and aura edges
+	DecalClass.DECOR: 40,          ## scorch, glow pools, keg blasts, bolt trails
+}
+var _decal_live := {DecalClass.TELEGRAPH: 0, DecalClass.PLAYER: 0, DecalClass.DECOR: 0}
+
+
+## Which budget a key draws from. Derived from the key rather than passed in, so
+## a new effect cannot forget to declare itself and quietly spend a telegraph.
+static func _decal_class(key: String) -> DecalClass:
+	if key.begins_with("tg") or key.begins_with("tr") or key.begins_with("tn"):
+		return DecalClass.TELEGRAPH
+	if key.begins_with("fx") or key.begins_with("aura") or key.begins_with("boiler"):
+		return DecalClass.PLAYER
+	return DecalClass.DECOR
+
+
 func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 		texture: Texture2D, colour: Color, glowing: bool = true) -> void:
+	## An existing decal keeps its slot; only a NEW one has to find budget, or a
+	## long-lived aura would be evicted by its own next frame.
+	if not _decals.has(key):
+		var group := _decal_class(key)
+		if _decal_live[group] >= int(DECAL_BUDGET[group]):
+			return
+		_decal_live[group] += 1
 	_decals_used[key] = true
 	var node: Decal = _decals.get(key)
 	if node == null:
@@ -1522,7 +1572,7 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 			node.visible = true
 		else:
 			node = Decal.new()
-			node.cull_mask = 0xFFFFF & ~LAYER_FIGURES
+			node.cull_mask = 0xFFFFF & ~LAYER_FIGURES & ~LAYER_SHADOWS
 			node.upper_fade = 0.1
 			node.lower_fade = 0.1
 			node.normal_fade = 0.0
@@ -1554,11 +1604,76 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 	node.size = Vector3(sx, 260.0, sy) * WORLD_SCALE
 
 
-## Contact shadow under a standing thing. Not glowing — a shadow that emits light
-## is a highlight.
-func _shadow(key: String, centre: Vector2, width: float, alpha: float) -> void:
-	_decal("sh_" + key, centre, 0.0, width, width * 0.62, _art("blob", _blob_texture()),
-		Color(0.02, 0.015, 0.03, alpha), false)
+## Contact shadows, all of them, in one draw.
+##
+## Every figure, prop, cannon, crewman, projectile and pickup on the deck had its
+## own `Decal` for the blob underneath it — about seventy clustered decals at
+## bench load before a single telegraph or effect, and the largest remaining GPU
+## item in the scene. They are all the same quad, the same texture and the same
+## flat orientation, which is exactly what a MultiMesh is for.
+##
+## Written from scratch each frame rather than diffed: there is no persistent
+## identity to preserve, the count is small, and a rebuild cannot leak a stale
+## shadow under something that has died.
+const SHADOW_CAP := 256
+
+func _shadow(_key: String, centre: Vector2, width: float, alpha: float) -> void:
+	if _shadow_count >= SHADOW_CAP:
+		return
+	_shadow_at[_shadow_count] = centre
+	_shadow_size[_shadow_count] = width
+	_shadow_alpha[_shadow_count] = alpha
+	_shadow_count += 1
+
+
+func _build_shadows() -> void:
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	## Flat on the deck. Lying down is the quad's own orientation, not a
+	## per-instance rotation, so every instance transform is a scale and an
+	## offset and nothing more.
+	mesh.orientation = PlaneMesh.FACE_Y
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	mat.albedo_texture = _art("blob", _blob_texture())
+	## The alpha rides on the instance colour, which is the whole reason this can
+	## be one draw: a fading shadow needs no material of its own.
+	mat.vertex_color_use_as_albedo = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.no_depth_test = false
+	_shadow_batch = MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	mm.instance_count = SHADOW_CAP
+	mm.visible_instance_count = 0
+	_shadow_batch.multimesh = mm
+	_shadow_batch.material_override = mat
+	_shadow_batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	_shadow_batch.layers = LAYER_SHADOWS
+	## The deck is 16.8 x 23.2 metres; without an explicit box the batch is culled
+	## whenever its origin leaves the frustum and every shadow blinks out.
+	_shadow_batch.custom_aabb = AABB(Vector3(-12, -1, -14), Vector3(24, 2, 28))
+	add_child(_shadow_batch)
+
+
+func _flush_shadows() -> void:
+	if _shadow_batch == null:
+		return
+	var mm: MultiMesh = _shadow_batch.multimesh
+	for i in _shadow_count:
+		var width: float = _shadow_size[i] * WORLD_SCALE
+		var basis := Basis().scaled(Vector3(width, 1.0, width * 0.62))
+		mm.set_instance_transform(i, Transform3D(basis,
+			Vector3(_shadow_at[i].x * WORLD_SCALE, 2.0 * WORLD_SCALE,
+				_shadow_at[i].y * WORLD_SCALE)))
+		mm.set_instance_color(i, Color(0.02, 0.015, 0.03, _shadow_alpha[i]))
+	mm.visible_instance_count = _shadow_count
+	_shadow_count = 0
 
 
 ## The aura, as a volume.
