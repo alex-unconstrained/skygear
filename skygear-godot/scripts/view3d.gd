@@ -170,12 +170,28 @@ func _build_world() -> void:
 	var e := Environment.new()
 	## A real sky, because the top of the frame is where the horizon is and a
 	## flat clear colour reads as a void rather than as altitude at dusk.
+	## REPORTED TWICE: "where is the sky box? It's missing." It was not missing —
+	## it was `#100e1c` at the top and `#2e2a4e` at the horizon, which is to say
+	## black and slightly-less-black, then fogged with `#1d1930` and put through a
+	## Filmic tonemapper. Technically a sky, visually a void, and the player was
+	## right both times.
+	##
+	## STORM-DUSK means the sun is going down BEHIND the weather, so the horizon
+	## is the brightest thing in the frame and the top is the darkest. That
+	## gradient is what says altitude; a flat dark field says nothing. The warm
+	## band also motivates the lantern fill the deck art is painted for.
 	var sky_mat := ProceduralSkyMaterial.new()
-	sky_mat.sky_top_color = Color("#100e1c")
-	sky_mat.sky_horizon_color = Color("#2e2a4e")
-	sky_mat.ground_bottom_color = Color("#1b1830")
-	sky_mat.ground_horizon_color = Color("#3a3358")
-	sky_mat.sun_angle_max = 30.0
+	sky_mat.sky_top_color = Color("#1a1636")
+	sky_mat.sky_horizon_color = Color("#8a5a6e")
+	sky_mat.sky_curve = 0.19
+	sky_mat.ground_bottom_color = Color("#0f0d1c")
+	sky_mat.ground_horizon_color = Color("#5c4460")
+	sky_mat.ground_curve = 0.08
+	## The sun itself, low and half-swallowed. `sun_angle_max` alone did nothing
+	## without a light to draw it — the directional lamp is added below.
+	sky_mat.sun_angle_max = 24.0
+	sky_mat.sun_curve = 0.12
+	sky_mat.energy_multiplier = 1.35
 	var sky_res := Sky.new()
 	sky_res.sky_material = sky_mat
 	e.background_mode = Environment.BG_SKY
@@ -184,8 +200,12 @@ func _build_world() -> void:
 	e.ambient_light_color = Color("#4a4058")
 	e.ambient_light_energy = 0.62
 	e.fog_enabled = true
-	e.fog_light_color = Color("#1d1930")
+	e.fog_light_color = Color("#3a2f4a")
 	e.fog_density = 0.011
+	## AND THE FOG MUST NOT EAT THE SKY. At the default the depth fog is applied
+	## to the background too, so a horizon painted warm arrives grey — which is
+	## most of why brightening the material alone did not help the first time.
+	e.fog_sky_affect = 0.15
 	## Bloom. The browser fakes every glow by hand with radial gradients — the
 	## lantern haze, the furnace mouth, the rim on a cleave — because Canvas 2D
 	## has no post chain. Here it is one flag, and without it the emissive
