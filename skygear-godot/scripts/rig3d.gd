@@ -132,6 +132,104 @@ func setup(scene_path: String, target_height: float, layer: int) -> bool:
 	return true
 
 
+## Put something in her hand.
+##
+## A `BoneAttachment3D` rather than a transform written every frame: the skeleton
+## already solves the hand's position for whatever clip is playing, and reading
+## that solution is both cheaper and correct during blends — a hand-written
+## follow lags by exactly one frame, which on a 0.3s swing is visible.
+##
+## The fit comes from `assets/models/weapons.json` so it can be nudged without a
+## build. See `tools/weapon_fit.gd`.
+## `length_m` and `offset` are both in METRES OF WORLD, which is the only frame a
+## human can hold in their head. Bone space is not: the rig stands 1.8 m tall from
+## a model 0.018 units tall, so the skeleton carries a scale of about a hundred
+## and an innocent 4 cm offset written in bone space puts the sword four metres
+## away. The compensation is measured off the mount once it is in the tree rather
+## than assumed, because the FBX root carries a unit scale of its own.
+func hold(weapon_scene: String, bone: String, offset: Vector3, rotation_deg: Vector3,
+		length_m: float, layer: int) -> bool:
+	if held != null:
+		held.queue_free()
+		held = null
+	if model == null or not ResourceLoader.exists(weapon_scene):
+		return false
+	var skeleton: Skeleton3D = null
+	for child in model.find_children("*", "Skeleton3D", true, false):
+		skeleton = child as Skeleton3D
+	if skeleton == null:
+		return false
+	var index := skeleton.find_bone(bone)
+	if index < 0:
+		return false
+	var mount := BoneAttachment3D.new()
+	mount.bone_name = bone
+	mount.bone_idx = index
+	skeleton.add_child(mount)
+	held = mount
+
+	var packed := load(weapon_scene) as PackedScene
+	if packed == null:
+		return false
+	## Same holder rule as the rig itself: the imported root carries a unit scale
+	## and writing a transform onto it throws that away.
+	var weapon := packed.instantiate()
+	var holder := Node3D.new()
+	holder.add_child(weapon)
+	mount.add_child(holder)
+	## The skeleton is already inside the rig's height scale, and the bone pose is
+	## in the model's own units — so the weapon inherits both and the only thing
+	## left to say is how much bigger or smaller than "one model unit" it should
+	## read.
+	## What one bone-space unit is worth in metres, measured.
+	var at_bone: Vector3 = mount.global_transform.basis.get_scale()
+	var per_unit: float = maxf(0.0001, (at_bone.x + at_bone.y + at_bone.z) / 3.0)
+
+	## And how long the weapon is in its own units, so `length_m` can mean what it
+	## says whatever the generator happened to export at.
+	var span := 0.0
+	for child in weapon.find_children("*", "MeshInstance3D", true, false):
+		var box: AABB = (child as MeshInstance3D).get_aabb()
+		span = maxf(span, maxf(box.size.x, maxf(box.size.y, box.size.z)))
+	if span <= 0.0:
+		span = 1.0
+
+	holder.scale = Vector3.ONE * (maxf(0.01, length_m) / (span * per_unit))
+	holder.position = offset / per_unit
+	holder.rotation = Vector3(deg_to_rad(rotation_deg.x), deg_to_rad(rotation_deg.y),
+		deg_to_rad(rotation_deg.z))
+	for child in weapon.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		mi.layers = layer
+		## She is lit by the deck lamps; so is what she is carrying, or a steel
+		## blade reads as a cardboard cut-out the moment she turns.
+		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
+	return true
+
+
+## Read the fit table once. Returns {} when there is nothing to hold, which is
+## the normal case for every figure that is not the captain.
+static func weapon_fit(who: String) -> Dictionary:
+	if not ResourceLoader.exists(WEAPON_TABLE):
+		return {}
+	var text := FileAccess.get_file_as_string(WEAPON_TABLE)
+	var parsed = JSON.parse_string(text)
+	if parsed is not Dictionary or not parsed.has(who):
+		return {}
+	var fit: Dictionary = parsed[who]
+	var weapons: Dictionary = parsed.get("weapons", {})
+	var key := str(fit.get("weapon", ""))
+	if not weapons.has(key):
+		return {}
+	fit = fit.duplicate()
+	fit["path"] = str((weapons[key] as Dictionary).get("path", ""))
+	return fit
+
+
+const WEAPON_TABLE := "res://assets/models/weapons.json"
+var held: BoneAttachment3D = null
+
+
 func has_clip(clip: String) -> bool:
 	return anim != null and anim.has_animation(clip)
 

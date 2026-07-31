@@ -1981,6 +1981,23 @@ func _sync_captain(delta: float) -> bool:
 			_captain = null
 			_captain_missing = true
 			return false
+		## And put the cutlass in her hand. The fit is data — see
+		## `assets/models/weapons.json` and `tools/weapon_fit.gd` — because it is a
+		## dozen small nudges and none of them is worth a build.
+		##
+		## Not fatal when it fails: an empty hand is a worse captain, but a captain.
+		var fit := SkyGearRig3D.weapon_fit("captain")
+		if not fit.is_empty():
+			var offset: Array = fit.get("offset", [0, 0, 0])
+			var turn: Array = fit.get("rotation", [0, 0, 0])
+			## Her height here is in METRES (the deck runs on WORLD_SCALE), and the
+			## fit table was authored against a 1.8 m captain — so the blade scales
+			## with her rather than being 0.95 m on a figure 1.76 units tall.
+			var to_world: float = CAPTAIN_HEIGHT * WORLD_SCALE / 1.8
+			_captain.hold(str(fit.path), str(fit.bone),
+				Vector3(offset[0], offset[1], offset[2]) * to_world,
+				Vector3(turn[0], turn[1], turn[2]),
+				float(fit.get("length", 0.95)) * to_world, LAYER_FIGURES)
 	var player := game.player
 	## What she is doing, in the order the rig resolves it. Dash beats run, swing
 	## beats dash — and the rig holds a one-shot for its own length rather than
