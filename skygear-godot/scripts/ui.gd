@@ -127,9 +127,12 @@ func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bo
 	var fired := button(rect, "", opts)
 	var shown: bool = (_keyboard and focused() == index) or rect.has_point(_mouse)
 	var tint: Color = DIM if bool(opts.get("disabled", false)) else BONE
+	## The hint owns the right edge when there is one, so the value steps left of
+	## it rather than printing on top of it.
+	var reserved: float = 14.0 + (34.0 if str(opts.get("hint", "")) != "" else 0.0)
 	_canvas.draw_string(_font, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0),
-		label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 28.0, 16, tint)
-	_canvas.draw_string(_font, rect.position + Vector2(-14, rect.size.y * 0.5 + 6.0),
+		label, HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 28.0 - reserved, 16, tint)
+	_canvas.draw_string(_font, rect.position + Vector2(-reserved, rect.size.y * 0.5 + 6.0),
 		value, HORIZONTAL_ALIGNMENT_RIGHT, rect.size.x, 16,
 		BRASS_LIT if shown else BRASS)
 	return fired

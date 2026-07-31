@@ -28,6 +28,16 @@ func _process(_delta: float) -> void:
 func _draw() -> void:
 	if game == null:
 		return
+	if game.settings_open:
+		match game.state_name:
+			"TITLE":
+				draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+			_:
+				_draw_world_overlay()
+		_draw_settings()
+		if game.layout_edit:
+			_draw_layout_editor()
+		return
 	match game.state_name:
 		"TITLE":
 			_draw_title()
@@ -67,7 +77,22 @@ func _draw_title() -> void:
 	_center_text("STORM-DUSK · GODOT PORT", 205.0, 24, Color("#37f0c8"))
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
 	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash", 330.0, 18, Color("#b9afaa"))
-	_center_text("Press Enter to choose your opening weapon", 430.0, 26, Color("#ffe08a"))
+	## The title had one instruction — press Enter — and four more things you
+	## could do that it never mentioned. All of them are buttons now.
+	ui.begin("title", self, font, get_local_mouse_position())
+	var tw := 300.0
+	var tx: float = size.x * 0.5 - tw * 0.5
+	var ty := 380.0
+	if ui.button(Rect2(tx, ty, tw, 44.0), "BEGIN RUN",
+			{"primary": true, "hint": "Enter"}):
+		game.begin_run()
+	if ui.button(Rect2(tx, ty + 52.0, tw, 38.0), "SETTINGS", {"hint": "F5"}):
+		game.settings_open = true
+	if ui.button(Rect2(tx, ty + 96.0, tw, 38.0), "CONTROLS", {"hint": "F2"}):
+		game.keys_open = true
+	if ui.button(Rect2(tx, ty + 140.0, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
+		game.quit_game()
+	ty += 216.0
 	## What the machine remembers. A title screen with a best-wave on it is the
 	## cheapest possible reason to press Enter again.
 	var history: Dictionary = SkyGearRunLog.summary()
@@ -77,9 +102,9 @@ func _draw_title() -> void:
 			line += " · %d held" % int(history.wins)
 			if str(history.best_time) != "":
 				line += " (best %s)" % str(history.best_time)
-		_center_text(line, 500.0, 17, Color("#b0813f"))
-	_center_text("F2 rebind keys · F3 audio", 540.0, 15, Color("#6a6478"))
-	_center_text("Milestone 1 · v11 combat vertical slice", 675.0, 15, Color("#8f8697"))
+		_center_text(line, ty, 17, Color("#b0813f"))
+	_center_text("Milestone 1 · v11 combat vertical slice", ty + 46.0, 15,
+		Color("#8f8697"))
 
 ## The HUD, brought up to the browser build.
 ##
@@ -1124,6 +1149,60 @@ func _draw_pause() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 
+## Settings. There were none — volume was two keys nobody knew about, and every
+## other option was a function key mentioned once on the title screen. Four
+## channels rather than one, because the report that started this was "SFX with
+## character audio weren't really easy to hear against the other sounds", and a
+## single master slider cannot answer that.
+func _draw_settings() -> void:
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
+	var rows := 8
+	var tall: float = 118.0 + rows * 40.0 + 58.0
+	var top: float = maxf(60.0, (size.y - tall) * 0.5)
+	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
+	_panel(sheet)
+	_banner(size.x * 0.5, sheet.position.y - 10.0, 420.0)
+	_center_text("SETTINGS", sheet.position.y + 48.0, 38, BRASS_LIT)
+
+	ui.begin("settings", self, font, get_local_mouse_position())
+	var w := 580.0
+	var x := sheet.position.x + 40.0
+	var y := sheet.position.y + 86.0
+	if game.audio != null:
+		for pair in [["master", "MASTER"], ["sfx", "EFFECTS"], ["music", "MUSIC"],
+				["voice", "VOICE"], ["ui", "INTERFACE"]]:
+			game.audio.set_volume(str(pair[0]),
+				ui.slider(Rect2(x, y, w, 32.0), str(pair[1]),
+					float(game.audio.volumes[str(pair[0])])))
+			y += 40.0
+		if ui.button(Rect2(x, y, w, 34.0),
+				"UNMUTE EVERYTHING" if game.audio.muted else "MUTE EVERYTHING",
+				{"hint": "M"}):
+			game.audio.toggle_mute()
+		y += 40.0
+
+	var full: bool = DisplayServer.window_get_mode() in [
+		DisplayServer.WINDOW_MODE_FULLSCREEN,
+		DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+	if ui.row(Rect2(x, y, w, 34.0), "FULLSCREEN", "ON" if full else "OFF",
+			{"hint": "F11"}):
+		game.toggle_fullscreen()
+	y += 40.0
+	if ui.button(Rect2(x, y, w, 34.0), "REBIND CONTROLS", {"hint": "F2"}):
+		game.settings_open = false
+		game.keys_open = true
+	y += 46.0
+	if ui.button(Rect2(x + w * 0.5 - 110.0, y, 220.0, 38.0), "BACK",
+			{"primary": true, "hint": "Esc"}):
+		game.settings_open = false
+
+	## Settings are written on the way out, not on every drag of a slider — a save
+	## per mouse-move frame is a hundred file writes to move the volume.
+	_label("changes are saved when you leave this screen",
+		Vector2(sheet.position.x, sheet.end.y - 20.0), sheet.size.x,
+		HORIZONTAL_ALIGNMENT_CENTER, 12)
+
+
 func _draw_overlay(title: String, subtitle: String) -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.86))
 	_center_text(title, 260.0, 52, Color("#e8c376"))
@@ -1162,13 +1241,15 @@ func _draw_results(title: String, tint: Color) -> void:
 	## Sized to the report rather than to the window. A fixed plate left three
 	## hundred pixels of empty brass under a twelve-line run, which reads as a
 	## screen that failed to load something.
-	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0, minf(size.y - 104.0, tall + 232.0)))
+	const RESULTS_CHROME := 360.0   ## banner, title, reason, buttons, the log note
+	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0,
+		minf(size.y - 104.0, tall + RESULTS_CHROME)))
 	_banner(size.x * 0.5, 62.0, 520.0)
 	_center_text(title, 110.0, 52, tint)
 	if game.end_reason != "":
 		_center_text(game.end_reason, 146.0, 18, Color("#b9afaa"))
 	var lines := body
-	var y := 188.0
+	var y := 212.0
 	for i in lines.size():
 		var line: String = lines[i]
 		var small := line.begins_with("  ")
@@ -1176,10 +1257,38 @@ func _draw_results(title: String, tint: Color) -> void:
 			HORIZONTAL_ALIGNMENT_LEFT, 680, 15 if small else 17,
 			Color("#b9afaa") if small else Color("#eee5d5"))
 		y += 20.0 if small else 23.0
-	y += 18.0
-	_center_text("C to copy the report · Enter to return to title", y, 18, Color("#37f0c8"))
+	y += 16.0
+
+	## BUTTONS, not a line of text naming keys. This screen said "C to copy the
+	## report, Enter to return to title" and that was the whole interface: the one
+	## thing a player wants at the end of a run — go again — was two screens away
+	## behind a key nobody reads.
+	##
+	## PLAY AGAIN keeps the seed. A run you just lost on the third wave is a run
+	## you want to try again, not a different twelve waves, and the same seed is
+	## the only version of "again" you can learn anything from.
+	ui.begin("results", self, font, get_local_mouse_position())
+	var bw := 226.0
+	var gap := 12.0
+	var bx: float = size.x * 0.5 - (bw * 2.0 + gap) * 0.5
+	if ui.button(Rect2(bx, y, bw, 42.0), "PLAY AGAIN",
+			{"primary": true, "hint": "Enter"}):
+		game.restart_run()
+	if ui.button(Rect2(bx + bw + gap, y, bw, 42.0), "NEW SEED"):
+		game.new_seed_run()
+	y += 50.0
+	if ui.button(Rect2(bx, y, bw, 36.0), "COPY REPORT", {"hint": "C"}):
+		game.copy_report()
+	if ui.button(Rect2(bx + bw + gap, y, bw, 36.0), "QUIT TO TITLE", {"hint": "Esc"}):
+		game.go_to_title()
+	y += 46.0
+
+	## Whether the copy landed. A button that does something invisible is a button
+	## a player presses four times.
+	if game.copied_at > 0.0 and game.run_time - game.copied_at < 2.0:
+		_center_text("copied to the clipboard", y, 14, Color("#37f0c8"))
 	var log_note := "saved to the run log" if game.run_logged 		else "COULD NOT WRITE THE RUN LOG — copy it before you leave"
-	_center_text(log_note, y + 24.0, 14,
+	_center_text(log_note, y + 18.0, 14,
 		Color("#6a6478") if game.run_logged else Color("#ff9a5a"))
 
 

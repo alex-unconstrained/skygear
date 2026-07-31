@@ -133,6 +133,10 @@ var _layout_resize := false
 var _layout_from := Vector2.ZERO
 
 var keys_open := false
+var settings_open := false
+## When the run report was last put on the clipboard, so the button can say so.
+## A button that does something invisible is a button a player presses four times.
+var copied_at := -99.0
 var rebinding_index := -1
 var rebind_conflict := ""
 
@@ -206,7 +210,21 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 	## A menu that is open owns the pointer and the arrow keys. Checked before
 	## the game's own bindings, or Space dashes while you are choosing a button.
-	if state == State.PAUSE and not keys_open and hud.ui.handle(event):
+	## Settings owns everything while it is up, including over a paused game.
+	if settings_open:
+		if hud.ui.handle(event):
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			settings_open = false
+			if audio != null:
+				audio.save_settings()
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+	elif (state == State.PAUSE or state == State.TITLE
+			or state == State.GAMEOVER or state == State.VICTORY) 			and not keys_open and hud.ui.handle(event):
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
@@ -215,14 +233,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	## F11, always, in every state. A game that opens fullscreen and offers no
 	## way out is a game people force-quit, and the choice is remembered.
 	if event.keycode == KEY_F11:
-		var full: bool = DisplayServer.window_get_mode() in [
-			DisplayServer.WINDOW_MODE_FULLSCREEN,
-			DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full
-			else DisplayServer.WINDOW_MODE_FULLSCREEN)
-		if audio != null:
-			audio.fullscreen = not full
+		toggle_fullscreen()
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
+	if event.keycode == KEY_F5:
+		settings_open = not settings_open
+		if not settings_open and audio != null:
 			audio.save_settings()
+		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
 	if event.keycode == KEY_F3:
@@ -266,6 +285,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if state in [State.GAMEOVER, State.VICTORY]:
 		if event.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+			restart_run()
+			get_viewport().set_input_as_handled()
+			return
+		if event.keycode == KEY_ESCAPE:
 			go_to_title()
 			get_viewport().set_input_as_handled()
 			return
@@ -444,6 +467,37 @@ func _layout_input(event: InputEvent) -> bool:
 ## 1-9 then 0, so ten rows are reachable without a cursor.
 ## Named, because a menu button calling `_set_state` directly is a menu button
 ## that has to know about states.
+## Fullscreen, as a function rather than a key handler, so the settings row and
+## F11 cannot drift apart.
+func toggle_fullscreen() -> void:
+	var full: bool = DisplayServer.window_get_mode() in [
+		DisplayServer.WINDOW_MODE_FULLSCREEN,
+		DisplayServer.WINDOW_MODE_EXCLUSIVE_FULLSCREEN]
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if full
+		else DisplayServer.WINDOW_MODE_FULLSCREEN)
+	if audio != null:
+		audio.fullscreen = not full
+		audio.save_settings()
+
+
+func copy_report() -> void:
+	copy_run_report()
+
+
+## A different twelve waves. `restart_run` deliberately keeps the seed, so this
+## is the other half of the pair rather than a variant of it.
+func new_seed_run() -> void:
+	go_to_title()
+	set_seed_text(_random_seed_text())
+	begin_run()
+
+
+func quit_game() -> void:
+	if audio != null:
+		audio.save_settings()
+	get_tree().quit()
+
+
 func toggle_pause() -> void:
 	if state == State.PLAY:
 		_set_state(State.PAUSE)
@@ -535,6 +589,8 @@ func _random_seed_text() -> String:
 
 
 func begin_run() -> void:
+	settings_open = false
+	keys_open = false
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	for prop in get_tree().get_nodes_in_group("props"):
@@ -643,6 +699,7 @@ func _format_time(seconds: float) -> String:
 
 func copy_run_report() -> void:
 	DisplayServer.clipboard_set(run_report())
+	copied_at = run_time
 
 
 func go_to_title() -> void:

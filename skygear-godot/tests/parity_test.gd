@@ -1214,6 +1214,44 @@ func _view() -> void:
 	_check("widget", "a paused run can be restarted and quit",
 		game.has_method("restart_run") and game.has_method("toggle_pause"))
 
+	## THE SCREENS. Every one of these was a line of text naming a key: the title
+	## said "press Enter" and never mentioned the four other things you could do,
+	## the results screen said "C to copy, Enter for title" and hid the one thing
+	## a player wants at the end of a run behind a key nobody reads, and there was
+	## no settings screen at all.
+	for action in ["toggle_fullscreen", "copy_report", "new_seed_run",
+			"quit_game", "settings_open"]:
+		_check("screens", "the menus can actually do '%s'" % action,
+			game.has_method(action) or action in game,
+			"neither a method nor a property")
+
+	## PLAY AGAIN keeps the seed and NEW SEED does not — they are the two halves
+	## of "again" and swapping them silently is the kind of bug nobody reports,
+	## they just stop trusting the button.
+	game.set_seed_text("KEEPME")
+	game.begin_run()
+	game.restart_run()
+	_check("screens", "PLAY AGAIN keeps the seed", game.seed_text == "KEEPME",
+		"became %s" % game.seed_text)
+	game.new_seed_run()
+	_check("screens", "and NEW SEED does not", game.seed_text != "KEEPME")
+
+	## Starting a run has to close whatever menu was open over the title, or you
+	## begin wave one behind a settings panel.
+	game.go_to_title()
+	game.settings_open = true
+	game.keys_open = true
+	game.begin_run()
+	_check("screens", "beginning a run closes the menus",
+		not game.settings_open and not game.keys_open)
+	game.go_to_title()
+
+	## And the copy button has to leave a trace, or it is a button that does
+	## something invisible and a player presses it four times.
+	game.copied_at = -99.0
+	game.copy_report()
+	_check("screens", "copying the report is acknowledged", game.copied_at > -99.0)
+
 	## DEPLOYABLES. Reported from a real run: "I got the sentry ability and I
 	## didn't even see a sentry drop." There was nothing to see — the shape was
 	## marked passive and fired a beam out of the player's own body.
@@ -1255,6 +1293,15 @@ func _view() -> void:
 	game.skills[0].cooldown_left = 0.0
 	game.skills[0].sentry_idle = 0.0
 	var grace: float = float(game.skill_stats(game.skills[0]).get("auto_after", 2.5))
+
+	## Not while the fight is not running. A menu left open for a minute should
+	## not spit out twenty turrets the moment you look away.
+	game._set_state(SkyGearGame.State.PAUSE)
+	game._update_cooldowns(grace * 3.0)
+	_check("sentry", "a paused game does not auto-place", game.sentries.is_empty())
+
+	game._set_state(SkyGearGame.State.PLAY)
+	game.skills[0].sentry_idle = 0.0
 	game._update_cooldowns(grace * 0.5)
 	_check("sentry", "an unpressed one waits before auto-casting",
 		game.sentries.is_empty())
