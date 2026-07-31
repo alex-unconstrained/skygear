@@ -105,8 +105,35 @@ velocity (no new mesh, no solver, works with the animation blend); a separate
 The bone chain is almost certainly right for a figure this size on screen — at
 this camera distance the cape is about forty pixels tall.
 
-### The sky is better, not right
-Reported twice. It was near-black and fogged; it is now a dusk gradient with
+### THE SKYBOX — the browser one had clouds, a moon and parallax
+Reported a third time, and this time with what it should be rather than that it
+is missing: *"such a cool skybox in the browser version that you could see over
+the side of the skyship — clouds, a moon, interesting detail. Some parallax
+scrolling to really add visual interest."*
+
+My previous two passes both treated this as a colour problem. It is not. The
+Godot build has a `ProceduralSkyMaterial` gradient and a cloud SEA at y = -760,
+which is BELOW the deck — there is nothing above the horizon at all. No moon, no
+cloud layers, no parallax. The browser draws layered scrolling bands and a moon,
+and that is why it reads as altitude and ours reads as a dark edge.
+
+The camera pitch is why it keeps getting missed: at 41 degrees over the deck the
+horizon sits behind the bow at most positions, so the sky only shows in the top
+corners and I have kept judging it from screenshots where it barely appears.
+Fixing it means putting real content ABOVE the horizon line and checking it from
+the positions where sky is actually visible — the parity tool now makes that
+easy.
+
+### A 3D model for the boarding hulk
+Reported: the enemy boarding vehicle above the lanes is still a 2D sprite and
+looks at odds with the rest. It is the largest sprite in the game after the
+Colossus and sits directly above the three lanes the player watches, so it is
+the most visible remaining one. Complication: it has three states — sealed, open
+and destroyed — and a single mesh that cannot show "open" is a downgrade from
+the sprite, which can.
+
+### The sky gradient itself — subsumed by the item above
+Reported twice before that. It was near-black and fogged; it is now a dusk gradient with
 `fog_sky_affect` turned down. But the warm horizon band sits behind the bow at
 most camera positions, so what you actually see is still mostly dark corners.
 Needs either high cloud above the horizon, or a rethink of what is visible at
@@ -124,6 +151,36 @@ From `VFX-PLAN.md`, with no code at all behind them:
 - §6 the captain's weapon trail — and she now has a visible sword, so this
   matters more than when it was written
 - §5 chromatic hit and radial blur — shake is done, these are not
+
+### The Boilerwright looks exactly like the captain
+Asked for as "a model for the second player class", and it is the one thing on
+this list that **cannot** be closed by the Meshy pipeline as it stands.
+
+`SkyGearView3D._sync_captain` loads one constant, `CAPTAIN_SCENE`, for both
+classes. So the heavy engineer who built the Boiler is currently a fast
+red-coated woman with a cutlass, and the only way to tell which class you picked
+is the gauge. `CLASS-2-DESIGN.md` §7 already books him as **commissioned art**
+and it is right: he needs the captain's 33-bone Mixamo skeleton and her clip
+set, plus the plant/kneel clip §7 names, and a Meshy text-to-3D result has no
+skeleton, no clips and no rest pose to retarget from. `tools/static_model.gd`
+exists precisely because that is true, and it produces static scenes — a static
+scene in `_sync_captain` is a statue that slides around the deck.
+
+Two routes, and the choice has to be made before anyone spends:
+
+1. **Mesh, then Meshy's own rig + animation endpoints** (`/openapi/v1/rigging`,
+   then the animation library). Cheapest, but his clips would then be Meshy's,
+   not the axe pack's, so his timings would not match hers and `anim_timing.gd`
+   measures against skill windows.
+2. **Mesh, then retarget the axe pack onto it** through `tools/ingest_model.py`
+   and `tools/models.json`, which is how the captain was built and the only
+   route where the two classes move on the same clock. Needs the auto-rig to
+   come back with Mixamo bone names.
+
+Until that is decided, generating a mesh is 30 credits on step one of three.
+Nothing has been spent and no prompt is in the manifest, deliberately: an entry
+in `tools/meshy.py` is a thing you can run, and running this one buys an asset
+the renderer has no way to display.
 
 ### The furnace knight is still a sprite
 Two Meshy attempts; neither read as the 180-hp thing you cannot walk through.
