@@ -83,8 +83,14 @@ func _run() -> void:
 	game.set_class("captain")
 	game.set_seed_text("SKY")
 	game.begin_run()
+	## `choose_draft` ON THE OPENING DRAFT ALREADY STARTS WAVE ONE. Calling it
+	## again here began the wave twice — two spawn schedules, two banners, and a
+	## `wave_time` reset partway through the first. Invisible until banners
+	## stopped printing pixel-on-pixel and a posed shot came back with "WAVE 1"
+	## three times down the middle of the screen.
 	game.choose_draft(0)
-	game.start_wave(1)
+	if game.wave != 1:
+		game.start_wave(1)
 	game.spawn_queue.clear()
 
 	## A camera that is deliberately never still cannot also be the thing a
@@ -110,7 +116,8 @@ func _run() -> void:
 			## runs differ only where the build differs.
 			if game.state == SkyGearGame.State.DRAFT:
 				game.choose_draft(0)
-			game.start_wave(1)
+			if game.wave != 1:
+				game.start_wave(1)
 			game.spawn_queue.clear()
 			var at: Dictionary = SPOTS[spot]
 			game.player.global_position = Vector2(

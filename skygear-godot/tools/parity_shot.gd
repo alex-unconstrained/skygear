@@ -53,7 +53,14 @@ func _run() -> void:
 	for pair in [["RANGED_AOE", "FROST"], ["CHAIN", "ARC"], ["CONE", "STEAM"]]:
 		game.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
 
-	game.start_wave(int(scene.get("wave", 1)))
+	## `choose_draft` ON THE OPENING DRAFT ALREADY STARTS WAVE ONE. Calling it
+	## again here began the wave twice — two spawn schedules, two banners, and a
+	## `wave_time` reset partway through the first. Invisible until banners
+	## stopped printing pixel-on-pixel and a posed shot came back with "WAVE 1"
+	## three times down the middle of the screen.
+	var want_wave: int = int(scene.get("wave", 1))
+	if game.wave != want_wave:
+		game.start_wave(want_wave)
 	## The wave's own queue is cleared: the scene lists exactly who is on the
 	## deck, so both builds get the same boarders rather than each spawning its
 	## own schedule at its own pace.

@@ -2326,9 +2326,32 @@ func _sync_airstream(delta: float) -> void:
 		var angle: float = -PI * 0.5 + lean
 		var ca := cos(angle)
 		var sa := sin(angle)
-		var basis := Basis(Vector3(ca, 0.0, sa), Vector3(sa, 0.0, -ca), Vector3(0.0, 1.0, 0.0))
-		basis = basis.scaled(Vector3(_stream_len[i * 2] * WORLD_SCALE,
-			_stream_len[i * 2 + 1] * WORLD_SCALE, 1.0))
+		## SCALED ON THE COLUMNS, not by `Basis.scaled()`.
+		##
+		## `scaled()` multiplies the basis ROWS, which is a scale in the PARENT
+		## frame, and this basis is a 90 degree rotation — so the two did not line
+		## up. At `angle = -PI/2` the local X column is (0, 0, -1), pointing down
+		## the keel, and scaling the world-X row leaves it untouched: THE 367-UNIT
+		## LENGTH WAS DISCARDED. It landed on the local Y column instead, which
+		## points athwartships. Forty-eight additive plates, up to 430 units wide
+		## ACROSS the ship at head height, sweeping over the deck.
+		##
+		## Invisible for months against a near-black sky and obvious the day a
+		## moonlit cloudscape went in behind them — the pale horizontal bars in
+		## the first sky screenshots were these. Found by measurement rather than
+		## by eye: `tools/deck_probe.gd -- airsize` prints wanted against got.
+		##
+		## The comment eight lines above warns that a ribbon passing close to the
+		## lens is a smear over half the frame, and then the code does exactly
+		## that through a different door. Multiplying the columns applies the
+		## scale in the quad's OWN frame, which is where length and width mean
+		## what they are named.
+		var along: float = _stream_len[i * 2] * WORLD_SCALE
+		var across: float = _stream_len[i * 2 + 1] * WORLD_SCALE
+		var basis := Basis(
+			Vector3(ca, 0.0, sa) * along,
+			Vector3(sa, 0.0, -ca) * across,
+			Vector3(0.0, 1.0, 0.0))
 		node.transform = Transform3D(basis, Vector3(x, y, z) * WORLD_SCALE)
 		# fade in at the far end and out as it passes, so nothing appears in shot
 		var fade: float = smoothstep(0.0, 0.16, t) * smoothstep(1.0, 0.70, t)

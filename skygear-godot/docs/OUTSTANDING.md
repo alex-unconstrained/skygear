@@ -144,10 +144,11 @@ the **boarding hulk** (see its own item below).
 **Never generated:** `rope_coil`, 30 ground units tall, the shortest thing in
 `PROP_HEIGHT`. The prompt is written and costs 30 credits if anyone disagrees.
 
-Still worth doing: the REMESH step. Our prompts ask for flat albedo and no baked
-light and get it, but nothing downsamples the mesh after refine, and Meshy has an
-endpoint for it. Every one of these is ~10 MB of GLB for an object 60 to 200
-pixels tall.
+~~Still worth doing: the REMESH step.~~ Done, and the premise here was wrong:
+94% of every file was TEXTURE, not geometry. 218,332 triangles across 17 assets
+is 11.5 MB; the other 170 MB was 68 embedded 2048-square JPEGs. 182 MB to 9 MB,
+and the exe from 242 to 168. The captain was excluded and that has its own
+entry below.
 
 ### Text legibility, not containment
 Asked for: skills, cards and HUD elements are hard to READ. Distinct from the
@@ -156,19 +157,16 @@ contained on textured brass passes that check and is still unreadable. `_fits`
 shrinking text to fit is itself a suspect. An agent is measuring contrast and
 point size before changing anything.
 
-### Telling the player how the two classes differ
-Asked for. There are full descriptions in `CLASSES` that nothing reads, and the
-picker shows one line. Comparable rows are now in the data; the screen that lays
-them side by side is not built yet.
+### Deckwork needs MORE VERBS — the prompt is done
+Repairing a dead cannon works and is now findable: the coach announces that a
+downed gun can come back (naming the bound key, not a hard-coded R), and a
+prompt over the gun says you are standing where it works, with the progress
+under it and the reason when it refuses. Three checks, including one asserting
+the line carries the live binding and not the raw `{key}` token.
 
-### Deckwork needs a prompt, and then it needs more verbs
-The system is in and repairing a dead cannon works (hold R while standing at
-it), but there is NO ON-SCREEN PROMPT yet — an interaction nobody is told about
-is an interaction nobody performs. `hud.gd` was being rewritten by another
-agent when this landed, so the prompt and the progress ring are still owed.
-
-Then the verbs the ask was actually about: dragging a crate to close a lane,
-funnelling, shaping where the fight happens. Each is one entry in the table.
+What the ask was actually about is still owed: dragging a crate to close a
+lane, funnelling, shaping where the fight happens. Each is one entry in the
+verb table in `scripts/deckwork.gd`.
 
 ### A cloak with cloth physics
 Raised again. Godot has `SoftBody3D`, which is the obvious route, but it wants a
@@ -209,24 +207,23 @@ The audit's proposed rule is the fix and it should be adopted: **any claim of
 harness coverage must name the check string**, so an untested claim is visibly
 untested. Not done.
 
-### The airstream washes over the sky now that there is a sky
-Not reported — found while doing the skybox, and written down rather than fixed
-because fixing it means moving a number three other things are calibrated
-against.
+### ~~The airstream washes over the sky~~ — FIXED, and it was a bug not a tuning problem
+Worth keeping as a record of a wrong diagnosis. This entry assumed the ribbons
+were correctly built and merely too wide, and proposed narrowing
+`STREAK_SPREAD` — a number three other things are calibrated against.
 
-The 48 airstream ribbons live 0.7 to 4.9 metres above the deck and spread
-`STREAK_SPREAD` = 1500 ground units across, which is 7.5 metres either side of
-the keel against a deck that is 8.4. Close to the lens they project wide, so
-several of them cross the open air past the gunwale, and additive pale streaks
-over what used to be a flat dark slab were invisible while over a moonlit
-cloudscape they read as horizontal bars. Visible in every shot in
-`.shots/sky/`, clearest in `starboard-z1.55.png`.
+They were not correctly built. `Basis.scaled()` multiplies the basis ROWS,
+which is a scale in the PARENT frame, and the streak basis is a 90 degree
+rotation — so the two never lined up. The local X column points down the keel
+and scaling the world-X row leaves it untouched, so THE 190-430 UNIT LENGTH WAS
+DISCARDED and landed on the athwartships column instead. Forty-eight additive
+plates up to 430 units wide ACROSS the ship at head height, sweeping over the
+deck.
 
-Two candidate fixes, neither measured: narrow `STREAK_SPREAD` so the air stays
-over the planking, or fade a ribbon out as it passes outside the deck rectangle.
-The second is more correct and costs a per-ribbon test. Left alone for now
-because the airstream is F-03 and its width was tuned against how the deck
-reads, not against how the sky does.
+Found by measuring rather than by eye — `tools/deck_probe.gd -- airsize`
+prints wanted against got, and it now reads 366.9 x 1.4 against a wanted
+366.9 x 1.38, long axis (0,0,-1) down the keel. Fixed by scaling the columns
+at construction. `STREAK_SPREAD` never moved.
 
 ### A 3D model for the boarding hulk — TRIED TWICE, SPRITE KEPT
 Reported, and attempted: two Meshy generations, 60 credits, both rejected. Both

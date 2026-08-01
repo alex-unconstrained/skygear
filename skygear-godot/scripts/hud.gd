@@ -1605,13 +1605,33 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 	##
 	## Older ones pushed DOWN, so the line that just arrived is always in the
 	## place the eye already went.
+	## ONE OF EACH, AND NEVER MORE THAN THREE.
+	##
+	## Stacking them was right and it turned a hidden bug into a visible one: a
+	## posed shot came back with SEVEN banners running down the middle of the
+	## screen, "WAVE 1" three times among them. They had always been fired twice
+	## — `choose_draft` starts wave one and the shot tools start it again — and
+	## two identical banners printed pixel-on-pixel read as one crisp banner, so
+	## nothing ever looked wrong.
+	##
+	## Deduplicated by TEXT, because two banners saying the same thing is never
+	## something anybody wanted, whatever caused it. Capped at three, because a
+	## column of announcements down the middle of the deck is worse than a
+	## dropped announcement — and past three the oldest is nearly faded anyway.
 	var stack := 0
+	var already := {}
 	for e in game.effects:
 		if str(e.kind) != "banner":
 			continue
+		var line := str(e.text)
+		if already.has(line):
+			continue
+		already[line] = true
+		if stack >= 3:
+			break
 		var bt: float = float(e.time) / maxf(0.001, float(e.life))
 		var fade: float = clampf(minf(bt * 6.0, (1.0 - bt) * 4.0), 0.0, 1.0)
-		_say_free(str(e.text), Vector2(0.0, size.y * 0.26 + stack * 48.0), size.x,
+		_say_free(line, Vector2(0.0, size.y * 0.26 + stack * 48.0), size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 42, Color(0.91, 0.77, 0.46, fade))
 		stack += 1
 
