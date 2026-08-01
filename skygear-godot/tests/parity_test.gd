@@ -112,6 +112,8 @@ func _run() -> void:
 	await process_frame
 	_dash()
 	await process_frame
+	_mobility()
+	await process_frame
 	_ink()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
@@ -2517,6 +2519,21 @@ func _view() -> void:
 			and game.player.max_dash_charges == 2 and not game.gauge_is_banked())
 	_check("class", "with no overpressure bonus to speak of",
 		is_equal_approx(game.overpressure_multiplier(), 1.0))
+
+	##
+	## Reported at playtest as "Boilerwright feels slower", and the stated
+	## difference is 205 against 260 — 21%. That number is the answer to a
+	## question nobody asked. It is TOP SPEED, and nobody experiences top speed;
+	## they experience how far they got while a lane was walking down on them.
+	##
+	## `ACCEL` is shared, so he actually reaches his top speed FASTER than she
+	## reaches hers (0.060s against 0.077s) — there is no hidden acceleration
+	## penalty, and this measures rather than assumes it.
+	##
+	## The dash is the whole story. Measured over six seconds of holding one
+	## direction, her dashing when it is off cooldown and him walking, because
+	## his Bleed Jet is not free mobility — it costs bank he needs for the
+	## multiplier that is the entire point of the class.
 	game.spawn_queue.clear()
 	game.go_to_title()
 	await game.get_tree().process_frame
@@ -4068,3 +4085,65 @@ func _cutscene() -> void:
 		not view.cue("no_such_moment") and not view.play_cutscene("no_such_file"))
 
 	world.queue_free()
+
+
+## HOW MUCH SLOWER IS THE BOILERWRIGHT, ACTUALLY?
+##
+## Reported at playtest as "Boilerwright feels slower". The stated difference is
+## 205 against 260 — 21% — and that is the answer to a question nobody asked. It
+## is TOP SPEED, and nobody experiences top speed; they experience how much
+## ground they covered while a lane walked down on them.
+##
+## `ACCEL` is shared, so he reaches his top speed FASTER than she reaches hers
+## (0.060s against 0.077s). There is no hidden acceleration penalty, which is
+## worth having measured rather than assumed.
+##
+## IN ITS OWN FUNCTION, and that is not tidiness. The comment at the top of
+## `_run` records that a block added inside `_view` once moved a coroutine pass
+## and made sixty-one checks quietly stop existing. This block did it again —
+## 435 became 342, green, no error — which is the third time. `_view` is over
+## three thousand lines and is now closed to new work.
+func _mobility() -> void:
+	var travel := {}
+	for who in ["captain", "boilerwright"]:
+		var runner := _new_game()
+		runner.set_class(who)
+		_begin(runner)
+		runner.spawn_queue.clear()
+		var mover = runner.player
+		mover.global_position = Vector2(0.0, 600.0)
+		var from: Vector2 = mover.global_position
+		## THROUGH THE INPUT MAP, because `input_direction` is a local read from
+		## `Input.get_vector` inside `_physics_process` and not a field anything
+		## can set — my first attempt assigned to it and threw, silently, inside
+		## a coroutine. And movement lives in `_physics_process`, which
+		## `game._process` does not call: without the second line below this
+		## measured a captain standing perfectly still.
+		Input.action_press("move_up")
+		for _tick in 120:
+			## She dashes whenever it is off cooldown; he walks. His Bleed Jet is
+			## NOT free mobility — it costs the bank carrying the multiplier the
+			## whole class is built on, so spending it to keep up is the trade
+			## rather than the baseline.
+			if who == "captain" and mover.dash_charges > 0 and mover.dash_time_left <= 0.0:
+				mover._try_dash(Vector2.UP)
+			runner._process(0.05)
+			mover._physics_process(0.05)
+			## Wrapped rather than walked into the bow, or this measures the clamp.
+			if mover.global_position.y < -900.0:
+				from.y -= 1500.0
+				mover.global_position.y += 1500.0
+		Input.action_release("move_up")
+		travel[who] = absf(mover.global_position.y - from.y)
+		runner.queue_free()
+
+	var walk_ratio: float = 205.0 / 260.0
+	var real_ratio: float = float(travel.boilerwright) / maxf(1.0, float(travel.captain))
+	_check("class", "the boilerwright's top speed is 79% of hers, as designed",
+		is_equal_approx(snappedf(walk_ratio, 0.01), 0.79), "%.2f" % walk_ratio)
+	## THE ONE THAT MATTERS. If ground covered tracked the speed ratio then
+	## "feels slower" would just be the 21% and the answer would be explanation.
+	_check("class", "but ground covered against a dashing captain is worse than that",
+		real_ratio < walk_ratio - 0.05,
+		"he covers %.0f%% of her distance against a %.0f%% walk speed"
+			% [real_ratio * 100.0, walk_ratio * 100.0])

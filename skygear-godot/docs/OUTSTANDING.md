@@ -17,6 +17,31 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The Boilerwright's mobility gap is 67%, not the 21% the numbers say
+Reported at playtest as "Boilerwright feels slower", alongside "I'm not sure I
+understand what the class actually does". The second half is fixed — the
+comparison screen is built and Overpressure is a ring round the dial. The first
+half turned out to be real and much larger than the stat sheet admits.
+
+205 against 260 is 79%, and that is TOP SPEED — a number nobody experiences.
+What a player experiences is ground covered while a lane walks down on them.
+Measured over six seconds, `class · but ground covered against a dashing
+captain is worse than that`: **he covers 33% of her distance.** `ACCEL` is
+shared so he actually reaches his top speed faster than she reaches hers; the
+entire gap is the dash.
+
+Read it as an upper bound: she dashes on every cooldown and he never spends
+bank on the Bleed Jet, which is the widest the gap can be. But the jet costs
+the bank that carries the multiplier the class is built on, so closing the gap
+means giving up the reason to be the class — and that IS the trade the player
+is feeling.
+
+Not a bug and no numbers changed. It is a design question the measurement now
+makes answerable: either he is compensated somewhere a player can feel, or the
+comparison screen has to say plainly that he trades mobility for damage. What
+must not happen is tuning it by feel — that is what the number is for.
+
+
 ### A cutscene tool — BUILT, AND ONE SHOT IS WIRED. Three trigger points are empty
 Asked for: *"set up frame, key frame, camera movement… use the in-game renderer…
 save those so that they can play at certain times during the game."* All four

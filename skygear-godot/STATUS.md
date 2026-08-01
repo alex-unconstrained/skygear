@@ -1,10 +1,19 @@
 # SkyGear Godot port -- where things stand
 
-Last updated 2026-07-31. **Read this first, then `docs/OUTSTANDING.md`.**
+Last updated 2026-08-01. **Read this first, then `docs/OUTSTANDING.md`.**
 
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
-a difficulty ladder. 401 harness checks. Build 27 is on itch at
-https://alex-unconstrained.itch.io/skygear-godot-test
+a difficulty ladder, a sky, and a cutscene system with one shot wired.
+**437 harness checks**; the text audit covers 21 screens at 4 widths and is
+clean. Build 31 is on itch at
+https://alex-unconstrained.itch.io/skygear-godot-test and the source is at
+https://github.com/alex-unconstrained/skygear
+
+**The four tools you will reach for**, all behind `SkyGear Tools.bat`:
+`harness` (437 checks), `text` (the audit), `screens` (photograph all 21
+screens at all 4 widths as one page — for the human judgement no checker can
+make), and `layout` (promote the F4 HUD alignment out of `user://` and into the
+repo, which is the step that makes a hand-alignment pass real).
 
 ---
 
@@ -54,7 +63,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One verb so far |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 401 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 437 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -77,8 +86,8 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 401 checks. Green before anything ships |
-| `text` | every string on 16 screens x 4 sizes: containment, overlap, contrast |
+| `harness` | 437 checks. Green before anything ships |
+| `text` | every string on 21 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |
