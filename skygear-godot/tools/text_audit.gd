@@ -31,7 +31,13 @@ extends SceneTree
 ## failure. And a string can sit dead centre of its frame in a colour three
 ## shades from the brass it is painted on.
 ##
-##   SMALL     drawn below SkyGearInk.MIN_PT after every clamp and shrink
+##   SMALL     too small ON THE PLAYER'S SCREEN. The point-size floor is applied
+##             at the funnel, so `pt` in design space is always >= MIN_PT and a
+##             `pt`-vs-MIN_PT test can never fire — that is the check that let a
+##             re-clamped 7pt label pass. But the 1920 canvas is scaled to the
+##             window, so the physical height is `pt * window/1920`, and at the
+##             narrowest window the game opens (SkyGearInk.MIN_WINDOW_W) that must
+##             still clear SkyGearInk.MIN_PHYS_PX physical pixels.
 ##   FAINT     the WCAG contrast between the glyph and what is BEHIND it is
 ##             under the floor for that colour
 ##
@@ -330,14 +336,23 @@ func _ink_report(strings: Array, verbose: bool) -> int:
 	## the measured instance at 1600 scored 1.02, ties kept the first, and two
 	## genuinely faint strings sorted into the middle of a list of passes. Take
 	## the worst of each column first, score afterwards.
+	## The pose whose point sizes the REAL game draws. The 1920 canvas does not
+	## reflow — `canvas_items` scales the whole layout to the window — so a narrower
+	## pose shrinks boxes the game never narrows, and `_fits` shrinks text the game
+	## never shrinks. Physical legibility is judged against the 1920 layout scaled
+	## down to the narrowest window, not against a reflow that never renders.
+	var base_at := "%dx%d" % [int(SkyGearInk.BASE_W), 1080]
 	var seen := {}
 	for s in strings:
 		var key := "%s|%s" % [str(s.screen), str(s.text)]
 		if not seen.has(key):
 			seen[key] = s.duplicate()
+			seen[key]["pt_base"] = int(s.pt) if str(s.at) == base_at else -1
 			continue
 		var row: Dictionary = seen[key]
 		row["pt"] = mini(int(row.pt), int(s.pt))
+		if str(s.at) == base_at:
+			row["pt_base"] = int(s.pt)
 		if float(s.contrast) >= 0.0 and (float(row.contrast) < 0.0
 				or float(s.contrast) < float(row.contrast)):
 			row["contrast"] = float(s.contrast)
@@ -351,7 +366,14 @@ func _ink_report(strings: Array, verbose: bool) -> int:
 		## small and a string that is too faint can be sorted against each other.
 		## Above 1.0 is a failure in one of the two.
 		r["need"] = SkyGearInk.floor_for(r.tint)
-		var bad: float = float(SkyGearInk.MIN_PT) / float(maxi(1, int(r.pt)))
+		## PHYSICAL size, not design-space points. The point-size floor is applied
+		## at the funnel so `pt` is always >= MIN_PT and a `pt`-vs-MIN_PT test can
+		## never fire — that was the check that let a 7pt label pass once it had been
+		## re-clamped. What can still be too small is what the player SEES: the real
+		## (1920) point size scaled down to the narrowest window the game will open.
+		var pt_real: int = int(r.pt_base) if int(r.get("pt_base", -1)) > 0 else int(r.pt)
+		r["phys"] = SkyGearInk.physical_pt(pt_real, SkyGearInk.MIN_WINDOW_W)
+		var bad: float = SkyGearInk.MIN_PHYS_PX / maxf(0.01, float(r.phys))
 		if float(r.contrast) >= 0.0:
 			bad = maxf(bad, float(r.need) / maxf(0.01, float(r.contrast)))
 		r["bad"] = bad
@@ -363,7 +385,7 @@ func _ink_report(strings: Array, verbose: bool) -> int:
 	var total := 0.0
 	var counted := 0
 	for r in rows:
-		if int(r.pt) < SkyGearInk.MIN_PT:
+		if float(r.phys) < SkyGearInk.MIN_PHYS_PX:
 			small += 1
 		if float(r.contrast) >= 0.0:
 			if float(r.contrast) < float(r.need):
@@ -378,14 +400,19 @@ func _ink_report(strings: Array, verbose: bool) -> int:
 	print("")
 	print("               floor %.1f contrast (%.1f where the tint means dimmed), %dpt"
 		% [SkyGearInk.CONTRAST_FLOOR, SkyGearInk.CONTRAST_FLOOR_MUTED, SkyGearInk.MIN_PT])
+	print("               and %.0f physical px: the real (1920) size scaled to the"
+		% SkyGearInk.MIN_PHYS_PX)
+	print("               %d-wide window the game will open at (%.2fx downscale)."
+		% [SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_WINDOW_W / SkyGearInk.BASE_W])
 	print("               RATIO is the stroke against what actually touches it;")
-	print("               PLATE is the same stroke against the bare housing.")
+	print("               PLATE is the same stroke against the bare housing;")
+	print("               PHYS is physical pixel height at the narrowest window.")
 	print("               worst %.2f · mean %.2f · %d faint · %d small"
 		% [lowest if counted > 0 else 0.0, total / maxf(1.0, float(counted)), faint, small])
 	print("")
 
 	var show: int = rows.size() if verbose else mini(22, rows.size())
-	print("     RATIO  PLATE  PT  SCREEN                 TINT    ON       STRING")
+	print("     RATIO  PLATE   PHYS  PT  SCREEN                 TINT    ON       STRING")
 	for i in show:
 		var r: Dictionary = rows[i]
 		if float(r.bad) <= 1.0 and i >= 12:
@@ -394,21 +421,24 @@ func _ink_report(strings: Array, verbose: bool) -> int:
 		if quoted.length() > 28:
 			quoted = quoted.substr(0, 25) + "..."
 		var mark := " "
-		if int(r.pt) < SkyGearInk.MIN_PT:
+		if float(r.phys) < SkyGearInk.MIN_PHYS_PX:
 			mark = "s"
 		if float(r.contrast) >= 0.0 and float(r.contrast) < float(r.need):
 			mark = "F" if mark == " " else "*"
-		print("   %s %5s  %5s %3d  %-22s %-7s %-8s %s" % [mark,
+		print("   %s %5s  %5s  %5.1f %3d  %-22s %-7s %-8s %s" % [mark,
 			("  --" if float(r.contrast) < 0.0 else "%.2f" % float(r.contrast)),
 			("  --" if float(r.get("plate", -1.0)) < 0.0 else "%.2f" % float(r.plate)),
-			int(r.pt), str(r.screen).substr(0, 22), str(r.tint.to_html(false)),
+			float(r.phys), int(r.pt), str(r.screen).substr(0, 22),
+			str(r.tint.to_html(false)),
 			(str(r.get("bg", Color.BLACK).to_html(false)) if r.has("bg") else "--"),
 			quoted])
 	print("")
 	if faint + small == 0:
 		print("               every string clears both floors.")
 	else:
-		print("               F faint · s small · * both")
+		print("               F faint (under the contrast floor) · s small (under %.0f"
+			% SkyGearInk.MIN_PHYS_PX)
+		print("               physical px at the min window) · * both")
 	print("")
 	return faint + small
 

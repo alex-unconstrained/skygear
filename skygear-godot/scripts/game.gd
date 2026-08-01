@@ -233,6 +233,17 @@ func _ready() -> void:
 	player.dash_started.connect(_on_dash_started)
 	SkyGearKeybinds.capture_defaults()
 	SkyGearKeybinds.load_saved()
+	## THE WINDOW CANNOT SHRINK BELOW THE SIZE THE TYPE WAS CALIBRATED FOR.
+	## `scripts/ink.gd` chose MIN_PT so a 12pt glyph survives the 0.83 downscale of
+	## a 1600 window with a pixel of stem left, and nothing narrower — but until now
+	## nothing stopped the window going narrower, and at 1280 the HUD's smallest text
+	## is 8 physical pixels, the smudge MIN_PT exists to prevent. The 1920 canvas
+	## does not reflow (the whole layout scales to the window), so the only lever on
+	## physical legibility is this floor. Guarded null-safe because the harness
+	## builds a game outside a window tree.
+	var win := get_window()
+	if win != null:
+		win.min_size = Vector2i(SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_WINDOW_H)
 	queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:

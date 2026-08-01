@@ -3734,6 +3734,32 @@ func _ink() -> void:
 		hud._fits("x", 400.0, 22) == 22, "got %d" % hud._fits("x", 400.0, 22))
 	hud.free()
 
+	## AND THE FLOOR SURVIVES THE WINDOW.
+	##
+	## MIN_PT is a size in the 1920 design canvas; what the player SEES is
+	## `MIN_PT * window_w / BASE_W` physical pixels, because `canvas_items` scales
+	## the whole layout to the window rather than reflowing it. The window can be as
+	## narrow as MIN_WINDOW_W. Every check above only knows design-space points, so
+	## all of them stay green while the smallest text falls to 8 physical pixels in
+	## a too-narrow window — which is exactly what the legibility probe measured
+	## before this item. This is the arithmetic that ties the point-size floor, the
+	## physical floor and the minimum window together so lowering any one of the
+	## three fails the build.
+	_check("ink", "the point-size floor clears the physical floor at the min window",
+		SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_WINDOW_W)
+			>= SkyGearInk.MIN_PHYS_PX,
+		"%.1f px at %d wide, floor %.1f" % [
+			SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_WINDOW_W),
+			SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_PHYS_PX])
+	## The downscale denominator has to be the canvas the project actually renders,
+	## or `physical_pt` measures against a fiction. If someone re-bases the viewport
+	## width, BASE_W must follow, and this is what says so.
+	_check("ink", "the downscale base matches the project's design canvas",
+		absf(SkyGearInk.BASE_W - float(ProjectSettings.get_setting(
+			"display/window/size/viewport_width"))) < 0.5,
+		"BASE_W %.0f vs viewport_width %s" % [SkyGearInk.BASE_W,
+			str(ProjectSettings.get_setting("display/window/size/viewport_width"))])
+
 	## AND THE WIDGET LAYER IS NOT EXEMPT.
 	##
 	## Two levels: a label is measured against its WIDGET, a widget against the

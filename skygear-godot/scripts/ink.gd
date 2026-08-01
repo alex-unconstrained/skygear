@@ -34,6 +34,46 @@ extends RefCounted
 ## hint floor quietly becomes the number everyone reaches for.
 const MIN_PT := 12
 
+## THE DESIGN CANVAS THE STRETCH SCALES FROM.
+##
+## `project.godot` renders a `window/size/viewport_width` = 1920 canvas into the
+## player's window with `window/stretch/mode="canvas_items"`, and the HUD is a
+## full-rect Control in a CanvasLayer — so the layout is ALWAYS computed at 1920
+## and the whole canvas is then scaled to the window. A point size chosen in this
+## file is therefore `pt * window_w / BASE_W` physical pixels on the real screen.
+## BASE_W is the denominator of that downscale, and the harness checks it against
+## the project setting so the two cannot drift.
+const BASE_W := 1920.0
+
+## THE NARROWEST WINDOW THE GAME WILL OPEN AT. `scripts/game.gd` sets this as the
+## window's `min_size`.
+##
+## MIN_PT was chosen (above) to "survive the 0.83 downscale" of a 1600 window and
+## explicitly nothing narrower — but nothing STOPPED the window going narrower,
+## and the legibility probe measured every 12pt string at 8 physical pixels in a
+## 1280 window: the exact sub-pixel-stem smudge MIN_PT was written to avoid. The
+## design canvas does not reflow, so the only lever on physical legibility is how
+## far down the window is allowed to go. 1600x900 is also the project's default
+## windowed size, so this formalises the floor the game already opens at rather
+## than inventing one.
+const MIN_WINDOW_W := 1600
+const MIN_WINDOW_H := 900
+
+## THE SMALLEST A GLYPH IS ALLOWED TO BE ON THE PLAYER'S ACTUAL SCREEN, in
+## physical pixels. MIN_PT is the floor in the 1920 design space; this is the
+## floor after the downscale, and the two are tied: `MIN_PT * MIN_WINDOW_W /
+## BASE_W` must clear it. That equation is what pins the minimum window size to
+## the point-size floor, and the harness asserts it. 10 is the "whole pixel of
+## stem left" edge the MIN_PT note reasons to.
+const MIN_PHYS_PX := 10.0
+
+
+## The physical height, in real screen pixels, of a design-space point size in a
+## window this many pixels wide. The one place the downscale arithmetic lives, so
+## the probe, the audit and the harness all measure legibility the same way.
+static func physical_pt(pt: int, window_w: float) -> float:
+	return float(pt) * window_w / BASE_W
+
 ## HOW THE GLYPH IS SEPARATED FROM WHAT IS BEHIND IT.
 ##
 ## It was a one-pixel offset drop shadow — `draw_string` at +1,+1 in near-black,
