@@ -4112,14 +4112,24 @@ func _mobility() -> void:
 		runner.spawn_queue.clear()
 		var mover = runner.player
 		mover.global_position = Vector2(0.0, 600.0)
-		var from: Vector2 = mover.global_position
 		## THROUGH THE INPUT MAP, because `input_direction` is a local read from
 		## `Input.get_vector` inside `_physics_process` and not a field anything
-		## can set — my first attempt assigned to it and threw, silently, inside
-		## a coroutine. And movement lives in `_physics_process`, which
-		## `game._process` does not call: without the second line below this
-		## measured a captain standing perfectly still.
+		## can set — the first attempt assigned to it and threw, silently, inside
+		## a coroutine.
 		Input.action_press("move_up")
+		## INTEGRATE THE SPEED THE SIM PRODUCES, not the position the body lands on.
+		## The first version of this read `global_position` after `_physics_process`,
+		## and the body is committed by `CharacterBody2D.move_and_slide()`, which
+		## steps by `get_physics_process_delta_time()` — a REAL-frame quantity tied
+		## to the engine's physics clock, not the 0.05 tick this loop hands out. So
+		## the same six simulated seconds landed the captain anywhere from 4600 to
+		## 6800 units run to run, and the ratio swung across 200–570%: the check was
+		## measuring wall-clock jitter, not the dash. Speed, by contrast, is set from
+		## the 0.05 delta alone (accel, friction, dash time, recharge all read it),
+		## so `|velocity| * 0.05` summed over the ticks is the ground covered and is
+		## bit-for-bit repeatable. Ledger 2026-08-01: captain 3076, boilerwright
+		## 1228 every run — a boilerwright who covers 40% of her ground.
+		var ground := 0.0
 		for _tick in 120:
 			## She dashes whenever it is off cooldown; he walks. His Bleed Jet is
 			## NOT free mobility — it costs the bank carrying the multiplier the
@@ -4127,14 +4137,18 @@ func _mobility() -> void:
 			## rather than the baseline.
 			if who == "captain" and mover.dash_charges > 0 and mover.dash_time_left <= 0.0:
 				mover._try_dash(Vector2.UP)
+			## FORCED ON EACH TICK. Movement lives behind `controls_enabled`, and an
+			## empty spawn queue lets the wave complete and flips the state to DRAFT
+			## a few ticks in — which set the flag false and stopped both movers dead
+			## partway through, truncating the measurement at a wave-timing-dependent
+			## point. This measures movement, so it keeps the mover moving.
+			mover.controls_enabled = true
 			runner._process(0.05)
+			mover.controls_enabled = true
 			mover._physics_process(0.05)
-			## Wrapped rather than walked into the bow, or this measures the clamp.
-			if mover.global_position.y < -900.0:
-				from.y -= 1500.0
-				mover.global_position.y += 1500.0
+			ground += absf(mover.velocity.y) * 0.05
 		Input.action_release("move_up")
-		travel[who] = absf(mover.global_position.y - from.y)
+		travel[who] = ground
 		runner.queue_free()
 
 	var walk_ratio: float = 205.0 / 260.0

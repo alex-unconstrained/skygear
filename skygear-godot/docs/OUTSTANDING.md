@@ -17,7 +17,7 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
-### The Boilerwright's mobility gap is 67%, not the 21% the numbers say
+### The Boilerwright's mobility gap is 60%, not the 21% the numbers say
 Reported at playtest as "Boilerwright feels slower", alongside "I'm not sure I
 understand what the class actually does". The second half is fixed — the
 comparison screen is built and Overpressure is a ring round the dial. The first
@@ -26,9 +26,18 @@ half turned out to be real and much larger than the stat sheet admits.
 205 against 260 is 79%, and that is TOP SPEED — a number nobody experiences.
 What a player experiences is ground covered while a lane walks down on them.
 Measured over six seconds, `class · but ground covered against a dashing
-captain is worse than that`: **he covers 33% of her distance.** `ACCEL` is
+captain is worse than that`: **he covers 40% of her distance.** `ACCEL` is
 shared so he actually reaches his top speed faster than she reaches hers; the
 entire gap is the dash.
+
+The 33% first recorded here (2026-07-31) was a noisy sample: that measurement
+read `global_position` after `move_and_slide()`, which steps by the engine's
+real-frame physics delta rather than the 0.05 sim tick, so the ratio swung
+across 200–570% run to run and 33% was one draw of it. SG-1 (2026-08-01)
+rebuilt the measurement to integrate `|velocity| * 0.05` — the speed the sim
+actually produces — which is bit-for-bit repeatable: captain 3076, boilerwright
+1228, every run. The gap is real and the direction is unchanged; the corrected,
+deterministic figure is **40% of her ground, a 60% gap**, not 33%/67%.
 
 Read it as an upper bound: she dashes on every cooldown and he never spends
 bank on the Bleed Jet, which is the widest the gap can be. But the jet costs
