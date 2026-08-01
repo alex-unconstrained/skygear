@@ -28,11 +28,16 @@ original request was about.
 """
 
 import argparse
+import contextlib
+import functools
+import http.server
 import json
 import os
 import shutil
+import socketserver
 import subprocess
 import sys
+import threading
 import webbrowser
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -78,6 +83,33 @@ SCENES = [
 SEED = "PARITY"
 
 
+@contextlib.contextmanager
+def _served(directory):
+    """Serve `directory` on a loopback port for as long as the block runs.
+
+    A real origin is the whole point — see the comment at the `goto` below.
+    Port 0 lets the OS pick, so two runs at once do not collide, and the daemon
+    thread means a crashed run cannot leave a server holding a port.
+    """
+    handler = functools.partial(http.server.SimpleHTTPRequestHandler,
+                                directory=directory)
+
+    class Quiet(socketserver.TCPServer):
+        allow_reuse_address = True
+
+        def log_message(self, *_args):      # noqa: D102 - silence the access log
+            pass
+
+    server = Quiet(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield "http://127.0.0.1:%d" % server.server_address[1]
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def browser_shot(scene, path):
     """Pose the browser build through its own exports and photograph the canvas."""
     from playwright.sync_api import sync_playwright
@@ -109,11 +141,35 @@ def browser_shot(scene, path):
       return "ok";
     }
     """
-    with sync_playwright() as p:
+    with sync_playwright() as p, _served(os.path.dirname(BROWSER_BUILD)) as origin:
         browser = p.chromium.launch()
         page = browser.new_page(viewport={"width": SIZE[0], "height": SIZE[1]})
-        page.goto("file:///" + BROWSER_BUILD.replace("\\", "/"))
+        ## OVER HTTP, NOT `file://`.
+        ##
+        ## Chromium treats every `file://` document as an opaque origin, so the
+        ## build's own `new Image()` loads were blocked — and the renderer has a
+        ## procedural fallback for exactly that case. So it drew the fallback,
+        ## silently, and EVERY BROWSER PANEL THIS TOOL HAS EVER PRODUCED was a
+        ## five-stop gradient standing in for `sky_backdrop.png`. Every parity
+        ## judgement made from those images compared Godot against a stand-in,
+        ## including the one that put "the camera is zoomed in" in the ledger.
+        page.goto(origin + "/" + os.path.basename(BROWSER_BUILD))
         page.wait_for_timeout(2500)          # assets, fonts, the first frame
+        ## AND PROVE THE ART ARRIVED. The failure above was invisible because a
+        ## fallback is indistinguishable from success in a screenshot unless you
+        ## already know what the real thing looks like. A panel drawn from
+        ## placeholder art is worse than no panel: it looks like evidence.
+        missing = page.evaluate("""() => {
+          const out = [];
+          for (const img of document.images || []) {
+            if (!img.complete || img.naturalWidth === 0) out.push(img.src);
+          }
+          return out;
+        }""")
+        if missing:
+            browser.close()
+            return "images did not load: " + ", ".join(m.split("/")[-1]
+                                                       for m in missing[:4])
         result = page.evaluate(script, {**scene, "seed": SEED})
         if result != "ok":
             browser.close()

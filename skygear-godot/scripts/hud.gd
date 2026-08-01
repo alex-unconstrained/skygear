@@ -965,7 +965,10 @@ func _draw_game_hud() -> void:
 					and game.pressure >= float(SkyGearData.TAP.cost)},
 			{"text": "V BLOW", "lit": Color("#ffb347"),
 				"ready": game.pressure >= float(SkyGearData.BLOWDOWN.min_head)},
-			{"text": "SPC JET", "lit": Color("#c9b6e8"),
+			## Steam's own hue lifted, because #c9b6e8 unlit and #5f5863 dimmed are
+			## two greys at this size and the row's whole job is which of the three
+			## you can currently afford.
+			{"text": "SPC JET", "lit": Color("#ddcdff"),
 				"ready": jet_cost > 0.0 and game.pressure >= jet_cost},
 		]
 		var cell: float = strip_w / float(keys.size())

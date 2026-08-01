@@ -146,6 +146,11 @@ var keys_open := false
 var settings_open := false
 var how_open := false
 var workshop_open := false
+## THE TWO CLASSES, SIDE BY SIDE. `CLASSES[*].compare` has carried parallel rows
+## since the Boilerwright landed and nothing has ever read them — the picker
+## showed one sentence, so a player choosing between a 260-speed captain and a
+## 205-speed engineer had no way to see what the 55 bought. See `_draw_compare`.
+var compare_open := false
 ## The Heat this run is being played at. Chosen at the title, fixed for the run,
 ## and zero until a first victory — so there is exactly one difficulty until the
 ## game has been beaten and every harness claim is against that one.
@@ -294,6 +299,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			hud.queue_redraw()
 			get_viewport().set_input_as_handled()
 			return
+	elif compare_open:
+		if hud.ui.handle(event):
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed and event.keycode in [KEY_ESCAPE, KEY_F7]:
+			compare_open = false
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
 	elif how_open:
 		if hud.ui.handle(event):
 			hud.queue_redraw()
@@ -350,6 +365,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.keycode == KEY_F1:
 		how_open = not how_open
+		hud.queue_redraw()
+		get_viewport().set_input_as_handled()
+		return
+	## The two of them, side by side. A key as well as the title-screen button,
+	## because it is also worth reading mid-run — "what does this class do" is a
+	## question a player has in wave three, not only at the picker.
+	if event.keycode == KEY_F7:
+		compare_open = not compare_open
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
@@ -772,6 +795,38 @@ func spend_overpressure() -> void:
 	player.set_pressure(pressure)
 
 
+## HOW LONG AGO OVERPRESSURE WENT OUT, for the HUD to flash.
+##
+## The bonus is a plain multiplier that has never appeared anywhere on screen,
+## so from the player's chair it does not exist — which is most of "I'm not sure
+## I understand what the class actually does". A gauge falling to zero has to
+## read as something being TAKEN, not as a bar reaching the bottom.
+var overpressure_lost := 0.0
+var _had_overpressure := false
+
+
+## Watch the one boundary that matters and announce both crossings. Done in one
+## place, after every spend has already run for the frame, because there are four
+## paths out of the bank — a cast, a jet, a main and a blowdown — and four call
+## sites announcing the same event is the shape of bug this project keeps
+## shipping.
+func _watch_overpressure(delta: float) -> void:
+	overpressure_lost = maxf(0.0, overpressure_lost - delta)
+	if not gauge_is_banked():
+		_had_overpressure = false
+		return
+	var up: bool = pressure > 0.0
+	if up == _had_overpressure:
+		return
+	_had_overpressure = up
+	if up:
+		add_floater("OVERPRESSURE", player.global_position, Color("#ff9a4a"), true)
+		return
+	overpressure_lost = 1.6
+	add_floater("OVERPRESSURE LOST", player.global_position, Color("#ff4d37"), true)
+	play_sfx("player/hurt.ogg", -14.0)
+
+
 func begin_run() -> void:
 	## FIRST. Everything this run constructs — the cannons, the Boiler, the body —
 	## reads `talents`, so resolving it after any of them is a talent that applies
@@ -793,6 +848,7 @@ func begin_run() -> void:
 	settings_open = false
 	keys_open = false
 	how_open = false
+	compare_open = false
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.queue_free()
 	for prop in get_tree().get_nodes_in_group("props"):
@@ -810,6 +866,8 @@ func begin_run() -> void:
 	damage_multiplier = 1.0
 	pressure = 0.0
 	pressure_grace = 0.0
+	overpressure_lost = 0.0
+	_had_overpressure = false
 	taps.clear()
 	tap_cooldown = 0.0
 	vent_cooldown = 0.0
@@ -1935,6 +1993,7 @@ func _update_pressure(delta: float) -> void:
 	if bool(class_data().get("gauge_auto_vents", true)) 			and pressure >= 100.0 and vent_cooldown <= 0.0:
 		vent_pressure()
 	player.set_pressure(pressure)
+	_watch_overpressure(delta)
 
 ## STANDING STILL IS THE CONDITION ON ALL THREE. He fills on the Boiler, at a
 ## deck vent, or inside a main he cracked open — and a main is the only one he

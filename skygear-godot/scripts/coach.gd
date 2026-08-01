@@ -38,6 +38,10 @@ const DWELL := {
 	## player has no other way to learn. Long enough that a gun dying in the last
 	## second of a wave does not fire it at the draft screen.
 	"broken_cannon": 3.5,
+	## His, and short for the same reason `broken_cannon` is: it is not a mistake
+	## being earned, it is a fact with no other way in. Long enough that walking
+	## between two vents does not trip it.
+	"empty_bank": 7.0,
 }
 const MAX_SHOWS := 2
 const REPEAT_GAP := 42.0
@@ -50,11 +54,15 @@ const FIRST_WAVE := 2    ## nothing before this
 ## already making and could in principle notice; this one announces a VERB THAT
 ## IS OTHERWISE INVISIBLE. Nothing on screen says a dead gun can come back, so
 ## without it the whole deckwork system is code no player ever runs.
-const ORDER := ["broken_cannon", "gauge", "kiting", "lane", "idle_skill"]
+const ORDER := ["broken_cannon", "empty_bank", "gauge", "kiting", "lane", "idle_skill"]
 
 const TEXT := {
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
 	"gauge": "Gauge is full. Get among them: it vents by itself and heals you for it.",
+	## HIS. The reported confusion, in one line, at the moment it is costing him:
+	## an empty bank is not a neutral state, it is a 45% damage cut, and nothing
+	## in the game said so.
+	"empty_bank": "Head is empty, so every weapon is hitting soft. Stand on a vent or crack a main with F.",
 	"lane": "A lane is walking through. The cannon holds, it does not kill.",
 	"idle_skill": "You have a weapon you have never fired. Q and E are drafted too.",
 	## `{key}` is filled from the live binding rather than written in, so a player
@@ -125,6 +133,13 @@ func _may_fire(id: String, now: float) -> bool:
 func _is(id: String, game) -> bool:
 	match id:
 		"kiting":
+			## HERS ONLY. "The gauge only fills inside 210 units" is false for the
+			## Boilerwright — his fills from the ground he is standing on and
+			## backing off a lane to hold a main is his correct play. A coach that
+			## calls the right move a mistake stops being read, twice a run, in the
+			## same strip the Boiler warnings use.
+			if game.gauge_is_banked():
+				return false
 			## Not "far away" — far away with something to hit. A player alone on
 			## an empty deck between waves is not kiting, and telling them they
 			## are is how a coach loses its credibility on the first line.
@@ -134,12 +149,23 @@ func _is(id: String, game) -> bool:
 			var reach: float = float(SkyGearData.CLOSE.range)
 			return game.player.global_position.distance_to(near.global_position) > reach * 1.6
 		"gauge":
+			## HERS ONLY, for the sharper version of the same reason: "it vents by
+			## itself" is a promise the Boilerwright's gauge does not keep, and
+			## sitting on a full bank is the single most correct thing he can do.
+			if game.gauge_is_banked():
+				return false
 			## A full gauge is only wasted if there is something in reach of the
 			## vent to waste it on.
 			if float(game.pressure) < 99.0:
 				return false
 			return game.nearest_enemy(game.player.global_position,
 				float(SkyGearData.CLOSE.vent_radius) * 2.2) != null
+		"empty_bank":
+			## HIS, and only while it is actually costing him something: an empty
+			## bank on an empty deck is just a man walking to a vent.
+			if not game.gauge_is_banked() or float(game.pressure) > 0.0:
+				return false
+			return game.nearest_enemy(game.player.global_position, 700.0) != null
 		"lane":
 			## A boarder past the halfway line with the captain nowhere near it.
 			var deck: Rect2 = SkyGearGame.DECK_RECT

@@ -92,6 +92,9 @@ static func slug(name: String) -> String:
 static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 		size: Vector2) -> void:
 	hud.size = size
+	## Live again while the pose is being built; frozen once it is. See the note
+	## at the foot of this function.
+	game.set_process(true)
 	game.settings_open = false
 	game.keys_open = false
 	game.how_open = false
@@ -149,9 +152,13 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	## numbers in the air.
 	if screen.has("head"):
 		game.player.global_position = Vector2(-180.0, 240.0)
-		game.floaters.clear()
 		game.pressure = float(screen.head)
 		game.player.set_pressure(game.pressure)
+		## Consume the edge here rather than letting the first captured frame do
+		## it, or setting the gauge by hand posts an OVERPRESSURE floater that then
+		## drifts between the two draws.
+		game._watch_overpressure(0.0)
+		game.floaters.clear()
 	if bool(screen.get("spent", false)):
 		game.overpressure_lost = 1.2
 	game.keys_open = bool(screen.get("keys", false))
@@ -194,3 +201,18 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 		game.workshop.sigils = 2
 		game.workshop_open = true
 	await tree.process_frame
+	## AND THEN NOTHING MOVES.
+	##
+	## Both callers draw the posed frame more than once — the camera to let the
+	## plate settle, the audit to sample the pixels behind every string with the
+	## glyphs suppressed — and the simulation was still running in between. On a
+	## PLAY screen that means the lane counts, BOARDERS and the Boiler's HP tick
+	## by one between the two draws, and the audit reports "6 is printed through
+	## 7": a true observation about two frames and a false one about the layout.
+	## It came and went with how the spawn timers happened to land, which is the
+	## worst kind of red.
+	##
+	## The HUD keeps redrawing — it is a separate node — so what is captured is
+	## still the real renderer against the real state. It is just the same state
+	## twice, which is what a pose was always supposed to mean.
+	game.set_process(false)

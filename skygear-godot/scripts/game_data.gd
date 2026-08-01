@@ -125,11 +125,21 @@ const CLASSES := {
 		"auto": {"kind": "arc", "range": 190.0, "arc": 2.443, "damage": 22.0,
 			"period": 0.36, "element": "EMBER", "knock": 150.0,
 			"sound": "player/shape_cleave.ogg"},
+		## THE ROWS THE COMPARISON SCREEN LAYS SIDE BY SIDE. Parallel keys, so the
+		## screen is a table rather than two paragraphs — the player's question is
+		## never "what is this class", it is "what do I get instead of the other
+		## one", and only a shared row answers that.
+		##
+		## NO BALANCE NUMBERS IN HERE. There used to be a `body` row reading "100
+		## health, 260 speed, two recharging dashes", which is three numbers
+		## restated in prose next to the fields that own them — the two-functions-
+		## one-number bug, waiting. The screen derives that row from `hp`, `speed`,
+		## `dashes` and `overpressure` instead, so it cannot go stale.
 		"compare": {
 			"the question": "How long can you stand in it?",
-			"body": "100 health, 260 speed, two recharging dashes",
 			"the gauge": "PRESSURE — fills from damage you land inside 210 units",
 			"and it": "empties when you are not, and VENTS ITSELF at full",
+			"what it buys": "the vent, and the vent fires itself. Filling it IS the payoff.",
 			"the vent": "40 damage around you and 10 health back, free",
 			"your keys": "Space dashes. Nothing else to press.",
 			"stand": "wherever the boarders are — her spot moves, and she chases it",
@@ -169,19 +179,73 @@ const CLASSES := {
 		## draft simply reaches for his shapes first.
 		"shape_bias": {"RANGED_AOE": 3.0, "AURA": 3.0, "PULSE": 3.0, "CONE": 2.0,
 			"SENTRY": 2.0, "CHAIN": 1.0, "RAY": 0.25, "LINE_BURST": 0.25},
+		## Same keys as hers, in the same order, because the screen reads them as
+		## rows. A key here that is not there is a row with one answer, which is
+		## not a comparison — the harness checks the two sets match.
 		"compare": {
 			"the question": "Where will the fight happen, and did you get there first?",
-			"body": "130 health, 205 speed, NO DASH AT ALL",
-			"the gauge": "HEAD — fills only where you plant yourself",
+			"the gauge": "HEAD — fills only where you plant yourself: the Boiler, a deck vent, a main you cracked",
 			"and it": "never decays and never spends itself. It is a bank.",
-			"the vent": "V spends the whole bank: bigger the more you saved",
-			"your keys": "F cracks a steam main. V blows it down. Space costs Head.",
+			"what it buys": "OVERPRESSURE — every weapon you own hits harder the whole time the bank is not empty. That is the class.",
+			"the vent": "V spends the whole bank: bigger the more you saved, and it repairs",
+			"your keys": "F cracks a steam main. V blows it down. Space is a BLEED JET, not a dash — it costs Head and leaves the lane scalding.",
 			"stand": "behind your own steam, between it and the Boiler",
 			"you lose by": "spending the bank. Empty, he is worse at everything.",
 		},
 		"starting": [["CONE", "STEAM"]],
 	},
 }
+
+
+## THE FOUR NUMBERS THE TWO CLASSES ACTUALLY TRADE, derived rather than written.
+##
+## Reported after a playtest, verbatim: "Boilerwright feels slower — and I'm not
+## sure I understand what the class actually does?" He IS slower, by 21%, and
+## that is correct. What was missing is that nothing anywhere told the player
+## what he bought with it. Three of these four rows are the price and the fourth
+## is the goods.
+##
+## Read off `CLASSES` every time it is asked, never transcribed, because the one
+## thing this table must never do is disagree with the simulation about a balance
+## number. `better` is the id of whichever class wins the row, or "" where the
+## row is not a contest — it is what lets the screen tint the winner and makes
+## the trade visible without a sentence explaining it.
+static func class_stats() -> Array:
+	var ids: Array = CLASSES.keys()
+	var rows: Array = []
+	for spec in [
+		{"name": "HEALTH", "of": func(k: Dictionary) -> float: return float(k.hp),
+			"say": func(k: Dictionary) -> String: return "%d" % int(k.hp)},
+		{"name": "TOP SPEED", "of": func(k: Dictionary) -> float: return float(k.speed),
+			"say": func(k: Dictionary) -> String: return "%d" % int(k.speed)},
+		{"name": "DASH", "of": func(k: Dictionary) -> float: return float(k.dashes),
+			"say": func(k: Dictionary) -> String: return ("%d, recharging" % int(k.dashes)) \
+				if int(k.dashes) > 0 else "none at all"},
+		## The one that has never been on screen anywhere. A damage multiplier the
+		## player cannot see is, as far as they are concerned, not in the game.
+		{"name": "DAMAGE", "of": func(k: Dictionary) -> float: return float(k.get("overpressure", 0.0)),
+			"say": func(k: Dictionary) -> String: return ("+%d%% while the gauge is up"
+				% roundi(float(k.get("overpressure", 0.0)) * 100.0)) \
+				if float(k.get("overpressure", 0.0)) > 0.0 else "base, always"},
+	]:
+		var row := {"name": str(spec.name), "values": {}, "better": ""}
+		var best := -1.0
+		var tied := false
+		for id in ids:
+			var kit: Dictionary = CLASSES[id]
+			var amount: float = (spec.of as Callable).call(kit)
+			row.values[id] = (spec.say as Callable).call(kit)
+			if is_equal_approx(amount, best):
+				tied = true
+			elif amount > best:
+				best = amount
+				tied = false
+				row.better = id
+		if tied:
+			row.better = ""
+		rows.append(row)
+	return rows
+
 
 ## A cracked steam main. His only new simulation object, and deliberately shaped
 ## exactly like `fire_fields` — same array-of-dictionaries, same tick, same
