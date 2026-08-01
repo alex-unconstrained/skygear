@@ -277,7 +277,7 @@ height, which is the framing every sprite in `assets/` was generated against.
 | Beams and chains drawn as rings the size of their own length | A streak decal aimed along the shot; cones and cleaves get a fan baked per arc |
 | Nothing in flight | Bolts with a hot head, a trail, and a shadow on the planking under them — the browser's answer to F-05 |
 | No numbers, no plates, no arrows | Damage and healing floaters, health over hurt and elite boarders, status pips, off-screen markers, lane-breaking callouts, banners |
-| A 300-unit Boiler with a funnel | A flat engine block per the browser's `boilerH: 132`, with a slatted furnace grille aimed at the camera. The tall one hid the captain behind it for the first second of every run |
+| A 300-unit Boiler with a funnel | A flat engine block per the browser's `boilerH: 132` *(stale — that was a v3/v4 preset; the live v11 build draws `boilerH: 150`, measured by SG-27 on 2026-08-01, and the mesh is now pinned to 150 by `boiler · renders at the browser's boilerH, not a taller mesh's own height`)*, with a slatted furnace grille aimed at the camera. The tall one hid the captain behind it for the first second of every run |
 | Point lights at 3.4 over five metres | Accents at 1.5 over three, plus a painted pool on the planking under every flame |
 | Boarders vanishing behind cargo | The x-ray pass, as a slab test against the eight cargo rects |
 | Athwartships planking, one tile grid | Boards along the keel at the browser's 116-unit width, faint staggered butt joints |
