@@ -120,23 +120,55 @@ one, already in the tree. It cannot be fixed by reading the field, either:
 emitter per element rather than per behaviour.
 
 
-### THE CAMERA IS ZOOMED IN — found by the comparison, first time it has been run
-The single largest parity gap, and it contradicts a claim I have made
-repeatedly. I have said the camera was "ported exactly" from the browser's
-`CAM.recompute()` solve. Side by side at the same resolution, on three separate
-scenes, **Godot shows materially less of the deck**: the same crates, cannons
-and lanterns are larger, fewer of them fit, and the Boiler dominates the lower
-third in a way it never does in the browser.
+### ~~THE CAMERA IS ZOOMED IN~~ — MEASURED, AND IT IS NOT. The claim was right after all
+Kept as a record of a finding that did not survive being measured — the
+popup-drift pattern again. I had said the camera was "ported exactly" from the
+browser's `CAM.recompute()` solve, then the first parity run made me doubt it:
+side by side, Godot *looked* like it showed less of the deck, so this entry
+recorded a framing gap and made it upstream of everything else.
 
-That is not a lighting or effects difference. It changes how much of the fight
-you can see at once, which is a gameplay difference wearing a visual one — and
-it is upstream of every other parity judgement, because two builds framed
-differently cannot be compared on anything else.
+**There is no framing gap. The port IS exact.** Measured rather than eyeballed —
+`tools/cam_measure.gd` puts a known ground length on screen in both builds at one
+output resolution and unprojects it: the browser's own `CAM.project()` math and
+Godot's `Camera3D.unproject_position` land **on the same pixel** for every length
+tested.
 
-Not yet diagnosed. Candidates: the solve is right but `WORLD_SCALE` or the deck
-rectangle differs; the FOV is right but the camera distance is not; or the
-browser applies a zoom-out the port dropped. **Measure it before touching it** —
-put a known length on screen in both and compare pixels.
+| known length | browser px | godot px | ratio |
+| --- | --- | --- | --- |
+| deck full width 1680 @ focus depth | 3288.1 | 3288.1 | 1.000 |
+| deck full width 1680 @ the bow | 1137.5 | 1137.5 | 1.000 |
+| one lane 560 @ focus depth | 1096.0 | 1096.0 | 1.000 |
+| bow→stern depth @ keel | 1695.7 | 1695.7 | 1.000 |
+
+The captain's own ground point lands at the identical pixel `(960, 705.4)` in
+both. No `WORLD_SCALE`, deck-rectangle, camera-distance or FOV discrepancy
+exists, and no browser zoom-out was dropped.
+
+**Why the impression, then.** The browser's focal length is not the bare 1320 —
+`recompute()` sets `_f = f * View.unit` (`reference/web-source/_render_head.js:53`),
+and `View.unit = clamp(min(w/1400, h/860), …)` scales it with the output
+resolution. That is *exactly* what Godot's fixed vertical FOV of
+2·atan(430/1320) already does at any 16:9 window, so the two frame identically at
+every size. What actually differed was the picture the earlier comparisons were
+made against: the browser side was long drawing its procedural sky FALLBACK
+because Chromium blocked its `new Image()` loads over `file://` (now fixed in
+`parity.py`, which serves over HTTP and asserts the art arrived) — every "the
+camera is zoomed in" judgement was made against a stand-in render. Fresh
+side-by-sides with the real art are in `.shots/parity/`.
+
+Nothing was changed in the solve, deliberately — the two harness checks that pin
+it (`camera · the lens is the browser's focal length`, 36.09°, and
+`camera · the captain stands where the art was framed for`, 0.600 of screen
+height) were confirmed to assert the CORRECT invariant, not the bug. The one real
+residual the side-by-sides show — the Boiler PROP mesh reading larger than the
+browser's flat `boilerH: 132` block — is a model-scale question, not a camera
+one, and is board item SG-27.
+
+One latent inconsistency noted while here, harmless: `parity.py` passes
+`--resolution 1600x900` but the project's `canvas_items` stretch keeps the render
+viewport at 1920×1080, so the Godot half is captured at 1080p and the browser
+half at 900p. Both are 16:9 and the stitch matches height, so the framing
+comparison is unaffected — but the tool's `SIZE` is not the Godot render size.
 
 ### Enemy attack telegraphs are missing or much weaker
 The browser draws a large teal ellipse on the deck when a boarder winds up. In
