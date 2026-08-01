@@ -27,11 +27,19 @@ const SHAPES := {
 	"RAY": {"name": "Beam", "kind": "ray", "damage": 7.0, "cooldown": 0.6, "range": 480.0, "width": 24.0, "knock": 40.0},
 }
 
+## `attack_range` is the distance that TRIPS a windup; `reach`/`swing` are how far
+## and how wide the swing that follows actually lands — the browser's tuned melee
+## values (`_core_patched.js` ENEMIES: SCRAPPER reach 92/swing 95°, ARMORED 118/120°,
+## SWARM 64/80°). They were missing here, so the port faked reach with a flat
+## `attack_range + 24..28` fudge AND drew a thin streak instead of the browser's
+## filled swing wedge. Now one number: the sim hits at `reach + target_radius` and
+## the telegraph wedge is drawn at `reach` (board SG-3). Ranged/BOSS have no `reach`
+## and keep their own treatments (a firing band, a phase ring).
 const ENEMIES := {
-	"SCRAPPER": {"hp": 60.0, "speed": 150.0, "damage": 12.0, "radius": 22.0, "attack_range": 66.0, "windup": 0.40, "recover": 0.42, "ai": "melee", "scale": 0.25, "texture": "res://assets/art/enemies/automaton_front_idle.png"},
+	"SCRAPPER": {"hp": 60.0, "speed": 150.0, "damage": 12.0, "radius": 22.0, "attack_range": 66.0, "reach": 92.0, "swing": 1.658063, "windup": 0.40, "recover": 0.42, "ai": "melee", "scale": 0.25, "texture": "res://assets/art/enemies/automaton_front_idle.png"},
 	"GUNNER": {"hp": 35.0, "speed": 110.0, "damage": 10.0, "radius": 21.0, "attack_range": 340.0, "windup": 0.45, "recover": 0.80, "ai": "ranged", "bolt_speed": 352.0, "scale": 0.25, "texture": "res://assets/art/enemies/drone_front_idle.png"},
-	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 20.0, "radius": 32.0, "attack_range": 82.0, "windup": 0.55, "recover": 0.60, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
-	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
+	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 20.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.55, "recover": 0.60, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
+	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "reach": 64.0, "swing": 1.396263, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
 	"BOSS": {"hp": 900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
 }
 

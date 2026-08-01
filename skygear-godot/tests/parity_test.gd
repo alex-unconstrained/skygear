@@ -792,6 +792,77 @@ func _view() -> void:
 	_check("view", "and the dressing stays out of the fight",
 		targetable_dressing == 0, "%d targetable" % targetable_dressing)
 
+	## ENEMY ATTACK TELEGRAPHS — design pillar 6, every attack readable before it is
+	## dangerous (board SG-3). The port had shrunk the browser's filled swing WEDGE
+	## to a plank-wide streak; these guard the rebuilt tell against the two ways it
+	## dies silently: the drawn shape stops matching where the swing connects, and
+	## the windup pool spends past its reserve.
+	##
+	## ONE NUMBER, not two. The renderer draws the wedge at `config.reach` and the
+	## sim connects at `config.reach + target_radius`; move one without the other and
+	## the tell lies (STATUS failure mode two). So every melee enemy carries a `reach`
+	## and a `swing`, and the reach must cover the range that TRIPPED the windup —
+	## nothing may connect from outside the shape that was drawn.
+	var tele_bad := ""
+	for kind in ["SCRAPPER", "ARMORED", "SWARM"]:
+		var cfg: Dictionary = SkyGearData.ENEMIES[kind]
+		if not ("reach" in cfg and "swing" in cfg):
+			tele_bad += " %s(no reach/swing)" % kind
+		elif float(cfg.reach) < float(cfg.attack_range):
+			tele_bad += " %s(reach %.0f < trip %.0f)" % [kind, cfg.reach, cfg.attack_range]
+		elif float(cfg.swing) <= 0.0:
+			tele_bad += " %s(swing 0)" % kind
+	_check("telegraph", "every melee windup has a reach and a swing arc to draw",
+		tele_bad == "", "bad:" + tele_bad)
+	## Ranged keeps its own identity — a firing line down the lane, never a swing.
+	_check("telegraph", "a ranged shooter is not handed a melee swing",
+		not ("reach" in SkyGearData.ENEMIES.GUNNER),
+		"GUNNER carries a reach it will never swing")
+
+	## The lead time IS the windup: the tell is on the deck the instant a boarder
+	## enters `windup`, and the hit lands `windup` seconds later — so the browser's
+	## tuned windups are the warning times and must not shrink below them.
+	var lead_bad := ""
+	for pair in [["SCRAPPER", 0.40], ["ARMORED", 0.55], ["SWARM", 0.40], ["GUNNER", 0.45]]:
+		if float(SkyGearData.ENEMIES[str(pair[0])].windup) < float(pair[1]) - 0.001:
+			lead_bad += " %s" % str(pair[0])
+	_check("telegraph", "the windup gives at least the browser's warning time",
+		lead_bad == "", "shorter than the browser:" + lead_bad)
+
+	## And it reaches the renderer: pose a boarder mid-windup, mirror it, and confirm
+	## a telegraph decal is appended and sized in ground units to the swing's reach.
+	var tg_enemy: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "SCRAPPER" and not e.dead:
+			tg_enemy = e
+	tg_enemy.state = "windup"
+	tg_enemy.state_time = float(tg_enemy.config.windup) * 0.5
+	tg_enemy.attack_direction = Vector2.DOWN
+	view._process(0.05)
+	var tg_key := "tg%d" % tg_enemy.get_instance_id()
+	_check("telegraph", "a windup appends a telegraph decal to the deck",
+		view._decals.has(tg_key)
+			and SkyGearView3D._decal_class(tg_key) == SkyGearView3D.DecalClass.TELEGRAPH,
+		"no telegraph decal for a winding boarder")
+	## Ground size read back through WORLD_SCALE: the wedge box is reach*2 across, so
+	## a plank-wide streak (the old bug) would read far under the tuned reach.
+	var drawn_reach: float = view._decals[tg_key].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
+	_check("telegraph", "the wedge is drawn at the reach the swing connects at",
+		absf(drawn_reach - float(tg_enemy.config.reach)) < 1.0,
+		"drew %.0f against a reach of %.0f" % [drawn_reach, float(tg_enemy.config.reach)])
+
+	## The windup pool is capped like every other on this deck: sixty boarders
+	## winding at once cannot spend past the telegraph reserve (STATUS: every perf
+	## problem this project has had was an uncapped collection, never a slow loop).
+	for i in 120:
+		view._decal("tg_flood%d" % i, Vector2(i * 30, 0), 0.0, 40.0, 40.0,
+			view._fan_texture(1.658, true), Color.WHITE)
+	_check("telegraph", "the windup pool stays inside its reserve under flood",
+		view._decal_live[SkyGearView3D.DecalClass.TELEGRAPH]
+			<= int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.TELEGRAPH]),
+		"%d live against %d" % [view._decal_live[SkyGearView3D.DecalClass.TELEGRAPH],
+			int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.TELEGRAPH])])
+
 	## Damage says a number. The whole v11 upgrade system asks the player to
 	## notice which skill is carrying the run.
 	game.floaters.clear()
@@ -1623,18 +1694,19 @@ func _view() -> void:
 	## EVERY LANE CAN THREATEN THE OBJECTIVE. Found by a design pass, then
 	## measured: the enemy clamp pinned every boarder to its lane centre +- 190
 	## for its whole life, so lanes 0 and 2 could get no closer than 385 units to
-	## the Boiler against a 94-unit scrapper reach. Two of three lanes could not
+	## the Boiler against a 92-unit scrapper reach. Two of three lanes could not
 	## damage the thing you lose by, and "hold three lanes" was really "hold the
 	## middle one".
 	##
 	## Checked as REACHABILITY rather than as the merge constant, so re-tuning the
-	## merge cannot quietly recreate the bug.
+	## merge cannot quietly recreate the bug. The reach is the scrapper's tuned swing
+	## `reach` — the same number the sim connects at and the telegraph is drawn at.
 	var no_reach := ""
 	for lane in SkyGearGame.LANE_CENTERS.size():
 		## The closest a boarder in this lane can legally stand to the Boiler.
 		var at_boiler := SkyGearGame.BOILER_POSITION
 		var got: Vector2 = game.correct_enemy_position(at_boiler, lane, 15.0)
-		var reach: float = float(SkyGearData.ENEMIES.SCRAPPER.attack_range) + 28.0
+		var reach: float = float(SkyGearData.ENEMIES.SCRAPPER.reach)
 		if got.distance_to(SkyGearGame.BOILER_POSITION) > reach:
 			no_reach += " %d(%.0f)" % [lane,
 				got.distance_to(SkyGearGame.BOILER_POSITION)]

@@ -535,7 +535,10 @@ func _build_world() -> void:
 	_grille_texture()
 	_wall_texture()
 	_ribbon_texture()
-	for arc in [0.9, 1.134, 1.658, 1.7, 2.443]:
+	## Player cleave/cone arcs, plus the enemy melee swing arcs (SWARM 80°=1.396,
+	## SCRAPPER 95°=1.658, ARMORED/BOSS 120°=2.094) — a windup wedge built mid-swing
+	## is a hitch at the exact moment the player is reading a telegraph.
+	for arc in [0.9, 1.134, 1.396263, 1.658, 1.7, 2.094395, 2.443]:
 		_fan_texture(arc, true)
 		_fan_texture(arc, false)
 	for key in PAINTED.keys():
@@ -2692,28 +2695,65 @@ func _sync_effects() -> void:
 			_decal("keg%d" % prop.get_instance_id(), prop.global_position, 0.0, 350.0, 350.0,
 				_ring_texture(), Color(0.95, 0.92, 1.0, 0.25 + f2 * 0.35))
 
-	## Enemy telegraphs. The browser draws the reach of a windup on the deck in
-	## red, and it is the single most important thing on screen when three of
-	## them are on you — a boarder that is about to swing has to look different
-	## from one that is walking.
+	## Enemy telegraphs. Design pillar 6 — every attack readable before it is
+	## dangerous, and this is the single most important thing on screen when three
+	## boarders are on you. The browser draws a MELEE windup as a filled oxblood
+	## WEDGE covering the swing arc out to `reach`, brightening as the swing nears;
+	## a RANGED shooter's shot as a danger band down its firing line; the Colossus
+	## turn as a held gold ring. The port had shrunk the melee tell to a thin red
+	## streak the width of a plank plus a small foot ring — present, but not the
+	## thing you read across a crowd (board SG-3). Rebuilt at the same `reach`/`swing`
+	## the swing itself uses (game_data), so what is DRAWN and what CONNECTS are one
+	## shape, not a picture and a hit-check disagreeing about a number.
+	##
+	## PAL.danger #FF3D2E outer, PAL.dangerIn #FF8C1A inner — the browser's hostile
+	## palette, oxblood-to-orange, never the player's teal.
+	const TG_DANGER := Color(1.0, 0.239, 0.180)
+	const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
+	const TG_SWING_ARC := 2.094395   # 120°, the fallback wedge for a reach-less melee
 	for enemy in game.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		if enemy.state == "windup":
-			var reach: float = float(enemy.config.attack_range)
-			var mid: Vector2 = enemy.global_position + enemy.attack_direction * reach * 0.5
-			var beat: float = 0.55 + sin(_flicker * 22.0) * 0.22
-			_decal("tg%d" % enemy.get_instance_id(), mid, enemy.attack_direction.angle(),
-				reach, 34.0, _streak_texture(), Color(0.92, 0.18, 0.11, beat))
-			## And the enemy rune under their feet, which is the painted plate
-			## that exists for exactly this and had never been drawn: it fills as
-			## the windup completes, so the tell has a clock on it.
-			var wind: float = 1.0 - clampf(enemy.state_time / maxf(0.05,
+			## 0 at the start of the wind, 1 the instant it connects: the clock.
+			var kk: float = 1.0 - clampf(enemy.state_time / maxf(0.05,
 				float(enemy.config.windup)), 0.0, 1.0)
-			var mark: float = float(enemy.radius) * 3.2
-			_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, 0.0, mark, mark,
-				_art("ring_filled" if wind > 0.62 else "ring_hostile", _ring_texture()),
-				Color(0.95, 0.25, 0.16, 0.35 + wind * 0.5))
+			var flick: float = 0.34 + 0.30 * kk + sin(_flicker * 22.0) * 0.06
+			var ang: float = enemy.attack_direction.angle()
+			if enemy.config.ai == "ranged":
+				## The firing line: a danger band down the shot's path, atkRange + 80
+				## (the browser's aim-line length), with a brighter hot core that runs
+				## out as the wind completes so the band itself counts down.
+				var flen: float = float(enemy.config.attack_range) + 80.0
+				var fmid: Vector2 = enemy.global_position + enemy.attack_direction * flen * 0.5
+				_decal("tg%d" % enemy.get_instance_id(), fmid, ang, flen, 28.0,
+					_streak_texture(), Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, 0.18 + kk * 0.44))
+				var clen: float = flen * (0.34 + 0.66 * kk)
+				var cmid: Vector2 = enemy.global_position + enemy.attack_direction * clen * 0.5
+				_decal("tr%d" % enemy.get_instance_id(), cmid, ang, clen, 13.0,
+					_streak_texture(), Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.9))
+			else:
+				## The swing wedge. Apex on the boarder, opening down its facing to
+				## `reach`, spanning `swing`. A reach-less melee (BOSS) gets a wide
+				## wedge from its live range; its turn ring carries the phase change.
+				var reach: float
+				var arc: float
+				if "reach" in enemy.config:
+					reach = float(enemy.config.reach)
+					arc = float(enemy.config.swing)
+				else:
+					reach = float(enemy.config.attack_range) + 26.0
+					if enemy.kind == "BOSS" and enemy.beat == 1:
+						reach += 90.0
+					arc = TG_SWING_ARC
+				_decal("tg%d" % enemy.get_instance_id(), enemy.global_position, ang,
+					reach * 2.0, reach * 2.0, _fan_texture(arc, true),
+					Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, flick * 0.5))
+				## The inner wedge fills outward as the wind completes: the clock.
+				var fill: float = maxf(0.10, kk)
+				_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, ang,
+					reach * 2.0 * fill, reach * 2.0 * fill, _fan_texture(arc, true),
+					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.85))
 		elif enemy.state == "turn":
 			var ring: float = (enemy.radius + 26.0 + sin(enemy.turn_time * 9.0) * 6.0) * 2.0
 			_decal("tn%d" % enemy.get_instance_id(), enemy.global_position, 0.0, ring, ring,

@@ -173,16 +173,25 @@ func _physics_process(delta: float) -> void:
 		state_time -= delta
 		velocity = Vector2.ZERO
 		if state_time <= 0.0:
+			## The swing lands out to `reach` (the browser's tuned melee reach),
+			## measured to the target's near edge — so `reach + target_radius`, and
+			## `attack_range` here already carries `+ target_radius`. The telegraph
+			## wedge in view3d.gd is drawn at exactly this `reach`, so what is shown
+			## and what connects are ONE number, not a drawing and a `+24..28` fudge
+			## disagreeing about it (STATUS failure mode two). Enemies with no `reach`
+			## (BOSS) keep the old ~26-unit reach past their trip range.
+			var swing_reach: float = attack_range + \
+				((float(config.reach) - float(config.attack_range)) if "reach" in config else 26.0)
 			if config.ai == "ranged":
 				game.spawn_enemy_bolt(global_position, target_position, float(config.damage), float(config.bolt_speed))
 				game.play_sfx("enemy/shoot_drone.ogg", -7.0)
-			elif targets_player and global_position.distance_to(game.player.global_position) <= attack_range + 24.0:
+			elif targets_player and global_position.distance_to(game.player.global_position) <= swing_reach:
 				game.damage_player(float(config.damage), kind)
-			elif not target_turret.is_empty() and global_position.distance_to(target_position) <= attack_range + 28.0:
+			elif not target_turret.is_empty() and global_position.distance_to(target_position) <= swing_reach:
 				game.damage_turret(target_turret, float(config.damage))
-			elif not target_crew.is_empty() and global_position.distance_to(target_position) <= attack_range + 24.0:
+			elif not target_crew.is_empty() and global_position.distance_to(target_position) <= swing_reach:
 				game.hurt_crew(target_crew, float(config.damage))
-			elif not targets_player and global_position.distance_to(game.boiler_position) <= attack_range + 28.0:
+			elif not targets_player and global_position.distance_to(game.boiler_position) <= swing_reach:
 				game.damage_boiler(float(config.damage))
 			state = "recover"
 			state_time = float(config.recover)
