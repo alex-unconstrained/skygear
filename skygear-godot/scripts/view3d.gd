@@ -614,15 +614,30 @@ const FLASH_POOL := 8
 ## is the reason this table exists at all: **coloured light is still a hue cue**,
 ## so it cannot be the accessibility answer on its own. Shape, direction and
 ## timing are the channels that survive colour blindness, and they are set here.
+## A `life` field lived here once (per element: EMBER 0.70, FROST 0.28, ARC 0.22,
+## STEAM 0.95) and NOTHING read it — the emitter's own `lifetime = 1.0` governed
+## every family, so it was declared timing that never rendered (board SG-16,
+## failure mode one). DELETED rather than honoured. Honouring a per-PARTICLE
+## lifetime needs one emitter per element, and finding 3 of the rendering audit
+## (DESIGN §13m) is emphatic that emitters are keyed by BEHAVIOUR — colour rides
+## on the particle — because a shared `emit_particle` emitter that is never
+## restarted is the fix to a real bug, and per-element emitters would regress it,
+## break the pinned "one emitter per behaviour" check, and add a 512-cap node
+## against the still-open pool budgets. It could not even be honoured per FAMILY:
+## EMBER (0.70) and ARC (0.22) share the `spark` emitter with different lifetimes,
+## so the field was self-contradictory as per-element data on a per-behaviour
+## system — proof it was never wireable. The timing signature finding 4 requires
+## survives without it: it lives in the LIGHT decay (26/s FROST·ARC vs 8/s
+## EMBER·STEAM, in `impact_at`) and the particle MOTION (rise / spread / speed).
 const ELEMENT_FX := {
 	"EMBER": {"family": "spark", "rise": 40.0, "spread": 70.0, "speed": 230.0,
-		"life": 0.70, "count": 14},
+		"count": 14},
 	"FROST": {"family": "shard", "rise": -40.0, "spread": 26.0, "speed": 420.0,
-		"life": 0.28, "count": 12},
+		"count": 12},
 	"ARC": {"family": "spark", "rise": 10.0, "spread": 14.0, "speed": 520.0,
-		"life": 0.22, "count": 10},
+		"count": 10},
 	"STEAM": {"family": "steam", "rise": 150.0, "spread": 88.0, "speed": 120.0,
-		"life": 0.95, "count": 12},
+		"count": 12},
 }
 
 func _build_impacts() -> void:
@@ -3845,8 +3860,8 @@ static func _exit_t(a: Vector2, b: Vector2, rect: Rect2) -> float:
 ## the alternative is that a boarder walks behind a container and stops existing
 ## for two seconds — which in a game where the thing killing you is usually the
 ## one you lost track of is not an aesthetic problem. The cargo runs are the only
-## geometry tall enough to hide anybody, so this is eight rectangles and a slab
-## test rather than a physics query.
+## geometry tall enough to hide anybody, so this is a handful of rectangles and a
+## slab test rather than a physics query.
 ##
 ## The probe is the TORSO, not the head. From this camera a 125-tall box hides
 ## about forty units of deck behind it, so a boarder tucked against one is cut
@@ -3855,7 +3870,13 @@ static func _exit_t(a: Vector2, b: Vector2, rect: Rect2) -> float:
 func _occluded(ground: Vector2, stand: float) -> bool:
 	var eye := Vector2(_focus.x, _focus.y + CAM_NEAR)
 	var torso := stand * 0.5
-	for rect: Rect2 in SkyGearGame.CARGO_RECTS:
+	## `game.cargo_rects()`, NOT the `CARGO_RECTS` const — the one cargo source of
+	## truth SG-10 established: the eight fixed lane walls PLUS the live heaved
+	## crate. The const missed the ninth, movable rect, so a boarder tucked on the
+	## bow face of a deployed crate — where the funnel piles them, in the camera's
+	## occlusion shadow — walked behind it and stopped existing (SG-31, failure
+	## mode one). Reading the live method moves the occlusion with the crate.
+	for rect: Rect2 in game.cargo_rects():
 		var t := _exit_t(eye, ground, rect.grow(4.0))
 		if t < 0.0 or t >= 0.999:
 			continue

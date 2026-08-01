@@ -795,6 +795,44 @@ func _view() -> void:
 	_check("view", "and neither is one well clear of the run",
 		not view._occluded(eye + ray * (to_far_face + 420.0), stand))
 
+	## SG-31. The heaved crate (SG-10) is a NINTH, movable cargo rect. `_occluded`
+	## read the eight-rect const and never saw it, so a boarder tucked on the bow
+	## face of a deployed crate — where the funnel piles them — got no silhouette.
+	## It now reads `game.cargo_rects()`, the one source of truth (the 8 walls +
+	## the live crate), so the x-ray shadow moves with the crate the player heaves.
+	## The crate is parked in the port lane, OUTBOARD of the fixed wall columns
+	## (x -340..-220 and 220..340), so it is the sole occluder of the test point.
+	game.barricade.global_position = Vector2(-560.0, -480.0)
+	var crate: Rect2 = game.barricade_rect()
+	_check("view", "the heaved crate is a cargo rect the x-ray can see",
+		crate.size.x > 0.0 and game.cargo_rects().has(crate))
+	var cray: Vector2 = (crate.get_center() - eye).normalized()
+	var crate_far: float = (eye.y - crate.position.y) / -cray.y
+	var behind_crate: Vector2 = eye + cray * (crate_far + 26.0)
+	_check("view", "a boarder tucked behind the heaved crate is x-rayed",
+		view._occluded(behind_crate, stand),
+		"at %.0f, %.0f" % [behind_crate.x, behind_crate.y])
+	## And it is the CRATE doing it, not a fixed wall behind it: take the crate off
+	## the deck and the same spot stands in clear air. This is the exact SG-31 bug
+	## in reverse — with the const, the crate was never an occluder at all.
+	var live_crate: SkyGearProp = game.barricade
+	game.barricade = null
+	_check("view", "and with the crate gone that same spot is clear",
+		not view._occluded(behind_crate, stand))
+	game.barricade = live_crate
+	## Moving the crate moves the occlusion with it: heave it far to starboard and
+	## the old shadow is empty while a new one falls behind the new footprint.
+	game.barricade.global_position = Vector2(600.0, -480.0)
+	_check("view", "moving the crate moves its x-ray shadow with it",
+		not view._occluded(behind_crate, stand))
+	var moved: Rect2 = game.barricade_rect()
+	var mray: Vector2 = (moved.get_center() - eye).normalized()
+	var moved_far: float = (eye.y - moved.position.y) / -mray.y
+	_check("view", "and a boarder behind the crate's new footprint is x-rayed",
+		view._occluded(eye + mray * (moved_far + 26.0), stand))
+	game.barricade.global_position = Vector2(
+		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+
 	## Every living thing gets a body in the mirror, or it is in the fight
 	## without being on the screen.
 	##
@@ -1280,11 +1318,17 @@ func _view() -> void:
 	## itself. They differ in where the particles go and how fast the light dies.
 	var frost: Dictionary = SkyGearView3D.ELEMENT_FX.FROST
 	var ember: Dictionary = SkyGearView3D.ELEMENT_FX.EMBER
+	## Motion, not colour: Frost falls (rise < 0), snaps outward in a narrow cone
+	## (small spread) and travels FAST; Ember rises, spreads wide and drifts. The
+	## timing half of the signature is the LIGHT decay, tested just below — the old
+	## `.life` field that used to sit in this clause was deleted (SG-16), because
+	## nothing read it and honouring it would have split the behaviour-keyed
+	## emitters. These fields all render; `life` never did.
 	_check("impact", "elements differ in motion, not only in colour",
 		float(frost.rise) < 0.0 and float(ember.rise) > 0.0
 			and float(frost.spread) < float(ember.spread)
-			and float(frost.life) < float(ember.life),
-		"frost falls and snaps, ember rises and lingers")
+			and float(frost.speed) > float(ember.speed),
+		"frost falls and snaps, ember rises and drifts")
 	view.impact_at(Vector2.ZERO, "FROST", 90.0)
 	var quick: float = float(view._flashes[(view._flash_next - 1) % view._flashes.size()]
 		.get_meta("decay", 0.0))
@@ -1293,6 +1337,24 @@ func _view() -> void:
 		.get_meta("decay", 0.0))
 	_check("impact", "and their light dies at different rates",
 		quick > slow, "frost %.0f/s, ember %.0f/s" % [quick, slow])
+	## EVERY ELEMENT_FX FIELD HAS A READER. `life` sat in this table for four
+	## elements and nothing consumed it — the emitter's `lifetime = 1.0` governed
+	## all of them, so it read as a per-element timing cue and rendered nothing
+	## (SG-16, failure mode one). The twin of the talent-field and article guards:
+	## every key on every ELEMENT_FX entry must be NAMED in the renderer, so the
+	## table cannot quietly grow another dead field. Grep, not behaviour — the
+	## failure that actually happens is a field nobody wired at all.
+	var fx_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var fx_inert := ""
+	for element in SkyGearView3D.ELEMENT_FX.keys():
+		for field in (SkyGearView3D.ELEMENT_FX[element] as Dictionary).keys():
+			var name := str(field)
+			if fx_src.contains('.%s' % name) or fx_src.contains('"%s"' % name):
+				continue
+			if not fx_inert.contains(" " + name):
+				fx_inert += " " + name
+	_check("impact", "every ELEMENT_FX field is read by the renderer",
+		fx_inert == "", "nothing reads:" + fx_inert)
 	_check("impact", "the flashes add nothing to the fog, so hits leave no trail",
 		is_zero_approx(view._flashes[0].light_volumetric_fog_energy))
 	## Colour-blind players get nothing from a teal ring against an orange one.
