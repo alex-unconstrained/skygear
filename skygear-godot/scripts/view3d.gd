@@ -115,13 +115,27 @@ const HULK_MODEL := "boarding_hulk"
 ## the bottom centre of every frame at the largest apparent size of anything on
 ## the deck, which made it read as placeholder next to thirty painted assets.
 ##
-## The height is NOT a taste number and must not be raised casually. The browser
-## sets `boilerH` to 132 with the note "a flat engine block, not a tower", and
-## this port's own first 3D pass built a 300-unit drum that hid the captain for
-## the first second of every run — she spawns 130 units in front of this thing.
-## 168 buys the chimney pipes the primitives never had and stays under her crown.
+## The height is NOT a taste number and must not be raised casually — it is
+## PINNED to the LIVE browser's `boilerH`, which is what `tools/parity.py`
+## photographs (storm-dusk-v11.html), and `tools/boiler_measure.gd` /
+## `parity_test` guard the rendered result against it. SG-27 caught this at 168:
+## the generated mesh is a near-cube (measured 168 tall x 167 wide x 162 DEEP),
+## so at 168 it read 208 px tall and 291 px wide — a solid drum dominating the
+## lower third against the browser's FLAT 150-unit / 184 px block, exactly the
+## "everything looks bigger" report once SG-2 cleared the camera. Scaled to the
+## browser's own 150 the mesh's furnace face (authored to +Z, the one direction
+## this locked camera ever sees) still reads as the furnace and now sits at the
+## browser's height. NOT 168, and never a bare "buys the pipes" bump again: the
+## number is whatever the LIVE browser draws, so the two builds stay one picture.
+## (DESIGN §13c cites 132 — that was the v3/v4 preset; the LIVE v11 build moved
+## boilerH to 150, and parity compares against v11.) The first 3D pass built a
+## 300-unit drum that hid the captain for the first second of every run — she
+## spawns 130 units in front of this thing; the browser's own 150 does not.
 const BOILER_MODEL := "boiler"
-const BOILER_HEIGHT := 168.0
+## The LIVE browser's PRESET.boilerH (storm-dusk-v11.html / reference/web-source
+## build.py v11). The Boiler renders at exactly this in ground units, mesh or
+## primitive, and `parity_test` fails if the rendered subtree drifts off it.
+const BOILER_HEIGHT := 150.0
 
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0

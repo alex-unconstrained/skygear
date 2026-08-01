@@ -742,6 +742,43 @@ func _view() -> void:
 		back.x < view.camera.get_viewport().get_visible_rect().size.x * 0.5,
 		"x %.0f" % back.x)
 
+	## SG-27. The Boiler is the one prop every parity judgement now leans on —
+	## bottom-centre of every frame, largest apparent object on the deck. The
+	## regression that started this: its generated mesh was scaled to a taste
+	## number (168) rather than to what the browser draws, and because the mesh is
+	## a near-cube (168 tall x 167 wide x 162 DEEP, measured) it rendered 208 px
+	## tall / 291 px wide — a solid drum dominating the lower third against the
+	## browser's FLAT 150-unit block. `BOILER_HEIGHT` is now pinned to the LIVE
+	## browser's `boilerH` (storm-dusk-v11 = 150). This measures the ACTUAL
+	## rendered subtree — mesh or primitive fallback — so the next generated mesh
+	## dropped in cannot silently come back taller. A screenshot would only show
+	## you it had; this fails the build.
+	var browser_boiler_h := 150.0        # PRESET.boilerH, storm-dusk-v11 (LIVE)
+	var want_boiler: Vector3 = Vector3(SkyGearGame.BOILER_POSITION.x, 0.0,
+		SkyGearGame.BOILER_POSITION.y) * SkyGearView3D.WORLD_SCALE
+	var boiler_node: Node3D = null
+	for child in view.get_children():
+		if child is Node3D and (child as Node3D).position.distance_to(want_boiler) < 0.001:
+			boiler_node = child
+			break
+	var boiler_h_gu := -1.0
+	if boiler_node != null:
+		var bbox := AABB()
+		var bfirst := true
+		for mi_any in boiler_node.find_children("*", "MeshInstance3D", true, false):
+			var mi := mi_any as MeshInstance3D
+			if mi.mesh == null:
+				continue
+			var here := mi.global_transform * mi.get_aabb()
+			bbox = here if bfirst else bbox.merge(here)
+			bfirst = false
+		if not bfirst:
+			boiler_h_gu = bbox.size.y / SkyGearView3D.WORLD_SCALE
+	_check("boiler", "renders at the browser's boilerH, not a taller mesh's own height",
+		boiler_node != null and absf(boiler_h_gu - browser_boiler_h) < 3.0
+			and absf(SkyGearView3D.BOILER_HEIGHT - browser_boiler_h) < 0.01,
+		"%.1f ground units vs browser boilerH %.0f" % [boiler_h_gu, browser_boiler_h])
+
 	## The x-ray. A boarder that walks behind a cargo run has to keep existing.
 	## The shadow of a cargo run is a band about forty units deep behind its far
 	## face, so the test point is placed there rather than "somewhere past it".
