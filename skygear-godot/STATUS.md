@@ -118,7 +118,25 @@ file.
 
 Meshy, via `tools/meshy.py`. **The key must never reach a committed file** --
 read from `MESHY_API_KEY` or the gitignored `tools/.meshy_key`, and run
-`git grep "msy_"` before committing. `prune` strips the 77 MB an asset arrives
+`git grep "msy_"` before committing.
+
+**Character models — the owner's standing rules (2026-08-01).** These exist
+because every character we generate will eventually be rigged and animated
+(the Boilerwright, then enemies), and a model that fails them is credits spent
+on an asset the animation pipeline cannot use:
+
+- **Clean T-pose or A-pose only.** Prompt for it, and reject a generation that
+  comes back posed — retargeting needs a neutral rest pose to work from.
+- **No over-accessorizing.** Dangling pouches, straps, horns and ornaments
+  become part of the skinned mesh and deform strangely under animation. Keep
+  the silhouette clean; character identity can ride on texture and proportion.
+- **Weapons are separate models**, mounted via `BoneAttachment3D` — the
+  cutlass is the pattern (`assets/models/weapons.json`, fitted in the lab).
+  Never prompt a character holding their weapon.
+- **Capes, cloaks and loose cloth are separate too.** The captain's cape was
+  removed from her model for exactly this reason; cloth gets added back as its
+  own layer (the bone-chain route, board SG-23), never baked into the
+  character mesh. `prune` strips the 77 MB an asset arrives
 as down to the ~10 MB GLB actually used, and refuses to run before the first
 import because extract-mode textures leave a scene with no meshes and no error.
 
