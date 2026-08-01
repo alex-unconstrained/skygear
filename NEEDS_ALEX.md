@@ -42,3 +42,15 @@ risk the one rigged character that works.
 **5 · Drop chromatic aberration / radial blur formally?** (SG-19)
 The research audit argues against them on readability grounds. Nobody has
 made the call. **Recommendation: drop.** One word from you closes it.
+
+## Check when you next play
+
+- **Text legibility** (SG-9, fixed): the real hole was windows under 1600px
+  downscaling every label to ~8 physical pixels; the window now enforces a
+  1600×900 minimum and the audit measures physical size. But if 12px text
+  at 1920 *still* feels small to you, say so — that's a deliberate
+  grow-the-boxes layout pass, a different job, and it needs your eyes first.
+- **Enemy telegraphs** (SG-3, rebuilt): melee windups now draw the browser's
+  filled danger wedge at the true swing arc; melee reach shifted a few units
+  to match the browser exactly (ARMORED slightly longer, SWARM slightly
+  shorter). Worth a feel-check that nothing reads unfair.
