@@ -54,3 +54,10 @@ made the call. **Recommendation: drop.** One word from you closes it.
   filled danger wedge at the true swing arc; melee reach shifted a few units
   to match the browser exactly (ARMORED slightly longer, SWARM slightly
   shorter). Worth a feel-check that nothing reads unfair.
+- **HEAVE THE CRATE** (SG-10, new verb): hold the bound key at the movable
+  crate to narrow a lane and funnel boarders; it cycles stow→narrow→funnel
+  and re-stows every wave, costing only the 2.8s you're out of the fight.
+  First new gameplay verb since repair — does it read, and is 2.8s right?
+- **A fresh build is cut**: `skygear-godot/builds/itch/SkyGear-Windows.zip`
+  (today's fixes: telegraphs, legibility floor, Boiler scale, crate verb).
+  Upload to itch by hand until `butler login` is done.

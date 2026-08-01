@@ -7,13 +7,13 @@ the board as workable items.**
 
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with one shot wired.
-**437 harness checks**; the text audit covers 21 screens at 4 widths and is
+**457 harness checks**; the text audit covers 21 screens at 4 widths and is
 clean. Build 31 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test and the source is at
 https://github.com/alex-unconstrained/skygear
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (437 checks), `text` (the audit), `screens` (photograph all 21
+`harness` (457 checks), `text` (the audit), `screens` (photograph all 21
 screens at all 4 widths as one page — for the human judgement no checker can
 make), and `layout` (promote the F4 HUD alignment out of `user://` and into the
 repo, which is the step that makes a hand-alignment pass real).
@@ -63,10 +63,10 @@ Assume you are about to commit one:
 | `scripts/ui.gd` | the widget layer: immediate mode, retained focus |
 | `scripts/cards.gd` | 41 draft cards. `preview()` runs a card on a sandbox copy |
 | `scripts/workshop.gd` | persistent progression, gated behind a first victory |
-| `scripts/deckwork.gd` | a verb table for acting on the deck. One verb so far |
+| `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair, heave |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 437 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 457 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -75,8 +75,9 @@ at 41 degrees -- and as of 2026-08-01 that is MEASURED, not asserted:
 and they agree to the pixel (ratio 1.000). The earlier "framing tighter than
 the browser, unexplained" impression was an artifact of a broken browser-side
 render at a mismatched resolution. Three other systems are calibrated against
-that solve; the real residual it was blamed for is the Boiler prop mesh
-(board SG-27).
+that solve; the real residual it was blamed for was the Boiler prop mesh,
+since rescaled to the browser's boilerH 150 and pinned by its own check
+(SG-27).
 
 **One consequence of that solve is worth knowing before you judge any
 screenshot.** At 41 degrees with a 36 degree vertical field, the top of the
@@ -93,7 +94,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 437 checks. Green before anything ships |
+| `harness` | 457 checks. Green before anything ships |
 | `text` | every string on 21 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
@@ -140,8 +141,10 @@ on an asset the animation pipeline cannot use:
 - **Capes, cloaks and loose cloth are separate too.** The captain's cape was
   removed from her model for exactly this reason; cloth gets added back as its
   own layer (the bone-chain route, board SG-23), never baked into the
-  character mesh. `prune` strips the 77 MB an asset arrives
-as down to the ~10 MB GLB actually used, and refuses to run before the first
-import because extract-mode textures leave a scene with no meshes and no error.
+  character mesh.
 
-Nothing remeshes yet, which is why the build is 308 MB.
+`prune` strips the 77 MB an asset arrives as down to the ~10 MB GLB actually
+used, and refuses to run before the first import because extract-mode textures
+leave a scene with no meshes and no error. The remesh pass took the props from
+182 MB to 9 MB (the captain deliberately excluded — board SG-13); the itch zip
+is 94.5 MB.
