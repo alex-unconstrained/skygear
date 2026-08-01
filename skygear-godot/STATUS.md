@@ -70,9 +70,13 @@ Assume you are about to commit one:
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
-at 41 degrees -- **and the parity tool shows it framing tighter than the browser,
-unexplained.** Nothing has been changed there, because three other systems are
-calibrated against that solve.
+at 41 degrees -- and as of 2026-08-01 that is MEASURED, not asserted:
+`tools/cam_measure.gd` projects known deck lengths through both builds' math
+and they agree to the pixel (ratio 1.000). The earlier "framing tighter than
+the browser, unexplained" impression was an artifact of a broken browser-side
+render at a mismatched resolution. Three other systems are calibrated against
+that solve; the real residual it was blamed for is the Boiler prop mesh
+(board SG-27).
 
 **One consequence of that solve is worth knowing before you judge any
 screenshot.** At 41 degrees with a 36 degree vertical field, the top of the
