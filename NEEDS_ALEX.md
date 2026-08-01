@@ -25,12 +25,12 @@ same clock (his timings would match hers, which `anim_timing.gd` measures).
 Route 1 (Meshy's own rig + animation library) is cheaper but his clips would
 never match hers. Say "route 2 approved" and an agent runs it end to end.
 
-**3 · Boilerwright mobility gap** (SG-7)
-Measured at 67% less ground covered than a dashing captain (not the 21% the
-stat sheet implies). Either he gets compensated somewhere feelable, or the
+**3 · Boilerwright mobility gap** (SG-7) — *measurement now settled*
+The old 67% figure was one draw of a noisy check; SG-1 made it deterministic:
+**he covers 40% of a dashing captain's ground** (a 60% gap — direction and
+conclusion unchanged). Either he gets compensated somewhere feelable, or the
 class-comparison screen states the trade plainly. The ledger's rule: no tuning
-by feel. *Note: an agent is currently re-verifying the measurement itself
-(SG-1) — hold this one until that lands.*
+by feel. Ready for your call.
 
 **4 · The captain is 30,634 triangles, 4–10× the project's own budget** (SG-13)
 She was rightly skipped by the prop remesh (it would destroy her skin

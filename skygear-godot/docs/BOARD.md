@@ -17,7 +17,8 @@ land here directly.
    you fix it in the same session. The ledger exists because things slipped
    when nobody wrote them down.
 4. **BLOCKED names the blocker** — a missing key, a decision only the owner can
-   make, an upstream item by ID.
+   make, an upstream item by ID. Anything blocked on the owner is also
+   mirrored, with a recommendation, in `/NEEDS_ALEX.md` at the repo root.
 5. **Nothing is deleted.** DONE and DROPPED rows move to the bottom table with
    their evidence or reason. `git log` on this file is the audit trail.
 6. **Priorities:** P1 = blocks shipping or contradicts a written claim ·
