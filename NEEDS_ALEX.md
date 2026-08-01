@@ -58,6 +58,12 @@ made the call. **Recommendation: drop.** One word from you closes it.
   crate to narrow a lane and funnel boarders; it cycles stow→narrow→funnel
   and re-stows every wave, costing only the 2.8s you're out of the fight.
   First new gameplay verb since repair — does it read, and is 2.8s right?
+- **Cutscenes** (SG-8, all five cues now filled): a 2.5s run-opening reveal,
+  1.4s flourishes on waves 4 and 8, a 5.4s victory crane-up to the horizon
+  (the one angle gameplay never shows), and a 3.6s defeat push onto the
+  Boiler. All skippable with click/space. These are taste calls made by an
+  agent — your eyes needed.
 - **A fresh build is cut**: `skygear-godot/builds/itch/SkyGear-Windows.zip`
-  (today's fixes: telegraphs, legibility floor, Boiler scale, crate verb).
-  Upload to itch by hand until `butler login` is done.
+  (everything from today: telegraphs, legibility floor, Boiler scale, the
+  heave verb, crate x-ray, cutscenes). Upload to itch by hand until
+  `butler login` is done.
