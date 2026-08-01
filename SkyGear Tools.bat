@@ -17,10 +17,18 @@ set "GODOT=%LOCALAPPDATA%\..\..\.local\bin\godot.exe"
 if not exist "%GODOT%" set "GODOT=%USERPROFILE%\.local\bin\godot.exe"
 if not exist "%GODOT%" set "GODOT=godot"
 
-REM The two Python tools worth reaching for directly.
+REM The Python tools worth reaching for directly.
 if /i "%~1"=="parity" (
   cd /d "%~dp0skygear-godot"
   python tools/parity.py --open
+  pause
+  exit /b
+)
+REM Every screen, every width, as one page you can actually review. Extra
+REM arguments pass straight through, so `screens --tag before` works.
+if /i "%~1"=="screens" (
+  cd /d "%~dp0skygear-godot"
+  python tools/screen_review.py %2 %3 %4 %5
   pause
   exit /b
 )
