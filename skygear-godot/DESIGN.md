@@ -1,8 +1,12 @@
 # SkyGear Godot port — living design document
 
-Last updated: 2026-07-27  
+Last updated: 2026-08-01  
 Reference target: SkyGear v11 (`storm-dusk-v11.html`)  
-Port status: Milestone 1 — playable combat vertical slice
+Port status: playable end to end — twelve waves, two classes, persistent
+progression. **`STATUS.md` is the status of record and `docs/OUTSTANDING.md`
+is the open ledger.** This document is the running design record: sections are
+dated, the earliest describe Milestone 1, and later sections supersede them
+where they say so.
 
 ## 1. Intent
 
@@ -115,6 +119,10 @@ world space and remain independent of sprite dimensions.
 
 ## 9. Milestone status
 
+**Historical — the Milestone 1 table as of 2026-07-27, kept as the record.**
+Nearly every "not yet" row below has since landed; the current state is
+`STATUS.md` and the harness (`tests/parity_test.gd`), not this table.
+
 | System | Status | Next proof |
 |---|---|---|
 | Isolated project and copied references | complete | hash manifest |
@@ -150,6 +158,10 @@ through 2560×1440.
   the Windows release with Godot 4.7.1, and uploaded version `milestone-1` to
   itch.io channel `alex-unconstrained/skygear-godot-test:windows` (build
   `#1837384`).
+
+- 2026-08-01: This changelog stopped being the record around here — the dated
+  sections below (13b onward) are the record, `STATUS.md` is the current state,
+  and `docs/OUTSTANDING.md` is the ledger. Header and §9 marked accordingly.
 
 ## 12. Target and renderer — decided 2026-07-27
 

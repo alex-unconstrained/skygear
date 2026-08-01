@@ -1,9 +1,16 @@
 # The second class — the Boilerwright
 
-Status: **BUILT AND COMPLETE.** Head, Tap Main, Blowdown, Bleed Jet, Scald,
+Status: **BUILT.** Head, Tap Main, Blowdown, Bleed Jet, Scald,
 Overpressure, the no-dash body, the per-class draft weighting, the Anchored
 resist, kills extending a main, the crew haste inside one and the third deck
 vent are all in and covered by the harness.
+
+*"Complete" was claimed here and the audit found the omissions list below
+missing at least four entries — see "Documentation claims that are not
+enforceable" in `OUTSTANDING.md`. Known open on this class: the mobility gap
+(measured at 67% of ground covered, not the 21% top speed implies — its own
+ledger entry), and he renders as the captain's model
+(`CAPTAIN_SCENE` is one constant for both classes — its own ledger entry).*
 
 Two things §3 describes that are deliberately NOT built, and are not oversights:
 

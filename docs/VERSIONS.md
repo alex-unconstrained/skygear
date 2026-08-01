@@ -16,6 +16,37 @@ Playtest reports and open bugs: **[FEEDBACK.md](FEEDBACK.md)**.
 
 ---
 
+## The Godot port · the whole game, and the tools to judge it — 2026-08-01
+
+**The port is now the project.** Playable end to end: twelve waves and the
+Colossus, **two classes** (the Boilerwright landed, with a comparison screen),
+the full draft, the Workshop with Articles and Heat, events at waves 4/8/12, a
+run log, rebindable keys, a cutscene system with the Colossus arrival wired,
+and the browser's painted sky as a shader sampled by view direction. The
+harness went **44 → 437 checks**; the text audit covers 21 screens at 4
+widths. **Build 31 is on itch** — the page that milestone 2 could not push to
+exists now: <https://alex-unconstrained.itch.io/skygear-godot-test>.
+
+- **The camera became a real 3D camera** — the browser's `CAM.recompute()`
+  solve at 41°, billboards upright in it, then a model pipeline on top:
+  a rigged captain with fourteen clips, seven props as meshes, a remesh pass
+  that took the models from 182 MB to 9 MB.
+- **The picture was rebuilt twice on evidence**: a rendering audit (four
+  findings, all correct, all fixed — decals for telegraphs, per-particle
+  emission, real pools) and a parity tool that poses both builds at the same
+  seed and stitches them side by side. Its first run found the largest open
+  gap: **Godot frames tighter than the browser**, contradicting a repeated
+  "ported exactly" claim. Open, measured, in the ledger.
+- **The process grew a ledger** — `skygear-godot/docs/OUTSTANDING.md`, only
+  what the owner asked for, items leave only when done or dropped with a
+  reason. It exists because the skybox slipped three times before it was
+  measured instead of guessed at.
+
+Current state: `skygear-godot/STATUS.md`. Open items:
+`skygear-godot/docs/OUTSTANDING.md`.
+
+---
+
 ## The Godot port · milestone 2 — 2026-07-27
 
 Taken over and brought most of the way to the browser build. Runs on Godot 4.7,
@@ -45,7 +76,7 @@ build remains the complete game.
 
 Packaged as `SkyGear-Windows.zip`, 67.5 MB. **Not yet on itch** — the account
 `alex-unconstrained` is valid but no game page exists, and butler can only push
-to a page that already does.
+to a page that already does. *(Since resolved — see the 2026-08-01 entry.)*
 
 ---
 

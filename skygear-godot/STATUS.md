@@ -1,6 +1,9 @@
 # SkyGear Godot port -- where things stand
 
-Last updated 2026-08-01. **Read this first, then `docs/OUTSTANDING.md`.**
+Last updated 2026-08-01. **Read this first, then `docs/BOARD.md` — the work
+queue agents claim items from and report evidence to. `docs/OUTSTANDING.md`
+stays the ledger of owner asks; an ask lands there first and is mirrored to
+the board as workable items.**
 
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with one shot wired.

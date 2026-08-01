@@ -1,9 +1,15 @@
 # START HERE — fresh session brief
 
+> **Superseded 2026-08-01 — the project is now fully focused on the Godot port
+> in `skygear-godot/`.** A fresh session starts at `skygear-godot/STATUS.md`,
+> then `skygear-godot/docs/OUTSTANDING.md`. The browser build is frozen as the
+> reference target; everything below describes it and applies only when
+> touching it.
+
 **Point a new session at this file.** It assumes no memory of any previous
 conversation. Read it, then read the three documents in §2, then work.
 
-Repo: `C:\Users\alexr\OneDrive\Documents\GitHub\OneShot`
+Repo: `C:\Users\alexr\OneDrive\Documents\GitHub\skygear`
 Live: https://alex-unconstrained.github.io/skygear/
 Live build: **v11** (`storm-dusk-v11.html`). v10 and everything before it are
 frozen at the bytes they shipped and live on `archive.html`; the landing page

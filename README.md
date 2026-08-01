@@ -93,12 +93,24 @@ python tools/audio-check.py              # peak, clipping, and runtime rescue pe
 
 ## Status
 
+**Development is now fully focused on the Godot port in
+[`skygear-godot/`](skygear-godot/).** A fresh session starts at
+**[skygear-godot/STATUS.md](skygear-godot/STATUS.md)**, then
+**[skygear-godot/docs/OUTSTANDING.md](skygear-godot/docs/OUTSTANDING.md)** —
+the ledger of what was asked for and whether it is done. The port is playable
+end to end (twelve waves, two classes, a draft, persistent progression), holds
+437 harness checks, and build 31 is on itch at
+<https://alex-unconstrained.itch.io/skygear-godot-test>.
+
+The browser build below is **frozen as the reference target** — v11 stays live
+and playable, and everything else in this README describes it. Its own record:
 v10 was the first build made for a stranger, and a stranger played it. What they
 said is the whole of v11: healing scaled with damage and not with risk, so the
 run had no fail state; the deck was full of kegs that did nothing; and you could
-not see what was being shot at you. The plan of record is
-**[docs/V11-PLAN.md](docs/V11-PLAN.md)**; a fresh session should start at
-**[docs/START-HERE.md](docs/START-HERE.md)**.
+not see what was being shot at you. The browser plan of record was
+**[docs/V11-PLAN.md](docs/V11-PLAN.md)**, superseded by
+**[docs/V12-PLAN.md](docs/V12-PLAN.md)**, whose Godot spike proposal became the
+port.
 
 Verified by `npm test` on every build — 53 checks: all 36 shape × element cells
 execute and deal damage, twelve waves start and clear, both loss conditions and
