@@ -1828,6 +1828,91 @@ func _view() -> void:
 		SkyGearDeckwork.actions().size() >= 1
 			and SkyGearDeckwork.actions()[0].has("verb")
 			and SkyGearDeckwork.actions()[0].has("at"))
+
+	## THE SECOND VERB — HEAVE THE CRATE (board SG-10). The first entry that shapes
+	## the ground rather than mending it, and the proof the table was worth being a
+	## table. Everything below is the repair pattern, one row over.
+	_check("deck", "the deck carries a movable crate to heave",
+		deck.barricade != null and is_instance_valid(deck.barricade)
+			and not bool(deck.barricade.dead))
+	## Its footprint is derived from the PROP the player sees, and it is in the ONE
+	## cargo source of truth — so the collision clamp, the boarder funnel and the
+	## debug draw cannot disagree about where it is (STATUS failure mode two).
+	_check("deck", "the crate joins the one cargo source of truth",
+		deck.barricade_rect().size.x > 0.0
+			and deck.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size() + 1)
+
+	## Stand at it and the table offers a HEAVE, not a repair — same held key, read
+	## from the target you are next to.
+	deck.barricade_stage = 0
+	deck.barricade.global_position = Vector2(
+		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+	deck.player.global_position = deck.barricade.global_position
+	var crate_job: Dictionary = SkyGearDeckwork.available(deck)
+	_check("deck", "standing at the crate offers a heave",
+		not crate_job.is_empty() and str(crate_job.spec.id) == "heave_crate")
+	## The generic prompt draws it because the spec carries a verb and a refusal
+	## reason, exactly like repair — no HUD change to reach the second verb.
+	_check("deck", "the heave verb has a prompt and a reason it refuses",
+		not crate_job.is_empty()
+			and str(crate_job.spec.get("verb", "")) != ""
+			and str(crate_job.spec.get("blocked", "")) != "")
+
+	## HEAVING MOVES THE SIM RECT — the actual footprint boarders path against, not
+	## only the picture.
+	var before_x: float = deck.barricade.global_position.x
+	SkyGearDeckwork.perform(deck, crate_job.spec, crate_job.target)
+	_check("deck", "heaving actually moves the crate's footprint",
+		absf(deck.barricade.global_position.x - before_x) > 40.0,
+		"%.0f -> %.0f" % [before_x, deck.barricade.global_position.x])
+
+	## AND A BOARDER'S PATH RESPONDS. Heave the crate to its funnel stage and a
+	## boarder walking that column is displaced clear of the footprint — the routing
+	## measurably narrows, rather than a wall drawn over boarders who stroll through
+	## it (STATUS failure mode one). Tested straight through `correct_enemy_position`,
+	## the three lines the boarders actually path by.
+	deck.barricade_stage = 2
+	deck.barricade.global_position = Vector2(
+		SkyGearGame.BARRICADE_STAGES[2], SkyGearGame.BARRICADE_Y)
+	var choke := Vector2(SkyGearGame.BARRICADE_STAGES[2], SkyGearGame.BARRICADE_Y)
+	var routed: Vector2 = deck.correct_enemy_position(
+		choke, SkyGearGame.BARRICADE_LANE, 15.0)
+	_check("deck", "a boarder in the port lane is funnelled by the heaved crate",
+		routed.distance_to(choke) > 30.0
+			and not deck.barricade_rect().has_point(routed),
+		"stayed at %.0f, %.0f" % [routed.x, routed.y])
+	## But the OUTBOARD side stays open — one crate narrows a lane, it never walls it
+	## shut for free. That is the balance, and it is geometry, not a new currency.
+	var outboard := Vector2(-720.0, SkyGearGame.BARRICADE_Y)
+	var through: Vector2 = deck.correct_enemy_position(
+		outboard, SkyGearGame.BARRICADE_LANE, 15.0)
+	_check("deck", "and the open side of the funnelled lane still passes",
+		through.distance_to(outboard) < 30.0,
+		"outboard route bent to %.0f, %.0f" % [through.x, through.y])
+	## With the crate stowed, the very same column is clear — proof the funnel is the
+	## crate and not the lane clamp doing it anyway.
+	deck.barricade_stage = 0
+	deck.barricade.global_position = Vector2(
+		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+	var stowed_route: Vector2 = deck.correct_enemy_position(
+		choke, SkyGearGame.BARRICADE_LANE, 15.0)
+	_check("deck", "and stowing the crate re-opens that column",
+		stowed_route.distance_to(choke) < 30.0)
+
+	## THE RE-STOW DECISION, PINNED. The deck re-stows between waves (a pinned
+	## behavior) and the crate re-stows WITH it, by design: a flank you close is one
+	## you pay to close again next wave, never a permanent free wall. So a deployed
+	## crate returns to its home the moment the next wave is stowed.
+	deck.barricade_stage = 2
+	deck.barricade.global_position = Vector2(500.0, 200.0)
+	deck.start_wave(4)
+	_check("deck", "the crate re-stows to its home for the next wave",
+		deck.barricade != null and int(deck.barricade_stage) == 0
+			and absf(deck.barricade.global_position.x
+				- SkyGearGame.BARRICADE_STAGES[0]) < 1.0
+			and absf(deck.barricade.global_position.y - SkyGearGame.BARRICADE_Y) < 1.0,
+		"stage %d at %.0f, %.0f" % [int(deck.barricade_stage),
+			deck.barricade.global_position.x, deck.barricade.global_position.y])
 	deck.queue_free()
 
 	## MOVEMENT FEEL, as a shape rather than as numbers. Both directions of this
@@ -2858,6 +2943,62 @@ func _view() -> void:
 	game.turrets[1].dead = false
 	game.turrets[1].hp = game.turrets[1].max_hp
 	game.deckwork = {}
+
+	## THE SHAPING VERB IS INVISIBLE TOO. Like the downed cannon, nothing on screen
+	## says a crate can be heaved to funnel a lane, so the coach announces it — and
+	## like every keyed line it carries the LIVE binding, never the raw {key} token.
+	## This is the check that catches the substitution being dropped for the new
+	## line. Its own game, so the crate is freshly stowed and the state is known.
+	var shaper := _new_game()
+	shaper.set_seed_text("SHAPE")
+	shaper.begin_run()
+	shaper.choose_draft(0)
+	shaper.start_wave(3)
+	shaper.spawn_queue.clear()
+	shaper.coach.reset()
+	shaper.deckwork = {}
+	shaper.pressure = 0.0
+	shaper.barricade_stage = 0
+	if shaper.barricade != null and is_instance_valid(shaper.barricade):
+		shaper.barricade.global_position = Vector2(
+			SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+	## A lane walking through, the captain committed elsewhere — and standing on a
+	## boarder, so the kiting line (higher priority) cannot win ahead of this one.
+	shaper.player.global_position = Vector2(400.0, -300.0)
+	shaper.spawn_enemy("SCRAPPER", 1)
+	shaper.spawn_enemy("SCRAPPER", 0)
+	var walker: SkyGearEnemy = null
+	var nearby: SkyGearEnemy = null
+	for e in shaper.get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(e) or e.dead:
+			continue
+		if e.lane == 0:
+			walker = e
+		else:
+			nearby = e
+	if walker != null:
+		walker.global_position = Vector2(-560.0, 300.0)
+		walker.state = "move"
+	if nearby != null:
+		nearby.global_position = shaper.player.global_position
+		nearby.state = "move"
+	## Capture the FIRST hint to fire, not the last: `shape_lane` and the plain
+	## `lane` line share the same trigger, and `shape_lane` wins the priority order,
+	## so it speaks first — a loop that kept the last word would catch `lane`
+	## overwriting it seconds later and read the wrong line.
+	var crate_told := ""
+	for _t in 400:
+		var w3: String = shaper.coach.advise(shaper, 0.1)
+		shaper.run_time += 0.1
+		if w3 != "":
+			crate_told = w3
+			break
+	_check("coach", "the crate's heave is announced with a lane walking through",
+		crate_told != "", "said nothing with a lane being lost and the crate stowed")
+	_check("coach", "and the heave line names the bound key, not the {key} token",
+		crate_told.contains(bound) and not crate_told.contains("{key}"),
+		"'%s' does not carry '%s'" % [crate_told, bound])
+	shaper.queue_free()
 
 	game.spawn_queue.clear()
 	game.go_to_title()

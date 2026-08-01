@@ -20,6 +20,28 @@ const CARGO_RECTS := [
 	Rect2(220, 620, 120, 250),
 ]
 
+## THE DRAGGABLE CRATE — the deckwork verb "HEAVE THE CRATE" (board SG-10).
+##
+## A movable cargo stack the captain heaves across the PORT lane to funnel the
+## boarders walking down it. The eight rects above are the fixed lane walls; this
+## is the one piece of cargo that moves, and it moves because a player decided to
+## reshape where the fight happens.
+##
+## BALANCE IS GEOMETRY, not a new currency. `BARRICADE_SIZE.x` is 150 against a
+## 380-unit lane band, so one crate NARROWS a lane and can pin the whole column to
+## one side of it — but it can never wall the lane shut for free, which is the
+## thing that would trivialise funnelling. The only cost is the seconds out of the
+## fight, the sharpest cost the deck has (see `scripts/deckwork.gd`).
+##
+## `BARRICADE_STAGES` are the crate-centre x per heave, all at one y: stowed among
+## the bow cargo (blocks no lane), narrowing the band, then pinned to the inboard
+## edge so the port lane funnels outboard. A heave cycles 0 -> 1 -> 2 -> 0, so the
+## same key that closes the flank also opens it again.
+const BARRICADE_SIZE := Vector2(150.0, 130.0)
+const BARRICADE_Y := -480.0
+const BARRICADE_LANE := 0
+const BARRICADE_STAGES := [-280.0, -560.0, -450.0]
+
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
 var audio: SkyGearAudio
@@ -161,6 +183,11 @@ var heat := 0
 ## the ground rather than as one feature.
 var deckwork: Dictionary = {}
 var deckwork_progress := 0.0
+## The draggable crate, as the PROP the player sees — so the thing that blocks and
+## the thing that is drawn are one object, mirrored into 3D with no renderer change
+## (board SG-10). Null until the deck is first stowed; re-stowed home every wave.
+var barricade: SkyGearProp = null
+var barricade_stage := 0
 ## What you keep between runs. Loaded once; nothing before a first victory.
 var workshop: Dictionary = SkyGearWorkshop.load_state()
 ## What the last run paid, so the results screen can say so rather than the
@@ -2412,6 +2439,58 @@ func _update_projectiles(delta: float) -> void:
 		if remove:
 			projectiles.remove_at(i)
 
+## ONE source of truth for where cargo stands, so the collision clamp, the boarder
+## funnel and the debug draw can never disagree about it (STATUS failure mode two:
+## two functions disagreeing about one number). The eight fixed lane walls, plus
+## the draggable crate whenever it is on the deck.
+func cargo_rects() -> Array:
+	var rects: Array = CARGO_RECTS.duplicate()
+	var box := barricade_rect()
+	if box.size.x > 0.0:
+		rects.append(box)
+	return rects
+
+
+## The crate's footprint, or a zero rect when it is not on the deck (never stowed,
+## or smashed). Derived from the PROP's live position, so what blocks a boarder and
+## what the renderer mirrors into 3D are the same object.
+func barricade_rect() -> Rect2:
+	if barricade == null or not is_instance_valid(barricade) or bool(barricade.dead):
+		return Rect2()
+	return Rect2(barricade.global_position - BARRICADE_SIZE * 0.5, BARRICADE_SIZE)
+
+
+## What the deckwork table is offered as a target, or {} when the crate is off the
+## board. A plain dict like a turret, keyed on the live position so the deckwork
+## commit/abort identity check is stable between heaves.
+func barricade_target() -> Dictionary:
+	if barricade == null or not is_instance_valid(barricade) or bool(barricade.dead):
+		return {}
+	return {"position": barricade.global_position, "kind": "crate"}
+
+
+## Heave the crate one step along its cycle. Called by `deckwork.gd`'s perform, so
+## the verb table stays what-and-how-long and the sim owns the move.
+func heave_barricade() -> void:
+	if barricade == null or not is_instance_valid(barricade) or bool(barricade.dead):
+		return
+	barricade_stage = (barricade_stage + 1) % BARRICADE_STAGES.size()
+	barricade.global_position = Vector2(BARRICADE_STAGES[barricade_stage], BARRICADE_Y)
+
+
+## Put the crate back at its home. The deck re-stows between waves (a pinned
+## behavior), and the crate re-stows with it BY DESIGN: a flank you closed is one
+## you close again next wave, paying the seconds each time. That is the balance —
+## never a permanent free wall — and it is legible, because the crate visibly
+## returns to the bow every wave with the rest of the ordnance.
+func _stow_barricade() -> void:
+	barricade_stage = 0
+	barricade = PROP_SCENE.instantiate()
+	add_child(barricade)
+	barricade.global_position = Vector2(BARRICADE_STAGES[0], BARRICADE_Y)
+	barricade.configure(self, "crates")
+
+
 func restow_props() -> void:
 	for prop in get_tree().get_nodes_in_group("props"):
 		if is_instance_valid(prop):
@@ -2422,6 +2501,9 @@ func restow_props() -> void:
 		add_child(prop)
 		prop.global_position = entry.position
 		prop.configure(self, entry.type)
+	## The draggable crate re-stows with everything else — see `_stow_barricade`.
+	## The old one was freed in the loop above (it lives in the "props" group).
+	_stow_barricade()
 	## POWDER STORE. Extra ordnance, stowed away from the layout's own kegs so it
 	## reads as a stockpile rather than as one keg mysteriously duplicated. Placed
 	## with the cosmetic stream, or a talent would move every seeded roll after it.
@@ -2747,7 +2829,7 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 		clampf(position.x, DECK_RECT.position.x + radius, DECK_RECT.end.x - radius),
 		clampf(position.y, DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
 	)
-	for cargo: Rect2 in CARGO_RECTS:
+	for cargo: Rect2 in cargo_rects():
 		var expanded: Rect2 = cargo.grow(radius)
 		if expanded.has_point(corrected):
 			var left_distance := absf(corrected.x - expanded.position.x)
@@ -2818,10 +2900,40 @@ func correct_enemy_position(position: Vector2, lane: int, radius: float,
 		## And the band widens as it converges, or three columns arriving at the
 		## same centre would overlap into one stack of bodies.
 		half = lerpf(half, 300.0, pull)
-	return Vector2(
+	var held := Vector2(
 		clampf(position.x, centre - half + radius, centre + half - radius),
 		clampf(position.y, DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
 	)
+	return _funnel_past_crate(held, centre, half, radius)
+
+
+## THE FUNNEL. A boarder walks its lane in a straight column; the draggable crate
+## is the one thing that bends that column, so this is where "heave a crate to
+## close a lane" becomes true rather than painted. Eject the boarder from the
+## crate's footprint to the nearer OPEN side, then re-hold it in the band — so a
+## heaved crate narrows the routing, measurably, instead of closing the lane in the
+## picture while boarders walk straight through it (STATUS failure mode one).
+##
+## Never ejected toward the STERN: the thing meant to STOP a boarder must never be
+## the thing that shoves it a step closer to the Boiler.
+func _funnel_past_crate(p: Vector2, centre: float, half: float, radius: float) -> Vector2:
+	var box := barricade_rect()
+	if box.size.x <= 0.0:
+		return p
+	box = box.grow(radius)
+	if not box.has_point(p):
+		return p
+	var d_left := p.x - box.position.x
+	var d_right := box.end.x - p.x
+	var d_bow := p.y - box.position.y          ## toward the bow, -y
+	if d_bow <= d_left and d_bow <= d_right:
+		p.y = box.position.y                   ## pinned column: held at the bow face
+	elif d_left <= d_right:
+		p.x = box.position.x
+	else:
+		p.x = box.end.x
+	p.x = clampf(p.x, centre - half + radius, centre + half - radius)
+	return p
 
 ## One-shot cues, on the SFX bus, with a ceiling on how many can exist at once.
 ##
@@ -3079,7 +3191,7 @@ func _draw() -> void:
 		draw_line(Vector2(x, DECK_RECT.position.y), Vector2(x, DECK_RECT.end.y), Color(0.12, 0.09, 0.11, 0.28), 2.0)
 	draw_rect(DECK_RECT, Color("#b0813f"), false, 8.0)
 	_draw_airstream()
-	for cargo in CARGO_RECTS:
+	for cargo in cargo_rects():
 		draw_rect(cargo, Color("#17131a"))
 		draw_rect(cargo.grow(-8.0), Color("#54413c"))
 		for y in range(int(cargo.position.y) + 18, int(cargo.end.y), 42):

@@ -45,12 +45,30 @@ const REPAIR_FRACTION := 0.55
 ## your back is not a decision, it is a free action with extra steps.
 const CONTESTED := 150.0
 
+## HEAVE THE CRATE — the second verb, and the first that shapes the ground rather
+## than mends it (board SG-10). Repair is a coach line, a prompt, a progress bar
+## and a refusal reason; every one of those is generic, so laning is one more row
+## here and not a rewrite — which is the entire reason this was a table on day one.
+##
+## Slower than a repair: a loaded cargo stack is heavy, and the seconds ARE the
+## limit. There is no second resource. One crate is 150 units against a 380-unit
+## lane band, so a heave can narrow a lane and pin the fight to one side of it but
+## can never wall the lane off — and it re-stows to its home every wave with the
+## rest of the ordnance, so a flank you closed is a flank you pay to close again.
+const HEAVE_SECONDS := 2.8
+const HEAVE_REACH := 150.0
+
 
 static func actions() -> Array[Dictionary]:
 	return [
 		{
 			"id": "repair_turret", "verb": "REPAIR THE CANNON",
 			"at": "turret", "reach": REPAIR_REACH, "seconds": REPAIR_SECONDS,
+			"blocked": "boarders are on it",
+		},
+		{
+			"id": "heave_crate", "verb": "HEAVE THE CRATE",
+			"at": "crate", "reach": HEAVE_REACH, "seconds": HEAVE_SECONDS,
 			"blocked": "boarders are on it",
 		},
 	]
@@ -79,6 +97,11 @@ static func _targets(game, family: String) -> Array:
 	match family:
 		"turret":
 			return game.turrets
+		"crate":
+			## One draggable crate, offered as a target only while it is on the deck
+			## — smashed, it is off the board until the next re-stow puts it back.
+			var t: Dictionary = game.barricade_target()
+			return [t] if not t.is_empty() else []
 	return []
 
 
@@ -89,6 +112,11 @@ static func _valid(game, spec: Dictionary, target: Dictionary) -> bool:
 			## up mid-wave turns deckwork into a maintenance chore you perform
 			## constantly rather than a decision you make occasionally.
 			return bool(target.get("dead", false))
+		"heave_crate":
+			## Always workable while it is there. A heave cycles the crate through
+			## stow, narrow and funnel, so the same verb also RETRACTS it — there is
+			## never a "nothing to do here" state to explain.
+			return true
 	return false
 
 
@@ -110,3 +138,8 @@ static func perform(game, spec: Dictionary, target: Dictionary) -> void:
 			target.dead = false
 			target.hp = float(target.max_hp) * REPAIR_FRACTION
 			target.flash = 0.6
+		"heave_crate":
+			## The move lives in the sim, not here: this table says WHAT and HOW
+			## LONG, and the game owns where the crate ends up and what pathes
+			## against it. Keeps the one source of truth for cargo in one place.
+			game.heave_barricade()

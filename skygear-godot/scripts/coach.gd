@@ -42,6 +42,10 @@ const DWELL := {
 	## being earned, it is a fact with no other way in. Long enough that walking
 	## between two vents does not trip it.
 	"empty_bank": 7.0,
+	## The draggable crate is a verb with no on-screen tell, like the downed cannon.
+	## Same dwell as `lane`: a lane has to be genuinely walking through before the
+	## shaping tool is worth pointing at.
+	"shape_lane": 6.0,
 }
 const MAX_SHOWS := 2
 const REPEAT_GAP := 42.0
@@ -54,7 +58,7 @@ const FIRST_WAVE := 2    ## nothing before this
 ## already making and could in principle notice; this one announces a VERB THAT
 ## IS OTHERWISE INVISIBLE. Nothing on screen says a dead gun can come back, so
 ## without it the whole deckwork system is code no player ever runs.
-const ORDER := ["broken_cannon", "empty_bank", "gauge", "kiting", "lane", "idle_skill"]
+const ORDER := ["broken_cannon", "empty_bank", "gauge", "kiting", "shape_lane", "lane", "idle_skill"]
 
 const TEXT := {
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
@@ -64,6 +68,9 @@ const TEXT := {
 	## in the game said so.
 	"empty_bank": "Head is empty, so every weapon is hitting soft. Stand on a vent or crack a main with F.",
 	"lane": "A lane is walking through. The cannon holds, it does not kill.",
+	## The shaping verb, announced because nothing on screen says a crate can be
+	## heaved to funnel a lane. `{key}` is the live binding, like `broken_cannon`.
+	"shape_lane": "A lane is walking through. Stand at the crate and HOLD {key} to heave it across and funnel them.",
 	"idle_skill": "You have a weapon you have never fired. Q and E are drafted too.",
 	## `{key}` is filled from the live binding rather than written in, so a player
 	## who rebinds the key is not told to press the one they replaced.
@@ -176,6 +183,29 @@ func _is(id: String, game) -> bool:
 				if enemy.global_position.y < half:
 					continue
 				if game.player.global_position.distance_to(enemy.global_position) > 620.0:
+					return true
+			return false
+		"shape_lane":
+			## The same "a lane is walking through" as `lane`, but it only fires
+			## while the crate is STILL STOWED and unused: the tool to shape the
+			## ground is sitting there and the player has not found it. Goes quiet
+			## the moment the crate is off its home, or while they are heaving it,
+			## because then the verb is no longer invisible.
+			if game.barricade == null or not is_instance_valid(game.barricade):
+				return false
+			if int(game.barricade_stage) != 0:
+				return false
+			var busy: Dictionary = game.deckwork
+			if not busy.is_empty() and str((busy.get("spec", {}) as Dictionary).get("id", "")) == "heave_crate":
+				return false
+			var deck2: Rect2 = SkyGearGame.DECK_RECT
+			var half2: float = deck2.get_center().y
+			for enemy2 in game.get_tree().get_nodes_in_group("enemies"):
+				if not is_instance_valid(enemy2) or enemy2.dead:
+					continue
+				if enemy2.global_position.y < half2:
+					continue
+				if game.player.global_position.distance_to(enemy2.global_position) > 620.0:
 					return true
 			return false
 		"broken_cannon":
