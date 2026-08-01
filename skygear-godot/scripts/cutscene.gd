@@ -65,6 +65,7 @@ const INDEX := "res://assets/cutscenes/index.json"
 ## against this table drifting into fiction.
 const CUES := {
 	"boss_arrival": "the Colossus climbs aboard — scripts/game.gd, spawn_enemy",
+	"run_open": "a run reaches its first wave; the establishing shot — scripts/game.gd raises the flag in begin_run, scripts/view3d.gd, _watch_cues spends it",
 	"wave_start": "a wave begins; the `wave` field narrows it to one — scripts/view3d.gd, _watch_cues",
 	"victory": "the twelfth wave is cleared — scripts/view3d.gd, _watch_cues",
 	"defeat": "the Boiler goes — scripts/view3d.gd, _watch_cues",

@@ -1,0 +1,49 @@
+{
+  "id": "victory",
+  "name": "THE DECK HELD",
+  "cue": "victory",
+  "wave": 0,
+  "hold": true,
+  "hide_hud": true,
+  "sway": true,
+  "letterbox": 0.12,
+  "caption": "THE DECK HELD",
+  "keys": [
+    {
+      "t": 0.0,
+      "eye": [0.0, 760.0, 1180.0],
+      "look": [0.0, 0.0, 318.0],
+      "fov": 36.09,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": "gameplay"
+    },
+    {
+      "t": 1.8,
+      "eye": [-140.0, 1300.0, 1650.0],
+      "look": [0.0, 520.0, -600.0],
+      "fov": 40.0,
+      "roll": -1.0,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 3.6,
+      "eye": [40.0, 2000.0, 1620.0],
+      "look": [0.0, 1200.0, -1500.0],
+      "fov": 43.0,
+      "roll": 0.6,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 5.4,
+      "eye": [0.0, 2420.0, 1560.0],
+      "look": [0.0, 1900.0, -2300.0],
+      "fov": 46.0,
+      "roll": 0.0,
+      "ease": "out",
+      "from": ""
+    }
+  ]
+}

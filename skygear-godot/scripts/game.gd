@@ -82,6 +82,12 @@ var spawn_queue: Array[Dictionary] = []
 var skills: Array[Dictionary] = []
 var draft_options: Array[Dictionary] = []
 var opening_draft := false
+## Raised by `begin_run`, spent by `view3d.gd::_watch_cues` the first frame the
+## deck reaches PLAY — the establishing `run_open` shot cannot fire from here,
+## because `begin_run` settles into the opening DRAFT and a cutscene is stopped
+## the moment the game is in a menu (`cutscene_player.advance`). So the code
+## line is a flag, and the watcher fires the cue where a camera is allowed to.
+var run_opening := false
 var boiler_hp := 500.0
 var boiler_max_hp := 500.0
 var boiler_position := BOILER_POSITION
@@ -912,6 +918,8 @@ func begin_run() -> void:
 	basic_cooldown = 0.0
 	end_reason = ""
 	opening_draft = true
+	## The establishing shot is owed for this run; the renderer spends it on wave 1.
+	run_opening = true
 	draft_options.clear()
 	turrets = SkyGearLanes.make_turrets(LANE_CENTERS, BASE_Y)
 	## SHOT LOCKER. Applied here rather than inside `make_turrets`, because the

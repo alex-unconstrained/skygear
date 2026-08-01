@@ -1,0 +1,31 @@
+{
+  "id": "wave_start_blackout",
+  "name": "BLACKOUT",
+  "cue": "wave_start",
+  "wave": 8,
+  "hold": true,
+  "hide_hud": true,
+  "sway": true,
+  "letterbox": 0.1,
+  "caption": "BLACKOUT",
+  "keys": [
+    {
+      "t": 0.0,
+      "eye": [-460.0, 880.0, 950.0],
+      "look": [0.0, 60.0, -650.0],
+      "fov": 37.5,
+      "roll": 1.5,
+      "ease": "out",
+      "from": ""
+    },
+    {
+      "t": 1.35,
+      "eye": [0.0, 760.0, 1180.0],
+      "look": [0.0, 0.0, 318.0],
+      "fov": 36.09,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": "gameplay"
+    }
+  ]
+}

@@ -2545,6 +2545,15 @@ func _watch_cues() -> void:
 	if state_changed and state == int(SkyGearGame.State.GAMEOVER):
 		cue("defeat")
 		return
+	## The establishing shot, owed by `begin_run` and spent HERE — the one place a
+	## camera is allowed, once the opening draft is behind us and the deck is in
+	## PLAY. Spent before `wave_start` so wave 1 opens the run rather than firing a
+	## milestone flourish, and the flag is cleared so a run plays it exactly once.
+	if wave_changed and wave_number == 1 and state == int(SkyGearGame.State.PLAY) \
+			and bool(game.run_opening):
+		game.run_opening = false
+		cue("run_open")
+		return
 	if wave_changed and wave_number > 0 and state == int(SkyGearGame.State.PLAY):
 		cue("wave_start", wave_number)
 

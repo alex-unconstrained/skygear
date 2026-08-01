@@ -73,10 +73,15 @@ halves are in. `SkyGear Tools.bat cutscene`.
   and `wave_start` / `victory` / `defeat` watched in `view3d.gd::_watch_cues`.
   **`colossus_arrival` plays at wave 12** when the boss climbs aboard.
 
-**What is still open.** Three of the four cues have no shot in them —
-`wave_start`, `victory` and `defeat` are wired and empty, and filling them is
-now a data act with no code in it. A run opening was also suggested and has no
-cue at all; it needs one line wherever `begin_run` settles.
+**DONE (SG-8, 2026-08-01).** All four cues now carry a shot, and the suggested
+run opening was added as a fifth cue: `run_open` (2.5s establishing crane),
+`wave_start` as a short milestone flourish narrowed to the event waves 4 and 8
+(never wave 12 — it would suppress the Colossus), `victory` (a 5.4s crane-up to
+the sky the deck framing never shows), and `defeat` (a 3.6s heavy push onto the
+dying Boiler, held for the results screen). The run opening's one line of code
+is a flag `begin_run` raises and `view3d.gd::_watch_cues` spends on the first
+wave — it cannot fire from `begin_run` itself, which settles into the opening
+draft where a cutscene is not allowed. Fifteen new harness checks, 463→478.
 
 **Two things worth knowing before authoring one.** The camera CAN break the
 shipped solve — a key carries its own field of view, height and roll — and the

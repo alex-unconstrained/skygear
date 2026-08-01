@@ -1,5 +1,10 @@
 {
   "cutscenes": [
-    "colossus_arrival"
+    "colossus_arrival",
+    "defeat",
+    "run_open",
+    "victory",
+    "wave_start_blackout",
+    "wave_start_grapple"
   ]
 }

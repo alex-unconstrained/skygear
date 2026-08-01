@@ -4422,6 +4422,82 @@ func _cutscene() -> void:
 	_check("cutscene", "and an unknown cue plays nothing at all",
 		not view.cue("no_such_moment") and not view.play_cutscene("no_such_file"))
 
+	## ─── SG-8: THE OTHER FOUR CUES, FILLED. ───────────────────────────────────
+	## The Colossus was the one authored shot; `wave_start`, `victory`, `defeat`
+	## and the new `run_open` were wired and EMPTY. An empty wired cue reads as
+	## done and plays nothing — failure mode one — so every cue must resolve to a
+	## shot with real movement, and the shots that play EVERY run are held under a
+	## duration budget so a slow one cannot creep in later and be hated 60 times.
+	var cue_budget := {"run_open": 2.6, "victory": 6.0, "defeat": 4.2}
+	for cue_name in cue_budget:
+		var cid := SkyGearCutscene.for_cue(cue_name)
+		var csc := SkyGearCutscene.load_scene(cid)
+		var ckeys: Array = csc.get("keys", [])
+		var clen := SkyGearCutscene.length(csc)
+		_check("cutscene", "the %s cue carries a playable shot" % cue_name,
+			cid != "" and ckeys.size() >= 2 and clen > 0.0,
+			"%s · %d keys · %.2fs" % [cid, ckeys.size(), clen])
+		_check("cutscene", "and the %s shot stays inside its duration budget" % cue_name,
+			clen <= float(cue_budget[cue_name]),
+			"%.2fs ≤ %.2fs" % [clen, float(cue_budget[cue_name])])
+
+	## `wave_start` is a milestone flourish, narrowed by its `wave` field to the
+	## non-boss event waves (4 grapple, 8 blackout). It must NEVER claim wave 12 —
+	## that wave belongs to the Colossus (`boss_arrival`), and a `wave_start` shot
+	## running there would still be active when the boss spawns and SUPPRESS the
+	## arrival. And it must stay off the ordinary waves, so it is a punctuation, not
+	## a thing seen every wave sixty times.
+	_check("cutscene", "wave_start fires on the event waves 4 and 8, never the boss wave or an ordinary one",
+		SkyGearCutscene.for_cue("wave_start", 4) != ""
+			and SkyGearCutscene.for_cue("wave_start", 8) != ""
+			and SkyGearCutscene.for_cue("wave_start", 12) == ""
+			and SkyGearCutscene.for_cue("wave_start", 2) == ""
+			and SkyGearCutscene.for_cue("wave_start", 1) == "",
+		"4=%s 8=%s 12=%s 2=%s" % [SkyGearCutscene.for_cue("wave_start", 4),
+			SkyGearCutscene.for_cue("wave_start", 8),
+			SkyGearCutscene.for_cue("wave_start", 12),
+			SkyGearCutscene.for_cue("wave_start", 2)])
+	var ws := SkyGearCutscene.load_scene(SkyGearCutscene.for_cue("wave_start", 4))
+	_check("cutscene", "and a wave_start flourish is short — under a second and a half",
+		SkyGearCutscene.length(ws) <= 1.5 and (ws.get("keys", []) as Array).size() >= 2,
+		"%.2fs" % SkyGearCutscene.length(ws))
+
+	## EACH ONE ACTUALLY PLAYS, on the real renderer, and hands the gameplay camera
+	## back EXACTLY — the same demand the Colossus is held to, made of all five.
+	## `game.state_name` is still "PLAY" here (from `_begin`), so `advance` runs
+	## each shot to its end rather than stopping it as a menu.
+	var play_home: Transform3D = view.camera.global_transform
+	var play_home_fov: float = view.camera.fov
+	for pid in ["run_open", "victory", "defeat", "wave_start_grapple", "wave_start_blackout"]:
+		var started := view.play_cutscene(pid)
+		var entered := view.cutscene_active()
+		view._process(0.3)
+		for _j in 16:
+			view._process(0.5)
+		view._process(0.1)
+		var back := view.camera.global_transform.origin.distance_to(play_home.origin) \
+			/ SkyGearView3D.WORLD_SCALE
+		_check("cutscene", "the %s shot plays and hands the gameplay camera back exactly" % pid,
+			started and entered and not view.cutscene_active()
+				and back < 0.01 and absf(view.camera.fov - play_home_fov) < 0.0001,
+			"%.5f gu off, lens %.4f" % [back, view.camera.fov])
+
+	## THE ONE CODE LINE OUTSIDE DATA: `run_open` has no natural call site, because
+	## `begin_run` settles into the opening DRAFT where a cutscene is not allowed.
+	## So `begin_run` raises a flag and `_watch_cues` spends it the first frame the
+	## deck reaches PLAY. Both halves are pinned here.
+	game.begin_run()
+	_check("cutscene", "begin_run flags the run as owing an establishing shot",
+		bool(game.run_opening))
+	view._cue_state = int(SkyGearGame.State.PLAY)
+	view._cue_wave = 0
+	game.state = SkyGearGame.State.PLAY
+	game.wave = 1
+	view._watch_cues()
+	_check("cutscene", "and _watch_cues spends it on the first wave, opening the run once",
+		view.cutscene_active() and not game.run_opening)
+	view.stop_cutscene()
+
 	world.queue_free()
 
 

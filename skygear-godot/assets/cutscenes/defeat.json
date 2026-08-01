@@ -1,0 +1,49 @@
+{
+  "id": "defeat",
+  "name": "THE BOILER IS LOST",
+  "cue": "defeat",
+  "wave": 0,
+  "hold": true,
+  "hide_hud": true,
+  "sway": true,
+  "letterbox": 0.14,
+  "caption": "THE BOILER IS LOST",
+  "keys": [
+    {
+      "t": 0.0,
+      "eye": [-280.0, 560.0, 180.0],
+      "look": [0.0, 190.0, 850.0],
+      "fov": 34.0,
+      "roll": 1.0,
+      "ease": "in",
+      "from": ""
+    },
+    {
+      "t": 1.8,
+      "eye": [-130.0, 430.0, 430.0],
+      "look": [0.0, 160.0, 850.0],
+      "fov": 31.0,
+      "roll": 1.8,
+      "ease": "in",
+      "from": ""
+    },
+    {
+      "t": 3.0,
+      "eye": [-40.0, 350.0, 580.0],
+      "look": [0.0, 130.0, 850.0],
+      "fov": 29.0,
+      "roll": 2.4,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 3.6,
+      "eye": [-40.0, 350.0, 580.0],
+      "look": [0.0, 130.0, 850.0],
+      "fov": 29.0,
+      "roll": 2.4,
+      "ease": "inout",
+      "from": ""
+    }
+  ]
+}
