@@ -110,6 +110,9 @@ func _run() -> void:
 	await process_frame
 	_layout()
 	await process_frame
+	## AWAITED — this pass draws real frames. See the note above `_view`.
+	await _screen_editor()
+	await process_frame
 	_dash()
 	await process_frame
 	_mobility()
@@ -4362,6 +4365,67 @@ func _layout() -> void:
 	_check("layout", "an element dragged off its plate is reported, not silently lost",
 		escaped)
 
+	## And the anchor invariant holds one level down: re-anchoring an ITEM leaves
+	## it exactly where it was, the same promise the plates already keep.
+	var re := SkyGearHudLayout.new()
+	var re_plate: Rect2 = re.rect("captain", Vector2(1366, 768))
+	var re_before: Rect2 = re.item("captain", "health", re_plate)
+	re.set_anchor("captain", "health", "bottom_right", Vector2(1366, 768), re_plate)
+	_check("layout", "re-anchoring an element leaves it where it was",
+		re.item("captain", "health", re_plate).is_equal_approx(re_before),
+		"%s -> %s" % [re_before, re.item("captain", "health", re_plate)])
+
+	## THE SCREEN-ELEMENT LEVEL (SG-42). Same discipline as the plates: the file
+	## round-trips, a malformed entry costs itself and nothing else, a typed
+	## entry is parsed strictly, and one Ctrl+Z restores the pre-nudge value.
+	var sc := SkyGearHudLayout.new()
+	sc.nudge_screen("title", "begin_run", Vector2(12, -3))
+	sc.nudge_screen("draft", "card_emblem", Vector2(-0.5, 4.5))
+	_check("layout", "screen offsets survive a save and a load",
+		sc.save()
+			and SkyGearHudLayout.load_layout().screen_offset("title", "begin_run")
+				.is_equal_approx(Vector2(12, -3))
+			and SkyGearHudLayout.load_layout().screen_offset("draft", "card_emblem")
+				.is_equal_approx(Vector2(-0.5, 4.5)))
+	var junk_screens := SkyGearHudLayout._sanitise_screens({
+		"title": {"begin_run": [4, 5], "settings": "sideways", "quit": [1, 2, 3]},
+		"draft": "not even a dictionary",
+	})
+	_check("layout", "a malformed screen entry falls back alone",
+		(junk_screens.get("title", {}) as Dictionary).has("begin_run")
+			and not (junk_screens.get("title", {}) as Dictionary).has("settings")
+			and not (junk_screens.get("title", {}) as Dictionary).has("quit")
+			and not junk_screens.has("draft"),
+		str(junk_screens))
+	var accept: bool = bool(SkyGearHudLayout.parse_offset("  12, -3 ").ok) \
+		and bool(SkyGearHudLayout.parse_offset("+4 0.5").ok)
+	var refuse: bool = not bool(SkyGearHudLayout.parse_offset("12").ok) \
+		and not bool(SkyGearHudLayout.parse_offset("a, b").ok) \
+		and not bool(SkyGearHudLayout.parse_offset("1, 2, 3").ok) \
+		and not bool(SkyGearHudLayout.parse_offset("").ok) \
+		and not bool(SkyGearHudLayout.parse_offset("12deg, 4").ok)
+	_check("layout", "a typed offset takes a pair and refuses everything else",
+		accept and refuse)
+	## The element key is what the element SAYS, minus its numbers — so a readout
+	## keeps its key while its value ticks, and its saved offset stays attached.
+	_check("layout", "a readout's number is not part of its key",
+		SkyGearHudLayout.element_slug("WAVE 7 / 12") == SkyGearHudLayout.element_slug("WAVE 9 / 12")
+			and SkyGearHudLayout.element_slug("THE WORKSHOP  ·  240")
+				== SkyGearHudLayout.element_slug("THE WORKSHOP  ·  0")
+			and SkyGearHudLayout.element_slug("BEGIN RUN") == "begin_run")
+	## Single-level undo, the SG-39 convention: snapshot, nudge, restore, and the
+	## pre-nudge value is back — plates and screens both.
+	var un := SkyGearHudLayout.new()
+	un.nudge_screen("title", "begin_run", Vector2(3, 3))
+	var pre := un.snapshot()
+	un.nudge_screen("title", "begin_run", Vector2(50, 0))
+	un.nudge("captain", "", Vector2(80, 0))
+	un.restore(pre)
+	_check("layout", "undo restores the pre-nudge value",
+		un.screen_offset("title", "begin_run").is_equal_approx(Vector2(3, 3))
+			and un.rect("captain", Vector2(1366, 768))
+				.is_equal_approx(SkyGearHudLayout.new().rect("captain", Vector2(1366, 768))))
+
 	## Leave no editor state behind for the next run of the harness.
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
 
@@ -4372,6 +4436,150 @@ func _layout() -> void:
 		not (narrow.captain as Rect2).intersects(narrow.slot0 as Rect2),
 		"gap %.0f px" % ((narrow.slot0 as Rect2).position.x
 			- (narrow.captain as Rect2).end.x))
+
+
+## --- the screen editor (SG-42) -------------------------------------------------
+## The F4 editor reaches every screen now, and its element registry is built by
+## the REAL draw code as it draws. So the checks drive the real draw: pose a
+## screen, redraw, and read what the editor captured. `_draw` runs headless (the
+## READBACK is what hangs, SG-29 — nothing here reads a pixel back).
+func _screen_editor() -> void:
+	## Shipped defaults only — a leftover user file would make this a test of
+	## whatever the last editing session left behind.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	SkyGearHUD.layout = null
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1600, 900)
+	game.layout_edit = true
+	hud.queue_redraw()
+	await process_frame
+
+	## The title, first and hardest-working: widgets, free text, a banner.
+	_check("editor", "the screen you are on is the screen you edit",
+		hud.edit_screen == "title", hud.edit_screen)
+	_check("editor", "the editor sees the title screen's elements",
+		hud.edit_elements.size() >= 8, "%d elements" % hud.edit_elements.size())
+	_check("editor", "a widget's key is its label",
+		hud.edit_elements.has("begin_run") and hud.edit_elements.has("settings"),
+		", ".join(hud.edit_elements.keys()))
+
+	## An offset is relative to the element's COMPUTED HOME. Save one, redraw:
+	## the element moves by exactly that much...
+	var home0: Vector2 = Vector2.ZERO
+	var moved_ok := false
+	var followed := false
+	if hud.edit_elements.has("begin_run"):
+		home0 = hud.edit_elements["begin_run"].home
+		var before: Rect2 = hud.edit_elements["begin_run"].box
+		SkyGearHUD.layout.set_screen_offset("title", "begin_run", Vector2(14, -6))
+		hud.queue_redraw()
+		await process_frame
+		var after: Rect2 = hud.edit_elements["begin_run"].box
+		moved_ok = after.position.is_equal_approx(before.position + Vector2(14, -6))
+		## ...and when the HOME moves (a wider window recentres the column), the
+		## offset follows the home rather than pinning the old pixels.
+		hud.size = Vector2(1920, 1080)
+		hud.queue_redraw()
+		await process_frame
+		var entry: Dictionary = hud.edit_elements.get("begin_run", {})
+		followed = not entry.is_empty() \
+			and (entry.box as Rect2).position.is_equal_approx(
+				(entry.home as Vector2) + Vector2(14, -6)) \
+			and not (entry.home as Vector2).is_equal_approx(home0)
+		SkyGearHUD.layout.set_screen_offset("title", "begin_run", Vector2.ZERO)
+		hud.size = Vector2(1600, 900)
+	_check("editor", "a saved offset moves the element by exactly that much", moved_ok)
+	_check("editor", "the offset is measured from the home — move the home and it follows",
+		followed)
+
+	## Every screen family reachable, and every capture non-empty. The poses are
+	## the game's own flags — the same doors the player walks through.
+	var captured := {}
+	captured["title"] = hud.edit_elements.keys()
+	var families := [
+		["settings", func() -> void: game.settings_open = true],
+		["keys", func() -> void:
+			game.settings_open = false
+			game.keys_open = true],
+		["how", func() -> void:
+			game.keys_open = false
+			game.how_open = true],
+		["compare", func() -> void:
+			game.how_open = false
+			game.compare_open = true],
+		["workshop", func() -> void:
+			game.compare_open = false
+			game.workshop_open = true],
+		["draft", func() -> void:
+			game.workshop_open = false
+			game.begin_run()
+			game.open_draft()],
+		["pause", func() -> void: game._set_state(SkyGearGame.State.PAUSE)],
+		["results", func() -> void:
+			game.end_reason = "the Boiler went cold on wave 7"
+			game._set_state(SkyGearGame.State.GAMEOVER)],
+	]
+	var wrong := ""
+	for family in families:
+		(family[1] as Callable).call()
+		hud.queue_redraw()
+		await process_frame
+		var want := str(family[0])
+		captured[want] = hud.edit_elements.keys()
+		if hud.edit_screen != want:
+			wrong += "%s drew as %s; " % [want, hud.edit_screen]
+		elif hud.edit_elements.is_empty():
+			wrong += "%s captured nothing; " % want
+	_check("editor", "every screen family is reachable and captures its elements",
+		wrong == "", wrong)
+	## The draft's two-level story: cards register as panels, the emblem as a
+	## grabbable non-text element.
+	_check("editor", "the draft's cards are panels and the emblem is an element",
+		"card_emblem" in (captured.get("draft", []) as Array),
+		", ".join(captured.get("draft", []) as Array))
+
+	## DATA WITH NO READER is failure mode one: every key in the SHIPPED file
+	## must resolve to something the game actually draws. Plates and items are
+	## checked against the tables; screen keys against the capture above. Today
+	## the shipped file carries no screen offsets — this is the check that makes
+	## a future one that resolves to nothing a red build, not a mystery.
+	var shipped_raw: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(SkyGearHudLayout.SHIPPED_PATH))
+	_check("editor", "the shipped layout file parses", shipped_raw is Dictionary)
+	var dead: Array[String] = []
+	if shipped_raw is Dictionary:
+		for plate_name in (shipped_raw.get("plates", {}) as Dictionary).keys():
+			if not SkyGearHudLayout.DEFAULT.has(plate_name):
+				dead.append("plates/%s" % plate_name)
+				continue
+			var items: Dictionary = (shipped_raw.plates[plate_name] as Dictionary) \
+				.get("items", {})
+			for item_name in items.keys():
+				if not (SkyGearHudLayout.DEFAULT[plate_name] as Dictionary) \
+						.get("items", {}).has(item_name):
+					dead.append("plates/%s/%s" % [plate_name, item_name])
+		for item_name in (shipped_raw.get("slot_items", {}) as Dictionary).keys():
+			if not SkyGearHudLayout.SLOT_ITEMS.has(item_name):
+				dead.append("slot_items/%s" % item_name)
+		for screen in (shipped_raw.get("screens", {}) as Dictionary).keys():
+			if not captured.has(screen):
+				dead.append("screens/%s (no such screen)" % screen)
+				continue
+			for key in (shipped_raw.screens[screen] as Dictionary).keys():
+				if not key in (captured[screen] as Array):
+					dead.append("screens/%s/%s" % [screen, key])
+	_check("editor", "every key in the shipped file resolves to something drawn",
+		dead.is_empty(), ", ".join(dead))
+
+	game.layout_edit = false
+	hud.audit = null
+	hud.ink = null
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	SkyGearHUD.layout = null
+	game.queue_free()
+	await process_frame
 
 
 func _views_resolve() -> bool:

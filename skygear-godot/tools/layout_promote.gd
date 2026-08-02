@@ -55,10 +55,20 @@ func _initialize() -> void:
 	var layout := SkyGearHudLayout.new()
 	layout.plates = parsed.get("plates", {})
 	layout.slot_items = parsed.get("slot_items", {})
+	## The screen-element offsets (SG-42), SANITISED on the way through — a
+	## malformed entry is dropped here exactly as the loader would drop it, so
+	## what gets promoted is what the game will actually read.
+	layout.screens = SkyGearHudLayout._sanitise_screens(parsed.get("screens", {}))
 
 	print("  YOUR LAYOUT   %s" % ProjectSettings.globalize_path(user_path))
 	print("  SHIPS AS      %s" % ProjectSettings.globalize_path(shipped))
 	print("")
+	if not layout.screens.is_empty():
+		var parts: Array[String] = []
+		for screen in layout.screens.keys():
+			parts.append("%s %d" % [str(screen), (layout.screens[screen] as Dictionary).size()])
+		print("  SCREEN OFFSETS  %s" % " · ".join(parts))
+		print("")
 
 	## Every width, because a layout is authored at one and has to survive the
 	## rest. This is the check that catches "it looked perfect on my monitor".
@@ -98,7 +108,8 @@ func _initialize() -> void:
 		quit(1)
 		return
 	out.store_string(JSON.stringify(
-		{"version": 2, "plates": layout.plates, "slot_items": layout.slot_items},
+		{"version": 3, "plates": layout.plates, "slot_items": layout.slot_items,
+			"screens": layout.screens},
 		"  "))
 	out.close()
 	print("  PROMOTED. `git diff assets/hud_layout.json` to see what moved.")

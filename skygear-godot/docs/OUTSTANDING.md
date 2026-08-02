@@ -23,12 +23,20 @@ screenshots but I'm not able to directly edit/align content within UI
 elements. Add this functionality as the primary purpose, and then the massive
 screenshot dump is a secondary."*
 
-The F4 editor drags whole panels on the gameplay HUD; the audit photographs
-21 screens; neither lets a person move a label inside a plate, a glyph inside
-a slot, or anything on the title/draft/workshop/results screens. The primary
-tool is now: navigate to any screen in-game, select sub-elements inside
-panels, drag/nudge/type offsets, save to the layout system the game reads.
-The screenshot dump stays as the secondary batch-evidence mode. Board SG-42.
+**SHIPPED 2026-08-01 (board SG-42) — left OPEN for your hands-on verdict,
+like the crate and the lab.** F4 now works on EVERY screen, and it reaches
+INSIDE: on the fight HUD it is the plate editor you know; everywhere else
+(title, draft, pause, settings, workshop, results, comparison, controls) it
+captures the screen's own elements — labels, readouts, buttons, the card
+emblem — as the screen draws them. Click a panel, click again for what is
+inside; drag, arrow-nudge (Shift ×10, Alt ×0.1), or click the offset readout
+and TYPE it (Enter applies, malformed refused). Ctrl+Z undoes, Ctrl+S saves
+into the same hud_layout.json family (`SkyGear Tools.bat layout` promotes),
+Ctrl+R resets the one screen, F12 photographs the screen you are fixing.
+The verdict bar runs the text audit's own detectors live while you edit.
+You edit the screen you are ON — the game navigates. The 84-shot dump stays
+as the secondary batch-evidence mode (`SkyGear Tools.bat screens`). Full
+evidence on the board row; docs/HUD-LAYOUT.md is the how-to.
 
 ### Projectiles look like cheap 2D sprites — the first ask of the post-parity era
 Asked 2026-08-01 with a screenshot of the cartoon fireball bolts: *"Can we get

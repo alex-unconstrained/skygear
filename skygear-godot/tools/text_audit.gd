@@ -154,79 +154,37 @@ func _run() -> void:
 				## window and every label came back paired with itself. Worth its own
 				## check one day; it is not this one, and leaving it in here would
 				## have buried the real finding under forty copies of "Esc".
-				var once: Array = []
-				var seen_ink := {}
-				for entry in measured:
-					var key := "%s|%s" % [str(entry.text), str(entry.box)]
-					if seen_ink.has(key):
-						continue
-					seen_ink[key] = true
-					once.append(entry)
-				for a in once.size():
-					for b in range(a + 1, once.size()):
-						var ba: Rect2 = once[a].box
-						var bb: Rect2 = once[b].box
-						var shared: Rect2 = ba.intersection(bb)
-						if shared.size.x <= 0.0 or shared.size.y <= 0.0:
-							continue
-						var area: float = shared.size.x * shared.size.y
-						var smaller: float = minf(ba.size.x * ba.size.y,
-							bb.size.x * bb.size.y)
-						if smaller <= 0.0 or area < smaller * 0.50:
-							continue
-						findings.append({"kind": "OVERPRINT",
-							"text": "\"%s\" is printed through \"%s\"" % [
-								str(once[a].text), str(once[b].text)],
-							"box": ba, "frame": bb, "measured": 0.0, "given": 0.0,
-							"screen": str(screen.name),
-							"at": "%dx%d" % [int(size.x), int(size.y)]})
+				##
+				## The math lives in `SkyGearHUD.overprints` now, SHARED with the F4
+				## editor's live verdict — one function, so the editor and this audit
+				## cannot disagree about what "printed through" means (SG-42).
+				for hit in SkyGearHUD.overprints(measured):
+					hit["screen"] = str(screen.name)
+					hit["at"] = "%dx%d" % [int(size.x), int(size.y)]
+					findings.append(hit)
 				if hud.audit == null:
 					continue
 				for hit in hud.audit:
 					hit["screen"] = str(screen.name)
 					hit["at"] = "%dx%d" % [int(size.x), int(size.y)]
 					findings.append(hit)
-				## AND NO TWO WIDGETS ON THE SAME PIXELS. The string audit cannot
-				## see this: it measures each label against the frame it is in,
-				## and two overlapping buttons each contain their own label
-				## perfectly. Adding the Heat row put DIFFICULTY, CAPTAIN and THE
-				## WORKSHOP on top of one another and every check passed.
-				var rects: Array = hud.ui.declared()
-				for a in rects.size():
-					for b in range(a + 1, rects.size()):
-						var ra: Rect2 = rects[a].rect
-						var rb: Rect2 = rects[b].rect
-						if not ra.grow(-1.0).intersects(rb.grow(-1.0)):
-							continue
-						findings.append({"kind": "COLLIDE",
-							"text": "two widgets share pixels",
-							"box": ra, "frame": rb, "measured": 0.0, "given": 0.0,
-							"screen": str(screen.name),
-							"at": "%dx%d" % [int(size.x), int(size.y)]})
-					## AND EVERY WIDGET INSIDE THE PLATE IT WAS DECLARED ON.
-					##
-					## The string check cannot reach this. A button positions its own
-					## label, so a centred word in a 300-wide button is inside that
-					## button wherever the button is — including when the button is
-					## a foot to the left of the sheet it belongs to, which is where
-					## four of the pause menu's were, laid out from `sheet.position.x
-					## + 26` instead of from `interior(sheet)`. Every label passed.
-					## Every button was on the brass.
-					var item: Dictionary = rects[a]
-					if not bool(item.get("framed", false)):
-						continue
-					var box: Rect2 = item.rect
-					var plate: Rect2 = item.frame
-					if plate.encloses(box.grow(-0.5)):
-						continue
-					## Keyed by its index in the screen's draw order rather than by
-					## its rectangle, so one misplaced button is one finding rather
-					## than the same button four times at four resolutions.
-					findings.append({"kind": "WIDGET",
-						"text": "widget %d of %d sits on the frame" % [a, rects.size()],
-						"box": box, "frame": plate, "measured": 0.0, "given": 0.0,
-						"screen": str(screen.name),
-						"at": "%dx%d" % [int(size.x), int(size.y)]})
+				## AND NO TWO WIDGETS ON THE SAME PIXELS, AND EVERY WIDGET INSIDE
+				## THE PLATE IT WAS DECLARED ON. The string audit cannot see either:
+				## it measures each label against the frame it is in, and two
+				## overlapping buttons each contain their own label perfectly —
+				## adding the Heat row put DIFFICULTY, CAPTAIN and THE WORKSHOP on
+				## top of one another and every check passed. And a button positions
+				## its own label, so a centred word in a 300-wide button is inside
+				## that button wherever the button is — including a foot to the left
+				## of the sheet it belongs to, where four pause buttons were.
+				##
+				## The math lives in `SkyGearUI.collisions` now, SHARED with the F4
+				## editor's live verdict — one function, one meaning of "colliding"
+				## (SG-42).
+				for hit in SkyGearUI.collisions(hud.ui.declared()):
+					hit["screen"] = str(screen.name)
+					hit["at"] = "%dx%d" % [int(size.x), int(size.y)]
+					findings.append(hit)
 				## AND A STILL SCREEN HAS TO ACTUALLY BE STILL.
 				##
 				## Reported by the user as "the popup menus drifting right", and every

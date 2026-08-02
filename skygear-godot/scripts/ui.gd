@@ -65,6 +65,51 @@ var scribe: Callable = Callable()
 ## sixteen screens clean while it was happening.
 var plate: Callable = Callable()
 
+## THE SCREEN EDITOR'S HOOK (SG-42). `(name, rect) -> Rect2`, called once per
+## widget with the widget's label before anything is drawn or declared, so a
+## saved per-screen offset moves the widget AND its hit test AND its label in
+## one step — the label is positioned from the rect, and `_declare` records the
+## rect input is tested against. Unset (the normal game with no offsets saved),
+## it costs one `is_valid()` per widget and changes nothing.
+var adjust: Callable = Callable()
+
+
+func _adjusted(name: String, rect: Rect2) -> Rect2:
+	if adjust.is_valid():
+		return adjust.call(name, rect)
+	return rect
+
+
+## THE WIDGET HALF OF THE TEXT AUDIT'S MATH, shared. `tools/text_audit.gd`
+## consumes this and so does the F4 editor's verdict line — one function, so the
+## editor cannot disagree with the audit about what "colliding" means (two
+## answers to one question is the failure mode that has bitten this project
+## three times). `items` is what `declared()` returns. Two kinds come back:
+##   COLLIDE  two widgets share pixels (`grow(-1)` so a shared border is not a hit)
+##   WIDGET   a framed widget sits outside the plate it was declared on
+static func collisions(items: Array) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for a in items.size():
+		for b in range(a + 1, items.size()):
+			var ra: Rect2 = items[a].rect
+			var rb: Rect2 = items[b].rect
+			if not ra.grow(-1.0).intersects(rb.grow(-1.0)):
+				continue
+			out.append({"kind": "COLLIDE", "text": "two widgets share pixels",
+				"box": ra, "frame": rb, "measured": 0.0, "given": 0.0})
+		var item: Dictionary = items[a]
+		if not bool(item.get("framed", false)):
+			continue
+		var box: Rect2 = item.rect
+		var plate_rect: Rect2 = item.frame
+		if plate_rect.encloses(box.grow(-0.5)):
+			continue
+		out.append({"kind": "WIDGET",
+			"text": "widget %d of %d sits on the frame" % [a, items.size()],
+			"box": box, "frame": plate_rect, "measured": 0.0, "given": 0.0})
+	return out
+
+
 var _focus: Dictionary = {}          ## screen -> focused index
 var _screen := ""
 var _index := 0
@@ -164,6 +209,10 @@ func lit(index: int) -> bool:
 ## flag here rather than a hand-rolled hit test over there. `declared()` still
 ## sees every one of them, so the audit's COLLIDE and WIDGET passes are unchanged.
 func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
+	## Adjusted before declaration unless a wrapper (row/choice) already did it
+	## with a better name than an empty delegate label.
+	if not bool(opts.get("adjusted", false)):
+		rect = _adjusted(str(opts.get("key", label)), rect)
 	var index := _index
 	_index += 1
 	var disabled: bool = bool(opts.get("disabled", false))
@@ -228,6 +277,11 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 ## A left-aligned row that behaves like a button — for lists of settings or
 ## bindings, where a centred label would read as a title.
 func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bool:
+	## The row adjusts under ITS label — the delegate button's label is empty,
+	## and an element key made from "" is a key made from draw order alone.
+	rect = _adjusted(label, rect)
+	opts = opts.duplicate()
+	opts["adjusted"] = true
 	var index := _index
 	var fired := button(rect, "", opts)
 	var shown: bool = (_keyboard and focused() == index) or rect.has_point(_mouse)
@@ -245,6 +299,7 @@ func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bo
 ## A 0..1 slider. Returns the new value, or the old one if nothing happened.
 ## Adjusted with left/right when focused, or by clicking along the track.
 func slider(rect: Rect2, label: String, value: float, opts: Dictionary = {}) -> float:
+	rect = _adjusted(label, rect)
 	var index := _index
 	_index += 1
 	_declare(rect, {"slider": true})

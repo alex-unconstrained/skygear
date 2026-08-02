@@ -103,39 +103,6 @@
         186
       ],
       "items": {
-        "boiler": {
-          "anchor": "top_left",
-          "offset": [
-            0,
-            12
-          ],
-          "size": [
-            268,
-            26
-          ]
-        },
-        "wave": {
-          "anchor": "top_left",
-          "offset": [
-            0,
-            26
-          ],
-          "size": [
-            130,
-            20
-          ]
-        },
-        "boarders": {
-          "anchor": "top_right",
-          "offset": [
-            0,
-            26
-          ],
-          "size": [
-            140,
-            20
-          ]
-        },
         "lane0": {
           "anchor": "top_left",
           "offset": [

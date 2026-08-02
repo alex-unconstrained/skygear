@@ -106,11 +106,23 @@ const TOP_ALLOWED := ["objective"]
 
 var plates: Dictionary = {}
 var slot_items: Dictionary = {}
+## THE THIRD LEVEL (SG-42): per-screen, per-element offsets for everything that
+## is NOT the gameplay HUD — the title rows, the draft cards' contents, the
+## pause buttons, a workshop heading. `screen -> {element key -> [dx, dy]}`.
+##
+## An offset here is RELATIVE TO THE ELEMENT'S COMPUTED HOME — the position the
+## drawing code was about to use — never an absolute position. That is what
+## keeps a saved offset meaningful when the code-side layout changes: move the
+## home and the offset follows it, the same invariant the plate anchors carry.
+## The element keys are made by `element_slug` from what the element says, so a
+## readout whose NUMBER changes keeps its key.
+var screens: Dictionary = {}
 
 
 func _init() -> void:
 	plates = DEFAULT.duplicate(true)
 	slot_items = SLOT_ITEMS.duplicate(true)
+	screens = {}
 
 
 static func load_layout() -> SkyGearHudLayout:
@@ -121,6 +133,7 @@ static func load_layout() -> SkyGearHudLayout:
 			continue
 		out.plates = _sanitise(raw.get("plates", {}))
 		out.slot_items = _sanitise_items(raw.get("slot_items", {}), SLOT_ITEMS)
+		out.screens = _sanitise_screens(raw.get("screens", {}))
 		return out
 	return out
 
@@ -177,12 +190,38 @@ static func _sanitise(raw: Variant) -> Dictionary:
 	return out
 
 
+## One malformed offset loses that one entry, never the screen — the same
+## per-key fallback rule the plates carry. Anything that is not a two-number
+## array is dropped, and a dropped entry means "the element's computed home",
+## which is always a drawable answer.
+static func _sanitise_screens(raw: Variant) -> Dictionary:
+	var out := {}
+	if raw is not Dictionary:
+		return out
+	for screen in (raw as Dictionary).keys():
+		var entries: Variant = (raw as Dictionary)[screen]
+		if entries is not Dictionary:
+			continue
+		var kept := {}
+		for key in (entries as Dictionary).keys():
+			var off: Variant = (entries as Dictionary)[key]
+			if off is not Array or (off as Array).size() != 2:
+				continue
+			if not ((off[0] is float or off[0] is int) and (off[1] is float or off[1] is int)):
+				continue
+			kept[str(key)] = [float(off[0]), float(off[1])]
+		if not kept.is_empty():
+			out[str(screen)] = kept
+	return out
+
+
 func save() -> bool:
 	var file := FileAccess.open(USER_PATH, FileAccess.WRITE)
 	if file == null:
 		return false
 	file.store_string(JSON.stringify(
-		{"version": 2, "plates": plates, "slot_items": slot_items}, "  "))
+		{"version": 3, "plates": plates, "slot_items": slot_items,
+			"screens": screens}, "  "))
 	file.close()
 	return true
 
@@ -190,6 +229,100 @@ func save() -> bool:
 func reset() -> void:
 	plates = DEFAULT.duplicate(true)
 	slot_items = SLOT_ITEMS.duplicate(true)
+	screens = {}
+
+
+## --- the screen-element level (SG-42) -----------------------------------------
+
+## The saved offset for one element on one screen, or ZERO — which is "draw it
+## where the code puts it", the state every element starts in.
+func screen_offset(screen: String, key: String) -> Vector2:
+	var entries: Variant = screens.get(screen)
+	if entries is not Dictionary:
+		return Vector2.ZERO
+	var off: Variant = (entries as Dictionary).get(key)
+	if off is not Array or (off as Array).size() != 2:
+		return Vector2.ZERO
+	return Vector2(float(off[0]), float(off[1]))
+
+
+## Zero offsets are ERASED rather than stored: an entry that says "exactly where
+## the code already puts it" is data with no reader waiting to happen, and the
+## shipped-keys-resolve check should never have to argue about dead weight.
+func set_screen_offset(screen: String, key: String, off: Vector2) -> void:
+	if off.is_zero_approx():
+		if screens.has(screen):
+			(screens[screen] as Dictionary).erase(key)
+			if (screens[screen] as Dictionary).is_empty():
+				screens.erase(screen)
+		return
+	if not screens.has(screen):
+		screens[screen] = {}
+	screens[screen][key] = [off.x, off.y]
+
+
+func nudge_screen(screen: String, key: String, delta: Vector2) -> void:
+	set_screen_offset(screen, key, screen_offset(screen, key) + delta)
+
+
+## Ctrl+R for one screen: this screen's offsets only. The other twenty screens
+## keep the work that was done on them.
+func clear_screen(screen: String) -> void:
+	screens.erase(screen)
+
+
+## --- undo (single-level, the SG-39 convention) ---------------------------------
+
+## Everything the editor can change, as one deep copy. The editor takes one
+## before every destructive step; Ctrl+Z swaps it back in, and the swap keeps
+## what it replaced so a second Ctrl+Z returns.
+func snapshot() -> Dictionary:
+	return {"plates": plates.duplicate(true), "slot_items": slot_items.duplicate(true),
+		"screens": screens.duplicate(true)}
+
+
+func restore(snap: Dictionary) -> void:
+	if snap.is_empty():
+		return
+	plates = (snap.get("plates", {}) as Dictionary).duplicate(true)
+	slot_items = (snap.get("slot_items", {}) as Dictionary).duplicate(true)
+	screens = (snap.get("screens", {}) as Dictionary).duplicate(true)
+
+
+## --- typed entry ---------------------------------------------------------------
+
+## Parse a typed "dx, dy" pair. Accepts two numbers separated by a comma or
+## whitespace ("12,-3", " +4 0.5 "); refuses empty, one number, three, or any
+## stray character. On refusal the caller keeps the old value — a malformed
+## entry never moves anything. The pair-shaped sibling of LabMath.parse_number,
+## here rather than in tools/ because the HUD cannot depend on a tools/ file.
+static func parse_offset(text: String) -> Dictionary:
+	var parts := text.strip_edges().replace(",", " ").split(" ", false)
+	if parts.size() != 2:
+		return {"ok": false, "x": 0.0, "y": 0.0}
+	for part in parts:
+		if not str(part).is_valid_float():
+			return {"ok": false, "x": 0.0, "y": 0.0}
+	return {"ok": true, "x": str(parts[0]).to_float(), "y": str(parts[1]).to_float()}
+
+
+## An element's saved-under key, from what it SAYS. Letters only, lowercased,
+## everything else a single underscore — digits deliberately excluded, so
+## "WAVE 7 / 12" and "WAVE 9 / 12" are the same element and a readout does not
+## shed its saved offset every time its number ticks. The editor shows this key
+## beside the selected element, because it is the name the offset saves under.
+static func element_slug(text: String, fallback: String = "text") -> String:
+	var out := ""
+	for ch in text.to_lower():
+		var code: int = ch.unicode_at(0)
+		if code >= 97 and code <= 122:
+			out += ch
+		elif not out.ends_with("_") and out != "":
+			out += "_"
+	out = out.trim_suffix("_")
+	if out.length() > 28:
+		out = out.substr(0, 28).trim_suffix("_")
+	return out if out != "" else fallback
 
 
 ## Resolve one anchored box inside another. The whole geometry of the HUD is

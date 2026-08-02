@@ -26,7 +26,7 @@ func _initialize() -> void: call_deferred("_run")
 ##   make    changes files or spends money; never in `all`
 const TOOLS := [
 	{"id": "harness", "kind": "check", "script": "tests/parity_test.gd",
-		"what": "the whole simulation, 435 checks",
+		"what": "the whole simulation, 532 checks",
 		"why": "the one thing that must be green before anything ships"},
 	{"id": "text", "kind": "check", "script": "tools/text_audit.gd", "window": true,
 		"what": "every string on 21 screens at 4 resolutions — fit, size, contrast, overlap and drift",
@@ -68,7 +68,7 @@ const TOOLS := [
 		"why": "for framing a moment the fight cannot frame for itself — and the file is READ: a `cue` on the shot names one of four moments in the game, and the Colossus arriving at wave 12 already plays one"},
 
 	{"id": "layout", "kind": "check", "script": "tools/layout_promote.gd",
-		"what": "the HUD layout you dragged into place with F4 — validate it, and `-- write` promotes it into the repo",
+		"what": "the alignment you made with F4 — plates, items AND per-screen element offsets — validate it, and `-- write` promotes it into the repo",
 		"why": "F4 and Ctrl+S save to user:// under AppData, and `load_layout` PREFERS that file — so a hand-alignment pass looks permanent to whoever made it and does not exist for anybody else. This is the step that makes it real, and it REFUSES a layout that breaks at any of the four widths"},
 
 	{"id": "captain", "kind": "make", "script": "tools/build_captain.gd",
@@ -87,8 +87,8 @@ const SCRIPTS := [
 		"what": "browser against Godot, same moment, side by side",
 		"why": "the only evidence for a parity claim that is not my memory"},
 	{"id": "screens", "run": "python tools/screen_review.py",
-		"what": "photograph all 21 screens at all 4 widths and open them as one page",
-		"why": "for a human UI audit. The text audit proves a string fits its frame and has never once had an opinion about whether a screen looks good — that judgement needs eyes, and eighty-four loose PNGs in a folder is not something anybody reviews. `--tag before` then `--tag after` gives two pages to read against each other"},
+		"what": "THE BATCH-EVIDENCE MODE: photograph all 21 screens at all 4 widths and open them as one page",
+		"why": "for auditing everything at once, not for fixing anything — FIXING is F4 in the game, on the screen that is wrong (docs/HUD-LAYOUT.md; F12 in the editor photographs the one screen you are fixing). `--tag before` then `--tag after` gives two pages to read against each other"},
 	{"id": "pack", "run": "python tools/pack_itch.py",
 		"what": "export the Windows build and zip it",
 		"why": "what goes to itch"},

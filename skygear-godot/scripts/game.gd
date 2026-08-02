@@ -174,6 +174,20 @@ var layout_saved := false
 var _layout_drag := ""
 var _layout_resize := false
 var _layout_from := Vector2.ZERO
+## The SCREEN mode's selection (SG-42) — every screen that is not the gameplay
+## HUD. A panel index into `hud.edit_panels` (0 is the page, -1 nothing), then a
+## selected element key inside it. Two levels, same as the plates.
+var layout_panel := -1
+var layout_key := ""
+## The typed-offset box (the SG-39 pattern: click the number, type, Enter
+## applies, Esc cancels, malformed refused).
+var layout_typing := false
+var layout_typed := ""
+## Where F12 put the last photograph, for the header to show.
+var layout_shot := ""
+var _layout_screen := ""             ## which screen the selection belongs to
+var _layout_undo: Dictionary = {}    ## single-level, the SG-39 convention
+var _layout_drag_key := ""           ## screen mode: the element being dragged
 
 var keys_open := false
 var settings_open := false
@@ -445,6 +459,19 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.keycode == KEY_F4:
 		layout_edit = not layout_edit
 		layout_saved = false
+		layout_typing = false
+		layout_shot = ""
+		layout_key = ""
+		layout_panel = -1
+		_layout_undo = {}
+		_layout_drag = ""
+		_layout_drag_key = ""
+		## The editor attaches the audit funnels for its live verdict; closing it
+		## must detach them or every later frame keeps appending to arrays nobody
+		## reads again.
+		if not layout_edit:
+			hud.audit = null
+			hud.ink = null
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
@@ -543,10 +570,59 @@ func _layout_input(event: InputEvent) -> bool:
 	if SkyGearHUD.layout == null:
 		SkyGearHUD.layout = SkyGearHudLayout.load_layout()
 	var layout := SkyGearHUD.layout
+
+	## The game navigated under the editor (F1/F5/F6/F7 fall through on
+	## purpose — the game is the screen picker). Selection belongs to a screen;
+	## a new screen starts unselected.
+	if hud.edit_screen != _layout_screen:
+		_layout_screen = hud.edit_screen
+		layout_key = ""
+		layout_panel = -1
+		layout_typing = false
+		_layout_drag = ""
+		_layout_drag_key = ""
+
+	## The typed-offset box owns every key while it is open.
+	if layout_typing and _typed_input(event):
+		return true
+
+	if event is InputEventKey and event.pressed and not event.echo:
+		var key0 := event as InputEventKey
+		## F12: photograph THIS screen, without the editor's own chrome — the
+		## single-screen evidence shot. The 84-shot batch stays in
+		## `tools/screen_review.py`.
+		if key0.keycode == KEY_F12:
+			_snap_screen()
+			return true
+		## Ctrl+Z, single-level (the SG-39 convention): a swap, so a second
+		## Ctrl+Z brings the edit back.
+		if key0.ctrl_pressed and key0.keycode == KEY_Z:
+			if not _layout_undo.is_empty():
+				var now := layout.snapshot()
+				layout.restore(_layout_undo)
+				_layout_undo = now
+				layout_saved = false
+				layout_shot = ""
+			hud.queue_redraw()
+			return true
+
+	if hud.edit_screen != "hud":
+		return _layout_screen_input(event, layout, where)
+
 	var plate_rect: Rect2 = SkyGearHUD.hud_plates(view).get(layout_pick, Rect2())
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
+			## The offset readout opens the typed box.
+			if hud.edit_offset_box != Rect2() and hud.edit_offset_box.has_point(where):
+				var entry0: Dictionary = layout.plates.get(layout_pick, {}) if layout_item == "" \
+					else layout._bag(layout_pick).get(layout_item, {})
+				if not entry0.is_empty():
+					layout_typed = "%s, %s" % [_trim_num(float(entry0.offset[0])),
+						_trim_num(float(entry0.offset[1]))]
+					layout_typing = true
+					hud.queue_redraw()
+					return true
 			var hit := SkyGearHUD.pick_at(view, where, layout_pick)
 			if hit.is_empty():
 				return true
@@ -555,7 +631,9 @@ func _layout_input(event: InputEvent) -> bool:
 			_layout_drag = layout_pick
 			_layout_resize = bool(hit.resize)
 			_layout_from = where
+			_layout_undo = layout.snapshot()
 			layout_saved = false
+			layout_shot = ""
 		else:
 			_layout_drag = ""
 		hud.queue_redraw()
@@ -582,6 +660,7 @@ func _layout_input(event: InputEvent) -> bool:
 		hud.queue_redraw()
 		return true
 	if key.ctrl_pressed and key.keycode == KEY_R:
+		_layout_undo = layout.snapshot()
 		layout.reset()
 		layout_item = ""
 		layout_saved = false
@@ -613,6 +692,8 @@ func _layout_input(event: InputEvent) -> bool:
 			hud.queue_redraw()
 			return true
 		layout_edit = false
+		hud.audit = null
+		hud.ink = null
 		hud.queue_redraw()
 		return true
 	if key.keycode == KEY_A:
@@ -621,6 +702,7 @@ func _layout_input(event: InputEvent) -> bool:
 			else layout._bag(layout_pick).get(layout_item, {})
 		if not entry.is_empty():
 			var current := str(entry.anchor)
+			_layout_undo = layout.snapshot()
 			layout.set_anchor(layout_pick, layout_item,
 				anchors[(maxi(0, anchors.find(current)) + 1) % anchors.size()],
 				view, plate_rect)
@@ -630,6 +712,7 @@ func _layout_input(event: InputEvent) -> bool:
 	## C centres the selected element in its plate, which is the single most
 	## common thing anyone wants from a screen like this and is fiddly by hand.
 	if key.keycode == KEY_C and layout_item != "":
+		_layout_undo = layout.snapshot()
 		layout.set_anchor(layout_pick, layout_item, "centre", view, plate_rect)
 		var entry2: Dictionary = layout._bag(layout_pick).get(layout_item, {})
 		if not entry2.is_empty():
@@ -646,6 +729,7 @@ func _layout_input(event: InputEvent) -> bool:
 		KEY_UP: nudge = Vector2(0, -step_px)
 		KEY_DOWN: nudge = Vector2(0, step_px)
 		_: return false
+	_layout_undo = layout.snapshot()
 	if key.alt_pressed:
 		layout.resize(layout_pick, layout_item, nudge)
 	else:
@@ -653,6 +737,212 @@ func _layout_input(event: InputEvent) -> bool:
 	layout_saved = false
 	hud.queue_redraw()
 	return true
+
+
+## The SCREEN mode (SG-42): the elements of whatever screen is up, captured by
+## the HUD as it drew. Two levels — click a panel, click again (or double-click)
+## for the element inside — and the element moves by drag, by arrows (Shift ×10,
+## Alt ×0.1) or by a typed offset. Everything writes through
+## `layout.screens[hud.edit_screen]`, offsets RELATIVE to the element's home.
+func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
+		where: Vector2) -> bool:
+	var screen: String = hud.edit_screen
+
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if not event.pressed:
+			_layout_drag_key = ""
+			return true
+		## The offset readout opens the typed box — only an element carries one.
+		if layout_key != "" and hud.edit_offset_box != Rect2() \
+				and hud.edit_offset_box.has_point(where):
+			var off := layout.screen_offset(screen, layout_key)
+			layout_typed = "%s, %s" % [_trim_num(off.x), _trim_num(off.y)]
+			layout_typing = true
+			hud.queue_redraw()
+			return true
+		var hit_panel: int = hud.panel_at(where)
+		var hit_key: String = hud.element_at(where)
+		var dbl: bool = (event as InputEventMouseButton).double_click
+		if dbl and hit_key != "":
+			## Double-click goes straight through to the element.
+			layout_panel = hit_panel
+			layout_key = hit_key
+		elif layout_key != "":
+			## Element level: another element, or empty space backs out a level.
+			if hit_key != "":
+				layout_key = hit_key
+				layout_panel = hit_panel
+			else:
+				layout_key = ""
+				layout_panel = hit_panel
+		elif layout_panel >= 0:
+			## Panel level: a second click inside the selected panel DESCENDS;
+			## a click elsewhere moves the panel selection.
+			if hit_panel == layout_panel and hit_key != "":
+				layout_key = hit_key
+			else:
+				layout_panel = hit_panel
+		else:
+			layout_panel = hit_panel
+		if layout_key != "" and hud.edit_elements.has(layout_key) \
+				and (hud.edit_elements[layout_key].box as Rect2).grow(3.0).has_point(where):
+			_layout_drag_key = layout_key
+			_layout_from = where
+			_layout_undo = layout.snapshot()
+		layout_shot = ""
+		hud.queue_redraw()
+		return true
+
+	if event is InputEventMouseMotion and _layout_drag_key != "":
+		var delta: Vector2 = where - _layout_from
+		_layout_from = where
+		layout.nudge_screen(screen, _layout_drag_key, delta)
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+
+	if event is not InputEventKey or not event.pressed:
+		return event is InputEventMouseMotion
+	var key := event as InputEventKey
+	if key.ctrl_pressed and key.keycode == KEY_S:
+		layout_saved = layout.save()
+		layout_shot = ""
+		hud.queue_redraw()
+		return true
+	## Ctrl+R here resets THIS screen — the other twenty keep their work.
+	if key.ctrl_pressed and key.keycode == KEY_R:
+		_layout_undo = layout.snapshot()
+		layout.clear_screen(screen)
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+	if key.keycode == KEY_TAB:
+		var step: int = -1 if key.shift_pressed else 1
+		if layout_key == "" and layout_panel < 0:
+			layout_panel = 0
+		elif layout_key == "":
+			## Walk panels at panel level.
+			var count: int = maxi(1, hud.edit_panels.size())
+			layout_panel = (layout_panel + step + count) % count
+		else:
+			var items: Array[String] = hud.elements_of_panel(layout_panel)
+			if not items.is_empty():
+				var at: int = maxi(0, items.find(layout_key))
+				layout_key = items[(at + step + items.size()) % items.size()]
+		hud.queue_redraw()
+		return true
+	if key.keycode in [KEY_ENTER, KEY_KP_ENTER]:
+		if layout_panel < 0:
+			layout_panel = 0
+		if layout_key == "":
+			var items: Array[String] = hud.elements_of_panel(layout_panel)
+			if not items.is_empty():
+				layout_key = items[0]
+		hud.queue_redraw()
+		return true
+	if key.keycode == KEY_ESCAPE:
+		if layout_key != "":
+			layout_key = ""
+		elif layout_panel >= 0:
+			layout_panel = -1
+		else:
+			layout_edit = false
+			hud.audit = null
+			hud.ink = null
+		hud.queue_redraw()
+		return true
+	if layout_key == "":
+		return false
+	## Arrow nudges, the SG-39 steps: Shift ×10, Alt ×0.1.
+	var step_px: float = 10.0 if key.shift_pressed else (0.1 if key.alt_pressed else 1.0)
+	var nudge := Vector2.ZERO
+	match key.keycode:
+		KEY_LEFT: nudge = Vector2(-step_px, 0)
+		KEY_RIGHT: nudge = Vector2(step_px, 0)
+		KEY_UP: nudge = Vector2(0, -step_px)
+		KEY_DOWN: nudge = Vector2(0, step_px)
+		_: return false
+	_layout_undo = layout.snapshot()
+	layout.nudge_screen(screen, layout_key, nudge)
+	layout_saved = false
+	hud.queue_redraw()
+	return true
+
+
+## The typed-offset box. Enter applies a well-formed "dx, dy" (an undo point);
+## Esc cancels; a malformed entry is REFUSED and the old value kept — a bad
+## entry never moves anything. Everything else while it is open is swallowed.
+func _typed_input(event: InputEvent) -> bool:
+	if event is InputEventMouseButton and event.pressed:
+		## Clicking away cancels — the entry only takes on Enter.
+		layout_typing = false
+		hud.queue_redraw()
+		return true
+	if event is not InputEventKey:
+		return false
+	if not event.pressed:
+		return true
+	var key := event as InputEventKey
+	match key.keycode:
+		KEY_ESCAPE:
+			layout_typing = false
+		KEY_ENTER, KEY_KP_ENTER:
+			var parsed := SkyGearHudLayout.parse_offset(layout_typed)
+			if bool(parsed.ok):
+				var layout := SkyGearHUD.layout
+				_layout_undo = layout.snapshot()
+				var typed := Vector2(float(parsed.x), float(parsed.y))
+				if hud.edit_screen != "hud":
+					if layout_key != "":
+						layout.set_screen_offset(hud.edit_screen, layout_key, typed)
+				else:
+					var entry: Dictionary = layout.plates.get(layout_pick, {}) \
+						if layout_item == "" else layout._bag(layout_pick).get(layout_item, {})
+					if not entry.is_empty():
+						entry.offset = [typed.x, typed.y]
+				layout_saved = false
+			layout_typing = false
+		KEY_BACKSPACE:
+			layout_typed = layout_typed.substr(0, maxi(0, layout_typed.length() - 1))
+		_:
+			var ch := char(key.unicode) if key.unicode > 0 else ""
+			if ch != "" and "0123456789.,+- ".contains(ch):
+				layout_typed += ch
+	hud.queue_redraw()
+	return true
+
+
+## A number the way a person would type it back: no trailing ".0" on whole
+## offsets, one decimal on the rest.
+func _trim_num(v: float) -> String:
+	if is_equal_approx(v, roundf(v)):
+		return str(int(roundf(v)))
+	return "%.1f" % v
+
+
+## F12: one photograph of the CURRENT screen with the editor chrome hidden —
+## the single-screen evidence shot, into the same folder the batch tool fills.
+## Windowed only by nature (SG-29: readback hangs headless), which the editor
+## always is — it is a thing a person is looking at.
+func _snap_screen() -> void:
+	if hud.edit_hide:
+		return
+	hud.edit_hide = true
+	hud.queue_redraw()
+	await RenderingServer.frame_post_draw
+	await RenderingServer.frame_post_draw
+	var img: Image = get_viewport().get_texture().get_image()
+	hud.edit_hide = false
+	hud.queue_redraw()
+	if img == null:
+		layout_shot = "(no frame came back)"
+		return
+	var dir := ProjectSettings.globalize_path("res://.shots/screens")
+	DirAccess.make_dir_recursive_absolute(dir)
+	## Named by the frame that actually came back, not the design canvas.
+	var file := "edit-%s-%dx%d.png" % [hud.edit_screen, img.get_width(), img.get_height()]
+	img.save_png(dir + "/" + file)
+	layout_shot = ".shots/screens/" + file
 
 
 ## 1-9 then 0, so ten rows are reachable without a cursor.

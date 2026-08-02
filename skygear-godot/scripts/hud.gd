@@ -23,6 +23,10 @@ func _ready() -> void:
 	## hints were the only text in the game the audit could not see.
 	ui.scribe = _say_in
 	ui.plate = open_frame
+	## The screen editor's hook (SG-42): a widget is offset by its saved
+	## per-screen entry before it is drawn, declared or hit-tested, so moving a
+	## button moves the whole button.
+	ui.adjust = _widget_adjust
 	ui.on_sound = func(kind: String) -> void:
 		if game != null:
 			game.play_sfx("ui/card_hover.ogg" if kind == "hover" else "ui/card_deal.ogg",
@@ -36,24 +40,33 @@ func _draw() -> void:
 		return
 	_in_frame = false
 	_banner_claim = false
+	_edit_begin()
 	if game.workshop_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_workshop()
+		if game.layout_edit:
+			_draw_layout_editor()
 		return
 	if game.compare_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_compare()
+		if game.layout_edit:
+			_draw_layout_editor()
 		return
 	if game.how_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_how()
+		if game.layout_edit:
+			_draw_layout_editor()
 		return
 	if game.settings_open:
 		match game.state_name:
 			"TITLE":
 				draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 			_:
+				_edit_skip = true
 				_draw_world_overlay(true)
+				_edit_skip = false
 		_draw_settings()
 		if game.layout_edit:
 			_draw_layout_editor()
@@ -74,12 +87,18 @@ func _draw() -> void:
 			else:
 				_draw_title()
 		"DRAFT":
+			## The fight HUD underneath is the PLATE editor's domain (edited from
+			## gameplay); its strings are not this screen's elements.
+			_edit_skip = true
 			_draw_world_overlay(true)
 			_draw_game_hud()
+			_edit_skip = false
 			_draw_draft()
 		"PAUSE":
+			_edit_skip = true
 			_draw_world_overlay(true)
 			_draw_game_hud()
+			_edit_skip = false
 			if game.keys_open:
 				_draw_keys()
 			else:
@@ -508,11 +527,262 @@ static func interior(rect: Rect2) -> Rect2:
 	return rect.grow(-inset)
 
 
+## --- the screen editor's capture (SG-42) ---------------------------------------
+##
+## The plate editor moves the gameplay HUD, whose geometry is data. Every OTHER
+## screen is immediate-mode code, so its elements are captured AS THEY DRAW:
+## every string through the `_say` funnels and every widget through `ui.adjust`
+## gets a key made from what it says, a saved per-screen offset applied to its
+## home position, and — while F4 is up — a registration the editor can select
+## and drag. Zero saved offsets and no editor means none of this runs, which is
+## why the text audit's numbers cannot move by this feature existing.
+var edit_screen := ""                ## which screen this frame drew
+var edit_elements: Dictionary = {}   ## key -> {"box": Rect2, "home": Vector2}
+var edit_panels: Array[Rect2] = []   ## index 0 is the page itself
+var edit_offset_box := Rect2()       ## the clickable offset readout, for input
+var edit_hide := false               ## overlay suppressed for a photograph
+var _edit_active := false            ## any capture/offset work this frame?
+var _edit_skip := false              ## drawing something that is NOT this screen's
+var _in_widget := false              ## inside a widget's own label
+var _edit_counts: Dictionary = {}    ## slug -> occurrences this frame
+
+
+## The one answer to "which screen is this" — mirrors `_draw`'s dispatch exactly,
+## so the screen you SEE is the screen your offsets save under.
+func screen_id() -> String:
+	if game == null:
+		return ""
+	if game.workshop_open:
+		return "workshop"
+	if game.compare_open:
+		return "compare"
+	if game.how_open:
+		return "how"
+	if game.settings_open:
+		return "settings"
+	match game.state_name:
+		"TITLE":
+			return "keys" if game.keys_open else "title"
+		"DRAFT":
+			return "draft"
+		"PAUSE":
+			return "keys" if game.keys_open else "pause"
+		"GAMEOVER", "VICTORY":
+			## One screen: the run report differs only in its verdict line, and an
+			## alignment fixed on the loss screen should not need fixing twice.
+			return "results"
+	return "hud"
+
+
+func _edit_begin() -> void:
+	edit_screen = screen_id()
+	_edit_counts = {}
+	_edit_skip = false
+	_in_widget = false
+	if layout == null:
+		layout = SkyGearHudLayout.load_layout()
+	_edit_active = edit_screen != "hud" and edit_screen != "" \
+		and (game.layout_edit or layout.screens.has(edit_screen))
+	if game.layout_edit:
+		edit_elements = {}
+		edit_panels = [Rect2(Vector2.ZERO, size)]
+		## The verdict has to be LIVE: the same funnels the text audit reads are
+		## attached every edited frame, so an edit that pushes a string off its
+		## plate is in the verdict before the mouse button is back up. Not on the
+		## gameplay HUD, whose verdict is `layout.problems()` — its readouts move
+		## because the fight underneath is real. Detached there too, or walking
+		## from an edited title into the fight leaves an array growing forever.
+		if edit_screen != "hud":
+			audit = []
+			ink = []
+		else:
+			audit = null
+			ink = null
+
+
+## One key per drawn element, stable across frames: the slug of what it says
+## (digits excluded, so a readout keeps its key while its number ticks) plus a
+## draw-order counter for twins. The key is the name the offset saves under and
+## the name the editor shows.
+func _element_key(text: String, fallback: String = "text") -> String:
+	var slug := SkyGearHudLayout.element_slug(text, fallback)
+	var n: int = int(_edit_counts.get(slug, 0)) + 1
+	_edit_counts[slug] = n
+	return slug if n == 1 else "%s_%d" % [slug, n]
+
+
+## A widget, adjusted and registered. Called by `SkyGearUI` with the widget's
+## label before drawing, declaring or hit-testing, so the saved offset moves all
+## three together.
+func _widget_adjust(name: String, rect: Rect2) -> Rect2:
+	if not _edit_active or _edit_skip:
+		return rect
+	var key := _element_key(name, "widget")
+	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key), rect.size)
+	if game.layout_edit:
+		edit_elements[key] = {"box": out, "home": rect.position}
+	return out
+
+
+## A non-text element a screen wants editable — a card's emblem, a swatch. The
+## draw code asks for its box through here and draws into what comes back.
+func _element(name: String, rect: Rect2) -> Rect2:
+	if not _edit_active or _edit_skip:
+		return rect
+	var key := _element_key(name, "mark")
+	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key), rect.size)
+	if game.layout_edit:
+		edit_elements[key] = {"box": out, "home": rect.position}
+	return out
+
+
+func _register_panel(rect: Rect2) -> void:
+	if not _edit_active or _edit_skip or not game.layout_edit:
+		return
+	for known in edit_panels:
+		if known.is_equal_approx(rect):
+			return
+	edit_panels.append(rect)
+
+
+## What is under a point, for the screen editor. Smallest box wins — the small
+## target on top of a big one is the one being aimed at.
+func element_at(where: Vector2, within: int = -1) -> String:
+	var best := ""
+	var best_area := INF
+	for key in edit_elements:
+		var box: Rect2 = edit_elements[key].box
+		if not box.grow(3.0).has_point(where):
+			continue
+		if within > 0 and within < edit_panels.size() \
+				and not box.intersects(edit_panels[within]):
+			continue
+		var area: float = maxf(1.0, box.size.x * box.size.y)
+		if area < best_area:
+			best_area = area
+			best = key
+	return best
+
+
+func panel_at(where: Vector2) -> int:
+	var best := 0
+	var best_area := INF
+	for i in edit_panels.size():
+		if i == 0 or not edit_panels[i].has_point(where):
+			continue
+		var area: float = maxf(1.0, edit_panels[i].size.x * edit_panels[i].size.y)
+		if area < best_area:
+			best_area = area
+			best = i
+	return best
+
+
+## A panel's elements in reading order, for Tab to walk.
+func elements_of_panel(panel: int) -> Array[String]:
+	var out: Array[String] = []
+	for key in edit_elements:
+		var box: Rect2 = edit_elements[key].box
+		if panel > 0 and panel < edit_panels.size() \
+				and not box.intersects(edit_panels[panel]):
+			continue
+		out.append(str(key))
+	out.sort_custom(func(a: String, b: String) -> bool:
+		var ba: Rect2 = edit_elements[a].box
+		var bb: Rect2 = edit_elements[b].box
+		return ba.position.y < bb.position.y - 0.5 \
+			or (absf(ba.position.y - bb.position.y) <= 0.5 and ba.position.x < bb.position.x))
+	return out
+
+
+## THE OVERPRINT HALF OF THE TEXT AUDIT'S MATH, shared with it. Two strings on
+## the same pixels, measured as the audit measures it — dedup double draws, then
+## flag any pair sharing half the smaller box. `tools/text_audit.gd` calls this;
+## so does the editor's verdict. One function, one answer.
+static func overprints(measured: Array) -> Array[Dictionary]:
+	var once: Array = []
+	var seen := {}
+	for entry in measured:
+		var key := "%s|%s" % [str(entry.text), str(entry.box)]
+		if seen.has(key):
+			continue
+		seen[key] = true
+		once.append(entry)
+	var out: Array[Dictionary] = []
+	for a in once.size():
+		for b in range(a + 1, once.size()):
+			var ba: Rect2 = once[a].box
+			var bb: Rect2 = once[b].box
+			var shared: Rect2 = ba.intersection(bb)
+			if shared.size.x <= 0.0 or shared.size.y <= 0.0:
+				continue
+			var area: float = shared.size.x * shared.size.y
+			var smaller: float = minf(ba.size.x * ba.size.y, bb.size.x * bb.size.y)
+			if smaller <= 0.0 or area < smaller * 0.50:
+				continue
+			out.append({"kind": "OVERPRINT",
+				"text": "\"%s\" is printed through \"%s\"" % [
+					str(once[a].text), str(once[b].text)],
+				"box": ba, "frame": bb, "measured": 0.0, "given": 0.0})
+	return out
+
+
+## The live verdict for a screen being edited, from the SAME detectors the text
+## audit runs: OVERFLOW/OUTSIDE from the `_say` funnel, OVERPRINT from the ink
+## records, COLLIDE/WIDGET from the widget layer. No second opinion anywhere.
+func _screen_trouble() -> Array[String]:
+	var out: Array[String] = []
+	var seen := {}
+	var hits: Array = []
+	if audit is Array:
+		hits.append_array(audit)
+	if ink is Array:
+		hits.append_array(SkyGearHUD.overprints(ink))
+	hits.append_array(SkyGearUI.collisions(ui.declared()))
+	for hit in hits:
+		var line := ""
+		match str(hit.kind):
+			"OVERFLOW":
+				line = "\"%s\" escapes its width" % _clip_text(str(hit.text))
+			"OUTSIDE":
+				line = "\"%s\" is off its plate" % _clip_text(str(hit.text))
+			"COLLIDE":
+				line = "two widgets collide"
+			_:
+				line = _clip_text(str(hit.text), 56)
+		if not seen.has(line):
+			seen[line] = true
+			out.append(line)
+	return out
+
+
+func _clip_text(text: String, limit: int = 24) -> String:
+	return text if text.length() <= limit else text.substr(0, limit - 3) + "..."
+
+
 ## --- the layout editor -------------------------------------------------------
 ## Drawn over everything while F4 is on. The point is that the panels underneath
 ## are the REAL panels with the REAL content at the REAL resolution — a mockup
 ## of a HUD is a picture of a decision rather than the decision.
 func _draw_layout_editor() -> void:
+	if edit_hide:
+		return
+	## The verdict is read BEFORE the overlay writes anything, and the funnels
+	## are detached after — so the overlay's own labels are never in their own
+	## report and never registered as elements of the screen they sit over.
+	var trouble: Array[String] = layout.problems(size) if edit_screen == "hud" \
+		else _screen_trouble()
+	audit = null
+	ink = null
+	_edit_skip = true
+	if edit_screen == "hud":
+		_draw_plate_editor(trouble)
+	else:
+		_draw_screen_editor(trouble)
+
+
+## The original F4: the six gameplay plates and the items inside them, edited
+## over the live fight. Reached by pressing F4 during play.
+func _draw_plate_editor(trouble: Array[String]) -> void:
 	var plates := SkyGearHUD.hud_plates(size)
 	var chosen: String = game.layout_pick
 	var chosen_item: String = game.layout_item
@@ -546,25 +816,150 @@ func _draw_layout_editor() -> void:
 				_label(item_name, box.position + Vector2(2, -3), 160.0,
 					HORIZONTAL_ALIGNMENT_LEFT, 10, Color(1, 1, 1, 0.5))
 
-	var trouble := layout.problems(size)
-	draw_rect(Rect2(0, 0, size.x, 66), Color(0.02, 0.015, 0.028, 0.9))
 	var target: String = chosen if chosen_item == "" else "%s / %s" % [chosen, chosen_item]
-	_value("HUD LAYOUT — editing %s" % target, Vector2(16, 22), size.x,
-		HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
-	_label("drag to move · corner to resize · Tab next · Enter into a panel · Esc out"
-		+ " · arrows nudge (Shift 10, Alt resize) · A anchor · C centre · Ctrl+S save"
-		+ " · Ctrl+R reset · F4 done",
-		Vector2(16, 42), size.x, HORIZONTAL_ALIGNMENT_LEFT, 12)
 	var entry: Dictionary = layout.plates.get(chosen, {}) if chosen_item == "" 		else layout._bag(chosen).get(chosen_item, {})
+	var detail := ""
+	var offset_text := ""
 	if not entry.is_empty():
-		_label("%s  %d,%d  %dx%d" % [str(entry.anchor), int(entry.offset[0]),
-			int(entry.offset[1]), int(entry.size[0]), int(entry.size[1])],
-			Vector2(size.x - 16, 22), 300.0, HORIZONTAL_ALIGNMENT_RIGHT, 14, Color("#e8c376"))
-	_label(("saved to " + SkyGearHudLayout.USER_PATH) if game.layout_saved
-		else ("%d problem(s): %s" % [trouble.size(), ", ".join(trouble)]
-			if not trouble.is_empty() else "layout is clean"),
-		Vector2(size.x - 16, 42), 700.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
-		Color("#37f0c8") if trouble.is_empty() else Color("#ff9a5a"))
+		detail = "%s  %dx%d" % [str(entry.anchor), int(entry.size[0]), int(entry.size[1])]
+		offset_text = "offset %+.0f, %+.0f — click to type" % [float(entry.offset[0]),
+			float(entry.offset[1])]
+	_edit_header(target, detail, offset_text,
+		"drag to move · corner to resize · Tab next · Enter into a plate · Esc out"
+		+ " · arrows nudge (Shift ×10 · Alt resizes) · A anchor · C centre",
+		trouble)
+
+
+## The screen editor: whatever screen the game is showing, its panels and the
+## elements inside them, captured as they drew this frame. Panels are the way
+## IN — the code owns where a sheet sits; the offsets live on the elements.
+func _draw_screen_editor(trouble: Array[String]) -> void:
+	var sel_panel: int = game.layout_panel
+	var sel_key: String = game.layout_key
+	## Panels. The page itself is panel 0 and draws no box — a frame around the
+	## whole window says nothing.
+	for i in range(1, edit_panels.size()):
+		var hot: bool = i == sel_panel and sel_key == ""
+		draw_rect(edit_panels[i], Color(0.22, 0.94, 0.78, 0.05) if hot else Color(1, 1, 1, 0.02))
+		draw_rect(edit_panels[i], Color("#37f0c8") if hot else Color(1, 1, 1, 0.22), false,
+			2.0 if hot else 1.0)
+	if sel_panel == 0 and sel_key == "":
+		draw_rect(Rect2(Vector2.ZERO, size).grow(-2.0), Color("#37f0c8"), false, 2.0)
+	## Elements. Faint until selected, so the screen stays readable under its
+	## own editor; the selected one shows its bounds and the key it saves under.
+	for key in edit_elements:
+		var box: Rect2 = edit_elements[key].box
+		var picked: bool = str(key) == sel_key
+		draw_rect(box, Color(1.0, 0.88, 0.54, 0.13) if picked else Color(1, 1, 1, 0.03))
+		draw_rect(box, Color("#ffe08a") if picked else Color(1, 1, 1, 0.28), false,
+			2.0 if picked else 1.0)
+	if sel_key != "" and edit_elements.has(sel_key):
+		var box: Rect2 = edit_elements[sel_key].box
+		_label("%s  %d,%d  %dx%d" % [sel_key, int(box.position.x), int(box.position.y),
+			int(box.size.x), int(box.size.y)],
+			box.position + Vector2(2, -5), 360.0, HORIZONTAL_ALIGNMENT_LEFT, 11,
+			Color("#ffe08a"))
+		## Snap guides against the SIBLINGS: a line the moment an edge or a
+		## centre agrees with another element's, because agreement is what
+		## alignment is.
+		for key in edit_elements:
+			if str(key) == sel_key:
+				continue
+			var other: Rect2 = edit_elements[key].box
+			var guide := Color(0.22, 0.94, 0.78, 0.5)
+			if absf(other.get_center().x - box.get_center().x) < 1.0:
+				draw_line(Vector2(box.get_center().x, minf(box.position.y, other.position.y)),
+					Vector2(box.get_center().x, maxf(box.end.y, other.end.y)), guide, 1.0)
+			if absf(other.get_center().y - box.get_center().y) < 1.0:
+				draw_line(Vector2(minf(box.position.x, other.position.x), box.get_center().y),
+					Vector2(maxf(box.end.x, other.end.x), box.get_center().y), guide, 1.0)
+			if absf(other.position.x - box.position.x) < 1.0:
+				draw_line(Vector2(box.position.x, minf(box.position.y, other.position.y)),
+					Vector2(box.position.x, maxf(box.end.y, other.end.y)), guide, 1.0)
+			if absf(other.end.x - box.end.x) < 1.0:
+				draw_line(Vector2(box.end.x, minf(box.position.y, other.position.y)),
+					Vector2(box.end.x, maxf(box.end.y, other.end.y)), guide, 1.0)
+			if absf(other.position.y - box.position.y) < 1.0:
+				draw_line(Vector2(minf(box.position.x, other.position.x), box.position.y),
+					Vector2(maxf(box.end.x, other.end.x), box.position.y), guide, 1.0)
+			if absf(other.end.y - box.end.y) < 1.0:
+				draw_line(Vector2(minf(box.position.x, other.position.x), box.end.y),
+					Vector2(maxf(box.end.x, other.end.x), box.end.y), guide, 1.0)
+
+	var target := "nothing — click a panel"
+	if sel_key != "":
+		target = sel_key
+	elif sel_panel == 0:
+		target = "the page"
+	elif sel_panel > 0:
+		target = "panel %d of %d" % [sel_panel, edit_panels.size() - 1]
+	var offset_text := ""
+	var detail := ""
+	if sel_key != "":
+		var off := layout.screen_offset(edit_screen, sel_key)
+		offset_text = "offset %+.1f, %+.1f — click to type" % [off.x, off.y]
+	elif sel_panel >= 0:
+		detail = "click again for what is inside"
+	_edit_header(target, detail, offset_text,
+		"click a panel · click again (or double-click) for what is inside · drag to move"
+		+ " · arrows nudge (Shift ×10 · Alt ×0.1) · Tab next · Esc back out",
+		trouble)
+
+
+## The strip across the top, shared by both modes: what is selected, how to
+## move it, the typed-offset box, and the verdict — which comes from the same
+## detectors the text audit runs, so "clean" here and clean there are one claim.
+func _edit_header(target: String, detail: String, offset_text: String,
+		help: String, trouble: Array[String]) -> void:
+	draw_rect(Rect2(0, 0, size.x, 84), Color(0.02, 0.015, 0.028, 0.9))
+	_value("UI LAYOUT · %s — editing %s" % [edit_screen, target],
+		Vector2(16, 22), size.x - 360.0, HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
+	_label(help + " · Ctrl+Z undo · Ctrl+S save · Ctrl+R reset"
+		+ (" this screen" if edit_screen != "hud" else "")
+		+ " · F12 photograph · F4 done",
+		Vector2(16, 44), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12)
+	## THE RULE OF THE THING, in the editor itself: there is no screen picker in
+	## here because the game is the screen picker.
+	_label("you edit the screen you are ON — close the editor, walk to another"
+		+ " screen, press F4 again · typed offsets: Enter applies, Esc cancels,"
+		+ " a malformed pair is refused · the 84-shot batch stays at"
+		+ " `SkyGear Tools.bat screens`",
+		Vector2(16, 62), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
+		Color("#8f8697"))
+	## The offset readout doubles as the typed-entry box (the SG-39 pattern:
+	## click the number, type, Enter). Its rectangle is exported for input.
+	edit_offset_box = Rect2(size.x - 336.0, 8.0, 320.0, 20.0)
+	if game.layout_typing:
+		draw_rect(edit_offset_box, Color(0.05, 0.04, 0.075, 0.95))
+		draw_rect(edit_offset_box, Color("#37f0c8"), false, 1.0)
+		_label("offset: %s_" % game.layout_typed,
+			Vector2(edit_offset_box.position.x + 6.0, 22.0), edit_offset_box.size.x - 12.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#eee5d5"))
+	elif offset_text != "":
+		draw_rect(edit_offset_box, Color(1, 1, 1, 0.04))
+		_label(offset_text, Vector2(edit_offset_box.position.x, 22.0),
+			edit_offset_box.size.x, HORIZONTAL_ALIGNMENT_RIGHT, 13, Color("#e8c376"))
+	else:
+		edit_offset_box = Rect2()
+		if detail != "":
+			_label(detail, Vector2(size.x - 336.0, 22.0), 320.0,
+				HORIZONTAL_ALIGNMENT_RIGHT, 13, Color("#8f8697"))
+	if detail != "" and offset_text != "":
+		_label(detail, Vector2(size.x - 336.0, 40.0), 320.0,
+			HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#8f8697"))
+	var note := ""
+	var good := trouble.is_empty()
+	if game.layout_shot != "":
+		note = "photographed to " + game.layout_shot
+	elif game.layout_saved:
+		note = "saved to " + SkyGearHudLayout.USER_PATH
+	else:
+		note = "layout is clean" if good \
+			else "%d problem(s): %s" % [trouble.size(), "; ".join(trouble.slice(0, 3))]
+	_label(note, Vector2(size.x - 16.0, 80.0), size.x * 0.6,
+		HORIZONTAL_ALIGNMENT_RIGHT, 12,
+		Color("#37f0c8") if good or note.begins_with("saved") or note.begins_with("photo")
+		else Color("#ff9a5a"))
 
 
 ## What is under a point: a plate, or an element inside the plate currently
@@ -719,6 +1114,9 @@ var _banner_claim := false
 func _open_frame(rect: Rect2) -> void:
 	_frame = interior(rect)
 	_in_frame = true
+	## A plate opened on an editable screen is a PANEL the editor can select —
+	## the way in to the elements drawn on it.
+	_register_panel(rect)
 
 
 ## A DARK FIELD STAMPED INTO A PLATE, and the frame for whatever is written on
@@ -753,6 +1151,19 @@ func _say(text: String, at: Vector2, width: float, align: int, pt: int,
 	## cannot shrink past it, and the audit is then measuring the size that was
 	## really drawn rather than the size somebody intended.
 	var size_pt: int = maxi(pt, SkyGearInk.MIN_PT)
+	## THE SCREEN EDITOR'S HOOK (SG-42). Every string is an element: keyed by
+	## what it says, moved by its saved per-screen offset, and — while F4 is up —
+	## registered for the editor to grab. A widget's label is NOT its own
+	## element; it moves with its widget. All of this is skipped entirely when
+	## nothing is saved and no editor is open.
+	if _edit_active and not _edit_skip and not _in_widget and text.strip_edges() != "":
+		var ekey := _element_key(text)
+		var off := layout.screen_offset(edit_screen, ekey)
+		at += off
+		if game.layout_edit:
+			edit_elements[ekey] = {
+				"box": SkyGearInk.box(font, text, at, width, align, size_pt),
+				"home": at - off}
 	if not hide_text:
 		SkyGearInk.write(self, font, at, text, align, width, size_pt, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":
@@ -825,7 +1236,12 @@ func _say_in(owner: Rect2, text: String, at: Vector2, width: float, align: int,
 	var was_in := _in_frame
 	_frame = owner
 	_in_frame = true
+	## A widget's label is part of its widget for the screen editor too: the
+	## widget was already offset (and registered) through `ui.adjust`, and a
+	## label that registered separately would be a second handle on one thing.
+	_in_widget = true
 	_say(text, at, width, align, pt, tint)
+	_in_widget = false
 	_frame = was_frame
 	_in_frame = was_in
 
@@ -835,6 +1251,16 @@ func _say_in(owner: Rect2, text: String, at: Vector2, width: float, align: int,
 func _says(text: String, at: Vector2, width: float, align: int, requested: int,
 		lines: int, tint: Color) -> void:
 	var pt: int = maxi(requested, SkyGearInk.MIN_PT)
+	## The same screen-editor hook `_say` carries: a wrapped block is one
+	## element, boxed by the width it wraps in.
+	if _edit_active and not _edit_skip and not _in_widget and text.strip_edges() != "":
+		var ekey := _element_key(text)
+		var off := layout.screen_offset(edit_screen, ekey)
+		at += off
+		if game.layout_edit:
+			edit_elements[ekey] = {
+				"box": Rect2(at.x, at.y - pt, width, float(pt) * 1.3 * float(lines)),
+				"home": at - off}
 	if not hide_text:
 		SkyGearInk.write_lines(self, font, at, text, align, width, pt, lines, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":
@@ -1906,6 +2332,7 @@ func _card_frame(rect: Rect2, look: Dictionary) -> void:
 func _open_card(rect: Rect2) -> void:
 	_frame = rect.grow(-rail(rect, CARD_FRAME))
 	_in_frame = true
+	_register_panel(rect)
 
 
 ## THE CENTRAL EMBLEM. A gauge ring around a shape glyph, or a themed icon where
@@ -2126,7 +2553,13 @@ func _draw_draft() -> void:
 		## so every upgrade card had a hole here; `SkyGearCards.emblem_of` is the
 		## rule and it always answers. The role rides under it, where the browser's
 		## AUTO/ACTIVE tag sits, instead of a badge crowding the tag row.
-		var emblem_c := Vector2(face.get_center().x, face.position.y + 98.0)
+		## Routed through `_element` so the editor can grab it: the emblem is the
+		## one thing on a card that is neither a string nor a widget, and "the
+		## emblem sits two pixels low in its ring" is exactly the class of
+		## complaint SG-42 exists to make fixable by hand.
+		var emblem_box := _element("card emblem",
+			Rect2(face.get_center().x - 34.0, face.position.y + 64.0, 68.0, 68.0))
+		var emblem_c := emblem_box.get_center()
 		_emblem(card, emblem_c, 34.0)
 		if role != "":
 			var badge := Rect2(emblem_c.x - 34.0, emblem_c.y + 40.0, 68.0, 16.0)
