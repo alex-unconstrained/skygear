@@ -17,6 +17,19 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The lab needs a usability pass — typed values, and yaw/roll collapse
+Asked 2026-08-01, with a screenshot of MOUNT mode on the cutlass: *"Yaw and
+roll here seem to do the same thing. I like the changes to the Lab, but I do
+feel as though it can be made more user friendly. Allow me to type in values
+as well. Send an agent to do a full improvement pass on the lab."*
+
+The yaw/roll observation has a probable mechanical cause, not just a UI one:
+the fit in the screenshot sits at pitch −96°, on top of the ±90° gimbal
+singularity where the yaw and roll axes align — nudges that edit Euler
+components will do the same thing there. Board SG-39: typed input on every
+numeric row, rotation nudges applied about the weapon's live local axes
+rather than Euler fields, and a general friendliness pass.
+
 ### The crate mechanics suck — the owner, after playing them
 Reported 2026-08-01, verbatim: *"The crate mechanics kind of suck to be honest.
 Don't like them at all, the hold to move is not fun. It's too easy to just get
