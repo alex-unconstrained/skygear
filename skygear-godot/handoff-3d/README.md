@@ -29,12 +29,73 @@ everything is waiting on a human with a modeling tool.
   static props wire via `PROP_MODEL`/`static_model.gd`, figures via the rig
   path.
 
-## The queue — **EMPTY as of 2026-08-02**
+## The queue — **FOUR FIGURES, requested by the owner 2026-08-02**
 
-Both entries below are resolved, both by the owner's own hand in one day: the
-boarding hulk (three models, one per painted state, SG-76) and the furnace
-knight (SG-85). Nothing in this folder is waiting on anybody. The two specs
-stay below as history — they are the format the next reject gets written in,
+The rule that filled this folder was "two Meshy strikes and it escalates".
+These four did not wait for the strikes: after making the hulk and the knight
+himself in one afternoon, the owner asked for the whole remaining figure
+migration to come here instead — *"I think the best way to do the figure
+migration is to have me make the 3D meshes manually and then rig them, the same
+way we did the other enemies."* Route confirmed by results: two hand-made
+assets shipped the day five prompted attempts failed.
+
+**The route that worked twice, in order:** model the mesh → export OBJ →
+upload to Mixamo (OBJ, not FBX — an FBX carrying structure makes Mixamo try to
+map an existing skeleton and refuse) → place the auto-rig markers → download
+one clip **with skin**, the rest **without skin** → hand the loop the folder.
+Ingestion is one `models.json` entry and one pipeline run, zero credits.
+
+**Priority order** (biggest visual return first): SWARM, then the COLOSSUS,
+then CREW; the GUNNER last and probably never — read its entry.
+
+### swarm_gremlin/ — the fastest and most numerous boarder
+**Height 83 ground units (0.83 m)** — the smallest thing on the deck, and it
+comes six at a time in later waves, so it is the figure a player sees most
+after the captain. 20 hp, 230 speed: a scuttling scrap-goblin. Small, low,
+quick; hunched is fine, but the standing rules still bind — A-pose with arms
+CLEAR of the torso and a neck present, or Mixamo's rigger refuses (it refused
+the old scrapper mesh five times for exactly that, and the fault was
+proportion, not pose). Hands EMPTY; if it should carry a shiv, that is a
+separate bone-mounted asset. Clips wanted: walk/run, one swing, a flinch,
+and a **death** — the knight's pack gave the game its first death animation
+and the swarm dying in numbers is where it will read most.
+
+### colossus_boss/ — the wave-12 boss, the one figure with a fight of its own
+**Height ~360 ground units (3.6 m), the biggest thing that walks.** It has two
+beats the sim already plays: it TURNS at half health (cannot be burst through
+the turn) and it vents what it called. Clips wanted beyond the usual: an
+**idle**, a **walk**, at least two distinct **attacks**, a **turn/roar** beat
+for the half-health moment, and a **death** — its death is the end of a run and
+currently it just stops existing. Massive, slow, armoured; the painted one is
+a hunched brass giant. Same A-pose/neck/empty-hands rules.
+
+### crew/ — your own sailors, the last friendly 2D figures
+Three painted states (front idle, front attack, back idle) and they stand
+beside the cannons all run. They are the only ALLY figures left flat, so once
+the boarders are meshes they will be the thing that looks wrong. Height should
+read a touch under the captain's 176 gu — call it **~1.7 m**. Clips: idle,
+walk, a work/attack swing, a death. One mesh serves every crew member (they
+are identical by design); a second variant would be a bonus, never a
+requirement.
+
+### gunner_drone/ — **probably never; read before spending an hour**
+**Height 92 ground units (0.92 m)**, a hovering propeller drone that shoots
+from 340 units. The scrapper pilot's verdict was explicit: *"the GUNNER is a
+propeller drone that will never pass a humanoid rig — prop-spin/bob
+procedurally instead."* It has no legs, no spine and no arms to place markers
+on, so Mixamo is the wrong tool for it entirely. If you want it in 3D, the
+right shape is a **static mesh** (rotor as a separate child so the renderer can
+spin it) — no rig, no clips, and the loop animates the spin and bob in code.
+Deliver it that way and it is a twenty-minute wiring job; deliver it rigged and
+the rig is wasted.
+
+---
+
+## Resolved — the two you already did
+
+Both resolved by the owner's own hand in one day: the boarding hulk (three
+models, one per painted state, SG-76) and the furnace knight (SG-85). The two
+specs stay below as history — they are the format an entry gets written in,
 and the notes under each are what the specs failed to say.
 
 ### furnace_knight/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: FINAL Meshy reject (two attempts, July)
