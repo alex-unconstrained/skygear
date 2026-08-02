@@ -866,6 +866,42 @@ func _view() -> void:
 			env.ambient_light_energy, view._moon.light_energy, view._lantern.light_energy,
 			furnace_emit])
 
+	## SG-41 — NO STEEL-NAVY CARGO ON A WARM DECK. The board blamed the
+	## `crate_stack` MODEL's baked texture for the one genuinely cool object on
+	## the SG-34 deck; MEASURED (posed at the real camera, the model's screen
+	## rect sampled directly), the premise was misattributed: the model's albedo
+	## is warm (mean R/B ~2.0, navy band 0.04%) and it POSES warm (R/B 1.56 at
+	## the fight framing). The actual navy was the painted steel-blue chest in
+	## `cargo_wall_module.png` — the browser draws that module side-on where the
+	## chest is a sliver, but `_build_cargo` projects it across every cargo run's
+	## TOP face, which is most of what a 41-degree camera sees, so the baked navy
+	## band (11.5% of its opaque pixels) became the up-face of all eight runs and
+	## survived SG-34's key-light cut BECAUSE it was paint, not lighting. The
+	## band is hue-shifted to the house timber (SG-41, in-place, zero credits);
+	## these read the actual pixels so neither asset can quietly go navy again —
+	## a regenerated model, a re-exported module, either fails the build here.
+	var crate_glb := load("res://assets/models/crate_stack/crate_stack.glb") as PackedScene
+	var crate_albedo := {"warmth": 0.0, "navy": 1.0}
+	if crate_glb != null:
+		var crate_node := crate_glb.instantiate()
+		for mi_any in crate_node.find_children("*", "MeshInstance3D", true, false):
+			var cmat := (mi_any as MeshInstance3D).mesh.surface_get_material(0) as BaseMaterial3D
+			if cmat != null and cmat.albedo_texture != null:
+				crate_albedo = _albedo_stats(cmat.albedo_texture.get_image())
+				break
+		crate_node.free()
+	_check("cargo", "the crate_stack albedo is warm, not navy",
+		float(crate_albedo.warmth) >= 1.0 and float(crate_albedo.navy) <= 0.02,
+		"mean R/B %.2f, navy band %.1f%%"
+		% [float(crate_albedo.warmth), 100.0 * float(crate_albedo.navy)])
+	var module_img := Image.load_from_file(ProjectSettings.globalize_path(
+		"res://assets/art/props/cargo_wall_module.png"))
+	var module_stats: Dictionary = _albedo_stats(module_img)
+	_check("cargo", "and the painted cargo module carries no steel-navy band",
+		float(module_stats.warmth) >= 1.0 and float(module_stats.navy) <= 0.02,
+		"mean R/B %.2f, navy band %.1f%% (was 11.5%% before SG-41)"
+		% [float(module_stats.warmth), 100.0 * float(module_stats.navy)])
+
 	## SG-15 — THE COLOSSUS WRECK fitting. docs/SHIP-AND-MAPS-DESIGN §5/§8's first
 	## fitting: the art was on disk and sized and NOTHING had ever placed it. It is
 	## placed as set dressing OFF THE BOW (`WRECK_POSITION`), NOT the doc's "hard
@@ -4238,6 +4274,49 @@ func _view() -> void:
 	_check("figure", "every class the sim can be has a player model row",
 		rows_ok, "classes %s" % str(SkyGearData.CLASSES.keys()))
 
+	## SG-45 — THE SKIN MUST AGREE WITH THE SKELETON, PER ROW. The Boilerwright
+	## shipped THREE BUILDS INVISIBLE: the SG-12 retarget renamed his skeleton's
+	## bones to mixamorig_* but left the mesh's Skin binds Meshy-named, so every
+	## bind failed to resolve by name and the skinned mesh drew NOTHING — while
+	## the rig built, all fourteen clips resolved and every check above stayed
+	## green, because none of them asked whether the mesh could DRAW. This one
+	## asks: every named bind in every committed hero scene's Skin must name a
+	## bone its own skeleton has — the exact agreement rendering needs, checkable
+	## headless with no pixel readback, and it would have gone red the moment
+	## SG-12's scene was committed. Iterates the table so the third class (and
+	## every HERO_MODELS row after it) cannot repeat the mismatch.
+	for hid in SkyGearView3D.HERO_MODELS.keys():
+		var hpath := str(SkyGearView3D.HERO_MODELS[hid].scene)
+		if not ResourceLoader.exists(hpath):
+			continue
+		var hero: Node = (load(hpath) as PackedScene).instantiate()
+		var hskel: Skeleton3D = null
+		for sk in hero.find_children("*", "Skeleton3D", true, false):
+			hskel = sk as Skeleton3D
+			break
+		var skinned := 0
+		var named := 0
+		var lost := PackedStringArray()
+		for mi_node in hero.find_children("*", "MeshInstance3D", true, false):
+			var hskin: Skin = (mi_node as MeshInstance3D).skin
+			if hskin == null:
+				continue
+			skinned += 1
+			for bi in hskin.get_bind_count():
+				var bname := String(hskin.get_bind_name(bi))
+				if bname == "":
+					continue
+				named += 1
+				if hskel == null or hskel.find_bone(bname) < 0:
+					if not lost.has(bname):
+						lost.append(bname)
+		_check("figure", "%s: every Skin bind resolves to a bone its own skeleton has — an unresolved bind draws NOTHING" % hid,
+			hskel != null and skinned > 0 and named > 0 and lost.is_empty(),
+			"%d skinned mesh(es), %d named binds, %d unresolved%s"
+				% [skinned, named, lost.size(),
+					"" if lost.is_empty() else " (" + ", ".join(lost) + ")"])
+		hero.free()
+
 	## The Boilerwright's own rig — generated by Meshy, remeshed to budget BEFORE
 	## rigging, auto-rigged, then the fourteen axe-pack clips retargeted onto him
 	## from the captain's baked library (the archive being absent) via a bone-name
@@ -4925,6 +5004,35 @@ func _missing_views() -> String:
 			if SkyGearSprites.still(kind, view) == null:
 				out.append("%s/%s" % [kind, view])
 	return ", ".join(out)
+
+
+## The SG-41 palette read: mean warmth (R/B) and the steel-navy fraction of a
+## texture's opaque pixels. "Navy" is a SATURATED blue — hue 180..260 degrees at
+## s > 0.15 — because that is the band the misattributed cargo chest actually
+## lived in; a neutral dark shadow does not count, so a texture cannot fail for
+## being dark, only for being blue. Sampled on a stride so a 2K albedo costs
+## the harness milliseconds, not seconds.
+func _albedo_stats(img: Image) -> Dictionary:
+	if img == null:
+		return {"warmth": 0.0, "navy": 1.0}
+	if img.is_compressed():
+		img.decompress()
+	var r_sum := 0.0
+	var b_sum := 0.0
+	var navy := 0
+	var n := 0
+	var step: int = maxi(1, img.get_width() / 256)
+	for y in range(0, img.get_height(), step):
+		for x in range(0, img.get_width(), step):
+			var c := img.get_pixel(x, y)
+			if c.a < 0.5:
+				continue
+			r_sum += c.r
+			b_sum += c.b
+			n += 1
+			if c.h > 0.5 and c.h < 0.72 and c.s > 0.15 and c.v > 0.1:
+				navy += 1
+	return {"warmth": r_sum / maxf(0.000001, b_sum), "navy": float(navy) / maxf(1.0, float(n))}
 
 
 ## Nothing in the shipped captain may point back at the import staging the FBXs
