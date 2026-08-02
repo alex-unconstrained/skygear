@@ -32,11 +32,23 @@ extends Node3D
 
 ## What a figure can be doing, most urgent first. `pick()` walks this in order
 ## and takes the first that applies, so adding a state is adding a row.
-const PRIORITY := ["die", "hurt", "swing", "dash", "run", "walk", "idle"]
+## `plant` is the Boilerwright kneeling to crack a main open (Tap Main, CLASS-2
+## §7's named gap): it beats locomotion — a man bolting a tap to the deck is
+## not also running — but never a hit, a swing or the Bleed Jet.
+const PRIORITY := ["die", "hurt", "swing", "dash", "plant", "run", "walk", "idle"]
 
 ## Clips that play once and hold rather than looping. A looping swing is a
-## character having a fit.
-const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true}
+## character having a fit — and a looping plant is a man doing calisthenics.
+const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true,
+	"plant": true}
+
+## How long the renderer shows the kneel after a Tap Main lands. The sim's own
+## signal is `tap_cooldown` (6 s — a cooldown, not an action), so the action
+## needs its own visible length: long enough to read as kneel-and-press, short
+## enough that he is back up before the tap's steam has finished saying what he
+## did. His `plant` clip is 0.67 s, so at this window it plays near authored
+## speed through the same clip-stretched-to-window machinery every swing uses.
+const PLANT_WINDOW := 0.7
 
 ## Attacks alternate. A melee pack ships four or five swings and the state
 ## machine only ever asks for one, so without this the captain performs the
@@ -44,9 +56,12 @@ const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true}
 ## than a billboard, because a billboard never claimed to be swinging.
 ##
 ## Named after the state, so `want("swing")` picks the next of whichever of
-## these have actually been delivered.
+## these have actually been delivered. The captain's axe pack delivered
+## swing..swing3 + spin + combo; the Boilerwright's native great-sword pack
+## delivers swing..swing5 + spin (heavy two-handed cuts — the wrench swings at
+## last). Each rig rotates through whichever subset it actually has.
 const VARIANTS := {
-	"swing": ["swing", "swing2", "swing3", "spin", "combo"],
+	"swing": ["swing", "swing2", "swing3", "swing4", "swing5", "spin", "combo"],
 }
 var _variant := 0
 
@@ -54,7 +69,7 @@ var _variant := 0
 ## ease. Zero would pop, and a quarter second on an attack is a quarter second
 ## of the player not knowing they pressed the button.
 const BLEND := {
-	"swing": 0.06, "dash": 0.05, "hurt": 0.05, "die": 0.10,
+	"swing": 0.06, "dash": 0.05, "hurt": 0.05, "die": 0.10, "plant": 0.08,
 	"run": 0.14, "walk": 0.16, "idle": 0.22,
 }
 

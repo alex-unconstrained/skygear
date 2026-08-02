@@ -17,10 +17,21 @@ cracking on a dash, projectiles, every cutscene) and
 
 ## Blockers
 
-None hard. **Soft:** adding NEW Mixamo clips (the Boilerwright's kneel, a
-wrench swing — his wrench mesh exists now, so the swing matters) needs raw
-FBX from you; the axe-pack archives aren't on this machine. Mixamo upload
-zip still waiting at `Downloads\boilerwright-mixamo.zip`.
+None hard. ~~**Soft:** adding NEW Mixamo clips (the Boilerwright's kneel, a
+wrench swing) needs raw FBX from you.~~ **DELIVERED — your Great Sword Pack
+landed and the whole thing is in** (board SG-74): he stands on HIS OWN Mixamo
+rig now with all 51 of your clips aboard — the five heavy slashes are his
+attack rotation, impact is his flinch, and **the kneel is wired to Tap Main**
+(the "Two clips would make him HIM" ask, both halves). Feel-check when you
+play him: (1) do the slash cuts read as WRENCH work now rather than sword
+work, and (2) does the kneel's 0.7 s on a tap feel planted or sluggish —
+`.shots/clips/boilerwright.gif` is the 6-second preview (march, two cuts,
+the kneel inside his tap ring). One number for you: the OBJ you ran through
+Mixamo carried the 12,476-tri REFINE mesh, not the 3,093 remesh — harmless
+on screen and pinned by a check, but if you ever re-export the REMESHED OBJ
+through the same Mixamo pack, one re-run of
+`python tools/ingest_model.py boilerwright` puts him back under budget for
+zero credits.
 
 ## Decisions
 

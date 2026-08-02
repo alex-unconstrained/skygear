@@ -149,6 +149,16 @@ fits the tap window, plus the SG-45 guard that every Skin bind resolves against
 its own skeleton. *Size:* about a week. *Owner:* approve SG-38's ~35 credits,
 and say whether the kneel reads.
 
+**DELIVERED 2026-08-02 except the Blowdown brace** (SG-38 the wrench, SG-74
+the kneel — on the owner's own Great Sword Pack rather than a retargeted
+stranger's clip, better than this item planned): `figure · tapping a main
+plays the plant, and the kneel fits the tap window like a swing fits its
+cast` · `class · tapping a main opens the plant window the renderer reads off
+tap_cooldown` · `weapon · his mount carries the wrench itself now, not the
+empty hand`. Still open from this item: the **Blowdown brace clip** — the
+pack's crouch2 (kneel-to-stand) or crouch4 (crouched press) are aboard and
+unwired, so it is a rig3d/view3d wiring decision now, zero assets needed.
+
 **7 · Enemy animation, as a pilot: the SCRAPPER, alone.** The owner's stated
 near-term want, scoped to what the record supports. The pipeline's single
 precedent currently ships invisible (SG-45), the four enemy meshes predate the

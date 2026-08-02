@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **649 harness checks**; the text audit covers 24 screens at
+board SG-56). **682 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
@@ -35,7 +35,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (649 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (682 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -89,7 +89,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair (held), shove (instant) |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 649 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 682 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -117,7 +117,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 649 checks. Green before anything ships |
+| `harness` | 682 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
@@ -179,6 +179,15 @@ on an asset the animation pipeline cannot use:
   rest when sway is off (`cloak ·` checks, seven of them; `.shots/cloak/`).
   Per-class rows in `view3d.HERO_CLOAKS`; the Boilerwright opts in with one
   row when his day comes.
+
+**The Boilerwright moves on HIS OWN clips now (board SG-74, 2026-08-02).** The
+owner ran his mesh through Mixamo and delivered the Great Sword Pack — his
+native rig plus 51 clips — and the whole thing ingested as one `models.json`
+entry through `tools/ingest_model.py` (the §13l axe-pack path, second use).
+Five heavy slashes rotate as his attacks, and Tap Main plays a real kneel
+(`figure · tapping a main plays the plant, and the kneel fits the tap window
+like a swing fits its cast`); the borrowed captain-clip retarget is retired.
+`.shots/clips/boilerwright.gif` is the witness.
 
 `prune` strips the 77 MB an asset arrives as down to the ~10 MB GLB actually
 used, and refuses to run before the first import because extract-mode textures

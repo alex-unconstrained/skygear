@@ -16,11 +16,13 @@ missing at least four entries — see "Documentation claims that are not
 enforceable" in `OUTSTANDING.md`. Known open on this class: the mobility gap
 (measured at 67% of ground covered, not the 21% top speed implies — its own
 ledger entry). He no longer renders as the captain: board SG-12 (route 2) gave
-him his own Meshy-generated, auto-rigged model with the fourteen axe-pack clips
-retargeted onto it from the captain's baked library, and `_sync_captain` now
-picks the scene per class from `SkyGearView3D.HERO_MODELS` — pinned by
-`figure · the Boilerwright loads a scene that is not the captain's` and
-`figure · and his rig resolves all fourteen retargeted clips`.*
+him his own Meshy-generated model, and board SG-74 then rebuilt him on HIS OWN
+native Mixamo rig with the owner's Great Sword Pack — 51 clips of his own, the
+five heavy slashes as his attack rotation and a real kneel on Tap Main —
+retiring the borrowed axe-clip retarget. `_sync_captain` picks the scene per
+class from `SkyGearView3D.HERO_MODELS` — pinned by `figure · the Boilerwright
+loads a scene that is not the captain's` and `figure · his native rig carries
+every clip the renderer is wired to ask for`.*
 
 **Deliberately NOT built, and not oversights:**
 
@@ -236,9 +238,9 @@ removing them breaks her. Six new:
 | 8 `can` gates, 6 cards, per-class scope label | data + small sim | `cards.gd` |
 | Class select, `game.hero`, Head gauge, tap-share in the report and run log | simulation + HUD | re-skin of the pressure gauge, one icon via `tools/forge.py` |
 | Tap ring, steam column, Blowdown ring | renderer/VFX | **all three exist** — Decal ring (§13e), `steam` behaviour emitter (§13m). No new VFX kind. |
-| **Rigged character** (idle, walk, run, two attacks, flinch) + portrait | **art, commissioned** | Mixamo-shaped; `tools/ingest_model.py` makes ingest a `models.json` edit, portrait via `tools/forge.py` |
-| **A plant / kneel-to-deck clip** | **art, commissioned** | the one clip with no off-the-shelf equivalent. Tap Main is his signature; without it he teleports mains into existence. |
-| **A hose or wrench mesh on a hand bone** | **art, commissioned** | §13l already records that the axe pack ships no axe. Second instance — solve the attachment once, for both. |
+| **Rigged character** (idle, walk, run, two attacks, flinch) + portrait | **DELIVERED** (SG-12 mesh, SG-74 native rig) | his own Mixamo rig with 51 native clips — five slashes, not two attacks — `figure · his native rig carries every clip the renderer is wired to ask for` |
+| **A plant / kneel-to-deck clip** | **DELIVERED** (owner's Great Sword Pack, SG-74) | was "the one clip with no off-the-shelf equivalent" — the owner shipped it. Wired to `tap_main()` through the clip-to-window machinery: `figure · tapping a main plays the plant, and the kneel fits the tap window like a swing fits its cast` · `class · tapping a main opens the plant window the renderer reads off tap_cooldown` |
+| **A hose or wrench mesh on a hand bone** | **DELIVERED** (SG-38, re-verified on the native rig in SG-74) | `weapon · his mount carries the wrench itself now, not the empty hand` |
 | Voice, 19 keys | audio, **deferrable** | policy is that an absent line is silence, never a synth impression. He can ship mute and it is not a bug. |
 
 Checks (intended list, with what the harness ACTUALLY asserts today — the rest is

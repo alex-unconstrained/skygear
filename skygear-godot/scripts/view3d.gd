@@ -4410,6 +4410,18 @@ func _sync_captain(delta: float) -> bool:
 		doing = "swing"
 	elif player.dash_time_left > 0.0:
 		doing = "dash"
+	elif game.tap_cooldown > 0.0 and _captain.has_clip("plant") \
+			and float(SkyGearData.TAP.cooldown) - game.tap_cooldown \
+				< SkyGearRig3D.PLANT_WINDOW:
+		## THE PLANT (CLASS-2 §7's named gap, closed by the native great-sword
+		## pack): a Tap Main used to teleport into existence at his feet. The
+		## sim's own signal is `tap_cooldown` — `tap_main()` sets it to the full
+		## cooldown on the frame the tap lands, so cooldown-minus-remaining IS
+		## the time since he cracked it. For the first PLANT_WINDOW of that he
+		## kneels, through the same clip-stretched-to-window machinery as the
+		## swings. Gated on the clip so the captain (whose pack has no kneel,
+		## and whose gauge cannot tap anyway) never freezes into a fallback.
+		doing = "plant"
 	elif speed > (28.0 if _captain.state == "run" else 62.0):
 		## HYSTERESIS. A single threshold at 35 meant a captain drifting near it
 		## — which is most of the time, because friction decays speed through
@@ -4426,6 +4438,9 @@ func _sync_captain(delta: float) -> bool:
 		window = maxf(0.12, player.dash_time_left)
 	elif doing == "hurt":
 		window = maxf(0.2, player.hurt_time)
+	elif doing == "plant":
+		window = maxf(0.12, SkyGearRig3D.PLANT_WINDOW
+			- (float(SkyGearData.TAP.cooldown) - game.tap_cooldown))
 	_captain.want(doing, speed, window)
 	## The weapon trail samples the BLADE, not a clock (SG-18): one tip position
 	## per swinging frame, read off the hand mount the skeleton is already

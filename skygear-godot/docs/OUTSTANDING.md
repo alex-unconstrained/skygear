@@ -660,6 +660,17 @@ Nothing has been spent and no prompt is in the manifest, deliberately: an entry
 in `tools/meshy.py` is a thing you can run, and running this one buys an asset
 the renderer has no way to display.
 
+**RESOLVED in three landings, the last 2026-08-02.** Route 2 built him (SG-12),
+SG-45 made him render, and the owner then answered the follow-up ask — "Two
+clips would make him HIM: a kneel/press-to-deck for Tap Main and a heavy
+two-handed swing" — by delivering the **Great Sword Pack**: his own mesh
+auto-rigged by Mixamo plus 51 native clips, ingested whole as board **SG-74**.
+His five slashes are the attack rotation now, and Tap Main plays a real kneel
+(`figure · tapping a main plays the plant, and the kneel fits the tap window
+like a swing fits its cast`; the delivery film is
+`.shots/clips/boilerwright.gif`). What remains of this section is only the
+owner's feel-verdict, tracked in NEEDS_ALEX.
+
 ### The furnace knight is still a sprite
 Two Meshy attempts; neither read as the 180-hp thing you cannot walk through.
 Not a bug — a deliberate call — but it is the one boarder breaking the 3D

@@ -75,6 +75,29 @@ func _run() -> void:
 		print("  %-12s %7.2fs %9.2fs %6s %7.2fx  %s"
 			% [shape, float(st.cooldown), window, clip, rate, note])
 
+	## Tap Main's plant (SG-74): the kneel is a one-shot fitted to its own
+	## window exactly like the swings — `PLANT_WINDOW`, the same number the
+	## renderer passes — so it is measured by the same yardstick. Skipped for
+	## a rig that has no kneel (the captain's pack ships none), because a row
+	## about a clip that cannot play is data with no reader.
+	if rig.has_clip("plant"):
+		var pwindow: float = SkyGearRig3D.PLANT_WINDOW
+		rig.state = "idle"
+		rig.want("plant", 0.0, pwindow)
+		var pclip: String = rig._clip
+		var prate: float = rig.anim.speed_scale
+		var pshown: float = pwindow * prate / rig.anim.get_animation(pclip).length
+		rows += 1
+		var pnote := "ok"
+		if prate >= TOO_FAST:
+			pnote = "TOO FAST"
+			bad += 1
+		elif pshown < TOO_SLOW_FRACTION:
+			pnote = "only %.0f%% of the clip" % (pshown * 100.0)
+			bad += 1
+		print("  %-12s %7s %9.2fs %6s %7.2fx  %s"
+			% ["TAP MAIN", "-", pwindow, pclip, prate, pnote])
+
 	print("\nVERDICT")
 	if bad == 0:
 		print("  %d of %d attacks land inside their window at a readable rate." % [rows, rows])

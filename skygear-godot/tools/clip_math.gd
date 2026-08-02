@@ -58,6 +58,8 @@ const SCENARIOS := [
 		"what": "the SG-40 bolt heads in flight — a mortar shell's arc, a lance, and the deck guns"},
 	{"id": "scrapper", "kind": "scrapper", "seconds": 6.0, "still": false,
 		"what": "the scrapper pilot's witness (SG-55): a rank of scrappers walks the deck and closes to swing — today the statue-glide, and the same lens judges the rig when it lands"},
+	{"id": "boilerwright", "kind": "boilerwright", "seconds": 6.0, "still": false,
+		"what": "the second class on his own rig (SG-74): a march up-deck, two heavy wrench cuts off the variant rotation, then Tap Main's kneel — the plant, on film"},
 ]
 
 

@@ -555,6 +555,18 @@ axe. She reads acceptably because she already wears a heavy brass gauntlet on
 the swing arm, but a weapon mesh attached to `mixamorig_RightHand` would make
 the animations mean what they were animated to mean.
 
+**The precedent paid again, 2026-08-02 (board SG-74).** The second pack — the
+owner's Great Sword Pack: his own Boilerwright mesh auto-rigged by Mixamo plus
+51 animation-only clips — went through this exact path as one `models.json`
+entry and one command. Every clip sat a consistent 57.4 degrees off the rig's
+rest (this pack's 19.6), one retarget covered all 51, and `maps_archive`
+earned its keep a second time: the Mixamo FBX is untextured, so the maps come
+from the Meshy originals still on disk. The one new lesson: the OBJ that went
+through Mixamo carried the refine mesh (12,476 tris), not the remesh — a
+skinned mesh cannot be re-decimated after the fact, so the count is pinned by
+its own check rather than silently accepted, and the fix is a re-export, not
+surgery.
+
 ## 13m. Response to the rendering audit — 2026-07-28
 
 `docs/VFX-RESEARCH-AUDIT.md` arrived and found four things wrong with work that

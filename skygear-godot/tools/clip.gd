@@ -174,12 +174,14 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 			(game.workshop.fittings as Dictionary)[fit_id] = true
 			SkyGearFittings.berth(game.workshop, str(fit_id))
 	game.heat = 0
-	game.set_class("captain")
+	var kind := str(spec.kind)
+	## The boilerwright scenario is ABOUT the second class; everything else
+	## films the captain, the default the other scenarios were framed for.
+	game.set_class("boilerwright" if kind == "boilerwright" else "captain")
 	game.set_seed_text("CLIP")
 	game.begin_run()
 	game.choose_draft(0)
 
-	var kind := str(spec.kind)
 	match kind:
 		"fight":
 			## The real wave 3 spawn queue, left to run. Four seated skills so
@@ -243,6 +245,23 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 				walker.lane = int(stand.lane)
 				walker.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
+		"boilerwright":
+			## His class row's witness (SG-74): the walk, the slash and the
+			## plant on one strip of film. A seated Cleave so the casts swing
+			## the wrench (the variant rotation picks a different cut each
+			## time), a full bank so Tap Main can afford itself, and an open
+			## wave so nothing photobombs the kneel.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.skills.append(SkyGearData.make_skill("RANGED_AOE", "FROST"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			await _settle(game, world, SETTLE_TICKS)
+			game.pressure = 100.0
+			game.player.set_pressure(game.pressure)
+			## Faced up-deck like the dash scenario — where the boarders come
+			## from, so the cuts read as fighting rather than shadow-boxing.
+			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
 		"cutscene":
 			## Stage the moment the scene is authored for: its own wave for a
 			## narrowed wave_start, wave 12's real spawn queue for the Colossus
@@ -305,12 +324,26 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 						var foes := game.get_tree().get_nodes_in_group("enemies")
 						if not foes.is_empty():
 							game.cast_skill(1, foes[0].global_position)
+				"boilerwright":
+					## Two seconds of march, two cuts sixty-five ticks apart
+					## (the variant rotation shows two DIFFERENT slashes), then
+					## the tap: kneel, press, back up before the strip runs out.
+					if tick == 1:
+						Input.action_press("move_up")
+					elif tick == 115:
+						Input.action_release("move_up")
+					elif tick == 140 or tick == 205:
+						game.cast_skill(0,
+							game.player.global_position + Vector2(30.0, -150.0))
+					elif tick == 265:
+						game.pressure = maxf(game.pressure, 60.0)
+						game.tap_main()
 			game._process(DT)
 			world._process(DT)
 			await process_frame
 		var img := root.get_texture().get_image()
 		img.save_png("%s/frame_%04d.png" % [frames_dir.replace("\\", "/"), frame])
-	if kind == "dash":
+	if kind == "dash" or kind == "boilerwright":
 		Input.action_release("move_up")
 		Input.action_release("dash")
 

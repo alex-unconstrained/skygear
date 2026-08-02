@@ -1364,10 +1364,20 @@ func _deck_units(key: String) -> float:
 func _build_mount() -> void:
 	_rig = SkyGearRig3D.new()
 	_world.add_child(_rig)
+	## THE FIT-OWNER'S OWN RIG, when `--fit` names a class with one (SG-74).
+	## The wrench was first fitted on the captain's skeleton because the two
+	## rigs shared their rest pose family — true of the SG-12 retarget, NOT of
+	## his native Mixamo rig, whose rest differs. A grip judged on somebody
+	## else's rest pose is judged at the one frame the game never shows.
+	var mount_rig := RIG
+	if SkyGearView3D.HERO_MODELS.has(_fit_who):
+		var owner_scene := str(SkyGearView3D.HERO_MODELS[_fit_who].scene)
+		if ResourceLoader.exists(owner_scene):
+			mount_rig = owner_scene
 	## 1.8 m, which is the frame `weapons.json` is authored in — the renderer
 	## rescales offset and length by her real deck height on the way in. Change
 	## this and every saved number silently means something else.
-	if not _rig.setup(RIG, 1.8, 1):
+	if not _rig.setup(mount_rig, 1.8, 1):
 		_mode = VIEW
 		return
 	if _fit.is_empty():

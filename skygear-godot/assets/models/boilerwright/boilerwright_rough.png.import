@@ -2,19 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://x1uxcfpstpy"
-path="res://.godot/imported/boilerwright_rigged_0.png-1b3079728152b753d697bb0294fc8331.ctex"
+uid="uid://doclcy7te0500"
+path="res://.godot/imported/boilerwright_rough.png-95ec9702c7f58c7c239ce326ba482b82.ctex"
 metadata={
 "vram_texture": false
-}
-generator_parameters={
-"md5": "e982f4539cf12917cf93dc69a2645373"
 }
 
 [deps]
 
-source_file="res://assets/models/boilerwright/boilerwright_rigged_0.png"
-dest_files=["res://.godot/imported/boilerwright_rigged_0.png-1b3079728152b753d697bb0294fc8331.ctex"]
+source_file="res://assets/models/boilerwright/boilerwright_rough.png"
+dest_files=["res://.godot/imported/boilerwright_rough.png-95ec9702c7f58c7c239ce326ba482b82.ctex"]
 
 [params]
 
@@ -26,7 +23,7 @@ compress/rdo_quality_loss=0.0
 compress/hdr_compression=1
 compress/normal_map=0
 compress/channel_pack=0
-mipmaps/generate=true
+mipmaps/generate=false
 mipmaps/limit=-1
 roughness/mode=0
 roughness/src_normal=""
