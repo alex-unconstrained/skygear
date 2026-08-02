@@ -74,6 +74,13 @@ const INK_AT := Vector2(1600, 900)
 
 
 func _run() -> void:
+	## Refuse headless up front. The contrast pass reads frames back off the
+	## GPU, and there is no GPU under --headless — the readback would stall
+	## forever at `await frame_post_draw` (SG-29).
+	if not SkyGearRendererCheck.can_capture():
+		print(SkyGearRendererCheck.capture_refusal())
+		quit(2)
+		return
 	var args := OS.get_cmdline_user_args()
 	var verbose := "--verbose" in args
 	var ink_only := "--ink" in args

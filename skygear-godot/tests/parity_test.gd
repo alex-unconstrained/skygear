@@ -2109,6 +2109,19 @@ func _view() -> void:
 		and int(prof.timings().samples) == 0)
 	prof.queue_free()
 
+	## HEADLESS CAPTURE (SG-29). Under --headless there is no rendering device
+	## at all, so a GPU readback can never succeed and `await frame_post_draw`
+	## never resolves. The capture tools now ask before stalling — and this
+	## harness IS the headless environment, so the detection is provable here.
+	_check("capture", "headless is detected, so a capture tool refuses instead of stalling",
+		SkyGearRendererCheck.can_capture()
+			== (DisplayServer.get_name() != "headless"),
+		"display %s, can_capture %s" % [DisplayServer.get_name(),
+			SkyGearRendererCheck.can_capture()])
+	_check("capture", "and the refusal tells you the fix",
+		SkyGearRendererCheck.capture_refusal().contains("--headless")
+			and SkyGearRendererCheck.capture_refusal().contains("SG-29"))
+
 	## RENDER QUALITY, from the audit. These are the ones that are silently wrong
 	## rather than visibly wrong, which is why they need a check rather than a
 	## screenshot.

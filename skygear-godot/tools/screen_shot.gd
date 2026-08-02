@@ -35,6 +35,12 @@ func _initialize() -> void: call_deferred("_run")
 
 
 func _run() -> void:
+	## Refuse headless up front. There is no GPU under --headless, so the
+	## capture below would stall forever at `await frame_post_draw` (SG-29).
+	if not SkyGearRendererCheck.can_capture():
+		print(SkyGearRendererCheck.capture_refusal())
+		quit(2)
+		return
 	var argv := OS.get_cmdline_user_args()
 	var want := str(argv[0]).to_lower() if argv.size() > 0 else ""
 	var sizes: Array = [Screens.SIZES[1]]

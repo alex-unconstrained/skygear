@@ -8,15 +8,20 @@ extends SceneTree
 ##   godot --path . --script tests/bench.gd
 ##   godot --path . --script tests/bench.gd -- 90     (boarders)
 ##
-## Deliberately NOT headless by default — a headless run uses the dummy
-## rasteriser and reports a frame cost that has nothing to do with the game.
-## Run it with a real window or the number is fiction.
+## Deliberately NOT headless — and since SG-54, ENFORCED, not just documented:
+## run headless this bench completed happily and printed "PASS p99 6.90 ms"
+## measured against no GPU at all (under --headless no rendering device even
+## exists — SG-29). A verdict nobody can trust is worse than no verdict.
 func _initialize() -> void: call_deferred("_run")
 
 const WARMUP := 90        ## frames discarded: shader compilation lands here
 const MEASURE := 420      ## then seven seconds at sixty
 
 func _run() -> void:
+	if not SkyGearRendererCheck.can_capture():
+		print(SkyGearRendererCheck.capture_refusal())
+		quit(2)
+		return
 	var args := OS.get_cmdline_user_args()
 	var load_size: int = int(args[0]) if args.size() > 0 else 60
 	var world = load("res://scenes/main3d.tscn").instantiate()

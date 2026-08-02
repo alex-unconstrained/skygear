@@ -603,13 +603,25 @@ so. There is now a warning for that case.
 
 ### Still open from the audit
 
-- **Reserved capacity per pool.** The audit asks for fixed capacities with
-  gameplay-critical effects never displaced by decorative ones. The pools are
-  real now but share one free list; a hostile telegraph and a scorch mark
-  compete. The budgets in the audit's table are the next step.
-- **D3D12 has never been tested.** Only Vulkan has run.
-- **`fixed_fps` / visibility AABB tuning** is set from the audit's guidance but
-  has not been profiled, because the port has never been profiled at all.
+- ~~**Reserved capacity per pool.**~~ DONE (commit 1144d44, verified under
+  SG-25 2026-08-02): decals carry per-class live budgets — `DECAL_BUDGET`,
+  48 telegraph / 24 player / 40 decor — so a scorch mark can never spend a
+  telegraph's slot. The free NODE list stays shared deliberately: a claim
+  that misses it builds a fresh node, so sharing recycled nodes cannot
+  displace anything. Harness: `budget · a telegraph draws from its own
+  reserve`, `budget · decoration cannot spend past its own allowance`,
+  `budget · and a telegraph still gets drawn on a flooded deck`.
+- ~~**D3D12 has never been tested.**~~ Ran for the first time 2026-08-02
+  (SG-25, RTX 5080): boots and renders Forward+ over D3D12. Windowed wave-11
+  profile: frame p50 4.92 ms vs Vulkan's 4.40, vram 796 vs 703 MB — works,
+  slightly behind Vulkan, no reason to switch. Harness also green under
+  `--rendering-driver d3d12` (596/596 — though headless, so that run
+  exercises no GPU path; the windowed boot is the evidence).
+- **`fixed_fps` / visibility AABB tuning** is set from the audit's guidance.
+  The port now HAS a first profile (`tools/profile_fight.gd`, SG-25 baseline
+  on the board: frame p50 4.40 / p99 7.96 ms at 40 boarders, RTX 5080), but
+  one baseline is not a comparison — the tuning itself remains unprofiled,
+  and nothing was tuned from one profile.
 - Sections beyond the four findings — tonemapping and grading, shader-stutter
   prevention, the validation requirements — have been read but not yet worked
   through.

@@ -53,6 +53,12 @@ const TOOLS := [
 		"what": "MOTION evidence: pose a scenario, run real seconds of sim+render, stitch to .shots/clips/<name>.gif",
 		"why": "every figure claim ahead is a claim about motion, and a still cannot witness a walk, a dash crack, or a cutscene's hand-back"},
 
+	## Not a "check": it has no pass/fail on purpose — it records a baseline and
+	## takes no opinion (SG-25). Needs a real window; headless has no GPU (SG-29).
+	{"id": "profile", "kind": "window", "script": "tools/profile_fight.gd",
+		"what": "the frame's cost in a saturated wave-11 fight: p50/p95/p99 for frame, script, physics, render CPU and GPU, plus what was on the deck",
+		"why": "the port was never profiled before SG-25; the baseline lives on that board row, and the next \"it feels slow\" gets re-measured here — same load, same buckets"},
+
 	{"id": "sky", "kind": "window", "script": "tools/sky_shot.gd",
 		"what": "the sky, from the four places on the deck it is actually visible",
 		"why": "at 41 degrees the horizon is off the top of the frame, so a shot from mid-deck cannot show you the sky is empty — and three times it did not"},

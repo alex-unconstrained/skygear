@@ -42,6 +42,32 @@ static func describe() -> String:
 		"" if can_draw_telegraphs() else "  (NO DECAL SUPPORT)"]
 
 
+## Can a frame be read back off the GPU at all?
+##
+## Under `--headless` the answer is NO, by engine design, not by bug — measured
+## for SG-29 on this machine (Godot 4.7.1, RTX 5080): the headless display
+## server creates NO rendering device (`RenderingServer.get_rendering_device()`
+## is null, the adapter name is empty), so no viewport is ever drawn.
+## `get_image()` does not even hang — it returns null instantly. The hang every
+## capture tool actually hit is `await RenderingServer.frame_post_draw`: the
+## headless main loop skips the draw step, so that signal never fires and the
+## await never resolves. `force_draw()` emits the signal but paints nothing,
+## `--rendering-driver vulkan` is ignored under `--headless`, and
+## `--write-movie` headless produces zero frames and an empty .wav. Upstream:
+## godotengine/godot-proposals#5790 (off-screen rendering), still open.
+##
+## So a tool that needs pixels asks this FIRST and refuses loudly, instead of
+## stalling silently until someone kills it 20 minutes later.
+static func can_capture() -> bool:
+	return DisplayServer.get_name() != "headless"
+
+
+## The one-line refusal, same text everywhere so it is searchable.
+static func capture_refusal() -> String:
+	return ("no GPU under --headless: frames cannot be rendered or read back "
+		+ "(no rendering device exists — SG-29). Re-run WITHOUT --headless.")
+
+
 ## What to tell the player, or "" when there is nothing to tell them.
 static func warning() -> String:
 	if can_draw_telegraphs():
