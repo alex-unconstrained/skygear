@@ -374,10 +374,21 @@ func _build_world() -> void:
 	e.background_mode = Environment.BG_SKY
 	e.sky = sky_res
 	e.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	e.ambient_light_color = Color("#4a4058")
+	## A NEUTRAL-warm ambient floor, not a cool one. SG-34: measured against the
+	## browser, the deck was not darker or cooler on average — it was BRIGHTER and
+	## warmer in the mean — but its focal surfaces (the crate and prop tops) read
+	## navy, because the cool moon directional and a cool-PURPLE ambient (#4a4058,
+	## blue dominant) were the only fill on every up-facing face the warm point
+	## pools do not reach. Pushed fully warm the floor went monochrome orange while
+	## the crates stayed navy (measured warm/blue split), so the fill is set to a
+	## near-neutral, faintly warm brown-grey (red just ahead of blue): it lifts a
+	## crate top out of steel without repainting the whole deck orange, matching the
+	## browser's ONE modest-warm field with cool shadows. Pinned by `view · the deck
+	## is lit warm and even, not a hot pool`.
+	e.ambient_light_color = Color("#494551")
 	e.ambient_light_energy = 0.62
 	e.fog_enabled = true
-	e.fog_light_color = Color("#3a2f4a")
+	e.fog_light_color = Color("#3a3340")
 	e.fog_density = 0.011
 	## AND THE FOG MUST NOT EAT THE SKY. At the default the depth fog is applied
 	## to the background too, so a horizon painted warm arrives grey — which is
@@ -427,8 +438,18 @@ func _build_world() -> void:
 	##
 	## Filmic rather than AgX: AgX desaturates hard in the highlights and this
 	## palette is carrying information in the hue of a bright ring.
+	##
+	## SG-34, MEASURED then chosen: exposure is a DELIBERATE 0.80, not the default
+	## 1.0. A probe over `.shots/parity/` found the deck was not dark or cool (the
+	## premise) — it was BRIGHTER than the browser (deck-region luminance ~53 vs
+	## ~44) with a searing hot pool (99th-percentile luminance 163 vs 148) that, by
+	## simultaneous contrast, made the warm surround read cold. Deepening the whole
+	## frame to 0.80 pulls luminance to ~44 and the pool peak to ~148 — a richer,
+	## deeper amber with the mood a flat Canvas 2D deck never had, and telegraphs
+	## and element flashes pop HARDER against it, not softer. Pinned, with the
+	## ambient and key, by `view · the deck is lit warm and even, not a hot pool`.
 	e.tonemap_mode = Environment.TONE_MAPPER_FILMIC
-	e.tonemap_exposure = 1.0
+	e.tonemap_exposure = 0.80
 	e.tonemap_white = 6.0
 	e.adjustment_enabled = true
 	e.adjustment_contrast = 1.10
@@ -438,6 +459,16 @@ func _build_world() -> void:
 
 	## Two sources, the same two the art is painted for: a steel-blue moon rim
 	## from the upper left and a warm lantern fill from the lower right.
+	## SG-34, MEASURED: the moon stays the cool storm-dusk KEY at its shipped 1.45,
+	## and it is deliberately NOT reduced. The premise was that the deck read cool
+	## and dark; measured against the browser it read the opposite — brighter and
+	## warmer — and pulling this cool key only spiked the whole deck orange (R/B
+	## drifted to 2.3 against the browser's modest ~1.5) without fixing the one
+	## thing that genuinely reads blue: the crate STACKS, which are blue from their
+	## own model texture, not from this light (they stayed navy at 1.15 too — filed
+	## SG-41). The over-bright, over-hot-pool read SG-34 was really about is fixed
+	## at the exposure and the accent pools, not here; this key is what keeps the
+	## deck's warmth near the browser's rather than orange.
 	var moon := DirectionalLight3D.new()
 	moon.light_color = Color("#8fa6c9")
 	moon.light_energy = 1.45
@@ -1804,7 +1835,7 @@ func _build_boiler() -> void:
 	fire.emission_enabled = true
 	fire.emission_texture = _grille_texture()
 	fire.emission = Color("#ffb060")
-	fire.emission_energy_multiplier = 2.6
+	fire.emission_energy_multiplier = 2.0
 	fire.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fire.cull_mode = BaseMaterial3D.CULL_DISABLED
 	furnace.mesh.material = fire
@@ -1863,7 +1894,7 @@ func _sync_boiler_damage() -> void:
 	## still the brightest thing on the deck and still the thing you are stood on
 	## defending. A quarter of the light is a dying fire, no light is a prop.
 	var gutter: float = 1.0 if life > 0.35 else 0.72 + 0.28 * sin(_flicker * 13.0)
-	_boiler_glow.light_energy = (0.45 + 1.25 * life) * gutter
+	_boiler_glow.light_energy = (0.38 + 0.95 * life) * gutter
 	## And the body goes cold and grey. There is no `modulate` on a Node3D, and
 	## `set_instance_shader_parameter` is a no-op against a StandardMaterial3D —
 	## it needs a shader that declares the uniform, which an imported glTF
@@ -3471,7 +3502,7 @@ func _sync_all(delta: float) -> void:
 			var warm: bool = kind == "brazier"
 			var jitter: float = 1.0 + sin(_flicker * (11.0 if warm else 6.0) + float(id % 17)) * 0.12
 			light.light_color = Color("#ff8a3a") if warm else Color("#ffb347")
-			light.light_energy = (1.5 if warm else 1.0) * jitter
+			light.light_energy = (1.2 if warm else 0.82) * jitter
 			light.omni_range = (330.0 if warm else 260.0) * WORLD_SCALE
 			light.position = Vector3(prop.global_position.x * WORLD_SCALE,
 				(60.0 if warm else 110.0) * WORLD_SCALE, prop.global_position.y * WORLD_SCALE)
@@ -3482,8 +3513,8 @@ func _sync_all(delta: float) -> void:
 			## bright.
 			_decal("glow%d" % id, prop.global_position, 0.0,
 				(430.0 if warm else 330.0), (430.0 if warm else 330.0), _blob_texture(),
-				Color(1.0, 0.56, 0.22, 0.34 * jitter) if warm
-				else Color(1.0, 0.72, 0.36, 0.24 * jitter))
+				Color(1.0, 0.56, 0.22, 0.26 * jitter) if warm
+				else Color(1.0, 0.72, 0.36, 0.18 * jitter))
 
 	## The hulk has three painted states and the port only ever drew one. Sealed
 	## while it is still grappling on, open while it is disgorging boarders,

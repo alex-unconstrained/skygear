@@ -779,6 +779,49 @@ func _view() -> void:
 			and absf(SkyGearView3D.BOILER_HEIGHT - browser_boiler_h) < 0.01,
 		"%.1f ground units vs browser boilerH %.0f" % [boiler_h_gu, browser_boiler_h])
 
+	## SG-34 — THE DECK IS LIT WARM AND EVEN, NOT A HOT POOL. The premise was that
+	## the Godot deck read dark, cool and vignetted; MEASURED against the browser
+	## (probe over `.shots/parity/`), it read the OPPOSITE — brighter, warmer, and
+	## flatter — with the real fault a searing hot pool (boiler emission + brazier
+	## and lantern accents) that, by simultaneous contrast, crushed the warm
+	## surround so it *looked* cold. The fix deepened the exposure and calmed the
+	## accent pools; the cool moon stays the KEY (the storm-dusk light the art is
+	## painted for) so the deck keeps its depth without the surfaces going orange.
+	## This pins the shipped environment so a future edit cannot silently undo it:
+	## re-brighten to the washed HEAD (exposure back near 1.0), re-cool the fill
+	## (a blue-dominant ambient), flood the deck with the cool key (moon energy
+	## back to a floodlight), drop the warm lantern fill, or re-sear the pool (the
+	## boiler furnace emission back to its old 2.6). Constants, not a frame readback
+	## (SG-29 blocks that). Frame the values as informed by the browser, not chained
+	## to it — the owner's 2026-08-01 directive: warm, even, legible, with the mood
+	## a flat Canvas 2D never had.
+	var env := view._environment
+	var amb: Color = env.ambient_light_color
+	var moon_c: Color = view._moon.light_color
+	var lant_c: Color = view._lantern.light_color
+	## The boiler furnace emission — the brightest single source of the pool.
+	var furnace_emit := -1.0
+	if boiler_node != null:
+		for mi_any in boiler_node.find_children("*", "MeshInstance3D", true, false):
+			var m := (mi_any as MeshInstance3D).get_active_material(0) as StandardMaterial3D
+			if m != null and m.emission_enabled:
+				furnace_emit = maxf(furnace_emit, m.emission_energy_multiplier)
+	var warm_even: bool = (
+		env.tonemap_mode == Environment.TONE_MAPPER_FILMIC
+		and env.tonemap_exposure >= 0.70 and env.tonemap_exposure <= 0.92
+		and amb.b - amb.r <= 0.05                        # a near-neutral fill: a FAINT cool fill is
+		                                                # wanted for depth, a strong cool cast is not
+		and env.ambient_light_energy >= 0.45 and env.ambient_light_energy <= 0.80
+		and view._moon.light_energy >= 1.0 and view._moon.light_energy <= 1.6  # a key, not a flood
+		and moon_c.b > moon_c.r                          # and it is the cool storm-dusk key
+		and view._lantern.light_energy >= 0.25 and lant_c.r > lant_c.b  # warm fill floor present
+		and furnace_emit > 0.0 and furnace_emit <= 2.3)  # pool calmed, not the old 2.6 sear
+	_check("view", "the deck is lit warm and even, not a hot pool", warm_even,
+		"expo %.2f · amb #%02x%02x%02x e%.2f · moon e%.2f · lantern e%.2f · furnace %.2f"
+		% [env.tonemap_exposure, int(amb.r * 255), int(amb.g * 255), int(amb.b * 255),
+			env.ambient_light_energy, view._moon.light_energy, view._lantern.light_energy,
+			furnace_emit])
+
 	## SG-15 — THE COLOSSUS WRECK fitting. docs/SHIP-AND-MAPS-DESIGN §5/§8's first
 	## fitting: the art was on disk and sized and NOTHING had ever placed it. It is
 	## placed as set dressing OFF THE BOW (`WRECK_POSITION`), NOT the doc's "hard
@@ -4536,6 +4579,71 @@ func _ink() -> void:
 	_check("card", "the lit slots and the card's hue name the same element",
 		lit == [1] and SkyGearCards.element_of(brittle) == "FROST",
 		"lit %s" % str(lit))
+
+	## THE CENTRAL EMBLEM (SG-35). The browser draws a gauge ring with a glyph on
+	## EVERY card; the port drew it only on a weapon card with an empty preview, so
+	## every upgrade card had a hole in its middle. `emblem_of` is the rule the
+	## face reads, and this pins it: every card resolves a non-empty emblem, every
+	## SLOT upgrade resolves the SHAPE of the weapon it lands on (with a glyph the
+	## HUD can actually draw), and a weapon card resolves its own shape.
+	card_game.skills.clear()
+	for pair in [["CLOSEHIT", "EMBER"], ["RANGED_AOE", "FROST"], ["CONE", "ARC"],
+			["CHAIN", "STEAM"]]:
+		card_game.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
+	var emblem_ok := true
+	var emblem_shaped := 0
+	var emblem_why := ""
+	for entry in SkyGearCards.catalogue():
+		if not (entry.get("can") as Callable).call(card_game):
+			continue
+		var made: Dictionary = (entry.get("make") as Callable).call(card_game, first)
+		made["id"] = str(entry.id)
+		made["kind"] = "card"
+		made["scope"] = str(entry.scope)
+		var em: Dictionary = SkyGearCards.emblem_of(card_game, made)
+		if not em.has("kind"):
+			emblem_ok = false
+			emblem_why = "%s resolves no emblem" % str(entry.id)
+		elif str(em.kind) == "shape":
+			emblem_shaped += 1
+			if not SkyGearHUD.SLOT_ICONS.has(str(em.shape)):
+				emblem_ok = false
+				emblem_why = "%s shape %s has no glyph" % [str(entry.id), str(em.shape)]
+		## A slot upgrade lands on a weapon, so it MUST show that weapon's shape —
+		## the exact case the port left blank.
+		if str(entry.scope) == SkyGearCards.SCOPE_SKILL and str(em.get("kind", "")) != "shape":
+			emblem_ok = false
+			emblem_why = "slot card %s drew no shape" % str(entry.id)
+	var weapon_card := {"kind": "skill", "scope": SkyGearCards.SCOPE_NEW,
+		"skill": SkyGearData.make_skill("CONE", "EMBER")}
+	var wem: Dictionary = SkyGearCards.emblem_of(card_game, weapon_card)
+	_check("card", "every shaped card draws its emblem",
+		emblem_ok and emblem_shaped > 0 and str(wem.get("kind", "")) == "shape"
+			and str(wem.get("shape", "")) == "CONE",
+		emblem_why if emblem_why != "" else "%d shaped cards resolve a glyph" % emblem_shaped)
+
+	## THE HEADING NAMES THE DRAFT (SG-35). It said the generic "CHOOSE ONE" for
+	## all three drafts where the browser names each one.
+	card_game.opening_draft = true
+	var h_open: String = SkyGearHUD.draft_heading(card_game)
+	card_game.opening_draft = false
+	var h_up: String = SkyGearHUD.draft_heading(card_game)
+	card_game.skills.resize(2)
+	var h_new: String = SkyGearHUD.draft_heading(card_game)
+	_check("card", "the draft heading names the draft, not CHOOSE ONE",
+		h_open != "CHOOSE ONE" and h_up != "CHOOSE ONE" and h_new != "CHOOSE ONE"
+			and h_open == "CHOOSE YOUR OPENING WEAPON" and h_up == "DRAFT AN UPGRADE"
+			and h_new == "ARM A NEW SLOT",
+		"%s / %s / %s" % [h_open, h_new, h_up])
+
+	## PROPORTION PIN (SG-35). The card was near-square (368×404 = 0.91), a
+	## landscape plate; it is an unambiguous portrait now and this stops it
+	## drifting back — the browser's tall card was the reference, not the target.
+	_check("card", "the draft card is portrait, not the old near-square plate",
+		SkyGearHUD.CARD_W < SkyGearHUD.CARD_H
+			and SkyGearHUD.CARD_W / SkyGearHUD.CARD_H <= SkyGearHUD.CARD_ASPECT_MAX,
+		"%.3f (ceiling %.2f)" % [SkyGearHUD.CARD_W / SkyGearHUD.CARD_H,
+			SkyGearHUD.CARD_ASPECT_MAX])
 	card_game.queue_free()
 
 
