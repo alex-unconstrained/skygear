@@ -46,6 +46,7 @@ land here directly.
 | SG-21 | P3 | ASSET | Boarding hulk as a hand-modeled mesh (wide, shallow, ramps separate) | OPEN | Two Meshy attempts rejected; do not prompt a third. `HULK_MODEL` wiring is in place and inert. |
 | SG-22 | P3 | ASSET | The furnace knight is still a sprite | OPEN | Two Meshy attempts failed to read as a 180-hp wall. Solve or drop with a reason. |
 | SG-24 | P3 | BUG | Popup menus reported drifting right — not reproduced | OPEN | Measured static across eight samples. Needs to know WHICH menu before it can be chased. Do not close: unreproduced ≠ absent. |
+| SG-56 | P2 | FEATURE | The fittings system: between-run ship modification (POST-PARITY-PLAN items 3+5 under the owner's midnight reframe — fittings apply their deck changes ONCE at run start from the berthed set; the stowage-table half of the plan's wording is superseded by the cut) | IN PROGRESS — fable/fittings, 2026-08-02 | Scope: award in `SkyGearWorkshop.bank()` from fields the run row already records, at most one per run, behind `state.unlocked`; the first six (wreck migrating from SG-15, bow barricade, spare gun, fourth vent, winch verb, scupper grating), each changing DECK or VERB TABLE only — the hard rule verbatim: no fitting touches `mods`, `player`, a starting value, or any `SkyGearWorkshop.NODES` field; six berths chosen between runs, persisted in workshop state; a berth screen in the Workshop's visual language; `ship: [ids]` on the run row (SG-53's blocked half); bare-ship baseline byte-exact. |
 
 ## Done / dropped
 
