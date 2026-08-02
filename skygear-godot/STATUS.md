@@ -14,7 +14,7 @@ Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory
 and defeat shots. **532 harness checks**; the text audit covers 21 screens at
-4 widths and is clean. Build 34 is on itch at
+4 widths and is clean. Build 35 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
