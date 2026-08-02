@@ -5483,6 +5483,43 @@ func _view() -> void:
 			boarder_scenes - boarder_rigged,
 			"clean" if boarder_faults.is_empty() else ", ".join(boarder_faults)])
 
+	## --- board SG-64: the same bargain for the DECK's own meshes -------------
+	## The boarder loop above only reaches kinds the simulation can spawn; the
+	## props reach the renderer through `PROP_MODEL`/`_sync_prop_model`, whose
+	## fallback is SILENT by design — a wired row whose scene is missing, or a
+	## scene with no meshes (the pruning trap) or no `model_height` meta (the
+	## honest ruler `_claim_prop_model` scales by), quietly billboards or
+	## vanishes and nothing says so. Every wired prop key is held to the
+	## statics' half of the SG-45 bargain here; HULK_MODEL joins the moment its
+	## scene exists (its wiring is deliberately inert while the verdict says
+	## painted — see tools/static_model.gd).
+	var prop_keys: Array = []
+	for pk in SkyGearView3D.PROP_MODEL.values():
+		prop_keys.append(str(pk))
+	prop_keys.append(SkyGearView3D.TURRET_MODEL)
+	prop_keys.append(SkyGearView3D.SALVAGE_MODEL)
+	prop_keys.append(SkyGearView3D.BOILER_MODEL)
+	var prop_scenes := 0
+	var prop_faults := PackedStringArray()
+	if ResourceLoader.exists(SkyGearView3D.model_path(SkyGearView3D.HULK_MODEL)):
+		prop_keys.append(SkyGearView3D.HULK_MODEL)
+	for pk in prop_keys:
+		var ppath := SkyGearView3D.model_path(str(pk))
+		if not ResourceLoader.exists(ppath):
+			prop_faults.append("%s: wired but no scene on disk" % pk)
+			continue
+		prop_scenes += 1
+		var pnode: Node = (load(ppath) as PackedScene).instantiate()
+		if pnode.find_children("*", "MeshInstance3D", true, false).is_empty():
+			prop_faults.append("%s: no meshes — the pruning trap" % pk)
+		if float(pnode.get_meta("model_height", 0.0)) <= 0.0:
+			prop_faults.append("%s: no honest ruler" % pk)
+		pnode.free()
+	_check("prop", "every wired deck prop scene keeps the statics' bargain — a scene on disk, meshes inside it, and an honest ruler",
+		prop_scenes > 0 and prop_faults.is_empty(),
+		"%d scenes: %s" % [prop_scenes,
+			"clean" if prop_faults.is_empty() else ", ".join(prop_faults)])
+
 	## --- board SG-55: speed-sync at boarder scale — the skating lesson, part two
 	## `AUTHORED_RUN_SPEED` alone matches the cycle to the ground the CAPTAIN
 	## covers. A boarder is drawn smaller, its stride sweeps proportionally

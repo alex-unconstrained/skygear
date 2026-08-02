@@ -139,34 +139,6 @@
   },
   "remesh": "019fb8b3-ef5c-7629-a232-9860fd410431"
  },
- "scrapper": {
-  "preview": "019fb6d3-1049-7617-875a-307c965ba1a8",
-  "refine": "019fb6d4-6868-7654-a11a-9bcf24e661ca",
-  "credits": 30,
-  "files": [
-   "scrapper.glb",
-   "scrapper.fbx",
-   "scrapper_base_color.png",
-   "scrapper_metallic.png",
-   "scrapper_roughness.png",
-   "scrapper_normal.png",
-   "scrapper_emission.png",
-   "scrapper_thumb.png"
-  ],
-  "remesh_credits": 5,
-  "remeshed": {
-   "tris": 3000,
-   "tex": {
-    "base_color": 1024,
-    "normal": 512,
-    "metallic_roughness": 256,
-    "emission": 256
-   },
-   "bytes": 659056,
-   "original_bytes": 11070968
-  },
-  "remesh": "019fb8b3-e5e2-7947-8861-196fa3f16529"
- },
  "armored": {
   "preview": "019fb6fd-76ba-7d8b-92d5-240878b833b9",
   "refine": "019fb6fe-d7b6-7dd1-91ca-8c95d78cf202",
@@ -223,34 +195,6 @@
   },
   "remesh": "019fb8b3-f699-713f-90d7-66d1e4f6b0ec"
  },
- "crate_small": {
-  "preview": "019fb831-6bcd-7f11-8a64-df64171c1bd8",
-  "refine": "019fb834-0e50-7909-9ced-f13a25b83e12",
-  "credits": 30,
-  "files": [
-   "crate_small.glb",
-   "crate_small.fbx",
-   "crate_small_base_color.png",
-   "crate_small_metallic.png",
-   "crate_small_roughness.png",
-   "crate_small_normal.png",
-   "crate_small_emission.png",
-   "crate_small_thumb.png"
-  ],
-  "remesh_credits": 5,
-  "remeshed": {
-   "tris": 3000,
-   "tex": {
-    "base_color": 512,
-    "normal": 256,
-    "metallic_roughness": 128,
-    "emission": 128
-   },
-   "bytes": 287452,
-   "original_bytes": 8699888
-  },
-  "remesh": "019fb8b5-d760-7d18-a3bb-4c94b398f066"
- },
  "powder_keg": {
   "preview": "019fb836-6212-73fc-8e12-c812e8e03cb3",
   "refine": "019fb838-395b-7457-8534-4448629faa92",
@@ -306,34 +250,6 @@
    "original_bytes": 11417396
   },
   "remesh": "019fb8b6-54b3-7d2d-a925-5948814f12c3"
- },
- "brazier": {
-  "preview": "019fb83d-6b9d-755d-b7f3-205a5b473f74",
-  "refine": "019fb83f-947d-7229-9292-db42161a892e",
-  "credits": 30,
-  "files": [
-   "brazier.glb",
-   "brazier.fbx",
-   "brazier_base_color.png",
-   "brazier_metallic.png",
-   "brazier_roughness.png",
-   "brazier_normal.png",
-   "brazier_emission.png",
-   "brazier_thumb.png"
-  ],
-  "remesh_credits": 5,
-  "remeshed": {
-   "tris": 3000,
-   "tex": {
-    "base_color": 512,
-    "normal": 256,
-    "metallic_roughness": 128,
-    "emission": 128
-   },
-   "bytes": 312580,
-   "original_bytes": 10252048
-  },
-  "remesh": "019fb8b6-570b-7d2e-96ec-6d047404f6d1"
  },
  "steam_vent": {
   "preview": "019fb841-94b8-7629-b06a-3e49743f489f",
@@ -447,34 +363,6 @@
   },
   "remesh": "019fb8b3-f1c7-7c9e-8efc-59dc8607132f"
  },
- "boarding_hulk": {
-  "preview": "019fb85f-7d1b-793c-8efb-18872cc8bc76",
-  "refine": "019fb862-4bc0-7237-8523-29563b9957ed",
-  "credits": 30,
-  "files": [
-   "boarding_hulk.glb",
-   "boarding_hulk.fbx",
-   "boarding_hulk_base_color.png",
-   "boarding_hulk_metallic.png",
-   "boarding_hulk_roughness.png",
-   "boarding_hulk_normal.png",
-   "boarding_hulk_emission.png",
-   "boarding_hulk_thumb.png"
-  ],
-  "remesh_credits": 5,
-  "remeshed": {
-   "tris": 8000,
-   "tex": {
-    "base_color": 1024,
-    "normal": 512,
-    "metallic_roughness": 256,
-    "emission": 256
-   },
-   "bytes": 841328,
-   "original_bytes": 11334076
-  },
-  "remesh": "019fb8b3-f442-7c9f-8dbd-ebe18d54af8a"
- },
  "boilerwright": {
   "preview": "019fbffa-ee6a-74a0-bb45-5120a2625029",
   "preview_credits": 20,
@@ -537,6 +425,149 @@
    },
    "bytes": 245720,
    "original_bytes": 9639396
+  }
+ },
+ "scrapper": {
+  "preview": "019fc2b4-7d99-7edb-82c1-13a37ad46a2b",
+  "refine": "019fc2b5-c50e-7938-aaff-cd9c41982e55",
+  "credits": 30,
+  "files": [
+   "scrapper.glb",
+   "scrapper.fbx",
+   "scrapper_base_color.png",
+   "scrapper_metallic.png",
+   "scrapper_roughness.png",
+   "scrapper_normal.png",
+   "scrapper_emission.png",
+   "scrapper_thumb.png"
+  ],
+  "remesh": "019fc2b7-3e00-7de0-8c49-cc0d5e26849e"
+ },
+ "brazier": {
+  "preview": "019fc2b8-4500-7e1d-b561-8d1f951b70f8",
+  "refine": "019fc2b9-d8af-7a24-8fc6-a7dfd368b228",
+  "credits": 30,
+  "files": [
+   "brazier.glb",
+   "brazier.fbx",
+   "brazier_base_color.png",
+   "brazier_metallic.png",
+   "brazier_roughness.png",
+   "brazier_normal.png",
+   "brazier_emission.png",
+   "brazier_thumb.png"
+  ],
+  "remesh": "019fc2ce-a146-7194-b7fa-70f6722b473e",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 324740,
+   "original_bytes": 11824592
+  }
+ },
+ "crate_small": {
+  "preview": "019fc2bc-16ee-7081-b259-10a763f49fa0",
+  "refine": "019fc2be-9a25-70e9-8223-797c630f15a9",
+  "credits": 30,
+  "files": [
+   "crate_small.glb",
+   "crate_small.fbx",
+   "crate_small_base_color.png",
+   "crate_small_metallic.png",
+   "crate_small_roughness.png",
+   "crate_small_normal.png",
+   "crate_small_emission.png",
+   "crate_small_thumb.png"
+  ],
+  "remesh": "019fc2ce-a06c-7193-970f-a96a1e7a25d1",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 261108,
+   "original_bytes": 8357192
+  }
+ },
+ "boarding_hulk": {
+  "preview": "019fc2c1-2352-7b74-a9b5-f9d95495a913",
+  "refine": "019fc2c3-a63f-720e-a413-b5d81d11a07a",
+  "credits": 30,
+  "files": [
+   "boarding_hulk.glb",
+   "boarding_hulk.fbx",
+   "boarding_hulk_base_color.png",
+   "boarding_hulk_metallic.png",
+   "boarding_hulk_roughness.png",
+   "boarding_hulk_normal.png",
+   "boarding_hulk_emission.png",
+   "boarding_hulk_thumb.png"
+  ]
+ },
+ "mast_section": {
+  "preview": "019fc2c6-1117-7109-b449-e302485769c9",
+  "refine": "019fc2c7-2fc2-714c-ad65-c4900753124c",
+  "credits": 30,
+  "files": [
+   "mast_section.glb",
+   "mast_section.fbx",
+   "mast_section_base_color.png",
+   "mast_section_metallic.png",
+   "mast_section_roughness.png",
+   "mast_section_normal.png",
+   "mast_section_emission.png",
+   "mast_section_thumb.png"
+  ],
+  "remesh": "019fc2ce-a212-7df6-9869-f97fd134aee4",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 8000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 916740,
+   "original_bytes": 11127196
+  }
+ },
+ "harpoon_ballista": {
+  "preview": "019fc2ca-105d-71fa-a32c-6fea3356f10e",
+  "refine": "019fc2ca-df2b-7339-9117-822b5a63f8f6",
+  "credits": 30,
+  "files": [
+   "harpoon_ballista.glb",
+   "harpoon_ballista.fbx",
+   "harpoon_ballista_base_color.png",
+   "harpoon_ballista_metallic.png",
+   "harpoon_ballista_roughness.png",
+   "harpoon_ballista_normal.png",
+   "harpoon_ballista_emission.png",
+   "harpoon_ballista_thumb.png"
+  ],
+  "remesh": "019fc2ce-a2ce-73e1-80a4-ec02b68b2c9c",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 321500,
+   "original_bytes": 11008716
   }
  }
 }

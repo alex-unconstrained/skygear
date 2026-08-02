@@ -1,0 +1,35 @@
+{
+  "key": "mast_section",
+  "ai_model": "meshy-6",
+  "prompt": "A lower section of an airship deck mast: one thick upright dark timber column bound with polished brass bands, riveted iron plates around its base; a small round crow's-nest platform ringed by a brass rail at the top, a spiked brass finial above it; a rope ladder lying flat against one side; a hung coil of rope partway up. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Weathered near-black timber column with open grain, warm polished brass bands, rail and fittings, dark riveted iron base plates, coarse pale hemp rope, oxidised copper patina in the recesses. Hand-painted stylised game texture: weathered dark timber planks with open grain, warm polished brass corner brackets and rivets, deep oxblood leather strapping, coarse pale hemp rope, dull oxidised-copper patina in the recesses. Nothing emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 12000,
+  "texture_resolution": "2k",
+  "preview_task": "019fc2c6-1117-7109-b449-e302485769c9",
+  "refine_task": "019fc2c7-2fc2-714c-ad65-c4900753124c",
+  "credits": 30,
+  "files": [
+    "mast_section.glb",
+    "mast_section.fbx",
+    "mast_section_base_color.png",
+    "mast_section_metallic.png",
+    "mast_section_roughness.png",
+    "mast_section_normal.png",
+    "mast_section_emission.png",
+    "mast_section_thumb.png"
+  ],
+  "screen_units": 340.0,
+  "remesh_task": "019fc2ce-a212-7df6-9869-f97fd134aee4",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 8000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 916740,
+    "original_bytes": 11127196
+  }
+}

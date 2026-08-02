@@ -1,12 +1,12 @@
 {
   "key": "crate_small",
   "ai_model": "meshy-6",
-  "prompt": "One small wooden shipping crate, a plank cube with dark blue-steel corner brackets and rivets on every corner, and one oxblood leather strap running over the top and down the front face with a brass buckle. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
-  "texture_prompt": "Warm brown timber planks with open grain, dark blue-steel corner brackets with brass rivets, a deep oxblood leather strap and a polished brass buckle. Hand-painted stylised game texture: weathered dark timber planks with open grain, warm polished brass corner brackets and rivets, deep oxblood leather strapping, coarse pale hemp rope, dull oxidised-copper patina in the recesses. Nothing emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "One small plain wooden munitions crate: a sealed plank cube nailed shut, six flat faces, a flat plank top that does not open, dark blue-steel corner brackets riveted on every corner, one flat oxblood leather band nailed over the top and down the front face. Not a chest: no lid, no hinges, no lock, no clasp, no gold. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Warm brown timber planks with open grain, dark blue-steel corner brackets, small brass rivets, one deep oxblood leather band. Hand-painted stylised game texture: warm brown timber planks with open grain, dark blue-steel bracket plates, small warm brass rivets, deep oxblood leather. Muted low-saturation colours, nothing gold, nothing emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 6000,
   "texture_resolution": "2k",
-  "preview_task": "019fb831-6bcd-7f11-8a64-df64171c1bd8",
-  "refine_task": "019fb834-0e50-7909-9ced-f13a25b83e12",
+  "preview_task": "019fc2bc-16ee-7081-b259-10a763f49fa0",
+  "refine_task": "019fc2be-9a25-70e9-8223-797c630f15a9",
   "credits": 30,
   "files": [
     "crate_small.glb",
@@ -19,7 +19,7 @@
     "crate_small_thumb.png"
   ],
   "screen_units": 84.0,
-  "remesh_task": "019fb8b5-d760-7d18-a3bb-4c94b398f066",
+  "remesh_task": "019fc2ce-a06c-7193-970f-a96a1e7a25d1",
   "remesh_credits": 5,
   "remeshed": {
     "tris": 3000,
@@ -29,7 +29,7 @@
       "metallic_roughness": 128,
       "emission": 128
     },
-    "bytes": 287452,
-    "original_bytes": 8699888
+    "bytes": 261108,
+    "original_bytes": 8357192
   }
 }

@@ -216,6 +216,20 @@ SURFACE_WOOD = (
     "no baked shadow, no text, no logos."
 )
 
+# The small crate's own surface clause (board SG-64). SURFACE_WOOD asks for
+# "warm polished brass corner brackets" and crate_small's brackets are
+# BLUE-STEEL — one prompt carrying both halves of an argument, the same
+# contradiction that cost the furnace knight, and the likeliest source of v1's
+# saturated brass-and-gold treasure chest. Muted is stated as a property, and
+# gold is refused where the texture pass will read it.
+SURFACE_CRATE = (
+    "Hand-painted stylised game texture: warm brown timber planks with open "
+    "grain, dark blue-steel bracket plates, small warm brass rivets, deep "
+    "oxblood leather. Muted low-saturation colours, nothing gold, nothing "
+    "emits light. Broad flat colour areas, no baked lighting, no baked "
+    "shadow, no text, no logos."
+)
+
 # The one boarder that is not made of metal. SURFACE names five metals and no
 # skin, and a texture prompt that never says "skin" paints the gremlin as a
 # small brass statue — which is a different enemy.
@@ -653,12 +667,33 @@ ASSETS = [
     #   * "an iris hatch in its front" put a hatch in the top, because nothing
     #     had established where the front was. The wall establishes it, and the
     #     door is now in the middle of the wall rather than in "its front".
+    # v3 (board SG-64 — the owner reopened the hand-model verdict for ONE more
+    # prompted attempt, and if this one loses too the verdict is FINAL, on the
+    # board row). IT LOST — stone masonry and an arched door against three
+    # painted states of round-iris iron, and the depth ratio ignored a third
+    # time (1.639 deep against 1.899 wide, asked for 0.25). The verdict at
+    # tools/static_model.gd is FINAL: hand-model or keep the sprite (SG-21).
+    # v2 was a good model that lost to a shape: as deep as it was
+    # wide, so at the locked 41-degree camera its mass went up out of frame and
+    # what stayed on screen was a pale staircase. The verdict at
+    # static_model.gd says what a winner must be, so v3 says exactly that and
+    # nothing else new:
+    #   * DEPTH is the whole argument now. v2 said "twice as wide as tall" and
+    #     never bounded the third axis, and Meshy filled it. v3 bounds it
+    #     twice — a facade "like a theatre flat", and shallow front-to-back,
+    #     a quarter of its width — because one clause against a generator's
+    #     idea of a vehicle is how v1 and v2 both lost.
+    #   * the ramps are LOW SEPARATE GEOMETRY lying at ground level, splayed
+    #     from the bottom corners — not stairs climbing the front face.
+    #   * everything expensive on the ONE face the camera sees; the back said
+    #     flat and plain so no mass grows behind the wall.
     A("boarding_hulk",
-      "A wide armoured siege ram front, like a fortress gate: a broad flat front "
-      "wall of dark iron plate and dark timber planking, twice as wide as it is "
-      "tall, bound by vertical brass straps; a large round iron door in the "
-      "middle of that wall, standing open with fire inside; a heavy timber ramp "
-      "lowered flat on each side; a short chimney at each top corner.",
+      "A wide flat armoured siege facade, like a theatre flat: one broad wall "
+      "of dark iron plate and dark timber, twice as wide as tall, shallow "
+      "front to back, depth a quarter of its width, the back plain; a big "
+      "round iron door mid-wall, open with fire inside; a low flat timber "
+      "ramp at ground level, splayed from each bottom corner; a short chimney "
+      "at each top corner.",
       "Dark blue-grey iron plate and near-black weathered timber planking, warm "
       "polished brass strap bands and rivets, oxidised copper pipework, bare "
       "worn steel along the ramp edges, a hot orange furnace burning inside the "
@@ -700,14 +735,27 @@ ASSETS = [
       "copper patch plate.",
       "props", 8000, DECK, SURFACE_WOOD, screen=148.0),
 
+    # v2 (board SG-64, the reopened rejection). v1 came back a bright orange
+    # treasure chest with a big gold clasp, and the verdict at static_model.gd
+    # named the culprit: "one oxblood leather strap ... with a brass buckle" is
+    # a chest FASTENING, so it was given a chest. Two fixes, both in the words:
+    #   * the object is a sealed munitions crate, nailed shut — no lid, no
+    #     hinges, no lock, no clasp, no gold, each refused by name, because a
+    #     chest is the nearest familiar shape and it has to be walled off.
+    #   * the buckle is gone from BOTH prompts, and the crate gets its own
+    #     surface clause instead of SURFACE_WOOD: that shared line asks for
+    #     "warm polished brass corner brackets" while this crate's brackets are
+    #     blue-steel — the furnace knight's contradiction, hiding in a texture
+    #     frame, and the likeliest source of the saturated brass-orange finish.
     A("crate_small",
-      "One small wooden shipping crate, a plank cube with dark blue-steel corner "
-      "brackets and rivets on every corner, and one oxblood leather strap "
-      "running over the top and down the front face with a brass buckle.",
-      "Warm brown timber planks with open grain, dark blue-steel corner brackets "
-      "with brass rivets, a deep oxblood leather strap and a polished brass "
-      "buckle.",
-      "props", 6000, DECK, SURFACE_WOOD, screen=84.0),
+      "One small plain wooden munitions crate: a sealed plank cube nailed "
+      "shut, six flat faces, a flat plank top that does not open, dark "
+      "blue-steel corner brackets riveted on every corner, one flat oxblood "
+      "leather band nailed over the top and down the front face. Not a chest: "
+      "no lid, no hinges, no lock, no clasp, no gold.",
+      "Warm brown timber planks with open grain, dark blue-steel corner "
+      "brackets, small brass rivets, one deep oxblood leather band.",
+      "props", 6000, DECK, SURFACE_CRATE, screen=84.0),
 
     A("powder_keg",
       "A steampunk explosive powder keg: a squat egg-shaped riveted iron barrel; "
@@ -731,12 +779,26 @@ ASSETS = [
       "patina in the recesses.",
       "props", 10000, DECK, screen=200.0),
 
+    # v2 (board SG-64, the reopened rejection). v1's two recorded faults, both
+    # addressed in the words that caused them (tools/static_model.gd has the
+    # verdict):
+    #   * a bowl of grey-blue rock inside its own orange OmniLight. The texture
+    #     line said "charred black timber" — the one clause naming a cold, dark
+    #     material for the bowl's contents — and the coals resolved to it. The
+    #     clause is REMOVED, the burning is stated in both prompts, and "no grey
+    #     stone" refuses the failure by name.
+    #   * 1.898 wide x 0.925 tall, so PROP_HEIGHT's 116 made it 238 ground units
+    #     across — wider than the captain is tall. "Wide shallow bowl" was the
+    #     culprit pair; v2 says upright and compact, taller than it is wide,
+    #     and gives the bowl DEPTH instead of width.
     A("brazier",
-      "A wide shallow iron fire bowl on three splayed iron legs, the bowl bound "
-      "by two riveted iron bands, heaped with burning coals that glow hot "
-      "orange.",
-      "Rust-brown weathered iron bowl with dark riveted bands, charred black "
-      "timber, and coals burning hot orange in the centre.",
+      "An upright cast-iron deck brazier, taller than it is wide: a deep round "
+      "fire basket bound by two riveted iron bands, standing on three tall "
+      "splayed iron legs, heaped high with burning coals that glow hot orange, "
+      "bright embers all across the top of the coal bed.",
+      "Rust-brown weathered iron bowl and legs with dark riveted bands, the "
+      "whole coal bed burning hot orange with bright glowing embers, warm "
+      "orange glow on the bowl rim; no grey stone.",
       "props", 6000, DECK, screen=116.0),
 
     A("steam_vent",
@@ -770,6 +832,50 @@ ASSETS = [
       "blue-steel spring, oxidised copper patina in the recesses, a cream gauge "
       "dial.",
       "props", 8000, DECK, screen=62.0),
+
+    # --- the ship's own furniture (board SG-64: the 2D purge) ------------------
+    # The owner ordered the remaining painted deck objects migrated, "especially
+    # those that do not need animations". These two are the largest painted
+    # things left standing on the deck itself: the mast is 340 ground units at
+    # dead centre — the tallest prop in PROP_HEIGHT, in frame the whole run —
+    # and the two ballistae hold the bow corners. Subjects written off
+    # mast_section.png and harpoon_ballista.png, feature by feature, as ever.
+    #
+    # Both ACCEPTED at the real camera (verdicts and departures recorded at
+    # tools/static_model.gd beside their rows; .shots/sg64/ has the frames).
+    #
+    # What is deliberately NOT in the mast prompt: the four splayed stays and
+    # their blocks, half the painting's silhouette. A billboard can hang rope
+    # in the air; a mesh's stays would anchor to nothing, read as spider legs
+    # from every angle the billboard never shows, and be exactly the thin-plate
+    # geometry the remesh weld-collapses (the gunner's propeller lesson). The
+    # rope ladder survives because it lies against the column.
+    A("mast_section",
+      "A lower section of an airship deck mast: one thick upright dark timber "
+      "column bound with polished brass bands, riveted iron plates around its "
+      "base; a small round crow's-nest platform ringed by a brass rail at the "
+      "top, a spiked brass finial above it; a rope ladder lying flat against "
+      "one side; a hung coil of rope partway up.",
+      "Weathered near-black timber column with open grain, warm polished brass "
+      "bands, rail and fittings, dark riveted iron base plates, coarse pale "
+      "hemp rope, oxidised copper patina in the recesses.",
+      "props", 12000, DECK, SURFACE_WOOD, screen=340.0),
+
+    # The painting's coiled harpoon chain is left out the same way: loose
+    # ground clutter beside the base would widen the measured footprint and
+    # come back as blobby welded links at 3,000 triangles. The read at 221 px
+    # is the crossbow silhouette on the pedestal and the barbed harpoon.
+    A("harpoon_ballista",
+      "A deck-mounted harpoon ballista: a heavy crossbow of blackened steel "
+      "and dark timber, mounted on a short round riveted brass pedestal over "
+      "a round timber deck ring; two thick curved timber bow arms bound in "
+      "brass; a long barbed steel harpoon lying in the launch groove on top; "
+      "a small wooden crank handle at the rear.",
+      "Blackened steel launcher and harpoon, dark oiled timber stock and bow "
+      "arms with polished brass bindings, riveted warm brass pedestal, bare "
+      "worn steel on the barbed harpoon head, oxidised copper patina in the "
+      "recesses.",
+      "props", 12000, DECK, screen=118.0),
 
     # In the manifest, deliberately NOT generated, and the reason is the same one
     # that keeps the furnace knight painted: it would not be an improvement.

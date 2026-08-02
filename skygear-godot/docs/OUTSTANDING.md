@@ -58,6 +58,17 @@ board row:
    workflow"* — clarified: reopen the rejected props (brazier, small crate,
    hulk), generate the never-tried, AND migrate figures; scrapper regen
    implicitly approved as the figure pilot. (SG-64 props, SG-65 scrapper)
+   **PROPS HALF DONE 2026-08-02** (board SG-64 has the full inventory and
+   per-prop verdicts): brazier and small crate re-rolled with the recorded
+   rejection reasons as prompt constraints — both CLEARED; the mast and the
+   two bow ballistae generated and wired — the mast was the deck's worst
+   remaining eyesore; the hulk's one constrained re-attempt got the wall
+   shape and lost on stone-masonry palette + arch-for-iris — hand-model
+   verdict FINAL, spec in `handoff-3d/`. Still painted, recorded with
+   reasons on the row: railing/hatch (unfunded under the 200-credit cap,
+   filed), rope coil (smallest thing on the deck), the wreck fitting.
+   `prop · every wired deck prop scene keeps the statics' bargain — a scene
+   on disk, meshes inside it, and an honest ruler` pins the wired set.
 
 Animations: clarified as wrong-reading clips, not glitches — the owner makes
 Mixamo clips from `Downloads\boilerwright-mixamo.zip`; the retarget path

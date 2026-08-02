@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/brazier/brazier.glb" id="1_x7l1a"]
+
+[node name="Brazier" type="Node3D" unique_id=850363379]
+metadata/model_height = 1.8930342
+
+[node name="Holder" type="Node3D" parent="." unique_id=1476142491]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0013574958, 0.9474841, 0.0012820959)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1430636388 instance=ExtResource("1_x7l1a")]

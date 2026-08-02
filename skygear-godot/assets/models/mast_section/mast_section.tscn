@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/mast_section/mast_section.glb" id="1_8y1tl"]
+
+[node name="Mast Section" type="Node3D" unique_id=627788557]
+metadata/model_height = 1.8966961
+
+[node name="Holder" type="Node3D" parent="." unique_id=109387256]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0001859963, 0.9505811, 0.0013155043)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=78741017 instance=ExtResource("1_8y1tl")]

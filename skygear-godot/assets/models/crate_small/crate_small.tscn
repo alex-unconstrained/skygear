@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/crate_small/crate_small.glb" id="1_io587"]
+
+[node name="Crate Small" type="Node3D" unique_id=1756299408]
+metadata/model_height = 1.3727621
+
+[node name="Holder" type="Node3D" parent="." unique_id=2030060070]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0010109544, 0.68653214, 0.0015614629)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=723739725 instance=ExtResource("1_io587")]

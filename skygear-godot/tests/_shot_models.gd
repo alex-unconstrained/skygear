@@ -34,6 +34,7 @@ const HEIGHT := {
 	"crate_stack": 148.0, "crate_small": 84.0, "powder_keg": 100.0,
 	"lantern_post": 200.0, "brazier": 116.0, "steam_vent": 52.0,
 	"cannon_deck": 130.0, "salvage_pile": 62.0, "captain": 176.0,
+	"mast_section": 340.0, "harpoon_ballista": 118.0,
 }
 
 

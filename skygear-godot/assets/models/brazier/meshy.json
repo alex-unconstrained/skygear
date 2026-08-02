@@ -1,12 +1,12 @@
 {
   "key": "brazier",
   "ai_model": "meshy-6",
-  "prompt": "A wide shallow iron fire bowl on three splayed iron legs, the bowl bound by two riveted iron bands, heaped with burning coals that glow hot orange. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
-  "texture_prompt": "Rust-brown weathered iron bowl with dark riveted bands, charred black timber, and coals burning hot orange in the centre. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "prompt": "An upright cast-iron deck brazier, taller than it is wide: a deep round fire basket bound by two riveted iron bands, standing on three tall splayed iron legs, heaped high with burning coals that glow hot orange, bright embers all across the top of the coal bed. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Rust-brown weathered iron bowl and legs with dark riveted bands, the whole coal bed burning hot orange with bright glowing embers, warm orange glow on the bowl rim; no grey stone. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 6000,
   "texture_resolution": "2k",
-  "preview_task": "019fb83d-6b9d-755d-b7f3-205a5b473f74",
-  "refine_task": "019fb83f-947d-7229-9292-db42161a892e",
+  "preview_task": "019fc2b8-4500-7e1d-b561-8d1f951b70f8",
+  "refine_task": "019fc2b9-d8af-7a24-8fc6-a7dfd368b228",
   "credits": 30,
   "files": [
     "brazier.glb",
@@ -19,7 +19,7 @@
     "brazier_thumb.png"
   ],
   "screen_units": 116.0,
-  "remesh_task": "019fb8b6-570b-7d2e-96ec-6d047404f6d1",
+  "remesh_task": "019fc2ce-a146-7194-b7fa-70f6722b473e",
   "remesh_credits": 5,
   "remeshed": {
     "tris": 3000,
@@ -29,7 +29,7 @@
       "metallic_roughness": 128,
       "emission": 128
     },
-    "bytes": 312580,
-    "original_bytes": 10252048
+    "bytes": 324740,
+    "original_bytes": 11824592
   }
 }

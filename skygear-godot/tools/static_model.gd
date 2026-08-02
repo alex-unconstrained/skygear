@@ -94,29 +94,38 @@ const MODELS := {
 	## the camera never leaves +Z, and a boiler turned round is a brass barrel.
 	"boiler": 0.0,
 
-	## "boarding_hulk" is generated TWICE, both on disk, and deliberately NOT
-	## here. The furnace knight's rule again, and the closest parallel to it.
+	## "boarding_hulk" is generated THREE times, and deliberately NOT here.
+	## The owner reopened the two-rejection verdict for ONE more prompted
+	## attempt with hard constraints (board SG-64), it failed on a NEW axis,
+	## and by the owner's own condition THE HAND-MODEL VERDICT IS NOW FINAL
+	## (board SG-21). Do not prompt a fourth.
 	##
-	## v1 came back a submarine. v2 fixed that — a wide armoured box, a round
-	## door standing open with fire in its throat, a ramp down, brass straps —
-	## and as a MODEL it is good. It still loses, and it loses to something no
-	## prompt can fix, which is why the third attempt is not worth buying:
+	## v1 came back a submarine. v2 came back a good model as deep as it was
+	## wide, so at the locked 41-degree camera its mass went up out of frame
+	## and what stayed on screen was a pale staircase.
 	##
-	## The painted hulk works because it is a FLAT FACADE and a billboard turns
-	## to face the camera, so all 420 units of it are always presented square-on:
-	## a wall of armour across the top of the frame with a glowing hole in the
-	## middle. The mesh is as DEEP as it is wide. At a locked 41-degree camera
-	## its mass goes up out of frame and what remains on screen is the ramp —
-	## a pale blue-grey staircase laid across the middle of the deck, with the
-	## door, the funnels and the straps all invisible. Posed side by side with
-	## the sprite at the bow and again from mid-deck, it is not a close call.
+	## v3 (SG-64) said wall, theatre flat, "depth a quarter of its width",
+	## ramps as low separate geometry — and the GEOMETRY LESSONS LANDED at the
+	## judging pose (.shots/sg64/hulk-after-mid.png against hulk-before-mid):
+	## a wall across the top of the frame, the fire door glowing mid-wall, a
+	## ramp lying on the planking. Two failures anyway, either one fatal:
 	##
-	## Shrinking it does not help: it is a shape problem, not a size one. A mesh
-	## only beats this sprite if it is much wider and much SHALLOWER than
-	## anything text-to-3D returned — a wall with its ramps as separate low
-	## geometry — and at that point it is modelled by hand, not prompted.
+	##   * the depth constraint was ignored a third time — measured 1.899 wide
+	##     x 1.639 DEEP, 86% against the asked 25%. Three prompts, three
+	##     depth failures: text-to-3D will not hold a depth ratio, now known
+	##     at ninety credits' certainty.
+	##   * "fortress gate" won over the palette: pale cracked STONE MASONRY
+	##     where every painted state wears dark iron plate and near-black
+	##     timber, battlement crenellations, and a Gothic ARCH for a door
+	##     where sealed/open/destroyed all wear the round iris. The renderer
+	##     keeps the painted art for the other two states by design, so a
+	##     hulk that breaks would pop from a stone arch-gate to a blown iron
+	##     iris — a different object mid-fight, which is the crate v1
+	##     rejection reason at forty times the size.
 	##
-	## Sixty credits, and what it bought is knowing the sprite was right.
+	## Ninety credits total, and what they bought is the full shape of the
+	## problem: the sprite stays until someone hand-models a wide, shallow,
+	## iron-and-timber wall with the iris in it.
 
 	"crate_stack": 0.0,
 	"powder_keg": 0.0,
@@ -125,34 +134,69 @@ const MODELS := {
 	"cannon_deck": 0.0,
 	"salvage_pile": 0.0,
 
-	## "brazier" is generated and on disk and is deliberately NOT here.
-	##
-	## Its entire job on this deck is to be a FIRE — it is one of only two props
-	## the renderer hangs an OmniLight on, and the painted one is a bowl of coals
-	## burning orange. The mesh came back with a bowl of grey-blue rock. Standing
-	## inside its own orange light, contradicting it, it reads as a bathtub full
-	## of rubble. The prompt asked for "burning coals that glow hot orange" and
-	## the texture line asked twice; what it also said was "charred black timber",
-	## and that is the likeliest culprit for the next person to fix.
-	##
-	## It is also the wrong SHAPE: 1.898 wide by 0.925 tall, so scaling it to
-	## PROP_HEIGHT's 116 makes it 238 ground units across — wider than the
-	## captain is tall, against a painted brazier of about ninety. Two faults,
-	## either one disqualifying.
+	## The ship's own furniture, board SG-64 — the owner's 2D purge. The mast
+	## was the strongest case on the deck: 340 units at dead centre, in frame
+	## the whole run, and the billboard reads as a thin translucent smear with
+	## rigging that anchors to nothing (.shots/sg64/mast-before.png — note the
+	## pole behind the captain, not the brown sheet, which is her SG-63 cape).
+	## The mesh is a dark banded timber column with a railed crow's nest, a
+	## ladder and a hung rope coil — the house palette, judged on the deck at
+	## .shots/sg64/mast-after.png. Two departures recorded: it is a TOWER of a
+	## mast (0.887 wide x 1.899 tall — ~159 ground units across at height 340,
+	## against the painting's slender pole; "thick upright column" in the
+	## prompt bought exactly what it said), and the "spiked brass finial"
+	## resolved into a small red mace-like standard leaning off the nest. Both
+	## read as steampunk furniture at 636 px; neither loses to a ghost.
+	"mast_section": 0.0,
 
-	## "crate_small" is generated and on disk and is deliberately NOT here.
+	## The bow-corner harpoon emplacements. FACING 0 IS A MEASURED CHOICE, not
+	## a default: the machine is 1.899 long x 0.366 DEEP, so turned to fire
+	## up-deck (facing 90, .shots/sg64/ballista-f90.png) the whole silhouette
+	## collapses to a 44-unit-wide telescope on a stand. Side-on (facing 0,
+	## .shots/sg64/ballista-after.png) it spans ~229 units of bow arms,
+	## harpoon and pedestal — the same left-pointing pose the painted
+	## billboard has always struck at BOTH corners, so the mesh changes
+	## nothing about the fiction, only stops it being a card. The placed
+	## SENTRY deliberately keeps the tinted billboard (`_place` at the sentry
+	## block): a sentry that looks different from the ship's own emplacements
+	## is the point — five identical guns was a filed complaint once.
+	"harpoon_ballista": 0.0,
+
+	## v2, board SG-64 — the owner reopened the v1 rejection and the re-roll
+	## with v1's two recorded faults written into the prompt CLEARED THE BAR.
 	##
-	## It came back a bright orange treasure chest with a big gold clasp. The
-	## billboard is a dark blue-brown plank cube with blue-steel corner brackets
-	## and one oxblood strap; the mesh is the most saturated object on the deck
-	## and sits four feet from cargo runs painted in blue-grey. It is not that it
-	## is ugly — it is that it is a different object in a different palette, and
-	## a deck of eight generated props and twelve painted ones only holds
-	## together if they are the same objects.
+	## v1's verdict, kept because it is why the v2 prompt reads as it does: its
+	## entire job on this deck is to be a FIRE — one of only two props the
+	## renderer hangs an OmniLight on — and v1 came back a bowl of grey-blue
+	## rock ("charred black timber" in the texture line was the culprit), 1.898
+	## wide by 0.925 tall so PROP_HEIGHT's 116 made it 238 ground units across.
+	## v2 removed the timber clause, refused grey stone by name, and led with
+	## "upright, taller than it is wide": it measures 1.234 x 1.895 x 1.145 —
+	## ~76 units wide on the deck — and at the real 41-degree camera the open
+	## basket shows a coal bed blazing hot orange INTO the lens, agreeing with
+	## its own light where the painted side-on bowl only implied it
+	## (.shots/sg64/deck-brazier.png against deck-before.png). The dangling
+	## side-strap greeble reads as tassel-sized at 217 px and was not worth a
+	## re-roll against a 200-credit wave cap.
+	"brazier": 0.0,
+
+	## v2, board SG-64 — reopened with v1's lesson in the prompt, and CLEARED.
 	##
-	## The lesson for the re-roll is in the prompt: "one oxblood leather strap
-	## ... with a brass buckle" is a chest fastening, and it was given a chest.
-	## The painted strap is decoration over a nailed lid, not a lock.
+	## v1 came back a bright orange treasure chest with a big gold clasp: "one
+	## oxblood leather strap ... with a brass buckle" is a chest fastening, so
+	## it was given a chest; and its SURFACE_WOOD frame asked for "warm polished
+	## brass corner brackets" against the subject's blue-steel ones — the
+	## furnace knight's contradiction hiding in a texture frame. v2 says sealed
+	## munitions crate nailed shut, refuses lid/hinges/lock/clasp/gold by name,
+	## drops the buckle from both prompts and carries its own SURFACE_CRATE
+	## clause. What came back is the crate: warm planks, blue-steel brackets,
+	## oxblood banding, no gold anywhere, judged beside the painting at the
+	## real camera (.shots/sg64/deck-crate.png). Two departures recorded
+	## honestly: two straps where the painting wears one, and 1.896 x 1.374 x
+	## 1.499 — a shade oblong against the painted cube. Neither reads at
+	## 157 px, and a real cube's corners catching the deck light beats a card
+	## that shows the same face from every position.
+	"crate_small": 0.0,
 	## "rope_coil" is deliberately absent and was never generated. It is 30
 	## ground units tall — the shortest entry in PROP_HEIGHT by a factor of two —
 	## and a mesh of a flat coil of rope and a billboard of one are the same

@@ -84,16 +84,22 @@ const PROP_MODEL := {
 	"crates": "crate_stack",
 	"lantern": "lantern_post",
 	"vent": "steam_vent",
-	## "crate" and "brazier" are generated, on disk, and deliberately absent —
-	## the furnace knight's rule, applied twice. Both read WORSE than the art
-	## they would replace, checked at the real camera distance rather than off
-	## the thumbnail, and the reasons are written at tools/static_model.gd where
-	## the .tscn is not made.
+	## "crate" and "brazier": the SG-64 re-rolls with the v1 rejection reasons
+	## written into the prompts. Both cleared the bar this time — verdicts, and
+	## the v1 history they were re-rolled against, at tools/static_model.gd.
+	"crate": "crate_small",
+	"brazier": "brazier",
 	## rope: NOT generated. 30 ground units tall, the shortest thing in
 	## PROP_HEIGHT by a factor of two. A billboard of a flat coil of rope and a
 	## mesh of one are the same forty pixels at this camera. The prompt is
-	## written and waiting in tools/meshy.py; nobody has paid for it.
-	## mast, railing, hatch, ballista, wreck: not asked for, still painted.
+	## written and waiting in tools/meshy.py; nobody has paid for it — and the
+	## SG-64 wave, capped at 200 credits, spent its budget on the mast, the
+	## ballista and the reopened rejections instead (the board row has the
+	## priority order: smallest screen presence goes last).
+	## railing (52u x4), hatch (44u x2): still painted, next-smallest presence,
+	## unfunded this wave — SG-66 has the queue.
+	"mast": "mast_section",
+	"ballista": "harpoon_ballista",
 }
 
 ## The deck cannons and the salvage pickups are not in the `props` group, so they
