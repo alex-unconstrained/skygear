@@ -82,7 +82,8 @@ SG-12; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
 - **The Colossus wreck** (SG-15) now floats off the bow after your first
   Colossus kill — visible when you push forward, subject of the run-open
   crane. Judge whether it earns its place.
-- **Build 32 is on itch** (pushed 2026-08-01): telegraphs, legibility floor,
-  Boiler scale, the heave verb, crate x-ray, five cutscene shots, Heat 3–5 +
-  ladder, the wreck — everything above in one build at
+- **Build 33 is on itch** (pushed 2026-08-01, evening): everything in build
+  32 plus the CRATE REWORK (instant tap-shove, never blocks you — re-judge
+  it) and the BOILERWRIGHT'S OWN MODEL (broad bearded engineer on the
+  captain's clips — check the belt pouches and how the axe swings read).
   https://alex-unconstrained.itch.io/skygear-godot-test

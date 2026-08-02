@@ -8,13 +8,14 @@ the board as workable items.**
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory
-and defeat shots. **487 harness checks**; the text audit covers 21 screens at
-4 widths and is clean. Build 31 is on itch at
-https://alex-unconstrained.itch.io/skygear-godot-test and the source is at
+and defeat shots. **499 harness checks**; the text audit covers 21 screens at
+4 widths and is clean. Build 33 is on itch at
+https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
+from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (487 checks), `text` (the audit), `screens` (photograph all 21
+`harness` (499 checks), `text` (the audit), `screens` (photograph all 21
 screens at all 4 widths as one page — for the human judgement no checker can
 make), and `layout` (promote the F4 HUD alignment out of `user://` and into the
 repo, which is the step that makes a hand-alignment pass real).
@@ -64,10 +65,10 @@ Assume you are about to commit one:
 | `scripts/ui.gd` | the widget layer: immediate mode, retained focus |
 | `scripts/cards.gd` | 41 draft cards. `preview()` runs a card on a sandbox copy |
 | `scripts/workshop.gd` | persistent progression, gated behind a first victory |
-| `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair, heave |
+| `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair (held), shove (instant) |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 487 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 499 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -95,7 +96,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 487 checks. Green before anything ships |
+| `harness` | 499 checks. Green before anything ships |
 | `text` | every string on 21 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
@@ -118,8 +119,9 @@ file.
   was placed 2026-08-01 (board SG-15); the rest is unbuilt.
 - `docs/AUDIT-2026-07-31.md` -- an independent audit. Its top three findings are
   fixed; its documentation recommendations are not (board SG-11).
-- Two Articles (SG-26), and `VFX-PLAN.md` §5 (a drop decision, SG-19) and §6
-  (the blade-driven weapon trail, SG-18). Heat 3-5 were built 2026-08-01.
+- Two Articles (SG-26) and `VFX-PLAN.md` §6, the blade-driven weapon trail
+  (SG-18). Heat 3-5 were built 2026-08-01; §5's chromatic/radial half was
+  DROPPED by the owner the same day (recorded at the section).
 
 ## Generated assets
 

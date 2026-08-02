@@ -15,3 +15,4 @@ tools/.meshy_key
 # the committed copy is a tenth the size. Godot skips it too: it ignores any
 # directory whose name starts with a dot.
 .model_originals/
+tools/__pycache__/
