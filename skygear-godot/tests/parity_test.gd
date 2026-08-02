@@ -5984,6 +5984,63 @@ func _screen_editor() -> void:
 	_check("editor", "every key in the shipped file resolves to something drawn",
 		dead.is_empty(), ", ".join(dead))
 
+	## THE SHIFT DRAG-LOCK (SG-58). The input plumbing is windowed, but the
+	## decision is arithmetic (the LabMath pattern), and the arithmetic is the
+	## whole owner ask: dominant axis by the larger cumulative travel since the
+	## drag began, minor axis held at zero, re-evaluated on a Shift RE-PRESS —
+	## never re-picked per frame — and untouched when Shift is up.
+	_check("editor", "shift while dragging locks the dominant axis",
+		SkyGearHudLayout.DragLock.pick_axis(Vector2(30, -8)) == SkyGearHudLayout.DragLock.AXIS_X
+			and SkyGearHudLayout.DragLock.pick_axis(Vector2(-3, 14)) == SkyGearHudLayout.DragLock.AXIS_Y
+			and SkyGearHudLayout.DragLock.pick_axis(Vector2.ZERO)
+				== SkyGearHudLayout.DragLock.AXIS_NONE)
+	var lock := SkyGearHudLayout.DragLock.new()
+	lock.begin(true)
+	var first: Vector2 = lock.move(Vector2(10, 3))
+	var second: Vector2 = lock.move(Vector2(2, 5))
+	_check("editor", "and the lock zeroes the minor axis",
+		first.is_equal_approx(Vector2(10, 0)) and second.is_equal_approx(Vector2(2, 0))
+			and is_zero_approx(lock.applied.y),
+		"applied %s then %s" % [first, second])
+	## Release: the element catches back up to the raw mouse path (12, 14)...
+	lock.set_shift(false)
+	var caught: Vector2 = lock.move(Vector2(0, 6))
+	## ...drifts on down while free, then a RE-PRESS: the whole drag is now
+	## taller than it is wide, so the re-evaluated lock is Y — and the next
+	## move snaps the x back onto the drag's origin line.
+	lock.move(Vector2(0, 30))
+	lock.set_shift(true)
+	var snap_back: Vector2 = lock.move(Vector2(3, 2))
+	_check("editor", "a shift re-press re-evaluates the axis",
+		caught.is_equal_approx(Vector2(0, 14))
+			and lock.axis == SkyGearHudLayout.DragLock.AXIS_Y
+			and snap_back.is_equal_approx(Vector2(-12, 2)),
+		"caught up %s, re-locked axis %d, snapped %s" % [caught, lock.axis, snap_back])
+	var plain := SkyGearHudLayout.DragLock.new()
+	plain.begin(false)
+	_check("editor", "a drag without shift is unchanged",
+		plain.move(Vector2(7, -2)).is_equal_approx(Vector2(7, -2))
+			and plain.move(Vector2(-1, 4)).is_equal_approx(Vector2(-1, 4))
+			and plain.axis == SkyGearHudLayout.DragLock.AXIS_NONE)
+	## And the wiring: the nudge path consults the session exactly while the
+	## event being processed is drag MOTION — an arrow nudge (whose Shift means
+	## ×10, the SG-39 step) passes through untouched because `drag_motion` is
+	## false on a key event.
+	var wired := SkyGearHudLayout.new()
+	SkyGearHudLayout.drag.begin(true)
+	SkyGearHudLayout.drag_motion = true
+	wired.nudge_screen("title", "begin_run", Vector2(9, 2))
+	wired.nudge_screen("title", "begin_run", Vector2(1, 6))
+	var while_locked: Vector2 = wired.screen_offset("title", "begin_run")
+	SkyGearHudLayout.drag_motion = false
+	wired.nudge_screen("title", "begin_run", Vector2(0, 10))
+	SkyGearHudLayout.drag.begin(false)
+	_check("editor", "the nudge path carries the lock only while drag motion feeds it",
+		while_locked.is_equal_approx(Vector2(10, 0))
+			and wired.screen_offset("title", "begin_run").is_equal_approx(Vector2(10, 10)),
+		"locked drag wrote %s, the arrow nudge then wrote %s"
+			% [while_locked, wired.screen_offset("title", "begin_run")])
+
 	game.layout_edit = false
 	hud.audit = null
 	hud.ink = null

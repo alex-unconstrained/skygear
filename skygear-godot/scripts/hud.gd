@@ -39,6 +39,32 @@ func _ready() -> void:
 func _process(_delta: float) -> void:
 	queue_redraw()
 
+## The Shift drag-lock's ears (SG-58). The HUD OBSERVES input here — it never
+## consumes an event — keeping `SkyGearHudLayout.drag` current BEFORE the
+## game's `_unhandled_input` turns the same event into a nudge (`_input` on
+## every node precedes any `_unhandled_input`, the engine's own order). Two
+## HUDs can hear one event while a pose is up — the sandbox has a glass of its
+## own — so every update here is edge-triggered or idempotent.
+func _input(event: InputEvent) -> void:
+	if game == null or not game.layout_edit:
+		SkyGearHudLayout.drag_motion = false
+		return
+	if event is InputEventMouseButton \
+			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		## A press starts a fresh session, with Shift as it stands; a release
+		## ends it — which is also what blanks the axis guide line.
+		SkyGearHudLayout.drag_motion = false
+		SkyGearHudLayout.drag.begin((event as InputEventMouseButton).pressed
+			and (event as InputEventMouseButton).shift_pressed)
+		return
+	if event is InputEventMouseMotion:
+		SkyGearHudLayout.drag.set_shift((event as InputEventMouseMotion).shift_pressed)
+		SkyGearHudLayout.drag_motion = true
+		return
+	SkyGearHudLayout.drag_motion = false
+	if event is InputEventKey and (event as InputEventKey).keycode == KEY_SHIFT:
+		SkyGearHudLayout.drag.set_shift((event as InputEventKey).pressed)
+
 func _draw() -> void:
 	if game == null:
 		return
@@ -846,6 +872,13 @@ func _draw_plate_editor(trouble: Array[String]) -> void:
 				_label(item_name, box.position + Vector2(2, -3), 160.0,
 					HORIZONTAL_ALIGNMENT_LEFT, 10, Color(1, 1, 1, 0.5))
 
+	## SG-58: the drag-lock's guide, plate mode — through the plate being
+	## dragged, or the item inside it.
+	var lock_box: Rect2 = plates.get(chosen, Rect2())
+	if chosen_item != "" and lock_box != Rect2():
+		lock_box = layout.item(chosen, chosen_item, lock_box)
+	_draw_axis_lock(lock_box)
+
 	var target: String = chosen if chosen_item == "" else "%s / %s" % [chosen, chosen_item]
 	var entry: Dictionary = layout.plates.get(chosen, {}) if chosen_item == "" 		else layout._bag(chosen).get(chosen_item, {})
 	var detail := ""
@@ -855,7 +888,8 @@ func _draw_plate_editor(trouble: Array[String]) -> void:
 		offset_text = "offset %+.0f, %+.0f — click to type" % [float(entry.offset[0]),
 			float(entry.offset[1])]
 	_edit_header(target, detail, offset_text,
-		"drag to move · corner to resize · Tab next · Enter into a plate · Esc out"
+		"drag to move (Shift locks an axis) · corner to resize · Tab next"
+		+ " · Enter into a plate · Esc out"
 		+ " · arrows nudge (Shift ×10 · Alt resizes) · A anchor · C centre",
 		trouble)
 
@@ -915,6 +949,10 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 			if absf(other.end.y - box.end.y) < 1.0:
 				draw_line(Vector2(minf(box.position.x, other.position.x), box.end.y),
 					Vector2(maxf(box.end.x, other.end.x), box.end.y), guide, 1.0)
+		## SG-58: while Shift locks the drag to one axis, the ACTIVE axis is
+		## drawn straight through the element — the lock is visible, not a
+		## guess about why the cursor stopped mattering sideways.
+		_draw_axis_lock(box)
 
 	var target := "nothing — click a panel"
 	if sel_key != "":
@@ -931,9 +969,29 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 	elif sel_panel >= 0:
 		detail = "click again for what is inside"
 	_edit_header(target, detail, offset_text,
-		"click a panel · click again (or double-click) for what is inside · drag to move"
+		"click a panel · click again (or double-click) for what is inside"
+		+ " · drag to move (Shift locks an axis)"
 		+ " · arrows nudge (Shift ×10 · Alt ×0.1) · Tab next · Esc back out",
 		trouble)
+
+
+## The Shift drag-lock made visible (SG-58): while a locked drag is live, the
+## active axis draws as a full-span line through the element being dragged —
+## horizontal for an X lock, vertical for a Y. No lock, no line; the session
+## only ever carries an axis while a real drag is moving under Shift.
+func _draw_axis_lock(box: Rect2) -> void:
+	if box == Rect2():
+		return
+	var lock := SkyGearHudLayout.drag
+	if not lock.shift or lock.axis == SkyGearHudLayout.DragLock.AXIS_NONE:
+		return
+	var tone := Color(1.0, 0.88, 0.54, 0.75)
+	if lock.axis == SkyGearHudLayout.DragLock.AXIS_X:
+		draw_line(Vector2(0.0, box.get_center().y),
+			Vector2(size.x, box.get_center().y), tone, 1.5)
+	else:
+		draw_line(Vector2(box.get_center().x, 0.0),
+			Vector2(box.get_center().x, size.y), tone, 1.5)
 
 
 ## The strip across the top, shared by both modes: what is selected, how to

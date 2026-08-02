@@ -269,13 +269,102 @@ func set_screen_offset(screen: String, key: String, off: Vector2) -> void:
 
 
 func nudge_screen(screen: String, key: String, delta: Vector2) -> void:
-	set_screen_offset(screen, key, screen_offset(screen, key) + delta)
+	set_screen_offset(screen, key, screen_offset(screen, key) + _drag_delta(delta))
 
 
 ## Ctrl+R for one screen: this screen's offsets only. The other twenty screens
 ## keep the work that was done on them.
 func clear_screen(screen: String) -> void:
 	screens.erase(screen)
+
+
+## --- the Shift drag-lock (SG-58) ------------------------------------------------
+
+## Hold Shift while DRAGGING in the F4 editor and the drag locks to its DOMINANT
+## axis — the one with the larger cumulative travel since the drag began, the
+## standard DCC gesture — with the minor axis held at zero. Release Shift and
+## the element catches back up to the raw mouse path; press it again and the
+## dominant axis is RE-EVALUATED from the whole drag so far — decided per
+## press, never flip-flopped per frame. Arrow-nudges keep their Shift = ×10
+## meaning untouched: the lock consults `drag_motion`, which is true only while
+## the input event being processed is editor drag MOTION, and a key event never
+## is.
+##
+## The session is all arithmetic on purpose (the LabMath pattern): the input
+## plumbing is windowed, but the decision the owner asked for is testable
+## headless — `editor · shift while dragging locks the dominant axis` and its
+## siblings in the harness.
+class DragLock extends RefCounted:
+	const AXIS_NONE := -1
+	const AXIS_X := 0
+	const AXIS_Y := 1
+
+	var cum := Vector2.ZERO      ## raw mouse travel since the drag began
+	var applied := Vector2.ZERO  ## the travel the nudges actually applied
+	var shift := false
+	var axis := AXIS_NONE        ## the locked axis, while Shift is down
+
+	## The dominant axis of a travel pair. A tie goes to X, and no travel at
+	## all decides nothing — the first real movement decides instead.
+	static func pick_axis(travel: Vector2) -> int:
+		if travel.is_zero_approx():
+			return AXIS_NONE
+		return AXIS_X if absf(travel.x) >= absf(travel.y) else AXIS_Y
+
+	## A travel pair with its minor axis zeroed. AXIS_NONE passes it through.
+	static func locked(travel: Vector2, which: int) -> Vector2:
+		if which == AXIS_X:
+			return Vector2(travel.x, 0.0)
+		if which == AXIS_Y:
+			return Vector2(0.0, travel.y)
+		return travel
+
+	func begin(shift_now: bool = false) -> void:
+		cum = Vector2.ZERO
+		applied = Vector2.ZERO
+		shift = shift_now
+		axis = AXIS_NONE
+
+	## Edge-triggered, so hearing the same state twice changes nothing (two
+	## HUDs can observe one event while a pose is up). A press RE-EVALUATES the
+	## axis from the whole drag so far; a release drops the lock.
+	func set_shift(down: bool) -> void:
+		if down == shift:
+			return
+		shift = down
+		axis = pick_axis(cum) if down else AXIS_NONE
+
+	## One raw mouse delta in, the delta to APPLY out. Locked, the applied path
+	## is the raw path with the minor axis zeroed — so pressing Shift mid-drag
+	## snaps the element onto the axis, and releasing it catches back up to the
+	## mouse, both through the same subtraction.
+	func move(delta: Vector2) -> Vector2:
+		cum += delta
+		if shift and axis == AXIS_NONE:
+			axis = pick_axis(cum)
+		var target := locked(cum, axis) if shift else cum
+		var out := target - applied
+		applied = target
+		return out
+
+
+## The one live session. `SkyGearHUD._input` OBSERVES the editor's input —
+## never consumes it — and keeps these current before the game's own handler
+## turns the same event into a nudge (`_input` on every node precedes any
+## `_unhandled_input` seeing the event — the engine's order, not luck).
+static var drag := DragLock.new()
+## True exactly while the input event being processed is a mouse-drag motion in
+## the editor — the flag that keeps arrow-key nudges (Shift = ×10) out of the
+## lock's reach.
+static var drag_motion := false
+
+
+## Route a delta through the live session — drag motion only; every other
+## caller gets its delta back untouched.
+static func _drag_delta(delta: Vector2) -> Vector2:
+	if not drag_motion:
+		return delta
+	return drag.move(delta)
 
 
 ## --- undo (single-level, the SG-39 convention) ---------------------------------
@@ -437,8 +526,9 @@ func nudge(plate_name: String, item_name: String, delta: Vector2) -> void:
 		else plates.get(plate_name, {})
 	if entry.is_empty():
 		return
-	entry.offset[0] = float(entry.offset[0]) + delta.x
-	entry.offset[1] = float(entry.offset[1]) + delta.y
+	var apply := _drag_delta(delta)
+	entry.offset[0] = float(entry.offset[0]) + apply.x
+	entry.offset[1] = float(entry.offset[1]) + apply.y
 
 
 func resize(plate_name: String, item_name: String, delta: Vector2) -> void:

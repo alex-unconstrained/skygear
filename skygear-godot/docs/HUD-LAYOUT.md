@@ -66,7 +66,8 @@ element shows its bounds and its NAME, which is the key its offset saves under.
 | click a panel | select it |
 | click again / double-click | descend to the element under the cursor |
 | drag | move it |
-| **arrows** | nudge 1 px (**Shift** ×10, **Alt** ×0.1 — the SG-39 steps) |
+| **Shift** while dragging | lock the drag to its dominant axis — the larger travel since the drag began wins, and a guide line through the element shows which axis is locked. Release Shift to move freely again; re-press it and the axis is re-decided from the whole drag so far (SG-58) |
+| **arrows** | nudge 1 px (**Shift** ×10, **Alt** ×0.1 — the SG-39 steps; arrow-Shift is the step size, never the drag lock) |
 | click the offset readout | type it: **Enter** applies, **Esc** cancels, malformed is refused |
 | **Tab** / **Shift+Tab** | next / previous |
 | **P** | the screen picker: pose any of the audit's screens right here |
