@@ -12,6 +12,13 @@ extends SceneTree
 ##
 ##   godot --path . --headless --script tools/balance.gd
 ##   godot --path . --headless --script tools/balance.gd -- 5     (runs)
+##   godot --path . --headless --script tools/balance.gd -- 6 5   (runs, HEAT)
+##
+## The second argument is a HEAT level (SG-14). It opens the whole ladder on an
+## ephemeral workshop and starts every run at that rung, so the difficulty claim
+## — a Heat 5 run is clearly harder than a Heat 0 one — can be measured across
+## seeds rather than felt. Read the wave-reached and held columns as the
+## difficulty signal; per the caveats below, read them as a DISTRIBUTION.
 func _initialize() -> void: call_deferred("_run")
 
 const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6"]
@@ -19,13 +26,16 @@ const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6"]
 func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var count: int = int(args[0]) if args.size() > 0 else 3
+	var heat: int = int(args[1]) if args.size() > 1 else 0
+	print("  HEAT %d · %s" % [heat, str(SkyGearWorkshop.HEAT[
+		clampi(heat, 0, SkyGearWorkshop.HEAT.size() - 1)].name)])
 	var ally_share := 0.0
 	var player_share := 0.0
 	var waves_reached := 0.0
 	var wins := 0
 	var results: Array = []
 	for i in mini(count, SEEDS.size()):
-		var r := await _one(SEEDS[i])
+		var r := await _one(SEEDS[i], heat)
 		results.append(r)
 		ally_share += float(r.ally)
 		player_share += float(r.player)
@@ -93,9 +103,16 @@ func _run() -> void:
 	quit(0)
 
 
-func _one(seed_text: String) -> Dictionary:
+func _one(seed_text: String, heat: int = 0) -> Dictionary:
 	var game: SkyGearGame = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(game)
+	## The whole ladder opened on a throwaway workshop, so the run can START at any
+	## rung — `begin_run` clamps `heat` to what is available, so without this a
+	## Heat 5 request would quietly play as Heat 0 (there is no clear on disk).
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.workshop.unlocked = true
+	game.workshop.best_heat = SkyGearWorkshop.HEAT.size() - 1
+	game.heat = heat
 	## HAND-STEPPED, so the engine must not step it too.
 	##
 	## The loop below calls `game._process(0.05)` and awaits a real frame every two

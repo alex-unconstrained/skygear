@@ -2355,6 +2355,152 @@ func _view() -> void:
 		int(climb.sigils) == after_first,
 		"%d -> %d" % [after_first, int(climb.sigils)])
 
+	## THE STACK IS CUMULATIVE, PROVEN ON THE DATA. Each rung must carry every
+	## modifier the rung below it introduced — the whole point of re-listing them
+	## in the table — and must not soften any of them. A rung that dropped a lower
+	## Heat's field would make a high difficulty easier than a low one on that
+	## axis, and a reader asking `heat_data(5)` would silently get the Heat-0
+	## default back. This walks every field of every rung against its predecessor
+	## through the HEAT_HARDER direction table, so the re-listing cannot rot.
+	var not_cumulative := ""
+	for i in range(1, SkyGearWorkshop.HEAT.size()):
+		var below: Dictionary = SkyGearWorkshop.HEAT[i - 1]
+		var here: Dictionary = SkyGearWorkshop.HEAT[i]
+		for field in below.keys():
+			if field == "name" or field == "blurb":
+				continue
+			if not here.has(field):
+				not_cumulative += " %d:dropped-%s" % [i, field]
+				continue
+			var dir: Variant = SkyGearWorkshop.HEAT_HARDER.get(field, 0)
+			var lo: Variant = below[field]
+			var hi: Variant = here[field]
+			if dir is String:  ## a latch — once set, never un-set
+				if bool(lo) and not bool(hi):
+					not_cumulative += " %d:un-set-%s" % [i, field]
+			elif lo is Array:  ## a set that may only grow
+				for v in (lo as Array):
+					if not (v in (hi as Array)):
+						not_cumulative += " %d:shrank-%s" % [i, field]
+						break
+			elif int(dir) == 1:  ## bigger is harder
+				if float(hi) < float(lo):
+					not_cumulative += " %d:softer-%s" % [i, field]
+			elif int(dir) == -1:  ## smaller is harder
+				if float(hi) > float(lo):
+					not_cumulative += " %d:softer-%s" % [i, field]
+	_check("heat", "the stack is cumulative — no rung drops or softens a lower one",
+		not_cumulative == "", "at:" + not_cumulative)
+
+	## EVERY HEAT FIELD HAS A READER. The twin of the talent guard, and the same
+	## failure it exists to catch: a modifier written into the ladder that nothing
+	## consumes, so a rung reads as harder and plays identically (failure mode
+	## one). A field appears in the table as `"x":` and in a reader as `.get("x"`,
+	## so grepping the module for the latter proves a reader references it without
+	## the table counting as its own witness.
+	var heat_src := FileAccess.get_file_as_string("res://scripts/workshop.gd")
+	var heat_fields := {}
+	for rung in SkyGearWorkshop.HEAT:
+		for field in (rung as Dictionary).keys():
+			if field != "name" and field != "blurb":
+				heat_fields[field] = true
+	var heat_inert := ""
+	for field in heat_fields.keys():
+		if not heat_src.contains('.get("%s"' % field):
+			heat_inert += " " + str(field)
+	_check("heat", "every Heat modifier is read by something", heat_inert == "",
+		"nothing reads:" + heat_inert)
+
+	## And each of the three new rungs moves a number the sim reads — not the same
+	## number, a DIFFERENT one apiece, which is the identity the ask was about. A
+	## workshop that has cleared to the top so the whole ladder is reachable.
+	var open_ladder := SkyGearWorkshop.fresh(true)
+	open_ladder.unlocked = true
+	open_ladder.best_heat = SkyGearWorkshop.HEAT.size() - 1
+
+	## HEAT 3 · COLD DECK — a colder hand. Two cards, one reroll, against three
+	## and two at Heat 0, measured on a real begin_run and a real draft.
+	var warm := _new_game()
+	warm.workshop = open_ladder.duplicate(true)
+	warm.heat = 0
+	warm.set_seed_text("COLD0")
+	warm.begin_run()
+	var warm_rerolls: int = warm.rerolls
+	warm.open_draft()
+	var warm_offers: int = warm.draft_options.size()
+	warm.queue_free()
+
+	var cold := _new_game()
+	cold.workshop = open_ladder.duplicate(true)
+	cold.heat = 3
+	cold.set_seed_text("COLD3")
+	cold.begin_run()
+	var cold_rerolls: int = cold.rerolls
+	cold.open_draft()
+	var cold_offers: int = cold.draft_options.size()
+	cold.queue_free()
+	_check("heat", "Cold Deck deals two cards on one reroll, not three on two",
+		warm_offers == 3 and warm_rerolls == 2
+			and cold_offers == 2 and cold_rerolls == 1,
+		"warm %d cards/%d rerolls · cold %d cards/%d rerolls"
+			% [warm_offers, warm_rerolls, cold_offers, cold_rerolls])
+
+	## HEAT 4 · BOARDERS ALOFT — a hulk on 4, 6, 8 and 10. The base pushes on 4
+	## and 8 hold at every Heat; the extra two open only here. Read through the
+	## one question `is_push_wave`, the same one the wave loop asks.
+	var h_flat := _new_game()
+	h_flat.workshop = open_ladder.duplicate(true)
+	h_flat.heat = 0
+	h_flat.begin_run()
+	var aloft := _new_game()
+	aloft.workshop = open_ladder.duplicate(true)
+	aloft.heat = 4
+	aloft.begin_run()
+	_check("heat", "Boarders Aloft grapples a hulk on the odd pushes too",
+		h_flat.is_push_wave(4) and h_flat.is_push_wave(8)
+			and not h_flat.is_push_wave(6) and not h_flat.is_push_wave(10)
+			and aloft.is_push_wave(4) and aloft.is_push_wave(6)
+			and aloft.is_push_wave(8) and aloft.is_push_wave(10),
+		"flat 4/6/8/10 = %s/%s/%s/%s · aloft = %s/%s/%s/%s" % [
+			h_flat.is_push_wave(4), h_flat.is_push_wave(6), h_flat.is_push_wave(8),
+			h_flat.is_push_wave(10), aloft.is_push_wave(4), aloft.is_push_wave(6),
+			aloft.is_push_wave(8), aloft.is_push_wave(10)])
+	var flat_turret: float = float(h_flat.turrets[0].hp)
+	h_flat.queue_free()
+	aloft.queue_free()
+
+	## HEAT 5 · SKELETON CREW — no muster, half-dead cannons. The cannons come up
+	## at half the health Heat 0 gives them, and the periodic muster is off.
+	var h_alone := _new_game()
+	h_alone.workshop = open_ladder.duplicate(true)
+	h_alone.heat = 5
+	h_alone.begin_run()
+	var alone_turret: float = float(h_alone.turrets[0].hp)
+	_check("heat", "Skeleton Crew halves the cannons and stops the muster",
+		is_equal_approx(alone_turret, flat_turret * 0.5)
+			and SkyGearWorkshop.musters(5) == false
+			and SkyGearWorkshop.musters(0) == true,
+		"cannon %.0f against %.0f · musters %s"
+			% [alone_turret, flat_turret, SkyGearWorkshop.musters(5)])
+	h_alone.queue_free()
+
+	## And the summit pays only the record. Heat 5 clears record the rung but hand
+	## back no sigil — §5's rule that the top of the ladder is not a power reward.
+	var summit := SkyGearWorkshop.fresh(true)
+	summit.unlocked = true
+	## Every OTHER first already claimed, so the only sigil this win could pay is
+	## the rung's — which is exactly the one Heat 5 withholds.
+	summit.articles = {"first_win": true, "reach_eight": true, "won_close": true,
+		"won_unhealed": true, "win_boilerwright": true}
+	var h_top: int = SkyGearWorkshop.HEAT.size() - 1
+	var before_sigils: int = int(summit.sigils)
+	SkyGearWorkshop.bank(summit,
+		{"won": true, "wave": 12, "seed": "TOP", "heat": h_top, "close_share": 50})
+	_check("heat", "clearing the summit records it but pays no sigil",
+		int(summit.best_heat) == h_top and int(summit.sigils) == before_sigils,
+		"best %d · sigils %d -> %d" % [int(summit.best_heat), before_sigils,
+			int(summit.sigils)])
+
 	## THE ARTICLES. The sigil side: commitments rather than experiments, no
 	## refund, and two of them fight over the same key.
 	var art := SkyGearWorkshop.fresh(true)

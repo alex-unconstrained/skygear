@@ -242,16 +242,47 @@ static func articles_for(state: Dictionary, class_id: String) -> Dictionary:
 ## moves whenever the player shops.
 ##
 ## Each step is one NAMED modifier rather than a multiplier, because "Rust" is
-## something a player can hold in their head and "difficulty 3" is not. Two of
-## the design's five ship: each step needs a playthrough to be worth having, and
-## five is more work than the tree is.
+## something a player can hold in their head and "difficulty 3" is not.
+##
+## THE STACK IS CUMULATIVE, AND IT SAYS SO IN THE DATA. A rung is not "the one
+## new thing at this level" — it is the whole set of modifiers that are live at
+## it, its own plus every rung below, re-listed. That is why Heat 5 carries
+## `hp_scaling` even though Heat 1 introduced it: the reader for any field asks
+## ONE rung, `heat_data(level)`, and gets the complete answer, so nothing has to
+## walk the ladder adding things up and there is no second place for the sum to
+## disagree with itself (failure mode two). The harness proves the re-listing is
+## monotone — each rung at least as hard as the one below, on every field — so a
+## rung that forgot to carry a lower modifier fails the build rather than
+## silently making a high Heat easier than a low one.
+##
+## Each blurb is ONE sentence a player reads before committing the run, and 2–5
+## open with "and" because that is what cumulative reads like out loud: Rust,
+## and Short Fuse on top of it, and Cold Deck on top of that.
 const HEAT := [
 	{"name": "STOKED", "blurb": "the deck as it was built."},
 	{"name": "RUST", "blurb": "boarders harden faster — wave 12 at twice their opening health.",
 		"hp_scaling": 0.09},
 	{"name": "SHORT FUSE", "blurb": "and they wind up 15% quicker. Still readable, but only just.",
 		"hp_scaling": 0.09, "windup": 0.85},
+	{"name": "COLD DECK", "blurb": "and the draft deals two cards, not three, on one reroll instead of two.",
+		"hp_scaling": 0.09, "windup": 0.85, "draft_offers": 2, "start_rerolls": 1},
+	{"name": "BOARDERS ALOFT", "blurb": "and a hulk grapples on every second wave — 4, 6, 8 and 10, not only 4 and 8.",
+		"hp_scaling": 0.09, "windup": 0.85, "draft_offers": 2, "start_rerolls": 1,
+		"extra_pushes": [6, 10]},
+	{"name": "SKELETON CREW", "blurb": "and you hold it alone — no crew musters, and the deck cannons start at half health.",
+		"hp_scaling": 0.09, "windup": 0.85, "draft_offers": 2, "start_rerolls": 1,
+		"extra_pushes": [6, 10], "no_muster": true, "turret_hp_scale": 0.5},
 ]
+
+## THE DIRECTION OF EACH KNOB, so the harness can prove the ladder only ever
+## gets harder and a rung never drops a modifier it inherited. `+1` means a
+## bigger number is harder (scaling, extra pushes); `-1` means a smaller one is
+## (windup, cards dealt, rerolls, cannon health); a `set` flag is a latch that,
+## once true, may never go back to false. Kept beside the table it describes.
+const HEAT_HARDER := {
+	"hp_scaling": 1, "extra_pushes": 1, "no_muster": "set",
+	"windup": -1, "draft_offers": -1, "start_rerolls": -1, "turret_hp_scale": -1,
+}
 
 ## The scaling every run used before Heat existed, and the number Heat 0 must
 ## still be. A difficulty ladder whose bottom rung is not the shipped game is a
@@ -269,6 +300,42 @@ static func hp_scaling_for(level: int) -> float:
 
 static func windup_for(level: int) -> float:
 	return float(heat_data(level).get("windup", 1.0))
+
+
+## COLD DECK · how many cards the draft is allowed to deal, capped against
+## whatever it wanted to. Passed the base so a talent that WIDENS the draft
+## (Fourth Card) is capped rather than overridden — Heat can only ever take a
+## card away, never hand one back.
+static func draft_offers_for(level: int, base: int) -> int:
+	return mini(base, int(heat_data(level).get("draft_offers", base)))
+
+
+## COLD DECK · rerolls you begin the run with, capped the same way. Talents add
+## on top of what this returns, so the ladder sets the floor and the tree lifts
+## off it.
+static func start_rerolls_for(level: int, base: int) -> int:
+	return mini(base, int(heat_data(level).get("start_rerolls", base)))
+
+
+## BOARDERS ALOFT · does a hulk grapple on this wave? True if the wave carries a
+## push in the data, OR if this Heat adds one. The one place the question is
+## asked, so the three call sites in `game.gd` cannot drift apart.
+static func pushes_on(level: int, wave_number: int, base_push: bool) -> bool:
+	if base_push:
+		return true
+	return wave_number in (heat_data(level).get("extra_pushes", []) as Array)
+
+
+## SKELETON CREW · whether your own crew still musters onto the lanes. Off at the
+## top of the ladder — you hold the deck with what you brought.
+static func musters(level: int) -> bool:
+	return not bool(heat_data(level).get("no_muster", false))
+
+
+## SKELETON CREW · what the deck cannons start with, as a fraction of their full
+## health. 1.0 everywhere but the top rung, where they come up half-dead.
+static func turret_hp_scale_for(level: int) -> float:
+	return float(heat_data(level).get("turret_hp_scale", 1.0))
 
 
 ## You may pick any Heat up to one above your best clear, so the ladder is
@@ -396,9 +463,12 @@ static func firsts_in(state: Dictionary, row: Dictionary) -> Array[String]:
 	if won and int(row.get("healed", 0)) <= 0 and not had.has("won_unhealed"):
 		out.append("won_unhealed")
 	## A first clear at each rung pays a sigil — once, like every other sigil, so
-	## the ladder is content rather than a farm.
+	## the ladder is content rather than a farm. HEAT 5 IS THE EXCEPTION: it pays
+	## only the record, never a sigil, so the top of the ladder cannot be climbed
+	## FOR power. It is the one rung you take because you want to, and §5 of the
+	## design is emphatic that the summit is not a reward.
 	var at: int = int(row.get("heat", 0))
-	if won and at > 0 and not had.has("heat_%d" % at):
+	if won and at > 0 and at < HEAT.size() - 1 and not had.has("heat_%d" % at):
 		out.append("heat_%d" % at)
 	return out
 

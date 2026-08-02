@@ -166,13 +166,16 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	game.how_open = bool(screen.get("how", false))
 	game.compare_open = bool(screen.get("compare", false))
 	if bool(screen.get("heat", false)):
-		## Unlocked with a rung cleared, so the Heat row and the Workshop button
-		## are both on the title at once — the fullest the screen ever gets.
+		## Unlocked and part-climbed, so the Heat LADDER and the Workshop button
+		## are both on the title at once — the fullest the screen ever gets. Three
+		## rungs cleared, the fourth the next reachable, the fifth still locked,
+		## and the pick sitting on the longest blurb (Boarders Aloft) so the strip
+		## beneath the ladder is audited at its widest.
 		game.workshop = SkyGearWorkshop.fresh(true)
 		game.workshop.unlocked = true
 		game.workshop.scrip = 240
-		game.workshop.best_heat = 1
-		game.heat = 2
+		game.workshop.best_heat = 3
+		game.heat = 4
 	if bool(screen.get("banked", false)):
 		game.workshop = SkyGearWorkshop.fresh(true)
 		game.workshop.unlocked = true

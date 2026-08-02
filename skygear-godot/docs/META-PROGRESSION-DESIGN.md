@@ -28,9 +28,13 @@ Where the build departs from what is written below, and why:
   signature or inventing a third key nobody remembers were both worse than
   saying so on the node.
 - **Head does not cost Boiler HP** — see `CLASS-2-DESIGN.md` for that one.
-- **Heat 1 and 2 are built; 3, 4 and 5 are not** — which is what §5 itself
-  recommends. Rust and Short Fuse ship; Cold Deck, Boarders Aloft and Skeleton
-  Crew do not. Each rung needs a playthrough to be worth having.
+- **All five Heats are built (SG-14, 2026-08-01).** Rust, Short Fuse, Cold Deck,
+  Boarders Aloft and Skeleton Crew all ship, as the exact modifiers §5 sketched,
+  applied in the sim and stacked cumulatively (each rung re-lists every lower
+  rung's modifiers, so a reader asks one rung and gets the whole answer). §5's
+  original "ship 1 and 2 only" caution is superseded: the display was worth
+  building, so the rungs behind it were built too. Heat 1–4 pay a sigil on first
+  clear; Heat 5 pays only the record.
 
 Written against the port as it stands 2026-07-31.
 
@@ -196,8 +200,10 @@ and all are data.
 | Heat 5 | **Skeleton Crew** | no crew muster, cannons at half health |
 
 Heat 1–4 pay a sigil on first clear; Heat 5 pays only the record, so the top of the ladder is
-not a power reward. **Ship Heat 1 and 2 only** — each step needs a playthrough to be worth
-having, and five is more work than the tree is.
+not a power reward. ~~**Ship Heat 1 and 2 only**~~ — **all five shipped (SG-14, 2026-08-01)**,
+built exactly as sketched above, because the rung ladder on the title turned out to be worth
+building and a two-rung ladder is not a ladder. Balance evidence across six seeds: the bot holds
+Heat 0 five times of six (average wave 11.7) and Heat 5 zero times (dead on wave 4 every run).
 
 ## 6. Respec
 

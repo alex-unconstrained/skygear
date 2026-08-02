@@ -929,6 +929,15 @@ func begin_run() -> void:
 		for t in turrets:
 			t.max_hp = float(t.max_hp) * (1.0 + talent("turret_hp"))
 			t.hp = float(t.max_hp)
+	## HEAT 5 · SKELETON CREW brings the deck cannons up half-dead. Applied after
+	## Shot Locker so the two compose — a talent that buys +15% health still buys
+	## it, the ladder just starts you lower. `hp` follows `max_hp` so a cannon is
+	## at its (reduced) full, not merely capped.
+	var heat_turret: float = SkyGearWorkshop.turret_hp_scale_for(int(heat))
+	if not is_equal_approx(heat_turret, 1.0):
+		for t in turrets:
+			t.max_hp = float(t.max_hp) * heat_turret
+			t.hp = float(t.max_hp)
 	crew.clear()
 	sentries.clear()
 	hulk = {}
@@ -936,7 +945,10 @@ func begin_run() -> void:
 	mods = SkyGearCards.fresh_mods()
 	tel = SkyGearTelemetry.fresh()
 	cards_taken.clear()
-	rerolls = int(SkyGearData.DRAFT.rerolls)
+	## HEAT 3 · COLD DECK cuts the starting rerolls to one. The base is capped
+	## here and the Deep Pockets talent adds onto it below, so the ladder sets the
+	## floor and the tree lifts off it rather than the two fighting over one number.
+	rerolls = SkyGearWorkshop.start_rerolls_for(int(heat), int(SkyGearData.DRAFT.rerolls))
 	heal_budget = float(SkyGearData.CLOSE.heal_cap_per_sec)
 	steal_budget = float(SkyGearData.CLOSE.lifesteal_cap_per_sec)
 	run_time = 0.0
@@ -1194,6 +1206,18 @@ static func event_for(wave_number: int) -> String:
 	return str(SkyGearData.WAVE_EVENTS.get(wave_number, ""))
 
 
+## Does a boarding hulk grapple on this wave? The data says so for 4 and 8, and
+## HEAT 4 · BOARDERS ALOFT adds 6 and 10. Every place that asks — the begin, the
+## hulk-scaling count, the not-clear-until-the-hulk-is gate — asks HERE, so a
+## push wave is one fact rather than three that can drift (failure mode two). Not
+## static: it reads the run's own `heat`.
+func is_push_wave(wave_number: int) -> bool:
+	if wave_number < 1 or wave_number > SkyGearData.WAVES.size():
+		return false
+	return SkyGearWorkshop.pushes_on(int(heat), wave_number,
+		bool(SkyGearData.WAVES[wave_number - 1].get("push", false)))
+
+
 func event_data() -> Dictionary:
 	if active_event == "":
 		return {}
@@ -1233,7 +1257,7 @@ func _begin_push(wave_number: int) -> void:
 		voice.say("push", 2)
 	var index := 0
 	for i in wave_number:
-		if bool(SkyGearData.WAVES[i].get("push", false)):
+		if is_push_wave(i + 1):
 			index += 1
 	hulk = SkyGearLanes.make_hulk(BOW_Y, 1.0 + maxi(0, index - 1) * 0.20)
 	hulk.vulnerable = true
@@ -1253,7 +1277,7 @@ func start_wave(next_wave: int) -> void:
 	restow_props()
 	_end_event()
 	if next_wave >= 1 and next_wave <= SkyGearData.WAVES.size():
-		if bool(SkyGearData.WAVES[next_wave - 1].get("push", false)):
+		if is_push_wave(next_wave):
 			_begin_push(next_wave)
 		var event_id := event_for(next_wave)
 		if event_id != "":
@@ -1320,7 +1344,7 @@ func _update_wave(delta: float) -> void:
 	## to make you leave the objective can be won by standing on the objective.
 	var push_pending := false
 	if wave >= 1 and wave <= SkyGearData.WAVES.size():
-		if bool(SkyGearData.WAVES[wave - 1].get("push", false)):
+		if is_push_wave(wave):
 			push_pending = hulk.is_empty() or not bool(hulk.get("dead", false))
 	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0 and not push_pending:
 		wave_clear_time = 1.6
@@ -1491,7 +1515,12 @@ func open_draft() -> void:
 		## decides the shape of the whole run is the one worth widening, and doing
 		## it every draft would be a multiplier on the card system rather than a
 		## bigger version of it.
-		var offers: int = 3 + (1 if talent("fourth_card") > 0.0 and wave <= 1 else 0)
+		## HEAT 3 · COLD DECK caps the hand at two. Capped against what the draft
+		## wanted, so Fourth Card still WIDENS a normal draft — the ladder can only
+		## take a card away, never conjure one — and the cap reads the same field
+		## the upgrade draw does, one wave later.
+		var offers: int = SkyGearWorkshop.draft_offers_for(int(heat),
+			3 + (1 if talent("fourth_card") > 0.0 and wave <= 1 else 0))
 		for i in offers:
 			var shape: String = shape_order[(cursor + i) % shape_order.size()]
 			var guard := 0
@@ -1520,7 +1549,7 @@ func open_draft() -> void:
 				"skill": instance,
 			})
 	else:
-		draft_options = roll_upgrade_cards(3)
+		draft_options = roll_upgrade_cards(SkyGearWorkshop.draft_offers_for(int(heat), 3))
 	for option in draft_options:
 		if not option.has("scope"):
 			option["scope"] = SkyGearCards.SCOPE_NEW
@@ -2717,14 +2746,20 @@ func _update_crew(delta: float) -> void:
 	var pushing := not hulk.is_empty() and not bool(hulk.get("dead", true))
 	crew_timer -= delta
 	if crew_timer <= 0.0:
+		## The timer resets whether or not anyone musters — HEAT 5 · SKELETON CREW
+		## stops the muster, not the clock, so the deck does not spin trying to
+		## spawn crew every frame. Under Skeleton Crew you hold the lanes with what
+		## you brought; the press-gang and salvage crew you EARN in a run still
+		## arrive, because those are the player's doing, not the ship's.
 		crew_timer = SkyGearLanes.CREW.push_every if pushing else SkyGearLanes.CREW.every
-		for lane in LANE_CENTERS.size():
-			## MUSTER ROLL. One more hand per lane per muster.
-			for _i in int(SkyGearLanes.CREW.per_wave) + int(talent("extra_crew")):
-				crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y, rng))
-		play_sfx("lane/crew_muster.ogg", -10.0)
-		if voice != null:
-			voice.say("crew_muster")
+		if SkyGearWorkshop.musters(int(heat)):
+			for lane in LANE_CENTERS.size():
+				## MUSTER ROLL. One more hand per lane per muster.
+				for _i in int(SkyGearLanes.CREW.per_wave) + int(talent("extra_crew")):
+					crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y, rng))
+			play_sfx("lane/crew_muster.ogg", -10.0)
+			if voice != null:
+				voice.say("crew_muster")
 
 	for i in range(crew.size() - 1, -1, -1):
 		var c: Dictionary = crew[i]

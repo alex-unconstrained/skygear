@@ -412,7 +412,7 @@ Two Meshy attempts; neither read as the 180-hp thing you cannot walk through.
 Not a bug — a deliberate call — but it is the one boarder breaking the 3D
 consistency that was asked for, so it stays here until it is solved or dropped.
 
-### The Workshop is a visual tree now — HEAT IS STILL A ROW
+### The Workshop is a visual tree now — and Heat is a ladder (SG-14, 2026-08-01)
 > *"We need to also work on making the workshop more of a visual tree — love the
 > abilities and such, but the menu itself is quite dull/boring. Needs a visual
 > pass."*
@@ -422,25 +422,32 @@ state at a glance, rank as rivets, what a node does on hover, the running total
 including what a respec returns, and the Articles as their own object — a
 sidebar of wax seals on a cord rather than more rows.
 
-**The fourth did not.** "Articles and Heat given their own visual identity
-rather than more rows" — Heat is not in the Workshop at all. It is a single
-cycling `ui.choice` row on the TITLE screen, which is exactly the treatment the
-ask objects to, and it is still that. The two candidate fixes, and why neither
-was taken in the same pass:
+**The fourth is now done too.** "Articles and Heat given their own visual
+identity rather than more rows" — Heat was a single cycling `ui.choice` row on
+the title, the exact treatment the ask objected to. It is now a **ladder**: five
+clickable rungs, cleared ones lit brass, the next reachable one teal, locked
+ones dim with a padlock that states its unlock rule on hover, and the selected
+rung's one sentence spelled out beneath. STOKED (Heat 0) is the ground you stand
+on rather than a rung — clicking the rung you are on steps back down to it, and
+the header always names where you stand. Mouse-first, keyboard still works,
+rebind-safe (menu navigation is not on the gameplay action map). It passed the
+title's own audit pass, which it needed: the title is the one screen where a
+widget-count change had already produced a COLLIDE. Text audit CONTAINMENT clean
+and zero COLLIDE at all four widths with the fullest state posed (three rungs
+cleared, the fourth reachable, the fifth locked, the longest blurb selected).
 
-- **A rung ladder on the title.** Five clickable rungs with the cleared ones lit
-  and the next one reachable, instead of one row you cycle. Small, contained,
-  mouse-first, and the right answer. Not done because the title screen is the
-  one screen where a widget-count change has already produced a COLLIDE — the
-  Heat row is what put DIFFICULTY, CAPTAIN and THE WORKSHOP on top of each other
-  — and it wanted its own audit pass rather than the tail of someone else's.
-- **Moving the picker into the Workshop.** Rejected rather than deferred. Heat
-  is a per-run choice made on the way into a run; the Workshop is where you
-  spend between runs. Putting it there makes you visit two screens to start.
+The other candidate fix — **moving the picker into the Workshop** — stays
+rejected, not deferred: Heat is a per-run choice made on the way into a run and
+the Workshop is where you spend between runs, so putting it there makes you visit
+two screens to start.
 
-There is also a smaller thing worth writing down while it is fresh: **Heat 3, 4
-and 5 do not exist**, so the ladder a rung display would draw is two rungs long.
-Whoever builds the display should probably build it after the rungs.
+And the prerequisite is met: **Heat 3, 4 and 5 now exist** as real, cumulative,
+tested difficulty modifiers (rungs before the rung display, as the ledger asked)
+— Cold Deck (two cards on one reroll), Boarders Aloft (a hulk on waves 4/6/8/10)
+and Skeleton Crew (no crew muster, cannons at half health). The balance tool
+takes a Heat argument now and reports the difficulty as a distribution: across
+six seeds the bot held Heat 0 five times to average wave 11.7, held Heat 3 none
+to average wave 10.2, and held Heat 5 none, dying on wave 4 every run.
 
 ---
 

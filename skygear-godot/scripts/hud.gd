@@ -128,18 +128,11 @@ func _draw_title() -> void:
 	var wx: float = size.x * 0.5 - wide * 0.5
 	var y := 372.0
 
-	## DIFFICULTY, only once there is more than one rung to choose between.
+	## DIFFICULTY, as a ladder rather than a cycling row (SG-14). Only once the
+	## first victory has opened it — before that there is exactly one difficulty
+	## and no rung to show.
 	if SkyGearWorkshop.heat_available(game.workshop) > 0:
-		var rungs: Array = []
-		for i in SkyGearWorkshop.heat_available(game.workshop) + 1:
-			rungs.append("HEAT %d · %s" % [i, str(SkyGearWorkshop.HEAT[i].name)])
-		game.heat = ui.choice(Rect2(wx, y, wide, 32.0), "DIFFICULTY", rungs,
-			clampi(game.heat, 0, rungs.size() - 1))
-		y += 34.0
-		_says(str(SkyGearWorkshop.HEAT[clampi(game.heat, 0, rungs.size() - 1)].blurb),
-			Vector2(wx, y + 12.0), wide, HORIZONTAL_ALIGNMENT_CENTER, 13, 2,
-			Color("#ff9a4a") if game.heat > 0 else Color("#8f8697"))
-		y += 30.0
+		y = _draw_heat_ladder(wx, wide, y)
 
 	## WHO IS ABOARD. A cycling row rather than a screen of its own: two classes,
 	## one sentence of difference, and a separate screen for a binary choice is a
@@ -201,6 +194,103 @@ func _draw_title() -> void:
 		y += 30.0
 	_center_text("Milestone 1 · v11 combat vertical slice", y + 16.0, 15,
 		Color("#8f8697"))
+
+
+## THE HEAT LADDER (SG-14). Five rungs, one per Heat above STOKED, in place of
+## the cycling row the owner's ask objected to. The states render distinctly:
+## CLEARED rungs are lit brass and filled, the NEXT reachable rung is teal,
+## LOCKED rungs are dim with a padlock and state their unlock rule on hover or
+## focus. STOKED — Heat 0, the ground you stand on — is not itself a rung;
+## clicking the rung you are already on steps back down to it, and the header
+## always names where you stand so 0 is never invisible. The SELECTED rung wears
+## a bright tab, and whichever rung is hot (or, with nothing hot, the one you
+## have picked) spells its one sentence out in the strip beneath the ladder.
+##
+## Every rung is a `bare` widget — declared to the same layer the audit reads, so
+## COLLIDE and WIDGET see all five — and NONE is `disabled`, because a disabled
+## widget refuses the hover and the unlock rule would go silent over exactly the
+## rungs a player most wants to read. The purchase is refused instead by the
+## `is_reachable` gate, the same shape the Workshop board uses for its fittings.
+func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
+	var reachable: int = SkyGearWorkshop.heat_available(game.workshop)
+	var best: int = int(game.workshop.best_heat)
+	var rungs: int = SkyGearWorkshop.HEAT.size() - 1
+	var sel: int = clampi(game.heat, 0, reachable)
+	var teal := Color("#37f0c8")
+	var dim := Color("#5f5863")
+	var locked_ink := Color("#8f8697")
+	var flame := Color("#ff9a4a")
+
+	## The header carries the current pick, so STOKED reads even though it is the
+	## ground rather than a rung on the ladder.
+	var here_name := str(SkyGearWorkshop.HEAT[sel].name)
+	_say_free("DIFFICULTY", Vector2(wx, top + 12.0), wide * 0.5,
+		HORIZONTAL_ALIGNMENT_LEFT, 13, BONE)
+	_say_free(("HEAT %d · %s" % [sel, here_name]) if sel > 0 else here_name,
+		Vector2(wx, top + 12.0), wide, HORIZONTAL_ALIGNMENT_RIGHT, 13,
+		BRASS_LIT if sel > 0 else locked_ink)
+
+	var row_y := top + 22.0
+	var gap := 8.0
+	var rw := (wide - gap * float(rungs - 1)) / float(rungs)
+	var active := -1  ## the rung the strip below should speak for, if any is hot
+	for r in range(1, rungs + 1):
+		var box := Rect2(wx + (rw + gap) * float(r - 1), row_y, rw, 32.0)
+		var is_reachable := r <= reachable
+		var is_cleared := r <= best
+		var is_next := r == reachable
+		var is_locked := r > reachable
+		var is_sel := r == sel
+
+		var mine := ui.declared().size()
+		if ui.button(box, "", {"bare": true}):
+			## A reachable rung sets the run's Heat; clicking the one you are on
+			## steps back to STOKED. A locked rung refuses, and says why on hover.
+			if is_reachable:
+				game.heat = 0 if r == game.heat else r
+		if ui.lit(mine):
+			active = r
+
+		var rim := BRASS_LIT if is_cleared else (teal if is_next else dim)
+		var ink := BRASS_LIT if is_cleared else (teal if is_next else locked_ink)
+		var fill := Color(BRASS.r, BRASS.g, BRASS.b, 0.26) if is_cleared \
+			else (Color(teal.r, teal.g, teal.b, 0.12) if is_next \
+			else Color(0.06, 0.05, 0.08, 0.72))
+		draw_rect(box, fill)
+		if ui.lit(mine) and is_reachable:
+			draw_rect(box.grow(-1.0), Color(rim.r, rim.g, rim.b, 0.12))
+		draw_rect(box, rim.lerp(Color.WHITE, 0.35) if ui.lit(mine) else rim,
+			false, 2.0 if (is_sel or ui.lit(mine)) else 1.4)
+		## The bright tab along the foot marks the pick, apart from the
+		## cleared/next/locked state the rung already shows.
+		if is_sel:
+			draw_rect(Rect2(box.position.x + 6.0, box.end.y - 4.0,
+				box.size.x - 12.0, 3.0), BRASS_LIT if is_cleared else teal)
+		_say_free("%d" % r, Vector2(box.position.x, box.get_center().y + 6.0),
+			box.size.x, HORIZONTAL_ALIGNMENT_CENTER, 18, ink)
+		if is_locked:
+			_padlock(Vector2(box.end.x - 13.0, box.position.y + 9.0), locked_ink)
+
+	## The strip: the hot rung's sentence, or its unlock rule if it is locked;
+	## and with nothing hot, the sentence for the rung you have selected.
+	var blurb := ""
+	var tint := locked_ink
+	if active > reachable:
+		blurb = "LOCKED · " + (("clear HEAT %d to unlock." % (active - 1))
+			if active - 1 >= 1 else "win a run to open the ladder.")
+	else:
+		var show: int = active if active > 0 else sel
+		blurb = str(SkyGearWorkshop.HEAT[clampi(show, 0, rungs)].blurb)
+		tint = flame if show > 0 else locked_ink
+	_says(blurb, Vector2(wx, row_y + 44.0), wide, HORIZONTAL_ALIGNMENT_CENTER,
+		13, 2, tint)
+	return row_y + 64.0
+
+
+## A small padlock, for a locked rung. `at` is the top-centre of the body.
+func _padlock(at: Vector2, color: Color) -> void:
+	draw_arc(Vector2(at.x, at.y), 3.0, PI, TAU, 8, color, 1.4)
+	draw_rect(Rect2(at.x - 4.0, at.y, 8.0, 6.0), color)
 
 ## The HUD, brought up to the browser build.
 ##
