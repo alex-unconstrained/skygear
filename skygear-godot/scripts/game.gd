@@ -83,6 +83,21 @@ var rng := RandomNumberGenerator.new()
 ## jitter for the rest of the run shifted by however many boarders had been hit.
 ## A seed has to reproduce a run, so nothing cosmetic may touch it.
 var visual_rng := RandomNumberGenerator.new()
+## A THIRD stream, for the stowage roll alone (board SG-48, SHIP-AND-MAPS §4).
+##
+## The floater lesson above, applied in advance rather than after the bug: the
+## deck is re-dealt every wave, and if that draw touched `rng` then owning a
+## talent or playing a different class would move every crit and draft offer
+## for the rest of the run — and if it touched `visual_rng`, POWDER STORE's
+## keg drop would move the deal. So the stowage gets its own stream, reseeded
+## from `hash(seed_text) ^ (wave * LAYOUT_SALT)` at every roll: deterministic
+## in the seed, independent of wave order, independent of the player's entire
+## history. Pinned by `stow · the same seed deals the same twelve decks` and
+## `stow · rolling the stowage leaves rng.state untouched`.
+var layout_rng := RandomNumberGenerator.new()
+## Knuth's multiplicative hash constant — spreads consecutive wave numbers
+## across the seed space so wave 2 is not wave 1 plus one.
+const LAYOUT_SALT := 2654435761
 var state := State.TITLE
 var state_name := "TITLE"
 var wave := 0
@@ -3226,28 +3241,126 @@ func _stow_barricade() -> void:
 	barricade.configure(self, "crates")
 
 
+## The §7.1 kill-test lever (board SG-48). With `SKYGEAR_STOWAGE_FLAT` set,
+## `restow_props` deals `PROP_LAYOUT` byte-for-byte — today's deck, every wave —
+## so `tools/balance.gd` can be run flat against live and the close-share
+## distributions compared without editing code. If they are indistinguishable,
+## the variety is cosmetic and gets cut, not tuned. Pinned by
+## `stow · the flat lever deals today's deck exactly`.
+func stowage_flat() -> bool:
+	return OS.get_environment("SKYGEAR_STOWAGE_FLAT") != ""
+
+
+## Deal one wave's stowage (board SG-48, SHIP-AND-MAPS §4/§9): the STOWAGE
+## table's fixed entries as written, and each slot rolled from `layout_rng` —
+## a weighted kind (possibly empty) and a jittered position. Pure in the seed
+## and the wave: it reseeds its own stream every call and touches nothing
+## else, so `tools/stow.gd` can audit five hundred decks without instantiating
+## a prop, and the same seed deals the same twelve decks forever, for everyone.
+##
+## Two invariants are enforced IN the deal rather than hoped about the table:
+## a keg that lands within `KEG_SPACING` of another is demoted to a crate
+## (§7.3's chain: within 200 units, one detonation is all of them), and a deal
+## that comes up short of `KEG_FLOOR` kegs stands them on the floor anchors —
+## zero ordnance is a bad hand dealt by the floor, not variety.
+func roll_stowage(for_wave: int) -> Array:
+	layout_rng.seed = hash(seed_text) ^ (for_wave * LAYOUT_SALT)
+	var placed: Array = []
+	var kegs: Array[Vector2] = []
+	for entry in SkyGearData.STOWAGE:
+		if bool(entry.get("fixed", false)):
+			placed.append({"type": str(entry.type), "position": Vector2(entry.position)})
+			continue
+		var kinds: Array = entry.of
+		var weights: Array = entry.weight
+		var total := 0.0
+		for w in weights:
+			total += float(w)
+		var draw: float = layout_rng.randf() * total
+		var kind := ""
+		for i in kinds.size():
+			draw -= float(weights[i])
+			if draw <= 0.0:
+				kind = str(kinds[i])
+				break
+		## The jitter is drawn even when the slot stows empty, so one slot's
+		## outcome can never shift where another slot's cargo stands.
+		var jitter := float(entry.get("jitter", 0.0))
+		var at: Vector2 = Vector2(entry.position) + Vector2(
+			layout_rng.randf_range(-jitter, jitter),
+			layout_rng.randf_range(-jitter, jitter))
+		if kind == "":
+			continue
+		if kind == "keg":
+			for other in kegs:
+				if other.distance_to(at) < SkyGearData.KEG_SPACING:
+					kind = "crate"
+					break
+		if kind == "keg":
+			kegs.append(at)
+		placed.append({"type": kind, "position": at})
+	for anchor: Vector2 in SkyGearData.KEG_FLOOR_ANCHORS:
+		if kegs.size() >= SkyGearData.KEG_FLOOR:
+			break
+		var clear := true
+		for other in kegs:
+			if other.distance_to(anchor) < SkyGearData.KEG_SPACING:
+				clear = false
+				break
+		if clear:
+			kegs.append(anchor)
+			placed.append({"type": "keg", "position": anchor})
+	return placed
+
+
 func restow_props() -> void:
 	for prop in props():
 		if is_instance_valid(prop):
 			prop.dead = true
 			prop.queue_free()
-	for entry in SkyGearData.PROP_LAYOUT:
+	## The stowage spine (board SG-48): the deck is dealt from the seed, per
+	## wave, or dealt flat for the kill-test — see `stowage_flat` above.
+	var stowage: Array = SkyGearData.PROP_LAYOUT if stowage_flat() 		else roll_stowage(wave)
+	var keg_spots: Array[Vector2] = []
+	for entry in stowage:
 		var prop: SkyGearProp = PROP_SCENE.instantiate()
 		add_child(prop)
 		prop.global_position = entry.position
 		prop.configure(self, entry.type)
+		if str(entry.type) == "keg":
+			keg_spots.append(Vector2(entry.position))
 	## The draggable crate re-stows with everything else — see `_stow_barricade`.
 	## The old one was freed in the loop above (it lives in the "props" group).
 	_stow_barricade()
 	## POWDER STORE. Extra ordnance, stowed away from the layout's own kegs so it
 	## reads as a stockpile rather than as one keg mysteriously duplicated. Placed
 	## with the cosmetic stream, or a talent would move every seeded roll after it.
+	##
+	## And placed OUTSIDE `KEG_SPACING` of every keg already standing — §7.3
+	## noted the drop could violate the chain minimum, and a talent that stacks
+	## its keg onto a stowed one is a lane-clearing bomb nobody designed. Forty
+	## candidates from the cosmetic stream, keep the first clear one (or the
+	## farthest-from-trouble one if the deck is somehow that crowded — with at
+	## most a handful of kegs on 1.0M square units it never is).
 	for i in int(talent("extra_kegs")):
+		var best := Vector2.ZERO
+		var best_clearance := -1.0
+		for _try in 40:
+			var candidate := Vector2(
+				visual_rng.randf_range(DECK_RECT.position.x + 200.0, DECK_RECT.end.x - 200.0),
+				visual_rng.randf_range(-300.0, 500.0))
+			var clearance := INF
+			for other in keg_spots:
+				clearance = minf(clearance, other.distance_to(candidate))
+			if clearance > best_clearance:
+				best_clearance = clearance
+				best = candidate
+			if clearance >= SkyGearData.KEG_SPACING:
+				break
+		keg_spots.append(best)
 		var keg: SkyGearProp = PROP_SCENE.instantiate()
 		add_child(keg)
-		keg.global_position = Vector2(
-			visual_rng.randf_range(DECK_RECT.position.x + 200.0, DECK_RECT.end.x - 200.0),
-			visual_rng.randf_range(-300.0, 500.0))
+		keg.global_position = best
 		keg.configure(self, "keg")
 
 func on_prop_destroyed(prop: SkyGearProp) -> void:

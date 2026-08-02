@@ -78,6 +78,8 @@ func _run() -> void:
 	await process_frame
 	_deck()
 	await process_frame
+	_stow()
+	await process_frame
 	_lanes()
 	await process_frame
 	_draft()
@@ -323,6 +325,116 @@ func _deck() -> void:
 	_check("deck", "the deck is re-stowed for the next wave",
 		alive >= 6, "%d standing" % alive)
 	game.queue_free()
+
+
+## THE STOWAGE SPINE (board SG-48, SHIP-AND-MAPS §4/§9, POST-PARITY-PLAN item
+## 2). The deck is dealt per wave from `layout_rng`, a THIRD stream — these pin
+## the two guarantees the whole design stands on: the deal is a pure function
+## of seed and wave, and dealing it moves neither of the streams a run's
+## outcome is made of. The geometric invariants (keg spacing, passable
+## crossings, cover band) are `tools/stow.gd`'s job, over hundreds of decks.
+func _stow() -> void:
+	var a := _new_game()
+	a.set_seed_text("STOW")
+	var first := ""
+	for w in 12:
+		first += var_to_str(a.roll_stowage(w + 1))
+
+	var b := _new_game()
+	b.set_seed_text("STOW")
+	var second := ""
+	for w in 12:
+		second += var_to_str(b.roll_stowage(w + 1))
+	_check("stow", "the same seed deals the same twelve decks",
+		first != "" and first == second, "%d bytes of deal" % first.length())
+
+	b.set_seed_text("WOTS")
+	var third := ""
+	for w in 12:
+		third += var_to_str(b.roll_stowage(w + 1))
+	_check("stow", "a different seed deals a different stowage", first != third)
+
+	## Independent of wave order: wave 5 dealt cold equals wave 5 dealt after
+	## eleven other rolls, or a mid-run restow would depend on history.
+	var cold: String = var_to_str(a.roll_stowage(5))
+	for w in [12, 3, 8, 1, 9]:
+		a.roll_stowage(w)
+	_check("stow", "the deal is independent of wave order",
+		cold == var_to_str(a.roll_stowage(5)))
+
+	## The floater lesson, guarded in advance: dealing the deck consumes
+	## NOTHING from the seeded stream or the cosmetic one.
+	_begin(a, "STOW")
+	var rng_state: int = a.rng.state
+	var visual_state: int = a.visual_rng.state
+	a.roll_stowage(7)
+	a.restow_props()
+	_check("stow", "rolling the stowage leaves rng.state untouched",
+		a.rng.state == rng_state and a.visual_rng.state == visual_state,
+		"rng %s visual %s" % [a.rng.state == rng_state,
+			a.visual_rng.state == visual_state])
+
+	## The vents are the ship, not cargo: the Boilerwright's class is "learn
+	## where the three vents are", so no deal may ever move one.
+	var vents_fixed := true
+	for w in 12:
+		var vents := {}
+		for entry in a.roll_stowage(w + 1):
+			if str(entry.type) == "vent":
+				vents[var_to_str(entry.position)] = true
+		if vents.size() != 3 or not (vents.has(var_to_str(Vector2(40, 15)))
+				and vents.has(var_to_str(Vector2(-680, 620)))
+				and vents.has(var_to_str(Vector2(700, 120)))):
+			vents_fixed = false
+	_check("stow", "the three vents never move", vents_fixed)
+
+	## §7.3's chain minimum now covers POWDER STORE's drop too — the one place
+	## the design doc noted it could already be violated.
+	a.talents = {"extra_kegs": 8.0}
+	a.restow_props()
+	var keg_at: Array[Vector2] = []
+	for p in a.props():
+		if p.prop_type == "keg" and not p.dead:
+			keg_at.append(p.global_position)
+	var nearest := INF
+	for i in keg_at.size():
+		for j in range(i + 1, keg_at.size()):
+			nearest = minf(nearest, keg_at[i].distance_to(keg_at[j]))
+	_check("stow", "the powder store keeps its kegs two hundred apart",
+		keg_at.size() >= int(SkyGearData.KEG_FLOOR) + 8
+			and nearest >= SkyGearData.KEG_SPACING,
+		"%d kegs, nearest pair %.0f" % [keg_at.size(), nearest])
+	a.talents = {}
+
+	## The kill-test lever: flat deals today's deck byte-for-byte, so
+	## `tools/balance.gd` can measure the variety against its absence.
+	OS.set_environment("SKYGEAR_STOWAGE_FLAT", "1")
+	a.restow_props()
+	var flat_ok := true
+	## Only what is standing: the deal it replaced is dead in the group until
+	## the frame ends, exactly like the re-stow check above.
+	var standing: Array[Node] = []
+	for p in a.props():
+		if not p.dead:
+			standing.append(p)
+	## PROP_LAYOUT plus the movable crate `_stow_barricade` always adds.
+	if standing.size() != SkyGearData.PROP_LAYOUT.size() + 1:
+		flat_ok = false
+	for entry in SkyGearData.PROP_LAYOUT:
+		var found := false
+		for p in standing:
+			if p.prop_type == str(entry.type) 					and p.global_position.distance_to(Vector2(entry.position)) < 0.5:
+				found = true
+				break
+		if not found:
+			flat_ok = false
+	OS.set_environment("SKYGEAR_STOWAGE_FLAT", "")
+	_check("stow", "the flat lever deals today's deck exactly", flat_ok,
+		"%d standing against %d in the layout" % [standing.size(),
+			SkyGearData.PROP_LAYOUT.size()])
+
+	a.queue_free()
+	b.queue_free()
 
 
 func _lanes() -> void:
