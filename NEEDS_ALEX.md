@@ -67,10 +67,7 @@ SG-12; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
   filled danger wedge at the true swing arc; melee reach shifted a few units
   to match the browser exactly (ARMORED slightly longer, SWARM slightly
   shorter). Worth a feel-check that nothing reads unfair.
-- ~~HEAVE THE CRATE~~ — **you answered: it sucks** (hold not fun, crate traps
-  you). Rework in flight (SG-37): instant tap-shove, and the crate can never
-  block you — only boarders. Re-judge on the next build; if it still isn't
-  fun, it gets dropped.
+- **SHOVE THE CRATE** (SG-37, reworked — in the next build): the hold-to-heave channel is gone (instant tap-shove, ~1s cooldown) and the crate can never block you now, only boarders — re-judge the fun; if it still isn't there, it gets dropped.
 - **Cutscenes** (SG-8, all five cues now filled): a 2.5s run-opening reveal,
   1.4s flourishes on waves 4 and 8, a 5.4s victory crane-up to the horizon
   (the one angle gameplay never shows), and a 3.6s defeat push onto the

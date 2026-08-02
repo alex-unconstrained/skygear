@@ -1607,7 +1607,11 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 			## Says WHY when it refuses. A prompt that simply vanishes while
 			## boarders stand on the gun teaches the player that the repair is
 			## unreliable rather than that it is contested.
-			var line: String = ("— " + str(spec.blocked).to_upper() + " —") if stopped 				else "HOLD %s · %s" % [SkyGearKeybinds.label(str(spec.get(
+			## TAP for an instant verb (the crate shove, board SG-37), HOLD for a
+			## channelled one (repair). The word has to match the interaction or the
+			## prompt teaches the wrong thing.
+			var verb_word: String = "TAP" if bool(spec.get("instant", false)) else "HOLD"
+			var line: String = ("— " + str(spec.blocked).to_upper() + " —") if stopped 				else "%s %s · %s" % [verb_word, SkyGearKeybinds.label(str(spec.get(
 					"action", "deckwork"))), str(spec.verb)]
 			var tint: Color = Color("#ff8b6a") if stopped else Color("#ffdca8")
 			var plate := Rect2(pin.at.x - 128.0, pin.at.y - 34.0, 256.0, 22.0)
@@ -1615,7 +1619,10 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 			_say_free(line, Vector2(plate.position.x, plate.position.y + 15.0),
 				plate.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, tint)
 			## The ring under the words, so the commitment reads as a commitment.
-			if not stopped and game.deckwork_progress > 0.0:
+			## Only a CHANNELLED verb has a commitment to draw — the instant crate
+			## shove (board SG-37) has no progress bar; it just fires.
+			if not stopped and not bool(spec.get("instant", false)) \
+					and game.deckwork_progress > 0.0:
 				var run := Rect2(plate.position.x + 28.0, plate.end.y + 2.0,
 					plate.size.x - 56.0, 3.0)
 				draw_rect(run, Color(0.05, 0.04, 0.07, 0.7))

@@ -1939,9 +1939,14 @@ func _view() -> void:
 			and SkyGearDeckwork.actions()[0].has("verb")
 			and SkyGearDeckwork.actions()[0].has("at"))
 
-	## THE SECOND VERB — HEAVE THE CRATE (board SG-10). The first entry that shapes
-	## the ground rather than mending it, and the proof the table was worth being a
-	## table. Everything below is the repair pattern, one row over.
+	## THE SECOND VERB — SHOVE THE CRATE (board SG-10, reworked SG-37). The first
+	## entry that shapes the ground rather than mending it, and the proof the table
+	## was worth being a table. The owner played the SG-10 hold-to-heave and
+	## rejected it: the 2.8s channel was not fun and the crate trapped the captain.
+	## So this is now an INSTANT tap-shove (no channel, a short cooldown instead)
+	## that the captain can never be blocked by — the checks below are rewritten to
+	## that contract, and the funnel/open-side pair is carried forward from SG-10
+	## intact because the boarders MUST stay funnelled.
 	_check("deck", "the deck carries a movable crate to heave",
 		deck.barricade != null and is_instance_valid(deck.barricade)
 			and not bool(deck.barricade.dead))
@@ -2023,6 +2028,63 @@ func _view() -> void:
 			and absf(deck.barricade.global_position.y - SkyGearGame.BARRICADE_Y) < 1.0,
 		"stage %d at %.0f, %.0f" % [int(deck.barricade_stage),
 			deck.barricade.global_position.x, deck.barricade.global_position.y])
+
+	## SG-37 REWORK — THE INSTANT SHOVE. The channel is gone: the crate verb is
+	## flagged `instant` and carries NO `seconds`, so nothing fills before it fires
+	## and one `perform` steps the footprint at once (the "moves the crate's
+	## footprint" check above already proves the single-call step). The repair verb
+	## still carries channel seconds — the divergence is deliberate, the crate is
+	## the ONLY instant verb. If the channel ever creeps back onto the crate, this
+	## fails.
+	var heave_spec: Dictionary = SkyGearDeckwork.actions()[1]
+	var repair_spec: Dictionary = SkyGearDeckwork.actions()[0]
+	_check("deck", "the shove is instant — no channel gates it",
+		str(heave_spec.id) == "heave_crate"
+			and bool(heave_spec.get("instant", false))
+			and not heave_spec.has("seconds")
+			and float(repair_spec.get("seconds", 0.0)) > 1.0,
+		"heave instant=%s seconds?=%s · repair seconds=%.1f" % [
+			bool(heave_spec.get("instant", false)), heave_spec.has("seconds"),
+			float(repair_spec.get("seconds", 0.0))])
+
+	## THE COST THAT REPLACES THE CHANNEL — a short per-crate cooldown so the shove
+	## cannot be machine-gunned across the deck. It is a real, positive duration, it
+	## ticks down over time, and it drains back to zero (recovers). The tick runs at
+	## the top of `_update_deckwork` regardless of state, so this exercises the real
+	## code path, not a stand-in.
+	deck.barricade_cooldown = SkyGearGame.BARRICADE_COOLDOWN
+	deck._update_deckwork(0.25)
+	var cd_ticks: bool = deck.barricade_cooldown > 0.0 \
+		and deck.barricade_cooldown < SkyGearGame.BARRICADE_COOLDOWN
+	deck._update_deckwork(SkyGearGame.BARRICADE_COOLDOWN)
+	_check("deck", "the shove cooldown holds",
+		SkyGearGame.BARRICADE_COOLDOWN >= 0.5 and cd_ticks
+			and deck.barricade_cooldown <= 0.0,
+		"const %.1fs · ticked %s · drained to %.2f" % [
+			SkyGearGame.BARRICADE_COOLDOWN, cd_ticks, deck.barricade_cooldown])
+
+	## THE CAPTAIN IS NEVER BLOCKED BY THE CRATE (board SG-37, the owner's core
+	## complaint). Her collision (`correct_player_position`) clamps only the eight
+	## FIXED walls, never the movable crate, so a point inside the crate's footprint
+	## comes back UNCHANGED — a path across it succeeds for her. The same call still
+	## clamps her OUT of a fixed wall, so collision is not globally off: the crate,
+	## and only the crate, is excluded. This is the deliberate divergence from the
+	## enemy rects (the funnel checks above prove boarders ARE still shaped by it),
+	## stated at the site per STATUS failure mode two. Under the SG-10 code (which
+	## clamped `cargo_rects()`, crate included) this point was pushed clear of the
+	## crate and this check would fail — that is the rework, pinned.
+	deck.barricade_stage = 1
+	deck.barricade.global_position = Vector2(
+		SkyGearGame.BARRICADE_STAGES[1], SkyGearGame.BARRICADE_Y)
+	var crate_c: Vector2 = deck.barricade.global_position
+	var in_crate: Vector2 = deck.correct_player_position(crate_c, 17.0)
+	var wall: Rect2 = SkyGearGame.CARGO_RECTS[0]
+	var in_wall: Vector2 = deck.correct_player_position(wall.get_center(), 17.0)
+	_check("deck", "the captain is never blocked by the heaved crate",
+		in_crate.distance_to(crate_c) < 0.5
+			and in_wall.distance_to(wall.get_center()) > 1.0,
+		"crate push %.1f (want ~0) · fixed-wall push %.1f (want >0)" % [
+			in_crate.distance_to(crate_c), in_wall.distance_to(wall.get_center())])
 	deck.queue_free()
 
 	## MOVEMENT FEEL, as a shape rather than as numbers. Both directions of this

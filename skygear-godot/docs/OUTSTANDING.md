@@ -30,6 +30,19 @@ hers. Board SG-37; the rework replaces the channel with an instant shove and
 makes the crate something she can never be trapped by. If it still is not fun
 after that, the verb gets dropped with this entry as the reason.
 
+**REWORK SHIPPED (SG-37, 2026-08-01) — awaiting your re-judgement; NOT closed.**
+Both halves are in the next build. The channel is gone: the deckwork key at the
+crate now SHOVES it instantly (the prompt reads "TAP", the coach says "TAP … to
+shove"), the captain keeps moving and fighting, and a ~1s per-crate cooldown
+replaces the seconds-standing-still as the cost — each tap still steps one stage
+of stow→narrow→funnel→stow (a fixed distance per press). And she is NEVER blocked
+by the crate: her collision now clamps only the eight fixed cargo walls and
+excludes the movable crate entirely, so she slips straight through it while the
+boarders stay fully funnelled by it (deliberate divergence, commented at the
+site and pinned). This stays OPEN because YOU judge whether it is fun now, not
+us — play it and say. If it still is not fun, it gets dropped with this entry as
+the reason.
+
 ### The Boilerwright's mobility gap is 60%, not the 21% the numbers say
 Reported at playtest as "Boilerwright feels slower", alongside "I'm not sure I
 understand what the class actually does". The second half is fixed — the

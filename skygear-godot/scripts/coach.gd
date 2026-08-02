@@ -69,8 +69,10 @@ const TEXT := {
 	"empty_bank": "Head is empty, so every weapon is hitting soft. Stand on a vent or crack a main with F.",
 	"lane": "A lane is walking through. The cannon holds, it does not kill.",
 	## The shaping verb, announced because nothing on screen says a crate can be
-	## heaved to funnel a lane. `{key}` is the live binding, like `broken_cannon`.
-	"shape_lane": "A lane is walking through. Stand at the crate and HOLD {key} to heave it across and funnel them.",
+	## shoved to funnel a lane. A TAP now, not a hold (board SG-37) — the line has
+	## to say so, or it teaches the very interaction the owner rejected. `{key}` is
+	## the live binding, like `broken_cannon`.
+	"shape_lane": "A lane is walking through. Stand at the crate and TAP {key} to shove it across and funnel them.",
 	"idle_skill": "You have a weapon you have never fired. Q and E are drafted too.",
 	## `{key}` is filled from the live binding rather than written in, so a player
 	## who rebinds the key is not told to press the one they replaced.

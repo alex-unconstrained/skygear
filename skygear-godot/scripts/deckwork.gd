@@ -27,7 +27,8 @@ extends RefCounted
 ##
 ##   at        which family of thing it targets
 ##   reach     how close you have to stand, in ground units
-##   seconds   how long you are out of the fight
+##   seconds   how long you are out of the fight (a CHANNEL; omitted for `instant`)
+##   instant   fires the frame the key goes down, no channel (the crate shove)
 ##   can       is this target valid right now
 ##   apply     do it
 ##
@@ -45,17 +46,25 @@ const REPAIR_FRACTION := 0.55
 ## your back is not a decision, it is a free action with extra steps.
 const CONTESTED := 150.0
 
-## HEAVE THE CRATE — the second verb, and the first that shapes the ground rather
-## than mends it (board SG-10). Repair is a coach line, a prompt, a progress bar
-## and a refusal reason; every one of those is generic, so laning is one more row
-## here and not a rewrite — which is the entire reason this was a table on day one.
+## SHOVE THE CRATE — the second verb, and the first that shapes the ground rather
+## than mends it (board SG-10, reworked SG-37). Repair is a coach line, a prompt,
+## a refusal reason; every one of those is generic, so laning is one more row here
+## and not a rewrite — which is the entire reason this was a table on day one.
 ##
-## Slower than a repair: a loaded cargo stack is heavy, and the seconds ARE the
-## limit. There is no second resource. One crate is 150 units against a 380-unit
-## lane band, so a heave can narrow a lane and pin the fight to one side of it but
-## can never wall the lane off — and it re-stows to its home every wave with the
-## rest of the ordnance, so a flank you closed is a flank you pay to close again.
-const HEAVE_SECONDS := 2.8
+## INSTANT, NOT A CHANNEL (board SG-37). The owner played the old 2.8s
+## hold-to-heave and rejected it: "the hold to move is not fun… too easy to just
+## get stuck on the crates yourself." So this verb is `instant` — the sim steps
+## the crate the frame the key goes DOWN and the captain keeps moving and
+## fighting, no progress bar, no seconds standing still. That breaks the "currency
+## is TIME" doctrine above ON PURPOSE, and only for this verb: with the time-cost
+## gone, the thing that stops it being machine-gunned across the deck is a short
+## per-crate cooldown the sim owns (`SkyGearGame.BARRICADE_COOLDOWN`, ~1s), plus a
+## fixed distance per press — each tap steps ONE stage of the stow→narrow→funnel
+## →stow cycle. One crate is 150 units against a 380-unit lane band, so a shove
+## narrows a lane and pins the fight to one side but can never wall it off, and it
+## re-stows home every wave so a flank you closed is one you pay a tap to close
+## again. The captain is never blocked by it — it shapes the BOARDERS' paths only
+## (see `SkyGearGame.correct_player_position`, which excludes the movable crate).
 const HEAVE_REACH := 150.0
 
 
@@ -67,8 +76,8 @@ static func actions() -> Array[Dictionary]:
 			"blocked": "boarders are on it",
 		},
 		{
-			"id": "heave_crate", "verb": "HEAVE THE CRATE",
-			"at": "crate", "reach": HEAVE_REACH, "seconds": HEAVE_SECONDS,
+			"id": "heave_crate", "verb": "SHOVE THE CRATE",
+			"at": "crate", "reach": HEAVE_REACH, "instant": true,
 			"blocked": "boarders are on it",
 		},
 	]

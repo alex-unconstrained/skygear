@@ -41,6 +41,11 @@ const BARRICADE_SIZE := Vector2(150.0, 130.0)
 const BARRICADE_Y := -480.0
 const BARRICADE_LANE := 0
 const BARRICADE_STAGES := [-280.0, -560.0, -450.0]
+## The shove is instant (board SG-37), so the cost that stops it being
+## machine-gunned across the deck is this per-crate cooldown rather than seconds
+## of standing still. ~1s: long enough to feel deliberate, short enough that
+## re-shaping a collapsing lane is never a waiting game. Tune to feel.
+const BARRICADE_COOLDOWN := 1.0
 
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
@@ -194,6 +199,9 @@ var deckwork_progress := 0.0
 ## (board SG-10). Null until the deck is first stowed; re-stowed home every wave.
 var barricade: SkyGearProp = null
 var barricade_stage := 0
+## Ticks down after each shove; a shove is refused while it is above zero. See
+## `BARRICADE_COOLDOWN` and `_update_deckwork`.
+var barricade_cooldown := 0.0
 ## What you keep between runs. Loaded once; nothing before a first victory.
 var workshop: Dictionary = SkyGearWorkshop.load_state()
 ## What the last run paid, so the results screen can say so rather than the
@@ -2243,10 +2251,15 @@ func use_article_v() -> bool:
 	return true
 
 
-## HELD, not pressed. A repair is a commitment you can abandon by walking away,
-## which is the whole point — the cost is the seconds, and seconds you can take
-## back are not a cost.
+## TWO SHAPES OF VERB. A repair is HELD, not pressed — a commitment you can
+## abandon by walking away, because the cost is the seconds and seconds you can
+## take back are not a cost. The crate shove is INSTANT (board SG-37) — it fires
+## on the key going down and the sim steps the crate at once; its cost is a short
+## cooldown, not standing still. The `instant` flag on the spec selects between them.
 func _update_deckwork(delta: float) -> void:
+	## The shove cooldown ticks regardless of state, so a wave never opens with it
+	## mid-charge from the wave before.
+	barricade_cooldown = maxf(0.0, barricade_cooldown - delta)
 	if state != State.PLAY:
 		deckwork = {}
 		deckwork_progress = 0.0
@@ -2261,6 +2274,24 @@ func _update_deckwork(delta: float) -> void:
 		if here.is_empty():
 			return
 	deckwork = here
+	## INSTANT VERBS — the crate shove (board SG-37). No channel: the sim steps the
+	## crate the frame the key goes DOWN and the captain keeps moving and fighting.
+	## The owner rejected the 2.8s hold ("the hold to move is not fun… too easy to
+	## get stuck on the crates yourself"), so there is no progress to fill and no
+	## standing-still requirement — only a short per-crate cooldown so it cannot be
+	## machine-gunned across the deck, and the same "boarders on it" refusal.
+	if bool(here.spec.get("instant", false)):
+		deckwork_progress = 0.0
+		if bool(here.contested) or barricade_cooldown > 0.0:
+			return
+		if Input.is_action_just_pressed("deckwork"):
+			SkyGearDeckwork.perform(self, here.spec, here.target)
+			barricade_cooldown = BARRICADE_COOLDOWN
+			play_sfx("lane/crew_muster.ogg", -6.0)
+			_fx({"kind": "circle", "position": Vector2(here.target.position),
+				"radius": 90.0, "color": Color("#37f0c8"), "time": 0.0, "life": 0.32})
+		return
+	## CHANNELLED VERBS — repair, held not pressed.
 	if not Input.is_action_pressed("deckwork"):
 		deckwork_progress = 0.0
 		return
@@ -2872,7 +2903,20 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 		clampf(position.x, DECK_RECT.position.x + radius, DECK_RECT.end.x - radius),
 		clampf(position.y, DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
 	)
-	for cargo: Rect2 in cargo_rects():
+	## DELIBERATE DIVERGENCE (board SG-37): the captain clamps against the eight
+	## FIXED cargo walls (`CARGO_RECTS`) ONLY — never `cargo_rects()`, which also
+	## carries the movable crate. She is NEVER collision-blocked by the crate: it
+	## exists to shape the BOARDERS' paths (pillar 4 — cross-passages preserve HER
+	## mobility), and a crate she can wall herself in behind is exactly the trap the
+	## owner rejected ("too easy to just get stuck on the crates yourself and lose
+	## your ability to move between lanes"). So she slips through it freely while
+	## enemies still path against the full `cargo_rects()` (8 walls + live crate)
+	## in `correct_enemy_position`/`_funnel_past_crate`. Her collision and the enemy
+	## rects therefore disagree about the crate BY SPECIFICATION, not by accident
+	## (STATUS failure mode two: two functions disagreeing about one number is a bug
+	## UNLESS the disagreement is the spec, stated). Pinned by
+	## `deck · the captain is never blocked by the heaved crate`.
+	for cargo: Rect2 in CARGO_RECTS:
 		var expanded: Rect2 = cargo.grow(radius)
 		if expanded.has_point(corrected):
 			var left_distance := absf(corrected.x - expanded.position.x)
