@@ -42,6 +42,13 @@ const DWELL := {
 	## being earned, it is a fact with no other way in. Long enough that walking
 	## between two vents does not trip it.
 	"empty_bank": 7.0,
+	## HIS, and the most teaching-shaped line here (board SG-59): the owner
+	## played the class and could not FIND a vent. Not a mistake at all — a fact
+	## with no other way in — so it is earned merely by playing him without ever
+	## having stood on one. Long enough that a man marching straight for a vent
+	## he already knows arrives before it fires, and goes quiet forever the
+	## moment he does.
+	"find_vent": 6.0,
 	## The draggable crate is a verb with no on-screen tell, like the downed cannon.
 	## Same dwell as `lane`: a lane has to be genuinely walking through before the
 	## shaping tool is worth pointing at.
@@ -58,7 +65,9 @@ const FIRST_WAVE := 2    ## nothing before this
 ## already making and could in principle notice; this one announces a VERB THAT
 ## IS OTHERWISE INVISIBLE. Nothing on screen says a dead gun can come back, so
 ## without it the whole deckwork system is code no player ever runs.
-const ORDER := ["broken_cannon", "empty_bank", "gauge", "kiting", "shape_lane", "lane", "idle_skill"]
+## `find_vent` sits above `empty_bank` because the bank line SAYS "stand on a
+## vent" — advice that lands on nobody who has not been told the vents exist.
+const ORDER := ["broken_cannon", "find_vent", "empty_bank", "gauge", "kiting", "shape_lane", "lane", "idle_skill"]
 
 const TEXT := {
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
@@ -67,6 +76,11 @@ const TEXT := {
 	## an empty bank is not a neutral state, it is a 45% damage cut, and nothing
 	## in the game said so.
 	"empty_bank": "Head is empty, so every weapon is hitting soft. Stand on a vent or crack a main with F.",
+	## HIS FIRST LESSON (board SG-59). No {key} — there is no key; you stand on
+	## the thing. `{rate}` and `{vent}` are filled live in `_still_showing`: the
+	## rate from his own kit (one source, `vent_rate`), the bearing from where
+	## the nearest vent actually is when the line goes up.
+	"find_vent": "Those steaming deck grates are vents — HEAD for free, {rate} a second while you stand on one. The nearest is {vent}.",
 	"lane": "A lane is walking through. The cannon holds, it does not kill.",
 	## The shaping verb, announced because nothing on screen says a crate can be
 	## shoved to funnel a lane. A TAP now, not a hold (board SG-37) — the line has
@@ -84,6 +98,9 @@ var _shown := {}
 var _last_at := {}
 var _current := ""
 var _current_until := -1.0
+## Whether he has stood on a vent this run — the moment he has, `find_vent` is
+## a lesson already learned and never fires (board SG-59).
+var _vent_stood := false
 
 
 func reset() -> void:
@@ -92,12 +109,24 @@ func reset() -> void:
 	_last_at.clear()
 	_current = ""
 	_current_until = -1.0
+	_vent_stood = false
 
 
 ## Returns the line to draw, or "". Call every frame while playing.
 func advise(game, delta: float) -> String:
 	if game == null or game.state_name != "PLAY" or int(game.wave) < FIRST_WAVE:
 		return _still_showing(game)
+
+	## Cheap and only for his class: has he found a vent yet? Measured at the
+	## radius the bank actually fills at, so "stood on one" means it paid.
+	if not _vent_stood and game.gauge_is_banked():
+		for prop in game.props():
+			if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
+				continue
+			if game.player.global_position.distance_to(prop.global_position) \
+					<= SkyGearData.VENT_STAND:
+				_vent_stood = true
+				break
 
 	var now: float = float(game.run_time)
 	var holding := ""
@@ -125,8 +154,46 @@ func _still_showing(game) -> String:
 	if float(game.run_time) > _current_until:
 		_current = ""
 		return ""
-	return str(TEXT.get(_current, "")).replace(
+	var line := str(TEXT.get(_current, "")).replace(
 		"{key}", SkyGearKeybinds.label("deckwork"))
+	## SG-59's live fills — no binding involved, but the same rule as {key}:
+	## the line says what is true NOW, not what was true when it was written.
+	if line.find("{rate}") != -1:
+		line = line.replace("{rate}",
+			str(int(game.class_data().get("vent_rate", 0))))
+	if line.find("{vent}") != -1:
+		line = line.replace("{vent}", _vent_bearing(game))
+	return line
+
+
+## Where the nearest vent is, as a bearing off the man himself — "ahead to
+## port", "astern", "right beside you" — because a coach line cannot point and
+## a lane number means nothing to someone two waves into the game. The ship's
+## own words: the bow is up-deck (-y), port is -x, exactly as the camera hangs.
+func _vent_bearing(game) -> String:
+	var best := Vector2.ZERO
+	var best_d := INF
+	for prop in game.props():
+		if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
+			continue
+		var d: float = game.player.global_position.distance_to(prop.global_position)
+		if d < best_d:
+			best_d = d
+			best = prop.global_position
+	if best_d == INF:
+		return "gone with the deck"      # cannot happen; the method stays total
+	var off: Vector2 = best - game.player.global_position
+	if off.length() <= SkyGearData.VENT_STAND:
+		return "under your feet"
+	var fore := "ahead" if off.y < -80.0 else ("astern" if off.y > 80.0 else "")
+	var side := "to port" if off.x < -80.0 else ("to starboard" if off.x > 80.0 else "")
+	if fore == "" and side == "":
+		return "right beside you"
+	if fore == "":
+		return "abeam, " + side
+	if side == "":
+		return "dead " + fore
+	return fore + " " + side
 
 
 func _may_fire(id: String, now: float) -> bool:
@@ -175,6 +242,12 @@ func _is(id: String, game) -> bool:
 			if not game.gauge_is_banked() or float(game.pressure) > 0.0:
 				return false
 			return game.nearest_enemy(game.player.global_position, 700.0) != null
+		"find_vent":
+			## HIS, and pure teaching: playing the Boilerwright without ever
+			## having stood on a vent IS the condition — no enemies required,
+			## because the lesson is about the deck, not about a fight. Goes
+			## quiet forever (this run) the moment a vent has paid him.
+			return game.gauge_is_banked() and not _vent_stood
 		"lane":
 			## A boarder past the halfway line with the captain nowhere near it.
 			var deck: Rect2 = SkyGearGame.DECK_RECT

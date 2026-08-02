@@ -149,6 +149,10 @@ const CLASSES := {
 			"and it": "empties when you are not, and VENTS ITSELF at full",
 			"what it buys": "the vent, and the vent fires itself. Filling it IS the payoff.",
 			"the vent": "40 damage around you and 10 health back, free",
+			## SG-59's teaching line. Parallel key, no balance numbers — the rate
+			## lives on `vent_rate` and the coach says it live; this row only has
+			## to make the vents EXIST for a player reading the two classes.
+			"free steam": "means nothing to her. Her gauge comes from the fight, not from the ship.",
 			"your keys": "Space dashes. Nothing else to press.",
 			"stand": "wherever the boarders are — her spot moves, and she chases it",
 			"you lose by": "kiting. Range is the losing line and the gauge says so.",
@@ -196,6 +200,7 @@ const CLASSES := {
 			"and it": "never decays and never spends itself. It is a bank.",
 			"what it buys": "OVERPRESSURE — every weapon you own hits harder the whole time the bank is not empty. That is the class.",
 			"the vent": "V spends the whole bank: bigger the more you saved, and it repairs",
+			"free steam": "the three grated deck vents bank HEAD for nothing — stand on the teal ring and it fills.",
 			"your keys": "F cracks a steam main. V blows it down. Space is a BLEED JET, not a dash — it costs Head and leaves the lane scalding.",
 			"stand": "behind your own steam, between it and the Boiler",
 			"you lose by": "spending the bank. Empty, he is worse at everything.",
@@ -254,6 +259,15 @@ static func class_stats() -> Array:
 		rows.append(row)
 	return rows
 
+
+## Where a deck vent feeds him, in ground units from its grate. `_fill_head`
+## measures the same 150 when it decides whether the bank is filling, and the
+## renderer draws the Boilerwright's teal stand-here ring from THIS constant —
+## the harness pins the two behaviourally (`vent · the ring is drawn at the
+## radius the bank actually fills at`), because a ring painted at one radius
+## and a gauge that fills at another is the two-functions-one-number bug
+## wearing paint (board SG-59).
+const VENT_STAND := 150.0
 
 ## A cracked steam main. His only new simulation object, and deliberately shaped
 ## exactly like `fire_fields` — same array-of-dictionaries, same tick, same

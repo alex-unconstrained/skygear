@@ -116,6 +116,8 @@ func _run() -> void:
 	## than a harness that fails.
 	await _view()
 	await process_frame
+	_readability()
+	await process_frame
 	await _cutscene()
 	await process_frame
 	_persistence()
@@ -7350,3 +7352,228 @@ func _clip() -> void:
 		empty_dir, refused_gif], lines, true)
 	_check("clip", "the stitcher refuses zero frames",
 		code != 0 and not FileAccess.file_exists(refused_gif), "exit %d" % code)
+
+
+## --- SG-59/60/61: the morning playtest's readability batch -------------------
+## Three invisibilities from one playtest: the deck vents (his free Head source,
+## unfindable), the player's own aim (no range, no landing point), and the
+## boarding hulk's health (the push objective, hit on faith). Same treatment
+## the enemy telegraphs got — assert the number, never the pixels.
+func _readability() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	if game.impact != null:
+		game.impact.enabled = false
+	view.sway = false
+	_begin(game, "READ")
+	game.player.global_position = Vector2(0, 200)
+	view._process(0.05)
+
+	## SG-59 — the vents wear their job, for BOTH classes.
+	var vents: Array = []
+	for prop in game.props():
+		if is_instance_valid(prop) and str(prop.prop_type) == "vent" and not prop.dead:
+			vents.append(prop)
+	var lit := 0
+	var cores := 0
+	var her_rings := 0
+	for prop in vents:
+		var vid: int = prop.get_instance_id()
+		if view._decals.has("glowv%d" % vid):
+			lit += 1
+		if view._billboards.has("ventf%d" % vid):
+			cores += 1
+		if view._decals.has("ventr%d" % vid):
+			her_rings += 1
+	_check("vent", "every vent wears a lit grate and a hot core, whoever is aboard",
+		vents.size() >= 3 and lit == vents.size() and cores == vents.size(),
+		"%d vents, %d grates, %d cores" % [vents.size(), lit, cores])
+	_check("vent", "the captain sees no stand-here ring — to her a vent is scenery",
+		her_rings == 0, "%d rings for the captain" % her_rings)
+	view._vent_puffs = 0
+	for _i in 12:
+		view._process(0.05)
+	_check("vent", "the plume path breathes on the smoke metering",
+		view._vent_puffs >= vents.size(),
+		"%d plume ticks across %d vents" % [view._vent_puffs, vents.size()])
+
+	## SG-60 — the aim read, in the player's teal, off skill_stats' own numbers.
+	_check("aim", "nothing is drawn while nothing is armed",
+		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land"),
+		"aim decals on an idle deck")
+	game.skills.append(SkyGearData.make_skill("RANGED_AOE", "FROST"))
+	var mortar: int = game.skills.size() - 1
+	var origin: Vector2 = game.player.global_position
+	var st: Dictionary = game.skill_stats(game.skills[mortar])
+	view.pose_aim(mortar, origin + Vector2(0.0, -float(st.range) * 0.5))
+	view._process(0.05)
+	var ring_gu := -1.0
+	if view._decals.has("fxaim_ring"):
+		ring_gu = view._decals["fxaim_ring"].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
+	_check("aim", "arming a targeted skill draws the ring at skill_stats' own range",
+		absf(ring_gu - float(st.range)) < 1.0
+			and SkyGearView3D._decal_class("fxaim_ring") == SkyGearView3D.DecalClass.PLAYER,
+		"drew %.0f against a live range of %.0f, from the player reserve" % [ring_gu, float(st.range)])
+	## The card: +35 percent range on THIS mortar. One number — the cast's — so
+	## the ring must follow with no second place to change.
+	game.skills[mortar].mods.range = 1.35
+	var st2: Dictionary = game.skill_stats(game.skills[mortar])
+	view._process(0.05)
+	var ring2 := -1.0
+	if view._decals.has("fxaim_ring"):
+		ring2 = view._decals["fxaim_ring"].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
+	_check("aim", "a range card moves the ring, because there is only one number",
+		st2.range > st.range + 1.0 and absf(ring2 - float(st2.range)) < 1.0,
+		"card took the range %.0f -> %.0f and the ring drew %.0f" % [float(st.range), float(st2.range), ring2])
+	## In range: the marker sits AT the cursor and glows.
+	var near_cursor: Vector2 = origin + Vector2(0.0, -float(st2.range) * 0.5)
+	view.pose_aim(mortar, near_cursor)
+	view._process(0.05)
+	var land_ok := false
+	var land_hot := false
+	if view._decals.has("fxaim_land"):
+		var node: Decal = view._decals["fxaim_land"]
+		var at := Vector2(node.position.x, node.position.z) / SkyGearView3D.WORLD_SCALE
+		land_ok = at.distance_to(near_cursor) < 1.0
+		land_hot = node.emission_energy > 0.0
+	_check("aim", "in range the marker sits at the cursor and glows",
+		land_ok and land_hot and not view._decals.has("fxaim_out"),
+		"marker off the cursor, cold, or wearing the clamp echo in range")
+	## Past the reach: the marker CLAMPS at the range — cast_skill's own aoe
+	## arithmetic — the glow dies, and a faint echo stays under the cursor so
+	## the clamp reads as a clamp.
+	var far_cursor: Vector2 = origin + Vector2(0.0, -float(st2.range) * 1.6)
+	var clamp_at: Vector2 = origin + (far_cursor - origin).normalized() * float(st2.range)
+	view.pose_aim(mortar, far_cursor)
+	view._process(0.05)
+	var clamped := false
+	var cold := false
+	if view._decals.has("fxaim_land"):
+		var node2: Decal = view._decals["fxaim_land"]
+		var at2 := Vector2(node2.position.x, node2.position.z) / SkyGearView3D.WORLD_SCALE
+		clamped = at2.distance_to(clamp_at) < 1.0
+		cold = node2.emission_energy == 0.0
+	_check("aim", "past the reach the marker clamps at the range and the glow dies",
+		clamped and cold and view._decals.has("fxaim_out"),
+		"marker unclamped, still glowing, or the cursor echo missing")
+	## Cleave (the auto language) and passives arm NOTHING. Appended rather than
+	## hunted in the drafted hand — the opening draft under this seed owes the
+	## check no particular shape.
+	game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+	var cleave: int = game.skills.size() - 1
+	game.skills.append(SkyGearData.make_skill("AURA", "EMBER"))
+	var aura: int = game.skills.size() - 1
+	view.pose_aim(cleave, origin + Vector2(0.0, -200.0))
+	view._process(0.05)
+	var cleave_silent: bool = not view._decals.has("fxaim_ring")
+	view.pose_aim(aura, origin + Vector2(0.0, -200.0))
+	view._process(0.05)
+	var aura_silent: bool = not view._decals.has("fxaim_ring")
+	_check("aim", "Cleave and passives arm nothing",
+		cleave != -1 and cleave_silent and aura_silent
+			and view.aim_read(cleave).is_empty() and view.aim_read(aura).is_empty(),
+		"an auto or a passive drew an aim read")
+	view.clear_aim_pose()
+	view._process(0.05)
+	_check("aim", "the read stops the frame nothing is armed",
+		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land"),
+		"aim decals survived disarming")
+
+	## SG-61 — the hulk's bar: one function, drawn and asserted.
+	game.hulk = SkyGearLanes.make_hulk(-1000.0, 1.0)
+	game.hulk.vulnerable = true
+	var full: Dictionary = SkyGearHUD.hulk_bar(game.hulk)
+	_check("hulk", "the push objective wears a full bar the moment it grapples",
+		not full.is_empty() and absf(float(full.ratio) - 1.0) < 0.001,
+		str(full))
+	game.damage_hulk(float(game.hulk.max_hp) * 0.5)
+	var half: Dictionary = SkyGearHUD.hulk_bar(game.hulk)
+	_check("hulk", "the bar tracks the hulk's hp through the same function the screen draws",
+		not half.is_empty() and absf(float(half.ratio) - 0.5) < 0.01 and bool(half.flash),
+		"ratio %.3f after half its hp" % float(half.get("ratio", -1.0)))
+	game.damage_hulk(1e9)
+	_check("hulk", "and it dies with the hulk",
+		bool(game.hulk.dead) and SkyGearHUD.hulk_bar(game.hulk).is_empty()
+			and SkyGearHUD.hulk_bar({}).is_empty(),
+		"a bar over a dead hulk, or over no hulk at all")
+
+	## SG-59 — HIS ring is at every vent, at the radius the bank fills at.
+	game.set_class("boilerwright")
+	view._process(0.05)
+	var his_rings := 0
+	var ring_radius := -1.0
+	for prop in vents:
+		var vid2: int = prop.get_instance_id()
+		if view._decals.has("ventr%d" % vid2):
+			his_rings += 1
+			ring_radius = view._decals["ventr%d" % vid2].size.x \
+				/ (2.0 * SkyGearView3D.WORLD_SCALE)
+	_check("vent", "the Boilerwright's teal ring stands at every vent",
+		his_rings == vents.size() and his_rings >= 3,
+		"%d rings on %d vents" % [his_rings, vents.size()])
+	## Behavioural, both sides of the line: the drawn radius IS VENT_STAND, the
+	## bank fills just inside it and not just outside it — so the ring, the
+	## constant and `_fill_head`'s own 150 cannot drift apart unnoticed.
+	var lone: Vector2 = Vector2(-680, 620)      # the port-stern vent, far from the Boiler
+	game.player.global_position = lone + Vector2(SkyGearData.VENT_STAND - 2.0, 0.0)
+	game.pressure = 0.0
+	game._fill_head(0.5)
+	var inside: float = game.pressure
+	game.player.global_position = lone + Vector2(SkyGearData.VENT_STAND + 8.0, 0.0)
+	game.pressure = 0.0
+	game._fill_head(0.5)
+	var outside: float = game.pressure
+	_check("vent", "the ring is drawn at the radius the bank actually fills at",
+		absf(ring_radius - SkyGearData.VENT_STAND) < 1.0
+			and inside > 0.0 and outside == 0.0,
+		"ring %.0f against VENT_STAND %.0f; fill inside %.2f, outside %.2f"
+			% [ring_radius, SkyGearData.VENT_STAND, inside, outside])
+	world.queue_free()
+
+	## SG-59 — the coach teaches the vents, his class only, once found never again.
+	var bw := _new_game()
+	bw.set_class("boilerwright")
+	_begin(bw, "VENTCOACH")
+	bw.start_wave(2)
+	bw.spawn_queue.clear()
+	bw.player.global_position = Vector2(300, 300)   # off every vent's radius
+	bw.coach.reset()
+	var vent_line := ""
+	for _i in 160:
+		var said: String = bw.coach.advise(bw, 0.1)
+		if said != "":
+			vent_line = said
+			break
+	_check("coach", "the Boilerwright's first lesson names the vents and a live bearing",
+		vent_line.find("vents") != -1 and vent_line.find("ahead to port") != -1
+			and vent_line.find("18 a second") != -1
+			and vent_line.find("{") == -1,
+		"said: %s" % vent_line)
+	## Learned by standing, not by being told twice: on the grate for one frame,
+	## then away — the line never fires.
+	bw.coach.reset()
+	bw.player.global_position = Vector2(40, 15)    # on the centre vent
+	bw.coach.advise(bw, 0.1)
+	bw.player.global_position = Vector2(300, 300)
+	for _i in 160:
+		bw.coach.advise(bw, 0.1)
+	_check("coach", "and standing on a vent is the lesson learned — the line never fires",
+		int(bw.coach._shown.get("find_vent", 0)) == 0,
+		"fired %d times after he had already found one" % int(bw.coach._shown.get("find_vent", 0)))
+	bw.queue_free()
+	var cap := _new_game()
+	_begin(cap, "VENTCOACH2")
+	cap.start_wave(2)
+	cap.spawn_queue.clear()
+	cap.player.global_position = Vector2(300, 300)
+	cap.coach.reset()
+	for _i in 160:
+		cap.coach.advise(cap, 0.1)
+	_check("coach", "and the captain is never taught a mechanic she does not have",
+		int(cap.coach._shown.get("find_vent", 0)) == 0,
+		"the vent line fired for the captain")
+	cap.queue_free()

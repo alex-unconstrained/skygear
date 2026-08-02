@@ -1872,6 +1872,22 @@ const ENEMY_BAR_W := {"BOSS": 120.0, "ARMORED": 68.0, "SCRAPPER": 52.0,
 ## because a gun is a piece of the ship rather than a body: it should read as the
 ## most important thing in its lane without competing with the Colossus.
 const TURRET_BAR_W := 82.0
+## And the boarding hulk's (board SG-61). Wider than the Colossus's 120: it is
+## a 420-unit wall and it IS the push wave — the objective the wave cannot end
+## without — so it outranks every body on the deck.
+const HULK_BAR_W := 150.0
+
+
+## What the hulk's overhead bar shows, or {} while there is nothing to show.
+## One function, so the draw below and the harness read the same verdict — a
+## bar that "dies with the hulk" is this returning empty the frame `dead` goes
+## true, not a second copy of that condition inside `_draw_world_overlay`.
+static func hulk_bar(hulk: Dictionary) -> Dictionary:
+	if hulk.is_empty() or bool(hulk.get("dead", false)):
+		return {}
+	return {"ratio": clampf(float(hulk.get("hp", 0.0))
+		/ maxf(1.0, float(hulk.get("max_hp", 1.0))), 0.0, 1.0),
+		"flash": float(hulk.get("flash", 0.0)) > 0.0}
 
 ## Each status is a chip: the colour, a letter, and a bar underneath that drains
 ## with the time left. Colour alone fails for a colour-blind player and a dot
@@ -2151,6 +2167,28 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 				Color("#ffb347"))
 		_say_free("DOWN", mid - Vector2(50.0, 8.0), 100,
 			HORIZONTAL_ALIGNMENT_CENTER, 11, Color("#ff8b6a"))
+
+	## THE BOARDING HULK (board SG-61). A push wave cannot end until this thing
+	## dies, and its health was invisible — the one objective on the deck with
+	## no readout, four hundred and twenty units of wall the player was hitting
+	## on faith. The boarders' own bar language (`_health_bar`, unprojected, so
+	## it holds its size when the wheel pulls the camera back), the elite's
+	## amber and nameplate, ALWAYS shown while it lives: the hidden-at-full rule
+	## above is for furniture, and this is the wave. `hulk_bar` is the one copy
+	## of "is there anything to show" — the harness reads the same function.
+	var grapple: Dictionary = hulk_bar(game.hulk)
+	if not grapple.is_empty():
+		var brow := _to_screen(Vector2(game.hulk.position), 470.0)
+		if brow.ok:
+			## Clamped BELOW the objective plate, not to the frame edge like a
+			## boarder's: the hulk grapples at bow-centre, which is exactly the
+			## strip the plate owns, and a bar pinned at y=20 vanishes into it.
+			var hat := Vector2(brow.at.x, maxf(brow.at.y, 126.0))
+			_health_bar(Rect2(hat - Vector2(HULK_BAR_W * 0.5, 0.0),
+				Vector2(HULK_BAR_W, ENEMY_BAR_H)), float(grapple.ratio),
+				Color("#ffd9a0") if bool(grapple.flash) else Color("#ffb347"))
+			_say_free("BOARDING HULK", hat - Vector2(90.0, 8.0), 180,
+				HORIZONTAL_ALIGNMENT_CENTER, 11, Color("#e8c376"))
 
 	## AND THE PROMPT, once you are close enough to do something about it.
 	##

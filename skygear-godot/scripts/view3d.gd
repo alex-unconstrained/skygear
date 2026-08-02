@@ -1256,6 +1256,9 @@ var _ribbon_dropped := 0
 ## How often a wrecked deck cannon puffs. See the turret block in `_sync_all`.
 const SMOKE_EVERY := 0.10
 var _smoke_clock := 0.0
+## Vent plume ticks actually emitted (SG-59) — the harness's proof the plume
+## path runs, since `emit_particle` itself is fire-and-forget.
+var _vent_puffs := 0
 ## And how often an aura throws a mote up through itself.
 const MOTE_EVERY := 0.05
 var _mote_clock := 0.0
@@ -2735,6 +2738,7 @@ func _process(delta: float) -> void:
 	_ribbons_begin()
 	_sync_all(delta)
 	_sync_auras()
+	_sync_aim()
 	_sync_effects()
 	## The blade trail last, after `_sync_effects` has told it this swing's
 	## element — the samples were taken in `_sync_captain`, off the bone.
@@ -3111,6 +3115,12 @@ func _watch_cues() -> void:
 
 
 func _aim_from_cursor() -> void:
+	## A posed cursor (SG-60's tool/harness seam) wins over the live mouse —
+	## headless, the mouse is parked at 0,0 and would repaint the posed read
+	## every frame.
+	if _aim_pose_cursor.is_finite():
+		game.set_cursor_ground(_aim_pose_cursor)
+		return
 	if camera == null:
 		return
 	var viewport := camera.get_viewport()
@@ -3155,6 +3165,12 @@ func ground_at(screen: Vector2) -> Vector2:
 ## carry two copies of it.
 const TG_DANGER := Color(1.0, 0.239, 0.180)
 const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
+## And the other half of the browser's split: the PLAYER's teal, the colour the
+## cannon bars and the Boiler ring already speak. Everything ground-drawn that
+## belongs to YOU — the aim ring (SG-60), the vent stand-here ring (SG-59) —
+## says it in this, and never in the oxblood above. Mixing the two palettes is
+## how a telegraph stops meaning "danger".
+const PLAYER_TEAL := Color(0.216, 0.941, 0.784)   # #37f0c8
 const TG_SWING_ARC := 2.094395   # 120°, the fallback wedge for a reach-less melee
 
 ## THE ANIMATED RANGED AIM LINE — board SG-28.
@@ -3217,6 +3233,142 @@ func _aim_dash_ribbon(from: Vector2, dir: Vector2, length: float, wind: float) -
 			PackedColorArray([Color(hot, glow), Color(hot, glow)]))
 		drawn += 1
 	_aim_dashes_drawn += drawn
+
+
+## --- SG-60: the player's own aim, on the deck --------------------------------
+##
+## "Hard to tell where an aimed skill will land — or determine range." The
+## enemies telegraph everything (the oxblood language above); the player's own
+## weapons telegraphed nothing. So, in the PLAYER's teal and only while a
+## TARGETED skill is armed:
+##
+##   * a RANGE RING on the planking at the skill's live `skill_stats().range` —
+##     the cast's own number, so a card that extends the range extends the
+##     ring with no second place to change;
+##   * a LANDING MARKER where the shot will actually land: the cursor, clamped
+##     to the range exactly as `cast_skill`'s aoe branch clamps it — a Mortar
+##     thrown past its arc shows you the clamp instead of lying;
+##   * an OUT-OF-RANGE read: past the reach the marker loses its glow and dims
+##     (the dim IS the read), and a faint echo stays under the cursor so the
+##     clamp is legible as a clamp rather than as a miss.
+##
+## ARMED means: a skill key held, or the beat after a cast (`AIM_LINGER`), so
+## every throw paints its own range and a player who wants to study a weapon
+## holds its key. Cleave-shaped skills (kind "arc" — the auto-attack language,
+## melee around the captain) and passives draw NOTHING: an aura already draws
+## its own edge, and a ring under an auto-swing is noise with a palette.
+##
+## Keys are `fxaim_*` — the `fx` prefix routes them to the PLAYER decal
+## reserve, so a flooded deck can never spend the aim read away (nor the aim
+## read a telegraph).
+const AIM_LINGER := 1.1
+const AIM_MARK_MIN := 42.0        ## a point shape's marker collar, ground units
+var _aim_pose_slot := -1          ## tool/harness seam — poses win over Input
+var _aim_pose_cursor := Vector2.INF
+var _aim_last := -1               ## last armed slot, for the post-cast linger
+var _aim_until := -1.0            ## _flicker time the linger runs out
+var _aim_seen_casts := {}         ## slot -> casts, to catch a cast this frame
+
+
+## Pose the aim the way a player's hand would: `slot` reads as held, `cursor`
+## wins over the live mouse (which in a headless harness is parked at 0,0 and
+## would repaint the posed read every frame).
+func pose_aim(slot: int, cursor: Vector2) -> void:
+	_aim_pose_slot = slot
+	_aim_pose_cursor = cursor
+
+
+func clear_aim_pose() -> void:
+	_aim_pose_slot = -1
+	_aim_pose_cursor = Vector2.INF
+	_aim_last = -1
+	_aim_until = -1.0
+
+
+## Which shapes get the read at all. Passives have no press and `arc` is the
+## auto-attack language — both say nothing.
+static func aim_shows(shape: Dictionary) -> bool:
+	return not bool(shape.get("passive", false)) \
+		and str(shape.get("kind", "")) != "arc"
+
+
+## The whole read, computed once and drawn from — and the harness's window into
+## it. Every number in here is `game.skill_stats`' own, never a copy.
+func aim_read(index: int) -> Dictionary:
+	if game == null or game.player == null \
+			or index < 0 or index >= game.skills.size():
+		return {}
+	var skill: Dictionary = game.skills[index]
+	if not aim_shows(SkyGearData.SHAPES[skill.shape]):
+		return {}
+	var st: Dictionary = game.skill_stats(skill)
+	var origin: Vector2 = game.player.global_position
+	var cursor: Vector2 = game.aim_target()
+	var reach := float(st.range)
+	var offset := cursor - origin
+	var beyond: bool = offset.length() > reach
+	## `cast_skill`'s aoe clamp, verbatim: normalized offset times the range.
+	var land: Vector2 = cursor if not beyond \
+		else origin + offset.normalized() * reach
+	return {"slot": index, "range": reach, "origin": origin, "cursor": cursor,
+		"land": land, "beyond": beyond, "blast": float(st.radius),
+		"kind": str(st.kind)}
+
+
+## The armed slot this frame, or -1. A held key wins; a cast lingers.
+func _armed_slot() -> int:
+	if _aim_pose_slot >= 0:
+		return _aim_pose_slot
+	if game == null:
+		return -1
+	var actions := ["skill_1", "skill_2", "skill_3", "skill_4"]
+	for i in mini(game.skills.size(), actions.size()):
+		## A cast this frame re-arms the read, so every throw paints its own
+		## range for a beat. Increases only: a new run resets `casts` to zero
+		## and that is not a press.
+		var casts: int = int(game.skills[i].get("casts", 0))
+		var seen: int = int(_aim_seen_casts.get(i, casts))
+		_aim_seen_casts[i] = casts
+		if casts > seen:
+			_aim_last = i
+			_aim_until = _flicker + AIM_LINGER
+		if Input.is_action_pressed(actions[i]):
+			_aim_last = i
+			_aim_until = _flicker + AIM_LINGER
+	if _aim_last >= 0 and _flicker < _aim_until:
+		return _aim_last
+	return -1
+
+
+func _sync_aim() -> void:
+	if game.state != SkyGearGame.State.PLAY \
+			or game.player == null or game.player.hp <= 0.0:
+		return
+	if _cutscene != null and _cutscene.active():
+		return
+	var read := aim_read(_armed_slot())
+	if read.is_empty():
+		return
+	## The ring: how far this weapon reaches, at its live range, from where you
+	## stand. Breathes slightly so it reads as a tell rather than as flooring.
+	var ring_a: float = 0.34 + 0.06 * sin(_flicker * 3.1)
+	_decal("fxaim_ring", read.origin, 0.0,
+		float(read.range) * 2.0, float(read.range) * 2.0,
+		_art("ring", _ring_texture()),
+		Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b, ring_a))
+	## The marker: an aoe shows its true blast footprint, a point shape a small
+	## collar. In range it glows; past it the glow goes and the alpha halves —
+	## which is the out-of-range read, colour untouched.
+	var girth: float = maxf(float(read.blast), AIM_MARK_MIN)
+	var hot: bool = not bool(read.beyond)
+	_decal("fxaim_land", read.land, 0.0, girth * 2.0, girth * 2.0,
+		_art("ring", _ring_texture()),
+		Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b,
+			0.55 if hot else 0.26), hot)
+	if bool(read.beyond):
+		_decal("fxaim_out", read.cursor, 0.0, 60.0, 60.0,
+			_art("ring", _ring_texture()),
+			Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b, 0.15), false)
 
 
 func _sync_effects() -> void:
@@ -3934,6 +4086,29 @@ func _sync_all(delta: float) -> void:
 					Color(0.17, 0.15, 0.16, 1.0), Color.WHITE,
 					GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
 						| GPUParticles3D.EMIT_FLAG_COLOR)
+			## SG-59 — AND THE VENTS BREATHE. A continuous column out of every
+			## live deck vent, into the same behaviour-keyed steam emitter, on the
+			## same metering as the wreck smoke — two puffs a tick per vent is
+			## ~20 particles a second each, which reads as a standing plume and
+			## costs nothing against the 512 cap. Bright where the wreck smoke is
+			## dark: a wreck is soot, a vent is live steam, and the difference is
+			## the identity the owner could not find.
+			for prop in game.props():
+				if not is_instance_valid(prop) or prop.dead \
+						or str(prop.prop_type) != "vent":
+					continue
+				var vat: Vector2 = prop.global_position
+				for _puff in 2:
+					smoke.emit_particle(Transform3D(Basis(), Vector3(
+							vat.x + _impact_rng.randf_range(-16.0, 16.0), 34.0,
+							vat.y + _impact_rng.randf_range(-12.0, 12.0)) * WORLD_SCALE),
+						Vector3(_impact_rng.randf_range(-12.0, 12.0),
+							_impact_rng.randf_range(150.0, 215.0),
+							_impact_rng.randf_range(-12.0, 12.0)) * WORLD_SCALE,
+						Color(0.80, 0.86, 0.84, 1.0), Color.WHITE,
+						GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+							| GPUParticles3D.EMIT_FLAG_COLOR)
+				_vent_puffs += 1
 
 	## Ordnance in flight. These were missing entirely, which is why the fight
 	## looked static: half of what is on screen at any moment in the browser is
@@ -4049,6 +4224,35 @@ func _sync_all(delta: float) -> void:
 				(430.0 if warm else 330.0), (430.0 if warm else 330.0), _blob_texture(),
 				Color(1.0, 0.56, 0.22, 0.26 * jitter) if warm
 				else Color(1.0, 0.72, 0.36, 0.18 * jitter))
+
+		## SG-59 — THE VENTS WEAR THEIR JOB. The owner played the Boilerwright and
+		## could not FIND one: a vent was a 52-unit grey prop on a grey deck, and
+		## the class's whole free-Head mechanic hung off an object with no
+		## identity. Three reads, cheapest first:
+		##
+		##   * a WARM GRATE — a lit pool on the planking and a hot core in the
+		##     throat, the lantern loop's own language, because a vent is the
+		##     ship's heat coming up through iron and should read as lit from
+		##     below (the plume itself is metered into the steam emitter beside
+		##     the wreck smoke — see `SMOKE_EVERY`);
+		##   * and, ONLY when the man who can drink from it is aboard, the
+		##     STAND-HERE RING: the player's teal at `SkyGearData.VENT_STAND` —
+		##     the same number `_fill_head` measures — so where the ring is IS
+		##     where the bank fills, pinned by the harness. The captain never
+		##     sees it; to her a vent is scenery, and a ring she cannot use is
+		##     paint teaching a lie.
+		if kind == "vent" and not prop.dead:
+			var breath: float = 0.72 + 0.28 * sin(_flicker * 2.1 + float(id % 13))
+			_decal("glowv%d" % id, prop.global_position, 0.0, 250.0, 250.0,
+				_blob_texture(), Color(1.0, 0.60, 0.26, 0.22 * breath))
+			_spark("ventf%d" % id, prop.global_position, 24.0,
+				36.0 + 8.0 * breath, Color(1.0, 0.55, 0.24, 0.9))
+			if str(game.class_id) == "boilerwright":
+				_decal("ventr%d" % id, prop.global_position, 0.0,
+					SkyGearData.VENT_STAND * 2.0, SkyGearData.VENT_STAND * 2.0,
+					_art("ring", _ring_texture()),
+					Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b,
+						0.30 + 0.10 * breath))
 
 	## The hulk has three painted states and the port only ever drew one. Sealed
 	## while it is still grappling on, open while it is disgorging boarders,
