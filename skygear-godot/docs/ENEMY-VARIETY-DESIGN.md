@@ -71,6 +71,21 @@ the heat-arg idiom.
 **Size:** a week.
 
 ### 2.2 Tempo — surge and lull replace the flat 0.22 drip
+**Status: BUILT 2026-08-02 (board SG-57), before 2.1** — the seam did not need
+the muster to exist first, and tempo's stream salt (`+ 7919`) was chosen so the
+muster's own stream (`wave * 2654435761` bare, the d10f09c pattern) can land
+later without colliding. The queue-signature half of the kill-test PASSED (the
+gap-histogram valley test: SURGE pooled 267 within-batch gaps across 12 seeds —
+219 at the 0.22 metronome, 48 in the 4–6 s lulls, 0 in the 1–3 s valley;
+STEADY 804 gaps, every one at 0.22 — check `tempo · SURGE's gaps are bimodal
+where STEADY's are unimodal — the gap-histogram valley test`). The six-seed
+damage-taken half is recorded on the board row; its verdict waits on §1's
+noise-floor rule — the threshold is the owner's call, not this pass's. All
+three §2.2 check strings below are live in the harness, plus
+`tempo · rolling the tempo leaves rng.state untouched`,
+`tempo · STEADY deals today's queue byte-identically`,
+`tempo · waves one and two keep the taught opening` and
+`tempo · CRESCENDO tightens monotonically through the wave`.
 **What:** today every batch member arrives at `time + i * 0.22` — one metronome
 for twelve waves. Three authored TEMPO profiles (STEADY as today; SURGE, pulses
 with 4–6 s lulls; CRESCENDO, spacing tightening monotonically), dealt per wave

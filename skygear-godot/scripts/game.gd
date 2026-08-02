@@ -2057,9 +2057,96 @@ func start_wave(next_wave: int) -> void:
 	play_sfx("world/wave_start.ogg", -5.0)
 	_fx({"kind": "banner", "text": "WAVE %d" % wave, "time": 0.0, "life": 2.0})
 
+## --- TEMPO (board SG-57, ENEMY-VARIETY-DESIGN §2.2) --------------------------
+## Surge and lull instead of one metronome for twelve waves. Three authored
+## profiles, dealt per wave from an ISOLATED stream — the stowage spine's proven
+## pattern (d10f09c), consuming nothing from `rng` or `visual_rng` — and a
+## profile is a pure function from (batch, member) to a time offset at the one
+## line below that writes `time`. The existing sort and the 64-cap absorb it.
+const TEMPO_PROFILES: Array[String] = ["STEADY", "SURGE", "CRESCENDO"]
+## Today's exact spacing, kept as the short mode everywhere: STEADY is
+## byte-identical to the queue this game has always dealt.
+const TEMPO_INTRA := 0.22
+## No profile pushes a spawn more than this many seconds past the wave's
+## authored last batch — the wave's length stays the author's call.
+const TEMPO_OVERHANG := 8.0
+
+## The deal for one wave: which profile, and the profile's rolled numbers.
+## The stream is seeded `hash(seed_text) ^ (wave * 2654435761 + 7919)` — the
+## `+ 7919` is a DIFFERENT salt than the cut stowage stream used (d10f09c,
+## `wave * 2654435761` bare), so a future resurrection cannot collide with
+## this one. Rolled fresh per wave, so nothing leaks between waves either.
+##
+## Pinned STEADY, by the design's own rules: waves 1–2 (the taught opening is
+## §1's fixed list), event waves and push waves (4/8/12 — and BOARDERS ALOFT's
+## extra pushes on 6/10 at Heat 4, because `is_push_wave` is the one place that
+## question is asked). The roll happens BEFORE the pin so the stream is
+## consumed uniformly; a pinned wave just discards it.
+##
+## `SKYGEAR_TEMPO_FLAT` is the kill-test lever (the SG-48 idiom): set, every
+## wave deals STEADY and the run is today's rhythm exactly.
+func tempo_for(wave_number: int) -> Dictionary:
+	var stream := RandomNumberGenerator.new()
+	stream.seed = hash(seed_text) ^ (wave_number * 2654435761 + 7919)
+	var deal := {
+		"profile": TEMPO_PROFILES[stream.randi_range(0, 2)],
+		## SURGE: pulses of 2–4 spawns separated by 4–6 s lulls.
+		"pulse": stream.randi_range(2, 4),
+		"lull": stream.randf_range(4.0, 6.0),
+		## CRESCENDO: spacing tightening monotonically through the wave.
+		"wide": stream.randf_range(0.45, 0.65),
+		"tight": stream.randf_range(0.06, 0.10),
+	}
+	if wave_number <= 2 			or event_for(wave_number) != "" or is_push_wave(wave_number) 			or OS.get_environment("SKYGEAR_TEMPO_FLAT") != "":
+		deal.profile = "STEADY"
+	return deal
+
+
+## The pure function itself: (deal, batch, member index) -> seconds after the
+## batch's authored time. STEADY is `member * 0.22`, today's line verbatim.
+static func tempo_offset(deal: Dictionary, batch_time: float, count: int,
+		member: int, wave_last: float) -> float:
+	match str(deal.get("profile", "STEADY")):
+		"SURGE":
+			## Members arrive in pulses at the metronome's own 0.22, separated
+			## by the dealt lull. The lull is never shrunk to fit — a 2.6 s
+			## "lull" is the valley the kill-test forbids — so the number of
+			## lulls is capped by the room instead: what the overhang allows
+			## past this batch's authored start. A batch with no room (or one
+			## member) degenerates to STEADY, honestly.
+			var lull := float(deal.lull)
+			var room := wave_last + TEMPO_OVERHANG - batch_time
+			var max_lulls := maxi(0, int(floor((room - (count - 1) * TEMPO_INTRA) / lull)))
+			var pulses := clampi(int(ceil(count / float(deal.pulse))), 1, max_lulls + 1)
+			var base := int(floor(count / float(pulses)))
+			var extra := count % pulses
+			var first := 0
+			var start := 0.0
+			for p in pulses:
+				var size := base + (1 if p < extra else 0)
+				if member < first + size:
+					return start + (member - first) * TEMPO_INTRA
+				start += (size - 1) * TEMPO_INTRA + lull
+				first += size
+			return start
+		"CRESCENDO":
+			## Per-batch spacing slides from `wide` to `tight` along the wave's
+			## authored timeline, so the drip tightens monotonically into a
+			## flood. Worst case (7 members at 0.65) tops out at 3.9 s — well
+			## inside the overhang by construction.
+			var u := 0.0 if wave_last <= 0.0 else clampf(batch_time / wave_last, 0.0, 1.0)
+			return member * lerpf(float(deal.wide), float(deal.tight), u)
+		_:
+			return member * TEMPO_INTRA
+
+
 func _build_spawn_queue(wave_number: int) -> Array[Dictionary]:
 	var queue: Array[Dictionary] = []
 	var definition: Dictionary = SkyGearData.WAVES[wave_number - 1]
+	var tempo := tempo_for(wave_number)
+	var wave_last := 0.0
+	for batch in definition.batches:
+		wave_last = maxf(wave_last, float(batch[0]))
 	for batch in definition.batches:
 		var lanes: Array = []
 		var lane_spec: Variant = batch[3] if batch.size() > 3 else rng.randi_range(0, 2)
@@ -2070,7 +2157,7 @@ func _build_spawn_queue(wave_number: int) -> Array[Dictionary]:
 		for lane_value in lanes:
 			for i in int(batch[2]):
 				queue.append({
-					"time": float(batch[0]) + i * 0.22,
+					"time": float(batch[0]) + tempo_offset(tempo, float(batch[0]), int(batch[2]), i, wave_last),
 					"type": str(batch[1]),
 					"lane": int(lane_value),
 				})
@@ -3203,6 +3290,8 @@ func damage_player(amount: float, _source: String = "") -> void:
 		play_sfx("player/ready.ogg", -2.0)
 		return
 	if player.take_damage(amount):
+		tel.taken += amount
+		tel.taken_by_wave[wave] = float(tel.taken_by_wave.get(wave, 0.0)) + amount
 		play_sfx("player/hurt.ogg", -3.0)
 		player.hurt_time = 0.34
 		if impact != null:

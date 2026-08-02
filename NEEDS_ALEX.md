@@ -4,7 +4,7 @@ Things only you can unblock or decide. The loop keeps this current: items
 appear when they block work, disappear when resolved (git history is the
 record). Board IDs refer to `skygear-godot/docs/BOARD.md`.
 
-_Last updated: 2026-08-01_
+_Last updated: 2026-08-02_
 
 ## Blockers
 
@@ -58,6 +58,30 @@ the plan's recommendation:
     fitted in the lab.
   - **The scrapper animation pilot** (item 7): one enemy first, ~10 credits,
     before any talk of animating all four. Recommendation: approve the pilot.
+
+**8 · Tempo's balance verdict is yours to call — the numbers are in, the
+threshold is not** (SG-57, built 2026-08-02). The wave-rhythm variety
+(ENEMY-VARIETY-DESIGN §2.2 — STEADY/SURGE/CRESCENDO dealt per wave by seed)
+shipped tonight on its QUEUE kill-test, which passed decisively: SURGE's
+inter-spawn gaps are bimodal (219 at the 0.22 metronome, 48 in the 4–6 s
+lulls, zero in the 1–3 s valley across 12 seeds) where STEADY's are a single
+point mass — a harness check now pins it. The softer half — six-seed
+damage-taken via `tools/balance.gd`, 60 runs live vs 60 flat — came back
+INSIDE the noise on its named metric (within-run wave-sd 4.95 vs 4.89,
+t≈0.38; damage-taken mean 34.6 vs 35.7, t≈−0.61), and §1's rule says the
+noise floor and the threshold are measured and filed for you, not invented at
+midnight, so that half is OPEN-pending your call rather than declared or cut.
+**One number you should look at before ruling:** the bot HELD 23/60 with the
+tempo live against 34/60 flat (z≈2.0, avg wave 11.00 vs 11.30). If that is
+real, SURGE's simultaneity is a difficulty shift and §1 says difficulty is
+Heat's job — but the bot never repairs and never shoves, which is exactly
+what a lull invites and a pulse punishes, so it may be a bot fact (the SG-48
+lesson: its long-range kiting was why stowage read as nothing).
+Recommendation: play two runs with it live — the rhythm is the most legible
+variety there is — and either accept, or say the word and SURGE's pulse cap
+drops from 4 to 3 for a re-measure. The flat lever (`SKYGEAR_TEMPO_FLAT=1`)
+reproduces today's rhythm exactly, checked byte-identical, if you want it off
+while deciding.
 
 **7 · The scrapper pilot stalled at Meshy's front door — 0 of your ~10 credits
 spent** (SG-55, blocked 2026-08-02). The rig endpoint refused the scrapper five

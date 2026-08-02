@@ -84,6 +84,8 @@ func _run() -> void:
 	await process_frame
 	_stow()
 	await process_frame
+	_tempo()
+	await process_frame
 	_fittings()
 	await process_frame
 	_lanes()
@@ -360,6 +362,202 @@ func _stow() -> void:
 		"%d kegs, nearest pair %.0f" % [keg_at.size(), nearest])
 	a.talents = {}
 	a.queue_free()
+
+
+## --- TEMPO (board SG-57, ENEMY-VARIETY-DESIGN §2.2) -----------------------------
+## Surge and lull instead of the flat 0.22 drip. Everything here is asserted
+## against the QUEUE itself — headless, no bot, no frames awaited — because
+## queue construction is the one place §1 says determinism claims are provable.
+func _tempo() -> void:
+	var game := _new_game()
+
+	## 1 · THE SAME SEED DEALS THE SAME TEMPO. Two games, one seed: the dealt
+	## profile AND the built queue, byte for byte, all twelve waves.
+	game.set_seed_text("TEMPO")
+	var twin := _new_game()
+	twin.set_seed_text("TEMPO")
+	var same := true
+	var first_mismatch := ""
+	var profiles := ""
+	for w in range(1, 13):
+		var deal_a: Dictionary = game.tempo_for(w)
+		var deal_b: Dictionary = twin.tempo_for(w)
+		profiles += str(deal_a.profile)[0]
+		if var_to_str(deal_a) != var_to_str(deal_b) 				or var_to_str(game._build_spawn_queue(w)) != var_to_str(twin._build_spawn_queue(w)):
+			same = false
+			if first_mismatch == "":
+				first_mismatch = "wave %d" % w
+	_check("tempo", "the same seed deals the same tempo twelve times",
+		same, first_mismatch if not same else profiles)
+	twin.queue_free()
+
+	## 2 · EVENT WAVES ARE ALWAYS STEADY — 4/8/12 by the WAVE_EVENTS table, and
+	## the push waves ride the same pin: at Heat 4, BOARDERS ALOFT adds pushes
+	## on 6 and 10 and the tempo yields to them too, because `is_push_wave` is
+	## the one place that question is asked.
+	var pinned := true
+	var pin_note := ""
+	for s in 12:
+		game.set_seed_text("TEMPOPIN%d" % s)
+		for w in [4, 8, 12]:
+			var p := str(game.tempo_for(w).profile)
+			pinned = pinned and p == "STEADY"
+			if p != "STEADY":
+				pin_note += " w%d=%s" % [w, p]
+	game.heat = 4
+	for s in 6:
+		game.set_seed_text("ALOFT%d" % s)
+		for w in [6, 10]:
+			var p2 := str(game.tempo_for(w).profile)
+			pinned = pinned and p2 == "STEADY"
+			if p2 != "STEADY":
+				pin_note += " heat4-w%d=%s" % [w, p2]
+	game.heat = 0
+	_check("tempo", "event waves are always STEADY", pinned,
+		pin_note if not pinned else "4/8/12 across 12 seeds, and Heat 4's pushed 6/10")
+
+	## 3 · THE TAUGHT OPENING STAYS THE TAUGHT OPENING — waves 1–2 are §1's
+	## fixed list and never deal anything but the metronome.
+	var opening := true
+	for s in 12:
+		game.set_seed_text("TEMPOPIN%d" % s)
+		opening = opening and str(game.tempo_for(1).profile) == "STEADY" 				and str(game.tempo_for(2).profile) == "STEADY"
+	_check("tempo", "waves one and two keep the taught opening", opening)
+
+	## 4 · THE OVERHANG CAP, across every wave of twenty seeds: no profile
+	## pushes a spawn more than 8 seconds past the wave's authored last batch.
+	var capped := true
+	var cap_note := ""
+	var worst := 0.0
+	for s in 20:
+		game.set_seed_text("TEMPOCAP%d" % s)
+		for w in range(1, 13):
+			var last := 0.0
+			for batch in SkyGearData.WAVES[w - 1].batches:
+				last = maxf(last, float(batch[0]))
+			var queue: Array[Dictionary] = game._build_spawn_queue(w)
+			for entry in queue:
+				worst = maxf(worst, float(entry.time) - last)
+				if float(entry.time) > last + SkyGearGame.TEMPO_OVERHANG + 0.0001:
+					capped = false
+					cap_note = "seed %d wave %d spawns at %.2f past %.2f" % [s, w, float(entry.time), last]
+	_check("tempo", "no profile pushes a spawn more than 8 seconds past the wave's authored last batch",
+		capped, cap_note if not capped else "worst overhang %.2f s across 240 waves" % worst)
+
+	## 5 · THE STREAM IS ISOLATED. Rolling every deal and building every queue
+	## consumes nothing from `rng` or `visual_rng` — the §1 rule, the reason a
+	## seed still reproduces a run with the tempo aboard.
+	game.set_seed_text("TEMPO")
+	var rng_before := game.rng.state
+	var visual_before := game.visual_rng.state
+	for w in range(1, 13):
+		game.tempo_for(w)
+		game._build_spawn_queue(w)
+	_check("tempo", "rolling the tempo leaves rng.state untouched",
+		game.rng.state == rng_before and game.visual_rng.state == visual_before)
+
+	## 6 · STEADY IS TODAY, BYTE FOR BYTE. Under the kill-test lever every wave
+	## pins STEADY, and the queue must equal the old `time + i * 0.22` line
+	## exactly — reconstructed here with the original arithmetic.
+	OS.set_environment("SKYGEAR_TEMPO_FLAT", "1")
+	game.set_seed_text("TEMPOFLAT")
+	var identical := true
+	var flat_note := ""
+	for w in range(1, 13):
+		var expected: Array[Dictionary] = []
+		for batch in SkyGearData.WAVES[w - 1].batches:
+			var lanes: Array = [0, 1, 2] if (batch[3] is String and batch[3] == "all") else [int(batch[3])]
+			for lane_value in lanes:
+				for i in int(batch[2]):
+					expected.append({"time": float(batch[0]) + i * 0.22,
+						"type": str(batch[1]), "lane": int(lane_value)})
+		expected.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.time < b.time)
+		if var_to_str(game._build_spawn_queue(w)) != var_to_str(expected):
+			identical = false
+			flat_note += " w%d" % w
+	OS.set_environment("SKYGEAR_TEMPO_FLAT", "")
+	_check("tempo", "STEADY deals today's queue byte-identically",
+		identical, flat_note if not identical else "12 waves under the flat lever")
+
+	## 7 · THE KILL-TEST SIGNATURE, from the queue arithmetic itself: pool the
+	## within-batch inter-spawn gaps across twelve seeds' free waves. SURGE's
+	## distribution must be bimodal — real mass at the 0.22 metronome AND in
+	## the 4–6 s lulls, with an EMPTY valley between 1 and 3 s — where STEADY's
+	## is unimodal, a single point mass at 0.22. The gap-histogram valley test.
+	var surge_short := 0
+	var surge_valley := 0
+	var surge_long := 0
+	var steady_gaps := 0
+	var steady_off_mode := 0
+	for s in 12:
+		game.set_seed_text("TEMPOSIG%d" % s)
+		for w in [3, 5, 6, 7, 9, 10, 11]:
+			var deal: Dictionary = game.tempo_for(w)
+			var last2 := 0.0
+			for batch in SkyGearData.WAVES[w - 1].batches:
+				last2 = maxf(last2, float(batch[0]))
+			for batch in SkyGearData.WAVES[w - 1].batches:
+				for i in range(1, int(batch[2])):
+					var steady_gap := SkyGearGame.tempo_offset({"profile": "STEADY"},
+						float(batch[0]), int(batch[2]), i, last2) 							- SkyGearGame.tempo_offset({"profile": "STEADY"},
+						float(batch[0]), int(batch[2]), i - 1, last2)
+					steady_gaps += 1
+					if absf(steady_gap - 0.22) > 0.0001:
+						steady_off_mode += 1
+					if str(deal.profile) != "SURGE":
+						continue
+					var gap := SkyGearGame.tempo_offset(deal, float(batch[0]), int(batch[2]), i, last2) 							- SkyGearGame.tempo_offset(deal, float(batch[0]), int(batch[2]), i - 1, last2)
+					if gap <= 1.0:
+						surge_short += 1
+					elif gap < 3.0:
+						surge_valley += 1
+					else:
+						surge_long += 1
+	var surge_total := surge_short + surge_valley + surge_long
+	_check("tempo", "SURGE's gaps are bimodal where STEADY's are unimodal — the gap-histogram valley test",
+		surge_total > 40 and surge_long >= int(0.1 * surge_total)
+			and surge_short >= int(0.4 * surge_total) and surge_valley == 0
+			and steady_gaps > 0 and steady_off_mode == 0,
+		"SURGE %d gaps: %d at the metronome, %d in the lulls, %d in the 1–3 s valley · STEADY %d gaps, all at 0.22"
+			% [surge_total, surge_short, surge_long, surge_valley, steady_gaps])
+
+	## 8 · CRESCENDO TIGHTENS MONOTONICALLY. Per batch the spacing is one
+	## number; along the wave's authored timeline it must never widen, and the
+	## last batch must be strictly tighter than the first.
+	var found_crescendo := false
+	var monotone := true
+	var cres_note := ""
+	for s in 24:
+		game.set_seed_text("TEMPOSIG%d" % s)
+		for w in [3, 5, 6, 7, 9, 10, 11]:
+			var deal2: Dictionary = game.tempo_for(w)
+			if str(deal2.profile) != "CRESCENDO":
+				continue
+			found_crescendo = true
+			var last3 := 0.0
+			for batch in SkyGearData.WAVES[w - 1].batches:
+				last3 = maxf(last3, float(batch[0]))
+			var previous := INF
+			var spacing_first := -1.0
+			var spacing_last := -1.0
+			for batch in SkyGearData.WAVES[w - 1].batches:
+				if int(batch[2]) < 2:
+					continue
+				var spacing := SkyGearGame.tempo_offset(deal2, float(batch[0]), int(batch[2]), 1, last3)
+				if spacing_first < 0.0:
+					spacing_first = spacing
+				spacing_last = spacing
+				if spacing > previous + 0.0001:
+					monotone = false
+					cres_note = "seed %d wave %d widens to %.3f" % [s, w, spacing]
+				previous = spacing
+			if spacing_first > 0.0 and spacing_last >= spacing_first:
+				monotone = false
+				cres_note = "seed %d wave %d ends no tighter (%.3f -> %.3f)" % [s, w, spacing_first, spacing_last]
+	_check("tempo", "CRESCENDO tightens monotonically through the wave",
+		found_crescendo and monotone, cres_note)
+
+	game.queue_free()
 
 
 ## --- THE FITTINGS (board SG-56) ------------------------------------------------

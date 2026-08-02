@@ -37,6 +37,10 @@ static func fresh(slots: int = 4) -> Dictionary:
 		# leaves mid-range, and they are not playing the same game.
 		"range_time": {"close": 0.0, "mid": 0.0, "far": 0.0, "none": 0.0},
 		"vents": 0, "healed": 0.0, "salvage": 0, "rerolls": 0,
+		# Damage the captain actually TOOK, total and per wave — the two-line
+		# telemetry idiom from ENEMY-VARIETY-DESIGN §2.5, shipped with the first
+		# system that reads it (tempo's §2.2 kill-test, via tools/balance.gd).
+		"taken": 0.0, "taken_by_wave": {},
 	}
 
 

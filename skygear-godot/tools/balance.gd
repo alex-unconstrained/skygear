@@ -42,6 +42,11 @@ func _run() -> void:
 	print("  HEAT %d · %s%s" % [heat, str(SkyGearWorkshop.HEAT[
 		clampi(heat, 0, SkyGearWorkshop.HEAT.size() - 1)].name),
 		"  ·  ARTICLE %s" % vow if vow != "" else ""])
+	## The tempo lever (SG-57): set SKYGEAR_TEMPO_FLAT in the environment and
+	## every wave deals STEADY — today's rhythm exactly. Printed so a recorded
+	## number can never be ambiguous about which rhythm produced it.
+	print("  TEMPO %s" % ("FLAT (pinned STEADY)"
+		if OS.get_environment("SKYGEAR_TEMPO_FLAT") != "" else "live"))
 	var ally_share := 0.0
 	var player_share := 0.0
 	var waves_reached := 0.0
@@ -54,14 +59,28 @@ func _run() -> void:
 		player_share += float(r.player)
 		waves_reached += float(r.wave)
 		wins += 1 if bool(r.won) else 0
-		print("  %-6s wave %2d %-10s  player %3.0f%%  allies %3.0f%%  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%"
+		print("  %-6s wave %2d %-10s  player %3.0f%%  allies %3.0f%%  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%  taken %4.0f  wave-sd %5.1f"
 			% [SEEDS[i], int(r.wave), "HELD" if bool(r.won) else "lost",
 				float(r.player), float(r.ally), float(r.passive), int(r.vents),
-				float(r.close), float(r.far)])
+				float(r.close), float(r.far), float(r.taken), float(r.taken_sd)])
 	var n := float(mini(count, SEEDS.size()))
 	print("")
 	print("  across %d runs: %d held, average wave %.1f" % [int(n), wins, waves_reached / n])
 	print("  player %.0f%%   allies %.0f%%" % [player_share / n, ally_share / n])
+	## Damage-taken, for the tempo kill-test (SG-57): the mean, the across-run
+	## spread, and the mean WITHIN-run per-wave spread — §2.2 asks whether
+	## variance within waves shifts between rhythms, so all three are printed.
+	var taken_sum := 0.0
+	var wave_sd_sum := 0.0
+	for r in results:
+		taken_sum += float(r.taken)
+		wave_sd_sum += float(r.taken_sd)
+	var taken_mean := taken_sum / n
+	var taken_var := 0.0
+	for r in results:
+		taken_var += pow(float(r.taken) - taken_mean, 2.0)
+	print("  damage taken: mean %.0f  across-run sd %.0f  mean within-run wave-sd %.1f"
+		% [taken_mean, sqrt(taken_var / maxf(1.0, n - 1.0)), wave_sd_sum / n])
 	print("")
 	## The target the balance pass is aiming at, stated so a later run can be
 	## judged against it rather than against a feeling.
@@ -235,9 +254,25 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 		var shape := str(row.get("shape", ""))
 		if shape != "" and bool(SkyGearData.SHAPES.get(shape, {}).get("passive", false)):
 			passive_dmg += float(row.damage)
+	## Damage taken, total and the within-run spread ACROSS waves — what the
+	## tempo kill-test (SG-57, ENEMY-VARIETY-DESIGN §2.2) reads: does the rhythm
+	## move how the punishment clusters, wave to wave?
+	var taken_values: Array = []
+	for w in range(1, game.wave + 1):
+		taken_values.append(float(tel.taken_by_wave.get(w, 0.0)))
+	var taken_mean := 0.0
+	for v in taken_values:
+		taken_mean += float(v)
+	taken_mean /= maxf(1.0, float(taken_values.size()))
+	var taken_spread := 0.0
+	for v in taken_values:
+		taken_spread += pow(float(v) - taken_mean, 2.0)
+	taken_spread = sqrt(taken_spread / maxf(1.0, float(taken_values.size() - 1)))
 	var out := {
 		"wave": game.wave,
 		"won": game.state_name == "VICTORY",
+		"taken": float(tel.taken),
+		"taken_sd": taken_spread,
 		"player": player_dmg / total * 100.0,
 		"ally": float(tel.allies.damage) / total * 100.0,
 		"deck": float(tel.deck.damage) / total * 100.0,
