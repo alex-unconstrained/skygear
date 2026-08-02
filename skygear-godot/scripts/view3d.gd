@@ -108,13 +108,33 @@ const PROP_MODEL := {
 const TURRET_MODEL := "cannon_deck"
 const SALVAGE_MODEL := "salvage_pile"
 ## The enemy's boarding craft. Wired at the hulk block near the bottom of
-## `_sync_all`, where the three painted states are chosen between — and CURRENTLY
-## INERT, because `tools/static_model.gd` deliberately does not wrap a scene for
-## it. Two generations, both rejected, and the reasoning is written there beside
-## the missing row. The wiring stays for the same reason `_sync_rig` stays for
-## the furnace knight: the model-or-billboard fork is the permanent shape of this
-## renderer, and the next attempt should be a file appearing, not a code change.
-const HULK_MODEL := "boarding_hulk"
+## `_sync_all`, where the three painted states are chosen between — and INERT
+## for the whole port until 2026-08-02, because two generations were rejected
+## and `tools/static_model.gd` deliberately wrapped no scene for it. The wiring
+## stayed for the same reason `_sync_rig` stays for the furnace knight: the
+## model-or-billboard fork is the permanent shape of this renderer, and the next
+## attempt should be a FILE APPEARING rather than a code change. Three files
+## appeared. This is what the fork was kept for.
+##
+## THE BOARDING HULK, one model key per painted state — board SG-76, and the
+## owner modelled all three himself after three prompted attempts failed to buy
+## even one (`handoff-3d/README.md` carries that history). `game.hulk_state()`
+## names the row.
+##
+## HULK_RULER is the state every one of them is SCALED by. SG-79's rule is that
+## a prop covers `height_units` of screen at the shipped camera, measured from
+## its own three-axis span — and the three states have honestly different spans
+## (the sealed face carries a deep chevron, the wreck has lost its roof), so
+## scaling each by its own would swing the silhouette 430 -> 529 -> 550 ground
+## units of width across the fight. They are ONE OBJECT wearing three faces:
+## one ruler, measured on the state the player actually fights, and the swap is
+## a face changing rather than the wall growing.
+const HULK_MODELS := {
+	"sealed": "boarding_hulk_sealed",
+	"open": "boarding_hulk_open",
+	"destroyed": "boarding_hulk_destroyed",
+}
+const HULK_RULER := "boarding_hulk_open"
 
 ## The Boiler. Until now the ONLY object in the port with no art at all — four
 ## cylinders, two toruses, a box and a quad assembled in `_build_boiler` — and at
@@ -4283,36 +4303,36 @@ func _sync_all(delta: float) -> void:
 					Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b,
 						0.30 + 0.10 * breath))
 
-	## The hulk has three painted states and the port only ever drew one. Sealed
-	## while it is still grappling on, open while it is disgorging boarders,
-	## wrecked once you break it — which is the only feedback that breaking it
-	## did anything, since it stops existing in the simulation the same moment.
-	if not game.hulk.is_empty():
-		var broken: bool = bool(game.hulk.get("dead", false))
-		var vulnerable: bool = bool(game.hulk.get("vulnerable", true))
-		var art := "res://assets/art/props/boarding_hulk_destroyed.png" if broken \
-			else ("res://assets/art/props/boarding_hulk_open.png" if vulnerable
-				else "res://assets/art/props/boarding_hulk_sealed.png")
+	## The hulk has three painted states and the port only ever drew TWO of them:
+	## sealed while it is still grappling on, open while it is disgorging
+	## boarders, wrecked once you break it — and `game.gd` set `vulnerable` on
+	## the frame it grappled and never cleared it, so the sealed picture was
+	## unreachable until SG-76. `hulk_state()` is the one answer now, and it
+	## names the painting AND the mesh: the file names are the state names.
+	var hulk_state: String = game.hulk_state()
+	if hulk_state != "":
+		var art := "res://assets/art/props/boarding_hulk_%s.png" % hulk_state
 		_shadow("hulk", game.hulk.position, 300.0, 0.5)
-		## A mesh for the OPEN hulk only, and the painted art for the other two
-		## states. That is not a shortcut, it is what the three pictures are:
-		## the ramps are already down in all three, and the whole difference
-		## between them is the round door in the middle — shut, blazing, or
-		## blown apart. So one generation buys the state the player actually
-		## fights in (`game.gd` sets `vulnerable` true on the frame it grapples
-		## on and never sets it false, so SEALED is currently unreachable), and
-		## the wreck stays painted because a wreck is a different object rather
-		## than a darker one. Generating three would have been worse than one:
-		## Meshy returns three different vehicles from three prompts, and the
-		## swap would pop the whole silhouette mid-fight.
+		## A MESH PER STATE, which is the thing this block could not have until
+		## 2026-08-02. The comment that stood here said one generation buys the
+		## state the player fights in, because three prompts would return three
+		## different vehicles and the swap would pop the whole silhouette
+		## mid-fight. That was true of a generator and it is not true of these:
+		## the owner built all three off one hull, so sealed, open and wrecked
+		## are the same wall with a different door — which is exactly what the
+		## three PAINTINGS have always been.
 		##
-		## Its own key, like the deck cannon's, so that when the hulk breaks the
-		## mesh is left unclaimed and shelved instead of standing inside its own
-		## wreckage for the rest of the wave.
-		if broken or not vulnerable or not _sync_prop_model(
-				"hulkm", HULK_MODEL, game.hulk.position, 420.0):
+		## A KEY PER STATE, not one "hulkm" key. `_sync_prop_model` claims a
+		## scene the first time it sees a key and reuses that node forever
+		## after; a shared key would hand the sealed node back for the open
+		## state and the door would never open. Per state, `_recycle` shelves
+		## the face we stopped drawing on its own model's free list — which is
+		## also what leaves the wreck standing alone instead of inside itself.
+		if not _sync_prop_model("hulkm-" + hulk_state,
+				str(HULK_MODELS.get(hulk_state, "")), game.hulk.position, 420.0,
+				0.0, 0.0, HULK_RULER):
 			_place("hulk", _texture(art), game.hulk.position, 420.0)
-		elif not broken:
+		if hulk_state == "open":
 			## The furnace in its throat, as light rather than as texture. Same
 			## argument as the Boiler's lamp: an emissive map cannot throw
 			## anything onto the deck the boarders are walking down, and "it is
@@ -4655,8 +4675,34 @@ static func measure_span(model: Node3D) -> Vector3:
 	return box.size
 
 
+## The span of a model key measured WITHOUT one being on the deck, cached — the
+## `ruler_key` half of `_sync_prop_model` (SG-76). One load and one measurement
+## per key for the whole session, and it deliberately does not add the node to
+## the tree: this is a ruler, not a prop.
+var _ruler_spans: Dictionary = {}
+
+func _ruler_span(model_key: String) -> Vector3:
+	if _ruler_spans.has(model_key):
+		return _ruler_spans[model_key]
+	var span := Vector3.ZERO
+	var path := model_path(model_key)
+	if ResourceLoader.exists(path):
+		var packed := load(path) as PackedScene
+		var probe: Node3D = packed.instantiate() as Node3D if packed != null else null
+		if probe != null:
+			span = measure_span(probe)
+			probe.free()
+	_ruler_spans[model_key] = span
+	return span
+
+
+## `ruler_key` names ANOTHER model whose span sets this one's scale, and it
+## exists for exactly one situation: several scenes that are the same object in
+## different states. Empty — every prop on the deck but the hulk — measures
+## itself, which is SG-79 unchanged.
 func _sync_prop_model(key: String, model_key: String, ground: Vector2,
-		height_units: float, lift: float = 0.0, yaw_degrees: float = 0.0) -> bool:
+		height_units: float, lift: float = 0.0, yaw_degrees: float = 0.0,
+		ruler_key: String = "") -> bool:
 	## An empty key is a prop_type with no row in PROP_MODEL, which is the normal
 	## way of saying "this one is still painted" — not an error, and not worth a
 	## path lookup on `res://assets/models///.tscn` to discover.
@@ -4673,7 +4719,8 @@ func _sync_prop_model(key: String, model_key: String, ground: Vector2,
 	## the position has to move anyway, and PROP_HEIGHT is data another session
 	## can edit — a scale cached at claim time would keep the old number for as
 	## long as that prop lived, which is the whole run.
-	var span: Vector3 = node.get_meta("model_span", Vector3.ZERO)
+	var span: Vector3 = _ruler_span(ruler_key) if ruler_key != "" \
+		else node.get_meta("model_span", Vector3.ZERO)
 	## `model_height` when there is no span to be had — the pre-SG-79 ruler,
 	## verbatim, so a node that somehow arrived without one is the old picture
 	## rather than a new wrong one.

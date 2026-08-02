@@ -13,6 +13,16 @@ extends SceneTree
 ##   player   [x, y] the captain is stood at before the settle; the gameplay
 ##            camera follows her there, which is how the bow comes into frame
 ##   steps    hand-stepped ticks at 1/60 after the teleport (camera settle)
+##   hulk     "sealed" | "open" | "destroyed" — poses the boarding hulk in that
+##            state (SG-76). Written AFTER the settle and without stepping the
+##            simulation again, because "destroyed" satisfies the push and a
+##            stepped frame would photograph the WAVE CLEAR banner instead of
+##            the wreck.
+##   painted  true forces the painted billboard for the hulk — the BEFORE frame
+##            of any mesh-against-art judgement. It does it through
+##            `_no_prop_model`, the renderer's own "this key has no scene"
+##            shelf, so the fallback under test is the real one rather than a
+##            second path that only the tool can reach.
 ##   out      absolute PNG path
 ##
 ## Windowed only — SG-29: there is no rendering device under --headless.
@@ -80,6 +90,29 @@ func _run() -> void:
 	var steps: int = int(scene.get("steps", 40))
 	for _i in steps:
 		game._process(1.0 / 60.0)
+		await process_frame
+
+	## The hulk's face, posed rather than played (SG-76). `hulk_state()` reads
+	## these two flags and nothing else, so setting them here is setting the
+	## state — there is no third place that could disagree.
+	var want_hulk := str(scene.get("hulk", ""))
+	if want_hulk != "" and not game.hulk.is_empty():
+		game.hulk.vulnerable = want_hulk != "sealed"
+		game.hulk.dead = want_hulk == "destroyed"
+		game.hulk.grapple = 999.0 if want_hulk == "sealed" else 0.0
+		## And no banner over the object being judged. `start_wave` announces the
+		## push — the event card, the wave title and the voice line all fire on
+		## the frame the hulk grapples — so a frame taken to look at the hulk is
+		## a frame of the card that says a hulk arrived. The SG-36 idiom (park
+		## the spawn, hold the deck open) applied to the announcement layer.
+		game.event_banner_left = 0.0
+		game.effects.clear()
+	if bool(scene.get("painted", false)) and view != null:
+		for key in SkyGearView3D.HULK_MODELS.values():
+			view._no_prop_model[str(key)] = true
+	## Frames, not ticks: the renderer syncs on its own _process while the
+	## simulation stays exactly where the settle left it.
+	for _i in 4:
 		await process_frame
 
 	var out := str(scene.get("out", ""))

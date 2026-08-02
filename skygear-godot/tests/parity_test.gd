@@ -181,6 +181,11 @@ func _run() -> void:
 	quit(failures.size())
 
 
+## THE LAST CHECK OF THE RUN, and the one that would have caught SG-83 the day
+## it started: the person running this harness has an alignment pass of their
+## own in `user://hud_layout.json`, and a test run must leave it byte for byte
+## as it found it. Read at the top of `_run`, compared here, with every check
+## in the project in between.
 ## One Ctrl+<key> press, as the editor's input path will see it.
 func _ctrl_key(code: int) -> InputEventKey:
 	var ev := InputEventKey.new()
@@ -1145,12 +1150,14 @@ func _lanes() -> void:
 	# a push wave grapples a hulk on, and the wave does not end until it breaks
 	game.start_wave(4)
 	_check("lanes", "a push wave grapples a boarding hulk to the hull",
-		not game.hulk.is_empty() and bool(game.hulk.vulnerable),
-		"hulk hp %.0f" % float(game.hulk.get("hp", 0.0)))
+		not game.hulk.is_empty() and game.hulk_state() == "sealed",
+		"hulk hp %.0f, state %s" % [float(game.hulk.get("hp", 0.0)), game.hulk_state()])
 	game.spawn_queue.clear()
 	for e in game.get_tree().get_nodes_in_group("enemies"):
 		e.dead = true
-	_advance(game, 1.0)
+	## Past the grapple window (SG-76), because a sealed hulk refuses damage and
+	## the two checks below are about breaking it.
+	_advance(game, SkyGearGame.HULK_GRAPPLE_TIME + 0.5)
 	_check("lanes", "the push wave does not end while its hulk lives",
 		game.wave_clear_time < 0.0 and game.state_name == "PLAY")
 	game.damage_hulk(99999.0)
@@ -1162,6 +1169,73 @@ func _lanes() -> void:
 		game.wave_clear_time >= 0.0 or game.state_name == "DRAFT",
 		"clear timer %.2f, state %s" % [game.wave_clear_time, game.state_name])
 	game.queue_free()
+
+	## --- board SG-76: the hulk's three states are REAL ----------------------
+	## `_begin_push` set `vulnerable = true` on the frame it grappled and
+	## nothing ever set it false, so `make_hulk`'s own `vulnerable: false` was
+	## dead on arrival: SEALED could not be reached in a shipped run, and the
+	## sealed painting — on disk since the port — was never once on screen. The
+	## renderer picks its mesh off `hulk_state()`, so the picture is now this
+	## sequence and nothing else.
+	var push := _new_game()
+	push.begin_run()
+	_check("hulk", "no wave, no hulk — the state is empty until one grapples on",
+		push.hulk_state() == "", push.hulk_state())
+	push.start_wave(4)
+	var sealed_at_grapple: bool = push.hulk_state() == "sealed"
+	var sealed_hp: float = float(push.hulk.hp)
+	## A sealed hulk refuses damage, which is the whole point of the plate: the
+	## bar sits full while it bolts itself to your hull.
+	push.damage_hulk(500.0)
+	var sealed_shrugged: bool = is_equal_approx(float(push.hulk.hp), sealed_hp)
+	push.hulk_splash(Vector2(0.0, push.BOW_Y), 500.0)
+	sealed_shrugged = sealed_shrugged and is_equal_approx(float(push.hulk.hp), sealed_hp)
+	_advance(push, SkyGearGame.HULK_GRAPPLE_TIME + 0.2)
+	var opened: bool = push.hulk_state() == "open"
+	push.damage_hulk(500.0)
+	var bit: bool = float(push.hulk.hp) < sealed_hp
+	push.damage_hulk(99999.0)
+	var wrecked: bool = push.hulk_state() == "destroyed"
+	_advance(push, 2.0)
+	_check("hulk", "sealed until the grapple lands, open while it disgorges, destroyed when it breaks — each state wears its own face",
+		sealed_at_grapple and sealed_shrugged and opened and bit and wrecked
+			and push.hulk_state() == "destroyed",
+		"sealed %s (shrugged %s) -> open %s (bit %s) -> destroyed %s"
+			% [sealed_at_grapple, sealed_shrugged, opened, bit, wrecked])
+	## And each of those three names is a mesh on disk. `_sync_all` looks the
+	## row up by the state string, so a state with no row is a silent fall back
+	## to the painting — the same silence SG-64's statics bargain exists to end.
+	var face_faults := PackedStringArray()
+	for state in ["sealed", "open", "destroyed"]:
+		var mkey := str(SkyGearView3D.HULK_MODELS.get(state, ""))
+		if mkey == "":
+			face_faults.append("%s: no model row" % state)
+		elif not ResourceLoader.exists(SkyGearView3D.model_path(mkey)):
+			face_faults.append("%s: %s has no scene" % [state, mkey])
+	_check("hulk", "and every state the simulation can be in has a face to wear",
+		face_faults.is_empty() and SkyGearView3D.HULK_MODELS.size() == 3,
+		"clean" if face_faults.is_empty() else ", ".join(face_faults))
+	## The bar is the objective's, and it tracks the hulk through all three
+	## (SG-61 read across the states it could not reach before): full while the
+	## plate is shut, draining while the door is open, gone with the wreck.
+	push.queue_free()
+	var bar_push := _new_game()
+	bar_push.begin_run()
+	bar_push.start_wave(4)
+	var bar_sealed: Dictionary = SkyGearHUD.hulk_bar(bar_push.hulk)
+	_advance(bar_push, SkyGearGame.HULK_GRAPPLE_TIME + 0.2)
+	bar_push.damage_hulk(float(bar_push.hulk.max_hp) * 0.5)
+	var bar_open: Dictionary = SkyGearHUD.hulk_bar(bar_push.hulk)
+	bar_push.damage_hulk(1e9)
+	var bar_dead: Dictionary = SkyGearHUD.hulk_bar(bar_push.hulk)
+	_check("hulk", "and the bar reads the same hulk in all three states — full sealed, halved open, gone wrecked",
+		not bar_sealed.is_empty() and is_equal_approx(float(bar_sealed.ratio), 1.0)
+			and not bar_open.is_empty() and absf(float(bar_open.ratio) - 0.5) < 0.01
+			and bar_dead.is_empty(),
+		"sealed %.3f, open %.3f, wrecked %s" % [
+			float(bar_sealed.get("ratio", -1.0)), float(bar_open.get("ratio", -1.0)),
+			"gone" if bar_dead.is_empty() else "still drawn"])
+	bar_push.queue_free()
 
 
 ## SG-62. The owner, 2026-08-02: "Something is still knocking back enemies all
@@ -5750,9 +5824,10 @@ func _view() -> void:
 	## scene with no meshes (the pruning trap) or no `model_height` meta (the
 	## honest ruler `_claim_prop_model` scales by), quietly billboards or
 	## vanishes and nothing says so. Every wired prop key is held to the
-	## statics' half of the SG-45 bargain here; HULK_MODEL joins the moment its
-	## scene exists (its wiring is deliberately inert while the verdict says
-	## painted — see tools/static_model.gd).
+	## statics' half of the SG-45 bargain here — INCLUDING the hulk's three
+	## states, which joined the day the owner delivered them (SG-76). That row
+	## was written as "the moment its scene exists" while the wiring was inert;
+	## the scenes exist, so the three of them are held like everything else.
 	var prop_keys: Array = []
 	for pk in SkyGearView3D.PROP_MODEL.values():
 		prop_keys.append(str(pk))
@@ -5761,8 +5836,8 @@ func _view() -> void:
 	prop_keys.append(SkyGearView3D.BOILER_MODEL)
 	var prop_scenes := 0
 	var prop_faults := PackedStringArray()
-	if ResourceLoader.exists(SkyGearView3D.model_path(SkyGearView3D.HULK_MODEL)):
-		prop_keys.append(SkyGearView3D.HULK_MODEL)
+	for hk in SkyGearView3D.HULK_MODELS.values():
+		prop_keys.append(str(hk))
 	for pk in prop_keys:
 		var ppath := SkyGearView3D.model_path(str(pk))
 		if not ResourceLoader.exists(ppath):
@@ -5846,6 +5921,53 @@ func _view() -> void:
 			and absf(card_span - cos(SkyGearView3D.PITCH)) < 0.001,
 		"card %.3f, cube %.3f, long %.3f, swung %.3f"
 			% [card_span, cube_span, long_span, swung_span])
+
+	## --- board SG-76: three faces, ONE wall ---------------------------------
+	## The hulk is the only object on this deck drawn from more than one scene,
+	## and SG-79's ruler is per-model by design: each state's own span would set
+	## its own scale, and the three spans honestly differ (the sealed face
+	## carries a deep chevron, the wreck has lost its roof). Scaled that way the
+	## wall would swing width across the fight — a different object each time
+	## the door moved, which is the reason three PROMPTED hulks were refused.
+	## So `_sync_prop_model` takes a `ruler_key` and all three measure by the
+	## open state. This pins both halves: what the shared ruler buys, and what
+	## the per-state ruler would have cost.
+	var hulk_ruler_span: Vector3 = Vector3.ZERO
+	var hulk_widths: Array = []
+	var hulk_own_widths: Array = []
+	var hulk_faults := PackedStringArray()
+	var hulk_ruler_path: String = SkyGearView3D.model_path(SkyGearView3D.HULK_RULER)
+	if ResourceLoader.exists(hulk_ruler_path):
+		var rnode: Node3D = (load(hulk_ruler_path) as PackedScene).instantiate() as Node3D
+		hulk_ruler_span = SkyGearView3D.measure_span(rnode)
+		rnode.free()
+	for state in ["sealed", "open", "destroyed"]:
+		var hpath: String = SkyGearView3D.model_path(str(SkyGearView3D.HULK_MODELS.get(state, "")))
+		if not ResourceLoader.exists(hpath):
+			hulk_faults.append("%s: no scene" % state)
+			continue
+		var hnode: Node3D = (load(hpath) as PackedScene).instantiate() as Node3D
+		var hspan: Vector3 = SkyGearView3D.measure_span(hnode)
+		hnode.free()
+		## The renderer's own arithmetic, both ways round.
+		var shared: float = 420.0 * SkyGearView3D.WORLD_SCALE 			/ maxf(0.0001, SkyGearView3D.camera_span(hulk_ruler_span, 0.0))
+		var own: float = 420.0 * SkyGearView3D.WORLD_SCALE 			/ maxf(0.0001, SkyGearView3D.camera_span(hspan, 0.0))
+		hulk_widths.append(hspan.x * shared / SkyGearView3D.WORLD_SCALE)
+		hulk_own_widths.append(hspan.x * own / SkyGearView3D.WORLD_SCALE)
+	var hulk_spread := 0.0
+	var hulk_own_spread := 0.0
+	if hulk_widths.size() == 3:
+		hulk_spread = (hulk_widths.max() - hulk_widths.min()) / maxf(1.0, hulk_widths.min())
+		hulk_own_spread = (hulk_own_widths.max() - hulk_own_widths.min()) \
+			/ maxf(1.0, hulk_own_widths.min())
+	_check("hulk", "three faces, one wall — one ruler holds the silhouette still while the door changes",
+		hulk_faults.is_empty() and hulk_widths.size() == 3
+			and hulk_spread < 0.03 and hulk_own_spread > 0.15,
+		"widths %.0f / %.0f / %.0f gu (spread %.1f%%); per-state rulers would have spread %.1f%%"
+			% [hulk_widths[0] if hulk_widths.size() == 3 else 0.0,
+				hulk_widths[1] if hulk_widths.size() == 3 else 0.0,
+				hulk_widths[2] if hulk_widths.size() == 3 else 0.0,
+				hulk_spread * 100.0, hulk_own_spread * 100.0])
 
 	## --- board SG-55: speed-sync at boarder scale — the skating lesson, part two
 	## `AUTHORED_RUN_SPEED` alone matches the cycle to the ground the CAPTAIN

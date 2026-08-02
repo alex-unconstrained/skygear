@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/boarding_hulk_destroyed/boarding_hulk_destroyed.glb" id="1_u3gy6"]
+
+[node name="Boarding Hulk Destroyed" type="Node3D" unique_id=1254798048]
+metadata/model_height = 0.927516
+
+[node name="Holder" type="Node3D" parent="." unique_id=2099599000]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00046145916, 0.467692, 0.0005044937)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=249140330 instance=ExtResource("1_u3gy6")]

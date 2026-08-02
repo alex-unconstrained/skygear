@@ -17,6 +17,8 @@ cracking on a dash, projectiles, every cutscene) and
 
 **F4 resizes now (SG-80), and your Ctrl+S bug was real (SG-83): the harness had been deleting `user://hud_layout.json` six times a run, so the editor saved correctly and a tool run wiped it minutes later — fixed, and the bar now says SAVED with the real path, or shouts if a write fails.**
 
+**Your three boarding-hulk models are in and all three states are wired (SG-76) — feel-check the sequence in a push wave (wave 4): it now hangs on SEALED and shrugs off everything for 2.5 s, opens and starts unloading, and wears the wreck when it breaks; and say whether the sealed 2.5 s is the right beat, because that number is the only thing in it I picked rather than measured.**
+
 ## Your 2026-08-02 screenshot — the three corrections, one line each
 
 - **SG-78, the aim indicator:** the range ring and the cursor echo are gone;

@@ -407,6 +407,12 @@ const BOW_Y := -1000.0
 var turrets: Array[Dictionary] = []
 var crew: Array[Dictionary] = []
 var hulk: Dictionary = {}
+## How long the boarding hulk hangs on the hull SEALED before its door opens
+## (board SG-76). It is not decoration: `damage_hulk` already refuses a hulk
+## that is not `vulnerable`, so this is the beat where the thing is bolted to
+## your ship and there is nothing yet to shoot at — and it is the only window
+## in which the sealed face, which the art has had all along, is on screen.
+const HULK_GRAPPLE_TIME := 2.5
 var crew_timer := 0.0
 
 func _ready() -> void:
@@ -2198,7 +2204,12 @@ func _begin_push(wave_number: int) -> void:
 		if is_push_wave(i + 1):
 			index += 1
 	hulk = SkyGearLanes.make_hulk(BOW_Y, 1.0 + maxi(0, index - 1) * 0.20)
-	hulk.vulnerable = true
+	## SEALED, and it stays that way for `HULK_GRAPPLE_TIME`. This line used to
+	## read `hulk.vulnerable = true` — set on the frame it grappled and never
+	## cleared — so `make_hulk`'s own `vulnerable: false` was dead the moment it
+	## was written and the sealed state was unreachable in a shipped run. The
+	## door opens in `_update_hulk`, which is also the only place it can now.
+	hulk.grapple = HULK_GRAPPLE_TIME
 	play_sfx("lane/hulk_grapple.ogg", -4.0)
 
 
@@ -2380,8 +2391,14 @@ func _update_wave(delta: float) -> void:
 		if voice != null:
 			voice.say("wave_clear", 1)
 		_fx({"kind": "banner", "text": "WAVE CLEAR", "time": 0.0, "life": 1.6})
-	elif push_pending and spawn_queue.is_empty() and enemy_count() < 6 and wave > 0:
-		# they keep coming while the hulk lives — that is what it is for
+	elif push_pending and spawn_queue.is_empty() and enemy_count() < 6 and wave > 0 \
+			and hulk_state() == "open":
+		# they keep coming while the hulk lives — that is what it is for, and a
+		# shut door sends nobody: the trickle is the DISGORGING, so it waits on
+		# the state the renderer is drawing (SG-76). In practice the wave's own
+		# queue outlasts the grapple window many times over, so this gates
+		# nothing today — it is here so the picture and the simulation cannot
+		# disagree the day either number moves.
 		for lane in LANE_CENTERS.size():
 			spawn_queue.append({"time": wave_time + 1.0 + lane * 0.4,
 				"type": "SCRAPPER" if lane != 1 else "SWARM", "lane": lane})
@@ -4035,10 +4052,34 @@ func hurt_crew(c: Dictionary, amount: float) -> void:
 
 
 ## --- the boarding hulk ------------------------------------------------------
+## THE THREE STATES, and one function that answers which one — the `hulk_bar`
+## pattern (SG-61): the renderer picks a mesh with this, the harness asserts on
+## it, and neither can drift from the other because there is one answer.
+##
+##   ""          nothing grappled on
+##   "sealed"    bolted to the hull, plate shut, nothing to bite yet
+##   "open"      the door is open and it is sending boarders down the ramps
+##   "destroyed" broken, and the wreck stays for the rest of the wave
+func hulk_state() -> String:
+	if hulk.is_empty():
+		return ""
+	if bool(hulk.get("dead", false)):
+		return "destroyed"
+	return "open" if bool(hulk.get("vulnerable", false)) else "sealed"
+
+
 func _update_hulk(delta: float) -> void:
 	if hulk.is_empty():
 		return
 	hulk.flash = maxf(0.0, float(hulk.get("flash", 0.0)) - delta)
+	## The grapple settles, THEN the door opens. Counted here rather than at the
+	## call site because this is the one function that owns the hulk's clock,
+	## and a second countdown somewhere else is how `vulnerable` got stuck true.
+	if not bool(hulk.get("dead", false)) and not bool(hulk.get("vulnerable", false)):
+		hulk.grapple = maxf(0.0, float(hulk.get("grapple", 0.0)) - delta)
+		if float(hulk.grapple) <= 0.0:
+			hulk.vulnerable = true
+			play_sfx("lane/hulk_grapple.ogg", -10.0)
 
 
 func damage_hulk(amount: float) -> void:

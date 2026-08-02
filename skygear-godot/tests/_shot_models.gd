@@ -31,6 +31,11 @@ const HEIGHT := {
 	"sword_cutlass": 95.0, "sword_gearblade": 95.0,
 	"scrapper": 186.0, "gunner": 183.0, "armored": 216.0, "swarm": 165.0,
 	"boss": 330.0, "boiler": 168.0, "boarding_hulk": 420.0,
+	## The owner's own three-state hulk (SG-76). Same 420 as the sprite it
+	## replaces, three times, because the three states are one object wearing
+	## three faces and a state that came out a different size would pop.
+	"boarding_hulk_sealed": 420.0, "boarding_hulk_open": 420.0,
+	"boarding_hulk_destroyed": 420.0,
 	"crate_stack": 148.0, "crate_small": 84.0, "powder_keg": 100.0,
 	"lantern_post": 200.0, "brazier": 116.0, "steam_vent": 52.0,
 	"cannon_deck": 130.0, "salvage_pile": 62.0, "captain": 176.0,

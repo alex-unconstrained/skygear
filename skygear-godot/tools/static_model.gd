@@ -126,6 +126,29 @@ const MODELS := {
 	## Ninety credits total, and what they bought is the full shape of the
 	## problem: the sprite stays until someone hand-models a wide, shallow,
 	## iron-and-timber wall with the iris in it.
+	##
+	## AND THEN THE OWNER MADE IT HIMSELF (board SG-76, 2026-08-02) — three
+	## files, one per painted state, which is the thing three prompted attempts
+	## could not buy at any price: the same object wearing three faces. Each
+	## state is its own model key because `_sync_prop_model` claims by key and
+	## a state swap has to be a different scene, not a different material.
+	##
+	## FACING 0 IS MEASURED, not assumed. All three came back with the door on
+	## +Z: rendered square-on at the game camera each one lands on its painting
+	## — chimneys at the top corners, ramps splayed from the bottom corners,
+	## the round iris dead centre (.shots/models/hulk-raw/*.png).
+	##
+	## THE MAPPING IS THE OWNER'S FILE NAMES SWAPPED, and it was verified by
+	## looking rather than by reading: "Ironbound Gate" (stated OPEN) is the
+	## SEALED face — chevron plate over the door, one thin red seam, and an
+	## emission map that is ENTIRELY BLACK — and "Emberforge Core" (stated
+	## CLOSED) is the one with the blazing iris and the only emission map in
+	## the three with anything alight in it. "Clockwork Gate Fortress" is the
+	## wreck it says it is. Names are ambiguous; a furnace either burns or it
+	## does not.
+	"boarding_hulk_sealed": 0.0,
+	"boarding_hulk_open": 0.0,
+	"boarding_hulk_destroyed": 0.0,
 
 	"crate_stack": 0.0,
 	"powder_keg": 0.0,

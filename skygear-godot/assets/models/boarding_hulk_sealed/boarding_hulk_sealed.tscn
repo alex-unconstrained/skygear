@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/boarding_hulk_sealed/boarding_hulk_sealed.glb" id="1_fyfet"]
+
+[node name="Boarding Hulk Sealed" type="Node3D" unique_id=1588522122]
+metadata/model_height = 1.110688
+
+[node name="Holder" type="Node3D" parent="." unique_id=1299407503]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00091952085, 0.557266, 0.0023404956)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=492457325 instance=ExtResource("1_fyfet")]
