@@ -17,6 +17,41 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The morning-after playtest — eight findings from the owner's Boilerwright run
+Reported 2026-08-02 morning after a full run to wave 11 (seed SFHBVG, THE
+WRECK berthed), with clarifications taken before work started. Items, each a
+board row:
+
+1. **F4 needs axis-locked dragging** — hold Shift while dragging to move on
+   one axis only (SG-58).
+2. **Vents invisible and untaught** — playing the Boilerwright: *"I dont
+   understand the vent mechanics, cant seem to visually identify a vent."*
+   Clarified: mechanic stands; fix is visual identity + teaching (SG-59).
+3. **Aim feedback missing** — *"Its hard to tell where an aimed skill will
+   land - or determine range, since the cursor doesnt show any of that
+   information visually."* (SG-60)
+4. **The boarding hulk has no visible HP bar** — the push wave's objective
+   is invisible (SG-61).
+5. **KNOCKBACK IS GAME-BREAKING AGAIN** — *"Something is still knocking back
+   enemies all the way to the boiler area, very buggy visually and annoying
+   gameplaywise this is a game breaking bug."* Build carried SLEDGE FORCE +
+   OVERPRESSURE + Frost; crew/cannons took 58% damage share, consistent with
+   flung enemies being delivered to the stern guns. (SG-62, P1)
+6. **Hard cap on allied units alive** — plus the 58% ally share wants
+   measuring while in there (SG-62, same sim pass).
+7. **2D reads remaining** — impacts/puffs, skill-shape billboards in the air,
+   AND the 2D crew/ally figures all named: *"I still see 2D sprite particles
+   on skill usage, why?"* (SG-63 renderer pass; figures gated on rigging)
+8. **The 2D→3D purge, verdicts reopened** — *"completely remove any existing
+   2D objects that should be migrated to 3D now that we have the meshy
+   workflow"* — clarified: reopen the rejected props (brazier, small crate,
+   hulk), generate the never-tried, AND migrate figures; scrapper regen
+   implicitly approved as the figure pilot. (SG-64 props, SG-65 scrapper)
+
+Animations: clarified as wrong-reading clips, not glitches — the owner makes
+Mixamo clips from `Downloads\boilerwright-mixamo.zip`; the retarget path
+ingests FBX on delivery.
+
 ### The variety direction, from the owner — enemies vary the run, the ship changes between runs
 Answered 2026-08-02, 00:30, when asked whether to resurrect the cut stowage
 spine: *"When you're talking about deck variety, it should be minor deck
