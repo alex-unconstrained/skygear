@@ -1,8 +1,8 @@
 # NEEDS ALEX
 
-_Last updated: 2026-08-02, build 42._
+_Last updated: 2026-08-02, build 43._
 
-## Build 42 is live — what to look at
+## Build 43 is live — what to look at
 
 **You made two of its best pieces.** The hulk's three states and the furnace
 knight both came from your own Meshy sessions after prompted attempts failed;
@@ -48,6 +48,13 @@ knight both came from your own Meshy sessions after prompted attempts failed;
   Boiler, and the furnace knight. The first four are dialled to reproduce the
   lights they already had, so the deck should look the same to you; the knight's
   chest light is new and is my answer to question 2 below.
+- **The last painted cards are off the deck (SG-63).** Impact sparks, shards
+  and steam puffs are real bodies now (the steam tumbles, so deck lamps travel
+  across it); explosions finally have geometry in the AIR — every kill, keg and
+  hulk break had been drawing a flat painted starburst on the planking. And the
+  filled-plate trap that flooded your aim ring was open under FIVE more effects
+  (the circle shape, fire fields, the Colossus turn ring, the vent stand ring,
+  and the aura edge a card widens) — all hollow now.
 - **F4 resizes text boxes**, and **your saves work** — see below.
 
 ## Answers you owe (quick)
