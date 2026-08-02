@@ -5,6 +5,11 @@ queue agents claim items from and report evidence to. `docs/OUTSTANDING.md`
 stays the ledger of owner asks; an ask lands there first and is mirrored to
 the board as workable items.**
 
+**THE GOAL CHANGED 2026-08-01, by the owner:** visual parity with browser v11
+is retired — *"we build the Godot version to be better than the web one ever
+was."* The browser is a reference and a regression yardstick now, not a
+ceiling. Judge visual work by "is it better and legible," not "does it match."
+
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory

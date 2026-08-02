@@ -220,23 +220,23 @@ the same posed moment Godot draws nothing comparable. Pillar 6 of the design is
 that every attack is readable before it lands, so this is the readability item
 the whole VFX plan was ranked around.
 
-### AESTHETIC PARITY — the original job, never finished
+### ~~AESTHETIC PARITY — the original job~~ — SUPERSEDED BY THE OWNER, 2026-08-01
 > *"I want the game screenshots of both versions to be almost identical in
 > quality before we consider this job done."*
 
-Substantial VFX work landed (tonemapper, particles, decals, batched shadows,
-element light, a camera solve I believed was exact) but **the comparison itself was
-never made**. Every parity judgement so far has been my memory of the browser
-build against a Godot screenshot, which is not evidence. Some of it may be
-regression and I would not know.
+Closed by a newer instruction, verbatim: *"we can move beyond trying to
+achieve visual parity with web v11 — we are now in uncharted and exciting new
+territory as we build the Godot version to be better than the web one ever
+was."*
 
-**The tool now exists** — `python tools/parity.py`, or `SkyGear Tools.bat parity`.
-Both builds are posed through their own exports at the same seed, wave,
-boarders and tick count, then stitched side by side at matched height into
-`.shots/parity/`. The first run found the two items above, one of which
-contradicts something I had asserted several times.
-
-What remains is the work it revealed, plus scenes for the HUD and the draft.
+What the parity chase accomplished before it was retired: the comparison tool
+(`SkyGear Tools.bat parity`, six scenes), the camera proven pixel-exact
+(SG-2), the Boiler rescaled (SG-27), telegraphs rebuilt (SG-3), the skill-bar
+posing fixed (SG-4), and the lighting/card gaps found (SG-34/35 — both being
+worked at the moment the goal changed, redirected mid-flight to "better than,
+not identical to"). **The browser is a reference now, not a ceiling.** The
+parity tool stays — it answers "did we regress something the browser did
+well," which is still a real question; it just no longer defines done.
 
 ### 3D models for the remaining objects — MOSTLY DONE, three rejected
 Asked for. Ten generated through `tools/meshy.py run props`, 360 credits.
