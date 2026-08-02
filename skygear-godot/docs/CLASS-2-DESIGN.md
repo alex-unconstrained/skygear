@@ -3,7 +3,13 @@
 Status: **BUILT.** Head, Tap Main, Blowdown, Bleed Jet, Scald,
 Overpressure, the no-dash body, the per-class draft weighting, the Anchored
 resist, kills extending a main, the crew haste inside one and the third deck
-vent are all in and covered by the harness.
+vent are all in, each under the harness's `class ·` group — e.g. `class · his
+gauge is banked, not measured` and `class · but standing on the Boiler fills it`
+(Head), `class · a full bank makes every weapon hit harder` (Overpressure),
+`class · his draft favours ground over rifles` (draft weighting), `class ·
+standing in his own steam actually reduces damage` (Anchored), `class · a kill
+inside a main extends it`, `class · crew inside a main work faster`, and `class ·
+and every lane has a vent to refill at`.
 
 *"Complete" was claimed here and the audit found the omissions list below
 missing at least four entries — see "Documentation claims that are not
@@ -12,17 +18,52 @@ enforceable" in `OUTSTANDING.md`. Known open on this class: the mobility gap
 ledger entry), and he renders as the captain's model
 (`CAPTAIN_SCENE` is one constant for both classes — its own ledger entry).*
 
-Two things §3 describes that are deliberately NOT built, and are not oversights:
+**Deliberately NOT built, and not oversights:**
 
-- **Head does not cost Boiler HP.** §2 charges 0.6 Boiler HP per point past a
-  40-per-wave allowance. The allowance, the meter and the per-wave reset are
-  three pieces of bookkeeping for a cost the player pays at the moment they are
-  least able to read a new number, and Blowdown's repair rate already encodes
-  the loss the charge was there to guarantee. If the Boiler tap turns out to be
-  the dominant fill in play, this is the first thing to add back.
 - **No per-class card weighting.** The SHAPES are weighted; the 41 cards are not.
   A card table that offers differently per class is a second table to balance,
   and the shape bias already steers the build.
+- **The 40-Head-per-wave free allowance, its meter, and its per-wave reset.**
+  §2 charges past a 40-per-wave free band; the flat charge itself IS now built
+  (0.6 HP/point, `game.gd:2115`, guard #1 — the doc used to list "Head does not
+  cost Boiler HP" here and that is now stale), but the free-band accumulator and
+  reset were left out on purpose: three pieces of bookkeeping for a cost the
+  player reads at the worst moment. First thing to add back if the Boiler tap
+  dominates the fill in play.
+
+**Designed but NOT built — audited 2026-08-01, completing a list "Complete"
+undersold.** These are gaps, not choices; each names why it is not wired:
+
+- **The repair budget (guard #2 of three).** §2 specifies a `repair_budget`
+  structurally identical to `heal_budget` — 10 HP/s, refilling, every repair
+  source on one ceiling. No `repair_budget` symbol exists in `scripts/`;
+  `blowdown()` (`game.gd:~2328`) writes repair straight into `boiler_hp`/turret
+  HP clamped only to max. So the anti-"repair the ship to full" guard the design
+  leans on is absent — only guard #1, the exchange rate, is built.
+- **The six per-class cards** — LONG HOSE, BLEED VALVE, SECOND MAIN, REGULATOR,
+  CROSS-BRACE, SUPERHEAT (§6). None of these ids/titles are in `cards.gd`, and
+  their sim hooks are missing too (no tap-life mod on `tap_main`, no bleed
+  cost/trail mod, no tap-count cap or two-at-once path, no Blowdown repair-radius
+  multiplier, no free-allowance field for REGULATOR). Reason: new cards plus
+  their readers were never added — distinct from "no per-class card weighting"
+  above, which is about weighting the existing 41.
+- **SUPERHEAT's mechanic.** §6: above 70 Head, Overpressure is +90% instead of
+  +45%. `overpressure_multiplier()` (`game.gd:828`) returns a flat
+  `1.0 + overpressure`; there is no Head-tier branch and no `superheat` field, so
+  even the card above would have nothing to move.
+- **Per-class card GATING and the per-class draft label.** §6 gates eight cards
+  behind the class (the three dash cards plus `ventheal`, `ventdmg`, `pressrate`,
+  `dressing`, `lifesteal`) and makes `SCOPE_LABEL[SCOPE_CAPTAIN]` per-class text.
+  Only the three dash cards are excluded (via `_has_dash`, not a class check);
+  the other five are still offered to the Boilerwright, `g.hero`/class gating does
+  not exist in `cards.gd`, and the CAPTAIN scope label is the hard-coded string
+  `"CAPTAIN"` stamped on every draft card regardless of class. Reason: five gates
+  and the per-class label were never wired — the "dead for him" cards stay live.
+- **Kegs as a Head source.** §6 keeps POWDER MONKEY "alive" for this class on the
+  stated ground that kegs feed Head, so the card gets *better*. `_fill_head`
+  (`game.gd:~2094`) fills only from the Boiler, `vent` props and taps; kegs grant
+  no Head anywhere. Reason: the rationale was never implemented, so the card is
+  not actually better for him as claimed.
 
 Everything below is the reasoning, unchanged. Where the build disagrees with it,
 the build is the newer decision and the difference is commented at the code.
@@ -196,12 +237,29 @@ removing them breaks her. Six new:
 | **A hose or wrench mesh on a hand bone** | **art, commissioned** | §13l already records that the axe pack ships no axe. Second instance — solve the attachment once, for both. |
 | Voice, 19 keys | audio, **deferrable** | policy is that an absent line is silence, never a synth impression. He can ship mute and it is not a bug. |
 
-Checks: Head rises only on a tap and only while stationary; a draw past allowance cuts
-`boiler_hp` and is not reduced by `boilerdr`; Boiler → Head → repair is net-negative
-for **every** card combination in the catalogue; repair respects its budget; Blowdown
-at zero does nothing and Blowdown splashes the hulk; taps expire and their pool is
-capped; the dash action is inert and the dash cards never offered; a seed deals him
-the same hand twice.
+Checks (intended list, with what the harness ACTUALLY asserts today — the rest is
+**UNVERIFIED**, and several name a feature §-above records as not built):
+- Head rises only on a tap → `class · landing a hit grants him NO Head`, `class ·
+  and killing one grants him none either`, `class · but standing on the Boiler
+  fills it`. The "**only while stationary**" clause is **UNVERIFIED — no check**.
+- A draw past allowance cuts `boiler_hp` → `class · taking the ship's heat costs
+  the ship`. "**not reduced by `boilerdr`**" is **UNVERIFIED — no check** (and the
+  40-Head allowance itself is unbuilt, see the omissions list).
+- Boiler → Head → repair is net-negative → `class · and giving it back returns
+  less than it cost` — but it does NOT iterate **every card combination**;
+  "every combination" is **UNVERIFIED**.
+- "**repair respects its budget**" — **UNVERIFIED — no check, and no `repair_budget`
+  exists** (guard #2, unbuilt).
+- Blowdown at zero does nothing → `class · blowdown refuses a bank that is too
+  small`. "**Blowdown splashes the hulk**" is **UNVERIFIED — no check**.
+- Taps expire → `class · and it burns out`. "**pool is capped**" is **UNVERIFIED —
+  no tap-pool-cap check** (the cap is unbuilt).
+- The dash action is inert and the dash cards never offered → `class · and he has
+  no recharging dash`, `class · no card can give the dashless class a dash`,
+  `class · and is never offered one`.
+- "**a seed deals HIM the same hand twice**" — **UNVERIFIED — no Boilerwright-
+  specific seed check**; only the general `seed · the same seed deals the same
+  hand` exists.
 
 ## 8. The one risk, and the cheapest test
 

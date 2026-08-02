@@ -265,8 +265,10 @@ side by side.
 **The camera is solved, not tuned.** `camera_back()` is `CAM.recompute()` ported
 line for line, and the field of view is the browser's own focal length —
 2·atan(430/1320) = 36.1° vertical, not the 52° that was in there. Two checks
-assert it: the lens value, and that the captain unprojects to 0.600 of screen
-height, which is the framing every sprite in `assets/` was generated against.
+assert it: `camera · the lens is the browser's focal length` (the lens value) and
+`camera · the captain stands where the art was framed for` (she unprojects to
+0.600 of screen height), which is the framing every sprite in `assets/` was
+generated against.
 
 **What the picture was missing, in the order it mattered:**
 

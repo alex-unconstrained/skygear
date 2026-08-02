@@ -76,6 +76,19 @@ func _run() -> void:
 	var game: SkyGearGame = world.get_node("SkyGear")
 	var view: SkyGearView3D = world
 
+	## SUPPRESS THE SHIPPED CUTSCENES, the way `tools/cutscene_lab.gd` does — and
+	## the reason this tool exists as a posed shot at all (board SG-33). `begin_run`
+	## owes an establishing `run_open` crane and `view3d.gd::_watch_cues` spends it
+	## the first PLAY frame; left enabled it poses the camera for its whole 2.5s, so
+	## every sky pose below would be a frame of the crane (pitch −30.8°/yaw −16°),
+	## NOT the locked 41.25°/0° gameplay solve the sky was meant to be judged from.
+	## Whether the crane has finished by the time a frame is saved is a matter of how
+	## fast this machine warmed up — a timing accident, not a guarantee — so the cue
+	## is turned off outright rather than waited out. `_assert_locked` below refuses
+	## to save any frame if a future cue slips past this anyway.
+	view.cutscenes_enabled = false
+	view.stop_cutscene()
+
 	## The browser build has neither Workshop nor Heat, and a lighting comparison
 	## against a run with either turned on is a comparison of two different games.
 	game.workshop = SkyGearWorkshop.fresh(true)
@@ -133,6 +146,13 @@ func _run() -> void:
 			for _i in 4:
 				game._process(1.0 / 60.0)
 				await process_frame
+			## The frame is only worth saving if it IS the locked gameplay solve. A
+			## cutscene poses the camera and nothing else on screen says it did — so
+			## rather than trust that the suppression above held, the pose is measured
+			## before the shutter and the tool refuses a contaminated frame outright.
+			if not _assert_locked(view, spot, zoom):
+				quit(1)
+				return
 			var path := "%s/%s-z%.2f.png" % [out_dir, spot, zoom]
 			root.get_texture().get_image().save_png(path)
 			print("  %-10s zoom %.2f  ->  %s" % [spot, zoom, path.replace("res://../", "")])
@@ -140,3 +160,29 @@ func _run() -> void:
 			made += 1
 	print("\n%d shot(s). Look at them." % made)
 	quit(0)
+
+
+## The camera IS the locked solve, or the shot does not get taken. The gameplay
+## camera is pitched `SkyGearView3D.PITCH` (0.72 rad = 41.25° below horizontal)
+## and does not yaw — the sky is made visible by MOVING the captain toward a rail,
+## never by turning the lens. So a frame worth saving reads 41.25°/0° with no
+## cutscene active; anything else is a cue that slipped past the suppression, and
+## the whole point of SG-33 is that such a cue must not contaminate a sky frame
+## silently.
+func _assert_locked(view: SkyGearView3D, spot: String, zoom: float) -> bool:
+	var cam := view.camera
+	if cam == null:
+		push_error("sky_shot: no camera to measure")
+		return false
+	var fwd: Vector3 = -cam.global_transform.basis.z
+	var pitch := rad_to_deg(-asin(clampf(fwd.y, -1.0, 1.0)))
+	var yaw := rad_to_deg(atan2(fwd.x, -fwd.z))
+	var locked_pitch := rad_to_deg(SkyGearView3D.PITCH)
+	var off := absf(pitch - locked_pitch) > 0.5 or absf(yaw) > 0.5 \
+		or view.cutscene_active()
+	if off:
+		var msg := "sky_shot REFUSED %s z%.2f: camera is pitch %.2f / yaw %.2f (locked is %.2f / 0.00), cutscene active=%s — a cue posed the lens; the frame is NOT the gameplay solve" % [spot, zoom, pitch, yaw, locked_pitch, str(view.cutscene_active())]
+		push_error(msg)
+		print("  !! ", msg)
+		return false
+	return true

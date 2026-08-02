@@ -268,15 +268,26 @@ From the Fable audit. The pattern is right — every design doc ends with a list
 of where the build departs from it — but the claims inside are not checkable, so
 they rot silently:
 
-- three documents restate "the whole tree is worth less than three draft cards"
+- ~~three documents restate "the whole tree is worth less than three draft cards"
   and the check behind it compares only `crit_chance` (x1.06 against x2.28). It
-  cannot fail, which means it is not evidence of anything.
-- `CLASS-2-DESIGN.md` says "BUILT AND COMPLETE" over an omissions list missing at
-  least four entries.
+  cannot fail~~ — **FIXED (SG-11).** `shop · the whole tree is worth less than
+  three cards` now measures the real aggregate on both sides: the maxed tree's
+  offensive product (crit_chance+range+vent_radius = **×1.31**) against the three
+  per-skill cards read from the live catalogue (**×2.28**). Measured fully the
+  inequality HOLDS, and a second check `shop · the three-card yardstick is the
+  real catalogue, not three typed numbers` keeps the card side from drifting back
+  to typed constants. META §4.1 and SHIP-AND-MAPS §7.2 updated to name it.
+- ~~`CLASS-2-DESIGN.md` says "BUILT AND COMPLETE" over an omissions list missing
+  at least four entries.~~ — **FIXED (SG-11).** Six audited entries added to the
+  omissions list (repair budget, the 40-Head allowance, the six per-class cards,
+  SUPERHEAT, per-class card gating + label, kegs as a Head source), and the stale
+  "Head does not cost Boiler HP" entry corrected (the flat charge is now built).
 
-The audit's proposed rule is the fix and it should be adopted: **any claim of
-harness coverage must name the check string**, so an untested claim is visibly
-untested. Not done.
+The audit's proposed rule is the fix and it has been adopted (SG-11): **any claim
+of harness coverage must name the check string** — recorded as BOARD rule 2,
+extended to design docs, and swept through `skygear-godot/*.md` +
+`skygear-godot/docs/*.md` (claims named where a check exists, marked `UNVERIFIED —`
+where none does).
 
 ### ~~The airstream washes over the sky~~ — FIXED, and it was a bug not a tuning problem
 Worth keeping as a record of a wrong diagnosis. This entry assumed the ribbons

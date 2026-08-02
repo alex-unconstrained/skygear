@@ -8,12 +8,8 @@ _Last updated: 2026-08-01_
 
 ## Blockers
 
-**1 · itch pushes — `butler login`** (SG-6)
-Everything else about building is working (template restored, zip verified).
-Butler is installed; the login is interactive on your itch account. In this
-session, type:
-`! "%USERPROFILE%\.local\bin\butler.exe" login`
-Until then: builds land in `skygear-godot/builds/itch/` and you upload by hand.
+None. (butler credentials verified 2026-08-01 — the loop pushes builds to
+itch itself now; build 32 was the first.)
 
 ## Decisions
 
@@ -72,7 +68,7 @@ made the call. **Recommendation: drop.** One word from you closes it.
 - **The Colossus wreck** (SG-15) now floats off the bow after your first
   Colossus kill — visible when you push forward, subject of the run-open
   crane. Judge whether it earns its place.
-- **A fresh build is cut**: `skygear-godot/builds/itch/SkyGear-Windows.zip`
-  (everything from today: telegraphs, legibility floor, Boiler scale, the
-  heave verb, crate x-ray, five cutscene shots, Heat 3–5 + ladder, the
-  wreck). Upload to itch by hand until `butler login` is done.
+- **Build 32 is on itch** (pushed 2026-08-01): telegraphs, legibility floor,
+  Boiler scale, the heave verb, crate x-ray, five cutscene shots, Heat 3–5 +
+  ladder, the wreck — everything above in one build at
+  https://alex-unconstrained.itch.io/skygear-godot-test

@@ -79,7 +79,7 @@ So:
 | Which cross-passages are open | **Yes** | `CARGO_RECTS` is read in exactly four places: `correct_player_position`, the 2D debug draw, and twice in `view3d.gd` |
 | Deck length in ±y | **Cautiously** | the camera only shows 1320 of 2320 already; more depth is nearly free to frame and expensive to fill |
 | Deck width | **No** | the deck is already wider than the frame; widening it pushes the rails past the leash and re-scales every ability's reach |
-| `PITCH`, `FOCAL`, `STAND_FRAC`, `WORLD_SCALE` | **No** | pinned by harness checks, and every sprite in `assets/art/` was painted for 41° |
+| `PITCH`, `FOCAL`, `STAND_FRAC`, `WORLD_SCALE` | **No** | `FOCAL` pinned by `camera · the lens is the browser's focal length`, `STAND_FRAC` by `camera · the captain stands where the art was framed for`; `PITCH` and `WORLD_SCALE` are **UNVERIFIED — no check pins either by itself** (only implied through those two projection checks), and every sprite in `assets/art/` was painted for 41° |
 | Lane count and `LANE_CENTERS` | **No** | see §2 — the ±190 clamp is load-bearing in a way that is not obvious |
 | Boiler at (0, 850), spawn line at y = −1115, `BOW_Y` −1000, `BASE_Y` 730 | **No, not yet** | the wave tables, the hulk, the cannon line and the push logic all assume them |
 
@@ -430,11 +430,13 @@ before building, not after looking at the numbers.
 
 **2 · A ship so customised that balance claims mean nothing.** Three guards, all
 structural. The berth cap of six. The rule that no fitting touches a number.
-And a **bare-ship baseline**: `parity_test.gd` already runs `plain` against
-`kitted` on seed "NOSHOP" to prove the full Workshop is worth less than three
-cards; the same shape applies here, with a run on the bare deck required to
-reproduce today's numbers exactly, and every Heat claim measured on the bare
-deck. If a fitting cannot be added without moving the bare-deck run, it is not a
+And a **bare-ship baseline**: `parity_test.gd` runs `plain` against `kitted` on
+seed "NOSHOP" — that is `shop · and a bought tree actually changes the run`, which
+proves the tree DOES something, not that it is small. The "worth less than three
+cards" claim is a SEPARATE check, `shop · the whole tree is worth less than three
+cards` (×1.31 tree vs ×2.28 cards, both measured since SG-11). The same shape
+applies here, with a run on the bare deck required to reproduce today's numbers
+exactly, and every Heat claim measured on the bare deck. If a fitting cannot be added without moving the bare-deck run, it is not a
 fitting.
 
 **3 · Generated layouts that are unwinnable or trivial.** Largely foreclosed by
@@ -508,8 +510,9 @@ with numbers instead of three runs and a feeling. The equivalent here is
 **`tools/stow.gd`**, registered as a `check` in `tools/hub.gd`: roll N seeds ×
 12 waves of stowage without launching a renderer, and assert the invariants —
 a vent in every lane, no two kegs within 200 units, every cross-passage
-passable, at least 24 pieces (the existing check at `parity_test.gd:855`), cover
-area inside its band — then print the worst offender per invariant with its seed
+passable, at least 24 pieces (**UNVERIFIED — no "24 pieces" check exists**; the
+`parity_test.gd:855` reference is stale, and the nearest surviving prop-count
+check `view · the deck is dressed` asserts only ≥ 4), cover area inside its band — then print the worst offender per invariant with its seed
 and wave.
 
 That is what makes the fiftieth fitting as cheap to add as the second, which is

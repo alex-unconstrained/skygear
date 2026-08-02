@@ -92,6 +92,18 @@ static func slug(name: String) -> String:
 static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 		size: Vector2) -> void:
 	hud.size = size
+	## SUPPRESS THE SHIPPED CUTSCENES (board SG-33). Both callers — the text audit
+	## and the screen camera — load `main3d.tscn`, whose renderer runs `_watch_cues`
+	## every frame, and posing GAMEOVER or VICTORY below trips the `defeat` /
+	## `victory` cues. Those HIDE THE HUD and swing the camera off the deck: the
+	## audit would then sample a blank screen behind every string it thinks it is
+	## measuring and report the two GAMEOVER screens and the VICTORY screen CLEAN —
+	## a detector silenced by the thing it was pointed at, which is exactly the
+	## failure this poser was built to keep from happening. Off, so the endings are
+	## posed with their HUD up on the gameplay solve.
+	if game.view != null:
+		game.view.cutscenes_enabled = false
+		game.view.stop_cutscene()
 	## Live again while the pose is being built; frozen once it is. See the note
 	## at the foot of this function.
 	game.set_process(true)

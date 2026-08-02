@@ -2184,8 +2184,41 @@ func _view() -> void:
 		if str(buckets.get(field, "")) in OFFENCE:
 			tree_damage *= 1.0 + float(everything[field])
 			counted += " %s+%.0f%%" % [field, float(everything[field]) * 100.0]
-	## Three typical cards: +30% damage, +35% area, +30% range on one slot.
-	var three_cards := 1.30 * 1.35 * 1.30
+	## And the three cards the claim is measured against, taken from the LIVE
+	## catalogue rather than typed in as three numbers. The check used to inline
+	## `1.30 * 1.35 * 1.30`, which happened to be the real HEAVY HIT / WIDE BLAST /
+	## LONG REACH multipliers — until the day someone buffs one in `cards.gd` and
+	## this side keeps asserting a card the game no longer deals, the two halves of
+	## the inequality drifting apart in silence (failure mode four, a number carried
+	## from memory). So both sides are measured now: the tree resolved above, and
+	## the cards applied to a sandbox captain's opening skill here.
+	##
+	## These three — the per-skill offensive COMMONS, stacked on one slot exactly as
+	## a run stacks them — are the design's "three draft cards", and deliberately the
+	## MODEST choice: the claim has to hold against the cards a player sees every
+	## draft, not against the rarest, which would make it trivially true.
+	var card_game := _new_game()
+	_begin(card_game)
+	var slot0: Dictionary = card_game.skills[0]
+	var base_dmg := float(slot0.mods.get("damage", 1.0))
+	var base_area := float(slot0.mods.get("area", 1.0))
+	var base_range := float(slot0.mods.get("range", 1.0))
+	var pick0 := func(opts: Array) -> int: return int(opts[0]) if not opts.is_empty() else 0
+	var applied := ""
+	for card in SkyGearCards.catalogue():
+		if str(card.get("id", "")) in ["dmg", "aoe", "range"]:
+			var made: Dictionary = card.make.call(card_game, pick0)
+			(made.apply as Callable).call(card_game)
+			applied += " " + str(card.id)
+	var three_cards := (float(slot0.mods.get("damage", 1.0)) / base_dmg) \
+		* (float(slot0.mods.get("area", 1.0)) / base_area) \
+		* (float(slot0.mods.get("range", 1.0)) / base_range)
+	card_game.queue_free()
+	## Every one of the three has to have been found and applied, or "measured from
+	## live data" is a lie and the product silently reads x1.00.
+	_check("shop", "the three-card yardstick is the real catalogue, not three typed numbers",
+		applied.split(" ", false).size() == 3 and three_cards > 1.5,
+		"applied [%s ] -> x%.2f" % [applied, three_cards])
 	_check("shop", "the whole tree is worth less than three cards",
 		tree_damage < three_cards,
 		"tree x%.2f (%s ) against cards x%.2f"
@@ -4429,6 +4462,31 @@ func _cutscene() -> void:
 			uncalled.append(str(name))
 	_check("cutscene", "every cue the table names is actually called in scripts/",
 		uncalled.is_empty(), "never fired: %s" % ", ".join(uncalled))
+
+	## AND THEY STAY OUT OF THE POSED-SHOT TOOLS. `sky_shot`, `parity_shot` and the
+	## `screens` poser each begin a fresh run, and `begin_run` owes a `run_open`
+	## crane that `_watch_cues` spends the first PLAY frame — so a tool that leaves
+	## cutscenes live photographs the crane, not the pose it exists to make. The sky
+	## was judged from cutscene frames from SG-8 until SG-33; the screens poser hid
+	## the HUD on its GAMEOVER/VICTORY screens and the audit called them clean.
+	##
+	## READ BACK OUT OF THE SOURCE, because a behavioural check cannot catch this:
+	## headless, the crane's own 2.5s burns through before a frame is saved, so an
+	## "is a cutscene active" assertion passes on the BROKEN tool and proves nothing
+	## — the exact "check that cannot fail" this round set out to end. A deleted
+	## suppression line, by contrast, is a source diff this cannot miss.
+	##
+	## `telegraph_shot` and `vfx_shot` are deliberately NOT required here: each steps
+	## to wave 3 with no `await` between `choose_draft` and `start_wave`, so
+	## `_watch_cues` never observes wave 1 (no `run_open`) and `wave_start` does not
+	## fire on wave 3 — measured inactive at the locked 41.25°/0° solve, not exposed.
+	var unsuppressed := ""
+	for path in ["res://tools/sky_shot.gd", "res://tools/parity_shot.gd",
+			"res://tools/screens.gd"]:
+		if not FileAccess.get_file_as_string(path).contains("cutscenes_enabled = false"):
+			unsuppressed += " " + str(path)
+	_check("cutscene", "the posed-shot tools suppress cutscenes so no cue poses their camera",
+		unsuppressed == "", "still exposed:%s" % unsuppressed)
 
 	## And the other direction: a saved shot whose cue nothing knows about would
 	## never play, silently.

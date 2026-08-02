@@ -170,8 +170,14 @@ unowned, one of them permanently.
 ## 4. Keeping the draft the thing that decides the run
 
 1. **The whole Workshop, fully bought, is worth less than three draft cards.** Every talent is
-   additive against a base the cards multiply, and a check compares resolved stats: full tree
-   without cards, against no tree with a typical wave-6 card set.
+   additive against a base the cards multiply, and `shop · the whole tree is worth less than
+   three cards` compares resolved aggregates: the maxed tree's offensive product (crit_chance
+   +6%, range +10%, vent_radius +12% = **×1.31**) against the three per-skill upgrade cards
+   HEAVY HIT/WIDE BLAST/LONG REACH read from the live catalogue (**×2.28**). Both sides are now
+   MEASURED — the card multipliers used to be three typed numbers, and until SG-11 the check
+   read crit_chance alone (×1.06 vs ×2.28, a constant against a constant that could not fail).
+   `shop · the three-card yardstick is the real catalogue, not three typed numbers` guards the
+   card side against drifting from `cards.gd`.
 2. **No talent may be a multiplier**, or grant a card's exclusive: Fifth Gear, Residue, Twin
    Cast, the wide cone, pierce and chain jumps stay the draft's. A talent handing you an epic
    on run 1 deletes the best moment the game has.

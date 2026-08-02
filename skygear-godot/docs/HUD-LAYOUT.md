@@ -60,5 +60,8 @@ me the file and I will.
 
 Nothing you can do in the editor can break the game. A malformed or missing file
 falls back per panel, so a bad edit costs one panel rather than the HUD; a panel
-cannot be shrunk below 40x28; and the harness asserts the shipped default is
-clean at six window sizes from 1152 up. `Ctrl+R` puts everything back.
+cannot be shrunk below 40x28 (`layout · and a plate cannot be edited down to
+nothing`); and the harness asserts the shipped default is clean at six window
+sizes from 1152 up — `layout · the shipped default is a clean layout` and
+`layout · every HUD plate fits, and none overlap, at six sizes`. `Ctrl+R` puts
+everything back.
