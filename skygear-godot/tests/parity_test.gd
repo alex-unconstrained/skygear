@@ -784,6 +784,45 @@ func _view() -> void:
 			and absf(SkyGearView3D.BOILER_HEIGHT - browser_boiler_h) < 0.01,
 		"%.1f ground units vs browser boilerH %.0f" % [boiler_h_gu, browser_boiler_h])
 
+	## SG-30 — AND THE FALLBACK TIER IS HONEST TOO. The check above measures
+	## whichever body is LIVE, which today is the generated mesh — so the old
+	## primitive fallback sat behind it at 178x192x192, a smooth golden dome that
+	## would have FAILED that check the moment the mesh row vanished, and §13c's
+	## "deleting the mesh falls back to the flat block" was false as written.
+	## This stands the fallback path up EXPLICITLY (`_boiler_primitive`, the
+	## exact geometry `_build_boiler` erects when the mesh is not on disk) and
+	## measures it against the same boilerH, so both tiers answer to one number.
+	var fallback := Node3D.new()
+	root.add_child(fallback)
+	view._boiler_primitive(fallback)
+	var fb_box := AABB()
+	var fb_first := true
+	for mi_any in fallback.find_children("*", "MeshInstance3D", true, false):
+		var fmi := mi_any as MeshInstance3D
+		if fmi.mesh == null:
+			continue
+		var fhere := fmi.global_transform * fmi.get_aabb()
+		fb_box = fhere if fb_first else fb_box.merge(fhere)
+		fb_first = false
+	var fb_h: float = fb_box.size.y / SkyGearView3D.WORLD_SCALE
+	var fb_w: float = maxf(fb_box.size.x, fb_box.size.z) / SkyGearView3D.WORLD_SCALE
+	_check("boiler", "the primitive fallback measures at boilerH on the fallback path itself",
+		not fb_first and absf(fb_h - browser_boiler_h) < 3.0,
+		"%.1f ground units against boilerH %.0f" % [fb_h, browser_boiler_h])
+	## The flat slatted furnace block §13c describes: footprint narrower than the
+	## old 192-unit ball, taller than it is wide, with an emissive slatted grate
+	## aimed at the camera — never a smooth polished dome again.
+	var fb_slats := false
+	for mi_any in fallback.find_children("*", "MeshInstance3D", true, false):
+		var fmi := mi_any as MeshInstance3D
+		if fmi.mesh is QuadMesh and fmi.mesh.material is StandardMaterial3D \
+				and (fmi.mesh.material as StandardMaterial3D).emission_enabled:
+			fb_slats = true
+	_check("boiler", "and it is the flat slatted furnace block, not the old golden ball",
+		fb_w < 130.0 and fb_h > fb_w and fb_slats,
+		"%.0f wide x %.0f tall, grate %s" % [fb_w, fb_h, str(fb_slats)])
+	fallback.queue_free()
+
 	## SG-34 — THE DECK IS LIT WARM AND EVEN, NOT A HOT POOL. The premise was that
 	## the Godot deck read dark, cool and vignetted; MEASURED against the browser
 	## (probe over `.shots/parity/`), it read the OPPOSITE — brighter, warmer, and
@@ -1600,6 +1639,115 @@ func _view() -> void:
 		lights_clean, "energy %.1f, radius %.0f" % [SkyGearView3D.CORE_LIGHT_ENERGY,
 			SkyGearView3D.CORE_LIGHT_RANGE])
 
+	## SG-18 — THE WEAPON TRAIL IS THE BLADE'S OWN PATH, NOT AN EFFECT CLOCK.
+	## `_sweep_ribbon` drew the Cleave where the blade APPROXIMATELY is: a circle
+	## segment swept by the effect's own timer at the skill table's radius, while
+	## the actual cutlass — bone-mounted, five swing variants deep — went wherever
+	## the clip took it. The trail now samples the blade tip off the hand mount
+	## every swinging frame, so it matches whatever the animation actually does.
+	## These pin the three ways that dies silently: the source stops being a bone,
+	## the samples stop being taken, or the buffer outlives the swing.
+	var cap_rig: SkyGearRig3D = view._captain
+	var cap_bone := ""
+	if cap_rig != null and cap_rig.held is BoneAttachment3D:
+		cap_bone = str((cap_rig.held as BoneAttachment3D).bone_name)
+	_check("trail", "the trail's source is a mount on the hand bone, holding the blade tip",
+		cap_rig != null and cap_bone.ends_with("RightHand") and cap_rig.blade_points().size() == 2,
+		"mount on '%s'" % cap_bone)
+	## Bone, not timer: two different times of the SAME swing clip put the blade
+	## in two different places. A timer-driven arc cannot fail this, and a trail
+	## reading the bone cannot pass it by accident.
+	var tip_early := Vector3.ZERO
+	var tip_late := Vector3.ZERO
+	if cap_rig != null and cap_rig.anim != null and cap_rig.has_clip("swing"):
+		var swing_len: float = cap_rig.anim.get_animation("swing").length
+		cap_rig.anim.play("swing")
+		cap_rig.anim.seek(swing_len * 0.12, true)
+		tip_early = cap_rig.blade_points()[1]
+		cap_rig.anim.seek(swing_len * 0.55, true)
+		tip_late = cap_rig.blade_points()[1]
+	_check("trail", "the blade tip moves with the swing clip — a bone is being sampled, not a timer",
+		tip_early.distance_to(tip_late) > 0.10,
+		"tip travelled %.2f m between two clip times" % tip_early.distance_to(tip_late))
+	## The samples are taken, and they are the blade: one mirrored frame of a
+	## live swing puts the rig's own solved tip into the buffer.
+	view._trail.clear()
+	game.player.attack_time = 0.5
+	view._process(0.05)
+	var trail_sampled: bool = view._trail.size() > 0
+	var sample_err := 999.0
+	if trail_sampled and cap_rig != null and cap_rig.blade_points().size() == 2:
+		sample_err = (Vector3(view._trail.back().tip) * SkyGearView3D.WORLD_SCALE) \
+			.distance_to(cap_rig.blade_points()[1])
+	_check("trail", "a swing samples the blade into the trail, and the sample IS the tip",
+		trail_sampled and sample_err < 0.25,
+		"%d samples, last one %.3f m off the live tip" % [view._trail.size(), sample_err])
+	## Capped through a held swing — the ring is a pool like every other — and
+	## while the blade drives, the effect-clock sweep stands down so one swing is
+	## never two disagreeing drawings.
+	if cap_rig != null and cap_rig.anim != null and cap_rig.has_clip("swing"):
+		var swing_len2: float = cap_rig.anim.get_animation("swing").length
+		for i in 40:
+			cap_rig.anim.play("swing")
+			cap_rig.anim.seek(fmod(float(i) * 0.13, swing_len2), true)
+			view._process(0.005)
+	_check("trail", "the sample ring stays inside its cap through a held swing",
+		view._trail.size() <= SkyGearView3D.TRAIL_SAMPLES and view._trail.size() >= 10,
+		"%d samples against a cap of %d" % [view._trail.size(), SkyGearView3D.TRAIL_SAMPLES])
+	_check("trail", "and while the blade drives, the effect-clock sweep stands down",
+		view._blade_trail_live())
+	## It dies with the swing. No timer of its own to keep running: the moment
+	## the simulation says the attack is over, the samples age out inside
+	## TRAIL_LIFE and the buffer is empty.
+	game.player.attack_time = 0.0
+	for _i in 8:
+		view._process(0.05)
+	_check("trail", "and the trail dies with the swing instead of running its own clock",
+		view._trail.is_empty(), "%d stale samples" % view._trail.size())
+
+	## SG-28 — THE RANGED AIM LINE TRAVELS. SG-3's solid band says "this lane is
+	## dangerous"; the browser additionally marches a dashed line down the shot
+	## path (setLineDash([14,12]), offset -rt*90), which says "something is about
+	## to come down it, THIS way". Decals cannot dash, so the dashes are ribbon
+	## geometry — inside the windup only, hostile oxblood, gone at the shot.
+	game.spawn_enemy("GUNNER", 2)
+	var gunner: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "GUNNER" and not e.dead:
+			gunner = e
+	gunner.global_position = Vector2(200.0, 100.0)
+	gunner.state = "windup"
+	gunner.state_time = float(gunner.config.windup) * 0.5
+	gunner.attack_direction = Vector2.DOWN
+	view._process(0.05)
+	_check("aimline", "a ranged windup runs a dashed strip down the shot path, as geometry",
+		view._aim_dashes_drawn > 0, "%d dashes this frame" % view._aim_dashes_drawn)
+	## The march is the browser's own 90 units a second — and post-parity it
+	## QUICKENS as the wind completes, so the line itself says how close the
+	## shot is. Pure function, pinned at both ends.
+	var march: float = SkyGearView3D.aim_dash_travel(1.0, 0.0) \
+		- SkyGearView3D.aim_dash_travel(0.0, 0.0)
+	_check("aimline", "the dashes march at the browser's 90 units a second and quicken as the shot nears",
+		absf(march - 90.0) < 0.001
+			and SkyGearView3D.aim_dash_travel(1.0, 0.9) > SkyGearView3D.aim_dash_travel(1.0, 0.2)
+			and SkyGearView3D.aim_dash_travel(0.0, 1.0) > 0.0,
+		"base %.0f u/s, +%.0f units by the shot" % [march,
+			SkyGearView3D.aim_dash_travel(0.0, 1.0)])
+	## Gone the frame the shot fires: the dash is a warning, and a warning about
+	## a shot already taken is a lie on the deck.
+	gunner.state = "recover"
+	view._process(0.05)
+	_check("aimline", "and the dashes are gone the frame the shot fires",
+		view._aim_dashes_drawn == 0, "%d dashes after the shot" % view._aim_dashes_drawn)
+	## Capped like every pool: a firing line a mile long still draws AIM_DASH_MAX
+	## dashes and not one more.
+	view._ribbons_begin()
+	view._aim_dash_ribbon(Vector2.ZERO, Vector2.DOWN, 100000.0, 0.5)
+	view._ribbons_end()
+	_check("aimline", "a mile of firing line still draws a capped number of dashes",
+		view._aim_dashes_drawn > 0 and view._aim_dashes_drawn <= SkyGearView3D.AIM_DASH_MAX,
+		"%d dashes against a cap of %d" % [view._aim_dashes_drawn, SkyGearView3D.AIM_DASH_MAX])
+
 	## THE ELEMENT HAS TO REACH THE RENDERER. The trail's shape is chosen from it,
 	## and it cannot be recovered from the colour — two cards can tint the same and
 	## a keg is not an element at all. This is the "data with no reader" failure
@@ -2360,12 +2508,23 @@ func _view() -> void:
 		## and the rest buys information and choices, not power
 		"rerolls": "economy", "fourth_card": "economy",
 		"pressure_rate": "economy", "wave_pressure": "economy",
+		## the two vows (SG-26): both trade in WHICH choices exist, not in how
+		## hard anything hits — the Bid narrows the run to a plan, the Second
+		## Hand widens the hand at a card's expense
+		"opening_bid": "economy", "second_hand": "economy",
 		"show_queue": "readout", "show_numbers": "readout",
 		"show_manifest": "readout", "show_ledger": "readout",
 	}
 	var unclassified := ""
 	for id in SkyGearWorkshop.NODES.keys():
 		var field := str(SkyGearWorkshop.NODES[id].field)
+		if not buckets.has(field):
+			unclassified += " %s(%s)" % [id, field]
+	## And the ARTICLES answer the same question. The seven originals were in
+	## the table but nothing FAILED if a new one was not — which is exactly how
+	## a field slips in unclassified — so the sigil side is enforced now too.
+	for id in SkyGearWorkshop.ARTICLES.keys():
+		var field := str(SkyGearWorkshop.ARTICLES[id].field)
 		if not buckets.has(field):
 			unclassified += " %s(%s)" % [id, field]
 	_check("shop", "every talent's field is classified as power or not",
@@ -2789,6 +2948,155 @@ func _view() -> void:
 	_check("shop", "the Boilerwright does not, because F and V are his class",
 		not art_his.has("brace") and not art_his.has("scuttle"))
 	_check("shop", "but he still gets the ones with no key", art_his.has("press_gang"))
+
+	## THE OPENING BID (SG-26). The benefit is that every weapon draft is the
+	## whole matrix, NAMED rather than dealt; the trade is that the bid is
+	## final — no rerolls, all run, not even bought ones. Both halves are
+	## EXECUTED here, not read off the table, because a vow whose drawback only
+	## exists in its price string is a bonus wearing a vow's name.
+	var bid := _new_game()
+	bid.workshop = SkyGearWorkshop.fresh(true)
+	bid.workshop.unlocked = true
+	## Deep Pockets bought first (behind its tier gate), so the zero below is
+	## the vow REFUSING A GRANT rather than counting an empty purse.
+	bid.workshop.scrip = 200
+	for id in ["bootblacking", "padded_coat", "deep_pockets"]:
+		SkyGearWorkshop.buy(bid.workshop, id)
+	bid.workshop.sigils = 2
+	SkyGearWorkshop.take(bid.workshop, "opening_bid")
+	bid.set_seed_text("BID")
+	bid.begin_run()
+	var all_weapons := true
+	for option in bid.draft_options:
+		if str(option.kind) != "skill":
+			all_weapons = false
+	_check("shop", "the bid opens the whole matrix, not a deal",
+		bid.draft_options.size() == 32 and all_weapons,
+		"%d cells, all weapons: %s" % [bid.draft_options.size(), str(all_weapons)])
+	_check("shop", "and the bid is final — a bought reroll is still refused",
+		int(bid.rerolls) == 0 and not bid.reroll_draft(),
+		"rerolls %d with Deep Pockets bought" % int(bid.rerolls))
+	bid.choose_draft(0)
+	bid.open_draft()
+	_check("shop", "and the matrix shrinks by the shape you now hold",
+		bid.draft_options.size() == 28 and bid.skills.size() == 1,
+		"%d cells after the first pick" % bid.draft_options.size())
+	## SPARE PARTS would be +2 rerolls the vow refuses to spend — a card worse
+	## than a skip, which rule 3 of the design forbids. It leaves the catalogue.
+	var spares_can := false
+	var spares_found := false
+	for entry in SkyGearCards.catalogue():
+		if str(entry.id) == "spares":
+			spares_found = true
+			spares_can = bool((entry.can as Callable).call(bid))
+	_check("shop", "and SPARE PARTS leaves the catalogue rather than dealing dead",
+		spares_found and not spares_can,
+		"found %s · dealable under the bid %s" % [str(spares_found), str(spares_can)])
+
+	## THE SECOND HAND (SG-26). The benefit is a fifth slot; the trade is WHERE
+	## it is dealt — the draft that would have been the run's first upgrade
+	## cards — and WHAT it may hold: only the shapes that fight alone, because
+	## no fifth key exists and an active in a keyless slot is a dead button.
+	var hand := _new_game()
+	hand.workshop = SkyGearWorkshop.fresh(true)
+	hand.workshop.unlocked = true
+	hand.workshop.sigils = 3
+	SkyGearWorkshop.take(hand.workshop, "second_hand")
+	hand.set_seed_text("HAND")
+	hand.begin_run()
+	_check("shop", "the second hand raises the capacity and its telemetry together",
+		hand.skill_capacity() == 5 and (hand.tel.per as Array).size() == 5,
+		"capacity %d · buckets %d" % [hand.skill_capacity(),
+			(hand.tel.per as Array).size()])
+	hand.choose_draft(0)
+	hand.skills.clear()
+	for pair in [["CLOSEHIT", "EMBER"], ["RANGED_AOE", "FROST"],
+			["CHAIN", "ARC"], ["SENTRY", "STEAM"]]:
+		hand.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
+	hand.open_draft()
+	var fifth_alone := true
+	for option in hand.draft_options:
+		if str(option.get("kind", "")) != "skill" or not bool(
+				SkyGearData.SHAPES[option.skill.shape].get("passive", false)):
+			fifth_alone = false
+	_check("shop", "the fifth is dealt where the first card would be, and fights alone",
+		not hand.draft_options.is_empty() and fifth_alone,
+		"%d options, weapons that work unkeyed: %s" % [hand.draft_options.size(),
+			str(fifth_alone)])
+	hand.choose_draft(0)
+	_check("shop", "and the hand is five", hand.skills.size() == 5,
+		"%d skills" % hand.skills.size())
+	## The control: the same full hand WITHOUT the Article deals cards — which
+	## is exactly the card the Second Hand's fifth weapon displaced.
+	var bare := _new_game()
+	bare.set_seed_text("HAND")
+	bare.begin_run()
+	bare.choose_draft(0)
+	bare.skills.clear()
+	for pair in [["CLOSEHIT", "EMBER"], ["RANGED_AOE", "FROST"],
+			["CHAIN", "ARC"], ["SENTRY", "STEAM"]]:
+		bare.skills.append(SkyGearData.make_skill(str(pair[0]), str(pair[1])))
+	bare.open_draft()
+	var any_weapon := false
+	for option in bare.draft_options:
+		if str(option.get("kind", "")) == "skill":
+			any_weapon = true
+	_check("shop", "and without the article that same draft deals cards",
+		not bare.draft_options.is_empty() and not any_weapon,
+		"%d options, none a weapon" % bare.draft_options.size())
+
+	## THE THIRD EXCLUSION, and the seals' states. Two sigils is the Workshop
+	## pose's purse: the Bid affordable, the Second Hand visible-but-unpayable —
+	## then signing the Bid turns the Second Hand BARRED, which is the third
+	## distinct state the sidebar draws (`owns` / `can_take` / excluded-by).
+	var seals := SkyGearWorkshop.fresh(true)
+	seals.unlocked = true
+	seals.sigils = 2
+	_check("shop", "two sigils: the bid affordable, the second hand not",
+		SkyGearWorkshop.can_take(seals, "opening_bid")
+			and not SkyGearWorkshop.can_take(seals, "second_hand"))
+	SkyGearWorkshop.take(seals, "opening_bid")
+	seals.sigils = 9
+	_check("shop", "and the signed bid bars the second hand at any purse",
+		SkyGearWorkshop.owns(seals, "opening_bid")
+			and not SkyGearWorkshop.can_take(seals, "second_hand"))
+	var seals2 := SkyGearWorkshop.fresh(true)
+	seals2.unlocked = true
+	seals2.sigils = 9
+	SkyGearWorkshop.take(seals2, "second_hand")
+	_check("shop", "and the bar holds the other way round",
+		SkyGearWorkshop.owns(seals2, "second_hand")
+			and not SkyGearWorkshop.can_take(seals2, "opening_bid"))
+
+	## FOURTH CARD (SG-46), found building the Bid's matrix: the talent dealt a
+	## fourth weapon and the draft UI capped BOTH the screen and the click test
+	## at three, with no fourth key — a 160-scrip purchase that was invisible
+	## and unchoosable. The sim half is proven here; the drawn cap is 4 now and
+	## the four-card geometry has to fit the 1280 floor the audit poses.
+	var fourth := _new_game()
+	fourth.workshop = SkyGearWorkshop.fresh(true)
+	fourth.workshop.unlocked = true
+	fourth.workshop.scrip = 400
+	for id in ["manifest", "tally", "ledger", "watch_bill", "fourth_card"]:
+		SkyGearWorkshop.buy(fourth.workshop, id)
+	fourth.set_seed_text("FOURTH")
+	fourth.begin_run()
+	fourth.choose_draft(0)
+	fourth.open_draft()
+	_check("shop", "fourth card deals four on the opening hand",
+		fourth.draft_options.size() == 4,
+		"%d options" % fourth.draft_options.size())
+	fourth.choose_draft(3)
+	_check("shop", "and the fourth is choosable and arms a slot",
+		fourth.skills.size() == 2, "%d skills" % fourth.skills.size())
+	var four_cards := SkyGearHUD.draft_cards(Vector2(1280, 720), 4)
+	var four_fit := true
+	for rect in four_cards:
+		if not Rect2(Vector2.ZERO, Vector2(1280, 720)).encloses(rect):
+			four_fit = false
+	_check("shop", "and four cards fit the 1280 floor the audit poses",
+		four_cards.size() == 4 and four_fit,
+		"span %d at 1280" % int(four_cards[3].end.x - four_cards[0].position.x))
 
 	## SECOND SHIFT, the one that changes an outcome rather than a number.
 	var saved := _new_game()
@@ -3965,6 +4273,30 @@ func _view() -> void:
 			_check("figure", "and his triangle count is inside the remesh budget",
 				bwtris > 0 and bwtris <= 4000,
 				"%d tris (target ~3000; the captain's SG-13 was 30634)" % bwtris)
+			## SG-18 — HIS EMPTY HAND STILL CARRIES THE TRAIL. His tool is a
+			## separate unpriced asset (SG-38), so `weapon_fit` returns {} and
+			## nothing is held — but the trail mounts the same family's hand bone
+			## anyway and extends a knuckle's reach along it, so the Boilerwright's
+			## retargeted swings draw a blade trail before his wrench ever lands.
+			## Same rig family as the captain, same mount, same reader.
+			var bw_mounted: bool = bwrig.mount_hand()
+			var bw_pts := bwrig.blade_points()
+			var bw_early := Vector3.ZERO
+			var bw_late := Vector3.ZERO
+			if bw_mounted and bwrig.has_clip("swing"):
+				var bw_len: float = bwrig.anim.get_animation("swing").length
+				bwrig.anim.play("swing")
+				bwrig.anim.seek(bw_len * 0.12, true)
+				bw_early = bwrig.blade_points()[1]
+				bwrig.anim.seek(bw_len * 0.55, true)
+				bw_late = bwrig.blade_points()[1]
+			_check("trail", "the Boilerwright's empty hand mounts the trail, and it moves with his retargeted swing",
+				bw_mounted and bw_pts.size() == 2
+					and bw_pts[0].distance_to(bw_pts[1]) > 0.05
+					and bw_early.distance_to(bw_late) > 0.10,
+				"reach %.2f m, tip travelled %.2f m between two clip times"
+					% [bw_pts[0].distance_to(bw_pts[1]) if bw_pts.size() == 2 else -1.0,
+						bw_early.distance_to(bw_late)])
 		bwrig.queue_free()
 
 	## Clicking a card. It was 1/2/3 only, and a screen full of cards that do not

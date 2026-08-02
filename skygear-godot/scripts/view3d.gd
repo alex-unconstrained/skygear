@@ -1214,6 +1214,103 @@ var _smoke_clock := 0.0
 const MOTE_EVERY := 0.05
 var _mote_clock := 0.0
 
+## THE BLADE-DRIVEN WEAPON TRAIL — VFX-PLAN.md §6, board SG-18.
+##
+## The Cleave's sweeping ribbon was `_sweep_ribbon`, an arc drawn where the
+## blade APPROXIMATELY is: a circle segment swept by the EFFECT's clock, at a
+## radius the skill table says, while the actual cutlass — bone-mounted,
+## animated, five swing VARIANTS deep — went wherever the clip took it. Two
+## authorities on one number is STATUS failure mode two wearing a sword.
+##
+## So the trail is the blade's own path now: the tip is sampled every frame off
+## the hand mount (`SkyGearRig3D.blade_points`, the same `BoneAttachment3D` the
+## cutlass hangs from), kept for TRAIL_LIFE seconds, and drawn as the two-layer
+## ribbon the beam already proved out — a wide soft sleeve with a narrow hot
+## core inside it. Whatever the animation does — swing2, spin, combo, the
+## Boilerwright's retargeted axe arcs — the trail does, because it is not a
+## drawing OF the swing, it is the swing's own wake. When the rig or the mount
+## is absent (billboard tier), `_sweep_ribbon` still draws, so every fallback
+## tier keeps a swing tell.
+##
+## CAPPED twice: the sample buffer is a ring of TRAIL_SAMPLES and the strip is
+## written through `_ribbon`, which budgets against RIBBON_VERTS like every
+## other trail on this deck.
+const TRAIL_LIFE := 0.16             ## seconds a sample survives — dies with the swing
+const TRAIL_SAMPLES := 24            ## the ring; at 60 fps a whole swing fits
+var _trail: Array[Dictionary] = []   ## {tip: Vector3 ground units, at: seconds}
+var _trail_element := "EMBER"        ## the last player swing's element, for the shape
+var _trail_colour := Color("#ff9a4a")
+
+
+func _blade_trail_live() -> bool:
+	return _captain != null and _captain.held != null \
+		and is_instance_valid(_captain.held) and _trail.size() >= 2
+
+
+## Sample the blade NOW, during a swing. Called from `_sync_captain`, so the
+## trail exists exactly as long as the simulation says the attack does — no
+## timer of its own to outlive or undercut the clip.
+func _sample_blade() -> void:
+	if _captain == null:
+		return
+	if _captain.held == null or not is_instance_valid(_captain.held):
+		_captain.mount_hand()
+	var ends := _captain.blade_points()
+	if ends.size() != 2:
+		return
+	var tip: Vector3 = ends[1] / WORLD_SCALE
+	if not _trail.is_empty() and tip.distance_to(Vector3(_trail.back().tip)) < 1.0:
+		return
+	_trail.append({"tip": tip, "at": _flicker})
+	while _trail.size() > TRAIL_SAMPLES:
+		_trail.pop_front()
+
+
+## Age the buffer and draw what is left. Runs every frame inside the ribbon
+## batch whether or not she is swinging, because the last few samples of a
+## finished swing are the follow-through — they fade inside TRAIL_LIFE.
+func _emit_blade_trail() -> void:
+	while not _trail.is_empty() and _flicker - float(_trail[0].at) > TRAIL_LIFE:
+		_trail.pop_front()
+	var n := _trail.size()
+	if n < 2:
+		return
+	var spec: Dictionary = ELEMENT_RIBBON.get(_trail_element, ELEMENT_RIBBON.EMBER)
+	var hue := _ribbon_tint(_trail_colour, float(spec.hot))
+	## The element's width, FLOORED AND CAPPED for a blade. Steam's 62-unit
+	## billow is right for a gust and wrong wrapped round a figure — at 1.9x
+	## sleeve it was a 118-unit crescent that swallowed the Boilerwright whole.
+	var breadth: float = clampf(float(spec.width), 20.0, 38.0)
+	var pts := PackedVector3Array()
+	var sleeve_w := PackedFloat32Array()
+	var core_w := PackedFloat32Array()
+	var sleeve_c := PackedColorArray()
+	var core_c := PackedColorArray()
+	pts.resize(n)
+	sleeve_w.resize(n)
+	core_w.resize(n)
+	sleeve_c.resize(n)
+	core_c.resize(n)
+	for i in n:
+		pts[i] = _trail[i].tip
+		var u: float = float(i) / float(n - 1)
+		var age: float = clampf(1.0 - (_flicker - float(_trail[i].at)) / TRAIL_LIFE,
+			0.0, 1.0)
+		## Bright and full at the blade, tapered to nothing where the swing was —
+		## the same comet logic as the bolt trails, aged instead of travelled.
+		var fade: float = age * (0.14 + 0.86 * u)
+		var body: float = 0.30 + 0.70 * u
+		sleeve_w[i] = breadth * 0.5 * 1.9 * body
+		core_w[i] = breadth * 0.5 * 0.50 * body
+		sleeve_c[i] = Color(hue.r, hue.g, hue.b, 0.30 * fade)
+		core_c[i] = Color(hue.r, hue.g, hue.b, 0.95 * fade)
+	## The sleeve first and the core over it — `_beam_ribbon`'s construction,
+	## ported per the plan: two layers is the difference between a blade's wake
+	## and a line of paint.
+	_ribbon(pts, sleeve_w, sleeve_c)
+	_ribbon(pts, core_w, core_c)
+
+
 ## VOLUMETRIC FIELDS — VFX-PLAN.md §4, and the one item on that list whose cost
 ## had to be measured before it could be committed to.
 ##
@@ -1331,6 +1428,7 @@ static func _ribbon_tint(colour: Color, hot: float) -> Color:
 ## The arrays are never reallocated; only the slice actually used is copied.
 func _ribbons_begin() -> void:
 	_ribbon_verts = 0
+	_aim_dashes_drawn = 0
 
 
 func _ribbons_end() -> void:
@@ -1996,106 +2094,117 @@ func _build_boiler() -> void:
 	if _boiler_mesh(boiler):
 		_boiler_fire(boiler)
 		return
-	var brass := StandardMaterial3D.new()
-	brass.albedo_color = Color("#c9903c")
-	brass.metallic = 0.5
-	brass.roughness = 0.3
-	var plinth := MeshInstance3D.new()
-	var pm := CylinderMesh.new()
-	pm.top_radius = 84.0 * WORLD_SCALE
-	pm.bottom_radius = 96.0 * WORLD_SCALE
-	pm.height = 22.0 * WORLD_SCALE
-	plinth.mesh = pm
+	_boiler_primitive(boiler)
+	_boiler_fire(boiler)
+
+
+## THE PRIMITIVE FALLBACK, rebuilt to be honest — board SG-30.
+##
+## The previous fallback was a stack of fat cylinders and torus bands: 178 tall
+## by 192 wide by 192 DEEP, taller than `BOILER_HEIGHT` and CHUNKIER than the
+## generated mesh it backs up, and it would have FAILED the SG-27 boilerH check
+## the moment the mesh vanished. The §13c narrative — "deleting the mesh row
+## falls back to the flat block" — was false as written.
+##
+## This is what the browser actually draws (`boilerSprite`, storm-dusk-v11):
+## a FLAT riveted drum on a plinth with a slatted furnace grate aimed at the
+## camera, a gauge and one stubby chimney on top — 150 units to the very top,
+## which is `BOILER_HEIGHT`, which is `boilerH`. The captain spawns 130 units in
+## front of this thing; anything tall enough to be impressive is tall enough to
+## hide her for the first second of every run, and anything smooth enough to
+## shine is the polished toy §13c warned about. Boxes, not domes.
+##
+## Its own function so the harness can stand the FALLBACK tier up and measure
+## it whether or not the mesh is on disk — the check that makes §13c true.
+func _boiler_primitive(parent: Node3D) -> void:
 	var iron := StandardMaterial3D.new()
 	iron.albedo_color = Color("#4c4238")
 	iron.metallic = 0.45
 	iron.roughness = 0.58
-	plinth.material_override = iron
-	plinth.position.y = 11.0 * WORLD_SCALE
-	boiler.add_child(plinth)
-	## FLAT. The browser sets `boilerH` to 132 with the comment "a flat engine
-	## block, not a tower", and it is not a style note: the captain spawns 130
-	## units in front of this thing, so anything tall enough to be impressive is
-	## tall enough to hide the player behind it for the first second of a run.
-	## The first 3D pass built a 300-unit drum with a funnel and did exactly that.
-	var drum := MeshInstance3D.new()
-	var dm := CylinderMesh.new()
-	dm.top_radius = 70.0 * WORLD_SCALE
-	dm.bottom_radius = 76.0 * WORLD_SCALE
-	dm.height = 84.0 * WORLD_SCALE
-	drum.mesh = dm
-	drum.material_override = brass
-	drum.position.y = 64.0 * WORLD_SCALE
-	boiler.add_child(drum)
-	## A riveted lid, not a dome. The hemisphere version was a polished gold ball
-	## the width of the deck sitting in the bottom of every frame — smooth
-	## primitives read as toy, and the one object the player is defending is the
-	## last place to put one.
-	var lid := MeshInstance3D.new()
-	var lm := CylinderMesh.new()
-	lm.top_radius = 62.0 * WORLD_SCALE
-	lm.bottom_radius = 72.0 * WORLD_SCALE
-	lm.height = 16.0 * WORLD_SCALE
-	lid.mesh = lm
+	var brass := StandardMaterial3D.new()
+	## Darker and rougher than the old #c9903c at 0.3: a bright mirror-gold
+	## block is the "polished toy" read again, just with corners.
+	brass.albedo_color = Color("#a87a34")
+	brass.metallic = 0.5
+	brass.roughness = 0.55
 	var lid_mat := StandardMaterial3D.new()
 	lid_mat.albedo_color = Color("#5d4a33")
 	lid_mat.metallic = 0.4
 	lid_mat.roughness = 0.5
-	lid.material_override = lid_mat
-	lid.position.y = 112.0 * WORLD_SCALE
-	boiler.add_child(lid)
-	var rivets := StandardMaterial3D.new()
-	rivets.albedo_color = Color("#c9903c")
-	rivets.metallic = 0.55
-	rivets.roughness = 0.34
-	for r in 8:
-		var a: float = TAU * float(r) / 8.0
+	var bright := StandardMaterial3D.new()
+	bright.albedo_color = Color("#d8a44b")
+	bright.metallic = 0.55
+	bright.roughness = 0.4
+	var bronze := StandardMaterial3D.new()
+	bronze.albedo_color = Color("#7d5a2c")
+	bronze.metallic = 0.5
+	bronze.roughness = 0.45
+	## The fallback goes cold and grey as the Boiler dies, exactly like the mesh
+	## tier — same reader (`_sync_boiler_damage`), same fiction.
+	for mat in [iron, brass, lid_mat, bright, bronze]:
+		_boiler_mats.append(mat)
+		_boiler_base.append((mat as StandardMaterial3D).albedo_color)
+
+	## The plinth it stands on. Browser: plate(0,-18,150,36) of iron.
+	_boiler_box(parent, iron, Vector3(118.0, 26.0, 88.0), Vector3(0.0, 13.0, 0.0))
+	## The drum — the flat engine block itself. Browser: plate(0,-104,120,132)
+	## of brass. A box 96 wide and 104 tall, top at 130.
+	_boiler_box(parent, brass, Vector3(96.0, 104.0, 64.0), Vector3(0.0, 78.0, 0.0))
+	## Two iron straps across the drum, so the brass reads as riveted plate work
+	## rather than one extruded gold field.
+	_boiler_box(parent, iron, Vector3(98.0, 8.0, 66.0), Vector3(0.0, 52.0, 0.0))
+	_boiler_box(parent, iron, Vector3(98.0, 8.0, 66.0), Vector3(0.0, 108.0, 0.0))
+	## The shoulder plate over it, iron-dark, top at 140.
+	_boiler_box(parent, lid_mat, Vector3(104.0, 10.0, 72.0), Vector3(0.0, 135.0, 0.0))
+	## The gauge on top. Browser: circ(0,-178,22). Top at 148.
+	var gauge := MeshInstance3D.new()
+	var gm := CylinderMesh.new()
+	gm.top_radius = 15.0 * WORLD_SCALE
+	gm.bottom_radius = 17.0 * WORLD_SCALE
+	gm.height = 8.0 * WORLD_SCALE
+	gauge.mesh = gm
+	gauge.material_override = bright
+	gauge.position = Vector3(20.0, 144.0, 6.0) * WORLD_SCALE
+	parent.add_child(gauge)
+	## The one stubby chimney. Browser: plate(-44,-196,26,44) of iron. Its lip is
+	## the top of the whole object, at exactly BOILER_HEIGHT — the number the
+	## SG-27 check measures, mesh or no mesh.
+	var chimney := MeshInstance3D.new()
+	var cm := CylinderMesh.new()
+	cm.top_radius = 10.0 * WORLD_SCALE
+	cm.bottom_radius = 13.0 * WORLD_SCALE
+	cm.height = 36.0 * WORLD_SCALE
+	chimney.mesh = cm
+	chimney.material_override = iron
+	chimney.position = Vector3(-34.0, BOILER_HEIGHT - 18.0, -18.0) * WORLD_SCALE
+	parent.add_child(chimney)
+	## Rivets across the drum face, two rows like the sprite's, so the block
+	## reads as built rather than extruded.
+	for stud in [Vector2(-38.0, 118.0), Vector2(0.0, 122.0), Vector2(38.0, 118.0),
+			Vector2(-38.0, 44.0), Vector2(0.0, 40.0), Vector2(38.0, 44.0)]:
 		var rivet := MeshInstance3D.new()
 		var rmesh := CylinderMesh.new()
-		rmesh.top_radius = 5.0 * WORLD_SCALE
-		rmesh.bottom_radius = 5.0 * WORLD_SCALE
-		rmesh.height = 7.0 * WORLD_SCALE
+		rmesh.top_radius = 3.5 * WORLD_SCALE
+		rmesh.bottom_radius = 3.5 * WORLD_SCALE
+		rmesh.height = 6.0 * WORLD_SCALE
 		rivet.mesh = rmesh
-		rivet.material_override = rivets
-		rivet.position = Vector3(cos(a) * 52.0 * WORLD_SCALE, 122.0 * WORLD_SCALE,
-			sin(a) * 52.0 * WORLD_SCALE)
-		boiler.add_child(rivet)
-	var valve := MeshInstance3D.new()
-	var vm := TorusMesh.new()
-	vm.inner_radius = 14.0 * WORLD_SCALE
-	vm.outer_radius = 22.0 * WORLD_SCALE
-	valve.mesh = vm
-	valve.material_override = rivets
-	valve.position.y = 128.0 * WORLD_SCALE
-	boiler.add_child(valve)
-	for band_y in [40.0, 88.0]:
-		var band := MeshInstance3D.new()
-		var bm := TorusMesh.new()
-		bm.inner_radius = 71.0 * WORLD_SCALE
-		bm.outer_radius = 78.0 * WORLD_SCALE
-		band.mesh = bm
-		band.material_override = iron
-		band.position.y = band_y * WORLD_SCALE
-		boiler.add_child(band)
-	# the funnels lean AFT, away from the camera, so they never cross the fight
-	for fx in [-46.0, 46.0]:
-		var funnel := MeshInstance3D.new()
-		var fu := CylinderMesh.new()
-		fu.top_radius = 13.0 * WORLD_SCALE
-		fu.bottom_radius = 17.0 * WORLD_SCALE
-		fu.height = 86.0 * WORLD_SCALE
-		funnel.mesh = fu
-		funnel.material_override = iron
-		funnel.position = Vector3(fx * WORLD_SCALE, 132.0 * WORLD_SCALE, 54.0 * WORLD_SCALE)
-		funnel.rotation_degrees = Vector3(18.0, 0.0, 0.0)
-		boiler.add_child(funnel)
-	## The furnace face. This is the Boiler as anyone remembers it — a slatted
-	## grille with fire behind it — and it has to be aimed at the camera, because
-	## the camera never moves and a detail on the far side is a detail nobody
-	## ever sees.
+		rivet.material_override = bright
+		rivet.rotation_degrees = Vector3(90.0, 0.0, 0.0)
+		rivet.position = Vector3(stud.x, stud.y, 34.0) * WORLD_SCALE
+		parent.add_child(rivet)
+	## The furnace face — the Boiler as anyone remembers it, a slatted grille
+	## with fire behind it, aimed at the camera because the camera never moves
+	## and a detail on the far side is a detail nobody ever sees.
+	var bezel := MeshInstance3D.new()
+	var bz := BoxMesh.new()
+	bz.size = Vector3(86.0, 66.0, 8.0) * WORLD_SCALE
+	bezel.mesh = bz
+	bezel.material_override = bronze
+	bezel.position = Vector3(0.0, 66.0, 31.0) * WORLD_SCALE
+	parent.add_child(bezel)
 	var furnace := MeshInstance3D.new()
 	var fm := QuadMesh.new()
-	fm.size = Vector2(104.0, 62.0) * WORLD_SCALE
+	fm.size = Vector2(72.0, 54.0) * WORLD_SCALE
 	furnace.mesh = fm
 	var fire := StandardMaterial3D.new()
 	fire.albedo_texture = _grille_texture()
@@ -2106,22 +2215,23 @@ func _build_boiler() -> void:
 	fire.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
 	fire.cull_mode = BaseMaterial3D.CULL_DISABLED
 	furnace.mesh.material = fire
-	furnace.position = Vector3(0.0, 56.0 * WORLD_SCALE, 78.0 * WORLD_SCALE)
-	furnace.rotation_degrees = Vector3(-14.0, 0.0, 0.0)
-	boiler.add_child(furnace)
-	# a bronze surround, so the grille is set into the drum rather than stuck on
-	var bezel := MeshInstance3D.new()
-	var bz := BoxMesh.new()
-	bz.size = Vector3(120.0, 78.0, 12.0) * WORLD_SCALE
-	bezel.mesh = bz
-	var bronze := StandardMaterial3D.new()
-	bronze.albedo_color = Color("#7d5a2c")
-	bronze.metallic = 0.5
-	bronze.roughness = 0.45
-	bezel.material_override = bronze
-	bezel.position = Vector3(0.0, 56.0 * WORLD_SCALE, 72.0 * WORLD_SCALE)
-	boiler.add_child(bezel)
-	_boiler_fire(boiler)
+	furnace.position = Vector3(0.0, 66.0, 36.0) * WORLD_SCALE
+	furnace.rotation_degrees = Vector3(-10.0, 0.0, 0.0)
+	parent.add_child(furnace)
+
+
+## One iron-or-brass slab of the fallback Boiler. Sizes and positions in ground
+## units, converted here, so the geometry above reads like the browser's own
+## plate() calls.
+func _boiler_box(parent: Node3D, material: StandardMaterial3D, size: Vector3,
+		at: Vector3) -> void:
+	var slab := MeshInstance3D.new()
+	var box := BoxMesh.new()
+	box.size = size * WORLD_SCALE
+	slab.mesh = box
+	slab.material_override = material
+	slab.position = at * WORLD_SCALE
+	parent.add_child(slab)
 
 
 ## The furnace light, and it belongs to the RENDERER rather than to whichever
@@ -2574,6 +2684,9 @@ func _process(delta: float) -> void:
 	_sync_all(delta)
 	_sync_auras()
 	_sync_effects()
+	## The blade trail last, after `_sync_effects` has told it this swing's
+	## element — the samples were taken in `_sync_captain`, off the bone.
+	_emit_blade_trail()
 	_ribbons_end()
 	_sync_darkness(delta)
 	_flush_shadows()
@@ -2984,6 +3097,76 @@ func ground_at(screen: Vector2) -> Vector2:
 ## longer the scene anyone looks at — so they are rebuilt as unshaded quads lying
 ## a centimetre above the planking, which is what a decal is and what the browser
 ## was approximating.
+## PAL.danger #FF3D2E outer, PAL.dangerIn #FF8C1A inner — the browser's hostile
+## palette, oxblood-to-orange, never the player's teal. Class scope because the
+## windup decals and the SG-28 aim dashes are the same language and must not
+## carry two copies of it.
+const TG_DANGER := Color(1.0, 0.239, 0.180)
+const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
+const TG_SWING_ARC := 2.094395   # 120°, the fallback wedge for a reach-less melee
+
+## THE ANIMATED RANGED AIM LINE — board SG-28.
+##
+## SG-3 gave the GUNNER's windup a solid danger band with a counting-down hot
+## core, and the readability is there — but the browser ALSO travels a DASHED
+## line down the shot path (`setLineDash([14,12])`, `lineDashOffset = -rt*90`),
+## and the march of the dashes is what reads as motion TOWARD you: not only
+## "this lane is dangerous" but "something is about to come down it, this way".
+##
+## A decal cannot dash, so the dashes are geometry: short ribbon segments a hand
+## above the planking, written into the same one-batch, one-draw, capped ribbon
+## mesh as every other trail. Post-parity, one better-than: the dashes
+## ACCELERATE as the windup completes (`wind` squared, on top of the browser's
+## constant 90 u/s), so the line itself says how close the shot is. They exist
+## only inside `state == "windup"` and are gone the frame the shot fires —
+## the moment the band stops being a warning it stops being drawn.
+const AIM_DASH_ON := 14.0        ## the browser's dash length, ground units
+const AIM_DASH_OFF := 12.0       ## and its gap
+const AIM_DASH_SPEED := 90.0     ## the browser's constant march, units/second
+const AIM_DASH_ACCEL := 170.0    ## extra travel as the wind completes (wind², units)
+const AIM_DASH_MAX := 26         ## dashes per line — capped, like every pool here
+const AIM_DASH_HEIGHT := 12.0    ## off the planking, so it reads as a shot, not paint
+var _aim_dashes_drawn := 0       ## this frame's count; reset with the ribbon batch
+
+
+## How far the dash pattern has marched toward the target. Static and pure so
+## the harness can pin both halves: the browser's 90 u/s base, and the
+## acceleration as `wind` (0 at the start of the windup, 1 at the shot) rises.
+static func aim_dash_travel(clock: float, wind: float) -> float:
+	return clock * AIM_DASH_SPEED + wind * wind * AIM_DASH_ACCEL
+
+
+func _aim_dash_ribbon(from: Vector2, dir: Vector2, length: float, wind: float) -> void:
+	var period := AIM_DASH_ON + AIM_DASH_OFF
+	## Negative first start, so a dash mid-birth slides in from the shooter's
+	## end rather than popping whole — the pattern shifts toward the target as
+	## the travel grows, which is the browser's negative dash offset.
+	var s: float = -fmod(aim_dash_travel(_flicker, wind), period)
+	## Hostile language, pushed over the 1.05 glow threshold like the decals.
+	var sleeve := Color(TG_DANGER.r * 1.45, TG_DANGER.g * 1.45, TG_DANGER.b * 1.45)
+	var hot := Color(TG_DANGER_IN.r * 1.45, TG_DANGER_IN.g * 1.45, TG_DANGER_IN.b * 1.45)
+	var glow: float = 0.26 + 0.50 * wind
+	var drawn := 0
+	while s < length and drawn < AIM_DASH_MAX:
+		var s0: float = maxf(s, 0.0)
+		var s1: float = minf(s + AIM_DASH_ON, length)
+		s += period
+		if s1 - s0 < 2.0:
+			continue
+		var p0: Vector2 = from + dir * s0
+		var p1: Vector2 = from + dir * s1
+		var pts := PackedVector3Array([Vector3(p0.x, AIM_DASH_HEIGHT, p0.y),
+			Vector3(p1.x, AIM_DASH_HEIGHT, p1.y)])
+		## The same two-layer build as every ribbon: a soft oxblood sleeve and a
+		## hot orange core, so a dash is a shape with a heart, not a stripe.
+		_ribbon(pts, PackedFloat32Array([7.0, 7.0]),
+			PackedColorArray([Color(sleeve, glow * 0.40), Color(sleeve, glow * 0.40)]))
+		_ribbon(pts, PackedFloat32Array([3.2, 3.2]),
+			PackedColorArray([Color(hot, glow), Color(hot, glow)]))
+		drawn += 1
+	_aim_dashes_drawn += drawn
+
+
 func _sync_effects() -> void:
 	for i in game.effects.size():
 		var fx: Dictionary = game.effects[i]
@@ -3022,12 +3205,26 @@ func _sync_effects() -> void:
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					r * 2.0, r * 2.0, _art("slash", _fan_texture(float(fx.get("arc", 1.7)), false)),
 					tint)
-				_sweep_ribbon(fx, fid, centre, r, element, colour, alpha, progress)
+				## A player swing tells the blade trail what colour it is — the fx
+				## carries the element, and the trail is drawn from the bone.
+				if bool(fx.get("follow", false)):
+					_trail_element = element
+					_trail_colour = colour
+				## The effect-clock sweep only when the blade is NOT driving the
+				## trail (SG-18): billboard tier, missing mount. Two authorities
+				## drawing one swing is the picture disagreeing with itself.
+				if not _blade_trail_live():
+					_sweep_ribbon(fx, fid, centre, r, element, colour, alpha, progress)
 			"cone":
 				var rc: float = float(fx.get("radius", 120.0)) * (0.55 + progress * 0.55)
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
 					rc * 2.0, rc * 2.0, _fan_texture(float(fx.get("arc", 0.9)), true),
 					Color(tint.r, tint.g, tint.b, tint.a * 0.85))
+				## The Boilerwright's swing is a cone; his blade trail rides OVER
+				## the gust, coloured by the same cast (SG-18, both classes).
+				if bool(fx.get("follow", false)):
+					_trail_element = element
+					_trail_colour = colour
 				_gust_ribbon(fx, fid, centre, rc, element, colour, alpha, progress)
 			"circle":
 				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
@@ -3131,11 +3328,6 @@ func _sync_effects() -> void:
 	## the swing itself uses (game_data), so what is DRAWN and what CONNECTS are one
 	## shape, not a picture and a hit-check disagreeing about a number.
 	##
-	## PAL.danger #FF3D2E outer, PAL.dangerIn #FF8C1A inner — the browser's hostile
-	## palette, oxblood-to-orange, never the player's teal.
-	const TG_DANGER := Color(1.0, 0.239, 0.180)
-	const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
-	const TG_SWING_ARC := 2.094395   # 120°, the fallback wedge for a reach-less melee
 	for enemy in game.get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
@@ -3157,6 +3349,10 @@ func _sync_effects() -> void:
 				var cmid: Vector2 = enemy.global_position + enemy.attack_direction * clen * 0.5
 				_decal("tr%d" % enemy.get_instance_id(), cmid, ang, clen, 13.0,
 					_streak_texture(), Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.9))
+				## And the browser's travelling dashes over the band (SG-28): the
+				## march down the path is the "it is coming toward you" read the
+				## static band cannot carry. Windup only — gone the frame it fires.
+				_aim_dash_ribbon(enemy.global_position, enemy.attack_direction, flen, kk)
 			else:
 				## The swing wedge. Apex on the boarder, opening down its facing to
 				## `reach`, spanning `swing`. A reach-less melee (BOSS) gets a wide
@@ -3955,6 +4151,12 @@ func _sync_captain(delta: float) -> bool:
 	elif doing == "hurt":
 		window = maxf(0.2, player.hurt_time)
 	_captain.want(doing, speed, window)
+	## The weapon trail samples the BLADE, not a clock (SG-18): one tip position
+	## per swinging frame, read off the hand mount the skeleton is already
+	## solving. Gated on the simulation's own attack window, so the trail starts
+	## with the swing and stops being fed the instant the swing is over.
+	if doing == "swing":
+		_sample_blade()
 	## A flinch is worth seeing on the model as well as in the numbers.
 	if player.hurt_time > 0.30:
 		_captain.react_hit(1.0)

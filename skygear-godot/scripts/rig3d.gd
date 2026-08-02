@@ -86,7 +86,9 @@ signal clip_finished(clip: String)
 
 var model: Node3D                     ## the instantiated character scene
 var anim: AnimationPlayer
+var skeleton: Skeleton3D              ## found once at setup; null for a static lump
 var height_scale := 1.0               ## model units -> our units
+var fit_height := 0.0                 ## the world height (metres) setup was asked for
 var facing := 0.0                     ## radians, current
 var target_facing := 0.0              ## radians, wanted
 var state := "idle"
@@ -118,6 +120,9 @@ func setup(scene_path: String, target_height: float, layer: int) -> bool:
 	model = packed.instantiate()
 	add_child(model)
 	anim = model.find_child("AnimationPlayer", true, false) as AnimationPlayer
+	for child in model.find_children("*", "Skeleton3D", true, false):
+		skeleton = child as Skeleton3D
+	fit_height = target_height
 	var measured: float = float(model.get_meta("model_height", 0.0))
 	if measured <= 0.0:
 		for child in model.find_children("*", "MeshInstance3D", true, false):
@@ -154,9 +159,6 @@ func hold(weapon_scene: String, bone: String, offset: Vector3, rotation_deg: Vec
 		held = null
 	if model == null or not ResourceLoader.exists(weapon_scene):
 		return false
-	var skeleton: Skeleton3D = null
-	for child in model.find_children("*", "Skeleton3D", true, false):
-		skeleton = child as Skeleton3D
 	if skeleton == null:
 		return false
 	var index := skeleton.find_bone(bone)
@@ -198,6 +200,24 @@ func hold(weapon_scene: String, bone: String, offset: Vector3, rotation_deg: Vec
 	holder.position = offset / per_unit
 	holder.rotation = Vector3(deg_to_rad(rotation_deg.x), deg_to_rad(rotation_deg.y),
 		deg_to_rad(rotation_deg.z))
+	## Where the business end of this blade is, in the MOUNT's own space, measured
+	## once while everything is placed — the weapon trail (SG-18) reads it back
+	## every frame through the swing, and mount space is the one frame in which a
+	## rigid tip never moves whatever clip is playing. The tip is simply the point
+	## of the weapon's geometry furthest from the hand, which is what "tip" means
+	## for a cutlass, a wrench and anything else a generator returns.
+	var far := mount.global_position
+	var far_d := -1.0
+	for child in weapon.find_children("*", "MeshInstance3D", true, false):
+		var box: AABB = (child as MeshInstance3D).get_aabb()
+		for corner in 8:
+			var at: Vector3 = (child as MeshInstance3D).global_transform \
+				* box.get_endpoint(corner)
+			var d := at.distance_squared_to(mount.global_position)
+			if d > far_d:
+				far_d = d
+				far = at
+	mount.set_meta("blade_tip", mount.global_transform.affine_inverse() * far)
 	for child in weapon.find_children("*", "MeshInstance3D", true, false):
 		var mi := child as MeshInstance3D
 		mi.layers = layer
@@ -205,6 +225,82 @@ func hold(weapon_scene: String, bone: String, offset: Vector3, rotation_deg: Vec
 		## blade reads as a cardboard cut-out the moment she turns.
 		mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
 	return true
+
+
+## The hand bones the trail can hang off, most specific first. The captain's fit
+## names `mixamorig_RightHand` in `weapons.json`; the Boilerwright's retargeted
+## rig carries the same family. The suffix scan is the fallback for whatever the
+## next exporter renames the prefix to.
+const HAND_BONES := ["mixamorig_RightHand", "mixamorig:RightHand", "RightHand"]
+
+
+## A mount on the hand even when the hand is EMPTY — the Boilerwright's case,
+## whose tool is a separate unpriced asset (board SG-38). The weapon trail
+## (SG-18) needs a bone-solved point to sample whichever class is swinging, and
+## an empty fist still cuts an arc. Reuses `held`, so a later `hold()` replaces
+## it cleanly and a figure never carries two mounts.
+func mount_hand() -> bool:
+	if held != null and is_instance_valid(held):
+		return true
+	if skeleton == null:
+		return false
+	var index := -1
+	var bone := ""
+	for name in HAND_BONES:
+		index = skeleton.find_bone(str(name))
+		if index >= 0:
+			bone = str(name)
+			break
+	if index < 0:
+		for i in skeleton.get_bone_count():
+			if skeleton.get_bone_name(i).ends_with("RightHand"):
+				index = i
+				bone = skeleton.get_bone_name(i)
+				break
+	if index < 0:
+		return false
+	var mount := BoneAttachment3D.new()
+	mount.bone_name = bone
+	mount.bone_idx = index
+	skeleton.add_child(mount)
+	held = mount
+	return true
+
+
+## Both ends of what the hand is swinging, in WORLD space (metres): [base, tip].
+## The base is the hand itself; the tip is the measured blade point when a
+## weapon is held, and a knuckle's reach along the hand bone when it is not —
+## mixamo hands run +Y toward the fingers. Empty when there is no mount, so a
+## caller can fall back to the effect-clock sweep rather than drawing nothing.
+##
+## The transform comes off the SKELETON, not off the attachment node: the
+## engine refreshes a `BoneAttachment3D`'s own transform on the next frame's
+## skeleton pass, and a trail sampled through it would trail the pose by one
+## frame — the exact lag the mount exists to avoid (see `hold`'s header).
+## `get_bone_global_pose` reads the solved pose the moment it is asked.
+func blade_points() -> PackedVector3Array:
+	if held == null or not is_instance_valid(held) or not held.is_inside_tree():
+		return PackedVector3Array()
+	var at := _mount_transform()
+	var base: Vector3 = at.origin
+	var tip: Vector3
+	if held.has_meta("blade_tip"):
+		tip = at * Vector3(held.get_meta("blade_tip"))
+	else:
+		var along: Vector3 = at.basis.y
+		along = along.normalized() if along.length_squared() > 1e-12 else Vector3.UP
+		tip = base + along * maxf(0.2, fit_height * 0.34)
+	return PackedVector3Array([base, tip])
+
+
+## The hand bone's world transform, solved NOW. Falls back to the attachment
+## node's own (frame-late) transform if the bone index ever goes missing.
+func _mount_transform() -> Transform3D:
+	if skeleton != null and held is BoneAttachment3D:
+		var idx: int = (held as BoneAttachment3D).bone_idx
+		if idx >= 0:
+			return skeleton.global_transform * skeleton.get_bone_global_pose(idx)
+	return held.global_transform
 
 
 ## Read the fit table once. Returns {} when there is nothing to hold, which is

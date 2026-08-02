@@ -133,6 +133,18 @@ supports — 24 named bones, `RightHand` among them.
 
 **Cost:** ~120 lines. **Risk:** low. **After the boarders are meshes.**
 
+**DONE 2026-08-01 (board SG-18).** Built as written, with one correction the
+build surfaced: the blade tip is read off the SKELETON's solved pose
+(`get_bone_global_pose`), not off the attachment node, which the engine
+refreshes a frame late. The tip is sampled every swinging frame into a capped
+ring, aged out inside 0.16 s, and drawn as the `_beam_ribbon` two-layer
+construction; the fx-clock `_sweep_ribbon` stands down while the blade drives
+and stays as the billboard tier's tell. Works for BOTH classes — the
+Boilerwright's empty hand gets the same mount with a knuckle's reach
+(`mount_hand`). Pinned by the seven `trail ·` checks in the harness
+(`trail · the blade tip moves with the swing clip — a bone is being sampled,
+not a timer` is the load-bearing one); pictures in `.shots/vfx-sg18/`.
+
 ## 7. Deferred: things deliberately NOT on this list
 
 - **A custom shader for the deck.** The procedural planking works and shaders are

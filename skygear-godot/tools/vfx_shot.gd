@@ -27,6 +27,12 @@ func _initialize() -> void: call_deferred("_run")
 const SCENES := [
 	{"id": "arc", "shape": "CLOSEHIT", "element": "EMBER", "tick": 4,
 		"what": "Ember Cleave - the captain's auto-attack, the most-seen effect in the game"},
+	## SG-18: the same swing on the OTHER class. His hand is empty (the wrench is
+	## SG-38, unpriced), so this is the knuckle-mounted trail through his
+	## retargeted swing — the both-classes claim, photographed.
+	{"id": "trail-bw", "shape": "CLOSEHIT", "element": "STEAM", "tick": 4,
+		"class": "boilerwright",
+		"what": "SG-18 - the Boilerwright's blade trail off his empty hand"},
 	{"id": "cone", "shape": "CONE", "element": "STEAM", "tick": 5,
 		"what": "Steam Gale - the Boilerwright's auto-attack"},
 	{"id": "line", "shape": "LINE_BURST", "element": "ARC", "tick": 3,
@@ -110,7 +116,9 @@ func _shoot(scene: Dictionary, path: String) -> void:
 	world.sway = false
 	game.workshop = SkyGearWorkshop.fresh(true)
 	game.heat = 0
-	game.set_class("captain")
+	## Per-scene class, defaulting to the captain — the SG-18 trail has to be
+	## photographed on BOTH rigs, and the class picks the model and the fit.
+	game.set_class(str(scene.get("class", "captain")))
 	game.set_seed_text("VFX")
 	game.begin_run()
 	game.choose_draft(0)
