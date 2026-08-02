@@ -1,6 +1,10 @@
 class_name SkyGearHUD
 extends Control
 
+## The shared screen poser's list (board SG-44), for the F4 picker — the same
+## dictionaries the text audit measures and the batch camera photographs.
+const ScreenPoser := preload("res://scripts/screen_poser.gd")
+
 var game: Node
 var font: Font
 ## Set by the 3D view when it takes over the frame. Everything the browser
@@ -543,6 +547,7 @@ var edit_elements: Dictionary = {}   ## key -> {"box": Rect2, "home": Vector2}
 var edit_panels: Array[Rect2] = []   ## index 0 is the page itself
 var edit_offset_box := Rect2()       ## the clickable offset readout, for input
 var edit_hide := false               ## overlay suppressed for a photograph
+var picker_rows: Array[Rect2] = []   ## the screen picker's rows, for input (SG-44)
 var _edit_active := false            ## any capture/offset work this frame?
 var _edit_skip := false              ## drawing something that is NOT this screen's
 var _in_widget := false              ## inside a widget's own label
@@ -780,6 +785,10 @@ func _draw_layout_editor() -> void:
 		_draw_plate_editor(trouble)
 	else:
 		_draw_screen_editor(trouble)
+	## The screen picker rides over either mode (SG-44). Drawn by whichever HUD
+	## is on the glass — the sandbox's while a pose is up — off the editor
+	## OWNER's state, which is what `pose_master()` answers.
+	_draw_screen_picker()
 
 
 ## The original F4: the six gameplay plates and the items inside them, edited
@@ -914,18 +923,25 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 func _edit_header(target: String, detail: String, offset_text: String,
 		help: String, trouble: Array[String]) -> void:
 	draw_rect(Rect2(0, 0, size.x, 84), Color(0.02, 0.015, 0.028, 0.9))
-	_value("UI LAYOUT · %s — editing %s" % [edit_screen, target],
+	## A posed screen says so in the title (SG-44): the id it saves under stays
+	## the screen id — one id, one entry, posed or walked to — and the pose name
+	## rides beside it so a person knows which of the audit's poses this is.
+	var shown := edit_screen
+	if game.pose_owner != null:
+		shown = "%s · POSED \"%s\"" % [edit_screen, str(game.pose_owner.pose_name)]
+	_value("UI LAYOUT · %s — editing %s" % [shown, target],
 		Vector2(16, 22), size.x - 360.0, HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
 	_label(help + " · Ctrl+Z undo · Ctrl+S save · Ctrl+R reset"
 		+ (" this screen" if edit_screen != "hud" else "")
 		+ " · F12 photograph · F4 done",
 		Vector2(16, 44), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12)
-	## THE RULE OF THE THING, in the editor itself: there is no screen picker in
-	## here because the game is the screen picker.
-	_label("you edit the screen you are ON — close the editor, walk to another"
-		+ " screen, press F4 again · typed offsets: Enter applies, Esc cancels,"
-		+ " a malformed pair is refused · the 84-shot batch stays at"
-		+ " `SkyGear Tools.bat screens`",
+	## THE WAY TO ANY SCREEN (SG-44): the game is still a screen picker — walk
+	## anywhere and F4 edits it — but it is no longer the only one, because
+	## reaching the results screen should not require winning.
+	_label("P poses any screen from the audit's list — no need to play there;"
+		+ " Esc on a posed screen hands the game back exactly · typed offsets:"
+		+ " Enter applies, Esc cancels, a malformed pair is refused · the"
+		+ " batch page stays at `SkyGear Tools.bat screens`",
 		Vector2(16, 62), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
 		Color("#8f8697"))
 	## The offset readout doubles as the typed-entry box (the SG-39 pattern:
@@ -962,6 +978,47 @@ func _edit_header(target: String, detail: String, offset_text: String,
 		HORIZONTAL_ALIGNMENT_RIGHT, 12,
 		Color("#37f0c8") if good or note.begins_with("saved") or note.begins_with("photo")
 		else Color("#ff9a5a"))
+
+
+## The screen picker (SG-44): the poser's own list, drawn over whichever editor
+## mode is up. The rows are exported through `picker_rows` for the input
+## handler, the same pattern as the offset box — what you click is what you saw.
+## State lives on the editor session's OWNER (`pose_master()`), because this is
+## drawn by the sandbox's HUD while a pose is up and the sandbox owns nothing.
+func _draw_screen_picker() -> void:
+	picker_rows = []
+	var master = game.pose_master()
+	if not bool(master.layout_picker):
+		return
+	var names: Array[String] = []
+	for screen in ScreenPoser.SCREENS:
+		names.append(str(screen.name))
+	var row_h: float = clampf((size.y - 170.0) / names.size(), 15.0, 24.0)
+	var wide := 480.0
+	var tall: float = 66.0 + row_h * names.size()
+	var panel := Rect2(Vector2((size.x - wide) * 0.5,
+		maxf(92.0, (size.y - tall) * 0.5)), Vector2(wide, tall))
+	draw_rect(panel, Color(0.03, 0.024, 0.05, 0.96))
+	draw_rect(panel, Color("#37f0c8"), false, 1.0)
+	_value("POSE A SCREEN", panel.position + Vector2(16.0, 24.0), wide - 32.0,
+		HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
+	_label("the audit's own poses — arrows + Enter, or click · Esc closes",
+		panel.position + Vector2(16.0, 44.0), wide - 32.0,
+		HORIZONTAL_ALIGNMENT_LEFT, 11, Color("#8f8697"))
+	for i in names.size():
+		var row := Rect2(panel.position + Vector2(8.0, 54.0 + i * row_h),
+			Vector2(wide - 16.0, row_h))
+		picker_rows.append(row)
+		var hot: bool = i == int(master.picker_at)
+		var posed: bool = names[i] == str(master.pose_name)
+		if hot:
+			draw_rect(row, Color(0.22, 0.94, 0.78, 0.14))
+			draw_rect(row, Color("#37f0c8"), false, 1.0)
+		_label(names[i] + ("   · posed" if posed else ""),
+			Vector2(row.position.x + 10.0, row.position.y + row_h * 0.5 + 4.0),
+			row.size.x - 20.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
+			Color("#eee5d5") if hot
+			else (Color("#e8c376") if posed else Color("#b9afaa")))
 
 
 ## What is under a point: a plate, or an element inside the plate currently
@@ -1541,7 +1598,7 @@ func _draw_game_hud() -> void:
 				Color("#37f0c8"))
 		var deepest := -1.0
 		var count := 0
-		for enemy in game.get_tree().get_nodes_in_group("enemies"):
+		for enemy in game.enemies():
 			if not is_instance_valid(enemy) or enemy.dead or enemy.lane != lane:
 				continue
 			count += 1
@@ -1921,7 +1978,7 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 
 	## Boarders: health when hurt, status when afflicted, a name when they are
 	## something you have to treat differently.
-	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var config: Dictionary = SkyGearData.ENEMIES.get(enemy.kind, {})
@@ -2078,7 +2135,7 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 	## piece of text in the game that has ever changed what a tester did next.
 	for lane in 3:
 		var worst := 0.0
-		for enemy in game.get_tree().get_nodes_in_group("enemies"):
+		for enemy in game.enemies():
 			if not is_instance_valid(enemy) or enemy.dead or enemy.lane != lane:
 				continue
 			worst = maxf(worst, clampf((enemy.global_position.y

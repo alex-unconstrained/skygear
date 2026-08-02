@@ -133,7 +133,7 @@ static func _valid(game, spec: Dictionary, target: Dictionary) -> bool:
 ## can say WHY it is refusing rather than simply not appearing — a prompt that
 ## vanishes teaches nothing.
 static func _contested(game, target: Dictionary) -> bool:
-	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		if enemy.global_position.distance_to(Vector2(target.position)) <= CONTESTED:

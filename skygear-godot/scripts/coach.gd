@@ -179,7 +179,7 @@ func _is(id: String, game) -> bool:
 			## A boarder past the halfway line with the captain nowhere near it.
 			var deck: Rect2 = SkyGearGame.DECK_RECT
 			var half: float = deck.get_center().y
-			for enemy in game.get_tree().get_nodes_in_group("enemies"):
+			for enemy in game.enemies():
 				if not is_instance_valid(enemy) or enemy.dead:
 					continue
 				if enemy.global_position.y < half:
@@ -202,7 +202,7 @@ func _is(id: String, game) -> bool:
 				return false
 			var deck2: Rect2 = SkyGearGame.DECK_RECT
 			var half2: float = deck2.get_center().y
-			for enemy2 in game.get_tree().get_nodes_in_group("enemies"):
+			for enemy2 in game.enemies():
 				if not is_instance_valid(enemy2) or enemy2.dead:
 					continue
 				if enemy2.global_position.y < half2:

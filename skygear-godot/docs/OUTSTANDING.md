@@ -21,11 +21,23 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 Reported 2026-08-01, after SG-42 shipped: *"You still didnt fix the screens
 tool to allow me to interactively edit UI/text."* SG-42's "you edit the
 screen you are ON — the game navigates" rule is the miss: reaching the
-results screen means winning a run, reaching GAMEOVER means dying. The batch
-tool already knows how to POSE all 21 screens; the editor must get the same
-poser as a screen picker inside F4. One poser, shared between the editor and
-the batch tool (failure mode two forbids a second copy). Board SG-44, queued
-behind SG-26 (same file, hud.gd).
+results screen means winning a run, reaching GAMEOVER means dying.
+
+**SHIPPED 2026-08-02 (board SG-44) — left OPEN for your hands-on verdict,
+like SG-42 itself.** Press **P** inside F4 and pick any of the 23 screens the
+audit shoots — the list IS the audit's list, posed by ONE shared poser
+(`scripts/screen_poser.gd`) that the text audit, the batch camera and the
+editor all call, so a second drifting copy cannot exist (harness-pinned).
+Picking poses the screen live on a SANDBOX — real widgets, real strings,
+never your run — and the SG-42 editor works on it exactly as everywhere:
+descend, drag, nudge, type, verdicts, Ctrl+S, F12. Offsets save under the
+same screen id the real screen reads, so an alignment fixed on a posed
+GAMEOVER is fixed on the one you die into. **Esc hands the game back
+exactly** — mid-run included; the run's clock, boarders and RNG hold still
+under the glass (the cutscene player's "camera comes back exactly" contract,
+now a harness check). Try: F4 anywhere → P → "deck lost" → move something →
+Ctrl+S → Esc. Full evidence on board row SG-44; `docs/HUD-LAYOUT.md` §"The
+screen picker" is the how-to.
 
 ### UI alignment must be EDITABLE, not just photographed
 Asked 2026-08-01 after running the screens audit: *"I got all of the

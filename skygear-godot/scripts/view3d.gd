@@ -3311,7 +3311,7 @@ func _sync_effects() -> void:
 				52.0 * beat, steam)
 
 	## The ordnance the deck already knows about: a lit keg draws its blast.
-	for prop in game.get_tree().get_nodes_in_group("props"):
+	for prop in game.props():
 		if is_instance_valid(prop) and not prop.dead and prop.fuse_left > 0.0:
 			var f2: float = 1.0 - prop.fuse_left / 0.45
 			_decal("keg%d" % prop.get_instance_id(), prop.global_position, 0.0, 350.0, 350.0,
@@ -3328,7 +3328,7 @@ func _sync_effects() -> void:
 	## the swing itself uses (game_data), so what is DRAWN and what CONNECTS are one
 	## shape, not a picture and a hit-check disagreeing about a number.
 	##
-	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		if enemy.state == "windup":
@@ -3693,7 +3693,7 @@ func _sync_all(delta: float) -> void:
 				game.player.velocity.length() > 35.0 and game.player.dash_time_left <= 0.0,
 				game.run_time, game.player.attack_time)
 			_xray("player", game.player.global_position, 150.0, Color(1.0, 0.86, 0.42, 0.62))
-	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var config: Dictionary = SkyGearData.ENEMIES.get(enemy.kind, {})
@@ -3747,7 +3747,7 @@ func _sync_all(delta: float) -> void:
 				tint = tint.lerp(Color(1.3, 1.25, 0.8), 0.5)
 			node.modulate = tint
 		_xray(key, enemy.global_position, height, Color(0.95, 0.30, 0.22, 0.55))
-	for prop in game.get_tree().get_nodes_in_group("props"):
+	for prop in game.props():
 		if not is_instance_valid(prop) or prop.dead:
 			continue
 		var pkey := "p%d" % prop.get_instance_id()
@@ -3963,7 +3963,7 @@ func _sync_all(delta: float) -> void:
 	## Lanterns and braziers are light sources in a dark scene, and in 3D that
 	## can simply be true rather than painted on. They flicker, because a fixed
 	## point light on a ship at dusk is the one thing that says "render".
-	for prop in game.get_tree().get_nodes_in_group("props"):
+	for prop in game.props():
 		if not is_instance_valid(prop):
 			continue
 		var id := prop.get_instance_id()

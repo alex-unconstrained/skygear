@@ -5,6 +5,11 @@ enum State { TITLE, PLAY, DRAFT, PAUSE, GAMEOVER, VICTORY }
 
 const ENEMY_SCENE := preload("res://scenes/enemy.tscn")
 const PROP_SCENE := preload("res://scenes/prop.tscn")
+## The shared screen poser (board SG-44) — the same list and the same `pose()`
+## the text audit and the batch camera run, reached by the F4 picker. Preloaded,
+## not `class_name`: see the note at the top of `scripts/screen_poser.gd`.
+const ScreenPoser := preload("res://scripts/screen_poser.gd")
+const GAME_SCENE_PATH := "res://scenes/main.tscn"
 
 const DECK_RECT := Rect2(-840, -1160, 1680, 2320)
 const BOILER_POSITION := Vector2(0, 850)
@@ -189,6 +194,38 @@ var _layout_screen := ""             ## which screen the selection belongs to
 var _layout_undo: Dictionary = {}    ## single-level, the SG-39 convention
 var _layout_drag_key := ""           ## screen mode: the element being dragged
 
+## THE SCREEN PICKER (board SG-44) — round two of the owner's alignment ask.
+## SG-42's rule was "you edit the screen you are ON — the game navigates", and
+## the game being the screen picker meant reaching the results screen to edit it
+## required WINNING and GAMEOVER required DYING. So F4 grew a picker: P lists
+## the same screens the audit shoots, and picking one poses it on a SANDBOX — a
+## second, silent, invisible copy of `main.tscn` the shared poser drives —
+## never on the live run. The live game freezes while the pose is up (its sim,
+## its enemies, its player), the sandbox's HUD draws the posed screen with the
+## editor over it, and Esc frees the sandbox and hands the run back exactly as
+## it was — the cutscene player's "the gameplay camera comes back exactly" is
+## the precedent, and the harness holds this side to it (`editor · and leaving
+## the pose hands the run back exactly`).
+var pose_game: SkyGearGame = null    ## the sandbox this game posed, live side
+var pose_owner: SkyGearGame = null   ## the game that posed me, sandbox side
+var pose_name := ""                  ## which audit screen is posed, live side
+var layout_picker := false           ## the picker list is up
+var picker_at := 0                   ## the picker's keyboard cursor
+var _posing := false                 ## mid-pose; input waits for the pose to land
+var _pose_controls := false          ## player.controls_enabled before the pose
+## Whether a finished run reaches the run log on disk. True for every real game;
+## the shared poser turns it off (board SG-49) because a POSED ending is a
+## picture of the screen, not a run — the audit was appending a dozen fake rows
+## to the player's own log per pass, and the picker would have added one per
+## pose.
+var log_runs := true
+
+
+## The game that owns the editor session — me, or whoever posed me. The sandbox's
+## HUD asks this to draw the picker, which lives on the owner's side of the glass.
+func pose_master() -> SkyGearGame:
+	return pose_owner if pose_owner != null else self
+
 var keys_open := false
 var settings_open := false
 var how_open := false
@@ -318,6 +355,22 @@ func _unhandled_input(event: InputEvent) -> void:
 	## The layout editor, first and greedy. It is a mode, and a mode that lets
 	## the game underneath react to the same click is a mode that fights you.
 	if layout_edit and _layout_input(event):
+		get_viewport().set_input_as_handled()
+		return
+	## While a screen is POSED over the run (SG-44), every key that is not the
+	## editor's belongs to nobody: the game underneath is frozen and must come
+	## back exactly, and Enter on a posed title starting a second run is the
+	## kind of leak "frozen" exists to forbid. F4 is the one exception — it
+	## drops the pose and the editor together.
+	if pose_game != null:
+		if not _posing and event is InputEventKey and event.pressed \
+				and not event.echo and event.keycode == KEY_F4:
+			end_pose()
+			layout_edit = false
+			layout_picker = false
+			hud.audit = null
+			hud.ink = null
+			hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
 	## The rebind screen swallows everything while it is open, so that pressing
@@ -487,6 +540,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		layout_edit = not layout_edit
 		layout_saved = false
 		layout_typing = false
+		layout_picker = false
 		layout_shot = ""
 		layout_key = ""
 		layout_panel = -1
@@ -616,6 +670,30 @@ func _unhandled_input(event: InputEvent) -> void:
 ## on a wireframe of it. That is the whole point: the thing being positioned is
 ## the real panel with the real content at the real resolution.
 func _layout_input(event: InputEvent) -> bool:
+	## The picker and the pose come first (SG-44). A pose mid-build swallows
+	## everything — the sandbox is between screens and there is nothing coherent
+	## to edit; it lands within a dozen frames.
+	if _posing:
+		return true
+	if _picker_input(event):
+		return true
+	if pose_game != null:
+		## The editor is standing on the SANDBOX's screen: its selection, its
+		## typed box, its element registry. Everything delegates to the
+		## sandbox's own handler — same code, its state — except a top-level
+		## Esc, which is the way back through the glass.
+		if event is InputEventKey and event.pressed and not event.echo \
+				and (event as InputEventKey).keycode == KEY_ESCAPE \
+				and not pose_game.layout_typing:
+			var deep: bool = (pose_game.hud.edit_screen == "hud" \
+					and pose_game.layout_item != "") \
+				or (pose_game.hud.edit_screen != "hud" \
+					and (pose_game.layout_key != "" or pose_game.layout_panel >= 0))
+			if not deep:
+				end_pose()
+				return true
+		return pose_game._layout_input(event)
+
 	var view: Vector2 = hud.size
 	var where: Vector2 = hud.get_local_mouse_position()
 	if SkyGearHUD.layout == null:
@@ -996,6 +1074,141 @@ func _snap_screen() -> void:
 	layout_shot = ".shots/screens/" + file
 
 
+## --- the screen picker and the posed sandbox (SG-44) -------------------------
+
+## The HUD a person is actually looking at: the sandbox's while a pose is up.
+func _pose_hud() -> SkyGearHUD:
+	return pose_game.hud if pose_game != null else hud
+
+
+func _picker_index(name: String) -> int:
+	for i in ScreenPoser.SCREENS.size():
+		if str(ScreenPoser.SCREENS[i].name) == name:
+			return i
+	return 0
+
+
+## The picker: P lists every screen the audit shoots — the poser's own list, so
+## the editor cannot cover less than the batch page covers. Arrows + Enter or a
+## click poses one; Esc, P again or a click outside closes the list. Only the
+## editor session's OWNER runs this; a sandbox hands everything back.
+func _picker_input(event: InputEvent) -> bool:
+	if pose_owner != null:
+		return false
+	var typing: bool = layout_typing \
+		or (pose_game != null and pose_game.layout_typing)
+	if not layout_picker:
+		if event is InputEventKey and event.pressed and not event.echo \
+				and (event as InputEventKey).keycode == KEY_P and not typing:
+			layout_picker = true
+			picker_at = _picker_index(pose_name)
+			_pose_hud().queue_redraw()
+			return true
+		return false
+	## Open: the list owns every event until it closes.
+	if event is InputEventMouseButton and event.pressed \
+			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT:
+		var where: Vector2 = _pose_hud().get_local_mouse_position()
+		var rows: Array = _pose_hud().picker_rows
+		for i in rows.size():
+			if (rows[i] as Rect2).has_point(where):
+				picker_at = i
+				pose_screen(str(ScreenPoser.SCREENS[i].name))
+				return true
+		## Clicking away closes, same as the typed-offset box.
+		layout_picker = false
+		_pose_hud().queue_redraw()
+		return true
+	if event is not InputEventKey or not event.pressed:
+		return true
+	var key := event as InputEventKey
+	match key.keycode:
+		KEY_ESCAPE, KEY_P:
+			layout_picker = false
+		KEY_UP:
+			picker_at = maxi(0, picker_at - 1)
+		KEY_DOWN:
+			picker_at = mini(ScreenPoser.SCREENS.size() - 1, picker_at + 1)
+		KEY_ENTER, KEY_KP_ENTER:
+			pose_screen(str(ScreenPoser.SCREENS[picker_at].name))
+	_pose_hud().queue_redraw()
+	return true
+
+
+## Pose any audit screen right here. Builds the sandbox on first use — a second,
+## hidden, silent `main.tscn` the shared poser drives — and freezes the live
+## game for as long as a pose is up. The sandbox is reused across picks exactly
+## as the audit reuses one game across its whole matrix, and the poser starts
+## every pose from a clean ephemeral workshop either way.
+func pose_screen(name: String) -> void:
+	if not layout_edit or _posing:
+		return
+	var screen: Dictionary = ScreenPoser.find(name)
+	if screen.is_empty():
+		return
+	layout_picker = false
+	_posing = true
+	pose_name = name
+	if pose_game == null:
+		## Freeze the run. `is_playing()` holds the boarders (they read it
+		## every physics frame), `controls_enabled` holds the captain, and
+		## `set_process(false)` holds the simulation clock — `run_time` must
+		## not move a tick while the glass is up.
+		_pose_controls = player.controls_enabled
+		player.controls_enabled = false
+		## Outright, not just deaf to input: a captain frozen mid-slide would
+		## otherwise glide to a stop and recharge her dash under the glass, and
+		## "exactly" means neither.
+		player.set_physics_process(false)
+		set_process(false)
+		hud.visible = false
+		var sandbox: SkyGearGame = (load(GAME_SCENE_PATH) as PackedScene).instantiate()
+		## Set BEFORE it enters the tree, so `_ready`, `begin_run` and every
+		## step after already know they are behind the glass: no sfx, no music,
+		## no run log, no reaching through the shared groups.
+		sandbox.pose_owner = self
+		## Its 2D world is nobody's picture — the pose IS the HUD, and the HUD
+		## rides a CanvasLayer, which parent visibility does not reach.
+		sandbox.visible = false
+		add_child(sandbox)
+		sandbox.set_process_unhandled_input(false)
+		## Its player's camera must never contest the live one.
+		var cam := sandbox.player.get_node_or_null("Camera2D")
+		if cam != null:
+			cam.enabled = false
+		## And its voice director would DUCK the live mix while it spoke — the
+		## duck writes the shared audio buses. No clips, no lines, no duck.
+		sandbox.voice.clips = {}
+		sandbox.layout_edit = true
+		pose_game = sandbox
+	await ScreenPoser.pose(get_tree(), pose_game, pose_game.hud, screen, hud.size)
+	if pose_game != null:
+		## Still means STILL under an editor: the captain answers polled input
+		## regardless of focus, so her physics stops outright — no drift while
+		## a person is lining a label up.
+		pose_game.player.set_physics_process(false)
+		pose_game.player.controls_enabled = false
+		pose_game.hud.queue_redraw()
+	_posing = false
+
+
+## Drop the pose: free the sandbox, thaw the run. The contract is the cutscene
+## player's — what comes back is EXACTLY what was frozen — and the harness holds
+## this side to it (`editor · and leaving the pose hands the run back exactly`).
+func end_pose() -> void:
+	if pose_game == null or _posing:
+		return
+	pose_game.queue_free()
+	pose_game = null
+	pose_name = ""
+	layout_picker = false
+	hud.visible = true
+	set_process(true)
+	player.set_physics_process(true)
+	player.controls_enabled = _pose_controls
+	hud.queue_redraw()
+
+
 ## 1-9 then 0, so ten rows are reachable without a cursor.
 ## Named, because a menu button calling `_set_state` directly is a menu button
 ## that has to know about states.
@@ -1113,7 +1326,7 @@ func _process(delta: float) -> void:
 	## caught at the start is still coming at the end.
 	if article("keel_hauling") and player.dash_time_left > 0.0:
 		var drag: Vector2 = player.velocity * delta * 0.85
-		for enemy in get_tree().get_nodes_in_group("enemies"):
+		for enemy in enemies():
 			if not is_instance_valid(enemy) or enemy.dead:
 				continue
 			if enemy.global_position.distance_to(player.global_position) > 90.0:
@@ -1133,7 +1346,36 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 func is_playing() -> bool:
-	return state == State.PLAY
+	## A pose freezes both sides of the glass (SG-44): the live run holds its
+	## breath while a sandbox is posed over it — this is what stops its boarders
+	## walking while the person is aligning GAMEOVER — and a posed sandbox is a
+	## still picture, so its own boarders hold too. The enemies read this every
+	## physics frame; nothing else does.
+	return state == State.PLAY and pose_game == null and pose_owner == null
+
+
+## THIS game's enemies and props — never the tree's (board SG-50). Both groups
+## are tree-wide, and there was exactly one game per tree until the harness grew
+## a second and the F4 picker's sandbox made two-at-once the normal case. Every
+## sweep that iterated the raw group then reached through the glass:
+## `go_to_title` on a posed sandbox would have FREED the live run's boarders and
+## props, `restow_props` would have swept its deck, and the sandbox's auto-attack
+## would have cut down boarders in a run the player gets back "exactly as it
+## was". Every simulation sweep goes through these two now.
+func enemies() -> Array[Node]:
+	var mine: Array[Node] = []
+	for node in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(node) and node.game == self:
+			mine.append(node)
+	return mine
+
+
+func props() -> Array[Node]:
+	var mine: Array[Node] = []
+	for node in get_tree().get_nodes_in_group("props"):
+		if is_instance_valid(node) and node.game == self:
+			mine.append(node)
+	return mine
 
 func set_seed_text(text: String) -> void:
 	## A seed a player can hand to someone else. Same idea as the browser's
@@ -1242,9 +1484,9 @@ func begin_run() -> void:
 	keys_open = false
 	how_open = false
 	compare_open = false
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		enemy.queue_free()
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		prop.queue_free()
 	player.reset_for_run()
 	player.visible = true
@@ -1446,9 +1688,9 @@ func copy_run_report() -> void:
 func go_to_title() -> void:
 	if audio != null:
 		audio.stop_music()
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		enemy.queue_free()
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		prop.queue_free()
 	player.visible = false
 	projectiles.clear()
@@ -1464,7 +1706,13 @@ func _set_state(next_state: State) -> void:
 	## damage per skill and time at each range is so ten of them can be read as a
 	## shape, and a report that dies when you press Enter cannot be.
 	if was != next_state and (next_state == State.VICTORY or next_state == State.GAMEOVER):
-		run_logged = SkyGearRunLog.record({
+		## `log_runs` is off for POSED endings (board SG-49): the audit, the
+		## batch camera and the F4 picker all walk a game through GAMEOVER and
+		## VICTORY as a pose, and every one of those was a fake row in the
+		## player's own run log — a dozen per audit pass. A pose still shows
+		## `run_logged` true, because "saved to the run log" is the healthy
+		## string the screen is being measured and aligned with.
+		run_logged = not log_runs or SkyGearRunLog.record({
 			"won": next_state == State.VICTORY,
 			"wave": wave,
 			"time": _format_time(run_time),
@@ -1659,7 +1907,10 @@ func _begin_push(wave_number: int) -> void:
 
 func start_wave(next_wave: int) -> void:
 	wave = next_wave
-	if audio != null:
+	## A posed sandbox starts no music (SG-44) — the live game's own track is
+	## already playing, and a second combat loop under a posed GAMEOVER is the
+	## editor audibly leaking. Its one-shots die in `play_sfx`; this is the loop.
+	if audio != null and pose_owner == null:
 		var is_boss := next_wave >= 1 and next_wave <= SkyGearData.WAVES.size() 			and bool(SkyGearData.WAVES[next_wave - 1].get("boss", false))
 		audio.play_music(audio.track_for(next_wave, is_boss))
 	if wave > SkyGearData.WAVES.size():
@@ -2004,7 +2255,7 @@ func spawn_enemy(kind: String, lane: int) -> void:
 
 func enemy_count() -> int:
 	var count := 0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead:
 			count += 1
 	return count
@@ -2347,37 +2598,37 @@ func heal_player(amount: float, source: String) -> float:
 	return healed
 
 func _damage_circle(center: Vector2, radius: float, damage: float, element: String, knock: float, grants_pressure: bool, hits_props: bool) -> void:
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.global_position.distance_to(center) <= radius + enemy.radius:
 			damage_enemy(enemy, damage, element, knock, center, grants_pressure)
 	if hits_props:
 		_damage_props_circle(center, radius, damage)
 
 func _damage_cone(origin: Vector2, direction: Vector2, radius: float, arc: float, damage: float, element: String, knock: float, hits_props: bool) -> void:
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var target_delta: Vector2 = enemy.global_position - origin
 		if target_delta.length() <= radius + enemy.radius and absf(direction.angle_to(target_delta.normalized())) <= arc * 0.5:
 			damage_enemy(enemy, damage, element, knock, origin, true)
 	if hits_props:
-		for prop in get_tree().get_nodes_in_group("props"):
+		for prop in props():
 			if is_instance_valid(prop) and prop.is_targetable():
 				var prop_delta: Vector2 = prop.global_position - origin
 				if prop_delta.length() <= radius + prop.radius and absf(direction.angle_to(prop_delta.normalized())) <= arc * 0.5:
 					prop.damage(damage)
 
 func _damage_line(start: Vector2, end: Vector2, width: float, damage: float, element: String, knock: float, hits_props: bool) -> void:
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead and _distance_to_segment(enemy.global_position, start, end) <= width + enemy.radius:
 			damage_enemy(enemy, damage, element, knock, start, true)
 	if hits_props:
-		for prop in get_tree().get_nodes_in_group("props"):
+		for prop in props():
 			if is_instance_valid(prop) and prop.is_targetable() and _distance_to_segment(prop.global_position, start, end) <= width + prop.radius:
 				prop.damage(damage)
 
 func _damage_props_circle(center: Vector2, radius: float, damage: float) -> void:
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		if is_instance_valid(prop) and prop.is_targetable() and prop.global_position.distance_to(center) <= radius + prop.radius:
 			prop.damage(damage)
 
@@ -2387,7 +2638,7 @@ func nearest_enemy(origin: Vector2, max_distance: float) -> SkyGearEnemy:
 func nearest_enemy_excluding(origin: Vector2, max_distance: float, excluded: Dictionary) -> SkyGearEnemy:
 	var nearest: SkyGearEnemy
 	var best := max_distance
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if not is_instance_valid(enemy) or enemy.dead or excluded.has(enemy.get_instance_id()):
 			continue
 		var distance := origin.distance_to(enemy.global_position)
@@ -2459,7 +2710,7 @@ func _update_pressure(delta: float) -> void:
 	var close_range := float(SkyGearData.CLOSE.range)
 	var nearby := 0
 	var nearest := -1.0
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var d: float = enemy.global_position.distance_to(player.global_position)
@@ -2518,7 +2769,7 @@ func _fill_head(delta: float) -> void:
 	var on_boiler: bool = player.global_position.distance_to(boiler_position) <= 220.0
 	if on_boiler:
 		rate = maxf(rate, float(kit.get("boiler_rate", 0.0)))
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
 			continue
 		if player.global_position.distance_to(prop.global_position) <= 150.0:
@@ -2655,7 +2906,7 @@ func use_article_v() -> bool:
 	if bool(article_used.get("scuttle", false)):
 		return false
 	var lit := 0
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		if not is_instance_valid(prop) or prop.dead or str(prop.prop_type) != "keg":
 			continue
 		prop.fuse_left = 0.05 + lit * 0.06
@@ -2915,7 +3166,7 @@ func _update_projectiles(delta: float) -> void:
 			damage_boiler(float(bolt.damage))
 			remove = true
 		if not remove:
-			for prop in get_tree().get_nodes_in_group("props"):
+			for prop in props():
 				if is_instance_valid(prop) and prop.is_targetable() and bolt.position.distance_to(prop.global_position) <= prop.radius + 8.0:
 					prop.damage(float(bolt.damage))
 					remove = true
@@ -2976,7 +3227,7 @@ func _stow_barricade() -> void:
 
 
 func restow_props() -> void:
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		if is_instance_valid(prop):
 			prop.dead = true
 			prop.queue_free()
@@ -3054,14 +3305,14 @@ func _on_dash_started() -> void:
 func _process_dash_impacts() -> void:
 	if player.dash_time_left <= 0.0:
 		return
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var id := enemy.get_instance_id()
 		if not dash_hit_ids.has(id) and enemy.global_position.distance_to(player.global_position) <= enemy.radius + 30.0:
 			dash_hit_ids[id] = true
 			damage_enemy(enemy, 30.0 * damage_multiplier, "STEAM", 260.0, player.global_position, true)
-	for prop in get_tree().get_nodes_in_group("props"):
+	for prop in props():
 		if not is_instance_valid(prop) or not prop.is_targetable():
 			continue
 		var id := prop.get_instance_id()
@@ -3080,7 +3331,7 @@ func _update_turrets(delta: float) -> void:
 	## view and a view that fires audio is a view that fires audio twice the
 	## moment anything else draws.
 	if voice != null and state == State.PLAY:
-		for enemy in get_tree().get_nodes_in_group("enemies"):
+		for enemy in enemies():
 			if not is_instance_valid(enemy) or enemy.dead:
 				continue
 			var depth: float = (enemy.global_position.y - DECK_RECT.position.y) / DECK_RECT.size.y
@@ -3097,7 +3348,7 @@ func _update_turrets(delta: float) -> void:
 		# thing behind it rather than the thing in front of it
 		var best: SkyGearEnemy = null
 		var best_y := -99999.0
-		for enemy in get_tree().get_nodes_in_group("enemies"):
+		for enemy in enemies():
 			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
 				continue
 			if enemy.lane != int(t.lane):
@@ -3153,7 +3404,7 @@ func damage_turret(t: Dictionary, amount: float) -> void:
 ## Everything it called in the first beat is vented with it, so the turn is a
 ## clear moment and not a moment spent fighting six swarmers.
 func on_boss_turn(boss) -> void:
-	for enemy in get_tree().get_nodes_in_group("enemies"):
+	for enemy in enemies():
 		if is_instance_valid(enemy) and enemy != boss and not enemy.dead:
 			enemy.hp = 0.0
 			enemy.kill()
@@ -3217,7 +3468,7 @@ func _update_crew(delta: float) -> void:
 		# nearest boarder in this crewman's lane, else march at the hulk
 		var target: SkyGearEnemy = null
 		var best := 1e9
-		for enemy in get_tree().get_nodes_in_group("enemies"):
+		for enemy in enemies():
 			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
 				continue
 			if enemy.lane != int(c.lane):
@@ -3449,6 +3700,11 @@ const MAX_VOICES := 24
 var _voices := 0
 
 func play_sfx(relative_path: String, volume_db: float = -6.0) -> void:
+	## A posed sandbox is a picture, not a mixer (SG-44): the pose steps a whole
+	## begin_run/start_wave through this, and the live game is already playing
+	## the real one of every sound it would make.
+	if pose_owner != null:
+		return
 	if _voices >= MAX_VOICES:
 		return
 	var full_path := "res://assets/audio/sfx/" + relative_path

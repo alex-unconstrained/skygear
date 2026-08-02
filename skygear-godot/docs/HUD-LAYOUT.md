@@ -3,11 +3,39 @@
 **This is the primary alignment workflow.** See something misaligned, on any
 screen — a label a few pixels off, a glyph off-centre in its slot, a button
 crowding its neighbour — press **F4** right there and move it. The screen you
-are ON is the screen you edit: there is no screen picker in the editor because
-the game is the screen picker. Close the editor, walk to the screen that is
-wrong, press F4 again. (The 92-shot batch page — `SkyGear Tools.bat screens` —
-stays as the secondary, batch-evidence mode: for auditing everything at once,
-not for fixing anything.)
+are ON is the screen you edit, and the game is one way to pick a screen — but
+no longer the only one: press **P** inside the editor and pose ANY of the 23
+screens the text audit shoots (board SG-44), without winning to see the results
+screen or dying to see GAMEOVER. (The 92-shot batch page — `SkyGear Tools.bat
+screens` — stays as the secondary, batch-evidence mode: for auditing everything
+at once, not for fixing anything.)
+
+## The screen picker — press P
+
+**P** (inside the editor) lists the audit's own poses — the same 23 screens,
+by the same names, posed by the same shared poser (`scripts/screen_poser.gd`)
+the audit and the batch camera use, so the picker can never cover less than
+the tools do (`editor · the picker poses the batch tool's own screens — one
+list`, `editor · every audit screen is posable from the picker`). Arrows +
+Enter, or click a row.
+
+Picking a screen poses it LIVE — real widgets, real strings — on a **sandbox**:
+a second, hidden, silent copy of the game, never your run. Then the editor
+works exactly as it does everywhere else: descend, drag, nudge, type offsets,
+verdicts, Ctrl+S, F12. Offsets save under the same screen id the
+naturally-reached screen reads — one id, one entry, posed or walked to
+(`editor · an offset saved on a posed screen moves the real screen`).
+
+**Esc on a posed screen (with nothing selected) hands the game back exactly.**
+A player mid-run who opens F4, poses GAMEOVER, edits it and comes back is
+exactly mid-run — the run's clock, boarders, props and RNG do not move a tick
+while the glass is up (`editor · and the pose freezes the run while the glass
+is up`, `editor · and leaving the pose hands the run back exactly` — the
+cutscene player's "the gameplay camera comes back exactly" contract, applied
+to the editor). Picking another screen from the list swaps the pose in place;
+F4 drops the pose and the editor together. A posed ending also never writes a
+row to your run log (`editor · a posed ending writes no fake row to the run
+log`).
 
 The panels underneath are the real panels, with the real content, at the real
 resolution — not a mockup. Guide lines appear when an edge or a centre lines up
@@ -41,7 +69,8 @@ element shows its bounds and its NAME, which is the key its offset saves under.
 | **arrows** | nudge 1 px (**Shift** ×10, **Alt** ×0.1 — the SG-39 steps) |
 | click the offset readout | type it: **Enter** applies, **Esc** cancels, malformed is refused |
 | **Tab** / **Shift+Tab** | next / previous |
-| **Esc** | back out a level (element → panel → closed) |
+| **P** | the screen picker: pose any of the audit's 23 screens right here |
+| **Esc** | back out a level (element → panel → closed; on a posed screen, the last Esc hands the game back) |
 | **Ctrl+Z** | undo, single level (press again to redo) |
 | **Ctrl+S** | save |
 | **Ctrl+R** | restore defaults — THIS screen only, outside the fight HUD |

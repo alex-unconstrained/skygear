@@ -113,6 +113,9 @@ func _run() -> void:
 	## AWAITED — this pass draws real frames. See the note above `_view`.
 	await _screen_editor()
 	await process_frame
+	## AWAITED — this one poses real sandboxes over a live run. Same rule.
+	await _screen_poser()
+	await process_frame
 	_dash()
 	await process_frame
 	_mobility()
@@ -3511,8 +3514,12 @@ func _view() -> void:
 	game.player.global_position = Vector2.ZERO
 	game.spawn_enemy("SCRAPPER", 1)
 	var scalded: SkyGearEnemy = null
-	for e in game.get_tree().get_nodes_in_group("enemies"):
-		if is_instance_valid(e) and not e.dead:
+	## HIS enemies, not the tree's (board SG-50): this used to take the LAST
+	## group entry tree-wide — frequently a leaked earlier game's boarder — and
+	## passed only because the attack swept tree-wide too. The sweep is honest
+	## now, so the victim has to be too.
+	for e in game.enemies():
+		if not e.dead:
 			scalded = e
 	if scalded != null:
 		scalded.global_position = Vector2(0.0, -150.0)
@@ -3691,8 +3698,10 @@ func _view() -> void:
 	game.player.global_position = Vector2.ZERO
 	game.spawn_enemy("SCRAPPER", 1)
 	var prey: SkyGearEnemy = null
-	for e in game.get_tree().get_nodes_in_group("enemies"):
-		if is_instance_valid(e) and not e.dead:
+	## HIS enemies, not the tree's (board SG-50) — same story as the Scald
+	## victim above.
+	for e in game.enemies():
+		if not e.dead:
 			prey = e
 	if prey != null:
 		prey.global_position = Vector2(90.0, 0.0)
@@ -5138,6 +5147,175 @@ func _screen_editor() -> void:
 	await process_frame
 
 
+## --- the screen picker and the posed sandbox (SG-44) ----------------------------
+## Round two of the alignment ask: the editor can now POSE any screen the audit
+## shoots — on a sandbox game, never on the live run — and hand the run back
+## exactly. These checks drive the real path end to end: `pose_screen` builds
+## the sandbox `main.tscn`, the SHARED poser (`scripts/screen_poser.gd`, the
+## same one the audit and the batch camera call) dresses it, `end_pose` frees
+## it. Headless is fine — nothing here reads a pixel back (SG-29).
+func _screen_poser() -> void:
+	var screens_tool := preload("res://tools/screens.gd")
+	var poser := preload("res://scripts/screen_poser.gd")
+	## ONE LIST. The tool's door and the shared poser must enumerate the same
+	## screens, or the picker covers less than the batch page and failure mode
+	## two has its second copy back.
+	_check("editor", "the picker poses the batch tool's own screens — one list",
+		screens_tool.SCREENS == poser.SCREENS and screens_tool.SIZES == poser.SIZES,
+		"%d tool vs %d poser screens" % [screens_tool.SCREENS.size(), poser.SCREENS.size()])
+
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	SkyGearHUD.layout = null
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1600, 900)
+	## A run in flight, mid-wave — the exact state the owner poses GAMEOVER from.
+	_begin(game)
+	game.start_wave(3)
+	for i in 3:
+		game.spawn_enemy("SCRAPPER", i)
+	_advance(game, 2.0)
+	## One settled frame BEFORE the fingerprint: `start_wave` restows the deck
+	## by queue_free, and a freed-but-not-yet-dead prop would be counted here
+	## and gone by the comparison — a lie about the pose, told by the shutter.
+	await process_frame
+	var before := _run_fingerprint(game)
+	var runs_on_disk: int = SkyGearRunLog.load_all().size()
+
+	game.layout_edit = true
+	await game.pose_screen("deck lost")
+	_check("editor", "the picker poses GAMEOVER on a sandbox, not on the run",
+		game.pose_game != null and game.state_name == "PLAY"
+		and game.pose_game.hud.screen_id() == "results"
+		and game.pose_game.state_name == "GAMEOVER",
+		"sandbox %s, live %s" % [
+			game.pose_game.hud.screen_id() if game.pose_game != null else "(none)",
+			game.state_name])
+	_check("editor", "and the pose freezes the run while the glass is up",
+		not game.is_playing() and not game.is_processing()
+		and not game.player.controls_enabled
+		and not game.player.is_physics_processing())
+	## A POSED ENDING IS A PICTURE (board SG-49): nothing reaches the run log on
+	## disk, and the screen still shows the healthy "saved to the run log" line.
+	_check("editor", "a posed ending writes no fake row to the run log",
+		SkyGearRunLog.load_all().size() == runs_on_disk
+		and game.pose_game != null and game.pose_game.run_logged,
+		"%d rows before, %d after" % [runs_on_disk, SkyGearRunLog.load_all().size()])
+
+	## THE SAVED-BY-ID CONTRACT: the posed screen registers its elements under
+	## the same screen id the naturally-reached screen uses — one id, one entry.
+	game.pose_game.hud.queue_redraw()
+	await process_frame
+	var sandbox_keys: Array = game.pose_game.hud.edit_elements.keys()
+	_check("editor", "a posed screen captures its elements for the editor",
+		sandbox_keys.size() >= 8, "%d elements" % sandbox_keys.size())
+	var posed_id: String = game.pose_game.hud.edit_screen
+	## A WIDGET key, because a widget's box sits exactly at home+offset (a text
+	## row's box is its ink, whose top rides above the baseline the code asked
+	## for — true on both sides, but not the arithmetic being asserted here).
+	var probe_key := "play_again"
+	_check("editor", "and the posed results screen carries its own buttons",
+		probe_key in sandbox_keys, ", ".join(sandbox_keys))
+	SkyGearHUD.layout.set_screen_offset(posed_id, probe_key, Vector2(9, 4))
+
+	## LEAVING HANDS THE RUN BACK EXACTLY — the cutscene player's contract,
+	## applied to the editor's glass. Fingerprinted the same frame the pose
+	## drops: the run must come back the moment the glass does, not after a
+	## frame of catch-up.
+	game.end_pose()
+	var after := _run_fingerprint(game)
+	_check("editor", "and leaving the pose hands the run back exactly",
+		before == after and game.pose_game == null and game.is_playing()
+		and hud.visible and game.player.controls_enabled,
+		"" if before == after else "before %s, after %s" % [before, after])
+	await process_frame
+
+	## ...and the NATURALLY-reached results screen reads the offset that was
+	## saved while posed: same id, same key, same pixels.
+	game.log_runs = false          ## the harness's ending is not a run either
+	game.end_reason = "the Boiler went cold on wave 3"
+	game._set_state(SkyGearGame.State.GAMEOVER)
+	hud.queue_redraw()
+	await process_frame
+	var natural: Dictionary = hud.edit_elements.get(probe_key, {})
+	_check("editor", "an offset saved on a posed screen moves the real screen",
+		hud.edit_screen == posed_id and not natural.is_empty()
+		and (natural.box as Rect2).position.is_equal_approx(
+			(natural.home as Vector2) + Vector2(9, 4)),
+		"screen %s, key %s" % [hud.edit_screen, probe_key])
+	SkyGearHUD.layout.set_screen_offset(posed_id, probe_key, Vector2.ZERO)
+
+	## EVERY audit screen is posable from the picker — the sandbox is reused
+	## across picks the way the audit reuses one game across its matrix — and
+	## between them the poses land on all ten screen families.
+	game.go_to_title()
+	var families := {}
+	var failed := ""
+	for screen in poser.SCREENS:
+		await game.pose_screen(str(screen.name))
+		if game.pose_game == null:
+			failed += "%s did not pose; " % str(screen.name)
+			continue
+		var id: String = game.pose_game.hud.screen_id()
+		if id == "":
+			failed += "%s posed as no screen; " % str(screen.name)
+		families[id] = true
+	_check("editor", "every audit screen is posable from the picker",
+		failed == "", failed)
+	var missing := ""
+	for fam in ["title", "keys", "settings", "how", "compare", "workshop",
+			"draft", "pause", "results", "hud"]:
+		if not families.has(fam):
+			missing += fam + " "
+	_check("editor", "and the poses land on all ten screen families",
+		missing == "", "unreached: " + missing)
+	game.end_pose()
+	await process_frame
+
+	## TWO GAMES IN ONE TREE STAY APART (board SG-50). The groups are tree-wide,
+	## and `go_to_title`/`restow_props` used to sweep them tree-wide — a posed
+	## sandbox would have freed the live run's boarders and props on arrival.
+	var second := _new_game()
+	_begin(second, "PARITY2")
+	second.start_wave(2)
+	for i in 2:
+		second.spawn_enemy("SCRAPPER", i)
+	await process_frame
+	var held_enemies: int = second.enemies().size()
+	var held_props: int = second.props().size()
+	game.go_to_title()
+	game.restow_props()
+	await process_frame
+	_check("editor", "two games in one tree keep their boarders and props apart",
+		held_enemies > 0 and held_props > 0
+		and second.enemies().size() == held_enemies
+		and second.props().size() == held_props,
+		"second held %d/%d, now %d/%d" % [held_enemies, held_props,
+			second.enemies().size(), second.props().size()])
+
+	game.layout_edit = false
+	hud.audit = null
+	hud.ink = null
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	SkyGearHUD.layout = null
+	game.queue_free()
+	second.queue_free()
+	await process_frame
+
+
+## Everything "exactly" means for a frozen run, in one comparable value.
+func _run_fingerprint(game: SkyGearGame) -> Dictionary:
+	return {
+		"run_time": game.run_time, "wave": game.wave, "state": game.state_name,
+		"boiler": game.boiler_hp, "pressure": game.pressure,
+		"player": game.player.global_position,
+		"dashes": game.player.dash_charges,
+		"enemies": game.enemies().size(), "props": game.props().size(),
+		"rng": game.rng.state,
+	}
+
+
 func _views_resolve() -> bool:
 	return _missing_views() == ""
 
@@ -5599,8 +5777,11 @@ func _cutscene() -> void:
 	## `_watch_cues` never observes wave 1 (no `run_open`) and `wave_start` does not
 	## fire on wave 3 — measured inactive at the locked 41.25°/0° solve, not exposed.
 	var unsuppressed := ""
+	## The screens poser moved to `scripts/screen_poser.gd` (SG-44) — the shared
+	## code the audit, the batch camera AND the F4 picker now pose through — so
+	## the suppression line is required THERE, where the posing actually is.
 	for path in ["res://tools/sky_shot.gd", "res://tools/parity_shot.gd",
-			"res://tools/screens.gd"]:
+			"res://scripts/screen_poser.gd"]:
 		if not FileAccess.get_file_as_string(path).contains("cutscenes_enabled = false"):
 			unsuppressed += " " + str(path)
 	_check("cutscene", "the posed-shot tools suppress cutscenes so no cue poses their camera",
