@@ -67,8 +67,11 @@ element shows its bounds and its NAME, which is the key its offset saves under.
 | click again / double-click | descend to the element under the cursor |
 | drag | move it |
 | **Shift** while dragging | lock the drag to its dominant axis — the larger travel since the drag began wins, and a guide line through the element shows which axis is locked. Release Shift to move freely again; re-press it and the axis is re-decided from the whole drag so far (SG-58) |
+| drag a **handle** | RESIZE it (SG-80). The selected element grows brass grips on the edges it can move: a single-line string gets the right-hand one only — its height is its point size, which belongs to `ink.gd` — while a wrapped block, a button or a mark get the bottom edge and the corner too. **Shift** during a resize locks it to one dimension, the same gesture as a Shift-drag |
 | **arrows** | nudge 1 px (**Shift** ×10, **Alt** ×0.1 — the SG-39 steps; arrow-Shift is the step size, never the drag lock) |
+| **Ctrl+arrows** | resize by the same steps — Right/Down grow, Left/Up shrink |
 | click the offset readout | type it: **Enter** applies, **Esc** cancels, malformed is refused |
+| click the **w×h** readout | type a size the same way: "900, 20" is an absolute width and height, and what gets stored is its distance from the size the code chose |
 | **Tab** / **Shift+Tab** | next / previous |
 | **P** | the screen picker: pose any of the audit's screens right here |
 | **Esc** | back out a level (element → panel → closed; on a posed screen, the last Esc hands the game back) |
@@ -80,7 +83,8 @@ element shows its bounds and its NAME, which is the key its offset saves under.
 
 Plate-mode extras during the fight: drag the bottom-right corner to resize,
 **A** cycles the anchor, **C** centres an item in its plate, **Alt+arrows**
-resize (a plate has a size to edit; a screen element only has a position).
+resize, and the w×h readout takes a typed absolute size (a plate stores its
+size outright; a screen element stores a delta from the code's own).
 
 ## Anchors and offsets, and why they matter
 
@@ -91,6 +95,47 @@ anchor never moves the plate; it only changes what the offset is measured from
 (`layout · changing an anchor leaves the plate where it was`, and one level
 down `layout · re-anchoring an element leaves it where it was`).
 
+## Resizing a text box (SG-80)
+
+The owner's ask: *"can we add the ability to reduce or increase the width of
+text boxes, not just nudge, align them."* A selected element carries resize
+grips; drag one, or type into the **w×h** readout, or hold Ctrl and use the
+arrows. What is stored is a **size delta** — the difference from the size the
+drawing code chose — beside the offset, in the same entry:
+
+```
+"screens": { "title": { "skygear": { "o": [2, -4], "s": [-120, 0] } } }
+```
+
+An entry with no size stays the bare `[dx, dy]` pair it has always been, so a
+layout file written before this feature — and one that never resizes anything —
+is byte for byte the same file (`layout · an entry older than sizes loads
+unchanged, and still saves as a pair`, `layout · screen size deltas survive a
+save and a load`). A malformed size costs the size and leaves the offset beside
+it standing (`layout · a malformed size entry falls back alone`); a delta of
+zero is erased.
+
+What each dimension means depends on what the element is. For a **string** the
+width is the box it is laid out and aligned in — narrow it and the string is
+measured against the smaller box; its height is its point size and cannot be
+edited here. For a **wrapped block** the width is the wrap width (narrow a card
+body and it reflows) and the height is a line count. For a **button or a mark**
+both are simply the rectangle.
+
+**Narrowing a box past its own words is allowed, and the verdict says so** the
+frame it happens (`editor · and a box narrowed past its own words fires the
+live verdict`) — that is information, not something to prevent. What is refused
+is a box narrower than one `MIN_PT` glyph, which could hold no readable
+character at all (`layout · a floor refuses a resize below the ink minimum`,
+`editor · a resize past the floor is refused, not obeyed`). Plates keep their
+own 40×28 floor. **Ctrl+Z** covers a resize like any other step, and **Ctrl+R**
+clears an element's size with its position — one entry, one erase.
+
+A size delta is home-relative exactly as an offset is: widen the window, the
+title's own box widens, and a saved −400 still means "four hundred narrower
+than the code drew it" (`editor · the size delta is measured from the home size
+— reflow and it follows`).
+
 A screen element's offset is the same idea one step further: it is measured
 from the element's COMPUTED HOME — wherever the drawing code was about to put
 it. Recentre a column, reflow a screen, and the saved offset rides along
@@ -100,6 +145,25 @@ digits excluded, so a readout keeps its key while its number ticks
 (`layout · a readout's number is not part of its key`).
 
 ## Where it goes, and how to make it the default
+
+**Ctrl+S tells you what it did.** On success the bar reads `SAVED ·` and the
+real path on disk, so "did it save" is answerable by looking; on a refused
+write it reads `COULD NOT SAVE to … — nothing was written` in the alarm
+colour. It used to print "layout is clean" when nothing had been written at
+all. Saving is also never modal — Ctrl+S commits with the typed readout open
+and with the screen picker up, both of which used to swallow it
+(`editor · Ctrl+S writes the file, and a fresh load reads the edit back`,
+`editor · and Ctrl+S is never modal — the typed box and the picker both let it
+through`).
+
+**And nothing else may delete it.** The harness used to remove
+`user://hud_layout.json` six times a run and write its own fixtures over it, so
+every `SkyGear Tools.bat harness` quietly destroyed a hand-alignment pass that
+had been saved correctly minutes earlier — the reported "I hit Ctrl+S but it
+looks like they didn't save" (board SG-83). Test runs are pointed at a scratch
+file now, and the last check of every harness run compares the player's own
+file byte for byte against what it was before the first check ran
+(`editor · the harness never touches the player's own saved layout`).
 
 Saving writes `user://hud_layout.json`, which on Windows is:
 

@@ -588,10 +588,28 @@ static func interior(rect: Rect2) -> Rect2:
 ## and drag. Zero saved offsets and no editor means none of this runs, which is
 ## why the text audit's numbers cannot move by this feature existing.
 var edit_screen := ""                ## which screen this frame drew
-var edit_elements: Dictionary = {}   ## key -> {"box": Rect2, "home": Vector2}
+## key -> {"box": Rect2 (what the glyphs or the widget actually occupy),
+##         "home": Vector2 (where the code was about to put it),
+##         "field": Rect2 (the box its WIDTH defines — the thing SG-80 resizes;
+##                  identical to "box" for a widget or a mark, wider than it for
+##                  a short string in a long box),
+##         "base": Vector2 (the size the code chose, before any saved delta),
+##         "min": Vector2 (the floor a resize may not go under),
+##         "kind": "text" | "block" | "widget" | "mark"}
+var edit_elements: Dictionary = {}
 var edit_panels: Array[Rect2] = []   ## index 0 is the page itself
 var edit_offset_box := Rect2()       ## the clickable offset readout, for input
+var edit_size_box := Rect2()         ## the clickable w×h readout (SG-80)
+var edit_handles: Dictionary = {}    ## the selection's resize grips (SG-80)
+## Which dimensions each grip moves. Here rather than in the input handler, so
+## the rectangle that is DRAWN and the axes it drags are decided in one place.
+const HANDLE_MASK := {"e": Vector2(1, 0), "s": Vector2(0, 1), "se": Vector2(1, 1)}
 var edit_hide := false               ## overlay suppressed for a photograph
+## THE LIVE VERDICT this frame, kept rather than consumed. The header has always
+## printed it; SG-80 keeps it on the HUD as well, because "narrow this box and
+## the escape is reported before the mouse button is up" is a claim the harness
+## has to be able to READ rather than take on trust.
+var edit_trouble: Array[String] = []
 var picker_rows: Array[Rect2] = []   ## the screen picker's rows, for input (SG-44)
 var _edit_active := false            ## any capture/offset work this frame?
 var _edit_skip := false              ## drawing something that is NOT this screen's
@@ -670,9 +688,17 @@ func _widget_adjust(name: String, rect: Rect2) -> Rect2:
 	if not _edit_active or _edit_skip:
 		return rect
 	var key := _element_key(name, "widget")
-	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key), rect.size)
+	## SG-80: the saved SIZE DELTA resizes the widget the same way the offset
+	## moves it — before it is drawn, declared or hit-tested, so a widened
+	## button widens whole.
+	var floor_size := SkyGearHudLayout.size_floor(rect.size,
+		Vector2(SkyGearHudLayout.ELEMENT_MIN, SkyGearHudLayout.ELEMENT_MIN))
+	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key),
+		SkyGearHudLayout.grown(rect.size, layout.screen_size(edit_screen, key),
+			floor_size))
 	if game.layout_edit:
-		edit_elements[key] = {"box": out, "home": rect.position}
+		edit_elements[key] = {"box": out, "home": rect.position, "field": out,
+			"base": rect.size, "min": floor_size, "kind": "widget"}
 	return out
 
 
@@ -682,9 +708,14 @@ func _element(name: String, rect: Rect2) -> Rect2:
 	if not _edit_active or _edit_skip:
 		return rect
 	var key := _element_key(name, "mark")
-	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key), rect.size)
+	var floor_size := SkyGearHudLayout.size_floor(rect.size,
+		Vector2(SkyGearHudLayout.ELEMENT_MIN, SkyGearHudLayout.ELEMENT_MIN))
+	var out := Rect2(rect.position + layout.screen_offset(edit_screen, key),
+		SkyGearHudLayout.grown(rect.size, layout.screen_size(edit_screen, key),
+			floor_size))
 	if game.layout_edit:
-		edit_elements[key] = {"box": out, "home": rect.position}
+		edit_elements[key] = {"box": out, "home": rect.position, "field": out,
+			"base": rect.size, "min": floor_size, "kind": "mark"}
 	return out
 
 
@@ -823,6 +854,7 @@ func _draw_layout_editor() -> void:
 	## report and never registered as elements of the screen they sit over.
 	var trouble: Array[String] = layout.problems(size) if edit_screen == "hud" \
 		else _screen_trouble()
+	edit_trouble = trouble
 	audit = null
 	ink = null
 	_edit_skip = true
@@ -883,11 +915,17 @@ func _draw_plate_editor(trouble: Array[String]) -> void:
 	var entry: Dictionary = layout.plates.get(chosen, {}) if chosen_item == "" 		else layout._bag(chosen).get(chosen_item, {})
 	var detail := ""
 	var offset_text := ""
+	var size_text := ""
 	if not entry.is_empty():
 		detail = "%s  %dx%d" % [str(entry.anchor), int(entry.size[0]), int(entry.size[1])]
 		offset_text = "offset %+.0f, %+.0f — click to type" % [float(entry.offset[0]),
 			float(entry.offset[1])]
-	_edit_header(target, detail, offset_text,
+		## A plate has carried a size since the first version of this editor;
+		## SG-80 gives it the same typed box the offset has, so the two numbers
+		## are edited the same way.
+		size_text = "size %.0f, %.0f — click to type" % [float(entry.size[0]),
+			float(entry.size[1])]
+	_edit_header(target, detail, offset_text, size_text,
 		"drag to move (Shift locks an axis) · corner to resize · Tab next"
 		+ " · Enter into a plate · Esc out"
 		+ " · arrows nudge (Shift ×10 · Alt resizes) · A anchor · C centre",
@@ -900,6 +938,7 @@ func _draw_plate_editor(trouble: Array[String]) -> void:
 func _draw_screen_editor(trouble: Array[String]) -> void:
 	var sel_panel: int = game.layout_panel
 	var sel_key: String = game.layout_key
+	edit_handles = {}
 	## Panels. The page itself is panel 0 and draws no box — a frame around the
 	## whole window says nothing.
 	for i in range(1, edit_panels.size()):
@@ -919,8 +958,18 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 			2.0 if picked else 1.0)
 	if sel_key != "" and edit_elements.has(sel_key):
 		var box: Rect2 = edit_elements[sel_key].box
+		## THE FIELD (SG-80): the box the element's WIDTH defines, which for a
+		## short string in a long box is wider than the glyphs it contains.
+		## Drawn as its own faint frame, because "the text box" is the thing
+		## being resized and the thing the OVERFLOW verdict measures against —
+		## and until now it was invisible, which is why a person could only
+		## guess why a string was reported as escaping a box they could see it
+		## sitting inside.
+		var field: Rect2 = edit_elements[sel_key].get("field", box)
+		if not field.is_equal_approx(box):
+			draw_rect(field, Color(0.22, 0.94, 0.78, 0.30), false, 1.0)
 		_label("%s  %d,%d  %dx%d" % [sel_key, int(box.position.x), int(box.position.y),
-			int(box.size.x), int(box.size.y)],
+			int(field.size.x), int(field.size.y)],
 			box.position + Vector2(2, -5), 360.0, HORIZONTAL_ALIGNMENT_LEFT, 11,
 			Color("#ffe08a"))
 		## Snap guides against the SIBLINGS: a line the moment an edge or a
@@ -953,6 +1002,26 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 		## drawn straight through the element — the lock is visible, not a
 		## guess about why the cursor stopped mattering sideways.
 		_draw_axis_lock(box)
+		## THE RESIZE HANDLES (SG-80): visible grips on the field, exported for
+		## input the way the offset box is — what you grab is what you saw. A
+		## single-line string gets the EAST grip only: its height is its point
+		## size, which belongs to `ink.gd` and not to a box editor. Everything
+		## with a real height — a wrapped block, a widget, a mark — gets the
+		## south edge and the corner as well.
+		var kind := str((edit_elements[sel_key] as Dictionary).get("kind", "text"))
+		var grip := 11.0
+		edit_handles["e"] = Rect2(
+			Vector2(field.end.x - 3.0, field.get_center().y - grip * 0.5),
+			Vector2(grip, grip))
+		if kind != "text":
+			edit_handles["s"] = Rect2(
+				Vector2(field.get_center().x - grip * 0.5, field.end.y - 3.0),
+				Vector2(grip, grip))
+			edit_handles["se"] = Rect2(field.end - Vector2(3.0, 3.0),
+				Vector2(grip, grip))
+		for handle in edit_handles:
+			draw_rect(edit_handles[handle], Color("#e8c376"))
+			draw_rect(edit_handles[handle], Color(0.02, 0.015, 0.028, 0.8), false, 1.0)
 
 	var target := "nothing — click a panel"
 	if sel_key != "":
@@ -962,16 +1031,27 @@ func _draw_screen_editor(trouble: Array[String]) -> void:
 	elif sel_panel > 0:
 		target = "panel %d of %d" % [sel_panel, edit_panels.size() - 1]
 	var offset_text := ""
+	var size_text := ""
 	var detail := ""
 	if sel_key != "":
 		var off := layout.screen_offset(edit_screen, sel_key)
 		offset_text = "offset %+.1f, %+.1f — click to type" % [off.x, off.y]
+		## The w×h readout says the LAYOUT size — the code's own size plus the
+		## saved delta — because that is the number a typed resize sets; what
+		## is STORED is the delta between the two, so a reflow keeps the intent
+		## rather than the pixels.
+		if edit_elements.has(sel_key):
+			var lay: Vector2 = ((edit_elements[sel_key] as Dictionary).get(
+				"base", Vector2.ZERO) as Vector2) \
+				+ layout.screen_size(edit_screen, sel_key)
+			size_text = "size %.1f, %.1f — click to type" % [lay.x, lay.y]
 	elif sel_panel >= 0:
 		detail = "click again for what is inside"
-	_edit_header(target, detail, offset_text,
+	_edit_header(target, detail, offset_text, size_text,
 		"click a panel · click again (or double-click) for what is inside"
-		+ " · drag to move (Shift locks an axis)"
-		+ " · arrows nudge (Shift ×10 · Alt ×0.1) · Tab next · Esc back out",
+		+ " · drag to move (Shift locks an axis) · drag a HANDLE to resize"
+		+ " (Shift locks a dimension) · arrows nudge, Ctrl+arrows resize"
+		+ " (Shift ×10 · Alt ×0.1) · Tab next · Esc back out",
 		trouble)
 
 
@@ -998,7 +1078,7 @@ func _draw_axis_lock(box: Rect2) -> void:
 ## move it, the typed-offset box, and the verdict — which comes from the same
 ## detectors the text audit runs, so "clean" here and clean there are one claim.
 func _edit_header(target: String, detail: String, offset_text: String,
-		help: String, trouble: Array[String]) -> void:
+		size_text: String, help: String, trouble: Array[String]) -> void:
 	draw_rect(Rect2(0, 0, size.x, 84), Color(0.02, 0.015, 0.028, 0.9))
 	## A posed screen says so in the title (SG-44): the id it saves under stays
 	## the screen id — one id, one entry, posed or walked to — and the pose name
@@ -1011,20 +1091,22 @@ func _edit_header(target: String, detail: String, offset_text: String,
 	_label(help + " · Ctrl+Z undo · Ctrl+S save · Ctrl+R reset"
 		+ (" this screen" if edit_screen != "hud" else "")
 		+ " · F12 photograph · F4 done",
-		Vector2(16, 44), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12)
+		Vector2(16, 44), size.x - 360.0, HORIZONTAL_ALIGNMENT_LEFT, 12)
 	## THE WAY TO ANY SCREEN (SG-44): the game is still a screen picker — walk
 	## anywhere and F4 edits it — but it is no longer the only one, because
 	## reaching the results screen should not require winning.
 	_label("P poses any screen from the audit's list — no need to play there;"
-		+ " Esc on a posed screen hands the game back exactly · typed offsets:"
-		+ " Enter applies, Esc cancels, a malformed pair is refused · the"
-		+ " batch page stays at `SkyGear Tools.bat screens`",
-		Vector2(16, 62), size.x - 32.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
+		+ " Esc on a posed screen hands the game back exactly · typed offsets"
+		+ " and sizes: Enter applies, Esc cancels, a malformed pair is refused"
+		+ " · the batch page stays at `SkyGear Tools.bat screens`",
+		Vector2(16, 62), size.x - 360.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
 		Color("#8f8697"))
 	## The offset readout doubles as the typed-entry box (the SG-39 pattern:
-	## click the number, type, Enter). Its rectangle is exported for input.
+	## click the number, type, Enter), and the w×h readout beneath it is its
+	## SIZE sibling (SG-80) — same widget, other pair, one parser. Both
+	## rectangles are exported for input.
 	edit_offset_box = Rect2(size.x - 336.0, 8.0, 320.0, 20.0)
-	if game.layout_typing:
+	if game.layout_typing and not game.layout_sizing:
 		draw_rect(edit_offset_box, Color(0.05, 0.04, 0.075, 0.95))
 		draw_rect(edit_offset_box, Color("#37f0c8"), false, 1.0)
 		_label("offset: %s_" % game.layout_typed,
@@ -1039,21 +1121,43 @@ func _edit_header(target: String, detail: String, offset_text: String,
 		if detail != "":
 			_label(detail, Vector2(size.x - 336.0, 22.0), 320.0,
 				HORIZONTAL_ALIGNMENT_RIGHT, 13, Color("#8f8697"))
+	edit_size_box = Rect2(size.x - 336.0, 30.0, 320.0, 20.0)
+	if game.layout_typing and game.layout_sizing:
+		draw_rect(edit_size_box, Color(0.05, 0.04, 0.075, 0.95))
+		draw_rect(edit_size_box, Color("#37f0c8"), false, 1.0)
+		_label("size: %s_" % game.layout_typed,
+			Vector2(edit_size_box.position.x + 6.0, 44.0), edit_size_box.size.x - 12.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#eee5d5"))
+	elif size_text != "":
+		draw_rect(edit_size_box, Color(1, 1, 1, 0.04))
+		_label(size_text, Vector2(edit_size_box.position.x, 44.0),
+			edit_size_box.size.x, HORIZONTAL_ALIGNMENT_RIGHT, 13, Color("#e8c376"))
+	else:
+		edit_size_box = Rect2()
 	if detail != "" and offset_text != "":
-		_label(detail, Vector2(size.x - 336.0, 40.0), 320.0,
+		_label(detail, Vector2(size.x - 336.0, 62.0), 320.0,
 			HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#8f8697"))
 	var note := ""
 	var good := trouble.is_empty()
-	if game.layout_shot != "":
+	## A FAILED SAVE SPEAKS FIRST, and in the alarm colour (SG-83). It used to
+	## fall through to "layout is clean", which is the worst possible thing to
+	## print at the moment nothing was written — the same shape as a run log
+	## that quietly is not saved. A save that failed is the only news on the bar.
+	if game.layout_save_error != "":
+		note = game.layout_save_error
+		good = false
+	elif game.layout_shot != "":
 		note = "photographed to " + game.layout_shot
 	elif game.layout_saved:
-		note = "saved to " + SkyGearHudLayout.USER_PATH
+		## The REAL path, not the `user://` alias: "did it save" is a question a
+		## person answers by looking in a folder.
+		note = "SAVED · " + ProjectSettings.globalize_path(SkyGearHudLayout.store)
 	else:
 		note = "layout is clean" if good \
 			else "%d problem(s): %s" % [trouble.size(), "; ".join(trouble.slice(0, 3))]
 	_label(note, Vector2(size.x - 16.0, 80.0), size.x * 0.6,
 		HORIZONTAL_ALIGNMENT_RIGHT, 12,
-		Color("#37f0c8") if good or note.begins_with("saved") or note.begins_with("photo")
+		Color("#37f0c8") if good or note.begins_with("SAVED") or note.begins_with("photo")
 		else Color("#ff9a5a"))
 
 
@@ -1296,10 +1400,28 @@ func _say(text: String, at: Vector2, width: float, align: int, pt: int,
 		var ekey := _element_key(text)
 		var off := layout.screen_offset(edit_screen, ekey)
 		at += off
+		## THE SIZE DELTA (SG-80) changes the WIDTH THE CALL SITE PASSED — the
+		## box the string is laid out and aligned in, which is the "text box"
+		## the owner asked to be able to widen and narrow. Floored at one
+		## MIN_PT glyph and no further; a box narrowed past its own words is a
+		## legal edit whose consequence the live verdict states out loud, two
+		## lines below, through the same OVERFLOW test the text audit runs.
+		var grow := layout.screen_size(edit_screen, ekey)
+		var given := width
+		if grow.x != 0.0:
+			width = SkyGearHudLayout.grown(Vector2(width, 0.0), Vector2(grow.x, 0.0),
+				SkyGearHudLayout.size_floor(Vector2(width, 0.0),
+					Vector2(SkyGearHudLayout.TEXT_MIN, 0.0))).x
 		if game.layout_edit:
+			var line_h := float(size_pt) * 1.3
 			edit_elements[ekey] = {
 				"box": SkyGearInk.box(font, text, at, width, align, size_pt),
-				"home": at - off}
+				"home": at - off,
+				"field": Rect2(at.x, at.y - size_pt, width, line_h),
+				"base": Vector2(given, line_h),
+				"min": SkyGearHudLayout.size_floor(Vector2(given, line_h),
+					Vector2(SkyGearHudLayout.TEXT_MIN, line_h)),
+				"kind": "text"}
 	if not hide_text:
 		SkyGearInk.write(self, font, at, text, align, width, size_pt, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":
@@ -1393,10 +1515,30 @@ func _says(text: String, at: Vector2, width: float, align: int, requested: int,
 		var ekey := _element_key(text)
 		var off := layout.screen_offset(edit_screen, ekey)
 		at += off
+		## A WRAPPED BLOCK IS THE ONE ELEMENT WITH TWO REAL DIMENSIONS (SG-80).
+		## Its width is the wrap width — narrow a card body and it reflows,
+		## which is the resize that was actually asked for — and its height is
+		## a LINE COUNT, so a height delta is rounded to whole lines and floored
+		## at one. Neither half is allowed to change the point size: that is
+		## `ink.gd`'s number, and this is a box editor.
+		var grow := layout.screen_size(edit_screen, ekey)
+		var line_h := float(pt) * 1.3
+		var given := Vector2(width, line_h * float(lines))
+		if grow.x != 0.0:
+			width = SkyGearHudLayout.grown(Vector2(width, 0.0), Vector2(grow.x, 0.0),
+				SkyGearHudLayout.size_floor(Vector2(width, 0.0),
+					Vector2(SkyGearHudLayout.TEXT_MIN, 0.0))).x
+		if grow.y != 0.0:
+			lines = maxi(1, lines + int(round(grow.y / line_h)))
 		if game.layout_edit:
 			edit_elements[ekey] = {
-				"box": Rect2(at.x, at.y - pt, width, float(pt) * 1.3 * float(lines)),
-				"home": at - off}
+				"box": Rect2(at.x, at.y - pt, width, line_h * float(lines)),
+				"home": at - off,
+				"field": Rect2(at.x, at.y - pt, width, line_h * float(lines)),
+				"base": given,
+				"min": SkyGearHudLayout.size_floor(given,
+					Vector2(SkyGearHudLayout.TEXT_MIN, line_h)),
+				"kind": "block"}
 	if not hide_text:
 		SkyGearInk.write_lines(self, font, at, text, align, width, pt, lines, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":

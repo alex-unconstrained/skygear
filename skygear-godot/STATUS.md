@@ -17,11 +17,25 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **690 harness checks**; the text audit covers 24 screens at
+board SG-56). **705 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**F4 RESIZES NOW (SG-80, owner ask): a selected element has a size as well as
+a position** — drag a grip, type into the w×h readout, or hold Ctrl and use the
+arrows. It saves as a SIZE DELTA from the size the drawing code chose, beside
+the offset in the same entry (`{"o":[dx,dy],"s":[dw,dh]}`); an entry with no
+size stays the bare pair it has always been, so old layout files load and save
+unchanged. Narrowing a box past its own words is allowed and the live verdict
+says so the same frame; a box narrower than one `MIN_PT` glyph is refused.
+**And Ctrl+S was genuinely broken (SG-83) — but not where anyone would look:**
+the harness deleted `user://hud_layout.json` six times a run and wrote fixtures
+over it, so a hand-alignment pass saved correctly and was wiped by the next
+`SkyGear Tools.bat harness`. Test runs go to a scratch file now and the last
+check of every run proves the player's own file is byte-identical; the editor
+also says `SAVED ·` with the real path, or shouts if a write fails.
 
 **Three corrections off the owner's 2026-08-02 screenshot are in** (SG-78/79/82).
 The aim indicator lost its range ring: the small landing reticle, clamped at the
@@ -48,7 +62,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (690 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (705 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -102,7 +116,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 690 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 705 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -130,7 +144,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 690 checks. Green before anything ships |
+| `harness` | 705 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

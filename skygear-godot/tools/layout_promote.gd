@@ -55,9 +55,11 @@ func _initialize() -> void:
 	var layout := SkyGearHudLayout.new()
 	layout.plates = parsed.get("plates", {})
 	layout.slot_items = parsed.get("slot_items", {})
-	## The screen-element offsets (SG-42), SANITISED on the way through — a
-	## malformed entry is dropped here exactly as the loader would drop it, so
-	## what gets promoted is what the game will actually read.
+	## The screen-element entries (SG-42's offsets, SG-80's size deltas beside
+	## them), SANITISED on the way through — a malformed entry is dropped here
+	## exactly as the loader would drop it, so what gets promoted is what the
+	## game will actually read. Both stored shapes ride through unchanged: an
+	## offset-only entry promotes as the pair it has always been.
 	layout.screens = SkyGearHudLayout._sanitise_screens(parsed.get("screens", {}))
 
 	print("  YOUR LAYOUT   %s" % ProjectSettings.globalize_path(user_path))
@@ -65,9 +67,19 @@ func _initialize() -> void:
 	print("")
 	if not layout.screens.is_empty():
 		var parts: Array[String] = []
+		var sized := 0
 		for screen in layout.screens.keys():
-			parts.append("%s %d" % [str(screen), (layout.screens[screen] as Dictionary).size()])
+			var entries: Dictionary = layout.screens[screen]
+			parts.append("%s %d" % [str(screen), entries.size()])
+			for key in entries.keys():
+				if layout.screen_size(str(screen), str(key)) != Vector2.ZERO:
+					sized += 1
 		print("  SCREEN OFFSETS  %s" % " · ".join(parts))
+		## Counted separately because a size delta is the edit that can change
+		## whether a string still fits, and the person promoting should see that
+		## there are some before the four-width check below speaks.
+		if sized > 0:
+			print("  SIZE DELTAS     %d element(s) resized" % sized)
 		print("")
 
 	## Every width, because a layout is authored at one and has to survive the

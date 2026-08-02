@@ -229,6 +229,9 @@ var layout_pick := "captain"
 ## its own slot, and the only fix was another round trip through me.
 var layout_item := ""
 var layout_saved := false
+## Why the last Ctrl+S wrote nothing, or "" — shown in the alarm colour, because
+## a save that silently does nothing is the bug that was reported (SG-83).
+var layout_save_error := ""
 var _layout_drag := ""
 var _layout_resize := false
 var _layout_from := Vector2.ZERO
@@ -238,9 +241,16 @@ var _layout_from := Vector2.ZERO
 var layout_panel := -1
 var layout_key := ""
 ## The typed-offset box (the SG-39 pattern: click the number, type, Enter
-## applies, Esc cancels, malformed refused).
+## applies, Esc cancels, malformed refused). `layout_sizing` says WHICH of the
+## two readouts is open: the offset pair, or the w×h pair (SG-80).
 var layout_typing := false
 var layout_typed := ""
+var layout_sizing := false
+## The screen mode's resize drag (SG-80): which element a grabbed handle is
+## resizing, and which dimensions that handle moves — e is width, s is height,
+## se is both.
+var _layout_resize_key := ""
+var _layout_resize_mask := Vector2.ZERO
 ## Where F12 put the last photograph, for the header to show.
 var layout_shot := ""
 var _layout_screen := ""             ## which screen the selection belongs to
@@ -636,6 +646,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		layout_edit = not layout_edit
 		layout_saved = false
 		layout_typing = false
+		layout_sizing = false
 		layout_picker = false
 		layout_shot = ""
 		layout_key = ""
@@ -643,6 +654,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		_layout_undo = {}
 		_layout_drag = ""
 		_layout_drag_key = ""
+		_layout_resize_key = ""
 		## The editor attaches the audit funnels for its live verdict; closing it
 		## must detach them or every later frame keeps appending to arrays nobody
 		## reads again.
@@ -804,8 +816,10 @@ func _layout_input(event: InputEvent) -> bool:
 		layout_key = ""
 		layout_panel = -1
 		layout_typing = false
+		layout_sizing = false
 		_layout_drag = ""
 		_layout_drag_key = ""
+		_layout_resize_key = ""
 
 	## The typed-offset box owns every key while it is open.
 	if layout_typing and _typed_input(event):
@@ -838,7 +852,8 @@ func _layout_input(event: InputEvent) -> bool:
 
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
-			## The offset readout opens the typed box.
+			## The offset readout opens the typed box; the w×h readout opens its
+			## SIZE sibling (SG-80) — the same widget, the other pair.
 			if hud.edit_offset_box != Rect2() and hud.edit_offset_box.has_point(where):
 				var entry0: Dictionary = layout.plates.get(layout_pick, {}) if layout_item == "" \
 					else layout._bag(layout_pick).get(layout_item, {})
@@ -846,6 +861,17 @@ func _layout_input(event: InputEvent) -> bool:
 					layout_typed = "%s, %s" % [_trim_num(float(entry0.offset[0])),
 						_trim_num(float(entry0.offset[1]))]
 					layout_typing = true
+					layout_sizing = false
+					hud.queue_redraw()
+					return true
+			if hud.edit_size_box != Rect2() and hud.edit_size_box.has_point(where):
+				var entry1: Dictionary = layout.plates.get(layout_pick, {}) if layout_item == "" \
+					else layout._bag(layout_pick).get(layout_item, {})
+				if not entry1.is_empty():
+					layout_typed = "%s, %s" % [_trim_num(float(entry1.size[0])),
+						_trim_num(float(entry1.size[1]))]
+					layout_typing = true
+					layout_sizing = true
 					hud.queue_redraw()
 					return true
 			var hit := SkyGearHUD.pick_at(view, where, layout_pick)
@@ -881,7 +907,7 @@ func _layout_input(event: InputEvent) -> bool:
 	## Ctrl+S and Ctrl+R rather than S and R, because a layout you have spent two
 	## minutes on should not be resettable by leaning on the keyboard.
 	if key.ctrl_pressed and key.keycode == KEY_S:
-		layout_saved = layout.save()
+		_save_layout(layout)
 		hud.queue_redraw()
 		return true
 	if key.ctrl_pressed and key.keycode == KEY_R:
@@ -976,6 +1002,7 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if not event.pressed:
 			_layout_drag_key = ""
+			_layout_resize_key = ""
 			return true
 		## The offset readout opens the typed box — only an element carries one.
 		if layout_key != "" and hud.edit_offset_box != Rect2() \
@@ -983,8 +1010,37 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 			var off := layout.screen_offset(screen, layout_key)
 			layout_typed = "%s, %s" % [_trim_num(off.x), _trim_num(off.y)]
 			layout_typing = true
+			layout_sizing = false
 			hud.queue_redraw()
 			return true
+		## The w×h readout opens the typed SIZE box (SG-80), prefilled with the
+		## LAYOUT size — the code's own plus the saved delta — because that is
+		## the number Enter sets. What gets stored is the difference.
+		if layout_key != "" and hud.edit_size_box != Rect2() \
+				and hud.edit_size_box.has_point(where) \
+				and hud.edit_elements.has(layout_key):
+			var lay: Vector2 = ((hud.edit_elements[layout_key] as Dictionary).get(
+				"base", Vector2.ZERO) as Vector2) + layout.screen_size(screen, layout_key)
+			layout_typed = "%s, %s" % [_trim_num(lay.x), _trim_num(lay.y)]
+			layout_typing = true
+			layout_sizing = true
+			hud.queue_redraw()
+			return true
+		## A grabbed handle starts a RESIZE drag rather than a move (SG-80).
+		## Tested before the selection logic below, so a grip sitting over a
+		## neighbouring element resizes the thing it is drawn on.
+		if layout_key != "":
+			for handle in hud.edit_handles:
+				if not (hud.edit_handles[handle] as Rect2).grow(2.0).has_point(where):
+					continue
+				_layout_resize_key = layout_key
+				_layout_resize_mask = SkyGearHUD.HANDLE_MASK.get(str(handle), Vector2.ONE)
+				_layout_from = where
+				_layout_undo = layout.snapshot()
+				layout_saved = false
+				layout_shot = ""
+				hud.queue_redraw()
+				return true
 		var hit_panel: int = hud.panel_at(where)
 		var hit_key: String = hud.element_at(where)
 		var dbl: bool = (event as InputEventMouseButton).double_click
@@ -1018,6 +1074,21 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 		hud.queue_redraw()
 		return true
 
+	## The resize drag (SG-80). Only the handle's own dimensions of the mouse
+	## travel reach the size, and the travel goes through the SAME SG-58
+	## drag-lock session a move uses — so Shift locks a resize to its dominant
+	## dimension exactly as it locks a move to its dominant axis. Clamped after
+	## every step, so a drag past the floor stores the floor rather than a
+	## number the draw code will quietly refuse.
+	if event is InputEventMouseMotion and _layout_resize_key != "":
+		var travel: Vector2 = (where - _layout_from) * _layout_resize_mask
+		_layout_from = where
+		layout.resize_screen(screen, _layout_resize_key, travel)
+		_clamp_screen_size(layout, screen, _layout_resize_key)
+		layout_saved = false
+		hud.queue_redraw()
+		return true
+
 	if event is InputEventMouseMotion and _layout_drag_key != "":
 		var delta: Vector2 = where - _layout_from
 		_layout_from = where
@@ -1030,7 +1101,7 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 		return event is InputEventMouseMotion
 	var key := event as InputEventKey
 	if key.ctrl_pressed and key.keycode == KEY_S:
-		layout_saved = layout.save()
+		_save_layout(layout)
 		layout_shot = ""
 		hud.queue_redraw()
 		return true
@@ -1078,7 +1149,9 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 		return true
 	if layout_key == "":
 		return false
-	## Arrow nudges, the SG-39 steps: Shift ×10, Alt ×0.1.
+	## Arrow nudges, the SG-39 steps: Shift ×10, Alt ×0.1 — and CTRL+arrows
+	## resize by the same steps (SG-80), Right/Down growing and Left/Up
+	## shrinking, which is the keyboard half of the handles.
 	var step_px: float = 10.0 if key.shift_pressed else (0.1 if key.alt_pressed else 1.0)
 	var nudge := Vector2.ZERO
 	match key.keycode:
@@ -1088,10 +1161,59 @@ func _layout_screen_input(event: InputEvent, layout: SkyGearHudLayout,
 		KEY_DOWN: nudge = Vector2(0, step_px)
 		_: return false
 	_layout_undo = layout.snapshot()
-	layout.nudge_screen(screen, layout_key, nudge)
+	if key.ctrl_pressed:
+		layout.resize_screen(screen, layout_key, nudge)
+		_clamp_screen_size(layout, screen, layout_key)
+	else:
+		layout.nudge_screen(screen, layout_key, nudge)
 	layout_saved = false
 	hud.queue_redraw()
 	return true
+
+
+## CTRL+S, THE ONE WAY OUT OF THE EDITOR (SG-83). Both editor modes call this
+## and nothing else writes, so "did it save" has exactly one answer — and the
+## answer is SHOWN either way: the header prints the real path on success and
+## the failure in the alarm colour on a refusal. It printed "layout is clean"
+## on a failed write before, which is the reported-bug shape: silence where an
+## alarm belongs.
+func _save_layout(layout: SkyGearHudLayout) -> void:
+	layout_saved = layout.save()
+	layout_save_error = "" if layout_saved else \
+		"COULD NOT SAVE to %s — nothing was written" % \
+		ProjectSettings.globalize_path(SkyGearHudLayout.store)
+	## The header is drawn by whichever HUD is on the glass — the sandbox's
+	## while a pose is up — off ITS game's flags. Mirrored, so the confirmation
+	## lands on the screen the person is actually looking at.
+	for other in [pose_game, pose_owner]:
+		if other != null:
+			other.layout_saved = layout_saved
+			other.layout_save_error = layout_save_error
+
+
+## THE FLOOR, APPLIED TO WHATEVER A RESIZE JUST STORED (SG-80). A size delta may
+## never take an element below its floor — one MIN_PT glyph for a text box, the
+## 8 px item floor for a widget or a mark — and a single-line string never
+## stores a HEIGHT delta at all, because its height is its point size, which
+## belongs to `ink.gd`.
+##
+## The draw funnels in `hud.gd` apply the same floors when they lay the element
+## out, because a hand-edited file never comes through this path. Clamping the
+## STORED number as well is what keeps a drag honest: without it, dragging 200
+## px past the floor and back would spend 200 px of travel doing nothing on the
+## way out.
+func _clamp_screen_size(layout: SkyGearHudLayout, screen: String, key: String) -> void:
+	var element: Dictionary = hud.edit_elements.get(key, {})
+	if element.is_empty():
+		return
+	var base: Vector2 = element.get("base", Vector2.ZERO)
+	var least: Vector2 = element.get("min", Vector2.ZERO)
+	var delta := layout.screen_size(screen, key)
+	var clamped := Vector2(maxf(delta.x, least.x - base.x), maxf(delta.y, least.y - base.y))
+	if str(element.get("kind", "text")) == "text":
+		clamped.y = 0.0
+	if not clamped.is_equal_approx(delta):
+		layout.set_screen_size(screen, key, clamped)
 
 
 ## The typed-offset box. Enter applies a well-formed "dx, dy" (an undo point);
@@ -1108,6 +1230,12 @@ func _typed_input(event: InputEvent) -> bool:
 	if not event.pressed:
 		return true
 	var key := event as InputEventKey
+	## A CHORD IS NOT A CHARACTER (SG-83). Ctrl+S and Ctrl+Z used to be typed
+	## into the box as the letters "s" and "z" — the save key silently dead for
+	## as long as a readout was open. They fall through to the editor now, which
+	## is what every text field in every program does.
+	if key.ctrl_pressed and key.keycode in [KEY_S, KEY_Z]:
+		return false
 	match key.keycode:
 		KEY_ESCAPE:
 			layout_typing = false
@@ -1118,13 +1246,34 @@ func _typed_input(event: InputEvent) -> bool:
 				_layout_undo = layout.snapshot()
 				var typed := Vector2(float(parsed.x), float(parsed.y))
 				if hud.edit_screen != "hud":
-					if layout_key != "":
+					if layout_key != "" and layout_sizing:
+						## A TYPED SIZE IS ABSOLUTE "w, h" (SG-80); what is
+						## STORED is its distance from the element's computed
+						## home size, so a code-side reflow keeps the intent
+						## rather than the pixels — the same home-relative rule
+						## the offset half has carried since SG-42. Floored
+						## through the clamp every resize path shares.
+						var home_size: Vector2 = hud.edit_elements.get(
+							layout_key, {}).get("base", Vector2.ZERO)
+						layout.set_screen_size(hud.edit_screen, layout_key,
+							typed - home_size)
+						_clamp_screen_size(layout, hud.edit_screen, layout_key)
+					elif layout_key != "":
 						layout.set_screen_offset(hud.edit_screen, layout_key, typed)
 				else:
 					var entry: Dictionary = layout.plates.get(layout_pick, {}) \
 						if layout_item == "" else layout._bag(layout_pick).get(layout_item, {})
 					if not entry.is_empty():
-						entry.offset = [typed.x, typed.y]
+						if layout_sizing:
+							## A plate and its items store ABSOLUTE sizes, so
+							## the typed pair lands directly — held to the same
+							## floors `layout.resize` enforces on the corner
+							## drag, so the two ways in cannot disagree.
+							var floor_x: float = 40.0 if layout_item == "" else 8.0
+							var floor_y: float = 28.0 if layout_item == "" else 8.0
+							entry.size = [maxf(floor_x, typed.x), maxf(floor_y, typed.y)]
+						else:
+							entry.offset = [typed.x, typed.y]
 				layout_saved = false
 			layout_typing = false
 		KEY_BACKSPACE:
@@ -1218,6 +1367,16 @@ func _picker_input(event: InputEvent) -> bool:
 	if event is not InputEventKey or not event.pressed:
 		return true
 	var key := event as InputEventKey
+	## EXCEPT CTRL+S (SG-83). The list owning "every event" meant the one key
+	## that commits your work was dead while it was open, with no sign of it —
+	## and "I pressed Ctrl+S and nothing happened" is exactly what was reported.
+	## Saving is never modal.
+	if key.ctrl_pressed and key.keycode == KEY_S:
+		if SkyGearHUD.layout == null:
+			SkyGearHUD.layout = SkyGearHudLayout.load_layout()
+		_save_layout(SkyGearHUD.layout)
+		_pose_hud().queue_redraw()
+		return true
 	match key.keycode:
 		KEY_ESCAPE, KEY_P:
 			layout_picker = false

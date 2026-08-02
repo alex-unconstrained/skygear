@@ -71,8 +71,27 @@ func _begin(game: SkyGearGame, seed_text: String = "PARITY") -> void:
 	game.choose_draft(0)
 
 
+## The player's own alignment file, as it stood before a single check ran —
+## and the proof, at the end, that the harness did not touch it (SG-83).
+var _owner_layout_before: Variant = null
+
+
 func _run() -> void:
 	print("\nSKYGEAR Godot port · parity harness\n")
+	## FIRST, BEFORE ANY CHECK: point the layout store at a SCRATCH file.
+	##
+	## This is the SG-83 bug, and it is the reason the owner reported "I hit
+	## Ctrl+S in F4 and it looks like it didn't save". It saved. Then the next
+	## `SkyGear Tools.bat harness` deleted `user://hud_layout.json` six times
+	## and wrote its own fixtures over it — on his machine, several times an
+	## hour, while agents worked. Same family as SG-49's fake run-log rows: a
+	## tool reaching into `user://` and destroying real player data. The rule is
+	## the one already written at `_new_game` for the workshop save — a harness
+	## that depends on (or damages) a save file is not a harness.
+	_owner_layout_before = FileAccess.get_file_as_string(SkyGearHudLayout.USER_PATH) \
+		if FileAccess.file_exists(SkyGearHudLayout.USER_PATH) else null
+	SkyGearHudLayout.store = "user://hud_layout.harness.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	await process_frame
 	_boot()
 	await process_frame
@@ -139,6 +158,8 @@ func _run() -> void:
 	_lab()
 	await process_frame
 	_clip()
+	await process_frame
+	_owner_layout_untouched()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -158,6 +179,29 @@ func _run() -> void:
 		print("%d/%d checks passed  —  %s" % [checks - failures.size(), checks,
 			", ".join(failures)])
 	quit(failures.size())
+
+
+## One Ctrl+<key> press, as the editor's input path will see it.
+func _ctrl_key(code: int) -> InputEventKey:
+	var ev := InputEventKey.new()
+	ev.keycode = code
+	ev.physical_keycode = code
+	ev.pressed = true
+	ev.ctrl_pressed = true
+	return ev
+
+
+func _owner_layout_untouched() -> void:
+	var now: Variant = FileAccess.get_file_as_string(SkyGearHudLayout.USER_PATH) \
+		if FileAccess.file_exists(SkyGearHudLayout.USER_PATH) else null
+	## And the scratch file the harness DID use is swept up behind it.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	SkyGearHudLayout.store = SkyGearHudLayout.USER_PATH
+	_check("editor", "the harness never touches the player's own saved layout",
+		str(now) == str(_owner_layout_before),
+		"was %d bytes, now %d" % [
+			(str(_owner_layout_before).length() if _owner_layout_before != null else -1),
+			(str(now).length() if now != null else -1)])
 
 
 func _boot() -> void:
@@ -6138,7 +6182,7 @@ func _layout() -> void:
 	## A previous run of this harness saves a layout to test the round trip, and
 	## a saved layout WINS over the shipped one — so without this the matrix below
 	## would be checking whatever the last run happened to leave behind.
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	SkyGearHUD.layout = null
 	var sizes := [Vector2(1280, 720), Vector2(1366, 768), Vector2(1600, 900),
 		Vector2(1920, 1080), Vector2(2560, 1440), Vector2(1152, 648)]
@@ -6330,8 +6374,94 @@ func _layout() -> void:
 			and un.rect("captain", Vector2(1366, 768))
 				.is_equal_approx(SkyGearHudLayout.new().rect("captain", Vector2(1366, 768))))
 
+	## THE SIZE DELTAS (SG-80). The owner asked to be able to widen and narrow a
+	## text box, not only move it, so an entry grew a second half — and the
+	## whole risk of that is the FIRST half: every file written before this
+	## feature has to keep loading, and keep saving, exactly as it did.
+	SkyGearHudLayout.drag_motion = false
+	var sz := SkyGearHudLayout.new()
+	sz.nudge_screen("title", "skygear", Vector2(2, -4))
+	sz.resize_screen("title", "skygear", Vector2(-120, 0))
+	sz.resize_screen("draft", "card_emblem", Vector2(8, 8))
+	_check("layout", "screen size deltas survive a save and a load",
+		sz.save()
+			and SkyGearHudLayout.load_layout().screen_size("title", "skygear")
+				.is_equal_approx(Vector2(-120, 0))
+			and SkyGearHudLayout.load_layout().screen_offset("title", "skygear")
+				.is_equal_approx(Vector2(2, -4))
+			and SkyGearHudLayout.load_layout().screen_size("draft", "card_emblem")
+				.is_equal_approx(Vector2(8, 8)),
+		str(sz.screens))
+	## THE COMPATIBILITY PROMISE, both directions: an entry written before sizes
+	## existed loads as it always did, and an entry with no size still SAVES as
+	## the bare pair — so a layout file that never resizes anything is byte for
+	## byte the file SG-42 wrote.
+	var old_shape := SkyGearHudLayout._sanitise_screens({
+		"title": {"begin_run": [7, -2]}})
+	var offset_only := SkyGearHudLayout.new()
+	offset_only.nudge_screen("title", "begin_run", Vector2(7, -2))
+	_check("layout", "an entry older than sizes loads unchanged, and still saves as a pair",
+		old_shape.title.begin_run is Array
+			and str(old_shape) == str(offset_only.screens)
+			and offset_only.screen_size("title", "begin_run") == Vector2.ZERO,
+		"%s vs %s" % [old_shape, offset_only.screens])
+	## Per-key fallback, one level finer: a malformed SIZE costs the size and
+	## leaves the offset beside it standing, because they are two decisions
+	## about one element.
+	var junk_sizes := SkyGearHudLayout._sanitise_screens({
+		"title": {
+			"begin_run": {"o": [4, 5], "s": "wide-ish"},
+			"settings": {"o": "sideways", "s": [10, 0]},
+			"quit": {"o": [1, 1], "s": [2, 2]},
+			"how_to_play": {"s": [1, 2, 3]},
+		}})
+	_check("layout", "a malformed size entry falls back alone",
+		junk_sizes.title.begin_run is Array
+			and (junk_sizes.title.begin_run as Array)[0] == 4.0
+			and junk_sizes.title.settings is Dictionary
+			and not (junk_sizes.title.settings as Dictionary).has("o")
+			and junk_sizes.title.quit is Dictionary
+			and not (junk_sizes.title as Dictionary).has("how_to_play"),
+		str(junk_sizes))
+	## A delta of zero is ERASED, exactly as a zero offset always has been —
+	## and erasing the size half leaves an offset-only entry in the old shape
+	## rather than a dictionary with one empty pocket in it.
+	var erased := SkyGearHudLayout.new()
+	erased.set_screen_offset("title", "skygear", Vector2(3, 0))
+	erased.set_screen_size("title", "skygear", Vector2(-40, 0))
+	erased.set_screen_size("title", "skygear", Vector2.ZERO)
+	var gone := SkyGearHudLayout.new()
+	gone.set_screen_size("title", "skygear", Vector2(-40, 0))
+	gone.set_screen_size("title", "skygear", Vector2.ZERO)
+	_check("layout", "a zero size delta is erased and leaves the offset a bare pair",
+		erased.screens.title.skygear is Array and gone.screens.is_empty(),
+		"%s / %s" % [erased.screens, gone.screens])
+	## THE FLOORS. A text box may be narrowed until its words no longer fit —
+	## that is a legal edit the live verdict reports — but never below one
+	## MIN_PT glyph, and never enlarged by a floor the code drew smaller than.
+	var floored := SkyGearHudLayout.grown(Vector2(400, 20), Vector2(-5000, 0),
+		SkyGearHudLayout.size_floor(Vector2(400, 20),
+			Vector2(SkyGearHudLayout.TEXT_MIN, 20)))
+	var tiny := SkyGearHudLayout.size_floor(Vector2(6, 4),
+		Vector2(SkyGearHudLayout.ELEMENT_MIN, SkyGearHudLayout.ELEMENT_MIN))
+	_check("layout", "a floor refuses a resize below the ink minimum",
+		is_equal_approx(floored.x, float(SkyGearInk.MIN_PT))
+			and tiny.is_equal_approx(Vector2(6, 4))
+			and SkyGearHudLayout.TEXT_MIN == SkyGearInk.MIN_PT,
+		"floored to %s, a 6x4 mark floors at %s" % [floored, tiny])
+	## Single-level undo covers a resize the same way it covers a nudge — one
+	## snapshot, one restore, the pre-resize size back.
+	var ur := SkyGearHudLayout.new()
+	ur.resize_screen("title", "skygear", Vector2(-30, 0))
+	var pre_size := ur.snapshot()
+	ur.resize_screen("title", "skygear", Vector2(-300, 0))
+	ur.restore(pre_size)
+	_check("layout", "undo restores the pre-resize size",
+		ur.screen_size("title", "skygear").is_equal_approx(Vector2(-30, 0)),
+		str(ur.screen_size("title", "skygear")))
+
 	## Leave no editor state behind for the next run of the harness.
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 
 	## The floor is a decision. Below this the three clusters cannot share a
 	## baseline without overlapping, and the export presets say 1152x648.
@@ -6350,7 +6480,7 @@ func _layout() -> void:
 func _screen_editor() -> void:
 	## Shipped defaults only — a leftover user file would make this a test of
 	## whatever the last editing session left behind.
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	SkyGearHUD.layout = null
 	var game := _new_game()
 	await process_frame
@@ -6397,6 +6527,119 @@ func _screen_editor() -> void:
 	_check("editor", "a saved offset moves the element by exactly that much", moved_ok)
 	_check("editor", "the offset is measured from the home — move the home and it follows",
 		followed)
+
+	## THE RESIZE (SG-80), driven through the REAL draw code exactly as the
+	## offset above is: a size delta narrows the box the width defines, the
+	## delta rides a reflow the same way an offset does, the floor refuses a
+	## box below one MIN_PT glyph, and — the point of the whole thing — the
+	## LIVE VERDICT speaks the moment a box gets narrower than its own words.
+	var narrowed := false
+	var followed_size := false
+	var floor_held := false
+	var verdict_fired := false
+	var handles_drawn := false
+	## Selected, because the handles are drawn on the SELECTION — and redrawn
+	## at the window size this block actually measures at.
+	game.layout_panel = 0
+	game.layout_key = "skygear"
+	hud.queue_redraw()
+	await process_frame
+	if hud.edit_elements.has("skygear"):
+		var base0: Vector2 = hud.edit_elements["skygear"].base
+		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2(-400, 0))
+		hud.queue_redraw()
+		await process_frame
+		var field: Rect2 = hud.edit_elements["skygear"].field
+		narrowed = is_equal_approx(field.size.x, base0.x - 400.0)
+		## Handles are the affordance: the east grip sits on the field's right
+		## edge, and a single-line string gets that one only — its height is
+		## its point size, which belongs to ink.gd.
+		handles_drawn = hud.edit_handles.has("e") \
+			and not hud.edit_handles.has("s") \
+			and absf((hud.edit_handles["e"] as Rect2).get_center().x - field.end.x) < 6.0
+		## Move the home: a wider window widens the title's own box, and the
+		## saved delta rides the new width instead of pinning the old pixels.
+		hud.size = Vector2(1920, 1080)
+		hud.queue_redraw()
+		await process_frame
+		var wide: Vector2 = hud.edit_elements["skygear"].base
+		followed_size = not is_equal_approx(wide.x, base0.x) \
+			and is_equal_approx((hud.edit_elements["skygear"].field as Rect2).size.x,
+				wide.x - 400.0)
+		hud.size = Vector2(1600, 900)
+		## Past the floor: a five-thousand-pixel shrink stops at MIN_PT.
+		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2(-5000, 0))
+		hud.queue_redraw()
+		await process_frame
+		floor_held = is_equal_approx(
+			(hud.edit_elements["skygear"].field as Rect2).size.x,
+			float(SkyGearInk.MIN_PT))
+		## And the verdict, from the audit's own OVERFLOW detector, attached
+		## live to this very frame.
+		for line in hud.edit_trouble:
+			if str(line).contains("escapes its width"):
+				verdict_fired = true
+		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2.ZERO)
+		hud.queue_redraw()
+		await process_frame
+	game.layout_key = ""
+	game.layout_panel = -1
+	_check("editor", "a saved size delta narrows the text box by exactly that much",
+		narrowed)
+	_check("editor", "and the selection carries a resize handle on the edge it can move",
+		handles_drawn, str(hud.edit_handles.keys()))
+	_check("editor", "the size delta is measured from the home size — reflow and it follows",
+		followed_size)
+	_check("editor", "a resize past the floor is refused, not obeyed", floor_held)
+	_check("editor", "and a box narrowed past its own words fires the live verdict",
+		verdict_fired, "; ".join(hud.edit_trouble))
+	_check("editor", "the screen is clean again once the delta is erased",
+		hud.edit_trouble.is_empty() and not SkyGearHUD.layout.screens.has("title"),
+		"; ".join(hud.edit_trouble))
+
+	## CTRL+S, END TO END (SG-83 — "I hit Ctrl+S and it looks like it didn't
+	## save"). Not the schema round-trip above: the EDITOR'S OWN KEY, through
+	## the editor's own input path, to the file on disk, to a fresh load. And
+	## the two places the key was dead — with the typed readout open, and with
+	## the screen picker up — are pressed here too, because a save key that is
+	## modal is a save key that silently does nothing.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	game.layout_panel = 0
+	game.layout_key = "skygear"
+	SkyGearHUD.layout.set_screen_offset("title", "skygear", Vector2(6, -2))
+	SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2(-25, 0))
+	game.layout_saved = false
+	game._layout_input(_ctrl_key(KEY_S))
+	var written: bool = FileAccess.file_exists(SkyGearHudLayout.store)
+	var reloaded := SkyGearHudLayout.load_layout()
+	_check("editor", "Ctrl+S writes the file, and a fresh load reads the edit back",
+		game.layout_saved and written and game.layout_save_error == ""
+			and reloaded.screen_offset("title", "skygear").is_equal_approx(Vector2(6, -2))
+			and reloaded.screen_size("title", "skygear").is_equal_approx(Vector2(-25, 0)),
+		"saved=%s written=%s error='%s' back=%s/%s" % [game.layout_saved, written,
+			game.layout_save_error, reloaded.screen_offset("title", "skygear"),
+			reloaded.screen_size("title", "skygear")])
+	## Modal-free: with the typed box open and with the picker up, the key still
+	## commits rather than being typed into a field or eaten by a list.
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	game.layout_typing = true
+	game.layout_typed = "1, 2"
+	game.layout_saved = false
+	game._layout_input(_ctrl_key(KEY_S))
+	var typed_saved: bool = game.layout_saved and game.layout_typed == "1, 2"
+	game.layout_typing = false
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	game.layout_picker = true
+	game.layout_saved = false
+	game._layout_input(_ctrl_key(KEY_S))
+	var picker_saved: bool = game.layout_saved \
+		and FileAccess.file_exists(SkyGearHudLayout.store)
+	game.layout_picker = false
+	_check("editor", "and Ctrl+S is never modal — the typed box and the picker both let it through",
+		typed_saved and picker_saved,
+		"typed box %s, picker %s" % [typed_saved, picker_saved])
+	SkyGearHUD.layout.clear_screen("title")
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 
 	## Every screen family reachable, and every capture non-empty. The poses are
 	## the game's own flags — the same doors the player walks through.
@@ -6537,7 +6780,7 @@ func _screen_editor() -> void:
 	game.layout_edit = false
 	hud.audit = null
 	hud.ink = null
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	SkyGearHUD.layout = null
 	game.queue_free()
 	await process_frame
@@ -6560,7 +6803,7 @@ func _screen_poser() -> void:
 		screens_tool.SCREENS == poser.SCREENS and screens_tool.SIZES == poser.SIZES,
 		"%d tool vs %d poser screens" % [screens_tool.SCREENS.size(), poser.SCREENS.size()])
 
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	SkyGearHUD.layout = null
 	var game := _new_game()
 	await process_frame
@@ -6693,7 +6936,7 @@ func _screen_poser() -> void:
 	game.layout_edit = false
 	hud.audit = null
 	hud.ink = null
-	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.USER_PATH))
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
 	SkyGearHUD.layout = null
 	game.queue_free()
 	second.queue_free()

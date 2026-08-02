@@ -15,6 +15,8 @@ details live on the board rows.
 cracking on a dash, projectiles, every cutscene) and
 `.shots/screens/morning/index.html` (the fresh 24-screen gallery).
 
+**F4 resizes now (SG-80), and your Ctrl+S bug was real (SG-83): the harness had been deleting `user://hud_layout.json` six times a run, so the editor saved correctly and a tool run wiped it minutes later — fixed, and the bar now says SAVED with the real path, or shouts if a write fails.**
+
 ## Your 2026-08-02 screenshot — the three corrections, one line each
 
 - **SG-78, the aim indicator:** the range ring and the cursor echo are gone;

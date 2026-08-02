@@ -27,6 +27,22 @@ extends RefCounted
 const USER_PATH := "user://hud_layout.json"
 const SHIPPED_PATH := "res://assets/hud_layout.json"
 
+## THE FILE THE EDITOR ACTUALLY READS AND WRITES. `USER_PATH` is where a
+## player's alignment pass lives; `store` is the pointer every reader and writer
+## goes through, so a TEST RUN can be sent somewhere else.
+##
+## It is a var for exactly one reason, and it is a bug the owner reported
+## (SG-83): `tests/parity_test.gd` deleted `USER_PATH` six times a run and saved
+## its own fixtures over it, so every `SkyGear Tools.bat harness` on this
+## machine silently destroyed whatever the owner had just aligned by hand and
+## saved with Ctrl+S. The save worked perfectly; the next harness run wiped it.
+## The precedent is written a few lines up the same file — "a harness that
+## depends on a save file is not a harness" — and SG-49, where posed endings
+## wrote fake rows into the player's own run log. A tool must never reach into
+## `user://` and destroy real player data, so the harness now points this at a
+## scratch file and the real one is asserted untouched.
+static var store := USER_PATH
+
 ## A full three by three. Used for plates against the screen and for items
 ## against their plate, because the resolution is identical either way.
 const ANCHORS := [
@@ -115,14 +131,27 @@ var plates: Dictionary = {}
 var slot_items: Dictionary = {}
 ## THE THIRD LEVEL (SG-42): per-screen, per-element offsets for everything that
 ## is NOT the gameplay HUD — the title rows, the draft cards' contents, the
-## pause buttons, a workshop heading. `screen -> {element key -> [dx, dy]}`.
+## pause buttons, a workshop heading. `screen -> {element key -> entry}`.
 ##
-## An offset here is RELATIVE TO THE ELEMENT'S COMPUTED HOME — the position the
-## drawing code was about to use — never an absolute position. That is what
-## keeps a saved offset meaningful when the code-side layout changes: move the
-## home and the offset follows it, the same invariant the plate anchors carry.
-## The element keys are made by `element_slug` from what the element says, so a
-## readout whose NUMBER changes keeps its key.
+## AN ENTRY IS ONE OF TWO SHAPES — SG-80 grew the second:
+##
+##     [dx, dy]                        an offset alone — SG-42's original
+##     {"o": [dx, dy], "s": [dw, dh]}  offset AND size delta, either half
+##                                     dropped when it is zero
+##
+## An offset-only edit still writes the array, so a file that predates sizes and
+## a file that never uses one are the same file, byte for byte. The shape is
+## chosen that way on purpose: the size delta is the rarer edit, and a schema
+## change that rewrites every existing entry to say "and no size" is a migration
+## nobody asked for.
+##
+## BOTH HALVES ARE RELATIVE TO THE ELEMENT'S COMPUTED HOME — the position and
+## the size the drawing code was about to use — never absolute. That is what
+## keeps a saved entry meaningful when the code-side layout changes: move the
+## home and the offset follows it; widen the home and the size delta rides the
+## new width. The same invariant the plate anchors carry. The element keys are
+## made by `element_slug` from what the element says, so a readout whose NUMBER
+## changes keeps its key.
 var screens: Dictionary = {}
 
 
@@ -134,7 +163,7 @@ func _init() -> void:
 
 static func load_layout() -> SkyGearHudLayout:
 	var out := SkyGearHudLayout.new()
-	for path in [USER_PATH, SHIPPED_PATH]:
+	for path in [store, SHIPPED_PATH]:
 		var raw := _read(path)
 		if raw.is_empty():
 			continue
@@ -171,7 +200,7 @@ static func _entry(raw: Variant, fallback: Dictionary) -> Dictionary:
 	return {
 		"anchor": anchor,
 		"offset": [float(offset[0]), float(offset[1])],
-		"size": [maxf(8.0, float(size[0])), maxf(8.0, float(size[1]))],
+		"size": [maxf(ELEMENT_MIN, float(size[0])), maxf(ELEMENT_MIN, float(size[1]))],
 	}
 
 
@@ -188,8 +217,8 @@ static func _sanitise(raw: Variant) -> Dictionary:
 	for name in DEFAULT.keys():
 		var source: Variant = (raw as Dictionary).get(name) if raw is Dictionary else null
 		var plate := _entry(source, DEFAULT[name])
-		plate.size[0] = maxf(40.0, float(plate.size[0]))
-		plate.size[1] = maxf(28.0, float(plate.size[1]))
+		plate.size[0] = maxf(PLATE_MIN.x, float(plate.size[0]))
+		plate.size[1] = maxf(PLATE_MIN.y, float(plate.size[1]))
 		if (DEFAULT[name] as Dictionary).has("items"):
 			var items: Variant = (source as Dictionary).get("items") if source is Dictionary else null
 			plate["items"] = _sanitise_items(items, DEFAULT[name].items)
@@ -197,10 +226,11 @@ static func _sanitise(raw: Variant) -> Dictionary:
 	return out
 
 
-## One malformed offset loses that one entry, never the screen — the same
-## per-key fallback rule the plates carry. Anything that is not a two-number
-## array is dropped, and a dropped entry means "the element's computed home",
-## which is always a drawable answer.
+## One malformed entry loses that one entry, never the screen — the same
+## per-key fallback rule the plates carry. And FINER than per-key on the dict
+## shape: a malformed size half costs the size and keeps the offset beside it,
+## because the two are separate decisions about one element. A dropped half
+## means "the element's computed home", which is always a drawable answer.
 static func _sanitise_screens(raw: Variant) -> Dictionary:
 	var out := {}
 	if raw is not Dictionary:
@@ -211,19 +241,58 @@ static func _sanitise_screens(raw: Variant) -> Dictionary:
 			continue
 		var kept := {}
 		for key in (entries as Dictionary).keys():
-			var off: Variant = (entries as Dictionary)[key]
-			if off is not Array or (off as Array).size() != 2:
+			var entry: Variant = (entries as Dictionary)[key]
+			var o: Variant = null
+			var s: Variant = null
+			if entry is Array:
+				o = _pair(entry)
+				if o == null:
+					continue
+			elif entry is Dictionary:
+				o = _pair((entry as Dictionary).get("o"))
+				s = _pair((entry as Dictionary).get("s"))
+			else:
 				continue
-			if not ((off[0] is float or off[0] is int) and (off[1] is float or off[1] is int)):
-				continue
-			kept[str(key)] = [float(off[0]), float(off[1])]
+			var value: Variant = _screen_value(o, s)
+			if value != null:
+				kept[str(key)] = value
 		if not kept.is_empty():
 			out[str(screen)] = kept
 	return out
 
 
+## A two-number array, or null — the atom both halves of a screen entry are
+## made of.
+static func _pair(raw: Variant) -> Variant:
+	if raw is not Array or (raw as Array).size() != 2:
+		return null
+	if not ((raw[0] is float or raw[0] is int) and (raw[1] is float or raw[1] is int)):
+		return null
+	return [float(raw[0]), float(raw[1])]
+
+
+## The stored shape for one offset/size pair, normalised: zero halves are
+## ERASED (data with no reader), a size-less entry keeps SG-42's array shape so
+## an offset-only pass round-trips exactly as it always did, and an entry with
+## nothing left to say stores nothing at all — the caller erases the key.
+static func _screen_value(o: Variant, s: Variant) -> Variant:
+	var off := Vector2(float(o[0]), float(o[1])) if o != null else Vector2.ZERO
+	var sz := Vector2(float(s[0]), float(s[1])) if s != null else Vector2.ZERO
+	if off.is_zero_approx() and sz.is_zero_approx():
+		return null
+	if sz.is_zero_approx():
+		return [off.x, off.y]
+	if off.is_zero_approx():
+		return {"s": [sz.x, sz.y]}
+	return {"o": [off.x, off.y], "s": [sz.x, sz.y]}
+
+
+## Writes, and SAYS whether it wrote. A `false` here used to reach an editor
+## header that shrugged and printed "layout is clean"; the caller now shows the
+## failure in the alarm colour, because a save that quietly does nothing is the
+## same shape of bug as a run log that quietly is not written.
 func save() -> bool:
-	var file := FileAccess.open(USER_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(store, FileAccess.WRITE)
 	if file == null:
 		return false
 	file.store_string(JSON.stringify(
@@ -242,22 +311,50 @@ func reset() -> void:
 ## --- the screen-element level (SG-42) -----------------------------------------
 
 ## The saved offset for one element on one screen, or ZERO — which is "draw it
-## where the code puts it", the state every element starts in.
+## where the code puts it", the state every element starts in. Reads BOTH
+## stored shapes: SG-42's array and SG-80's dict.
 func screen_offset(screen: String, key: String) -> Vector2:
+	var entry: Variant = _screen_entry(screen, key)
+	var o: Variant = _pair(entry) if entry is Array \
+		else (_pair((entry as Dictionary).get("o")) if entry is Dictionary else null)
+	return Vector2(float(o[0]), float(o[1])) if o != null else Vector2.ZERO
+
+
+## The saved SIZE DELTA for one element (SG-80), or ZERO — "as big as the code
+## draws it". An array-shaped entry has no size half BY DEFINITION, which is
+## exactly what keeps every file written before this feature loading unchanged.
+func screen_size(screen: String, key: String) -> Vector2:
+	var entry: Variant = _screen_entry(screen, key)
+	if entry is not Dictionary:
+		return Vector2.ZERO
+	var s: Variant = _pair((entry as Dictionary).get("s"))
+	return Vector2(float(s[0]), float(s[1])) if s != null else Vector2.ZERO
+
+
+func _screen_entry(screen: String, key: String) -> Variant:
 	var entries: Variant = screens.get(screen)
 	if entries is not Dictionary:
-		return Vector2.ZERO
-	var off: Variant = (entries as Dictionary).get(key)
-	if off is not Array or (off as Array).size() != 2:
-		return Vector2.ZERO
-	return Vector2(float(off[0]), float(off[1]))
+		return null
+	return (entries as Dictionary).get(key)
 
 
-## Zero offsets are ERASED rather than stored: an entry that says "exactly where
-## the code already puts it" is data with no reader waiting to happen, and the
-## shipped-keys-resolve check should never have to argue about dead weight.
+## Zero halves are ERASED rather than stored: an entry that says "exactly where,
+## and exactly as big as, the code already draws it" is data with no reader
+## waiting to happen, and the shipped-keys-resolve check should never have to
+## argue about dead weight. Setting either half preserves the other.
 func set_screen_offset(screen: String, key: String, off: Vector2) -> void:
-	if off.is_zero_approx():
+	_store_screen(screen, key, off, screen_size(screen, key))
+
+
+func set_screen_size(screen: String, key: String, sz: Vector2) -> void:
+	_store_screen(screen, key, screen_offset(screen, key), sz)
+
+
+func _store_screen(screen: String, key: String, off: Vector2, sz: Vector2) -> void:
+	var value: Variant = _screen_value(
+		[off.x, off.y] if not off.is_zero_approx() else null,
+		[sz.x, sz.y] if not sz.is_zero_approx() else null)
+	if value == null:
 		if screens.has(screen):
 			(screens[screen] as Dictionary).erase(key)
 			if (screens[screen] as Dictionary).is_empty():
@@ -265,15 +362,24 @@ func set_screen_offset(screen: String, key: String, off: Vector2) -> void:
 		return
 	if not screens.has(screen):
 		screens[screen] = {}
-	screens[screen][key] = [off.x, off.y]
+	screens[screen][key] = value
 
 
 func nudge_screen(screen: String, key: String, delta: Vector2) -> void:
 	set_screen_offset(screen, key, screen_offset(screen, key) + _drag_delta(delta))
 
 
-## Ctrl+R for one screen: this screen's offsets only. The other twenty screens
-## keep the work that was done on them.
+## The size sibling of `nudge_screen` (SG-80), routed through the SAME
+## `_drag_delta` session — so Shift during a drag-resize locks the resize to
+## its dominant DIMENSION exactly as SG-58 locks a move to its dominant axis.
+## One session, one arithmetic, one gesture to learn.
+func resize_screen(screen: String, key: String, delta: Vector2) -> void:
+	set_screen_size(screen, key, screen_size(screen, key) + _drag_delta(delta))
+
+
+## Ctrl+R for one screen: this screen's offsets AND sizes — one erase, because
+## an entry is one element's whole edit. The other twenty screens keep the work
+## that was done on them.
 func clear_screen(screen: String) -> void:
 	screens.erase(screen)
 
@@ -400,6 +506,50 @@ static func parse_offset(text: String) -> Dictionary:
 		if not str(part).is_valid_float():
 			return {"ok": false, "x": 0.0, "y": 0.0}
 	return {"ok": true, "x": str(parts[0]).to_float(), "y": str(parts[1]).to_float()}
+
+
+## --- the floors a resize cannot argue with (SG-80) -----------------------------
+
+## THE NARROWEST A TEXT BOX MAY BE MADE. One glyph at `SkyGearInk.MIN_PT` — the
+## ink floor, read from the file that owns it rather than copied as a number,
+## because "two functions disagreeing about one number" is this project's named
+## failure mode. Below this a box cannot hold a readable character at all, so a
+## drag past it is REFUSED.
+##
+## Note what this floor deliberately is NOT: the width of the string inside the
+## box. Narrowing a box until its text no longer fits is a legal edit that the
+## LIVE VERDICT reports — the same OVERFLOW detector `tools/text_audit.gd`
+## runs — because "you have made this too narrow for its words" is information
+## the person resizing wants, not an action to silently prevent. A floor set at
+## the content width would make that verdict unreachable, which is the
+## detector-silenced-to-make-a-screen-pass failure by another route.
+const TEXT_MIN := SkyGearInk.MIN_PT
+
+## And for a widget or a mark, the item floor the plates already carry — the
+## same 8 px `_entry` sanitises to and `resize` refuses to go under, named once
+## so the three cannot drift.
+const ELEMENT_MIN := 8.0
+
+## The floor a PLATE cannot be edited below, likewise named rather than
+## repeated: below this the six clusters cannot share a baseline.
+const PLATE_MIN := Vector2(40.0, 28.0)
+
+
+## A base size grown by a delta, never below the floor. The whole arithmetic of
+## a resize, in one place so the draw funnels, the drag and the typed box
+## cannot drift apart.
+static func grown(base: Vector2, delta: Vector2, floor_size: Vector2) -> Vector2:
+	if delta == Vector2.ZERO:
+		return base
+	return Vector2(maxf(base.x + delta.x, floor_size.x),
+		maxf(base.y + delta.y, floor_size.y))
+
+
+## The floor for a box the code drew at `base`. Never larger than the base
+## itself: a floor may refuse a shrink, but it must never quietly ENLARGE
+## something the code chose to draw smaller than the minimum.
+static func size_floor(base: Vector2, minimum: Vector2) -> Vector2:
+	return Vector2(minf(base.x, minimum.x), minf(base.y, minimum.y))
 
 
 ## An element's saved-under key, from what it SAYS. Letters only, lowercased,
@@ -536,10 +686,9 @@ func resize(plate_name: String, item_name: String, delta: Vector2) -> void:
 		else plates.get(plate_name, {})
 	if entry.is_empty():
 		return
-	var floor_x: float = 40.0 if item_name == "" else 8.0
-	var floor_y: float = 28.0 if item_name == "" else 8.0
-	entry.size[0] = maxf(floor_x, float(entry.size[0]) + delta.x)
-	entry.size[1] = maxf(floor_y, float(entry.size[1]) + delta.y)
+	var least := PLATE_MIN if item_name == "" else Vector2(ELEMENT_MIN, ELEMENT_MIN)
+	entry.size[0] = maxf(least.x, float(entry.size[0]) + delta.x)
+	entry.size[1] = maxf(least.y, float(entry.size[1]) + delta.y)
 
 
 ## Re-anchoring keeps the box where it is on screen and changes only what it is
