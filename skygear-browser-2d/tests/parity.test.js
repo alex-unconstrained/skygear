@@ -1,32 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {ELEMENTS,SHAPES,WAVES,EVENTS,CLASSES,HEAT,FITTINGS,TALENTS,ARTICLES,makeSkill} from '../src/data.js';
+import {ARTICLES,CARDS,CLASSES,ELEMENTS,FITTINGS,HEAT,SHAPES,TALENTS,WAVES,makeSkill} from '../src/parity-data.js';
+import {RNG,applyCard,awardRun,freshMeta,newMods,resolvedTalents,rollCards,waveManifest} from '../src/parity-systems.js';
 
-test('the complete 9 x 4 combat matrix is constructible',()=>{
-  assert.equal(Object.keys(SHAPES).length,9);
-  assert.equal(Object.keys(ELEMENTS).length,4);
-  const matrix=Object.keys(SHAPES).flatMap(s=>Object.keys(ELEMENTS).map(e=>makeSkill(s,e)));
-  assert.equal(matrix.length,36);
-  assert.equal(new Set(matrix.map(s=>`${s.shape}:${s.element}`)).size,36);
+test('complete Godot-facing combat catalogue is present',()=>{
+  assert.equal(Object.keys(SHAPES).length,9); assert.equal(Object.keys(ELEMENTS).length,4);
+  assert.equal(Object.keys(CLASSES).length,2); assert.equal(CARDS.length,40);
+  assert.equal(Object.keys(TALENTS).length,23); assert.equal(Object.keys(ARTICLES).length,9);
+  assert.equal(Object.keys(FITTINGS).length,6); assert.equal(HEAT.length,6);
+  const matrix=Object.keys(SHAPES).flatMap(shape=>Object.keys(ELEMENTS).map(element=>makeSkill(shape,element)));
+  assert.equal(matrix.length,36); assert.equal(new Set(matrix.map(skill=>`${skill.shape}:${skill.element}`)).size,36);
 });
 
-test('the Godot-facing progression surface is present',()=>{
-  assert.equal(Object.keys(CLASSES).length,2);
+test('twelve-wave manifest and set-piece events match progression',()=>{
   assert.equal(WAVES.length,12);
   assert.deepEqual([WAVES[3].event,WAVES[7].event,WAVES[11].event],['grapple','blackout','colossus']);
-  assert.equal(Object.keys(EVENTS).length,3);
-  assert.equal(HEAT.length,6);
-  assert.equal(Object.keys(FITTINGS).length,6);
-  assert.ok(Object.keys(TALENTS).length>=8);
-  assert.ok(Object.keys(ARTICLES).length>=6);
+  const manifest=waveManifest(5);
+  assert.match(manifest,/armored/); assert.match(manifest,/swarm/);
 });
 
-test('the project remains isolated and has a browser entry point',async()=>{
+test('draft cards mutate the run and first losses remain in the log',()=>{
+  const run={rng:new RNG('CARDS'),wave:1,heat:0,heatData:{draftOffers:4},cards:[],mods:newMods(),skills:[makeSkill('CLOSEHIT','EMBER')],talents:{},classId:'captain',articles:{},rerolls:2,telemetry:{per:[{casts:0,damage:0}],rangeTime:{}},player:{maxHp:100,hp:100,maxDashes:2,dashes:2},boiler:{maxHp:500,hp:500}};
+  const offers=rollCards(run,3); assert.equal(offers.length,3); applyCard(run,offers[0]); assert.equal(run.cards.length,1);
+  const meta=freshMeta();
+  const bank=awardRun(meta,{won:false,wave:1,seed:'LOSS',classId:'captain',heat:0,vents:0,closeShare:0,healed:0});
+  assert.equal(bank.scrip,0); assert.equal(meta.runs.length,1); assert.equal(meta.unlocked,false); assert.deepEqual(resolvedTalents(meta),{});
+});
+
+test('browser entry point targets the parity engine',async()=>{
   const html=await readFile(new URL('../index.html',import.meta.url),'utf8');
-  const game=await readFile(new URL('../src/game.js',import.meta.url),'utf8');
-  assert.match(html,/src\/game\.js/);
-  assert.match(game,/localStorage/);
-  assert.match(game,/window\.__skygear/);
-  assert.match(game,/startWave\(1\)/);
+  const game=await readFile(new URL('../src/parity-game.js',import.meta.url),'utf8');
+  assert.match(html,/src\/parity-game\.js/); assert.match(game,/window\.__skygearParity/); assert.match(game,/startWave\(1\)/);
 });
