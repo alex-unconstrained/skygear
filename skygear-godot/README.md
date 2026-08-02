@@ -19,7 +19,7 @@ a run log, rebindable keys, a cutscene system with all five cues filled, two rig
 browser's painted sky sampled by view direction. Verified by the harness —
 743 checks — and a text audit across 24 screens at 4 widths.
 
-Build 42 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
+Build 43 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
 
 ## Run
 
