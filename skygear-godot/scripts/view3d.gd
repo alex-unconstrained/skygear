@@ -260,6 +260,18 @@ var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
 var _flash_next := 0
 var _impact_rng := RandomNumberGenerator.new()
+## The projectile CORES — real emissive geometry in the air, replacing the
+## painted `_spark` fireball the owner called cheap (board SG-40). Pooled exactly
+## like the billboards: `_cores` is in use this frame, `_free_cores` is the shelf.
+var _cores: Dictionary = {}           ## key -> MeshInstance3D, a stretched emissive orb
+var _free_cores: Array[MeshInstance3D] = []
+var _peak_cores := 0
+var _core_mesh: SphereMesh            ## one sphere, scaled per bolt into a teardrop
+## The per-bolt light pool. Smaller than the core pool ON PURPOSE — lights are the
+## expensive half, so only the nearest N cores to the camera get one. See
+## `_flush_core_lights` and the budget note at CORE_LIGHT_POOL.
+var _core_lights: Array[OmniLight3D] = []
+var _core_light_req: Array = []       ## this frame's {pos, col} light requests
 var _shadow_batch: MultiMeshInstance3D
 var _shadow_at: PackedVector2Array = PackedVector2Array()
 var _shadow_size: PackedFloat32Array = PackedFloat32Array()
@@ -625,6 +637,7 @@ func _build_world() -> void:
 
 	_build_airstream()
 	_build_impacts()
+	_build_cores()
 	_build_ribbons()
 	_shadow_at.resize(SHADOW_CAP)
 	_shadow_size.resize(SHADOW_CAP)
@@ -841,6 +854,257 @@ func impact_at(ground: Vector2, element: String, damage: float) -> void:
 	light.set_meta("decay", 26.0 if element == "FROST" or element == "ARC" else 8.0)
 	light.position = Vector3(ground.x * WORLD_SCALE, 70.0 * WORLD_SCALE,
 		ground.y * WORLD_SCALE)
+
+
+## --- THE PROJECTILE CORE — EMISSIVE GEOMETRY, NOT A PAINTED SPRITE -----------
+##
+## Board SG-40, the first ask of the post-parity era, verbatim: "Can we get
+## better VFX particles? Instead of these 2D sprites that look like they are
+## cheap?" The screenshot was the fireball bolts — every projectile head in the
+## game was `_spark`, a flat billboard of `_spark_texture()` turned to face the
+## camera. Turned to face the camera is exactly the tell: a bolt that is the same
+## disc from every angle reads as a sticker, not as a thing travelling through the
+## air. The ribbon trail (VFX-PLAN §3, already 3D) gave it a wake; the HEAD stayed
+## 2D, and the head is what the eye tracks.
+##
+## The fix is a real oriented mesh: one low-poly sphere, scaled into a teardrop
+## STRETCHED ALONG ITS VELOCITY and lit from its own emission so the glow chain
+## catches it. It is 3D because it is oriented in 3D — the long axis swings to the
+## line of flight, it parallaxes against the deck, and its own light spills onto
+## the planking under it. None of which a billboard can do.
+##
+## PER ELEMENT, and the identity is in the MOTION, not the hue — the research
+## audit's finding 4, the same rule `ELEMENT_FX` (impacts) and `ELEMENT_RIBBON`
+## (trails) already carry. A colour-blind player has to read a Frost slug from an
+## Ember lick by SHAPE and BEHAVIOUR: Frost is a long narrow shard that sheds a
+## tight downward wake; Ember is a fat throbbing ball that sheds rising flecks;
+## Arc is a hard fast slug that flickers violently; Steam is a soft round billow.
+## HOSTILE and CANNON are the two in-flight ordnance identities — the enemy's
+## oxblood danger shot (SG-3's language) and our deck gun's brass slug — kept
+## visibly apart from the player's spellcraft and from each other.
+##
+##   stretch  the long axis as a multiple of girth — a shard is long, steam round
+##   girth    the cross-section radius, ground units
+##   pulse    hz the emission throbs at (0 = steady) — a flame flickers, ice does not
+##   emit     emission energy, well over the 1.05 glow threshold so it blooms
+##   shed     which behaviour-keyed emitter it sheds motes into ("" = none)
+##   sheds    motes per frame — kept low; the emitters self-cap at SPARK_CAPACITY
+##   wake     ground units/s the shed motes travel back and up (Ember rises, Frost sinks)
+const ELEMENT_BOLT := {
+	"EMBER": {"stretch": 2.0, "girth": 15.0, "pulse": 11.0, "emit": 3.2,
+		"shed": "spark", "sheds": 2, "wake": 60.0},
+	"FROST": {"stretch": 3.4, "girth": 9.0, "pulse": 0.0, "emit": 4.2,
+		"shed": "shard", "sheds": 1, "wake": -34.0},
+	"ARC": {"stretch": 2.6, "girth": 11.0, "pulse": 33.0, "emit": 4.0,
+		"shed": "spark", "sheds": 1, "wake": 12.0},
+	"STEAM": {"stretch": 1.4, "girth": 21.0, "pulse": 3.0, "emit": 2.2,
+		"shed": "steam", "sheds": 2, "wake": 120.0},
+	## The enemy's inbound shot. Blunt, heavy, no flicker and it SHEDS NOTHING — a
+	## lane full of these has to stay legible, so they do not smear the air behind
+	## them the way a spell does. Oxblood danger comes from the colour the caller
+	## passes, the SG-3 hostile language.
+	"HOSTILE": {"stretch": 1.7, "girth": 16.0, "pulse": 0.0, "emit": 2.6,
+		"shed": "", "sheds": 0, "wake": 0.0},
+	## Our deck cannon. A tight brass slug — long and clean like Frost's shard but
+	## warm, so ours and theirs crossing the same lane cannot be confused.
+	"CANNON": {"stretch": 3.0, "girth": 12.0, "pulse": 0.0, "emit": 3.4,
+		"shed": "", "sheds": 0, "wake": 0.0},
+}
+
+## THE DEFAULT PATH IS THE MESH (board SG-40 item 6: the old sprites retire). The
+## painted `_spark` billboard stays in the tree as the FALLBACK tier — the
+## project's standing rule that everything has one — reached through `_bolt_head`
+## when this flag is off. Flipping it false is the whole rollback, the same shape
+## as `USE_MESH_CAPTAIN`.
+const USE_MESH_CORES := true
+
+## The core pool cap. Bolts can flood a lane, and every performance problem this
+## project has had was an unbounded collection — so the cores are reserved like
+## the telegraphs and the ribbons: past this many live, a new bolt keeps its
+## ribbon trail and its ground shadow (the readable halves) but goes without an
+## emissive body. Twenty-four simultaneous lit bolts is already more than a
+## saturated wave produces; measured on a posed flood, live cores peak well under
+## it.
+const CORE_CAP := 24
+
+## THE LIGHT POOL, DELIBERATELY SMALLER THAN THE CORE POOL. A per-bolt omni is the
+## expensive half of this feature, and a lane of thirty lit bolts is exactly the
+## SG-34 hot-pool problem reborn. So only the nearest N cores to the camera — the
+## ones whose light actually reads on the deck in front of the player — get one;
+## the rest glow from emission and bloom alone. Six holds the near cluster and
+## costs six small omnis at worst. Low energy, small radius, no shadow, no
+## volumetric contribution: an accent under the bolt, never a floodlight (SG-34).
+const CORE_LIGHT_POOL := 6
+const CORE_LIGHT_ENERGY := 2.1
+const CORE_LIGHT_RANGE := 230.0        ## ground units
+
+
+func _build_cores() -> void:
+	## One sphere for every bolt in the game. Low-poly on purpose: at this camera a
+	## bolt is a few dozen pixels and the read comes from the elongation and the
+	## glow, not from the silhouette's smoothness.
+	_core_mesh = SphereMesh.new()
+	_core_mesh.radius = 1.0
+	_core_mesh.height = 2.0
+	_core_mesh.radial_segments = 8
+	_core_mesh.rings = 5
+	for i in CORE_LIGHT_POOL:
+		var light := OmniLight3D.new()
+		light.light_energy = 0.0
+		light.omni_range = CORE_LIGHT_RANGE * WORLD_SCALE
+		light.omni_attenuation = 1.8
+		light.shadow_enabled = false
+		## Same discipline as the impact flashes: a bolt light that feeds the fog
+		## leaves a smear of every shot for as long as the haze takes to settle.
+		light.light_volumetric_fog_energy = 0.0
+		add_child(light)
+		_core_lights.append(light)
+
+
+## A bolt's emissive body at `ground`, `height` off the deck, travelling along
+## `dir` (a ground-plane heading). `element` keys `ELEMENT_BOLT`; `colour` is the
+## hue the emission and the shed motes ride. `size_mul` scales the whole thing so
+## a spell head and a cannon slug can share one function. Returns false when the
+## mesh path is disabled, so the caller can fall back to the painted sprite.
+func _core(key: String, ground: Vector2, height: float, dir: Vector2,
+		element: String, colour: Color, size_mul: float = 1.0) -> bool:
+	if not USE_MESH_CORES or _core_mesh == null:
+		return false
+	var spec: Dictionary = ELEMENT_BOLT.get(element, ELEMENT_BOLT.EMBER)
+	## The cap gate, before anything is claimed — a new core over the reserve is
+	## simply not drawn (the ribbon and shadow carry it), never half-built.
+	if not _cores.has(key) and _cores.size() >= CORE_CAP:
+		return true
+	_used[key] = true
+	var node: MeshInstance3D = _cores.get(key)
+	if node == null:
+		node = _free_cores.pop_back() if not _free_cores.is_empty() else _make_core()
+		node.visible = true
+		if node.get_parent() == null:
+			add_child(node)
+		_cores[key] = node
+		_peak_cores = maxi(_peak_cores, _cores.size())
+	## Orient the long axis (local +Y — the sphere's poles) down the line of
+	## flight, then scale IN THE LOCAL FRAME by writing the basis columns directly.
+	## `Basis.scaled()` multiplies rows, which is a scale in the PARENT frame and is
+	## exactly the airstream bug (F-03) — so the long axis would land on the wrong
+	## column. Columns are the transformed axes; scaling them is a local scale.
+	var flight := Vector3(dir.x, 0.0, dir.y)
+	if flight.length_squared() < 1e-6:
+		flight = Vector3.FORWARD
+	var rot := Basis(Quaternion(Vector3.UP, flight.normalized()))
+	var g: float = float(spec.girth) * size_mul * WORLD_SCALE
+	var long: float = g * float(spec.stretch)
+	var b := Basis(rot.x * g, rot.y * long, rot.z * g)
+	node.transform = Transform3D(b, Vector3(ground.x * WORLD_SCALE,
+		height * WORLD_SCALE, ground.y * WORLD_SCALE))
+	## The emission throbs for the elements that flicker and holds steady for the
+	## ones that do not — the timing channel, keyed off a per-bolt seed so two
+	## bolts do not pulse in lockstep.
+	var mat := node.material_override as StandardMaterial3D
+	if mat != null:
+		var seed: float = float(hash(key) % 1000) * 0.041
+		var throb: float = 1.0 if float(spec.pulse) <= 0.0 \
+			else 1.0 + 0.22 * sin(_flicker * float(spec.pulse) + seed)
+		mat.albedo_color = Color(colour.r * 0.5, colour.g * 0.5, colour.b * 0.5)
+		mat.emission = colour
+		mat.emission_energy_multiplier = float(spec.emit) * throb
+	## The light request — collected now, resolved against the whole frame's cores
+	## in `_flush_core_lights` so only the nearest few actually light.
+	if float(spec.emit) > 0.0:
+		_core_light_req.append({
+			"pos": Vector3(ground.x * WORLD_SCALE, height * WORLD_SCALE,
+				ground.y * WORLD_SCALE),
+			"col": colour})
+	## And the wake — motes shed off the TAIL into the behaviour-keyed emitter that
+	## already serves impacts. Never `restart()`ed, injected one at a time, so a
+	## lane of bolts overlaps instead of erasing each other (the emit_particle fix).
+	## This is the "particle trail" half of the ask, and it carries the motion
+	## signature: Ember's flecks rise and linger in the air, Frost's shards snap
+	## back tight and low, Steam billows up.
+	if str(spec.shed) != "" and float(spec.sheds) > 0.0:
+		_core_shed(spec, ground, height, dir, colour)
+	return true
+
+
+func _make_core() -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.mesh = _core_mesh
+	var mat := StandardMaterial3D.new()
+	## Lit, NOT unshaded — the emission is what makes it glow and bloom, and an
+	## unshaded material ignores emission entirely (albedo only). A faint lit body
+	## under the emission is also what keeps it reading as a solid object rather
+	## than a flat additive smear.
+	mat.emission_enabled = true
+	mat.metallic = 0.0
+	mat.roughness = 0.4
+	## Opaque. A projectile is a solid hot thing; the trail is the additive half.
+	node.material_override = mat
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.layers = LAYER_FIGURES
+	return node
+
+
+## Motes off a bolt's tail, into the shared behaviour emitter. A hair behind the
+## head and scattered, with a velocity that carries the element's motion.
+func _core_shed(spec: Dictionary, ground: Vector2, height: float, dir: Vector2,
+		colour: Color) -> void:
+	var node: GPUParticles3D = _sparks.get(str(spec.shed))
+	if node == null:
+		return
+	var back := dir.normalized() if dir.length_squared() > 1e-6 else Vector2.DOWN
+	var tail := ground - back * float(spec.girth) * float(spec.stretch) * 0.8
+	var tint := Color(colour.r * 1.7, colour.g * 1.7, colour.b * 1.7, 1.0)
+	for i in int(spec.sheds):
+		var at := Vector3(
+			(tail.x + _impact_rng.randf_range(-8.0, 8.0)) * WORLD_SCALE,
+			(height + _impact_rng.randf_range(-6.0, 6.0)) * WORLD_SCALE,
+			(tail.y + _impact_rng.randf_range(-8.0, 8.0)) * WORLD_SCALE)
+		## Drift straight back off the tail, plus the element's own rise or sink.
+		var vel := Vector3(-back.x, 0.0, -back.y) * 40.0
+		vel.y += float(spec.wake)
+		vel += Vector3(_impact_rng.randf_range(-30.0, 30.0), 0.0,
+			_impact_rng.randf_range(-30.0, 30.0))
+		node.emit_particle(Transform3D(Basis(), at), vel * WORLD_SCALE, tint,
+			Color.WHITE, GPUParticles3D.EMIT_FLAG_POSITION
+				| GPUParticles3D.EMIT_FLAG_VELOCITY | GPUParticles3D.EMIT_FLAG_COLOR)
+
+
+## Resolve the frame's light requests: the nearest N cores to the camera get a
+## small omni, everything else glows from emission and bloom alone. This is where
+## a lane of thirty bolts stops being thirty lights — the budget the SG-34 pass
+## fought a hot pool over, held by construction.
+func _flush_core_lights() -> void:
+	if _core_lights.is_empty():
+		_core_light_req.clear()
+		return
+	var eye: Vector3 = camera.global_position if camera != null else Vector3.ZERO
+	## Nearest first. A partial sort would do for a handful of lights, but the
+	## request list is already small (<= CORE_CAP) so a full sort is honest and
+	## cheap, and it cannot leave a far bolt lit over a near one.
+	_core_light_req.sort_custom(func(a, b):
+		return (a.pos as Vector3).distance_squared_to(eye) 			< (b.pos as Vector3).distance_squared_to(eye))
+	for i in _core_lights.size():
+		var light: OmniLight3D = _core_lights[i]
+		if i < _core_light_req.size():
+			var req: Dictionary = _core_light_req[i]
+			light.position = req.pos
+			light.light_color = req.col
+			light.light_energy = CORE_LIGHT_ENERGY
+		else:
+			light.light_energy = 0.0
+	_core_light_req.clear()
+
+
+## The bolt head: an emissive mesh core by default, the painted sprite as the
+## fallback tier (board SG-40 item 5). One door for the three things that throw a
+## head — a projectile in flight, a hitscan spell's leading dash, a Mortar shell.
+func _bolt_head(key: String, ground: Vector2, height: float, dir: Vector2,
+		element: String, colour: Color, size: float) -> void:
+	if _core(key, ground, height, dir, element, colour):
+		return
+	## Art-missing / mesh-disabled fallback: the old painted spark, unchanged.
+	_spark(key, ground, height, size, colour)
 
 
 ## --- TRAILS THAT ARE GEOMETRY, NOT DECALS ------------------------------------
@@ -1268,12 +1532,14 @@ func _bolt_ribbon(fid: int, from: Vector2, to: Vector2, element: String,
 	## than as a whip going over.
 	_ribbon_path(_element_path(tail, head, element, lift * (head_t - tail_t), phase),
 		element, colour, alpha)
-	## And the head as a hot billboard, because the ribbon is the MOTION and this
-	## is the object doing the moving. Without it a bolt has no front, which is
-	## most of what a projectile is.
+	## And the head as an emissive core (SG-40), because the ribbon is the MOTION
+	## and this is the object doing the moving. Oriented down the flight line
+	## (tail→head); the ribbon is its wake. Without it a bolt has no front, which
+	## is most of what a projectile is.
 	if head_t < 0.995:
-		_spark("bh%d" % fid, Vector2(head.x, head.z), head.y,
-			float(ELEMENT_RIBBON[element].width) * 2.2, colour)
+		_bolt_head("bh%d" % fid, Vector2(head.x, head.z), head.y,
+			Vector2(head.x - tail.x, head.z - tail.z), element, colour,
+			float(ELEMENT_RIBBON[element].width) * 2.2)
 
 
 ## A HELD BEAM. Full length on its first frame, because that is what a beam is,
@@ -1420,12 +1686,13 @@ func _lob_ribbon(fid: int, from: Vector2, to: Vector2, element: String,
 		var p := from.lerp(to, g)
 		pts[i] = Vector3(p.x, RIBBON_HAND + apex * sin(g * PI), p.y)
 	_ribbon_path(pts, element, colour, clampf(1.0 - progress * 1.2, 0.0, 1.0), 1.0)
-	## The shell itself. Same argument as the bolt head: the ribbon is the throw
-	## and this is the thing that was thrown.
+	## The shell itself, an emissive core (SG-40). Same argument as the bolt head:
+	## the ribbon is the throw and this is the thing that was thrown. Oriented
+	## along the ground travel — the arc's own tangent reads at this camera.
 	var lead := from.lerp(to, travel)
-	_spark("lob%d" % fid, lead,
-		RIBBON_HAND + apex * sin(travel * PI),
-		float(ELEMENT_RIBBON[element].width) * 2.0, colour)
+	_bolt_head("lob%d" % fid, lead,
+		RIBBON_HAND + apex * sin(travel * PI), to - from, element, colour,
+		float(ELEMENT_RIBBON[element].width) * 2.0)
 
 
 ## Real clouds, at real distances, off both rails.
@@ -2310,6 +2577,10 @@ func _process(delta: float) -> void:
 	_ribbons_end()
 	_sync_darkness(delta)
 	_flush_shadows()
+	## After every core this frame is placed, hand the nearest few a light. See
+	## `_flush_core_lights` — this is the cap that keeps a lane of bolts from
+	## becoming a lane of lights (SG-34).
+	_flush_core_lights()
 	_sync_airstream(delta)
 	## The flashes fade. Ember lingers, Frost is instant — the decay carries the
 	## element as much as the colour does.
@@ -2348,6 +2619,14 @@ func _recycle() -> void:
 			_free_decals.append(node)
 			_decals.erase(key)
 			_decal_live[_decal_class(key)] -= 1
+	## Projectile cores, hidden-and-shelved exactly like the billboards — a bolt
+	## that reached its target this frame gives its mesh back rather than freeing it.
+	for key in _cores.keys():
+		if not _used.has(key):
+			var node: MeshInstance3D = _cores[key]
+			node.visible = false
+			_free_cores.append(node)
+			_cores.erase(key)
 	## Rigs are the exception: a character is a whole scene with a skeleton and an
 	## animation player, and keeping a dead boarder's one alive to re-skin later
 	## is holding far more than a sprite.
@@ -2375,6 +2654,7 @@ func _recycle() -> void:
 		_trim(_free_prop_models[model_key])
 	_trim(_free_billboards)
 	_trim(_free_decals)
+	_trim(_free_cores)
 
 
 func _trim(free_list: Array) -> void:
@@ -3456,7 +3736,14 @@ func _sync_all(delta: float) -> void:
 			_ribbon_path(pts, "FROST" if friendly else "EMBER", col, 0.95,
 				1.15 if friendly else 0.85)
 		_shadow("b%d" % bid, b.position, 40.0, 0.38)
-		_spark("b%d" % bid, b.position, fly, 62.0 if friendly else 52.0, col)
+		## The head is an emissive teardrop now, not the painted fireball (SG-40).
+		## Ours is a brass CANNON slug, theirs an oxblood HOSTILE shot — two
+		## identities crossing the same lanes in opposite directions, kept apart by
+		## shape and colour both. Oriented down its own velocity; falls back to the
+		## painted spark only if the mesh path is off.
+		var bvel: Vector2 = b.get("velocity", b.position - trail[trail.size() - 1] 			if trail.size() > 0 else Vector2.DOWN)
+		_bolt_head("b%d" % bid, b.position, fly, bvel,
+			"CANNON" if friendly else "HOSTILE", col, 62.0 if friendly else 52.0)
 
 	## Salvage on the deck, bobbing so it reads as a pickup and not as debris.
 	for i in game.salvage.size():

@@ -29,6 +29,23 @@ behaviour-keyed emitters, element motion signatures); what was never done is
 making the projectiles THEMSELVES 3D — emissive cores, particle trails,
 per-element light. Board SG-40, queued behind the lighting pass (same file).
 
+**SHIPPED (SG-40, 2026-08-01) — awaiting your eyes; NOT closed.** Every bolt
+head is a real emissive mesh now — a low sphere stretched into a teardrop down
+its own velocity, glowing from its own light so the bloom catches it, with a
+small omni under the nearest few. The painted fireball is gone from the default
+path and kept only as the art-missing fallback. Element identity rides the
+MOTION, not the hue: Ember is a fat throbbing ball shedding rising flecks,
+Frost a long narrow shard with a tight sinking wake, Arc a hard slug flickering
+fast, Steam a soft round billow; the enemy's inbound shot is a blunt oxblood
+orb that sheds nothing (so a lane of them stays legible) and our cannon a tight
+brass slug — theirs and ours never confused. Pools stay capped (24 cores, 6
+lights), the ground shadow stays under every bolt, and the telegraphs and the
+SG-34 lighting are untouched and green. Measured under a saturated wave (51
+live bolts): p99 5.98 ms against the 16.7 ms budget. Before/after posed frames
+in `.shots/vfx-sg40-before/` and `.shots/vfx-sg40-after/`. This stays OPEN
+because YOU judge whether it reads better now — play it and say. Harness
+517/517.
+
 ### The lab needs a usability pass — typed values, and yaw/roll collapse
 Asked 2026-08-01, with a screenshot of MOUNT mode on the cutlass: *"Yaw and
 roll here seem to do the same thing. I like the changes to the Lab, but I do

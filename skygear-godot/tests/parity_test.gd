@@ -1509,6 +1509,94 @@ func _view() -> void:
 			and view._rib_col.size() == SkyGearView3D.RIBBON_VERTS,
 		"%d vertices reserved" % view._rib_pos.size())
 
+	## SG-40 — THE PROJECTILE CORE IS EMISSIVE GEOMETRY, NOT A PAINTED SPRITE.
+	## The owner's first post-parity ask: the bolt heads were `_spark`, a flat
+	## billboard turned to face the camera, and that read cheap. They are a real
+	## oriented mesh now — a low sphere stretched into a teardrop down its own
+	## velocity, lit by its own emission so the glow chain catches it. These pin
+	## the things a screenshot cannot: the mesh is the DEFAULT with the sprite kept
+	## as the fallback tier, every element's bolt carries identity in its MOTION,
+	## the pool is capped, and the per-bolt light is a smaller pool that lights only
+	## the nearest few (so a lane of bolts is not the SG-34 hot pool reborn). The
+	## look is judged from `tools/vfx_shot.gd` and the effects scene.
+	var core_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	_check("core", "the bolt head is a mesh by default, the painted sprite kept as fallback",
+		SkyGearView3D.USE_MESH_CORES and view._core_mesh is SphereMesh
+			and core_src.contains("_spark(key, ground, height, size, colour)"),
+		"USE_MESH_CORES %s, fallback %s" % [SkyGearView3D.USE_MESH_CORES,
+			core_src.contains("_spark(key, ground, height, size, colour)")])
+	## Motion, not hue — the audit's finding 4, the same rule the impacts and the
+	## trails already carry. Across the four elements at least two non-hue axes must
+	## take distinct values, so a colour-blind player reads a Frost slug from an
+	## Ember lick by SHAPE and BEHAVIOUR: here stretch (length), pulse (flicker) and
+	## wake (rise vs sink) each spread across the four.
+	var eb := SkyGearView3D.ELEMENT_BOLT
+	var stretches := {}
+	var pulses := {}
+	var wakes := {}
+	for el in ["EMBER", "FROST", "ARC", "STEAM"]:
+		stretches[float((eb[el] as Dictionary).stretch)] = true
+		pulses[float((eb[el] as Dictionary).pulse)] = true
+		wakes[float((eb[el] as Dictionary).wake)] = true
+	_check("core", "every element's bolt differs on two motion axes, not only its colour",
+		eb.size() >= SkyGearData.ELEMENTS.size()
+			and stretches.size() >= 3 and pulses.size() >= 3 and wakes.size() >= 3
+			and float(eb.FROST.stretch) > float(eb.STEAM.stretch)
+			and float(eb.FROST.wake) < 0.0 and float(eb.STEAM.wake) > 0.0,
+		"stretch %d / pulse %d / wake %d distinct of four" % [stretches.size(),
+			pulses.size(), wakes.size()])
+	## Behavioural: a bolt actually in flight draws a core by the default path — the
+	## reader-with-no-data failure inverted, caught by firing one and looking.
+	game.projectiles.clear()
+	game.spawn_enemy_bolt(Vector2.ZERO, Vector2(0.0, 300.0), 10.0, 300.0)
+	view._process(0.05)
+	var bolt_cored := false
+	for k in view._cores.keys():
+		if str(k).begins_with("b"):
+			bolt_cored = true
+	_check("core", "a bolt in flight draws an emissive core, not a spark billboard",
+		bolt_cored, "%d cores live" % view._cores.size())
+	## THE CAP. Bolts flood a lane, and every perf problem here was an unbounded
+	## collection — so past the reserve a bolt keeps its ribbon and its shadow but
+	## goes without a body, never half-built and never unbounded.
+	for i in 200:
+		view._core("cf%d" % i, Vector2(i * 20, 0), 60.0, Vector2.DOWN, "EMBER",
+			Color.WHITE)
+	_check("core", "the core pool stays inside its cap under flood",
+		view._cores.size() <= SkyGearView3D.CORE_CAP,
+		"%d live against %d" % [view._cores.size(), SkyGearView3D.CORE_CAP])
+	## THE LIGHT BUDGET. The light pool is smaller than the core pool on purpose,
+	## and a flood of requests lights only the nearest few — the cap SG-34 fought a
+	## hot pool over, held by construction rather than by hope.
+	_check("core", "the bolt light pool is smaller than the bolt pool",
+		view._core_lights.size() == SkyGearView3D.CORE_LIGHT_POOL
+			and SkyGearView3D.CORE_LIGHT_POOL < SkyGearView3D.CORE_CAP,
+		"%d lights against a %d core cap" % [view._core_lights.size(),
+			SkyGearView3D.CORE_CAP])
+	view._core_light_req.clear()
+	for i in 40:
+		view._core_light_req.append({
+			"pos": Vector3(float(i) * 0.5, 0.6, 0.0), "col": Color.WHITE})
+	view._flush_core_lights()
+	var lit_bolts := 0
+	for lt in view._core_lights:
+		if (lt as OmniLight3D).light_energy > 0.0:
+			lit_bolts += 1
+	_check("core", "a flood of bolts lights only the nearest few, never all of them",
+		lit_bolts <= SkyGearView3D.CORE_LIGHT_POOL and lit_bolts > 0,
+		"%d of a %d flood lit" % [lit_bolts, 40])
+	## And those lights respect SG-34: low energy, small radius, no shadow, no fog
+	## contribution — an accent under the bolt, never a floodlight or a smear.
+	var lights_clean := SkyGearView3D.CORE_LIGHT_ENERGY <= 3.0
+	for lt in view._core_lights:
+		var ol := lt as OmniLight3D
+		if not is_zero_approx(ol.light_volumetric_fog_energy) or ol.shadow_enabled \
+				or ol.omni_range > 400.0 * SkyGearView3D.WORLD_SCALE:
+			lights_clean = false
+	_check("core", "and the bolt lights add nothing to the fog and cast no shadow",
+		lights_clean, "energy %.1f, radius %.0f" % [SkyGearView3D.CORE_LIGHT_ENERGY,
+			SkyGearView3D.CORE_LIGHT_RANGE])
+
 	## THE ELEMENT HAS TO REACH THE RENDERER. The trail's shape is chosen from it,
 	## and it cannot be recovered from the colour — two cards can tint the same and
 	## a keg is not an element at all. This is the "data with no reader" failure
