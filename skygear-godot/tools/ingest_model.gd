@@ -206,6 +206,35 @@ func _run() -> void:
 	if maps.has("metal"):
 		skin.metallic_texture = load(out + str(maps.metal))
 		skin.metallic = 1.0
+	## THE EMISSION MAP, read at last (board SG-85, the furnace knight).
+	##
+	## Every Meshy figure ships one and this pipeline threw all of them away —
+	## SG-74 declined to list the Boilerwright's because there was no reader,
+	## which was the right call for a map whose peak is 8/255 (a black sheet with
+	## a rounding error in it). The knight is the case that makes it worth
+	## writing: the handoff spec asked for a furnace-grille chest that emits and
+	## nothing else, and his map does exactly that.
+	##
+	## `emission` STAYS BLACK, and that is the whole trap. StandardMaterial3D's
+	## emission operator defaults to ADD, so the shader computes
+	## `(emission + texture) * energy` — a white base colour with a map on top
+	## does not tint the map, it lights the WHOLE MESH white and the figure comes
+	## out as a flat silhouette with a hint of geometry in it. Written that way
+	## first and rendered (`.shots/models/knight-e1/armored.png`): it is SG-65's
+	## white-silhouette failure exactly, arrived at from the opposite direction —
+	## that session concluded the map was sampling white, and this one shows the
+	## base colour was doing it. Black base, map on top: texture-only emission.
+	##
+	## The ENERGY is data (`emission_energy` in the manifest) because a Meshy
+	## emission sheet is authored dim — the knight's peak texel is 49/255, which
+	## is 0.03 in linear light and invisible beside a deck lamp — and "is the
+	## furnace lit" is a question answered by looking at a render, not by a
+	## rebuild. A model whose map has no lit texels simply does not list one.
+	if maps.has("emission"):
+		skin.emission_enabled = true
+		skin.emission_texture = load(out + str(maps.emission))
+		skin.emission = Color.BLACK
+		skin.emission_energy_multiplier = float(job.get("emission_energy", 1.0))
 	## A whisper of rim, so a lit mesh reads against a deck of unshaded painted
 	## billboards. Any more bleaches it — most of a small figure seen at 41
 	## degrees is grazing angle, which is the opposite of what rim lighting

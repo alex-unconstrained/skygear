@@ -5817,6 +5817,143 @@ func _view() -> void:
 	_check("figure", "the first rigged boarder carries the pilot's clip set — walk and run to close, one swing, a flinch, and idle as the floor",
 		srig_ok, srig_have)
 
+	## --- board SG-85: the furnace knight, the SECOND rigged boarder ----------
+	## The owner's own model on his own Mixamo rig, and the first figure in this
+	## game that can die on screen. Same shape of contract as the Boilerwright's
+	## (SG-74): every clip name the renderer ASKS for must be aboard, because
+	## `tools/models.json`'s clip row is otherwise data with no reader the day
+	## someone trims it. He is a boarder, so the list is the boarder vocabulary —
+	## no `plant` (Tap Main is a class, not an enemy) and no `run_back`.
+	var krig := SkyGearRig3D.new()
+	root.add_child(krig)
+	var kpath := SkyGearView3D.model_path("ARMORED")
+	var kheight: float = SkyGearView3D.boarder_height("ARMORED")
+	var kbuilt: bool = ResourceLoader.exists(kpath) and krig.setup(kpath,
+		kheight * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES)
+	_check("figure", "the furnace knight builds from the owner's own native rig",
+		kbuilt, kpath)
+	if kbuilt:
+		var kwired := ["idle", "walk", "run", "swing", "swing2", "swing3",
+			"swing4", "swing5", "spin", "hurt", "die"]
+		var kmissing := PackedStringArray()
+		for c in kwired:
+			if not krig.has_clip(str(c)):
+				kmissing.append(str(c))
+		_check("figure", "the knight carries his clip set — a walk for the wall, five cuts, a flinch and a DEATH",
+			kmissing.is_empty(),
+			"%d of %d (missing: %s)" % [kwired.size() - kmissing.size(),
+				kwired.size(), ", ".join(kmissing)] if not kmissing.is_empty()
+				else "%d of %d, out of %d aboard" % [kwired.size(), kwired.size(),
+					krig.anim.get_animation_list().size()])
+		## HE IS TALLER THAN THE HERO, and that is the archetype's own number —
+		## the ledger's "goblins taller than the hero" complaint was about the
+		## SMALL three, and the fix was per-kind precisely so this one could keep
+		## its bulk. Read off `boarder_height`, the renderer's single copy.
+		_check("figure", "and he stands a head over the captain, because the SIM's own row says so",
+			kheight > SkyGearView3D.CAPTAIN_HEIGHT and kheight == 216.0,
+			"%.0f ground units against her %.0f" % [kheight,
+				SkyGearView3D.CAPTAIN_HEIGHT])
+		## THE FIRST DEATH. `_recycle` hands an unclaimed rig that HAS a death to
+		## the corpse list instead of freeing it on the spot; the clip is fitted
+		## to its window exactly the way a swing is, and the body does not begin
+		## to leave until the death has finished playing.
+		var sdead := SkyGearRig3D.new()
+		root.add_child(sdead)
+		var sdead_ok: bool = sdead.setup(SkyGearView3D.model_path("SCRAPPER"),
+			SkyGearView3D.boarder_height("SCRAPPER") * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		_check("figure", "the renderer knows he can die, and knows the scrapper still cannot",
+			SkyGearView3D.dies_on_screen(krig)
+				and sdead_ok and not SkyGearView3D.dies_on_screen(sdead),
+			"knight yes; scrapper no — his borrowed library has no death (SG-65), so he despawns exactly as he shipped")
+		sdead.queue_free()
+		krig.state = "idle"
+		krig.want("die", 0.0, SkyGearView3D.DEATH_WINDOW)
+		var die_rate: float = krig.anim.speed_scale
+		var die_shown: float = 0.0
+		if krig._clip == "die":
+			die_shown = SkyGearView3D.DEATH_WINDOW * die_rate \
+				/ krig.anim.get_animation("die").length
+		_check("figure", "dying plays the death, and the whole of it fits the window the body gets",
+			krig._clip == "die" and die_rate <= SkyGearRig3D.ATTACK_RATE_MAX
+				and die_rate >= SkyGearRig3D.ATTACK_RATE_MIN and die_shown >= 0.99,
+			"clip '%s' at %.2fx shows %.0f%% of a %.2fs death in %.2fs"
+				% [krig._clip, die_rate, die_shown * 100.0,
+					krig.anim.get_animation("die").length,
+					SkyGearView3D.DEATH_WINDOW])
+		## …and the body leaves AFTERWARDS, not during. The drop is zero for the
+		## whole death and a full body-height by the end of the sink.
+		## Asked in METRES, the frame the renderer writes `rig.position.y` in.
+		var kmetres: float = kheight * SkyGearView3D.WORLD_SCALE
+		var drop_mid: float = SkyGearView3D.corpse_drop(
+			SkyGearView3D.corpse_life() * 0.5, kmetres)
+		var drop_end: float = SkyGearView3D.corpse_drop(0.0, kmetres)
+		_check("figure", "and the body does not start leaving until the death has been played",
+			SkyGearView3D.corpse_life() > SkyGearView3D.DEATH_WINDOW
+				and is_zero_approx(drop_mid) and absf(drop_end - kmetres) < 0.001,
+			"held %.2fs (%.2fs of death, %.2fs of sinking); drops %.2f m mid-death, %.2f m by the end"
+				% [SkyGearView3D.corpse_life(), SkyGearView3D.DEATH_WINDOW,
+					SkyGearView3D.DEATH_SINK, drop_mid, drop_end])
+		## THE STRIDE LAW, RUNNING THE OTHER WAY (SG-65 pinned the small case).
+		## He is TALLER than the 1.76 m the cycles were measured at, so the same
+		## ground speed has to drive his cycle SLOWER — his stride sweeps more
+		## deck per beat. And the cycle he plays is a WALK, rated against the
+		## walk's own authored speed: rating a walk as a run put him under the
+		## floor and handed the skate straight back.
+		var kcap := SkyGearRig3D.new()
+		root.add_child(kcap)
+		var kcap_ok: bool = kcap.setup(kpath,
+			SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		var armored_speed: float = float(SkyGearData.ENEMIES.ARMORED.speed)
+		krig.state = "idle"
+		krig.want(SkyGearRig3D.gait(armored_speed), armored_speed)
+		var ktall_rate: float = krig.anim.speed_scale
+		var kshort_rate := 0.0
+		if kcap_ok:
+			kcap.state = "idle"
+			kcap.want(SkyGearRig3D.gait(armored_speed), armored_speed)
+			kshort_rate = kcap.anim.speed_scale
+		_check("rig", "the same ground speed drives the TALLER figure's cycle slower — the stride law, the other way round",
+			krig._clip == "walk" and ktall_rate < kshort_rate
+				and absf(ktall_rate - armored_speed / (SkyGearRig3D.AUTHORED_WALK_SPEED
+					* (kheight * SkyGearView3D.WORLD_SCALE
+						/ SkyGearRig3D.AUTHORED_RUN_HEIGHT))) < 0.02,
+			"%.0f-unit knight %.3fx against a captain-height copy at %.3fx, same %.0f units a second"
+				% [kheight, ktall_rate, kshort_rate, armored_speed])
+		kcap.queue_free()
+		## AND HE WALKS AT ALL. Every rigged boarder ran, because the scrapper
+		## was the only one and he closes at 150. A wall at 75 running is a man
+		## sprinting on the spot; the crossover is the geometric mean of the two
+		## authored speeds, and it leaves the scrapper exactly where he was.
+		_check("rig", "a wall at seventy-five walks and a rusher at a hundred and fifty still runs",
+			SkyGearRig3D.gait(armored_speed) == "walk"
+				and SkyGearRig3D.gait(float(SkyGearData.ENEMIES.SCRAPPER.speed)) == "run"
+				and SkyGearRig3D.gait(float(SkyGearData.ENEMIES.SWARM.speed)) == "run",
+			"knight %.0f -> walk, scrapper %.0f -> run, swarm %.0f -> run (crossover %.0f)"
+				% [armored_speed, float(SkyGearData.ENEMIES.SCRAPPER.speed),
+					float(SkyGearData.ENEMIES.SWARM.speed),
+					SkyGearRig3D.GAIT_CROSSOVER])
+		## THE FURNACE CHEST IS LIT, and it is lit by a MAP rather than by a
+		## flat colour. `emission` staying black is the whole of the fix: the
+		## operator is ADD, so a white base with a map on top emits WHITE over
+		## the entire mesh — rendered, and it is SG-65's flat silhouette again
+		## (`.shots/models/knight-e1/armored.png`).
+		var kmat: StandardMaterial3D = null
+		for mi in krig.model.find_children("*", "MeshInstance3D", true, false):
+			var mm: Mesh = (mi as MeshInstance3D).mesh
+			if mm != null and mm.get_surface_count() > 0:
+				kmat = mm.surface_get_material(0) as StandardMaterial3D
+		_check("figure", "his furnace chest emits, and only his furnace chest — the map is the emitter, never a flat colour",
+			kmat != null and kmat.emission_enabled and kmat.emission_texture != null
+				and kmat.emission.r + kmat.emission.g + kmat.emission.b < 0.001
+				and kmat.emission_energy_multiplier > 1.0,
+			"map %s, base %s, energy %.1f" % ["yes" if kmat != null
+				and kmat.emission_texture != null else "MISSING",
+				kmat.emission if kmat != null else "-",
+				kmat.emission_energy_multiplier if kmat != null else 0.0])
+	krig.queue_free()
+
 	## --- board SG-64: the same bargain for the DECK's own meshes -------------
 	## The boarder loop above only reaches kinds the simulation can spawn; the
 	## props reach the renderer through `PROP_MODEL`/`_sync_prop_model`, whose
@@ -7998,7 +8135,7 @@ func _clip() -> void:
 	## listed and does not resolve is a tool that fails at the exact moment
 	## somebody reaches for evidence.
 	var kinds := ["fight", "dash", "projectiles", "scrapper", "boilerwright",
-		"cutscene"]
+		"knight", "cutscene"]
 	var unresolved := ""
 	for id in ClipMath.ids():
 		var spec := ClipMath.find(str(id))

@@ -245,6 +245,30 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 				walker.lane = int(stand.lane)
 				walker.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
+		"knight":
+			## The furnace knight's witness (SG-85): the WALK (he is the one
+			## boarder slow enough to have one), the closing cut, and the first
+			## DEATH this game has ever shown. Three of them, spawned through
+			## the real `spawn_enemy` — the simulation's own boarders, lane, AI
+			## and all — then placed up-deck of the captain and left to close.
+			## Two are killed on the strip below through `kill()`, the sim's own
+			## one-way door, so the death that films is the one a player causes.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			for stand in [
+					{"lane": 0, "at": Vector2(-280.0, 210.0)},
+					{"lane": 1, "at": Vector2(-10.0, 60.0)},
+					{"lane": 2, "at": Vector2(250.0, 170.0)}]:
+				game.spawn_enemy("ARMORED", int(stand.lane))
+				var wall := game.get_tree().get_nodes_in_group("enemies")
+				var knight = wall[wall.size() - 1]
+				knight.global_position = stand.at
+				knight.lane = int(stand.lane)
+				knight.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
+			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
 		"boilerwright":
 			## His class row's witness (SG-74): the walk, the slash and the
 			## plant on one strip of film. A seated Cleave so the casts swing
@@ -324,6 +348,18 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 						var foes := game.get_tree().get_nodes_in_group("enemies")
 						if not foes.is_empty():
 							game.cast_skill(1, foes[0].global_position)
+				"knight":
+					## Two and a half seconds of the march — which is the whole
+					## point of him, a wall arriving rather than a rusher — then
+					## the deaths, ninety ticks apart so the first body is still
+					## sinking when the second goes down.
+					if tick == 150 or tick == 240:
+						var wall := game.get_tree().get_nodes_in_group("enemies")
+						for foe in wall:
+							if is_instance_valid(foe) and not foe.dead \
+									and str(foe.kind) == "ARMORED":
+								foe.kill()
+								break
 				"boilerwright":
 					## Two seconds of march, two cuts sixty-five ticks apart
 					## (the variant rotation shows two DIFFERENT slashes), then

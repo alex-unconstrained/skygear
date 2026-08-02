@@ -156,6 +156,10 @@ def ingest(name: str, spec: dict, keep_staging: bool) -> int:
         "height": spec.get("height", 176.0),
         "facing": spec.get("facing", 0.0),
         "maps": maps,
+        ## How hard the emission map burns. Data, because "is the chest glowing
+        ## enough" is a question answered by looking at a render and nudging a
+        ## number, not by a rebuild (board SG-85).
+        "emission_energy": spec.get("emission_energy", 1.0),
     }
     (STAGING / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
 

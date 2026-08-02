@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **705 harness checks**; the text audit covers 24 screens at
+board SG-56). **719 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
@@ -215,6 +215,24 @@ Five heavy slashes rotate as his attacks, and Tap Main plays a real kneel
 (`figure · tapping a main plays the plant, and the kneel fits the tap window
 like a swing fits its cast`); the borrowed captain-clip retarget is retired.
 `.shots/clips/boilerwright.gif` is the witness.
+
+**And the FURNACE KNIGHT is a mesh, on the owner's own rig (board SG-85,
+2026-08-02) — the second rigged boarder, and the first figure in this game that
+DIES on screen.** Same shape as SG-74 (his Emberforge Sentinel through Mixamo:
+a native rig plus 51 clips, one `models.json` entry, one ingest run), which
+closes SG-22 and empties the `handoff-3d/` queue. He stands 216 ground units —
+the SIM's own number for the archetype, a head over the captain — and he WALKS,
+because he is the first boarder slow enough to need one: the run cycle rated at
+75 units a second fell under the playback floor and skated, so `gait()` picks
+the cycle by ground speed and `AUTHORED_WALK_SPEED` rates a walk against a
+walk. Death is presentation only: the simulation kills, pays out and frees the
+enemy exactly as before, and the RENDERER keeps the body 1.6 s to play `die`
+before it sinks (`figure · and the body does not start leaving until the death
+has been played`). His furnace chest is the first emission map this pipeline
+has ever read — and the honest note beside it is SG-86: on the deck he is about
+a quarter darker than the painting he replaces, and his hands are empty where
+the sprite carries an axe. `.shots/clips/knight.gif` against
+`knight-before.gif` is the witness.
 
 `prune` strips the 77 MB an asset arrives as down to the ~10 MB GLB actually
 used, and refuses to run before the first import because extract-mode textures

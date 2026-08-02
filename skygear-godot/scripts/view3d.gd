@@ -320,6 +320,45 @@ var _peak_decals := 0
 var _peak_billboards := 0
 var _rigs: Dictionary = {}            ## key -> SkyGearRig3D, for anything with a model
 var _no_model: Dictionary = {}        ## kinds we have already looked for and not found
+
+## --- SG-85: the first death on screen ---------------------------------------
+##
+## Bodies the SIMULATION has already finished with, kept a moment longer so the
+## death clip can play. key -> {rig, life, height}. Deliberately NOT `_rigs`: a
+## corpse is claimed by nobody, must never be handed to a live boarder, and the
+## next spawn builds its own figure.
+var _corpses: Dictionary = {}
+
+## How long the death clip gets. The knight's `die` is 2.40 s and a fight cannot
+## stop for that, so it rides the same clip-stretched-to-window machinery every
+## swing does (1.5x, which reads as going down HARD rather than sagging).
+const DEATH_WINDOW := 1.60
+
+## …and then the body sinks through the planking rather than blinking out. The
+## last thing a death should do is remind you it was a node.
+const DEATH_SINK := 0.40
+
+
+## How long a corpse is kept, total.
+static func corpse_life() -> float:
+	return DEATH_WINDOW + DEATH_SINK
+
+
+## How far a corpse has dropped below the deck, given the life it has left and
+## the height it stands. Zero for the whole death clip — the body does not start
+## leaving until the death has been PLAYED — then a full body-height in the last
+## `DEATH_SINK` seconds.
+static func corpse_drop(life: float, height: float) -> float:
+	if life >= DEATH_SINK:
+		return 0.0
+	return height * (1.0 - maxf(0.0, life) / DEATH_SINK)
+
+
+## Whether this figure has a death to show. The scrapper's borrowed library has
+## none (SG-65 flagged it, SG-74 found the source), so he keeps despawning
+## exactly as he shipped — the same always-both-paths rule the meshes follow.
+static func dies_on_screen(rig: SkyGearRig3D) -> bool:
+	return rig != null and rig.has_clip("die")
 var _prop_models: Dictionary = {}     ## key -> Node3D, a static generated mesh in use
 var _free_prop_models: Dictionary = {} ## model key -> Array[Node3D], hidden, reusable
 var _no_prop_model: Dictionary = {}   ## model keys already looked for and not found
@@ -2800,6 +2839,28 @@ func _process(delta: float) -> void:
 ## of the run.
 const POOL_SLACK := 24
 
+## The corpses, aged. Called from `_sync_all`, not from `_recycle`, for one
+## reason: it draws a shadow, and the shadow batch is flushed before the recycle
+## runs — a body lying on the planking with nothing under it is a decal, not a
+## corpse. A body converted at the end of frame N first ages on frame N+1, which
+## costs it a frame of its window and keeps every shadow in one pass.
+func _age_corpses(delta: float) -> void:
+	for key in _corpses.keys():
+		var body: Dictionary = _corpses[key]
+		body.life = float(body.life) - delta
+		var rig: SkyGearRig3D = body.rig
+		if float(body.life) <= 0.0 or not is_instance_valid(rig):
+			if is_instance_valid(rig):
+				rig.queue_free()
+			_corpses.erase(key)
+			continue
+		rig.position.y = -corpse_drop(float(body.life), float(body.height))
+		_shadow("dead" + key, Vector2(rig.position.x / WORLD_SCALE,
+			rig.position.z / WORLD_SCALE),
+			float(body.height) / WORLD_SCALE * 0.55,
+			0.5 * clampf(float(body.life) / DEATH_SINK, 0.0, 1.0))
+
+
 func _recycle() -> void:
 	for key in _billboards.keys():
 		if not _used.has(key):
@@ -2825,11 +2886,28 @@ func _recycle() -> void:
 	## Rigs are the exception: a character is a whole scene with a skeleton and an
 	## animation player, and keeping a dead boarder's one alive to re-skin later
 	## is holding far more than a sprite.
+	##
+	## …unless it can DIE (board SG-85, the game's first death animation). A rig
+	## that goes unclaimed is a boarder the simulation has finished with — killed,
+	## despawned or cleared — and until the furnace knight arrived the only thing
+	## to do about it was free the node the same frame, which is why every death
+	## in this game is a figure ceasing to exist inside its own burst.
+	##
+	## Presentation only, and the seam is exactly where it has to be: the sim ran
+	## `on_enemy_killed` (the scrap, the pressure, the burst, the sfx) and freed
+	## the enemy BEFORE this line, so nothing here can hold up a kill, a wave, or
+	## a payout — the body is a corpse the renderer keeps for a second and a half
+	## after the simulation has stopped believing in it.
 	for key in _rigs.keys():
 		if not _used.has(key):
 			var rig: SkyGearRig3D = _rigs[key]
-			rig.queue_free()
 			_rigs.erase(key)
+			if dies_on_screen(rig) and game != null and game.is_playing():
+				rig.want("die", 0.0, DEATH_WINDOW)
+				_corpses[key] = {"rig": rig, "life": corpse_life(),
+					"height": rig.fit_height}
+			else:
+				rig.queue_free()
 	## Prop meshes go back on a shelf instead, one shelf per model. They are not
 	## rigs — there is no skeleton or AnimationPlayer to hold — and salvage is the
 	## case that decides it: a pickup appears and is collected several times a
@@ -3937,6 +4015,7 @@ func _sync_auras() -> void:
 
 
 func _sync_all(delta: float) -> void:
+	_age_corpses(delta)
 	if game.player != null and game.player.hp > 0.0:
 		_shadow("player", game.player.global_position, 96.0, 0.55)
 		if not _sync_captain(delta):
@@ -3984,7 +4063,7 @@ func _sync_all(delta: float) -> void:
 		## one at a time, and the renderer should not need editing for each.
 		if not _sync_rig(key, enemy.kind, enemy.global_position, heading, height,
 				swinging, enemy.state == "move", enemy.velocity.length(),
-				maxf(0.0, enemy.state_time), delta):
+				maxf(0.0, enemy.state_time), delta, enemy.stun_time):
 			_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
 				enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
 		# burning boarders glow; frozen ones go blue. The status is the read.
@@ -4567,7 +4646,7 @@ static func boarder_height(kind: String) -> float:
 ## so the caller falls back to the painted billboard.
 func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		height: float, attacking: bool, moving: bool, speed: float,
-		attack_clock: float, delta: float) -> bool:
+		attack_clock: float, delta: float, stun: float = 0.0) -> bool:
 	if _no_model.has(kind):
 		return false
 	var rig: SkyGearRig3D = _rigs.get(key)
@@ -4585,11 +4664,30 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"
-	if attacking:
+	if stun > 0.0:
+		## THE FLINCH (SG-85). The sim's own signal, not a hit counter kept
+		## behind the renderer's back: an ARC proc stuns for 0.45 s and the
+		## boarder's whole state machine returns early while it lasts — it is
+		## already "this one is reeling, and doing nothing else". A hit that
+		## does not stun stays what it always was, a number and a tint; a
+		## flinch on every tick of damage would freeze a 180-hp wall solid.
+		doing = "hurt"
+	elif attacking:
 		doing = "swing"
 	elif moving and speed > 12.0:
-		doing = "run"
-	rig.want(doing, speed, attack_clock if attacking else 0.0)
+		## WALK OR RUN, by the ground speed the simulation is actually giving
+		## this kind (SG-85). Every boarder ran, because the scrapper was the
+		## only rigged one and he closes at 150. The furnace knight moves at
+		## SEVENTY-FIVE — a wall, not a rusher — and a run cycle at that speed
+		## is a man sprinting on the spot. `gait` picks whichever cycle has to
+		## be stretched less; the crossover leaves the scrapper on his run.
+		doing = SkyGearRig3D.gait(speed)
+	var window := 0.0
+	if attacking:
+		window = attack_clock
+	elif doing == "hurt":
+		window = maxf(0.12, stun)
+	rig.want(doing, speed, window)
 	rig.place(ground, heading, WORLD_SCALE, delta)
 	return true
 

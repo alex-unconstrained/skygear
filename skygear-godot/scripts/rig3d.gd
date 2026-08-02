@@ -77,6 +77,33 @@ const BLEND := {
 ## by actual speed over this, so the feet stop skating at any move-speed card.
 const AUTHORED_RUN_SPEED := 210.0
 
+## ...and the same number for a WALK cycle, which is not the same number and was
+## being handed the run's (board SG-85, the furnace knight).
+##
+## Nothing walked until he arrived: the captain's sim only ever asks for idle or
+## run, and the scrapper closes at 150 units a second. The knight is a 180-hp
+## wall moving at SEVENTY-FIVE, and a run cycle divided by 210 hands him 0.36 —
+## under the 0.55 floor, so he played a run in slow motion and skated anyway,
+## which is the exact failure `AUTHORED_RUN_SPEED` exists to kill.
+##
+## MEASURED off his pack's own root motion before the ingest in-placed it: the
+## walk clip carries 166 ground units in 1.37 s at his drawn 216, which is 121.7
+## units a second at that height and **99.1 at the 1.76 m reference** this table
+## is written in. (The same measurement puts the pack's run at 236 against the
+## captain's 210 — a twelfth apart, so the run constant stands.)
+const AUTHORED_WALK_SPEED := 99.0
+
+## Which cycle a figure at this ground speed should be playing: whichever one it
+## has to STRAIN LESS to sell. The crossover is the geometric mean of the two
+## authored speeds, so a figure is equally wrong either side of it — 144 units a
+## second. The scrapper's 150 stays a run by six units, which is deliberate: the
+## SG-65 read-verdict was recorded on the run cycle and nothing about him changed
+## the day the knight landed.
+const GAIT_CROSSOVER := 144.0    ## sqrt(99 * 210), rounded
+
+static func gait(speed: float) -> String:
+	return "run" if speed >= GAIT_CROSSOVER else "walk"
+
 ## ...and the drawn height that 210 was measured against (the captain's 1.76 m).
 ## The clip's stride is drawn through the rig's own scale, so at half her height
 ## the same cycle sweeps HALF the ground per beat — and a half-height boarder
@@ -527,8 +554,15 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 		## Scaled by the figure's own stride: the cycle covers ground through
 		## the rig's height scale, so what matters is speed against the ground
 		## THIS figure's stride actually sweeps (see AUTHORED_RUN_HEIGHT).
+		##
+		## And against the speed the CLIP ON SCREEN was authored at — read off
+		## `_clip`, not off the state, because `run` falls back to `walk` on a
+		## rig that has no run and the cycle playing is the one that has to be
+		## rated. A walk rated as a run is the knight's slow-motion skate.
 		var stride: float = (fit_height / AUTHORED_RUN_HEIGHT) if fit_height > 0.0 else 1.0
-		anim.speed_scale = clampf(speed / (AUTHORED_RUN_SPEED * stride), 0.55, 1.9)
+		var authored: float = AUTHORED_WALK_SPEED if _clip.begins_with("walk") \
+			else AUTHORED_RUN_SPEED
+		anim.speed_scale = clampf(speed / (authored * stride), 0.55, 1.9)
 	elif ONE_SHOT.get(next, false) and window > 0.0 and has_clip(clip):
 		anim.speed_scale = clampf(anim.get_animation(clip).length / window,
 			ATTACK_RATE_MIN, ATTACK_RATE_MAX)

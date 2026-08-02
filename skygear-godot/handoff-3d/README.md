@@ -29,13 +29,47 @@ everything is waiting on a human with a modeling tool.
   static props wire via `PROP_MODEL`/`static_model.gd`, figures via the rig
   path.
 
-## The queue
+## The queue — **EMPTY as of 2026-08-02**
 
-### furnace_knight/ — FINAL Meshy reject (two attempts, July)
+Both entries below are resolved, both by the owner's own hand in one day: the
+boarding hulk (three models, one per painted state, SG-76) and the furnace
+knight (SG-85). Nothing in this folder is waiting on anybody. The two specs
+stay below as history — they are the format the next reject gets written in,
+and the notes under each are what the specs failed to say.
+
+### furnace_knight/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: FINAL Meshy reject (two attempts, July)
 The 180-hp mini-boss that cannot be walked through; still a 2D sprite, the
 one boarder breaking deck consistency. Neither attempt read as a wall of
 armor. Target: ~2.0 m tall, massive silhouette, furnace-grille chest that
 emits (emission map: hot orange, nothing else). Reference PNGs in folder.
+
+**DELIVERED, and the spec above stays as history.** The owner modelled him as
+the **Emberforge Sentinel** and ran the OBJ through Mixamo's auto-rigger,
+delivering the SG-74 Boilerwright shape exactly: one rigged character FBX plus
+51 animation-only clips on that same rig. Wired under board **SG-85** as the
+SECOND rigged boarder (`assets/models/armored/`, 216 ground units, 3,080
+triangles, 11 clips wired of 51 aboard) — and he brings the first death
+animation this game has ever played.
+
+Three things worth carrying forward, because they are what the spec was FOR:
+
+* **The emissive chest was met, and it made the pipeline grow a reader.** The
+  spec's "emission map: hot orange, nothing else" is literally what his sheet
+  contains, and until this asset `tools/ingest_model.gd` threw every emission
+  map away. It reads one now. Two numbers for whoever writes the next spec: a
+  Meshy emission sheet is authored DIM (his peaks at 49/255, which is 0.03 in
+  linear light and invisible at 1x — the energy is manifest data), and the
+  material's emission BASE must stay black, because the operator is ADD and a
+  white base lights the whole mesh instead of tinting the map.
+* **The height and the proportions landed.** ~2.0 m asked, 2.16 m drawn — the
+  simulation's own number for the archetype, not a guess — and at the real
+  camera the mass reads: he is a wall.
+* **What a figure spec should ALSO say: what is in its hands.** The painted
+  knight carries a double-bladed axe and the model carries nothing, because the
+  animation pack that rigs him is a great-sword pack with no weapon mesh in it.
+  Weapons are a separate bone-mounted layer here (that rule is above, and it is
+  right) — but the spec never said "and the axe is a second asset", so nobody
+  costed it. Filed as SG-86.
 
 ### boarding_hulk/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: FINAL Meshy reject (three attempts; SG-64)
 v1 a submarine; v2 a box whose mass vanished up out of frame; v3 — the

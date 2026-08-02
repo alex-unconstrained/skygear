@@ -24,9 +24,12 @@ func _initialize() -> void: call_deferred("_run")
 ## key -> height in ground units, the same numbers view3d.gd places them at:
 ## PROP_HEIGHT, BOILER_HEIGHT, 120 + radius*3 for a boarder, and weapons.json
 ## length for a weapon. Kept here rather than imported because four of these
-## models are deliberately NOT wired into the renderer — armored, brazier,
-## crate_small and boarding_hulk are on disk and painted over — and they still
-## have to be looked at, at the size they would have had.
+## models are deliberately NOT wired into the renderer — brazier, crate_small
+## and boarding_hulk are on disk and painted over — and they still have to be
+## looked at, at the size they would have had. (`armored` was the fourth until
+## board SG-85: the owner's furnace knight ships as `armored.tscn`, so this
+## renders the shipped rig now, at the height the renderer gives it. The
+## `.tscn`-before-`.glb` preference below made that a zero-line change.)
 const HEIGHT := {
 	"sword_cutlass": 95.0, "sword_gearblade": 95.0,
 	"scrapper": 186.0, "gunner": 183.0, "armored": 216.0, "swarm": 165.0,

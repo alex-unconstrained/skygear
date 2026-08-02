@@ -578,6 +578,37 @@ skinned mesh cannot be re-decimated after the fact, so the count is pinned by
 its own check rather than silently accepted, and the fix is a re-export, not
 surgery.
 
+**And a third time, on the same day (board SG-85) — the furnace knight.** The
+owner's Emberforge Sentinel came back from Mixamo as the same shape again (one
+rigged FBX, 51 clips, a consistent 30.7 degrees off rest) and ingested as one
+manifest entry and one command, this time for an ENEMY rather than a class:
+the entry is keyed by the enemy kind, so the renderer picked him up with no
+code change at all. Two things this third pass added to the pipeline itself:
+
+- **An emission reader.** `ingest_model.gd` had thrown every emission map away
+  since the captain, because nothing on the deck needed one; the knight's
+  identity is a furnace-grille chest, so it reads one now — `emission`, sized
+  and downscaled like any other map, with `emission_energy` as manifest data.
+  The trap is worth writing down, because two sessions have now hit it from
+  opposite sides: StandardMaterial3D's emission operator is ADD, so the base
+  colour must stay BLACK. A white base with a map on top does not tint the map,
+  it emits `(white + map) x energy` over the whole mesh — the flat white
+  silhouette SG-65 spent a session on. And a Meshy emission sheet is authored
+  dim (his peaks at 49/255, 0.03 in linear light), which is why the energy is
+  data and not a constant.
+- **A walk is not a slow run.** `AUTHORED_RUN_SPEED` rated both, which was
+  invisible while every animated figure ran. A boarder at 75 ground units a
+  second put the rate under its own floor and skated. There are two authored
+  speeds now, measured off the pack's own root motion before the ingest
+  in-places it, and `SkyGearRig3D.gait()` picks the cycle that has to be
+  strained less.
+
+**The 13l "still open" above now has a second name on it.** This pack ships no
+weapon either, and the knight is worse off than the captain for it: his painted
+sprite carries a double-bladed axe and his mesh carries nothing. The mount seam
+(`weapons.json` + `hold()`) has worked since the cutlass; what is missing is the
+asset. Board SG-86.
+
 ## 13m. Response to the rendering audit — 2026-07-28
 
 `docs/VFX-RESEARCH-AUDIT.md` arrived and found four things wrong with work that

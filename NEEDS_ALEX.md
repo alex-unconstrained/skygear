@@ -17,6 +17,8 @@ cracking on a dash, projectiles, every cutscene) and
 
 **F4 resizes now (SG-80), and your Ctrl+S bug was real (SG-83): the harness had been deleting `user://hud_layout.json` six times a run, so the editor saved correctly and a tool run wiped it minutes later — fixed, and the bar now says SAVED with the real path, or shouts if a write fails.**
 
+**The knight lives (SG-85) — feel-check his walk, his slash, his death and his chest glow: `.shots/clips/knight.gif` beside `.shots/clips/knight-before.gif` (same seed, same ticks, mesh against the old billboard). Two things I could measure but not judge: on the deck he reads about a quarter darker than his painting (34.1 mean luminance against 45.4) and his hands are EMPTY where the sprite carries an axe — both are SG-86, and both are your call on whether they matter at fight range.**
+
 **Your three boarding-hulk models are in and all three states are wired (SG-76) — feel-check the sequence in a push wave (wave 4): it now hangs on SEALED and shrugs off everything for 2.5 s, opens and starts unloading, and wears the wreck when it breaks; and say whether the sealed 2.5 s is the right beat, because that number is the only thing in it I picked rather than measured.**
 
 ## Your 2026-08-02 screenshot — the three corrections, one line each

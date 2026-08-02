@@ -73,6 +73,31 @@ func _run() -> void:
 			enote = "only %.0f%% of the clip" % (eshown * 100.0)
 		print("  %-12s %7.2fs %9.2fs %6s %7.2fx  %s"
 			% [which, ewindow, ewindow, eclip, erate, enote])
+		## THE GAIT AND THE DEATH (board SG-85). Two more windows a boarder now
+		## has, and both are functions of the kind's own numbers rather than of
+		## a skill: the walk/run choice comes from the simulated speed, and the
+		## death gets `DEATH_WINDOW` whatever the clip's own length is.
+		var espeed: float = float(config.get("speed", 120.0))
+		rig.state = "idle"
+		rig.want(SkyGearRig3D.gait(espeed), espeed)
+		print("  %-12s %7.0fu %9s %6s %7.2fx  %s"
+			% ["locomotion", espeed, "-", rig._clip, rig.anim.speed_scale,
+				"cycle against a %.0f-unit stride"
+					% (SkyGearView3D.boarder_height(ekind))])
+		if rig.has_clip("die"):
+			rig.state = "idle"
+			rig.want("die", 0.0, SkyGearView3D.DEATH_WINDOW)
+			var drate: float = rig.anim.speed_scale
+			var dshown: float = SkyGearView3D.DEATH_WINDOW * drate \
+				/ rig.anim.get_animation(rig._clip).length
+			print("  %-12s %7.2fs %9.2fs %6s %7.2fx  %s"
+				% ["death", rig.anim.get_animation(rig._clip).length,
+					SkyGearView3D.DEATH_WINDOW, rig._clip, drate,
+					"%.0f%% of the death shown" % (dshown * 100.0)])
+		else:
+			print("  %-12s %7s %9s %6s %7s  %s"
+				% ["death", "-", "-", "-", "-",
+					"no death clip: this kind despawns"])
 		print("\nVERDICT")
 		if enote == "ok":
 			print("  the swing lands inside its windup at a readable rate.")
