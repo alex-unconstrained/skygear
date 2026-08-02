@@ -832,6 +832,45 @@ func _build_world() -> void:
 const SPARK_CAPACITY := 512
 const FLASH_POOL := 8
 
+## --- AND THE PARTICLES THEMSELVES ARE BODIES NOW (board SG-63) ---------------
+##
+## The owner's remaining "2D reads", first item: the hit and explosion puffs.
+## Every one of these was a `QuadMesh` in `BILLBOARD_PARTICLES` mode — a flat
+## card turned to face the camera, wearing a painted plate. That is the SAME
+## tell SG-40 fixed on the projectile HEADS: a thing that presents the identical
+## disc from every angle is a sticker, and forty of them are forty copies of one
+## sticker. A steam puff drawn that way is a painted cloud standing in the air.
+##
+## Each behaviour now has a real body, and the BODY carries the behaviour — the
+## research audit's finding 4 in geometry rather than in hue:
+##
+##   spark   a short prism ALIGNED TO ITS OWN VELOCITY, so a fleck thrown out of
+##           a hit lies along the way it is going and swings as it curves.
+##           Unshaded and additive: a spark is light, not matter.
+##   shard   the same prism, longer and thinner, which is what makes Frost's
+##           splinter a splinter from every angle instead of only from this one.
+##   steam   a low-poly SPHERE, and the only LIT thing in the particle layer. A
+##           puff has to read as a VOLUME, and a volume is what the deck lamps
+##           model: the moon catches its crown, a brazier catches its flank, and
+##           it tumbles about its own axis so the highlight travels across it
+##           while it rises. None of which a camera-facing card can do.
+##
+## The painted plates stay ON the meshes as a mask, which is the one job they
+## are still good at: a low-poly sphere has a hard polygonal rim, and
+## `puff_steam`'s soft edge eats it, so the puff's outline is cloud and not
+## football. Element identity is untouched — it stays in `ELEMENT_FX`'s motion
+## and in the light decay, exactly where finding 4 put it.
+##
+## Sized in GROUND units, like everything else a caller here reasons about.
+const PARTICLE_BODY := {
+	"spark": {"girth": 9.0, "long": 25.0},
+	"shard": {"girth": 6.0, "long": 36.0},
+	"steam": {"girth": 19.0, "long": 19.0},
+}
+## How fast a puff tumbles, degrees a second. Slow — a puff that spins reads as
+## a thrown object; one that turns lazily reads as air.
+const PUFF_SPIN := 46.0
+
 ## Which behaviour each element throws, and how it moves. The audit's finding 4
 ## is the reason this table exists at all: **coloured light is still a hue cue**,
 ## so it cannot be the accessibility answer on its own. Shape, direction and
@@ -878,20 +917,69 @@ func _build_impacts() -> void:
 		## An accurate box, or Godot culls the system when the emitter node is off
 		## screen and the sparks vanish mid-flight.
 		node.visibility_aabb = AABB(Vector3(-40, -40, -40), Vector3(80, 80, 80))
-		var mesh := QuadMesh.new()
-		mesh.size = Vector2(26.0 if family != "steam" else 46.0,
-			26.0 if family != "steam" else 46.0) * WORLD_SCALE
+		## THE BODY. See `PARTICLE_BODY` — a prism for the two that are light and
+		## a lit sphere for the one that is air. Not a `QuadMesh` in
+		## `BILLBOARD_PARTICLES`, which is where the sticker read came from.
+		var body: Dictionary = PARTICLE_BODY[family]
+		var girth: float = float(body.girth) * WORLD_SCALE
+		var long: float = float(body.long) * WORLD_SCALE
+		var puff: bool = str(family) == "steam"
+		var mesh: Mesh
+		if puff:
+			var ball := SphereMesh.new()
+			ball.radius = girth
+			ball.height = long * 2.0
+			## Cheap on purpose: at this camera a puff is a few dozen pixels and
+			## the read is the shading gradient across it, not the smoothness of
+			## its rim — which the mask texture softens anyway.
+			ball.radial_segments = 10
+			ball.rings = 6
+			mesh = ball
+		else:
+			var chip := PrismMesh.new()
+			chip.size = Vector3(girth, long, girth)
+			mesh = chip
 		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		## LIT for the puff, unshaded for the two made of light. This one line is
+		## most of the item: an unshaded sphere is a flat disc with a texture on
+		## it, and a lit one is a thing the deck's own lamps are falling on.
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL if puff \
+			else BaseMaterial3D.SHADING_MODE_UNSHADED
 		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD if family != "steam" \
-			else BaseMaterial3D.BLEND_MODE_MIX
-		mat.billboard_mode = BaseMaterial3D.BILLBOARD_PARTICLES
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX if puff \
+			else BaseMaterial3D.BLEND_MODE_ADD
+		## DISABLED, which is the whole point — the mesh is oriented by the
+		## process material (down its velocity, or tumbling) rather than being
+		## swung to face the camera every frame.
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_DISABLED
 		mat.vertex_color_use_as_albedo = true    ## the colour rides on the particle
-		mat.albedo_texture = _art("steam" if family == "steam" else "ember",
-			_spark_texture())
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		mesh.material = mat
+		## THE PUFF WEARS THE PAINTED PLATE AND THE SLIVERS DO NOT, and that split
+		## is a bug this pass had to find twice. `puff_steam` is a soft alpha mask
+		## and on a sphere it does exactly what is wanted: eats the polygonal rim
+		## so the outline is cloud rather than football. `ember_particle` is a
+		## painted BILLBOARD — a sprite authored to BE the particle, and it carries
+		## cool rim highlights (around 130 of its lit pixels sit in the cyan-blue
+		## hues). Wrapped round a prism and minified at this camera, those pixels
+		## survive as coloured speckle on additive geometry, and a burst came out
+		## as a rainbow firework instead of as sparks. The generated white dot has
+		## no hue to leak.
+		mat.albedo_texture = (_art("steam", _spark_texture()) if puff
+			else _spark_texture())
+		if puff:
+			mat.roughness = 1.0
+			mat.metallic = 0.0
+			## A puff is closed, so the far side is wasted work — and with the
+			## near side alpha-blended over it, drawing both reads as a double
+			## exposure of the same cloud.
+			mat.cull_mode = BaseMaterial3D.CULL_BACK
+			## Steam is thin. A little of the light it is standing in comes
+			## through it rather than stopping at the front face, which is what
+			## keeps a backlit plume from reading as a grey pebble.
+			mat.backlight_enabled = true
+			mat.backlight = Color(0.34, 0.34, 0.34)
+		else:
+			mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		mesh.surface_set_material(0, mat)
 		node.draw_pass_1 = mesh
 		var process := ParticleProcessMaterial.new()
 		process.gravity = Vector3.ZERO         ## per-particle velocity does the work
@@ -899,6 +987,19 @@ func _build_impacts() -> void:
 		process.damping_max = 3.0
 		process.scale_min = 0.4
 		process.scale_max = 1.0
+		if puff:
+			## Tumbling, about its own axis. A still sphere and a billboard are
+			## the same picture; a turning one is not, and the turn is what says
+			## there is a body under the mask.
+			process.particle_flag_rotate_y = true
+			process.angle_min = 0.0
+			process.angle_max = 360.0
+			process.angular_velocity_min = -PUFF_SPIN
+			process.angular_velocity_max = PUFF_SPIN
+		else:
+			## Lying along its own flight. A spark that curves swings with the
+			## curve, which is the parallax a camera-facing card cannot have.
+			process.particle_flag_align_y = true
 		var curve := CurveTexture.new()
 		var ramp := Curve.new()
 		ramp.add_point(Vector2(0.0, 1.0))
@@ -1877,6 +1978,167 @@ func _wave_ribbon(centre: Vector2, radius: float, element: String, colour: Color
 	_ribbon(pts, half, cols)
 
 
+## --- THE BURST — AN EXPLOSION WITH A BODY (board SG-63) ----------------------
+##
+## `burst` is the game's death-and-detonation effect: every boarder that dies,
+## every crate broken, every powder keg (radius 175), the hulk coming apart
+## (260), the Boiler taking a hit, the captain being hurt. It was the LAST shape
+## with nothing in the air at all — VFX-PLAN §3 gave arc, cone, line, chain,
+## beam, circle and aoe a body in 2026-07-31 and this one was skipped, so the
+## most-seen violent moment in the game was a painted cartoon starburst
+## (`burst_impact.png`) projected flat onto the planking. It is the sticker the
+## owner photographed: a hard-edged star lying on the floor where a thing had
+## just come apart in the air.
+##
+## Three parts, and each answers a different half of "did it land, how hard":
+##
+##   the SHARDS   a radial spray of ribbons, thrown out of the point on a real
+##                HEMISPHERE of directions — not a flat ring — each arcing up and
+##                falling back under its own sag, so the spray has depth against
+##                the deck at 41 degrees instead of lying in it.
+##   the DEBRIS   a one-shot throw into the behaviour-keyed emitters, scaled by
+##                RADIUS rather than by damage, so a keg reads bigger than a
+##                gremlin. Fired ONCE per effect however many frames it lives —
+##                see `_burst_new`.
+##   the MARK     the ground ring stays, because it is still the readable half
+##                (the audit's rule, §3's rule): it says where on the deck the
+##                blast reached. It is drawn through `_ring_texture()` now
+##                rather than through the painted plate, for the reason recorded
+##                at `_sync_effects`.
+##
+## Element identity rides on `ELEMENT_RIBBON` exactly as every other shape's
+## does, so a Frost detonation throws narrow sagging splinters and an Ember one
+## throws fat rising licks — motion and timing, never hue.
+## How far the shell races out, as a multiple of the blast radius, and how much
+## of that the crown ring above it keeps.
+const BURST_REACH := 1.05
+const BURST_CROWN := 0.52
+
+## The fired-once ledger. A ring of the last N effect ids that have thrown their
+## debris, scanned linearly — fixed size, allocated at build, never grown, which
+## is the pool law applied to a bookkeeping array. Sixty-four is more than a keg
+## chain into a full deck produces in one frame, and an id that ages out of it
+## has long since expired (a burst lives 0.18–0.45 s).
+const BURST_MARKS := 64
+var _burst_fired: PackedInt32Array = PackedInt32Array()
+var _burst_head := 0
+
+## How much debris a blast of this radius throws, and how wide. Capped hard: the
+## emitters self-cap at SPARK_CAPACITY, but a keg chain into forty boarders must
+## not spend the whole budget on one frame's worth of kills.
+const BURST_DEBRIS_MAX := 18
+
+
+## Has this burst thrown its debris yet? First call for an id answers false and
+## records it; every later call in the effect's life answers true. Ordering-free
+## — it does not assume the renderer sees the effect on the tick it was created,
+## which is the kind of assumption that breaks the day the sim's update order
+## moves.
+func _burst_new(fid: int) -> bool:
+	if _burst_fired.is_empty():
+		_burst_fired.resize(BURST_MARKS)
+		for i in BURST_MARKS:
+			_burst_fired[i] = -1
+	for i in BURST_MARKS:
+		if _burst_fired[i] == fid:
+			return false
+	_burst_fired[_burst_head] = fid
+	_burst_head = (_burst_head + 1) % BURST_MARKS
+	return true
+
+
+## THE SHELL. Two rings of shockwave standing off the deck — a wide one racing
+## out and a smaller one riding above it — which together read as the top of a
+## dome coming off the point. The SPRAY is the debris (`_burst_debris`), which
+## is real oriented geometry now and does that job honestly.
+##
+## THIS WAS A RADIAL FAN OF RIBBONS FIRST, and it did not work — recorded
+## because the reason is a property of `_ribbon` that any future radial effect
+## will hit. A ribbon's width runs perpendicular BOTH to its path and to the
+## line of sight, which is exactly what stops a strip vanishing to a hairline —
+## but a spray throws shards in EVERY direction, and the ones travelling along
+## the view ray have a path parallel to the sight line, so the cross product
+## that sets the width collapses. Those shards came out as fat pale lozenges
+## lying over the fight rather than as splinters. A ring is safe from it by
+## construction: no part of a circle around the camera's own axis is ever
+## parallel to the ray through it.
+func _burst_ribbon(fid: int, centre: Vector2, radius: float, element: String,
+		colour: Color, alpha: float, progress: float) -> void:
+	## Out fast, then decelerating — the shape of a shockwave rather than of
+	## something expanding at a constant rate.
+	var out: float = ease(clampf(progress, 0.0, 1.0), 0.42)
+	if out < 0.02:
+		return
+	## The seed is unused by the rings themselves, but a burst that reports its
+	## own id is a burst the harness can tell apart from its neighbour.
+	## Held DOWN, deliberately. Two rings and a spray of additive bodies through
+	## the same pixels is three things adding, and additive things that overlap
+	## go white — which is how every element ends up looking identical. Each
+	## layer here is drawn at less than it would be drawn at alone.
+	var fade: float = alpha * (1.0 - progress * 0.25) * 0.70
+	_wave_ribbon(centre, radius * (0.35 + out * BURST_REACH), element, colour, fade,
+		progress)
+	## And the crown: a tighter ring, higher and later, so the two together are a
+	## dome's silhouette and not one hoop. Half the alpha, because the second one
+	## is a hint and the first one is the reach.
+	if progress > 0.10:
+		_wave_ribbon(centre, radius * (0.18 + out * BURST_CROWN), element, colour,
+			fade * 0.42, clampf(progress * 1.35, 0.0, 1.0))
+	if fid < 0:
+		return
+
+
+## The debris, thrown once. Scaled by the BLAST rather than by a damage number,
+## because a burst is the one effect whose size is already the thing being said.
+func _burst_debris(centre: Vector2, radius: float, element: String,
+		colour: Color) -> void:
+	var spec: Dictionary = ELEMENT_FX.get(element, ELEMENT_FX.EMBER)
+	var node: GPUParticles3D = _sparks.get(str(spec.family))
+	if node == null:
+		return
+	var count: int = clampi(int(float(spec.count) * (0.4 + radius / 130.0)),
+		5, BURST_DEBRIS_MAX)
+	## 1.2 rather than the 1.7 a HIT throws at. A burst puts three times as many
+	## bodies through the same pixels, and the tonemapper is Filmic at a white
+	## point of 6: stack enough over-bright orange and the channels clip at
+	## different rates, which comes out as coloured speckle rather than as fire.
+	## Same lesson `ELEMENT_RIBBON.hot` records one multiplication later.
+	## SATURATED before it is brightened, and only to 1.2 — the same two lessons
+	## `_ribbon_tint` records. Additive bodies stacked through the same pixels go
+	## white, so a burst drawn at the palette value comes out as a white spray
+	## with an orange idea behind it, which is how every element ends up looking
+	## the same. A HIT throws at 1.7; a burst puts three times as many bodies in
+	## one place, so it throws lower.
+	var pure := Color.from_hsv(colour.h, clampf(colour.s * 1.45, 0.0, 1.0), 1.0)
+	var tint := Color(pure.r * 1.2, pure.g * 1.2, pure.b * 1.2, 1.0)
+	## A detonation throws over the whole upper hemisphere; a hit throws in a
+	## cone (`ELEMENT_FX.spread`). That difference is the whole reason this is
+	## not a call to `impact_at` with the radius in the damage slot.
+	for i in count:
+		var yaw: float = _impact_rng.randf() * TAU
+		var pitch: float = _impact_rng.randf_range(-0.25, 1.25)
+		var dir := Vector3(cos(pitch) * cos(yaw), sin(pitch), cos(pitch) * sin(yaw))
+		var speed: float = radius * _impact_rng.randf_range(2.2, 5.0)
+		var velocity := dir * speed * WORLD_SCALE
+		velocity.y += float(spec.rise) * WORLD_SCALE
+		var at := Vector3(centre.x, 40.0 + radius * 0.25, centre.y) * WORLD_SCALE
+		node.emit_particle(Transform3D(Basis(), at), velocity, tint, Color.WHITE,
+			GPUParticles3D.EMIT_FLAG_POSITION | GPUParticles3D.EMIT_FLAG_VELOCITY
+				| GPUParticles3D.EMIT_FLAG_COLOR)
+	## And it lights the deck for an instant, off the SAME pool and the SAME
+	## decay rule as a hit — Frost snaps, Ember lingers (finding 4's timing
+	## channel). A keg going off in the dark that does not light anything is the
+	## thing the flashes exist to fix.
+	if _flashes.is_empty():
+		return
+	var light: OmniLight3D = _flashes[_flash_next % _flashes.size()]
+	_flash_next += 1
+	light.light_color = colour
+	light.light_energy = clampf(1.6 + radius / 55.0, 1.6, 5.5)
+	light.set_meta("decay", 26.0 if element == "FROST" or element == "ARC" else 8.0)
+	light.position = Vector3(centre.x, 70.0, centre.y) * WORLD_SCALE
+
+
 ## THE SHELL. A Mortar resolves at the target on the frame it is cast, so this is
 ## not a projectile in flight — it is the THROW, drawn in the tenth of a second
 ## after it happened. Which is honest: what the player did was lob something, and
@@ -2486,6 +2748,15 @@ const PAINTED := {
 	"scorch": "res://assets/art/ground/decal_scorch.png",
 	"oil": "res://assets/art/ground/decal_oil.png",
 	"gears": "res://assets/art/ground/decal_gear_scatter.png",
+	## RETIRED FROM THE DECAL PATH, 2026-08-02 (board SG-63). Both of these
+	## measure OPAQUE across their middle — `rune_player` is alpha-255 out to
+	## 90% of its radius and `burst_impact` is 255 at its centre — and every
+	## place they were used sized the decal from a gameplay number, which is
+	## the trap DESIGN §13e names and SG-78 photographed. They stay in the
+	## table because they are still the browser's art and a billboard or a
+	## fixed-size plate may want them again; nothing reaches them today, and
+	## the harness check `vfx · no ring or burst decal draws through a plate
+	## that measures opaque` is what keeps it that way.
 	"burst": "res://assets/art/fx/burst_impact.png",
 	"slash": "res://assets/art/fx/slash_arc.png",
 	"bolt": "res://assets/art/fx/bolt_tesla.png",
@@ -3586,8 +3857,11 @@ func _sync_effects() -> void:
 				_gust_ribbon(fx, fid, centre, rc, element, colour, alpha, progress)
 			"circle":
 				var rb: float = float(fx.get("radius", 120.0)) * maxf(0.25, progress)
+				## `_ring_texture()`, NOT `_art("ring", …)` — see the block above
+				## the `burst` arm. A Pulse's ring is `radius * 2`, a gameplay
+				## number, and the painted plate is opaque across its whole disc.
 				_decal("fx%d" % fid, centre, 0.0, rb * 2.0, rb * 2.0,
-					_art("ring", _ring_texture()), tint)
+					_ring_texture(), tint)
 				## And the wall of it, standing up off the deck. A Pulse and a vent
 				## are shockwaves through the air; the ring on the planking is where
 				## they REACH, which is a different question from what they are.
@@ -3598,12 +3872,39 @@ func _sync_effects() -> void:
 				if fx.has("from"):
 					_lob_ribbon(fid, Vector2(fx.from), centre, element, colour, progress)
 			"burst":
-				## A burst is an impact, and there is a painted one. It reads as
-				## debris thrown out of a point rather than as a ring, which is
-				## the difference between a kill and a spell landing.
+				## THE LAST SHAPE THAT WAS STILL A PAINTED CARD (board SG-63).
+				##
+				## This drew ONE thing: `burst_impact.png` as a decal at
+				## `radius * 2`. Two faults in one line, and they are the two
+				## faults this whole item is about.
+				##
+				## **It had no body.** Every other shape got geometry in the air
+				## on 2026-07-31 (VFX-PLAN §3/§4); this one was skipped, so the
+				## game's death-and-detonation effect — every kill, every powder
+				## keg, the hulk coming apart — was a flat cartoon star lying on
+				## the planking under a thing that had just come apart in the
+				## air. The shards fix that; see `_burst_ribbon`.
+				##
+				## **And the plate is the SG-78 trap again.** `burst_impact`
+				## measures fully opaque at its centre, falling to alpha 14 only
+				## at the extreme rim: a filled blob, not a hollow mark. DESIGN
+				## §13e's rule is that a decal whose size scales with a gameplay
+				## number must draw through a texture whose hollowness is
+				## GUARANTEED, and this one scaled to 520 ground units on a hulk
+				## break. It draws through `_ring_texture()` now — a shock ring
+				## marking where the blast reached, which is the readable half
+				## the audit says to keep, with the violence moved into the air
+				## where it belongs.
 				var rp: float = float(fx.get("radius", 120.0)) * (0.5 + progress * 0.9)
 				_decal("fx%d" % fid, centre, 0.0, rp * 2.0, rp * 2.0,
-					_art("burst", _ring_texture()), tint)
+					_ring_texture(), Color(tint.r, tint.g, tint.b, tint.a * 0.55))
+				var rb2: float = float(fx.get("radius", 120.0))
+				_burst_ribbon(fid, centre, rb2, element, colour, alpha, progress)
+				## Once per effect, whatever frame the renderer first sees it on
+				## — never once per frame, which would be a keg throwing its
+				## whole load fifteen times over.
+				if _burst_new(fid):
+					_burst_debris(centre, rb2, element, colour)
 			"line", "beam":
 				var from: Vector2 = fx.get("from", Vector2.ZERO)
 				var to: Vector2 = fx.get("to", Vector2.ZERO)
@@ -3625,8 +3926,14 @@ func _sync_effects() -> void:
 					_bolt_ribbon(fid, from, to, element, colour, alpha, progress,
 						phase, float(fx.get("lift", 0.0)))
 			_:
+				## An effect kind nothing here names. It gets the same two halves
+				## every named one gets — a hollow mark on the planking AND a wall
+				## of air standing off it — so a shape added to the sim tomorrow
+				## arrives with a body rather than as a plate on the floor, which
+				## is how this arm read for every kind that ever fell through it.
 				var rr: float = float(fx.get("radius", 90.0))
 				_decal("fx%d" % fid, centre, 0.0, rr * 2.0, rr * 2.0, _ring_texture(), tint)
+				_wave_ribbon(centre, rr, element, colour, alpha * 0.8, progress)
 
 	## Lingering fire. It is a hazard you have to read the floor for, so it gets
 	## a decal that breathes rather than a static disc.
@@ -3638,8 +3945,11 @@ func _sync_effects() -> void:
 		# the scorch on the planking, and the fire standing on top of it
 		_decal("scorch%d" % fid2, f.position, 0.0, fr, fr, _art("scorch", _blob_texture()),
 			Color(0.10, 0.07, 0.08, 0.75), false)
+		## `_ring_texture()`: `fr` is the field's own radius times 2.2, so
+		## this is a gameplay-scaled decal and the painted plate is opaque
+		## across its whole disc (SG-63, the SG-78 rule).
 		_decal("fire%d" % fid2, f.position, 0.0, fr * 0.82, fr * 0.82,
-			_art("ring", _ring_texture()),
+			_ring_texture(),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
 
 	## CRACKED MAINS. The Boilerwright's ground, and the only thing on the deck a
@@ -3735,8 +4045,11 @@ func _sync_effects() -> void:
 					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.85))
 		elif enemy.state == "turn":
 			var ring: float = (enemy.radius + 26.0 + sin(enemy.turn_time * 9.0) * 6.0) * 2.0
+			## Hollow by construction: `ring` is built from the boss's own radius,
+			## and a TELEGRAPH is the last decal in the game allowed to flood the
+			## deck it is warning about.
 			_decal("tn%d" % enemy.get_instance_id(), enemy.global_position, 0.0, ring, ring,
-				_art("ring", _ring_texture()), Color("#ffd36b"))
+				_ring_texture(), Color("#ffd36b"))
 
 
 ## One ground effect, pooled, as an actual projected decal.
@@ -3935,8 +4248,11 @@ func _sync_auras() -> void:
 		var tint: Color = SkyGearData.ELEMENTS[skill.element].color
 		var at: Vector2 = game.player.global_position
 		# the edge, on the deck
+		## The widest gameplay-scaled ring in the game — a card that widens
+		## the Field widens this — so it is the one that most needed the
+		## generated rim rather than the painted plate (SG-63).
 		_decal("aura%d" % index, at, 0.0, radius * 2.0, radius * 2.0,
-			_art("ring", _ring_texture()),
+			_ring_texture(),
 			Color(tint.r, tint.g, tint.b, 0.42 + sin(_flicker * 2.6) * 0.08))
 		# and the air inside it
 		var key := "auravol%d" % index
@@ -4415,9 +4731,11 @@ func _sync_all(delta: float) -> void:
 			_spark("ventf%d" % id, prop.global_position, 24.0,
 				36.0 + 8.0 * breath, Color(1.0, 0.55, 0.24, 0.9))
 			if str(game.class_id) == "boilerwright":
+				## `VENT_STAND` is a table number the class is balanced on, so this
+				## is the same rule even though it does not move (SG-63).
 				_decal("ventr%d" % id, prop.global_position, 0.0,
 					SkyGearData.VENT_STAND * 2.0, SkyGearData.VENT_STAND * 2.0,
-					_art("ring", _ring_texture()),
+					_ring_texture(),
 					Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b,
 						0.30 + 0.10 * breath))
 

@@ -381,6 +381,22 @@ projection box, painting a solid glowing rectangle over the deck, the crates and
 the fight. The fix is a premultiplied emission map, alpha baked into RGB, so the
 hollow parts are black and black emits nothing.
 
+**And it was under FIVE MORE EFFECTS than SG-78 fixed — 2026-08-02, board
+SG-63.** SG-78 measured the plate and fixed the aim ring. It did not sweep the
+rest, and the rest were all sized from gameplay numbers too: the `circle` shape
+(a Pulse at `radius * 2`), the lingering fire fields, the Colossus turn ring,
+the Boilerwright's vent stand, and — worst of them — the AURA EDGE, whose radius
+comes from `skill_stats` and which a draft card WIDENS. `burst_impact.png` is
+the same shape of fault: opaque at its centre, scaling to 520 ground units on a
+hulk break. All six draw through `_ring_texture()` now. `slash_arc.png` was
+measured on the same run and KEPT — it reads alpha 0 at its centre and peaks
+mid-radius, so it is genuinely a rim and the rule does not touch it. The rule is
+enforced rather than remembered: `vfx · no ring or burst decal draws through a
+plate that measures opaque` greps the renderer's CODE (not its comments — the
+first version counted its own explanation as three call sites), and `vfx · the
+two retired plates are opaque at their centres` measures the PNGs, so nobody can
+retire the rule on the grounds that it stopped mattering.
+
 **And the trap has a second door — found 2026-08-02, board SG-78.** The
 premultiplied map only saves you if the SHAPE is hollow. `_art("ring", …)`
 prefers the painted plate `assets/art/ground/rune_player.png` over the generated

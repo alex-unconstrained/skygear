@@ -19,7 +19,23 @@ knight both came from your own Meshy sessions after prompted attempts failed;
   There is a real invulnerable beat now while the door is shut.
 - **Aim is just the reticle**, per your spec. (The "ring" was drawing a painted
   plate that is a filled disc with a hole in it — hence the flood.)
-- **The cape is gone**, off by default until a rebuild earns it back.
+- **The impact puffs and the explosions are 3D now** — the particles were flat
+  cards facing the camera, so a steam plume was one painted cloud sprite
+  stacked forty times; and the explosion itself (every kill, every keg) was a
+  cartoon starburst lying on the floor. `.shots/sg63/burst-before-after.png`,
+  `.shots/sg63/puff-before-after.png`, and the clips in `.shots/sg63/clips/`.
+- **THE CAPE: I rebuilt it, it is no longer a plank, and I left it OFF — your
+  call.** Look at `.shots/sg63/cape-before-after.png`: the left column is what
+  you called atrocious (a flat red signboard with straight edges), the right
+  column is the rebuild — eighteen bones instead of four, real folds that
+  catch the light, a scalloped hem, and cloth instead of the deck-planking
+  texture in red. `.shots/sg63/clips/sg63-cape-dash-before.gif` against
+  `sg63-cape-dash-after.gif` is the same in motion. **I did not turn it on**:
+  you have vetoed it twice by eye, and all I can prove is that the GEOMETRY is
+  no longer the reason it looked wrong. If you want it, it is one line —
+  uncomment `"captain": {}` in `HERO_CLOAKS` (`scripts/view3d.gd`) and flip
+  the `cloak · no class wears a cape` check. If you still hate it, say so and
+  it gets deleted rather than parked.
 - **Every prop was oversized** for one systematic reason and all are trued now.
 - **THE MODELS CAN BE LIT NOW, AND YOU CAN DO IT YOURSELF (SG-81).** `SkyGear
   Tools.bat lab` → pick a model → the new **LIGHTS** button: ADD OMNI or ADD

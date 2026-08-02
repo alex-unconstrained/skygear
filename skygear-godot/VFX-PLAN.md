@@ -265,6 +265,49 @@ Remaining before this pass: item 3 (bolt and chain ribbons), item 6 (weapon
 trail, wants the boarder meshes first), item 4 (volumetric fields, measure
 before committing).
 
+## DONE, 2026-08-02 — the last two flat things (board SG-63)
+
+Reported a third time, and named precisely: impacts, skill shapes, figures.
+Figures are their own migration. The other two are here.
+
+**The particles were still cards.** §1 shipped `GPUParticles3D` with the right
+architecture — behaviour-keyed emitters, `emit_particle`, capped pools — and
+every one of them drew a `QuadMesh` in `BILLBOARD_PARTICLES` mode wearing a
+painted plate. That is the same defect SG-40 removed from the projectile HEADS
+one layer up: a thing that presents the identical disc from every angle is a
+sticker, and a steam plume is then one painted cloud sprite stacked forty times.
+The bodies are real geometry now — a prism lying along its own velocity for the
+two families that are made of light, and a LIT low-poly sphere that tumbles for
+the one that is made of air, because a puff has to be something the deck's lamps
+fall on. Element identity did not move: it is still the motion in `ELEMENT_FX`
+and the light decay, where finding 4 of the research audit put it.
+
+**And `burst` never got §3 at all.** Arc, cone, line, chain, beam, circle and
+aoe were given geometry on 2026-07-31; the death-and-detonation effect was
+missed, so the most violent moment in the game — every kill, every powder keg,
+the hulk coming apart — was a painted cartoon star lying flat on the planking
+under a thing that had just come apart in the air. It is a hollow shock ring on
+the deck, two shell rings standing off it, and a one-shot throw of the new
+oriented debris.
+
+Two things this cost, both worth knowing before the next radial effect:
+
+- **A ribbon cannot be a spray.** `_ribbon` sets its width perpendicular to the
+  path AND to the line of sight, which is exactly what stops a strip vanishing
+  to a hairline — but a spray throws shards in every direction, and the ones
+  travelling along the view ray have a degenerate cross product. They came out
+  as fat pale lozenges lying over the fight. Rings are safe from it by
+  construction; sprays are what the particle bodies are for.
+- **A billboard sprite is not a texture.** `ember_particle.png` was authored to
+  BE a particle and carries cool rim highlights; wrapped around a prism and
+  minified it made a burst render as a rainbow firework. Mesh bodies wear the
+  generated white dot. The puff keeps `puff_steam`, because a soft alpha mask is
+  precisely what eats a low-poly sphere's polygonal rim.
+
+Eleven checks, and they assert what this document has always asserted: the caps,
+the once-ness, and — new here — that no emitter is a billboarded quad and no
+gameplay-scaled ring draws through a plate that measures opaque.
+
 | # | Item | Answers | Cost | Do |
 | - | ---- | ------- | ---- | -- |
 | 1 | Impact particles | hit landed | ~200 ln | now |

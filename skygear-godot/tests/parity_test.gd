@@ -2691,6 +2691,148 @@ func _view() -> void:
 	_check("impact", "a hit lights the deck as well as colouring it", lit > 0,
 		"%d of %d lit" % [lit, view._flashes.size()])
 
+	## SG-63 — THE PUFFS AND THE BURSTS, WHICH WERE THE OWNER'S LAST "2D READS".
+	##
+	## Two separate stickers, and they fail in two separate ways, so they get two
+	## separate families of check. Neither asserts a look — `tools/vfx_shot.gd`
+	## and `tools/clip.gd` are what a look is judged from. These assert the
+	## PROPERTIES that made the look wrong, because those are the ones a later
+	## pass can undo by accident.
+	##
+	## ONE — the particle bodies. Every emitter drew a `QuadMesh` in
+	## `BILLBOARD_PARTICLES` mode: a flat card swung to face the camera, which is
+	## the same disc from every angle and is exactly the tell SG-40 removed from
+	## the projectile heads. A mesh that is not billboarded, and is oriented by
+	## the process material instead, is the fix — and it is a fix that reverts
+	## silently if somebody puts a quad back.
+	var carded := ""
+	var unoriented := ""
+	var unlit_puff := false
+	for family in view._sparks.keys():
+		var emitter: GPUParticles3D = view._sparks[family]
+		var pass_mesh: Mesh = emitter.draw_pass_1
+		var pm: BaseMaterial3D = null
+		if pass_mesh != null and pass_mesh.get_surface_count() > 0:
+			pm = pass_mesh.surface_get_material(0) as BaseMaterial3D
+		if pass_mesh is QuadMesh or pass_mesh is PlaneMesh or pm == null \
+				or pm.billboard_mode != BaseMaterial3D.BILLBOARD_DISABLED:
+			carded += " " + str(family)
+		var proc := emitter.process_material as ParticleProcessMaterial
+		if proc == null or not (proc.particle_flag_align_y or proc.particle_flag_rotate_y):
+			unoriented += " " + str(family)
+		if str(family) == "steam" and pm != null \
+				and pm.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED:
+			unlit_puff = true
+	_check("impact", "no impact particle is a camera-facing card — every family draws a real body",
+		carded == "", "still billboarded quads:" + carded)
+	_check("impact", "and every body is oriented by its own motion rather than by the camera",
+		unoriented == "", "unoriented:" + unoriented)
+	## The puff is the one that has to be LIT. A spark is light and reads fine
+	## unshaded; a cloud is matter, and an unshaded sphere is a flat disc with a
+	## texture on it however many triangles it has.
+	_check("impact", "and the steam puff is lit, so the deck's own lamps model it as a volume",
+		not unlit_puff, "per-pixel shading on the puff body")
+	## Same pool law as everything else on this list: the bodies changed, the
+	## budget did not.
+	_check("impact", "the bodies cost no extra emitters and no extra capacity",
+		view._sparks.size() == 3
+			and (view._sparks.spark as GPUParticles3D).amount == SkyGearView3D.SPARK_CAPACITY,
+		"%d emitters at %d each" % [view._sparks.size(),
+			(view._sparks.spark as GPUParticles3D).amount])
+
+	## TWO — the burst. `burst` is the game's death-and-detonation effect (every
+	## kill, every keg at radius 175, the hulk at 260) and it was the LAST shape
+	## with nothing in the air: VFX-PLAN §3/§4 gave arc, cone, line, chain, beam,
+	## circle and aoe a body on 2026-07-31 and this one was skipped, so a thing
+	## coming apart drew a painted cartoon star flat on the planking.
+	var burst_before: int = view._ribbon_verts
+	view._ribbons_begin()
+	view._sync_effects()
+	var quiet: int = view._ribbon_verts
+	game.effects.append({"id": 900001, "kind": "burst", "position": Vector2(0.0, 0.0),
+		"radius": 175.0, "color": Color("#ffe08a"), "time": 0.05, "life": 0.45})
+	view._ribbons_begin()
+	view._sync_effects()
+	var loud: int = view._ribbon_verts
+	_check("vfx", "a burst has a body in the air, not only a mark on the planking",
+		loud > quiet, "%d ribbon verts against %d with no burst" % [loud, quiet])
+	## The spray leaves the point on a HEMISPHERE, not in the deck plane — that
+	## is what gives it volume at a 41 degree camera, and a flat ring is what the
+	## painted star already was.
+	var spray_low := 9999.0
+	var spray_high := -9999.0
+	for v in view._rib_pos.slice(quiet, loud):
+		spray_low = minf(spray_low, (v as Vector3).y)
+		spray_high = maxf(spray_high, (v as Vector3).y)
+	_check("vfx", "and its shards leave on a spread of angles rather than lying in the deck",
+		spray_high - spray_low > 0.20,
+		"%.2f m between the lowest and highest shard" % (spray_high - spray_low))
+	## FIRED ONCE. A burst lives fifteen frames; throwing its debris on every one
+	## of them is a keg spending the whole particle budget by itself, and it is
+	## the failure a first-frame test invites.
+	view._burst_fired.fill(-1)
+	var first_throw: bool = view._burst_new(900002)
+	var threw_twice := false
+	for _i in 20:
+		threw_twice = threw_twice or view._burst_new(900002)
+	_check("vfx", "a burst throws its debris ONCE however many frames it is drawn for",
+		first_throw and not threw_twice, "one throw across twenty frames")
+	_check("vfx", "and the fired ledger is a fixed ring, like every other pool here",
+		view._burst_fired.size() == SkyGearView3D.BURST_MARKS,
+		"%d marks" % view._burst_fired.size())
+	game.effects.clear()
+	view._ribbons_begin()
+
+	## THREE — THE SG-78 TRAP, UNDER EVERY OTHER EFFECT.
+	##
+	## SG-78 found the aim ring drawing as a flooded opaque disc because it went
+	## through `_art("ring", …)`, and `rune_player.png` is alpha-255 out to 90% of
+	## its radius: a filled plate, not a hollow ring. It fixed THAT ring. SG-63
+	## checked the rest and found the same door open under five more — the Pulse
+	## and vent `circle`, the fire fields, the Colossus turn ring, the aura edge
+	## (which a card WIDENS) and the Boilerwright's vent stand — plus
+	## `burst_impact.png`, opaque at its centre, scaling to 520 ground units on a
+	## hulk break.
+	##
+	## The rule DESIGN §13e leaves behind is that a decal whose size scales with a
+	## gameplay number must draw through a texture whose hollowness is GUARANTEED.
+	## `_ring_texture()` is that texture. This check is the rule, in the only form
+	## that cannot rot: the two plates that MEASURE opaque must not be reachable
+	## from the renderer's decal path at all.
+	var view_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	## CODE ONLY. Every comment explaining why these plates are retired names
+	## `_art("ring", …)` in its own prose, and the first version of this check
+	## counted those three sentences as three call sites — a detector reporting a
+	## fault it had itself written.
+	var plate_calls := 0
+	for line in view_src.split("\n"):
+		var code := str(line).strip_edges()
+		if code.begins_with("#"):
+			continue
+		for plate in ["ring", "burst"]:
+			plate_calls += code.count('_art("%s"' % plate)
+	_check("vfx", "no ring or burst decal draws through a plate that measures opaque",
+		plate_calls == 0, "%d call sites left" % plate_calls)
+	## And the plates really ARE opaque — measured, not asserted, so the rule
+	## above cannot be quietly dropped on the grounds that it stopped mattering.
+	var filled := ""
+	for plate in ["ring", "burst"]:
+		var tex: Texture2D = load(str(SkyGearView3D.PAINTED[plate]))
+		if tex == null:
+			continue
+		var img: Image = tex.get_image()
+		var mid: Color = img.get_pixel(img.get_width() / 2, img.get_height() / 2)
+		if mid.a > 0.95:
+			filled += " " + plate
+	_check("vfx", "the two retired plates are opaque at their centres, which is why they are retired",
+		filled == " ring burst", "measured filled:" + filled)
+	## The generated rim, by contrast, is hollow BY CONSTRUCTION — and it is what
+	## every one of those call sites draws through now.
+	var rim: Image = view._ring_texture().get_image()
+	var rim_mid: Color = rim.get_pixel(rim.get_width() / 2, rim.get_height() / 2)
+	_check("vfx", "and the generated ring they were replaced with is hollow at its centre",
+		rim_mid.a < 0.10, "centre alpha %.3f" % rim_mid.a)
+
 	## RIBBONS — VFX-PLAN.md §3, and the reported half of "projectiles and vfx
 	## from the player still look like 2D".
 	##
@@ -2895,22 +3037,31 @@ func _view() -> void:
 	_check("trail", "and the trail dies with the swing instead of running its own clock",
 		view._trail.is_empty(), "%d stale samples" % view._trail.size())
 
-	## SG-23/SG-82 — THE CAPE IS OFF, AND THE SIMULATION UNDER IT IS NOT.
+	## SG-23/SG-82/SG-63 — THE CAPE IS OFF, AND THE CLOTH UNDER IT IS NOT.
 	##
-	## SG-23 built the cape as a bone chain on its own layer: four bones on a
-	## mount at her chest carrying a skinned banner, driven by the sim's velocity,
-	## cracked by the dash, clamped clear of her torso, and bitwise still when the
-	## framing tools ask for still.
+	## SG-23 built it as ONE CHAIN OF FOUR BONES carrying a skinned banner whose
+	## every ring was bound rigidly to one of them. The owner rejected it twice —
+	## "looks horrible", then "atrocious" — and the 2026-08-02 screenshot said
+	## why: eight degrees of freedom, four hinge lines, one baked normal across
+	## the whole sheet, and a cut as wide as it was long. That is a plank.
 	##
-	## The OWNER HAS REJECTED IT TWICE — "looks horrible", then "atrocious" — and
-	## on 2026-08-02 the screenshot said why: it reads as a rigid mahogany plank.
-	## So `HERO_CLOAKS` is empty and NOBODY wears one in the shipped build; the
-	## reason is on the SG-82 board row and the rebuild is SG-63.
+	## SG-63 REBUILT IT: three chains of six in a lattice, weights blended
+	## bilinearly across two chains and two rings so there is no hinge anywhere,
+	## normals differenced off a rest surface that has folds in it, a collar
+	## flared nearly two to one into the hem, and a twill instead of the deck
+	## planking painter. The checks below pin the four properties the SG-82
+	## post-mortem named as the CAUSE, so a later pass cannot quietly undo one of
+	## them and leave the tuning looking innocent.
 	##
-	## The physics below is therefore driven on a rig this test wears one onto by
-	## hand, not on the live captain. That is deliberate: the code stays in the
-	## build and stays under harness because SG-63 rebuilds ON it, and a check
-	## deleted along with a disabled feature is a check nobody restores.
+	## `HERO_CLOAKS` IS STILL EMPTY and nobody wears one in the shipped build.
+	## The rebuild is measurably cloth; whether it is GOOD cloth at forty pixels
+	## is the owner's call and his verdict is the only thing that turns it on.
+	## The SG-63 board row carries the frames the recommendation is made from.
+	##
+	## The physics is driven on a rig this test wears one onto by hand, not on
+	## the live captain — the code stays in the build and stays under harness,
+	## and a check deleted along with a disabled feature is a check nobody
+	## restores.
 	var worn := SkyGearRig3D.new()
 	root.add_child(worn)
 	var worn_up: bool = worn.setup(SkyGearView3D.CAPTAIN_SCENE,
@@ -2922,10 +3073,73 @@ func _view() -> void:
 	var cape_bone := ""
 	if cape != null and cape.get_parent() is BoneAttachment3D:
 		cape_bone = str((cape.get_parent() as BoneAttachment3D).bone_name)
-	_check("cloak", "worn by hand it is still a four-bone chain mounted at her shoulders — the rebuild has something to stand on",
-		cape != null and cape.bone_count() == SkyGearCloak.BONES
+	_check("cloak", "worn by hand it is a lattice of three chains, not one, mounted at her shoulders",
+		cape != null and cape.bone_count() == SkyGearCloak.CHAINS * SkyGearCloak.BONES
+			and SkyGearCloak.CHAINS >= 3 and SkyGearCloak.BONES >= 6
 			and cape_bone.ends_with("Spine2"),
-		"%d bones on '%s'" % [cape.bone_count() if cape != null else 0, cape_bone])
+		"%d bones (%d chains of %d) on '%s'" % [cape.bone_count() if cape != null else 0,
+			SkyGearCloak.CHAINS, SkyGearCloak.BONES, cape_bone])
+	## THE FOUR CAUSES, from the SG-82 post-mortem, each pinned by the property it
+	## named rather than by a picture.
+	##
+	## ONE — the rigid binding. Every vertex was `[1, 0, 0, 0]`, owned outright by
+	## a single bone, so the ring it sat on stayed a straight rigid bar and the
+	## sheet had exactly four hinge lines. Blended weights mean no vertex anywhere
+	## is owned outright, which is what lets a fold happen between two rings.
+	## Measured over the SHEET, not over every vertex: the corners of the collar
+	## are pinned to one bone on purpose (that is what holds the cape on her), and
+	## a check that forbade it would be asking for a cape that falls off. What
+	## SG-82 diagnosed is that EVERY vertex was owned outright — all four hinge
+	## lines and nothing between them — so the number that matters is how much of
+	## the cloth is shared.
+	_check("cloak", "almost none of the sheet is bound rigidly to one bone — it blends, so it can fold",
+		cape != null and cape.blended_fraction() > 0.80,
+		"%.0f%% of the sheet is shared between bones"
+			% [100.0 * (cape.blended_fraction() if cape != null else 0.0)])
+	## TWO — the single baked normal. `(0, 0, -1)` on every vertex shaded the whole
+	## cape as ONE FLAT FACET under the deck lamps, so it never caught the moving
+	## highlight that is most of how an eye decides something is cloth.
+	_check("cloak", "the sheet carries many normals, not one — it shades as cloth rather than as one facet",
+		cape != null and cape.normal_variety() >= 12,
+		"%d distinct normals" % [cape.normal_variety() if cape != null else 0])
+	## THREE — the plank's proportions: a 0.99 m drop against a 0.99 m hem and a
+	## 0.77 m collar, which is a banner. A cape is longer than it is wide and it
+	## flares hard from collar to hem.
+	var cape_cut: Vector3 = cape.cut(1.76) if cape != null else Vector3.ZERO
+	_check("cloak", "the cut is a garment's: longer than it is wide, and the hem flares well past the collar",
+		cape_cut.x > cape_cut.z * 1.05 and cape_cut.z > cape_cut.y * 1.5,
+		"%.2f m long, %.2f collar, %.2f hem" % [cape_cut.x, cape_cut.y, cape_cut.z])
+	## FOUR — the texture was the DECK PLANKING generator's own recipe in oxblood:
+	## "every few columns a shade darker, like the planking's boards". Vertical
+	## stripes at a regular pitch read as timber whatever colour they are. Grep
+	## rather than pixels, because the failure that actually happens is somebody
+	## restoring the old painter, and the old painter said exactly that.
+	var cape_src := FileAccess.get_file_as_string("res://scripts/cloak.gd")
+	## The GENERATOR, not the sentence: `cloak.gd`'s own post-mortem quotes the
+	## old recipe word for word, so grepping the prose failed the moment the
+	## rebuild explained itself. `int(x / 4.0)` is the vertical-stripe painter —
+	## a column index with nothing but x in it — and that is what must be gone.
+	_check("cloak", "and the cloth is woven, not planked — no vertical-stripe painter, and a normal map behind the weave",
+		not cape_src.contains("var thread := int(x /")
+			and cape_src.contains("_cape_normal")
+			and cape_src.contains("normal_texture"),
+		"a twill plus a normal map")
+	## AND THE COLUMNS ARE SEPARATELY SPRUNG, which is the property the whole
+	## lattice exists for: SG-82's chain carried eight degrees of freedom and could
+	## only swing as one board, so a corner could not lift. Turn her hard and the
+	## two edges of the hem must end up in DIFFERENT places.
+	var hem_twist := 0.0
+	var edges_differ := false
+	if cape != null:
+		cape.rest_now()
+		for _i in 40:
+			cape.drive(0.03, Vector2(230.0, 150.0), 0.0, false, false, 0.0)
+			hem_twist = maxf(hem_twist, cape.hem_spread())
+		edges_differ = absf(cape.chain_pitch(0) - cape.chain_pitch(1)) > 0.01
+		cape.rest_now()
+	_check("cloak", "a hard turn lifts one corner of the hem and not the other — the columns are free",
+		hem_twist > 0.02 and edges_differ,
+		"%.3f rad between the hem corners" % hem_twist)
 	## Driven, and it comes home: a full-run velocity injected straight into
 	## the chain trails it visibly; taking the velocity away settles it back
 	## to the rest constants EXACTLY (the snap writes those very bits).
@@ -3003,9 +3217,9 @@ func _view() -> void:
 			cape.drive(0.016, Vector2(sin(t) * 300.0, cos(t * 1.7) * 300.0),
 				t, fmod(t, 1.0) < 0.1, true, t)
 		nodes_after = cape.find_children("*", "", true, false).size()
-		state_fixed = cape.bone_count() == SkyGearCloak.BONES \
-			and cape._pitch.size() == SkyGearCloak.BONES \
-			and cape._side.size() == SkyGearCloak.BONES
+		state_fixed = cape.bone_count() == SkyGearCloak.CHAINS * SkyGearCloak.BONES \
+			and cape._pitch.size() == SkyGearCloak.CHAINS * SkyGearCloak.BONES \
+			and cape._side.size() == SkyGearCloak.CHAINS * SkyGearCloak.BONES
 		cape.rest_now()
 	_check("cloak", "a thousand driven frames grow nothing: fixed bones, pooled state",
 		nodes_before > 0 and nodes_before == nodes_after and state_fixed,

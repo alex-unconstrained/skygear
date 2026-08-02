@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **727 harness checks**; the text audit covers 24 screens at
+board SG-56). **743 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
@@ -57,6 +57,29 @@ over it, so a hand-alignment pass saved correctly and was wiped by the next
 check of every run proves the player's own file is byte-identical; the editor
 also says `SAVED ·` with the real path, or shouts if a write fails.
 
+**AND THE LAST OF THE "2D READS" ARE GONE (SG-63, 2026-08-02).** He named three
+things; two were VFX and both are geometry now. **The impact and explosion
+particles have bodies** — every one of them was a flat card swung to face the
+camera, so a steam plume was one painted cloud sprite stacked forty times. A
+spark is a prism lying along its own velocity; a puff is a LIT low-poly sphere
+that tumbles, so the deck's lamps travel across it as it rises. **And the
+`burst` — every kill, every powder keg, the hulk coming apart — had nothing in
+the air at all**: VFX-PLAN §3/§4 gave every other shape geometry in July and
+this one was skipped, so a thing coming apart drew a painted cartoon star flat
+on the planking. It is a shock ring, a dome of shell rings and a throw of real
+debris now. **The SG-78 flooded-disc trap turned out to be under five more
+effects** — the Pulse ring, the fire fields, the Colossus turn ring, the
+Boilerwright's vent stand, and the aura edge a card WIDENS — because they all
+drew through `rune_player.png`, which measures alpha-255 across its whole disc.
+Every ring in the game draws through the generated rim now, and a harness check
+keeps the two measurably-opaque plates out of the decal path for good.
+**The cape was rebuilt and is STILL OFF**: it is a 3x6 lattice of eighteen bones
+with blended weights, real folded normals, a garment's cut and a twill instead
+of the deck-planking painter, and against SG-82's flat red signboard it is
+plainly cloth (`.shots/sg63/cape-before-after.png`). What that proves is that
+the GEOMETRY is no longer the reason it looked wrong; whether he wants a cape at
+all is his call, and turning it on is still one commented line.
+
 **Three corrections off the owner's 2026-08-02 screenshot are in** (SG-78/79/82).
 The aim indicator lost its range ring: the small landing reticle, clamped at the
 skill's reach and dimming past it, is now the whole feature — the ring drew as a
@@ -82,7 +105,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (727 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (743 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -136,7 +159,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 727 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 743 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -164,7 +187,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 727 checks. Green before anything ships |
+| `harness` | 743 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
