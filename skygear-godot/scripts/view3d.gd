@@ -3538,37 +3538,72 @@ func _sync_all(delta: float) -> void:
 const USE_MESH_CAPTAIN := true
 const CAPTAIN_SCENE := "res://assets/models/captain/captain.tscn"
 const CAPTAIN_HEIGHT := 176.0        ## ground units, sole to crown
+## THE PLAYER'S MODEL, PER CLASS — board SG-12. `_sync_captain` loaded
+## CAPTAIN_SCENE for BOTH classes, so the Boilerwright, a slow heavy engineer,
+## rendered as the fast captain. This table is the fix: `game.class_id` picks the
+## scene, the height and the weapon fit. Both classes stand the SAME height —
+## they share the locked 41 degree camera and its telegraph calibration, and the
+## SG-12 guard pins the two within tolerance — so bulk and stance, not scale, do
+## the distinguishing. A class whose scene is absent or carries no clips falls
+## back to its painted billboard through `SkyGearRig3D.setup()` returning false,
+## so this seam is safe to wire before his rigged-and-retargeted scene lands.
+const HERO_MODELS := {
+	"captain": {"scene": CAPTAIN_SCENE, "height": CAPTAIN_HEIGHT, "fit": "captain"},
+	"boilerwright": {
+		"scene": "res://assets/models/boilerwright/boilerwright.tscn",
+		"height": CAPTAIN_HEIGHT, "fit": "boilerwright"},
+}
 var _captain: SkyGearRig3D
 var _captain_missing := false
+var _captain_class := ""             ## which class the current figure was built for
 ## Her own key light. A standard trick and the honest one: the hero of a dark
 ## scene is lit for being the hero, not by whatever happens to be burning nearby.
 var _hero: OmniLight3D
 
 
 func _sync_captain(delta: float) -> bool:
-	if not USE_MESH_CAPTAIN or _captain_missing:
+	if not USE_MESH_CAPTAIN:
+		return false
+	## Which class we are drawing, and its model row. Default to the captain for
+	## an unknown id so a bad save never leaves the player invisible.
+	var who := str(game.class_id)
+	var model: Dictionary = HERO_MODELS.get(who, HERO_MODELS["captain"])
+	var model_height: float = float(model.get("height", CAPTAIN_HEIGHT))
+	## Class changed since the figure was built — a new run, or the other class
+	## picked. Drop the old rig and clear the missing latch so the new class gets
+	## its own chance to load; the billboard covers the one frame in between.
+	if _captain_class != who:
+		if _captain != null:
+			_captain.queue_free()
+			_captain = null
+		_captain_missing = false
+		_captain_class = who
+	if _captain_missing:
 		return false
 	if _captain == null:
 		_captain = SkyGearRig3D.new()
 		add_child(_captain)
-		if not _captain.setup(CAPTAIN_SCENE, CAPTAIN_HEIGHT * WORLD_SCALE, LAYER_FIGURES):
+		if not _captain.setup(str(model.get("scene", CAPTAIN_SCENE)),
+				model_height * WORLD_SCALE, LAYER_FIGURES):
 			_captain.queue_free()
 			_captain = null
 			_captain_missing = true
 			return false
-		## And put the cutlass in her hand. The fit is data — see
+		## And put a weapon in the hand if the class has a fit. It is data — see
 		## `assets/models/weapons.json` and `tools/weapon_fit.gd` — because it is a
-		## dozen small nudges and none of them is worth a build.
+		## dozen small nudges and none of them is worth a build. The Boilerwright's
+		## tool is a separate unpriced asset (board row), so his fit is simply
+		## absent for now and `weapon_fit` returns {} — an empty hand, not a crash.
 		##
 		## Not fatal when it fails: an empty hand is a worse captain, but a captain.
-		var fit := SkyGearRig3D.weapon_fit("captain")
+		var fit := SkyGearRig3D.weapon_fit(str(model.get("fit", who)))
 		if not fit.is_empty():
 			var offset: Array = fit.get("offset", [0, 0, 0])
 			var turn: Array = fit.get("rotation", [0, 0, 0])
-			## Her height here is in METRES (the deck runs on WORLD_SCALE), and the
-			## fit table was authored against a 1.8 m captain — so the blade scales
-			## with her rather than being 0.95 m on a figure 1.76 units tall.
-			var to_world: float = CAPTAIN_HEIGHT * WORLD_SCALE / 1.8
+			## The height here is in METRES (the deck runs on WORLD_SCALE), and the
+			## fit table was authored against a 1.8 m figure — so the blade scales
+			## with the character rather than being 0.95 m on a figure 1.76 tall.
+			var to_world: float = model_height * WORLD_SCALE / 1.8
 			_captain.hold(str(fit.path), str(fit.bone),
 				Vector3(offset[0], offset[1], offset[2]) * to_world,
 				Vector3(turn[0], turn[1], turn[2]),

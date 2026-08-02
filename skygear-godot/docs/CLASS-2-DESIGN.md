@@ -15,8 +15,12 @@ and every lane has a vent to refill at`.
 missing at least four entries — see "Documentation claims that are not
 enforceable" in `OUTSTANDING.md`. Known open on this class: the mobility gap
 (measured at 67% of ground covered, not the 21% top speed implies — its own
-ledger entry), and he renders as the captain's model
-(`CAPTAIN_SCENE` is one constant for both classes — its own ledger entry).*
+ledger entry). He no longer renders as the captain: board SG-12 (route 2) gave
+him his own Meshy-generated, auto-rigged model with the fourteen axe-pack clips
+retargeted onto it from the captain's baked library, and `_sync_captain` now
+picks the scene per class from `SkyGearView3D.HERO_MODELS` — pinned by
+`figure · the Boilerwright loads a scene that is not the captain's` and
+`figure · and his rig resolves all fourteen retargeted clips`.*
 
 **Deliberately NOT built, and not oversights:**
 

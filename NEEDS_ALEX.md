@@ -8,8 +8,13 @@ _Last updated: 2026-08-01_
 
 ## Blockers
 
-None. (butler credentials verified 2026-08-01 — the loop pushes builds to
-itch itself now; build 32 was the first.)
+None hard. **Soft (SG-12):** the Pro Melee Axe Pack archive and the captain's
+Meshy rig archive are absent from this machine, so `ingest_model.py`'s archive
+path cannot re-extract raw clips. It did not block route 2 — the Boilerwright's
+fourteen clips were retargeted from the captain's on-disk baked library instead
+(`tools/retarget_library.gd`) — but ADDING a brand-new Mixamo clip (see the
+decision below) needs the raw FBX from you, or those two archives restored to
+`~/Downloads`, before the same retarget can bring it in.
 
 ## Decisions
 
@@ -25,8 +30,31 @@ LOD, or accept the cost and record it. **Recommendation: accept for now** —
 she's one asset, the build runs at half frame budget, and both alternatives
 risk the one rigged character that works.
 
-*(Resolved 2026-08-01: #2 Boilerwright route — route 2 approved, agent
-running; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
+**5 · The Boilerwright's model is in — two calls for your eyes** (SG-12, route 2
+delivered). He now has his own Meshy body: a broad, heavy, bearded engineer,
+auto-rigged and moving on the captain's fourteen clips (the same clock — the
+point of route 2). Two things need you:
+  - **The belt pouches.** All three A-pose generations came back with belt
+    pouches — Meshy will not draw a beltless engineer, even prompted against it
+    three times. I kept the cleanest (two tight hip pouches, no hanging tools).
+    They sit on the near-rigid pelvis and read small at the 41° camera, but they
+    are technically the "no over-accessorizing" rule bent once. Accept, or say
+    the word and I re-roll (20 credits a try).
+  - **Two clips would make him HIM.** His fourteen are the captain's axe swings,
+    and an axe swing reads wrong for a man who fights by cracking steam mains:
+    the melee attacks (`swing`/`swing2`/`swing3`/`spin`/`combo`) look like
+    sword-work, and there is NO clip for his signature — planting a Tap Main at
+    his feet (CLASS-2 §7 names this exact gap). If you add Mixamo animations, the
+    two worth most are **a kneel/press-to-deck** (for Tap Main) and **a heavy
+    two-handed wrench or hammer swing** (to replace the light axe cuts). Hand me
+    the FBX and the retarget path (`tools/retarget_library.gd`) brings them in.
+
+**6 · His tool is unbuilt on purpose** (SG-38, filed unpriced). His hands are
+empty by the standing rule — a pipe wrench is a separate bone-mounted mesh, the
+cutlass pattern. Approve SG-38 and I generate + fit it.
+
+*(Resolved 2026-08-01: #2 Boilerwright route — route 2 approved AND delivered,
+SG-12; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
 
 ## Check when you next play
 

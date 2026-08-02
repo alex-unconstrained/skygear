@@ -216,6 +216,22 @@ SURFACE_SKIN = (
 )
 
 
+# The one PLAYER character we generate, and the one human. SURFACE_SKIN paints a
+# GOBLIN (mottled green); the captain dodged the "human face comes back brass"
+# trap by keeping her own Meshy archive maps, but the Boilerwright is generated
+# fresh, so his texture has to NAME human skin the way SURFACE_SKIN names green
+# skin — or the refine pass paints his face as a bronze bust. Human tones, the
+# rest of the house palette unchanged.
+SURFACE_HUMAN = (
+    "Hand-painted stylised game texture: weathered sun-browned human skin, a "
+    "greying beard, worn oxblood and dark-brown leather, warm polished brass, "
+    "blackened steel, dull oxidised-copper patina in the recesses, soot smudged "
+    "into the leather. Any furnace, grate, vent or ember is hot orange; nothing "
+    "else emits light. Broad flat colour areas, no baked lighting, no baked "
+    "shadow, no text, no logos."
+)
+
+
 # The frame for a boarder. PROP's clauses are all about a single object on no
 # stand; a character needs the opposite half of the same argument — one figure,
 # both feet down, arms out of the torso's silhouette. That last clause is the
@@ -225,6 +241,23 @@ FIGURE = (
     "One character alone, standing upright, facing forward, feet flat on the "
     "ground, arms clear of the body. No base, no plinth, no ground plane, no "
     "scenery, no duplicate, no text. " + STYLE_FIGURE
+)
+
+# The frame for the PLAYER'S OWN character — the Boilerwright. FIGURE is written
+# for a boarder seen mid-fight; this one is written for a mesh that will be
+# AUTO-RIGGED and RETARGETED, and the owner's standing rules (STATUS.md) are hard
+# requirements rather than preferences here, because a posed or cloaked or
+# armed generation is credits spent on a rig the animation pipeline cannot use.
+# So the neutral rest pose is stated three ways (relaxed A-pose, arms down and
+# away, both hands open and empty), and the three bake-in traps are refused
+# outright: no cape or cloth (added back as a bone chain, SG-23), no weapon in
+# the hands (a separate bone-mounted mesh, the cutlass pattern), no dangling
+# ornament (identity rides on bulk and texture, CLASS-2 §7).
+HERO_FIGURE = (
+    "One character alone in a clean neutral A-pose, feet apart, both arms "
+    "straight and held well out from the sides, hands open and empty. Nothing "
+    "held or hanging: no weapon, tool, pouch, bag or strap. No cape, cloak, "
+    "loose cloth or tattered edges. No base, ground or text. " + STYLE_FIGURE
 )
 
 # The frame for a piece of deck furniture. PROP is about a weapon in a hand that
@@ -446,6 +479,37 @@ ASSETS = [
       "orange furnace grate, verdigris teal in the seams, bare worn steel "
       "around the cannon mouths.",
       "boarders", 20000, FIGURE, screen=330.0),
+
+    # --- the Boilerwright, the second player class ----------------------------
+    # The one PLAYER character generated here, and the whole of board SG-12: the
+    # second class currently renders as the captain because `_sync_captain` loads
+    # one CAPTAIN_SCENE constant for both. Route 2 (owner-approved, commit
+    # 788aff8): generate his mesh, auto-rig it, retarget the axe-pack clips onto
+    # it so both classes move on the SAME clock.
+    #
+    # He is CLASS-2-DESIGN's heavy engineer — "he built the Boiler, has kept it
+    # lit for thirty years", fights by cracking steam mains open. §7 wants a
+    # silhouette that reads distinct from the fast red-coated captain at the 41°
+    # camera: BULK, stance and colour mass — heavy leathers, brass fittings ON
+    # the body not dangling, work gauntlets. Bulk is width, not height: he stands
+    # the captain's 176 units (they share a camera and a telegraph calibration,
+    # SG-12 guard), so `screen` is hers and the budget comes out the same.
+    #
+    # The three standing-rule traps are refused in HERO_FIGURE, not here, so this
+    # subject is free to be all identity. `tris` is left derived (3000 at 329 px,
+    # the floor) — but note the remesh must run BEFORE the rig, or he becomes the
+    # captain's SG-13 all over again (a 30k rigged mesh no remesh can safely
+    # decimate). See `rig` in this file.
+    A("boilerwright",
+      "A heavy steampunk boiler engineer: a broad, thickset, barrel-chested man "
+      "in heavy oxblood leather, riveted brass shoulder plates and forearm "
+      "gauntlets, plain smooth iron-toed boots, cropped hair, a greying beard, "
+      "a round gauge on his chest.",
+      "Weathered tanned skin and a short greying beard, heavy oxblood and "
+      "dark-brown leather work gear, blackened steel and warm brass shoulder and "
+      "forearm plates, a cream gauge dial on the chest, soot smudged into the "
+      "leather.",
+      "boilerwright", 12000, HERO_FIGURE, SURFACE_HUMAN, screen=176.0),
 
     # --- the Boiler -----------------------------------------------------------
     # The objective. `boiler_hp` reaching zero ends the run, it sits at the
@@ -670,7 +734,7 @@ ASSETS = [
       "props", 6000, DECK, SURFACE_WOOD, screen=30.0),
 ]
 
-BATCHES = ["sword", "axe", "boarders", "props"]
+BATCHES = ["sword", "axe", "boarders", "props", "boilerwright"]
 
 # Generation settings. meshy-6 costs 20 credits at preview against meshy-5's 5,
 # and is the difference between a sword and a sword-shaped lump at this
@@ -1547,6 +1611,140 @@ def cmd_remesh(args) -> int:
     return 0
 
 
+# --- rigging: the character grows a skeleton ---------------------------------
+# Route 2 for the Boilerwright (board SG-12): a generated character has a mesh
+# and no bones, and a mesh cannot be retargeted. Meshy's rigging endpoint binds
+# a humanoid skeleton to it — POST /openapi/v1/rigging, 5 credits, in about the
+# same wait as a preview — and hands back rigged_character_{glb,fbx}_url.
+#
+# TWO THINGS THIS FILE CARES ABOUT that the endpoint does not decide for you:
+#
+#   1. REMESH BEFORE RIG, or repeat the captain's SG-13. A skinned mesh cannot be
+#      safely decimated afterwards — the skin weights ride the vertices the
+#      remesh collapses — so the low-poly pass has to happen on the bare mesh and
+#      the rig binds to THAT. The endpoint takes `input_task_id` (a Meshy task)
+#      or `model_url` (a public URL or a Data URI). Our remeshed glb is a local
+#      file at ~0.6 MB, so `--from datauri` inlines it as a Data URI and rigs the
+#      3000-triangle mesh; `--from refine` rigs the full-size refine task instead
+#      (simpler, but the rigged character is then the refine's ~12k triangles).
+#      The rig accepts up to 300k faces, so either is under the ceiling; the
+#      difference is only which triangle count you keep.
+#
+#   2. THE BONE NAMES ARE NOT DOCUMENTED, and route 2 lives or dies on them: the
+#      axe-pack clips are Mixamo-named, so if the auto-rig comes back Mixamo the
+#      retarget is one command, and if it comes back with Meshy's own names it is
+#      a name map in the manifest (never an edit to the clips). This command does
+#      not judge that — it downloads the rig and prints where to read the bones
+#      (`tools/mesh_pose.gd` / the lab). The manifest carries the verdict.
+def _data_uri(path: Path) -> str:
+    import base64
+    b64 = base64.b64encode(path.read_bytes()).decode("ascii")
+    return "data:model/gltf-binary;base64," + b64
+
+
+def submit_rig(source_task: str | None, model_url: str | None,
+               height_m: float) -> str:
+    body: dict = {"height_meters": height_m}
+    if source_task:
+        body["input_task_id"] = source_task
+    elif model_url:
+        body["model_url"] = model_url
+    else:
+        raise SystemExit("submit_rig needs a source task or a model_url")
+    return api("POST", "/openapi/v1/rigging", body)["result"]
+
+
+def rig_one(a: dict, st: dict, args) -> bool:
+    key = a["key"]
+    rec = st.setdefault(key, {})
+    src_task = None
+    model_url = None
+    frm = getattr(args, "frm", "datauri")
+    if frm == "refine":
+        src_task = rec.get("refine")
+        if not src_task:
+            print("== %s\n    no refine task to rig from; `run` it first" % key)
+            return False
+    elif frm == "remesh_task":
+        src_task = rec.get("remesh")
+        if not src_task:
+            print("== %s\n    no remesh task in state" % key)
+            return False
+    else:  # datauri: rig the low-poly glb actually on disk
+        glb = outdir(key) / (key + ".glb")
+        if not glb.exists():
+            print("== %s\n    no %s on disk to rig" % (key, glb.name))
+            return False
+        model_url = _data_uri(glb)
+    # ~1.8 units crown to sole is what a usable export is (DESIGN 13f); the rig's
+    # height only sets the skeleton's proportion, ingest re-measures anyway.
+    height_m = float(a.get("rig_height_m", 1.8))
+    print("== %s  rig from %s  (height %.2f m)" % (key, frm, height_m))
+
+    if not rec.get("rig"):
+        rec["rig"] = submit_rig(src_task, model_url, height_m)
+        save_state(st)          # before the wait, same rule as run_one
+        print("    rig      -> %s" % rec["rig"])
+    else:
+        print("    rig      resuming %s" % rec["rig"])
+    task = poll(rec["rig"], "rig", args.timeout, endpoint="/openapi/v1/rigging/")
+    if task.get("status") != "SUCCEEDED":
+        print("    FAILED: %s %s" % (task.get("status"),
+                                     (task.get("task_error") or {}).get("message", "")))
+        return False
+    rec["rig_credits"] = int(task.get("consumed_credits") or 0)
+
+    result = task.get("result") or task
+    glb_url = result.get("rigged_character_glb_url") or (task.get("model_urls") or {}).get("glb")
+    fbx_url = result.get("rigged_character_fbx_url") or (task.get("model_urls") or {}).get("fbx")
+    if not glb_url:
+        print("    FAILED: no rigged_character_glb_url in the result")
+        print("    keys: %s" % ", ".join(sorted((result or {}).keys())))
+        return False
+    out = outdir(key)
+    dest = out / (key + "_rigged.glb")
+    print("    %-28s %6.2f MB" % (dest.name, download(glb_url, dest) / 1e6))
+    got = [dest.name]
+    if fbx_url:
+        d2 = out / (key + "_rigged.fbx")
+        print("    %-28s %6.2f MB" % (d2.name, download(fbx_url, d2) / 1e6))
+        got.append(d2.name)
+    rec["rig_files"] = got
+    save_state(st)
+    print("    %d credits. Read the bones with:\n"
+          "      godot --path . --headless --script tools/mesh_pose.gd -- "
+          "res://assets/models/%s/%s_rigged.glb --bones" % (rec["rig_credits"], key, key))
+    return True
+
+
+def cmd_rig(args) -> int:
+    st = load_state()
+    rows = [x for x in select(args.batch, args.only) if delivered(x["key"])]
+    if not rows:
+        print("nothing on disk to rig in '%s'" % args.batch)
+        return 0
+    if args.force:
+        for a in rows:
+            st.get(a["key"], {}).pop("rig", None)
+        save_state(st)
+    print("balance %d credits" % api("GET", "/openapi/v1/balance")["balance"])
+    failed = []
+    for a in rows:
+        try:
+            if not rig_one(a, st, args):
+                failed.append(a["key"])
+        except MeshyError as e:
+            print("    ERROR %s" % e)
+            failed.append(a["key"])
+            if e.code in (401, 402):
+                break
+    print("\nbalance %d credits" % api("GET", "/openapi/v1/balance")["balance"])
+    if failed:
+        print("failed: %s" % ", ".join(failed))
+        return 1
+    return 0
+
+
 # --- pruning ----------------------------------------------------------------
 # One finished asset arrives as about 77 MB across eight files and the renderer
 # loads exactly one of them. The other 67 MB is an FBX nobody imports and four
@@ -1648,7 +1846,7 @@ def main() -> int:
     s.set_defaults(fn=cmd_show)
 
     for name, fn in (("run", cmd_run), ("fetch", cmd_fetch),
-                     ("remesh", cmd_remesh), ("prune", cmd_prune)):
+                     ("remesh", cmd_remesh), ("rig", cmd_rig), ("prune", cmd_prune)):
         p = sub.add_parser(name)
         p.add_argument("batch", choices=BATCHES + ["all"])
         p.add_argument("--only", default="", help="comma-separated keys")
@@ -1658,9 +1856,16 @@ def main() -> int:
         if name in ("run", "remesh", "prune"):
             p.add_argument("--dry", action="store_true",
                            help="print, change nothing")
-        if name in ("run", "remesh"):
+        if name in ("run", "remesh", "rig"):
             p.add_argument("--force", action="store_true",
                            help="do it again and pay again")
+        if name == "rig":
+            # Which mesh the skeleton binds to. `datauri` rigs the low-poly glb
+            # ACTUALLY ON DISK (remesh-before-rig, SG-13); `refine` rigs the
+            # full-size refine task; `remesh_task` tries the Meshy remesh task id.
+            p.add_argument("--from", dest="frm", default="datauri",
+                           choices=["datauri", "refine", "remesh_task"],
+                           help="which mesh to bind the skeleton to")
         if name == "run":
             p.add_argument("--no-remesh", action="store_true",
                            help="stop after refine, leaving the full-size mesh")

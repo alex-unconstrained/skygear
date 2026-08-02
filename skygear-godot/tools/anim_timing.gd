@@ -11,6 +11,7 @@ extends SceneTree
 ## play for each skill and at what rate, then reports what the player will see.
 ##
 ##   godot --path . --headless --script tools/anim_timing.gd
+##   ... -- --model boilerwright         the second class, same clips, same clock
 func _initialize() -> void: call_deferred("_run")
 
 ## Anything faster than this stops reading as a swing. Anything slower than a
@@ -19,9 +20,16 @@ const TOO_FAST := 4.01
 const TOO_SLOW_FRACTION := 0.34
 
 func _run() -> void:
+	var which := "captain"
+	var uargs := OS.get_cmdline_user_args()
+	for i in uargs.size():
+		if uargs[i] == "--model" and i + 1 < uargs.size():
+			which = uargs[i + 1]
+	var model := "res://assets/models/%s/%s.tscn" % [which, which]
+	print("MODEL ", which)
 	var rig := SkyGearRig3D.new()
 	root.add_child(rig)
-	if not rig.setup("res://assets/models/captain/captain.tscn", 1.76, 2):
+	if not rig.setup(model, 1.76, 2):
 		print("FAIL no model")
 		quit(1)
 		return

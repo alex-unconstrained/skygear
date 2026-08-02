@@ -474,5 +474,40 @@
    "original_bytes": 11334076
   },
   "remesh": "019fb8b3-f442-7c9f-8dbd-ebe18d54af8a"
+ },
+ "boilerwright": {
+  "preview": "019fbffa-ee6a-74a0-bb45-5120a2625029",
+  "preview_credits": 20,
+  "refine": "019fc001-0760-7fc6-b801-a9d01dbb9d35",
+  "credits": 30,
+  "files": [
+   "boilerwright.glb",
+   "boilerwright.fbx",
+   "boilerwright_base_color.png",
+   "boilerwright_metallic.png",
+   "boilerwright_roughness.png",
+   "boilerwright_normal.png",
+   "boilerwright_emission.png",
+   "boilerwright_thumb.png"
+  ],
+  "remesh": "019fc002-a887-757c-83bc-bec49a23ce37",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 595348,
+   "original_bytes": 9996768
+  },
+  "rig": "019fc006-b048-75f3-93a4-87d34b9037cb",
+  "rig_credits": 5,
+  "rig_files": [
+   "boilerwright_rigged.glb",
+   "boilerwright_rigged.fbx"
+  ]
  }
 }

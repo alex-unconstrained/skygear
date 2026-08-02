@@ -1,0 +1,35 @@
+{
+  "key": "boilerwright",
+  "ai_model": "meshy-6",
+  "prompt": "A heavy steampunk boiler engineer: a broad, thickset, barrel-chested man in heavy oxblood leather, riveted brass shoulder plates and forearm gauntlets, plain smooth iron-toed boots, cropped hair, a greying beard, a round gauge on his chest. One character alone in a clean neutral A-pose, feet apart, both arms straight and held well out from the sides, hands open and empty. Nothing held or hanging: no weapon, tool, pouch, bag or strap. No cape, cloak, loose cloth or tattered edges. No base, ground or text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Weathered tanned skin and a short greying beard, heavy oxblood and dark-brown leather work gear, blackened steel and warm brass shoulder and forearm plates, a cream gauge dial on the chest, soot smudged into the leather. Hand-painted stylised game texture: weathered sun-browned human skin, a greying beard, worn oxblood and dark-brown leather, warm polished brass, blackened steel, dull oxidised-copper patina in the recesses, soot smudged into the leather. Any furnace, grate, vent or ember is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 12000,
+  "texture_resolution": "2k",
+  "preview_task": "019fbffa-ee6a-74a0-bb45-5120a2625029",
+  "refine_task": "019fc001-0760-7fc6-b801-a9d01dbb9d35",
+  "credits": 30,
+  "files": [
+    "boilerwright.glb",
+    "boilerwright.fbx",
+    "boilerwright_base_color.png",
+    "boilerwright_metallic.png",
+    "boilerwright_roughness.png",
+    "boilerwright_normal.png",
+    "boilerwright_emission.png",
+    "boilerwright_thumb.png"
+  ],
+  "screen_units": 176.0,
+  "remesh_task": "019fc002-a887-757c-83bc-bec49a23ce37",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 1024,
+      "normal": 512,
+      "metallic_roughness": 256,
+      "emission": 256
+    },
+    "bytes": 595348,
+    "original_bytes": 9996768
+  }
+}
