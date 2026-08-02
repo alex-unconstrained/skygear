@@ -1769,13 +1769,38 @@ func _edge_marker(toward: Vector2, inset: Rect2, colour: Color) -> void:
 ## against 222 of card, and it only ever fitted because `_fits` was allowed down
 ## to 8pt. 368 leaves 244 after PLATE_BREATH, and three of them plus the gaps is
 ## 1156 — inside the 1280 floor the audit checks.
-const CARD_W := 368.0
+## PORTRAIT, NOT THE OLD NEAR-SQUARE PLATE (SG-35). The port was 368×404 = 0.91,
+## a landscape brass plate that read as a different UI from the browser's tall
+## card. The browser's 286×432 = 0.662 is the reference for what worked — a
+## portrait card with a slim frame — but the owner's mid-task call was to stop
+## converging on it pixel for pixel and build the best card THIS renderer can
+## draw. So: 286×404 = 0.708, an unambiguous portrait. The HEIGHT and TOP are
+## held at the old values on purpose — the reroll button and the card's bottom
+## edge were tuned to clear the mid-fight HUD's slot band at the 720-tall audit
+## pose, and a taller card prints its reroll through the "draft a weapon" wells.
+## Only the WIDTH changed, because the frame no longer eats 54px a side (see
+## CARD_FRAME): a slim rail leaves 248 of writing width on a 286 card, which
+## still holds the 217-wide preview row the old comment sized the 368 around.
+## The harness pins the portrait proportion so it cannot drift back to landscape.
+const CARD_W := 286.0
 const CARD_GAP := 26.0
 const CARD_TOP := 190.0
-## 372 once, and taller now to pay for two things the face did not have room
-## for: the tag row that says the element, the rarity and the role, and
-## CARD_FOOT below.
 const CARD_H := 404.0
+## Clearly portrait, not the near-square it was — the ceiling the harness pins.
+const CARD_ASPECT_MAX := 0.78
+
+## THE CARD'S OWN RAIL — slim, the browser's, not the HUD's 48px brass.
+##
+## The draft is the one screen that is meant to match the browser closely
+## (DESIGN has no deliberate departure for it, unlike the HUD's bottom band), and
+## the browser frames a card in a 6px ink edge plus a 3px rarity-tinted rail, not
+## an ornate nine-slice. So the card is NOT drawn with `_panel`; it is drawn with
+## `_card_frame`, and its writing hole is `card_face` — both routed through the
+## SAME `rail(rect, CARD_FRAME)`, so the drawn edge and the laid-out content
+## cannot disagree about where the frame is (STATUS failure mode two). `rail()`
+## stays the one source of truth; this only hands it a lighter margin.
+const CARD_FRAME := 13.0
+const CARD_FACE_BREATH := 6.0
 
 ## AND THE PAINTED CARD IS NOT THE SHAPE `interior()` THINKS IT IS.
 ##
@@ -1811,6 +1836,35 @@ static func writing_area(rect: Rect2) -> Rect2:
 	return face
 
 
+## The writing hole of a DRAFT CARD, which wears the slim `CARD_FRAME` rail
+## rather than the 48px nine-slice. `writing_area` would inset by 54 a side and
+## leave a card too narrow for its own preview row; this insets by the card's own
+## thin rail. Routed through `rail(rect, CARD_FRAME)` — the one source of truth —
+## so the number here and the number `_card_frame` draws the edge at are one.
+static func card_face(rect: Rect2) -> Rect2:
+	return rect.grow(-(rail(rect, CARD_FRAME) + CARD_FACE_BREATH))
+
+
+## THE HEADING NAMES THE DRAFT (SG-35). The browser says which draft this is —
+## `CHOOSE YOUR OPENING WEAPON` / `ARM A NEW SLOT` / `DRAFT AN UPGRADE`
+## (`drawDraft` ~180) — where the port said the generic "CHOOSE ONE" for all
+## three. Resolved here so the face and the harness read one answer.
+static func draft_heading(game) -> String:
+	if bool(game.opening_draft):
+		return "CHOOSE YOUR OPENING WEAPON"
+	if game.skills.size() < 4:
+		return "ARM A NEW SLOT"
+	return "DRAFT AN UPGRADE"
+
+
+static func draft_subhead(game) -> String:
+	if bool(game.opening_draft):
+		return "EVERY SKILL IS A SHAPE AND AN ELEMENT  —  PRESS 1 / 2 / 3"
+	if game.skills.size() < 4:
+		return "WHICH WEAPON, NOT WHETHER  —  PRESS 1 / 2 / 3"
+	return "PICK ONE  —  CLICK OR PRESS 1 / 2 / 3"
+
+
 static func draft_cards(view: Vector2, count: int) -> Array[Rect2]:
 	var out: Array[Rect2] = []
 	var span: float = CARD_W * float(count) + CARD_GAP * maxf(0.0, float(count) - 1.0)
@@ -1826,19 +1880,184 @@ static func reroll_button(view: Vector2) -> Rect2:
 	return Rect2(view.x * 0.5 - 120.0, CARD_TOP + CARD_H + 22.0, 240.0, 38.0)
 
 
+## The slim card frame — the browser's, not the HUD's brass nine-slice. A dark
+## field, an ink edge, and the rarity rail on it (pewter always, thicker and
+## brighter the better the card — the value ramp). Its geometry is `rail(rect,
+## CARD_FRAME)`, the same number `card_face` and `_open_card` inset by, so the
+## drawn edge and the writing hole cannot disagree (STATUS failure mode two).
+func _card_frame(rect: Rect2, look: Dictionary) -> void:
+	var edge := rail(rect, CARD_FRAME)
+	draw_rect(rect, Color(0.055, 0.048, 0.086, 0.96))
+	draw_rect(rect, Color("#0d0b12"), false, edge * 0.42)
+	var metal: Color = look.metal
+	draw_rect(rect.grow(-edge * 0.5), metal, false, 2.0 + float(look.ring))
+	if int(look.rivets) > 0:
+		for corner in [rect.position + Vector2(15, 15),
+				Vector2(rect.end.x - 15, rect.position.y + 15),
+				Vector2(rect.position.x + 15, rect.end.y - 15),
+				rect.end - Vector2(15, 15)]:
+			draw_circle(corner, 4.0, Color(0.05, 0.04, 0.07, 0.85))
+			draw_circle(corner, 2.8, metal)
+
+
+## The audit frame of a card: the slim rail's inner edge, a superset of
+## `card_face`, exactly as `interior` is a superset of `writing_area` for a
+## brass plate. Routed through the same `rail(rect, CARD_FRAME)`.
+func _open_card(rect: Rect2) -> void:
+	_frame = rect.grow(-rail(rect, CARD_FRAME))
+	_in_frame = true
+
+
+## THE CENTRAL EMBLEM. A gauge ring around a shape glyph, or a themed icon where
+## the card has no shape — the browser's `drawDraft` rule, resolved by
+## `SkyGearCards.emblem_of` so the face and the harness read one answer.
+func _emblem(card: Dictionary, centre: Vector2, r: float) -> void:
+	var em: Dictionary = SkyGearCards.emblem_of(game, card)
+	var tint: Color = em.tint
+	## A soft element-tinted glow, so the emblem reads as the card's lit anchor
+	## rather than a decal — the one thing the eye lands on first.
+	draw_circle(centre, r * 1.5, Color(tint.r, tint.g, tint.b, 0.08))
+	draw_circle(centre, r * 0.9, Color(0.04, 0.03, 0.06, 0.55))
+	var bezel := _tex("res://assets/art/ui/gauge_ring.png")
+	if bezel != null:
+		draw_texture_rect(bezel, Rect2(centre - Vector2(r, r) * 1.18, Vector2(r, r) * 2.36),
+			false, Color(0.69, 0.51, 0.25, 0.7))
+	else:
+		draw_arc(centre, r, 0.0, TAU, 40, Color(0.69, 0.51, 0.25, 0.55), 2.4)
+	if str(em.kind) == "shape":
+		var glyph := _tex(str(SLOT_ICONS.get(str(em.shape), "")))
+		if glyph != null:
+			var g := r * 0.9
+			draw_texture_rect_region(glyph, Rect2(centre - Vector2(g, g), Vector2(g, g) * 2.0),
+				Rect2(Vector2.ZERO, glyph.get_size()), tint)
+		else:
+			_card_icon("gear", centre, r * 0.62, tint)
+	else:
+		_card_icon(str(em.icon), centre, r * 0.62, tint)
+
+
+## A cubic Bezier sampled to a polyline — the browser draws its card icons with
+## `bezierCurveTo`, and this is how they come across.
+func _cubic(p0: Vector2, c1: Vector2, c2: Vector2, p1: Vector2, n: int = 8) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in n + 1:
+		var t := float(i) / float(n)
+		var u := 1.0 - t
+		pts.append(u * u * u * p0 + 3.0 * u * u * t * c1 + 3.0 * u * t * t * c2 + t * t * t * p1)
+	return pts
+
+
+## The themed card icons, ported from the browser's `paintCardIcon`. Drawn for
+## the cards that carry no shape — an element card, a captain / boiler / deck
+## card — so every card has an emblem at its centre, not a hole.
+func _card_icon(kind: String, c: Vector2, r: float, tint: Color) -> void:
+	var w: float = maxf(1.5, r * 0.22)
+	var core := Color("#ffb45a")
+	match kind:
+		"flame":
+			var outer := PackedVector2Array()
+			outer.append_array(_cubic(c + Vector2(0, -r), c + Vector2(r * 0.85, -r * 0.2),
+				c + Vector2(r * 0.7, r * 0.75), c + Vector2(0, r)))
+			outer.append_array(_cubic(c + Vector2(0, r), c + Vector2(-r * 0.7, r * 0.75),
+				c + Vector2(-r * 0.85, -r * 0.2), c + Vector2(0, -r)))
+			draw_colored_polygon(outer, tint)
+			var inner := PackedVector2Array()
+			inner.append_array(_cubic(c + Vector2(0, -r * 0.25), c + Vector2(r * 0.42, r * 0.1),
+				c + Vector2(r * 0.34, r * 0.62), c + Vector2(0, r * 0.78)))
+			inner.append_array(_cubic(c + Vector2(0, r * 0.78), c + Vector2(-r * 0.34, r * 0.62),
+				c + Vector2(-r * 0.42, r * 0.1), c + Vector2(0, -r * 0.25)))
+			draw_colored_polygon(inner, core)
+		"frost":
+			for i in 3:
+				var a := float(i) / 3.0 * PI
+				var d := Vector2(cos(a), sin(a)) * r
+				draw_line(c - d, c + d, tint, w)
+				for s: float in [-1.0, 1.0]:
+					var b := c + d * s * 0.62
+					draw_line(b, b + Vector2(cos(a + 0.9), sin(a + 0.9)) * r * 0.32 * s, tint, w)
+					draw_line(b, b + Vector2(cos(a - 0.9), sin(a - 0.9)) * r * 0.32 * s, tint, w)
+		"bolt":
+			draw_colored_polygon(PackedVector2Array([
+				c + Vector2(r * 0.28, -r), c + Vector2(-r * 0.5, r * 0.12),
+				c + Vector2(-r * 0.03, r * 0.12), c + Vector2(-r * 0.3, r),
+				c + Vector2(r * 0.55, -r * 0.18), c + Vector2(r * 0.07, -r * 0.18)]), tint)
+		"steam":
+			for i in 3:
+				var yy := -r * 0.5 + float(i) * r * 0.55
+				draw_polyline(_cubic(c + Vector2(-r * 0.9, yy), c + Vector2(-r * 0.3, yy - r * 0.4),
+					c + Vector2(r * 0.3, yy + r * 0.4), c + Vector2(r * 0.9, yy)), tint, w)
+		"heart":
+			var h := PackedVector2Array()
+			h.append_array(_cubic(c + Vector2(0, r * 0.85), c + Vector2(-r * 1.35, -r * 0.1),
+				c + Vector2(-r * 0.5, -r * 1.05), c + Vector2(0, -r * 0.35)))
+			h.append_array(_cubic(c + Vector2(0, -r * 0.35), c + Vector2(r * 0.5, -r * 1.05),
+				c + Vector2(r * 1.35, -r * 0.1), c + Vector2(0, r * 0.85)))
+			draw_colored_polygon(h, tint)
+		"boot":
+			draw_colored_polygon(PackedVector2Array([
+				c + Vector2(-r * 0.35, -r * 0.9), c + Vector2(r * 0.2, -r * 0.9),
+				c + Vector2(r * 0.2, r * 0.15), c + Vector2(r, r * 0.5), c + Vector2(r, r * 0.85),
+				c + Vector2(-r * 0.6, r * 0.85), c + Vector2(-r * 0.6, -r * 0.55)]), tint)
+		"dash":
+			for i in 3:
+				var ox := -r * 0.75 + float(i) * r * 0.7
+				var col := Color(tint.r, tint.g, tint.b, 0.35 + float(i) * 0.32)
+				draw_polyline(PackedVector2Array([c + Vector2(ox - r * 0.28, -r * 0.62),
+					c + Vector2(ox + r * 0.34, 0), c + Vector2(ox - r * 0.28, r * 0.62)]),
+					col, r * 0.26)
+		"crit":
+			var star := PackedVector2Array()
+			for i in 10:
+				var a := float(i) / 10.0 * TAU - PI * 0.5
+				var rr: float = r * 0.42 if i % 2 == 1 else r
+				star.append(c + Vector2(cos(a), sin(a)) * rr)
+			draw_colored_polygon(star, tint)
+		"gear", "scrap":
+			draw_arc(c, r * 0.6, 0.0, TAU, 24, tint, r * 0.3)
+			for i in 8:
+				var a := float(i) / 8.0 * TAU
+				draw_line(c + Vector2(cos(a), sin(a)) * r * 0.72,
+					c + Vector2(cos(a), sin(a)) * r, tint, r * 0.24)
+			if kind == "scrap":
+				var teal := Color("#37f0c8")
+				draw_rect(Rect2(c + Vector2(-r * 0.4, -r * 0.12), Vector2(r * 0.8, r * 0.24)), teal)
+				draw_rect(Rect2(c + Vector2(-r * 0.12, -r * 0.4), Vector2(r * 0.24, r * 0.8)), teal)
+		"boiler":
+			draw_arc(c, r * 0.8, 0.0, TAU, 28, tint, r * 0.24)
+			draw_circle(c + Vector2(0, r * 0.1), r * 0.34, core)
+			for s: float in [-1.0, 1.0]:
+				draw_line(c + Vector2(s * r * 0.8, -r * 0.5),
+					c + Vector2(s * r * 1.15, -r * 0.5), tint, r * 0.18)
+		_:
+			for i in 8:
+				var a := float(i) / 8.0 * TAU
+				draw_line(c + Vector2(cos(a), sin(a)) * r * 0.34,
+					c + Vector2(cos(a), sin(a)) * r, tint, r * 0.2)
+			draw_circle(c, r * 0.26, tint)
+
+
 func _draw_draft() -> void:
 	## The game HUD is drawn under this, and it leaves its last plate open. A
 	## full-screen instruction is not on that plate, and the audit rightly said so.
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.78))
-	_banner(size.x * 0.5, 88.0, 420.0)
-	_center_text("CHOOSE ONE", 128.0, 34, Color("#e8c376"))
-	_center_text("Click a card, or press its number.", 158.0, 18, Color("#b9afaa"))
+	## THE HEADING NAMES THE DRAFT. The banner is wider than the old 420 because
+	## "CHOOSE YOUR OPENING WEAPON" is a long title, and the size is fitted down to
+	## the banner's lettering region so the longest heading still sits inside its
+	## frame — the audit checks the heading against exactly that region.
+	_banner(size.x * 0.5, 72.0, 470.0)
+	var heading := SkyGearHUD.draft_heading(game)
+	var head_pt := 28
+	while head_pt > 18 and font.get_string_size(heading, HORIZONTAL_ALIGNMENT_CENTER,
+			-1, head_pt).x > _banner_frame.size.x - 10.0:
+		head_pt -= 1
+	_center_text(heading, 118.0, head_pt, BRASS_LIT)
+	_center_text(SkyGearHUD.draft_subhead(game), 150.0, 15, Color("#b9afaa"))
 	## MANIFEST. What is coming, while you still have a choice about it.
 	if game.talent("show_manifest") > 0.0:
 		var coming: String = game.next_wave_manifest()
 		if coming != "":
-			_label(coming, Vector2(0.0, 180.0), size.x, HORIZONTAL_ALIGNMENT_CENTER,
+			_label(coming, Vector2(0.0, 174.0), size.x, HORIZONTAL_ALIGNMENT_CENTER,
 				_fits(coming, size.x, 14, 10), Color("#8fa6c9"))
 	# reroll: two per RUN, so spending one is a decision about which hand
 	var reroll := reroll_button(size)
@@ -1859,30 +2078,18 @@ func _draw_draft() -> void:
 		var hovered: bool = rect.has_point(get_local_mouse_position())
 		if hovered:
 			rect = rect.grow(4.0)
-		_panel(rect)
 		## RARITY, AS METAL. Hue is spoken for by the element, so the tier of a
-		## card is a heavier and brighter ring with rivets at the corners: iron,
-		## brass, steel. It reads at a distance and it costs one draw call, where
-		## a painted back per rarity x element x role is twenty-four textures.
+		## card is a heavier and brighter rail with rivets at the corners: pewter,
+		## brass, steel. The frame IS the rarity rail now — a slim ink edge with the
+		## metal on it — rather than a heavy nine-slice with a ring painted inside.
 		var look: Dictionary = SkyGearCards.rarity_look(card)
-		if float(look.ring) > 0.0:
-			## Inside the brass rather than on the card's silhouette, or the ring
-			## reads as a box drawn around the card instead of as its frame.
-			draw_rect(rect.grow(-11.0), look.metal, false, float(look.ring))
-			for corner in [rect.position + Vector2(19, 19),
-				Vector2(rect.end.x - 19, rect.position.y + 19),
-				Vector2(rect.position.x + 19, rect.end.y - 19),
-				rect.end - Vector2(19, 19)]:
-				if int(look.rivets) > 0:
-					## A stud, which needs a dark rim. A plain bright disc on brass
-					## is a dot somebody stuck on rather than a rivet driven in.
-					draw_circle(corner, 4.0, Color(0.05, 0.04, 0.07, 0.85))
-					draw_circle(corner, 2.8, look.metal)
-		## EVERYTHING below is measured from here. The card is brass around a
-		## hole, the hole is what you may write in, and `card_face` is the only
-		## thing that knows where the painted hole actually is.
-		var face := writing_area(rect)
-		
+		_card_frame(rect, look)
+		## EVERYTHING below is measured from `face`, the writing hole inside the
+		## slim rail, and `_open_card` hands the audit that same hole so a string
+		## and its frame cannot disagree.
+		var face := card_face(rect)
+		_open_card(rect)
+
 		## THE HUE IS THE ELEMENT'S. Always, in both drafts. It used to be the
 		## SCOPE colour on a drafted card and the ELEMENT colour on an opening
 		## weapon, so the one channel a player reads before any words meant two
@@ -1896,7 +2103,7 @@ func _draw_draft() -> void:
 		draw_rect(band, tint, false, 2.0)
 		_center_in_rect("%d  ·  %s" % [i + 1, str(card.get("class_label", "UPGRADE"))],
 			Rect2(band.position + Vector2(0, 3), band.size), 14, tint)
-		
+
 		## THE TAG ROW: element, rarity, role, in words as well as in colour.
 		## The player's test was whether all three can be told apart at a glance,
 		## and a glance at hue alone fails for one man in twelve — so the swatch
@@ -1910,63 +2117,57 @@ func _draw_draft() -> void:
 			Vector2(face.position.x + 16.0, tag_y), face.size.x * 0.52,
 			HORIZONTAL_ALIGNMENT_LEFT, 12, tint)
 		var role := SkyGearCards.role_of(card)
-		if role != "":
-			## A badge, not a shade. You could draft a Field and not find out it
-			## has no key until the fight started.
-			var badge := Rect2(face.get_center().x - 34.0, tag_y - 12.0, 68.0, 16.0)
-			draw_rect(badge, Color(0.05, 0.04, 0.075, 0.7))
-			draw_rect(badge, Color(tint.r, tint.g, tint.b, 0.75), false, 1.2)
-			_label(role, Vector2(badge.position.x, tag_y), badge.size.x,
-				HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#e6ddd0"))
 		_label(str(look.name), Vector2(face.position.x, tag_y), face.size.x,
 			HORIZONTAL_ALIGNMENT_RIGHT, 12, look.metal)
 
+		## THE CENTRAL EMBLEM — the browser's anchor, on EVERY card (SG-35). A
+		## gauge ring around the card's shape glyph, or a themed icon where it has
+		## no shape. The port drew this only on a weapon card with an empty preview,
+		## so every upgrade card had a hole here; `SkyGearCards.emblem_of` is the
+		## rule and it always answers. The role rides under it, where the browser's
+		## AUTO/ACTIVE tag sits, instead of a badge crowding the tag row.
+		var emblem_c := Vector2(face.get_center().x, face.position.y + 98.0)
+		_emblem(card, emblem_c, 34.0)
+		if role != "":
+			var badge := Rect2(emblem_c.x - 34.0, emblem_c.y + 40.0, 68.0, 16.0)
+			draw_rect(badge, Color(0.05, 0.04, 0.075, 0.7))
+			draw_rect(badge, Color(tint.r, tint.g, tint.b, 0.75), false, 1.2)
+			_label(role, Vector2(badge.position.x, badge.position.y + 12.0), badge.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#e6ddd0"))
+
 		## The title, shrunk to fit rather than clipped. "SLOW COMBUSTION" at 22pt
-		## is 216 wide against 222 of card; one longer name and it is over the
-		## edge, and a title that silently loses its last word is worse than a
-		## title one point smaller.
+		## is 216 wide against 258 of a portrait card; a longer name shrinks a
+		## point rather than losing its last word.
 		var title := str(card.title)
 		var title_pt := 22
 		while title_pt > 14 and font.get_string_size(title, HORIZONTAL_ALIGNMENT_CENTER,
 				-1, title_pt).x > face.size.x:
 			title_pt -= 1
-		_say(title, Vector2(face.position.x, band.end.y + 52.0), face.size.x,
+		var title_y: float = face.position.y + 172.0
+		_say(title, Vector2(face.position.x, title_y), face.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, title_pt, tint)
-		_says(str(card.text), Vector2(face.position.x, band.end.y + 90.0),
+		## A rule under the title, the browser's divider between name and prose.
+		draw_line(Vector2(face.position.x + 8.0, title_y + 10.0),
+			Vector2(face.end.x - 8.0, title_y + 10.0),
+			Color(0.69, 0.51, 0.25, 0.5), 1.0)
+		_says(str(card.text), Vector2(face.position.x, title_y + 28.0),
 			face.size.x, HORIZONTAL_ALIGNMENT_CENTER, 16, 3, Color("#eee5d5"))
 
-		## The shape, as its glyph. A card that hands you a weapon should show
-		## you the weapon: nine shapes with nine icons already in `assets/`, and
-		## "cone · burns targets" is a sentence rather than a picture.
-		var glyph_shape := ""
-		if str(card.get("kind", "")) == "skill":
-			glyph_shape = str(card.skill.shape)
-		elif card.has("shape"):
-			glyph_shape = str(card.shape)
-		if glyph_shape != "":
-			var glyph := _tex(str(SLOT_ICONS.get(glyph_shape, "")))
-			if glyph != null and SkyGearCards.preview(game, card).is_empty():
-				## 96, not 68. A weapon card has no before/after rows, so the glyph
-				## is the only thing in the middle two hundred pixels of it, and at
-				## 68 it read as a bullet point in an empty card. It is also the
-				## fastest read on the face: the shape of the swing.
-				var at := Vector2(face.get_center().x - 48.0, band.end.y + 100.0)
-				draw_circle(at + Vector2(48, 48), 56.0, Color(0.04, 0.03, 0.06, 0.35))
-				draw_texture_rect_region(glyph, Rect2(at, Vector2(96, 96)),
-					Rect2(Vector2.ZERO, glyph.get_size()), tint)
-
-		## BEFORE -> AFTER. The card said "hits harder" and left you to guess by
-		## how much, against a current value it also did not show.
+		## BEFORE -> AFTER, anchored to the bottom of the card above the footer
+		## rather than flowing after the prose — how many rows a card has is not
+		## something the layout should have to know (the browser's reasoning too).
 		var rows: Array = SkyGearCards.preview(game, card)
+		var row_y: float = face.end.y - 24.0
 		if not rows.is_empty():
-			var ry: float = band.end.y + 150.0
+			var shown: int = mini(rows.size(), SkyGearCards.PREVIEW_ROWS)
 			var rx: float = face.position.x
 			var rw: float = face.size.x
+			var ry: float = row_y - 10.0 - float(shown) * 17.0
 			## A rule above them, so the numbers read as a consequence of the
 			## sentence rather than as more of it.
 			draw_line(Vector2(rx, ry - 12.0), Vector2(rx + rw, ry - 12.0),
 				Color(tint.r, tint.g, tint.b, 0.35), 1.0)
-			## The label owns more of the row than it did. Half of 222 is 111 and
+			## The label owns more of the row than it did. Half of 258 is 129 and
 			## the longest label in the catalogue is 127 at the floor size; the
 			## numbers on the right need far less than they were reserving.
 			for r in rows.slice(0, SkyGearCards.PREVIEW_ROWS):
@@ -1975,10 +2176,6 @@ func _draw_draft() -> void:
 					HORIZONTAL_ALIGNMENT_LEFT, _fits(str(r.label), rw * 0.54, 12))
 				## Old value struck through in grey, new value lit. An arrow with
 				## two live-looking numbers reads as a range, not a change.
-				##
-				## "30.00x" is 38 wide at the floor size and the BEFORE column was
-				## 37 — a one-pixel clip that only showed up once `_fits` stopped
-				## being allowed to shrink the row out of trouble.
 				_say(str(r.before), Vector2(rx + rw * 0.55, ry), rw * 0.17,
 					HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#6a6478"))
 				_say("->", Vector2(rx + rw * 0.73, ry), 20,
@@ -1987,15 +2184,11 @@ func _draw_draft() -> void:
 					HORIZONTAL_ALIGNMENT_LEFT, 12,
 					Color("#7be8a8") if good else Color("#ff9a5a"))
 				ry += 17.0
-			if rows.size() > SkyGearCards.PREVIEW_ROWS:
-				_label("+%d more" % (rows.size() - SkyGearCards.PREVIEW_ROWS),
-					Vector2(rx, ry), rw, HORIZONTAL_ALIGNMENT_LEFT, 11)
 
 		## And which of your skills it lands on, as glyphs, with the untouched
 		## ones dim. A card that touches no skill says what it does touch —
 		## four dark glyphs reads as "affects nothing".
 		var hit: Array = card.get("affects", [])
-		var row_y: float = face.end.y - 24.0
 		## A weapon card does not "affect" the skills you already hold — it takes
 		## a slot. Saying so beats four grey dots, which is what it was drawing.
 		if str(card.get("kind", "")) == "skill":

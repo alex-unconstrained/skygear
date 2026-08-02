@@ -182,6 +182,71 @@ static func role_of(card: Dictionary) -> String:
 		else "ACTIVE"
 
 
+## THE CENTRAL EMBLEM — the browser's rule, restored (SG-35).
+##
+## `drawDraft` (~245) draws a gauge ring with a glyph inside on EVERY card: the
+## card's SHAPE where it has one, and a themed icon keyed by id where it does
+## not. The port drew the shape ONLY on a weapon card whose before/after block
+## was empty (`hud.gd` ~1941), so every UPGRADE card had a hole in its middle
+## where its identity should be — the single thing SG-4 saw diverge on the face.
+##
+## A card HAS a shape when it is a weapon (its own shape) or a SLOT upgrade (the
+## shape of the weapon in the slot it lands on — the browser's `S.slots[c.slot]`).
+## Everything else — an element card, a captain / boiler / deck card — draws a
+## themed icon. This is the one resolver the face AND the harness read, so a card
+## can never draw an emblem the guard did not see (STATUS failure mode one).
+const ID_ICON := {
+	"burnDmg": "flame", "burnDur": "flame", "slowAmt": "frost", "brittle": "frost",
+	"stun": "bolt", "knock": "steam", "scald": "steam", "hp": "heart", "spd": "boot",
+	"dashcd": "dash", "dashdmg": "dash", "dashchg": "dash", "crit": "crit",
+	"critx": "crit", "scrap": "scrap", "lifesteal": "scrap", "boilerhp": "boiler",
+	"boilerdr": "boiler", "fifth": "gear", "residue": "burst", "autofire": "burst",
+	"killboom": "burst", "ventheal": "heart", "ventdmg": "steam", "pressrate": "steam",
+	"dressing": "heart", "kegs": "burst", "elemdmg": "burst", "elemcd": "gear",
+	"spares": "gear",
+}
+## The fallback when an id is not named above — every scope still has a face.
+const SCOPE_ICON := {
+	SCOPE_NEW: "gear", SCOPE_SKILL: "gear", SCOPE_ELEMENT: "burst",
+	SCOPE_CAPTAIN: "heart", SCOPE_SHIP: "boiler", SCOPE_DECK: "burst",
+	SCOPE_ALL: "gear", SCOPE_META: "gear",
+}
+
+
+## The shape the emblem shows, or "" when the card is not about a shape at all.
+static func emblem_shape(game, card: Dictionary) -> String:
+	if str(card.get("kind", "")) == "skill" and card.has("skill"):
+		return str((card.skill as Dictionary).get("shape", ""))
+	if card.has("shape"):
+		return str(card.shape)
+	## A slot upgrade shows the weapon it lands on, exactly as the browser does.
+	if str(card.get("scope", "")) == SCOPE_SKILL and card.has("slot") and game != null:
+		var i: int = int(card.slot)
+		if i >= 0 and i < game.skills.size():
+			return str(game.skills[i].shape)
+	return ""
+
+
+## What the middle of the card draws: a shape glyph or a themed icon, and its
+## tint. Never empty — the browser draws an emblem on every card, and so must we.
+static func emblem_of(game, card: Dictionary) -> Dictionary:
+	var shape := emblem_shape(game, card)
+	if shape != "" and SkyGearData.SHAPES.has(shape):
+		var tint: Color = hue_of(card)
+		## A slot upgrade's own hue is brass — it is a slot upgrade, not an element
+		## card — so tint its glyph by the WEAPON it lands on. The emblem is the one
+		## place the target's colour belongs, and it keeps the row of lit glyphs and
+		## the emblem naming the same element.
+		if str(card.get("scope", "")) == SCOPE_SKILL and card.has("slot") and game != null:
+			var i: int = int(card.slot)
+			if i >= 0 and i < game.skills.size():
+				tint = SkyGearData.ELEMENTS[game.skills[i].element].color
+		return {"kind": "shape", "shape": shape, "tint": tint}
+	var icon := str(ID_ICON.get(str(card.get("id", "")),
+		SCOPE_ICON.get(str(card.get("scope", "")), "gear")))
+	return {"kind": "icon", "icon": icon, "tint": hue_of(card)}
+
+
 ## WHAT WOULD THIS CARD ACTUALLY DO?
 ##
 ## The card face said "Ember Cleave hits harder" and left the player to guess by
