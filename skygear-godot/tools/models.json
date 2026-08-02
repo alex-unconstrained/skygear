@@ -33,6 +33,35 @@
     "still an improvement on a billboard that never turns."
   ],
 
+  "scrapper": {
+    "_note": [
+      "The first rigged BOARDER (board SG-65, the animation pilot). Meshy's",
+      "rigger refused this character in every form it was ever submitted -",
+      "twelve 422s across three meshes including two regenerated to the",
+      "standing rules (v4 is a verifiably symmetric A-pose with a neck), zero",
+      "credits charged - because pose estimation wants humanoid PROPORTION",
+      "and a ball with limbs is not that. So the rig is LOCAL:",
+      "tools/rig_local.gd builds a Mixamo-named skeleton from measured",
+      "landmarks and binds every vertex rigid to its nearest limb, which on a",
+      "riveted machine is the honest material. bone_map is empty because the",
+      "local rig already speaks Mixamo.",
+      "",
+      "The clip set is the pilot's minimum: walk/run to close the distance,",
+      "one swing, a flinch, and idle as the fallback floor (rig3d falls back",
+      "to ANY first clip when idle is missing, which is a different bug every",
+      "spawn). The captain's baked library carries NO death clip - boarder",
+      "deaths stay the sim's despawn until a clip source exists (SG-65 flag).",
+      "height 93 = boarder_height(SCRAPPER), the renderer's own arithmetic."
+    ],
+    "rig_glb": "assets/models/scrapper/scrapper_rigged.scn",
+    "clips_from": "res://assets/models/captain/captain.tscn",
+    "bone_map": {},
+    "clips": ["idle", "walk", "run", "swing", "hurt"],
+    "loop": ["idle", "walk", "run"],
+    "height": 93.0,
+    "facing": 0.0
+  },
+
   "captain": {
     "_note": [
       "Pro Melee Axe Pack: one character FBX with the mesh and skin, and 47",

@@ -1,12 +1,12 @@
 {
   "key": "scrapper",
   "ai_model": "meshy-6",
-  "prompt": "A hunched, top-heavy steampunk salvage automaton. A huge riveted spherical brass and steel torso; the head sunk low between the shoulders, a small dome with a single amber lens and no other light; two long thick arms, each ending in one big curved steel boarding hook instead of a hand; short thick legs and wide flat feet. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "prompt": "A steampunk salvage automaton: a huge ball torso; a small domed head with an amber lens, on a short neck; two long arms alike, set high on the torso, hanging down and out, each ending in a big curved boarding hook aimed down; short thick legs. One character alone in a clean neutral A-pose: upright, symmetrical, feet apart, both arms straight and held well out from the sides, a clear gap between each arm and the body. Nothing held or hanging, no strap, no cape or cloth, no base, ground or text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
   "texture_prompt": "Blackened steel plating with warm polished brass rivets, a hot amber glass lens, verdigris in the seams, bare worn steel on the hooks. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
   "target_polycount": 15000,
   "texture_resolution": "2k",
-  "preview_task": "019fb6d3-1049-7617-875a-307c965ba1a8",
-  "refine_task": "019fb6d4-6868-7654-a11a-9bcf24e661ca",
+  "preview_task": "019fc2c1-b583-7b9a-b573-12e09dcc27fe",
+  "refine_task": "019fc2c3-21f4-704f-bf13-845277a02c9f",
   "credits": 30,
   "files": [
     "scrapper.glb",
@@ -19,7 +19,7 @@
     "scrapper_thumb.png"
   ],
   "screen_units": 186.0,
-  "remesh_task": "019fb8b3-e5e2-7947-8861-196fa3f16529",
+  "remesh_task": "019fc2c4-e3ec-70bb-b041-02a77c701553",
   "remesh_credits": 5,
   "remeshed": {
     "tris": 3000,
@@ -29,7 +29,7 @@
       "metallic_roughness": 256,
       "emission": 256
     },
-    "bytes": 659056,
-    "original_bytes": 11070968
+    "bytes": 514128,
+    "original_bytes": 10993700
   }
 }

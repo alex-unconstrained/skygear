@@ -286,6 +286,30 @@ HERO_FIGURE = (
     "loose cloth or tattered edges. No base, ground or text. " + STYLE_FIGURE
 )
 
+# The frame for a boarder that will be AUTO-RIGGED — the enemy half of
+# HERO_FIGURE, and it exists because FIGURE was not enough (board SG-55): the
+# v2 scrapper honoured FIGURE and still came back with its arms welded against
+# the torso and its head sunk neckless into the shoulders, and Meshy's rigging
+# endpoint refused that mesh five times straight — "Pose estimation failed",
+# a humanoid it could not find a humanoid in. So the pose is stated the way
+# HERO_FIGURE states it (a clean neutral A-pose, arms well out, a clear gap),
+# minus the "hands open and empty" clause, because a boarder's hooks ARE its
+# hands and one prompt carrying both halves of that argument is the furnace
+# knight's contradiction again. Identity does not live here: hunch, bulk and
+# menace ride the subject's PROPORTIONS and the texture, never the pose.
+RIG_FIGURE = (
+    "One character alone in a clean neutral A-pose: upright, symmetrical, feet "
+    "apart, both arms straight and held well out from the sides, a clear gap "
+    "between each arm and the body. Nothing held or hanging, no strap, no cape "
+    "or cloth, no base, ground or text. " + STYLE_FIGURE
+)
+# "symmetrical" was added by v4 of the scrapper, and it is a POSE word here,
+# not a modelling nicety: v3 came back with its left arm hanging clear and its
+# RIGHT arm bent up against the ball of the torso — one arm honouring the
+# frame and one arm the v2 weld — and Meshy's pose estimation refused that
+# mesh five more times (datauri, refine task, texture-hinted, three heights;
+# nothing charged). One asymmetric limb is enough to lose the rigger.
+
 # The frame for a piece of deck furniture. PROP is about a weapon in a hand that
 # does not exist yet; this is about an object that already sits on planking in
 # thirty painted assets, and its clauses are the three ways a generator ruins one:
@@ -492,15 +516,30 @@ ASSETS = [
     #   * proportion was described once, at the front, and lost. "Hunched" and
     #     "stubby" against the frame's "standing upright" is one word against
     #     two; it now leads and is repeated as mass rather than as posture.
+    # v3, then v4 (board SG-65, the animation pilot restart). v2's mesh was
+    # the enemy the billboard promised and exactly the mesh the rigger cannot
+    # use: its own "hunched, top-heavy… head sunk low between the shoulders"
+    # put the arms against the ball of the torso and left no neck, and Meshy's
+    # pose estimation refused it five times (SG-55, nothing charged). v3 was
+    # the standing rules applied — and it HALF worked, which is its own
+    # lesson: the neck came back (a domed head on a proper neck), the left
+    # arm hung clear with its hook, and the RIGHT arm came back bent up
+    # against the ball — one arm to the frame, one arm to the old weld — and
+    # the rigger refused that five more times, still free. So v4 says the
+    # arms are ALIKE, says where they attach (at the top of the torso, which
+    # also buys the estimator a shoulder line a sphere otherwise hides), and
+    # says which way the hooks point, because a hook curled up beside the
+    # torso and a hook hanging down read as different limbs to a pose
+    # detector. The hunch READ still rides proportion and texture — a huge
+    # ball over short legs, a small head, the hooks — never posture.
     A("scrapper",
-      "A hunched, top-heavy steampunk salvage automaton. A huge riveted "
-      "spherical brass and steel torso; the head sunk low between the "
-      "shoulders, a small dome with a single amber lens and no other light; two "
-      "long thick arms, each ending in one big curved steel boarding hook "
-      "instead of a hand; short thick legs and wide flat feet.",
+      "A steampunk salvage automaton: a huge ball torso; a small domed head "
+      "with an amber lens, on a short neck; two long arms alike, set high "
+      "on the torso, hanging down and out, each ending in a big curved "
+      "boarding hook aimed down; short thick legs.",
       "Blackened steel plating with warm polished brass rivets, a hot amber "
       "glass lens, verdigris in the seams, bare worn steel on the hooks.",
-      "boarders", 15000, FIGURE, screen=186.0),
+      "boarders", 15000, RIG_FIGURE, screen=186.0),
 
     A("gunner",
       "A small steampunk airship drone: a riveted brass disc-shaped body with "

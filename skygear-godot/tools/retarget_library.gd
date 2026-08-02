@@ -122,6 +122,12 @@ func _res(path: String) -> String:
 
 
 func _run() -> void:
+	## A rig with PortableCompressedTexture2D maps (the local scrapper rig,
+	## board SG-65) loses its CPU-side buffers the moment the scene loads
+	## unless this global is on — and then the baked mesh saves texture
+	## SHELLS: (0,0), no data, no error, a white character. The editor sets
+	## this during its own saves; a tool that saves resources must too.
+	PortableCompressedTexture2D.set_keep_all_compressed_buffers(true)
 	var args := OS.get_cmdline_user_args()
 	var name := args[0] if args.size() > 0 else "boilerwright"
 	var manifest: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(MANIFEST))

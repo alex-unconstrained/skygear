@@ -27,9 +27,18 @@ func _run() -> void:
 			which = uargs[i + 1]
 	var model := "res://assets/models/%s/%s.tscn" % [which, which]
 	print("MODEL ", which)
+	## A boarder is set up at the height `_sync_all` will actually draw it —
+	## `boarder_height()`, the renderer's one copy of that arithmetic — because
+	## the stride scaling (SG-55) makes the rate a function of height, and a
+	## scrapper measured at the captain's 1.76 m would report the captain's
+	## numbers. Enemy kinds are upper-case in the table, model dirs lower.
+	var ekind := which.to_upper()
+	var is_boarder: bool = SkyGearData.ENEMIES.has(ekind)
+	var fit_m: float = SkyGearView3D.boarder_height(ekind) * SkyGearView3D.WORLD_SCALE \
+		if is_boarder else 1.76
 	var rig := SkyGearRig3D.new()
 	root.add_child(rig)
-	if not rig.setup(model, 1.76, 2):
+	if not rig.setup(model, fit_m, 2):
 		print("FAIL no model")
 		quit(1)
 		return
@@ -39,6 +48,38 @@ func _run() -> void:
 		var a: Animation = rig.anim.get_animation(name)
 		print("  %-10s %5.2fs  %s" % [name, a.length,
 			"loop" if a.loop_mode != Animation.LOOP_NONE else "once"])
+
+	## A boarder's attack window is not a skill cooldown: `_sync_rig` calls
+	## `want("swing", …, state_time)` on the first windup frame, and on that
+	## frame `state_time` IS the kind's windup (enemy.gd sets it entering the
+	## state). So the window measured here is the one the renderer will pass.
+	## Extended for the first enemy rig (board SG-65); waiting for one was
+	## SG-55's call — a tool nothing can exercise is data with no reader.
+	if is_boarder:
+		var config: Dictionary = SkyGearData.ENEMIES[ekind]
+		var ewindow: float = float(config.get("windup", 0.4))
+		rig.state = "idle"
+		rig.want("swing", 0.0, ewindow)
+		var eclip: String = rig._clip
+		var erate: float = rig.anim.speed_scale
+		var eshown: float = ewindow * erate / rig.anim.get_animation(eclip).length
+		print("\nWHAT THE PLAYER ACTUALLY SEES")
+		print("  %-12s %8s %10s %7s %8s  %s"
+			% ["attack", "windup", "window", "clip", "rate", "shown"])
+		var enote := "ok"
+		if erate >= TOO_FAST:
+			enote = "TOO FAST"
+		elif eshown < TOO_SLOW_FRACTION:
+			enote = "only %.0f%% of the clip" % (eshown * 100.0)
+		print("  %-12s %7.2fs %9.2fs %6s %7.2fx  %s"
+			% [which, ewindow, ewindow, eclip, erate, enote])
+		print("\nVERDICT")
+		if enote == "ok":
+			print("  the swing lands inside its windup at a readable rate.")
+		else:
+			print("  the swing does not read: %s." % enote)
+		quit(0 if enote == "ok" else 1)
+		return
 
 	var game := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(game)

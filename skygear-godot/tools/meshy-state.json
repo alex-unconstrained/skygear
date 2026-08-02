@@ -441,7 +441,19 @@
    "scrapper_emission.png",
    "scrapper_thumb.png"
   ],
-  "remesh": "019fc2b7-3e00-7de0-8c49-cc0d5e26849e"
+  "remesh": "019fc2b7-3e00-7de0-8c49-cc0d5e26849e",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 1024,
+    "normal": 512,
+    "metallic_roughness": 256,
+    "emission": 256
+   },
+   "bytes": 514128,
+   "original_bytes": 10993700
+  }
  },
  "brazier": {
   "preview": "019fc2b8-4500-7e1d-b561-8d1f951b70f8",

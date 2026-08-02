@@ -5606,8 +5606,17 @@ func _view() -> void:
 					var ebn := String(eskin.get_bind_name(ebi))
 					if ebn != "" and eskel.find_bone(ebn) < 0:
 						boarder_faults.append("%s: bind %s unresolved" % [ekind, ebn])
+		## RECORDED BEFORE THE FREE, because free() takes the skeleton with the
+		## scene and a freed instance compares EQUAL TO NULL in GDScript — so
+		## `eskel == null` after the free was always true and the whole skinned
+		## half of this guard was dead code that could never count a rigged
+		## scene. Found the day the first rigged boarder landed (board SG-75,
+		## filed from SG-65): the guard reported "0 rigged" while the scene it
+		## had just loaded carried 23 bones. A guard that cannot fire is the
+		## silenced-detector failure STATUS names, arrived at by accident.
+		var scene_rigged: bool = eskel != null
 		enode.free()
-		if eskel == null:
+		if not scene_rigged:
 			continue
 		boarder_rigged += 1
 		## SG-45 fault two, boarder edition: built through the game's own
@@ -5639,6 +5648,28 @@ func _view() -> void:
 		"%d scenes (%d rigged, %d static): %s" % [boarder_scenes, boarder_rigged,
 			boarder_scenes - boarder_rigged,
 			"clean" if boarder_faults.is_empty() else ", ".join(boarder_faults)])
+
+	## --- board SG-65: the animation pilot's contract on the first rigged boarder
+	## The scrapper's retargeted library is the pilot's minimal set: walk and
+	## run to close the distance, one swing, a flinch, and idle as the fallback
+	## floor — because `want()` on a library with no idle falls through to
+	## whatever clip sorts first, which is a different bug every spawn. This is
+	## the reader for the `clips` row in tools/models.json; without it that row
+	## is data with no reader the day someone trims it.
+	var srig_ok := false
+	var srig_have := ""
+	if ResourceLoader.exists(SkyGearView3D.model_path("SCRAPPER")):
+		var snode: Node = (load(SkyGearView3D.model_path("SCRAPPER")) as PackedScene).instantiate()
+		var splayer := snode.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if splayer != null:
+			srig_ok = true
+			for c in ["idle", "walk", "run", "swing", "hurt"]:
+				if not splayer.has_animation(str(c)):
+					srig_ok = false
+			srig_have = ", ".join(splayer.get_animation_list())
+		snode.free()
+	_check("figure", "the first rigged boarder carries the pilot's clip set — walk and run to close, one swing, a flinch, and idle as the floor",
+		srig_ok, srig_have)
 
 	## --- board SG-64: the same bargain for the DECK's own meshes -------------
 	## The boarder loop above only reaches kinds the simulation can spawn; the
@@ -5765,15 +5796,22 @@ func _view() -> void:
 	## frame and does not know which kind came with clips — and the alternative,
 	## a second code path for figures that do not animate, is the thing this
 	## class exists to avoid.
-	var lump_scene := SkyGearView3D.model_path("SCRAPPER")
+	##
+	## The lump is the GUNNER, and that is a deliberate promotion from the
+	## scrapper that held this job until board SG-65 rigged it: the gunner is a
+	## propeller drone whose motion will be procedural (prop-spin and bob, the
+	## SG-55 rollout note) — it is the one boarder that stays a static lump BY
+	## DESIGN, so these checks keep a fixture for as long as the class needs one.
+	var lump_scene := SkyGearView3D.model_path("GUNNER")
 	_check("view", "the scrapper is a mesh rather than a billboard",
-		ResourceLoader.exists(lump_scene), lump_scene)
+		ResourceLoader.exists(SkyGearView3D.model_path("SCRAPPER")),
+		SkyGearView3D.model_path("SCRAPPER"))
 	if ResourceLoader.exists(lump_scene):
 		var lump := SkyGearRig3D.new()
 		root.add_child(lump)
 		## The renderer's own arithmetic — see `_sync_all`, which is where a
 		## boarder's height comes from — rather than a number typed here twice.
-		var tall: float = (120.0 + float(SkyGearData.ENEMIES.SCRAPPER.radius) * 3.0) \
+		var tall: float = SkyGearView3D.boarder_height("GUNNER") \
 			* SkyGearView3D.WORLD_SCALE
 		var stood: bool = lump.setup(lump_scene, tall, SkyGearView3D.LAYER_FIGURES)
 		_check("rig", "a model with no AnimationPlayer still builds",

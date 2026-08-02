@@ -41,6 +41,7 @@ T-pose rules. 0 credits were spent finding this out. Approve ~40 (regen to
 the standing rules + remesh + rig) and the animation pilot resumes; or name a
 different boarder to try first (refused submissions are free).
 **Recommendation: approve.** Balance: 507 credits.
+**DONE 2026-08-02 (SG-65): the scrapper is rigged and WALKING — the pilot verdict awaits your eyes at `.shots/clips/scrapper.gif` (statue-glide kept as `scrapper-before.gif`); Meshy refused even a textbook A-pose, so the rig is local and free — SG-65 on the board has the read and the rollout fork.**
 
 **2 · Tempo's held-rate flag** (SG-57 / NEEDS #8). The spawn-rhythm system
 shipped gated on hard queue statistics (SURGE is provably bimodal). But the
