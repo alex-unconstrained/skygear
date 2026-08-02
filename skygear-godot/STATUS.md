@@ -11,9 +11,13 @@ was."* The browser is a reference and a regression yardstick now, not a
 ceiling. Judge visual work by "is it better and legible," not "does it match."
 
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
-a difficulty ladder, a sky, and a cutscene system with all five cues filled —
+a difficulty ladder, a sky, a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory
-and defeat shots. **604 harness checks**; the text audit covers 23 screens at
+and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
+FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
+chosen into six berths BETWEEN runs on the title's berth screen, applied to the
+deck once at run start and never mid-run (the owner's rule, harness-pinned —
+board SG-56). **641 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
@@ -25,14 +29,14 @@ the thing itself: panels, and the elements INSIDE them (labels, readouts,
 buttons, a card's emblem), by drag, arrow-nudge or typed offset, with the text
 audit's own detectors as the live verdict. **And you no longer have to BE on
 the screen** (SG-44, round two of the same ask): **P** inside the editor poses
-any of the audit's 23 screens on a sandbox — edit GAMEOVER without dying, the
+any of the audit's screens on a sandbox — edit GAMEOVER without dying, the
 results without winning — and Esc hands the game back exactly, mid-run
 included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (604 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
-photograph all 23 screens at all 4 widths as one page — for auditing everything
+`harness` (641 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
 the step that makes a hand-alignment pass real).
@@ -85,7 +89,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair (held), shove (instant) |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 604 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 641 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -113,8 +117,8 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 604 checks. Green before anything ships |
-| `text` | every string on 23 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
+| `harness` | 641 checks. Green before anything ships |
+| `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |
@@ -136,8 +140,11 @@ verified push.
 ## Designed, not built
 
 - `docs/SHIP-AND-MAPS-DESIGN.md` -- maps, run diversity, ship progression,
-  between-run downtime. Its first recommendation, the Colossus wreck fitting,
-  was placed 2026-08-01 (board SG-15); the rest is unbuilt.
+  between-run downtime. The Colossus wreck fitting was placed 2026-08-01
+  (SG-15); the stowage spine was built and then CUT by its own §7.1 kill-test
+  (SG-48); §5's fittings + berths + berth screen were BUILT 2026-08-02 under
+  the owner's between-runs reframe (SG-56). Still unbuilt: §6's walkable
+  downtime, gated behind the refit by its own rule.
 - `docs/AUDIT-2026-07-31.md` -- an independent audit. Its top three findings are
   fixed; its documentation recommendations are not (board SG-11).
 - `VFX-PLAN.md` §6, the blade-driven weapon trail (SG-18). The two remaining

@@ -46,6 +46,10 @@ func _new_game() -> SkyGearGame:
 	##
 	## Ephemeral, so nothing a test does here can write back out either.
 	game.workshop = SkyGearWorkshop.fresh(true)
+	## And the SHIP re-read from that bench (SG-56): `_ready` snapshotted the
+	## berthed set off the dev machine's real save, and a harness whose decks
+	## carry the developer's own wreck is a harness that depends on a save file.
+	game.refresh_berthed()
 	return game
 
 
@@ -79,6 +83,8 @@ func _run() -> void:
 	_deck()
 	await process_frame
 	_stow()
+	await process_frame
+	_fittings()
 	await process_frame
 	_lanes()
 	await process_frame
@@ -354,6 +360,371 @@ func _stow() -> void:
 		"%d kegs, nearest pair %.0f" % [keg_at.size(), nearest])
 	a.talents = {}
 	a.queue_free()
+
+
+## --- THE FITTINGS (board SG-56) ------------------------------------------------
+## Between-run ship modification, under the owner's midnight rule: fittings are
+## earned by finishing waves, chosen into six berths BETWEEN runs, applied once
+## at run start, and the ship never changes mid-run. The §7.2 baseline, the
+## forbidden-field shape, every award rule, the berth rules, persistence, and
+## the deck changes themselves are each pinned below.
+func _fittings() -> void:
+	## 1 · THE TABLE'S SHAPE. The hard rule from SHIP-AND-MAPS §5, structural:
+	## a fitting may only change the DECK or the VERB TABLE, so its row may
+	## only carry the keys those changes need — and no row may so much as NAME
+	## `mods`, `player`, or any Workshop field.
+	var allowed := ["name", "text", "earn", "props", "wall", "turret", "verb"]
+	var stray := ""
+	var named := ""
+	var forbidden: Array[String] = ["mods", "player"]
+	for node_id in SkyGearWorkshop.NODES.keys():
+		forbidden.append(str(SkyGearWorkshop.NODES[node_id].field))
+	for id in SkyGearFittings.FITTINGS.keys():
+		var entry: Dictionary = SkyGearFittings.FITTINGS[id]
+		for key in entry.keys():
+			if str(key) not in allowed:
+				stray += " %s.%s" % [id, key]
+		var flat := JSON.stringify(entry)
+		for bad in forbidden:
+			if flat.contains('"%s"' % bad):
+				named += " %s->%s" % [id, bad]
+	_check("fittings", "no fitting names a forbidden field",
+		stray == "" and named == "", ("stray:%s named:%s" % [stray, named])
+			if stray != "" or named != "" else "6 rows, keys within {%s}" % ",".join(allowed))
+
+	## And a verb-granting fitting must name a row the verb table actually has,
+	## with the row naming it back — the cross-link that keeps the `verb` key
+	## from becoming data with no reader.
+	var verb_link := true
+	var link_note := ""
+	for id in SkyGearFittings.FITTINGS.keys():
+		var verb := str((SkyGearFittings.FITTINGS[id] as Dictionary).get("verb", ""))
+		if verb == "":
+			continue
+		var found := false
+		for spec in SkyGearDeckwork.actions():
+			if str(spec.id) == verb and str(spec.get("fitting", "")) == str(id):
+				found = true
+		verb_link = verb_link and found
+		link_note += " %s<->%s:%s" % [id, verb, found]
+	_check("fittings", "a verb-granting fitting names a real verb row, and the row names it back",
+		verb_link, link_note)
+
+	## 2 · THE AWARD RULES, fixture rows through the real `bank()` — the one
+	## place that knows the meta rule. At most one per run, behind the latch.
+	var shop := SkyGearWorkshop.fresh(true)
+	var out: Dictionary = SkyGearWorkshop.bank(shop,
+		{"won": false, "wave": 11, "salvage": 30})
+	_check("fittings", "nothing is earned before the first victory",
+		str(out.get("fitting", "?")) == ""
+			and SkyGearFittings.earned_count(shop) == 0)
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "seed": "FIT1"})
+	_check("fittings", "the first victory keeps the wreck, and it berths itself",
+		str(out.get("fitting", "")) == "wreck"
+			and SkyGearFittings.is_berthed(shop, "wreck"))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "heat": 1,
+		"class_id": "boilerwright", "healed": 0, "salvage": 30, "seed": "FIT2"})
+	_check("fittings", "at most one fitting per run — the first unowned rule in table order",
+		str(out.get("fitting", "")) == "bow_barricade"
+			and SkyGearFittings.earned_count(shop) == 2,
+		"kept %s" % str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "heat": 2, "seed": "FIT3"})
+	_check("fittings", "a Heat win pays the spare gun",
+		str(out.get("fitting", "")) == "spare_gun", str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12,
+		"class_id": "boilerwright", "seed": "FIT4"})
+	_check("fittings", "a Boilerwright win pays his vent",
+		str(out.get("fitting", "")) == "fourth_vent", str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": false, "wave": 5, "salvage": 12, "seed": "FIT5"})
+	_check("fittings", "twelve salvage pays the winch, win or lose",
+		str(out.get("fitting", "")) == "winch", str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "healed": 0, "seed": "FIT6"})
+	_check("fittings", "an unhealed win pays the scupper grating",
+		str(out.get("fitting", "")) == "scupper_grating", str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "heat": 3,
+		"class_id": "boilerwright", "healed": 0, "salvage": 99, "seed": "FIT7"})
+	_check("fittings", "and a ship that owns the set earns nothing more",
+		str(out.get("fitting", "")) == ""
+			and SkyGearFittings.earned_count(shop) == SkyGearFittings.FITTINGS.size())
+	_check("fittings", "six earned fittings berthed themselves into exactly six berths",
+		SkyGearFittings.berthed_ids(shop).size() == SkyGearFittings.CAP,
+		str(SkyGearFittings.berthed_ids(shop)))
+
+	## 3 · THE BERTH RULES: the cap, the lock, and the latch.
+	var refit := SkyGearWorkshop.fresh(true)
+	refit.unlocked = true
+	refit.fittings = {"wreck": true, "bow_barricade": true}
+	refit.berths = ["b1", "b2", "b3", "b4", "b5", "b6"]
+	_check("fittings", "the berth cap refuses a seventh",
+		not SkyGearFittings.can_berth(refit, "wreck")
+			and not SkyGearFittings.berth(refit, "wreck"),
+		"%d berthed" % SkyGearFittings.berthed_ids(refit).size())
+	refit.berths = []
+	_check("fittings", "a fitting the ship has not earned refuses to berth",
+		not SkyGearFittings.berth(refit, "spare_gun"))
+	var still_locked := SkyGearWorkshop.fresh(true)
+	still_locked.fittings = {"wreck": true}
+	_check("fittings", "and nothing berths before the first victory",
+		not SkyGearFittings.berth(still_locked, "wreck")
+			and SkyGearFittings.sailing(still_locked).is_empty())
+	_check("fittings", "berthing and clearing round-trip the state",
+		SkyGearFittings.berth(refit, "wreck")
+			and SkyGearFittings.is_berthed(refit, "wreck")
+			and SkyGearFittings.unberth(refit, "wreck")
+			and not SkyGearFittings.is_berthed(refit, "wreck"))
+
+	## 4 · PERSISTENCE, against the real file — backed up first and restored
+	## after, because "round-trips the save" cannot be proven on a dictionary
+	## in memory. The runlog checks already own `user://runs.json` this way.
+	var had_file := FileAccess.file_exists(SkyGearWorkshop.PATH)
+	var backup := FileAccess.get_file_as_string(SkyGearWorkshop.PATH) if had_file else ""
+	var real := SkyGearWorkshop.fresh()
+	real.unlocked = true
+	real.fittings = {"wreck": true, "winch": true}
+	real.berths = ["winch"]
+	var wrote := SkyGearWorkshop.save_state(real)
+	var back := SkyGearWorkshop.load_state()
+	_check("fittings", "the earned set and the berthed set round-trip the save file",
+		wrote and SkyGearFittings.earned(back, "wreck")
+			and SkyGearFittings.earned(back, "winch")
+			and SkyGearFittings.berthed_ids(back) == ["winch"]
+			and not SkyGearFittings.is_berthed(back, "wreck"),
+		"berths %s" % str(SkyGearFittings.berthed_ids(back)))
+	## A pre-berth winner's save — no `fittings` key at all — keeps its trophy:
+	## the wreck's earn rule IS the first victory, applied once by the load
+	## migration. And the round-trip above proves the migration cannot re-berth
+	## a wreck the player chose to clear (the `has` latch).
+	var legacy := FileAccess.open(SkyGearWorkshop.PATH, FileAccess.WRITE)
+	legacy.store_string(JSON.stringify({"unlocked": true, "scrip": 120,
+		"sigils": 1, "nodes": {}, "articles": {"first_win": true}, "seeds": []}))
+	legacy.close()
+	var migrated := SkyGearWorkshop.load_state()
+	_check("fittings", "a pre-berth winner's save keeps its wreck — earned and berthed by migration",
+		SkyGearFittings.earned(migrated, "wreck")
+			and SkyGearFittings.is_berthed(migrated, "wreck")
+			and int(migrated.scrip) == 120)
+	## The denied-write shape: an ephemeral save reports success and the disk
+	## does not move — so no test, and no sandboxed player, can lose a refit
+	## to a write that never happened.
+	var ghost := SkyGearWorkshop.fresh(true)
+	ghost.fittings = {"spare_gun": true}
+	var ghost_saved := SkyGearWorkshop.save_state(ghost)
+	var after := SkyGearWorkshop.load_state()
+	_check("fittings", "a denied write reports clean without reaching the disk",
+		ghost_saved and not SkyGearFittings.earned(after, "spare_gun"))
+	if had_file:
+		var restore := FileAccess.open(SkyGearWorkshop.PATH, FileAccess.WRITE)
+		restore.store_string(backup)
+		restore.close()
+	else:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearWorkshop.PATH))
+
+	## 5 · THE BARE-SHIP BASELINE (§7.2, byte for byte). A ship that has EARNED
+	## everything and berthed NOTHING starts today's exact run — same seed,
+	## identical DECK and identical starting numbers to a fresh save, down to
+	## the seeded stream's state. Pinned at run start deliberately: run start
+	## is the only moment a fitting is allowed to touch anything, so the deck's
+	## identity there IS the whole claim — and advanced enemy positions are not
+	## reproducible across game instances even bare-vs-bare (the SG-1
+	## `move_and_slide` lesson; two identical games measurably drift), so a
+	## trajectory compare would pin the harness's noise, not the fittings.
+	## If a fitting cannot be added without moving this, it is not a fitting.
+	var bare := _new_game()
+	bare.set_seed_text("REFIT")
+	bare.begin_run()
+	var bare_rng: int = bare.rng.state
+	bare.choose_draft(0)
+	var bare_snap := _ship_snapshot(bare)
+	var bare_vents := _prop_count(bare, "vent")
+	## And the winch verb does not exist on a ship without the fitting.
+	var bare_stack: SkyGearProp = null
+	for p in bare.props():
+		if is_instance_valid(p) and not p.dead and str(p.prop_type) == "crates" \
+				and p != bare.barricade:
+			bare_stack = p
+			break
+	bare.player.global_position = bare_stack.global_position + Vector2(0.0, 120.0)
+	var bare_offer := SkyGearDeckwork.available(bare)
+	_check("fittings", "the winch verb does not exist on a ship without the fitting",
+		bare_offer.is_empty() or str(bare_offer.spec.id) != "winch_crate",
+		"offered %s" % (str(bare_offer.spec.id) if not bare_offer.is_empty() else "nothing"))
+	bare.queue_free()
+
+	var earned_all := _new_game()
+	earned_all.workshop.unlocked = true
+	for id in SkyGearFittings.FITTINGS.keys():
+		(earned_all.workshop.fittings as Dictionary)[id] = true
+	earned_all.set_seed_text("REFIT")
+	earned_all.begin_run()
+	earned_all.choose_draft(0)
+	var unberthed_snap := _ship_snapshot(earned_all)
+	_check("fittings", "a ship with nothing berthed sails today's deck exactly — byte for byte",
+		unberthed_snap == bare_snap and bare_vents == 3,
+		"%d vs %d chars, %d vents" % [unberthed_snap.length(), bare_snap.length(), bare_vents])
+	earned_all.queue_free()
+
+	## 6 · EVERY DECK CHANGE PRESENT AFTER `begin_run`, whole set berthed.
+	var kitted := _new_game()
+	kitted.workshop.unlocked = true
+	for id in SkyGearFittings.FITTINGS.keys():
+		(kitted.workshop.fittings as Dictionary)[id] = true
+		SkyGearFittings.berth(kitted.workshop, str(id))
+	kitted.set_seed_text("REFIT")
+	kitted.begin_run()
+	_check("fittings", "placing the whole berth set consumes nothing from the seeded stream",
+		kitted.rng.state == bare_rng, "rng %d vs %d" % [kitted.rng.state, bare_rng])
+	kitted.choose_draft(0)
+	_check("fittings", "the fourth vent and the scupper's vent stand at run start",
+		_prop_count(kitted, "vent") == 5, "%d vents" % _prop_count(kitted, "vent"))
+	var bow_line := 0
+	for p in kitted.props():
+		if is_instance_valid(p) and not p.dead and str(p.prop_type) == "crates" \
+				and bool(p.get_meta("fitting", false)):
+			bow_line += 1
+	_check("fittings", "the bow barricade's crate line stands where the boarders land",
+		bow_line == 2, "%d fixed crates" % bow_line)
+	_check("fittings", "the spare gun is a fourth cannon and it ships broken",
+		kitted.turrets.size() == 4 and bool(kitted.turrets[3].dead)
+			and float(kitted.turrets[3].hp) == 0.0
+			and int(kitted.turrets[3].lane) == 1,
+		"%d guns" % kitted.turrets.size())
+	_check("fittings", "and the lane's own gun still gates the lane while it lives",
+		is_same(kitted.turret_in_lane(1), kitted.turrets[1]))
+	kitted.player.global_position = Vector2(40.0, 640.0)
+	var job := SkyGearDeckwork.available(kitted)
+	_check("fittings", "the repair verb that already exists is how the spare gun comes back",
+		not job.is_empty() and str(job.spec.id) == "repair_turret"
+			and is_same(job.target, kitted.turrets[3]))
+	var inside := Vector2(-280.0, 515.0)
+	var pushed: Vector2 = kitted.correct_player_position(inside, 18.0)
+	_check("fittings", "the scupper grating is closed to the captain",
+		pushed != inside, "corrected to %.0f,%.0f" % [pushed.x, pushed.y])
+	_check("fittings", "and invisible to the boarders' world — the cargo list is untouched",
+		kitted.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size() + 1,
+		"%d rects (8 walls + the flank crate)" % kitted.cargo_rects().size())
+
+	## The stow.gd-style invariant: with EVERY fitting berthed, the deck's
+	## lateral movement graph survives. The scupper seals port-stern by
+	## design; the other five crossings stay walkable — including the two the
+	## fittings put a VENT in, because a vent is not a wall.
+	var open_port := 0
+	var open_star := 0
+	for cross in [Vector2(-280.0, -470.0), Vector2(-280.0, 15.0), Vector2(-280.0, 515.0),
+			Vector2(280.0, -470.0), Vector2(280.0, 15.0), Vector2(280.0, 515.0)]:
+		if kitted.correct_player_position(cross, 18.0) == cross:
+			if cross.x < 0.0:
+				open_port += 1
+			else:
+				open_star += 1
+	_check("fittings", "cross-passages stay passable with every fitting berthed",
+		open_port == 2 and open_star == 3,
+		"port %d of 3 open (the scupper seals one by design), starboard %d of 3"
+			% [open_port, open_star])
+
+	## THE WINCH, berthed: offered at a crate stack, one fixed step per tap,
+	## and the stack can never land on the captain.
+	var stack: SkyGearProp = null
+	for p in kitted.props():
+		if is_instance_valid(p) and not p.dead and str(p.prop_type) == "crates" \
+				and p != kitted.barricade and not bool(p.get_meta("fitting", false)):
+			stack = p
+			break
+	_check("fittings", "there is a crate stack for the winch to haul", stack != null)
+	if stack != null:
+		kitted.player.global_position = stack.global_position + Vector2(0.0, 120.0)
+		var offer := SkyGearDeckwork.available(kitted)
+		_check("fittings", "the winch verb exists exactly while its fitting is berthed",
+			not offer.is_empty() and str(offer.spec.id) == "winch_crate",
+			"offered %s" % (str(offer.spec.id) if not offer.is_empty() else "nothing"))
+		kitted.player.global_position = stack.global_position + Vector2(0.0, 320.0)
+		var start: Vector2 = stack.global_position
+		kitted.winch_crate(stack)
+		var first_step: float = start.distance_to(stack.global_position)
+		kitted.winch_crate(stack)
+		var close_gap: float = stack.global_position.distance_to(
+			kitted.player.global_position)
+		var parked: Vector2 = stack.global_position
+		kitted.winch_crate(stack)
+		_check("fittings", "a tap hauls one fixed step, and the stack can never land on the captain",
+			absf(first_step - SkyGearGame.WINCH_STEP) < 0.5
+				and absf(close_gap - SkyGearGame.WINCH_GAP) < 1.5
+				and stack.global_position == parked,
+			"step %.0f, parked at %.0f" % [first_step, close_gap])
+
+	## 7 · THE RUN LOG carries the berthed set (SG-53's blocked half), and the
+	## report names the refit — the deck half of what reproduces a run.
+	SkyGearRunLog.clear()
+	kitted.wave = 4
+	kitted.damage_player(99999.0)
+	var rows_all := SkyGearRunLog.load_all()
+	var last: Dictionary = rows_all[rows_all.size() - 1] if not rows_all.is_empty() else {}
+	_check("log", "the row carries the berthed set that reproduces the deck",
+		(last.get("ship", []) as Array) == kitted.run_fittings
+			and (last.get("ship", []) as Array).size() == SkyGearFittings.CAP,
+		str(last.get("ship", [])))
+	_check("log", "and the report names the refit",
+		str(last.get("report", "")).contains("refit · THE WRECK"),
+		str(last.get("report", "")).split("\n")[3] if str(last.get("report", "")) != "" else "")
+	kitted.queue_free()
+
+	## 8 · THE OWNER'S RULE ITSELF: the ship never changes mid-run. Sign every
+	## berth into the save DURING a run and let the deck re-stow — nothing may
+	## arrive until the next `begin_run` collects it.
+	var mid := _new_game()
+	mid.set_seed_text("REFIT")
+	mid.begin_run()
+	mid.choose_draft(0)
+	mid.workshop.unlocked = true
+	for id in SkyGearFittings.FITTINGS.keys():
+		(mid.workshop.fittings as Dictionary)[id] = true
+		SkyGearFittings.berth(mid.workshop, str(id))
+	mid.start_wave(2)
+	_check("fittings", "the ship never changes mid-run — a berth signed mid-run waits for the next run",
+		_prop_count(mid, "vent") == 3 and mid.turrets.size() == 3
+			and mid.fitting_walls.is_empty() and not mid.fitted("winch"),
+		"%d vents, %d guns, %d walls" % [_prop_count(mid, "vent"),
+			mid.turrets.size(), mid.fitting_walls.size()])
+	mid.begin_run()
+	mid.choose_draft(0)
+	_check("fittings", "and the next run collects everything that was signed",
+		_prop_count(mid, "vent") == 5 and mid.turrets.size() == 4
+			and mid.fitting_walls.size() == 1 and mid.fitted("winch"),
+		"%d vents, %d guns, %d walls" % [_prop_count(mid, "vent"),
+			mid.turrets.size(), mid.fitting_walls.size()])
+	mid.queue_free()
+
+
+## One run's starting ship, byte for byte: the captain's numbers, the
+## objective, the seeded stream's state, every stowed prop, every gun and the
+## fitting walls. Two runs that print the same string begin on the same deck
+## with the same numbers — which is everything a fitting is allowed to touch.
+func _ship_snapshot(game: SkyGearGame) -> String:
+	var props_list: Array = []
+	for p in game.props():
+		if is_instance_valid(p) and not p.dead:
+			props_list.append("%s@%.2f,%.2f" % [p.prop_type,
+				p.global_position.x, p.global_position.y])
+	props_list.sort()
+	var guns: Array = []
+	for t in game.turrets:
+		guns.append("L%d@%.0f,%.0f hp%.2f/%.2f dead:%s" % [int(t.lane),
+			t.position.x, t.position.y, float(t.hp), float(t.max_hp), str(t.dead)])
+	return "|".join([var_to_str(game.player.global_position),
+		"hp%.3f/%.3f" % [game.player.hp, game.player.max_hp],
+		"speed%.3f" % game.player.move_speed,
+		"boiler%.3f/%.3f" % [game.boiler_hp, game.boiler_max_hp],
+		"rerolls%d" % game.rerolls, "rng%d" % game.rng.state,
+		"walls%d" % game.fitting_walls.size(),
+		",".join(PackedStringArray(props_list)),
+		",".join(PackedStringArray(guns))])
+
+
+func _prop_count(game: SkyGearGame, kind: String) -> int:
+	var n := 0
+	for p in game.props():
+		if is_instance_valid(p) and not p.dead and str(p.prop_type) == kind:
+			n += 1
+	return n
 
 
 func _lanes() -> void:
@@ -972,17 +1343,36 @@ func _view() -> void:
 			and wreck_pos.y < -1115.0,
 		"deck=%s cargo=%s lane=%s prop=%s" % [
 			SkyGearGame.DECK_RECT.has_point(wreck_pos), wreck_in_cargo, wreck_in_lane, wreck_is_prop])
-	## The gate round-trips persistence: hidden until the ship has downed the
-	## Colossus once (`workshop.unlocked`, the Workshop's own latch), shown after.
+	## The gate, second edition (SG-56): the wreck is the berth system's first
+	## resident. Hidden on a bare ship, RIDING while berthed, and cleared from
+	## the sky when the berth is — refreshed between runs through
+	## `refresh_berthed()`, which is how the title deck follows the save.
 	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
 	view._process(0.05)
 	var wreck_locked_hidden: bool = view._wreck != null and not view._wreck.visible
+	var grate_locked_hidden: bool = view._grating != null and not view._grating.visible
 	game.workshop.unlocked = true
+	(game.workshop.fittings as Dictionary)["wreck"] = true
+	(game.workshop.fittings as Dictionary)["scupper_grating"] = true
+	game.workshop.berths = ["wreck", "scupper_grating"]
+	game.refresh_berthed()
 	view._process(0.05)
-	var wreck_earned_shown: bool = view._wreck != null and view._wreck.visible
-	_check("fitting", "hidden on a bare ship and shown once the Colossus is downed",
-		wreck_locked_hidden and wreck_earned_shown,
-		"locked->hidden %s · earned->shown %s" % [wreck_locked_hidden, wreck_earned_shown])
+	var wreck_berthed_shown: bool = view._wreck != null and view._wreck.visible
+	var grate_berthed_shown: bool = view._grating != null and view._grating.visible
+	game.workshop.berths = []
+	game.refresh_berthed()
+	view._process(0.05)
+	var wreck_cleared_hidden: bool = view._wreck != null and not view._wreck.visible
+	_check("fitting", "hidden on a bare ship, riding while berthed, cleared with the berth",
+		wreck_locked_hidden and wreck_berthed_shown and wreck_cleared_hidden,
+		"bare->hidden %s · berthed->shown %s · cleared->hidden %s"
+			% [wreck_locked_hidden, wreck_berthed_shown, wreck_cleared_hidden])
+	## And the scupper grating is VISIBLE geometry while berthed — a closure
+	## the captain's clamp enforces must be a thing the eye can see (SG-56).
+	_check("fitting", "the scupper grating stands in its crossing while berthed, and only then",
+		grate_locked_hidden and grate_berthed_shown,
+		"bare->hidden %s · berthed->shown %s" % [grate_locked_hidden, grate_berthed_shown])
 
 	## The x-ray. A boarder that walks behind a cargo run has to keep existing.
 	## The shadow of a cargo run is a band about forty units deep behind its far

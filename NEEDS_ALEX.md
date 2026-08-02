@@ -44,7 +44,16 @@ the plan's recommendation:
     the SG-48 board row.
   - **Fittings** (item 3): confirm the six named fittings + one-per-run cap,
     and whether Heat rows record fitting count (recommended) or Heat runs
-    sail bare.
+    sail bare. **BUILT 2026-08-02 (SG-56) awaiting that confirmation** — the
+    midnight answer reframed the mechanism (between runs, deck-only, never
+    mid-run) but did not enumerate the six, so they shipped as: THE WRECK
+    (first Colossus kill), BOW BARRICADE (clear wave 8), SPARE GUN (win at
+    Heat 1+), FOURTH VENT (Boilerwright win), THE WINCH (12 salvage in one
+    run — grants the tap-to-haul verb), SCUPPER GRATING (unhealed win).
+    Two earn rules were adapted to fields the run row records (the doc's
+    cannon-loss and repair-count rules had no data); the Heat call went the
+    recommended way — the run row records `ship: [ids]`, Heat runs may sail
+    fitted. Say the word on any of the six and it is one table row.
   - **SG-38, the wrench** (~35 credits, item 6): approve and he gets his tool
     fitted in the lab.
   - **The scrapper animation pilot** (item 7): one enemy first, ~10 credits,
@@ -139,7 +148,14 @@ SG-12; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
   is a feel-call for a human clear attempt.
 - **The Colossus wreck** (SG-15) now floats off the bow after your first
   Colossus kill — visible when you push forward, subject of the run-open
-  crane. Judge whether it earns its place.
+  crane. Judge whether it earns its place. **Since SG-56 it lives in the
+  berths**: your existing save migrates it in, earned and berthed.
+- **THE BERTHS** (SG-56, new): a button under THE WORKSHOP on the title once
+  you have won — six fittings earned by finishing runs (one per run at most),
+  six berths, changes apply at the NEXT run start, never mid-run. Judge the
+  screen, the six earn rules, and whether the spare gun / barricade / grating
+  read on the deck. The winch verb gets the same play-it-and-say deal the
+  crate shove got.
 - **Build 33 is on itch** (pushed 2026-08-01, evening): everything in build
   32 plus the CRATE REWORK (instant tap-shove, never blocks you — re-judge
   it) and the BOILERWRIGHT'S OWN MODEL (broad bearded engineer on the

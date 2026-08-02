@@ -68,6 +68,17 @@ const CONTESTED := 150.0
 const HEAVE_REACH := 150.0
 
 
+## THE WINCH — the third verb, and the first a FITTING grants (board SG-56;
+## POST-PARITY-PLAN item 4, built to the SG-37 lesson). `fitting` names the
+## berthed fitting that switches the row on: `available` skips the row on a
+## ship sailing without it, so the verb table is where the grant lives and a
+## bare ship provably has two verbs. Instant like the shove — tap, a fixed
+## `WINCH_STEP` toward the captain, its own ~1s cooldown — and it targets the
+## CRATE STACKS (`crates`), never the flank crate (that is the shove's) and
+## never a barricade-line stack a fitting placed (fixed means fixed).
+const WINCH_REACH := 150.0
+
+
 static func actions() -> Array[Dictionary]:
 	return [
 		{
@@ -80,6 +91,12 @@ static func actions() -> Array[Dictionary]:
 			"at": "crate", "reach": HEAVE_REACH, "instant": true,
 			"blocked": "boarders are on it",
 		},
+		{
+			"id": "winch_crate", "verb": "WINCH THE CRATE",
+			"at": "crates", "reach": WINCH_REACH, "instant": true,
+			"fitting": "winch",
+			"blocked": "boarders are on it",
+		},
 	]
 
 
@@ -89,6 +106,11 @@ static func available(game) -> Dictionary:
 	var best := {}
 	var nearest := INF
 	for spec in actions():
+		## A verb a fitting grants exists only while that fitting is berthed —
+		## asked of the RUN's snapshot (`SkyGearGame.fitted`), so a berth signed
+		## mid-run does not conjure the verb mid-run.
+		if spec.has("fitting") and not game.fitted(str(spec.fitting)):
+			continue
 		for target in _targets(game, str(spec.at)):
 			var gap: float = game.player.global_position.distance_to(
 				Vector2(target.position))
@@ -111,6 +133,19 @@ static func _targets(game, family: String) -> Array:
 			## — smashed, it is off the board until the next re-stow puts it back.
 			var t: Dictionary = game.barricade_target()
 			return [t] if not t.is_empty() else []
+		"crates":
+			## The cover stacks the WINCH hauls. Never the flank crate (the shove
+			## owns it) and never a stack a fitting fixed to the deck.
+			var stacks: Array = []
+			for prop in game.props():
+				if not is_instance_valid(prop) or prop.dead \
+						or str(prop.prop_type) != "crates":
+					continue
+				if prop == game.barricade or bool(prop.get_meta("fitting", false)):
+					continue
+				stacks.append({"position": prop.global_position, "kind": "crates",
+					"prop": prop})
+			return stacks
 	return []
 
 
@@ -125,6 +160,11 @@ static func _valid(game, spec: Dictionary, target: Dictionary) -> bool:
 			## Always workable while it is there. A heave cycles the crate through
 			## stow, narrow and funnel, so the same verb also RETRACTS it — there is
 			## never a "nothing to do here" state to explain.
+			return true
+		"winch_crate":
+			## Workable whenever a stack stands and the fitting is berthed (the
+			## berth gate already ran in `available`). The haul itself refuses at
+			## point-blank — `SkyGearGame.winch_crate` stops `WINCH_GAP` short.
 			return true
 	return false
 
@@ -152,3 +192,7 @@ static func perform(game, spec: Dictionary, target: Dictionary) -> void:
 			## LONG, and the game owns where the crate ends up and what pathes
 			## against it. Keeps the one source of truth for cargo in one place.
 			game.heave_barricade()
+		"winch_crate":
+			## Same division of labour: the table says what, the sim owns the
+			## step, the gap and the deck clamp.
+			game.winch_crate(target.prop)

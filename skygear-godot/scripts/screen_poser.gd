@@ -44,6 +44,11 @@ const SCREENS := [
 	{"name": "compare the classes mid-run", "state": "PAUSE", "skills": 4,
 		"compare": true},
 	{"name": "the workshop", "state": "TITLE", "workshop": true},
+	## THE BERTHS (SG-56): the ship's between-runs screen, posed at its
+	## fullest mix of states — three berthed, one earned-and-ready, two locked
+	## with their padlocks — so berthed/ready/locked all render, the berth row
+	## shows filled and empty slots, and the foot strip's default line is up.
+	{"name": "the berths", "state": "TITLE", "berths_screen": true},
 	{"name": "how to play mid-run", "state": "PAUSE", "skills": 4, "how": true},
 	{"name": "draft (weapons)", "state": "DRAFT", "skills": 0},
 	{"name": "draft (upgrades)", "state": "DRAFT", "skills": 4},
@@ -141,6 +146,7 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	game.how_open = false
 	game.compare_open = false
 	game.workshop_open = false
+	game.berths_open = false
 	game.go_to_title()
 	game.set_seed_text("AUDIT")
 	## BEFORE `begin_run`, or the body, the dash ceiling and the starting weapon
@@ -154,6 +160,10 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	## live on every screen posed after it (and on a dev machine, whatever
 	## workshop.json the local save holds would leak into the measurements).
 	game.workshop = SkyGearWorkshop.fresh(true)
+	## And the ship re-read from the clean bench (SG-56): without this a pose
+	## on a dev machine inherits whatever wreck the local save has berthed,
+	## and two machines audit two different backdrops.
+	game.refresh_berthed()
 	var vow := str(screen.get("article", ""))
 	if vow != "":
 		game.workshop.unlocked = true
@@ -236,7 +246,24 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 		game.workshop.scrip = 400
 		SkyGearWorkshop.buy(game.workshop, "ledger")
 		game.talents = SkyGearWorkshop.resolved(game.workshop)
-		game.banked = {"scrip": 193, "sigils": 1, "unlocked": true, "first_win": true}
+		## And the run earned a fitting (SG-56), so the results screen's THE
+		## SHIP KEEPS line is posed and measured with the rest of the payout.
+		game.workshop.fittings = {"bow_barricade": true}
+		game.workshop.berths = ["bow_barricade"]
+		game.banked = {"scrip": 193, "sigils": 1, "unlocked": true,
+			"first_win": true, "fitting": "bow_barricade"}
+	if bool(screen.get("berths_screen", false)):
+		## Four earned (three of them berthed, one ready), two still locked —
+		## the one balance that puts every slate state and both slot states on
+		## the screen at once, with the ready slate's teal tag and the padlocks'
+		## earn rules all present to be measured.
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.workshop.unlocked = true
+		for fit_id in ["wreck", "bow_barricade", "spare_gun", "winch"]:
+			(game.workshop.fittings as Dictionary)[fit_id] = true
+		game.workshop.berths = ["wreck", "bow_barricade", "spare_gun"]
+		game.refresh_berthed()
+		game.berths_open = true
 	if bool(screen.get("workshop", false)):
 		## Unlocked and part-bought, so both tools see bought, affordable and
 		## locked nodes rather than one uniform dimmed column. Two sigils, because

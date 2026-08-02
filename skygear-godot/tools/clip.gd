@@ -163,6 +163,16 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 	## for stillness, which is the deterministic-rest rule from the cloak work.
 	world.sway = not bool(spec.get("still", false))
 	game.workshop = SkyGearWorkshop.fresh(true)
+	## The FIGHT clip sails with every berth filled (SG-56): the standing
+	## motion evidence that six berthed fittings — barricade crates at the
+	## bow, the fourth cannon, both extra vents, the grating and the wreck —
+	## leave the camera unobstructed and the fight legible. Set BEFORE
+	## `begin_run`, which is the one moment the ship reads its berths.
+	if str(spec.kind) == "fight":
+		game.workshop.unlocked = true
+		for fit_id in SkyGearFittings.FITTINGS.keys():
+			(game.workshop.fittings as Dictionary)[fit_id] = true
+			SkyGearFittings.berth(game.workshop, str(fit_id))
 	game.heat = 0
 	game.set_class("captain")
 	game.set_seed_text("CLIP")

@@ -51,6 +51,12 @@ func _draw() -> void:
 		if game.layout_edit:
 			_draw_layout_editor()
 		return
+	if game.berths_open:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
+		_draw_berths()
+		if game.layout_edit:
+			_draw_layout_editor()
+		return
 	if game.compare_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_compare()
@@ -185,6 +191,14 @@ func _draw_title() -> void:
 		if ui.button(Rect2(tx, y, tw, 34.0),
 				"THE WORKSHOP  ·  %d" % int(game.workshop.scrip), {"hint": "F6"}):
 			game.workshop_open = true
+		y += 40.0
+		## THE SHIP'S SIDE of the same save (SG-56): what the ship has kept,
+		## and which six of it sail. Title-only on purpose — no key — so the
+		## refit is structurally a between-runs act, per the owner's rule.
+		if ui.button(Rect2(tx, y, tw, 34.0), "THE BERTHS  ·  %d of %d"
+				% [SkyGearFittings.berthed_ids(game.workshop).size(),
+					SkyGearFittings.CAP]):
+			game.berths_open = true
 		y += 40.0
 
 	if ui.button(Rect2(tx, y, tw, 44.0), "BEGIN RUN",
@@ -3973,6 +3987,245 @@ func _draw_workshop() -> void:
 		game.workshop_open = false
 
 
+## THE BERTHS (board SG-56) — the ship's side of the Workshop, in the same
+## visual language: the fittings the ship has KEPT as objects on plates (the
+## SG-14 idiom — state readable at a glance, the sentence at the foot, every
+## slate focusable including the locked ones so the earn rule is always one
+## hover away), and the six-berth row beside them. Clicking an earned slate
+## berths it; clicking a berthed one (or its slot) clears the berth; a locked
+## slate refuses in `SkyGearFittings.can_berth`, never here. Every change
+## saves and re-snapshots the TITLE deck — the run's own set is frozen at
+## `begin_run`, which is what "the ship never changes mid-run" means.
+func _draw_berths() -> void:
+	_in_frame = false
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
+	var w: Dictionary = game.workshop
+	var ids: Array = SkyGearFittings.FITTINGS.keys()
+	var berthed: Array = SkyGearFittings.berthed_ids(w)
+
+	## MEASURED, like the Workshop board: the rows close up before the chrome
+	## or the point size ever would. 1280x720 is the height this family of
+	## screen has broken at twice.
+	var rows: int = ids.size()
+	var step := 54.0
+	var fixed: float = 62.0 + SHOP_HEAD + SHOP_LEDGER + SHOP_LEDGER_GAP \
+		+ SHOP_BRANCH_HEAD + SHOP_TAIL + 84.0
+	var wanted: float = fixed + float(rows) * step
+	var tall: float = minf(size.y - 116.0, wanted)
+	if wanted > tall:
+		step = clampf((tall - fixed) / float(maxi(1, rows)), 34.0, 54.0)
+	var page_w: float = clampf(size.x - 96.0, 900.0, 1120.0)
+	var page := Rect2(size.x * 0.5 - page_w * 0.5,
+		maxf(48.0, (size.y - tall) * 0.4), page_w, tall)
+	_sheet(page)
+	var plate := _frame
+	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
+	_center_text("THE BERTHS", page.position.y + 48.0, 34, BRASS_LIT)
+
+	var room := writing_area(page)
+	ui.begin("berths", self, font, get_local_mouse_position())
+
+	## --- the ledger: what is earned, what sails, and the standing rule ------
+	var ledger := _stamp(Rect2(room.position.x, room.position.y + SHOP_HEAD,
+		room.size.x, SHOP_LEDGER), 0.55)
+	var cell: float = ledger.size.x / 3.0
+	var base: float = ledger.position.y + 19.0
+	var readouts := [
+		["EARNED", "%d of %d" % [SkyGearFittings.earned_count(w), ids.size()],
+			Color("#37f0c8")],
+		["BERTHED", "%d of %d" % [berthed.size(), SkyGearFittings.CAP], BRASS_LIT],
+		["KEPT PER RUN", "at most one", BONE],
+	]
+	for i in readouts.size():
+		var at: float = ledger.position.x + float(i) * cell
+		if i > 0:
+			draw_line(Vector2(at, ledger.position.y + 4.0),
+				Vector2(at, ledger.end.y - 4.0), Color("#4a4356"), 1.0)
+		_label(str(readouts[i][0]), Vector2(at + 12.0, base), cell - 24.0,
+			HORIZONTAL_ALIGNMENT_LEFT, 12, Color("#8f8697"))
+		_value(str(readouts[i][1]), Vector2(at + 12.0, base), cell - 24.0,
+			HORIZONTAL_ALIGNMENT_RIGHT, 15, readouts[i][2] as Color)
+	_frame = plate
+	_in_frame = true
+
+	## --- the fittings, and the berth row beside them ------------------------
+	var board_top: float = ledger.end.y + SHOP_LEDGER_GAP
+	var board_h: float = SHOP_BRANCH_HEAD + float(rows) * step
+	var side_w: float = clampf(room.size.x * 0.26, 220.0, 300.0)
+	var list_w: float = room.size.x - side_w - 22.0
+	var told := {}
+
+	var head := Rect2(room.position.x, board_top, list_w, SHOP_BRANCH_HEAD - 5.0)
+	_stamp(head, 0.5)
+	draw_rect(head, Color("#7a5c30"), false, 1.0)
+	_label("WHAT THE SHIP HAS KEPT", Vector2(head.position.x + 10.0,
+		head.position.y + head.size.y * 0.5 + 5.0), head.size.x * 0.6,
+		HORIZONTAL_ALIGNMENT_LEFT, 13, BRASS_LIT)
+	_label("earned, never bought", Vector2(head.position.x,
+		head.position.y + head.size.y * 0.5 + 5.0), head.size.x - 8.0,
+		HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#8f8697"))
+	_frame = plate
+	_in_frame = true
+
+	var y: float = head.end.y + 5.0
+	for id in ids:
+		var fit: Dictionary = SkyGearFittings.FITTINGS[id]
+		var have: bool = SkyGearFittings.earned(w, str(id))
+		var aboard: bool = SkyGearFittings.is_berthed(w, str(id))
+		## The Workshop's own state palette, so nobody learns two colour
+		## languages: berthed reads as FULL, earned-with-room as READY,
+		## earned-against-a-full-row as DEAR, unearned as LOCKED.
+		var state: int = Fit.LOCKED
+		if aboard:
+			state = Fit.FULL
+		elif have and berthed.size() < SkyGearFittings.CAP:
+			state = Fit.READY
+		elif have:
+			state = Fit.DEAR
+		var box := Rect2(room.position.x, y + 3.0, list_w, step - 6.0)
+		var cy: float = box.get_center().y
+		var mine := ui.declared().size()
+		if ui.button(box, "", {"bare": true}):
+			var changed: bool = SkyGearFittings.unberth(w, str(id)) if aboard \
+				else SkyGearFittings.berth(w, str(id))
+			if changed:
+				SkyGearWorkshop.save_state(w)
+				game.refresh_berthed()
+		var hot: bool = ui.lit(mine)
+		_fitting(box, state, hot)
+		var tag := ""
+		var tag_ink: Color = FIT_INK[state]
+		match state:
+			Fit.FULL:
+				tag = "BERTH %d" % (berthed.find(str(id)) + 1)
+				tag_ink = BRASS_LIT
+			Fit.READY:
+				tag = "READY TO BERTH"
+				tag_ink = Color("#37f0c8")
+			Fit.DEAR:
+				tag = "BERTHS FULL"
+			Fit.LOCKED:
+				tag = "LOCKED"
+				_padlock(Vector2(box.end.x - 14.0, cy - 3.0), FIT_INK[state])
+		var tag_w := 118.0
+		_label(tag, Vector2(box.position.x, cy + 5.0),
+			box.size.x - (26.0 if state == Fit.LOCKED else 12.0),
+			HORIZONTAL_ALIGNMENT_RIGHT, 12, tag_ink)
+		var name_w: float = box.size.x - 26.0 - tag_w - 12.0
+		## Name on the plate's centreline when the row is too short for two
+		## lines; name-over-blurb when there is room.
+		if step >= 46.0:
+			_label(str(fit.name), Vector2(box.position.x + 14.0, cy - 2.0),
+				name_w, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(str(fit.name), name_w, 13), FIT_INK[state])
+			var blurb_w: float = box.size.x - 26.0 - tag_w - 12.0
+			_label(str(fit.text), Vector2(box.position.x + 14.0, cy + 15.0),
+				blurb_w, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(str(fit.text), blurb_w, 11, 9),
+				Color("#8f8697") if state == Fit.LOCKED else Color("#b9afaa"))
+		else:
+			_label(str(fit.name), Vector2(box.position.x + 14.0, cy + 5.0),
+				name_w, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(str(fit.name), name_w, 13), FIT_INK[state])
+		if ui.focused() == mine:
+			var status := ""
+			match state:
+				Fit.FULL:
+					status = "berthed · tap to clear the berth"
+				Fit.READY:
+					status = "earned · tap to berth"
+				Fit.DEAR:
+					status = "earned · the berth row is full — clear one first"
+				Fit.LOCKED:
+					status = "locked · earned by: %s" % str(fit.earn)
+			told = {"name": str(fit.name), "text": str(fit.text),
+				"status": status, "tint": FIT_INK[state]}
+		y += step
+
+	## --- the berth row -------------------------------------------------------
+	var side := Rect2(room.end.x - side_w - 6.0, board_top, side_w, board_h)
+	var side_head := Rect2(side.position.x, side.position.y, side.size.x,
+		SHOP_BRANCH_HEAD - 5.0)
+	_stamp(side_head, 0.5)
+	draw_rect(side_head, Color("#2e6b60"), false, 1.0)
+	_label("THE BERTH ROW", Vector2(side_head.position.x + 10.0,
+		side_head.position.y + side_head.size.y * 0.5 + 5.0),
+		side_head.size.x - 20.0, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#37f0c8"))
+	_label("%d of %d" % [berthed.size(), SkyGearFittings.CAP],
+		Vector2(side_head.position.x,
+			side_head.position.y + side_head.size.y * 0.5 + 5.0),
+		side_head.size.x - 8.0, HORIZONTAL_ALIGNMENT_RIGHT, 12, Color("#8f8697"))
+	_frame = plate
+	_in_frame = true
+
+	var slot_step: float = (board_h - SHOP_BRANCH_HEAD) \
+		/ float(SkyGearFittings.CAP)
+	var slot_y: float = side_head.end.y + 5.0
+	for slot in SkyGearFittings.CAP:
+		var row := Rect2(side.position.x, slot_y, side.size.x, slot_step - 5.0)
+		if slot < berthed.size():
+			var sid := str(berthed[slot])
+			var sname := str((SkyGearFittings.FITTINGS.get(sid, {}) as Dictionary
+				).get("name", sid))
+			var mine_slot := ui.declared().size()
+			if ui.button(row, "", {"bare": true}):
+				if SkyGearFittings.unberth(w, sid):
+					SkyGearWorkshop.save_state(w)
+					game.refresh_berthed()
+			_fitting(row, Fit.FULL, ui.lit(mine_slot))
+			_label("%d" % (slot + 1), Vector2(row.position.x + 10.0,
+				row.get_center().y + 5.0), 20.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
+				BRASS_LIT)
+			var slot_name_w: float = row.size.x - 34.0 - 10.0
+			_label(sname, Vector2(row.position.x + 34.0,
+				row.get_center().y + 5.0), slot_name_w, HORIZONTAL_ALIGNMENT_LEFT,
+				_fits(sname, slot_name_w, 12), FIT_INK[Fit.FULL])
+			if ui.focused() == mine_slot:
+				told = {"name": sname,
+					"text": str((SkyGearFittings.FITTINGS.get(sid, {}) as Dictionary
+						).get("text", "")),
+					"status": "berthed · tap to clear the berth",
+					"tint": FIT_INK[Fit.FULL]}
+		else:
+			## An empty berth is a picture, not a button — there is nothing to
+			## do to it from this side; you fill it from the slates.
+			draw_rect(row, Color(0.05, 0.042, 0.075, 0.62))
+			draw_rect(row, Color("#4a4356"), false, 1.2)
+			_label("%d" % (slot + 1), Vector2(row.position.x + 10.0,
+				row.get_center().y + 5.0), 20.0, HORIZONTAL_ALIGNMENT_LEFT, 12,
+				Color("#5f5863"))
+			_label("EMPTY BERTH", Vector2(row.position.x,
+				row.get_center().y + 5.0), row.size.x,
+				HORIZONTAL_ALIGNMENT_CENTER, 12, Color("#5f5863"))
+		slot_y += slot_step
+
+	## --- the foot ------------------------------------------------------------
+	var foot: float = room.end.y - 34.0
+	var strip := _stamp(Rect2(room.position.x, foot - 34.0, room.size.x, 26.0), 0.55)
+	if told.is_empty():
+		_label("the ship sails with six · rest on a slate for what it does and how it is earned",
+			Vector2(strip.position.x + 10.0, strip.end.y - 8.0),
+			strip.size.x - 20.0, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#8f8697"))
+	else:
+		var lead := "%s  ·  %s" % [str(told.name), str(told.text)]
+		var lead_w: float = strip.size.x * 0.58
+		_label(lead, Vector2(strip.position.x + 10.0, strip.end.y - 8.0), lead_w,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(lead, lead_w, 14), Color("#dcd2c4"))
+		_label(str(told.status), Vector2(strip.end.x - 10.0 - strip.size.x * 0.38,
+			strip.end.y - 8.0), strip.size.x * 0.38, HORIZONTAL_ALIGNMENT_RIGHT,
+			_fits(str(told.status), strip.size.x * 0.38, 13, 10),
+			told.tint as Color)
+	_frame = plate
+	_in_frame = true
+
+	_label("chosen between runs — the ship never changes mid-run",
+		Vector2(room.position.x, foot + 22.0), room.size.x - 220.0,
+		HORIZONTAL_ALIGNMENT_LEFT, 12)
+	if ui.button(Rect2(room.end.x - 200.0, foot, 200.0, 34.0), "BACK",
+			{"primary": true, "hint": "Esc"}):
+		game.berths_open = false
+
+
 func _draw_settings() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
@@ -4081,6 +4334,8 @@ func _draw_results(title: String, tint: Color) -> void:
 		chrome += 18.0
 	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
 		chrome += 18.0
+	if str((game.banked as Dictionary).get("fitting", "")) != "":
+		chrome += 18.0
 	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0,
 		minf(size.y - 104.0, tall + chrome)))
 	_banner(size.x * 0.5, 62.0, 520.0)
@@ -4164,6 +4419,21 @@ func _draw_results(title: String, tint: Color) -> void:
 			earned = "THE WORKSHOP IS OPEN  ·  " + earned
 		_label(earned, Vector2(page.position.x, y + 14.0), page.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#e8c376"))
+		y += 18.0
+
+	## AND WHAT THE SHIP KEPT (SG-56). One line, only on the run that earned a
+	## fitting — the ship's pay said where the captain's is, and whether it is
+	## already berthed or waiting on a full berth row.
+	var kept_id := str((game.banked as Dictionary).get("fitting", ""))
+	if kept_id != "":
+		var kept: Dictionary = SkyGearFittings.FITTINGS.get(kept_id, {})
+		var kept_line := "THE SHIP KEEPS: %s — %s" % [
+			str(kept.get("name", kept_id)),
+			"berthed for the next run"
+				if SkyGearFittings.is_berthed(game.workshop, kept_id)
+				else "earned; the berths are full"]
+		_label(kept_line, Vector2(page.position.x, y + 14.0), page.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#37f0c8"))
 		y += 18.0
 
 	var log_note := "saved to the run log" if game.run_logged 		else "COULD NOT WRITE THE RUN LOG — copy it before you leave"

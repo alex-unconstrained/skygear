@@ -12,7 +12,7 @@ at once, not for fixing anything.)
 
 ## The screen picker — press P
 
-**P** (inside the editor) lists the audit's own poses — the same 23 screens,
+**P** (inside the editor) lists the audit's own poses — the same screens (24 of them),
 by the same names, posed by the same shared poser (`scripts/screen_poser.gd`)
 the audit and the batch camera use, so the picker can never cover less than
 the tools do (`editor · the picker poses the batch tool's own screens — one
@@ -69,7 +69,7 @@ element shows its bounds and its NAME, which is the key its offset saves under.
 | **arrows** | nudge 1 px (**Shift** ×10, **Alt** ×0.1 — the SG-39 steps) |
 | click the offset readout | type it: **Enter** applies, **Esc** cancels, malformed is refused |
 | **Tab** / **Shift+Tab** | next / previous |
-| **P** | the screen picker: pose any of the audit's 23 screens right here |
+| **P** | the screen picker: pose any of the audit's screens right here |
 | **Esc** | back out a level (element → panel → closed; on a posed screen, the last Esc hands the game back) |
 | **Ctrl+Z** | undo, single level (press again to redo) |
 | **Ctrl+S** | save |

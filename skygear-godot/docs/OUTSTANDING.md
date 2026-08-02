@@ -28,11 +28,30 @@ to the ship itself."*
 
 Three consequences: (1) the stowage spine stays CUT — per-wave deck shuffling
 was the wrong axis, the kill-test and the owner agree; (2) run-to-run variety
-work goes to the ENEMY side (composition, mutations, behaviors — the plan's
-figure thread grows a variety limb; needs its own design pass); (3) the
+work goes to the ENEMY side (composition, mutations, behaviors — designed
+2026-08-02, `docs/ENEMY-VARIETY-DESIGN.md`; unbuilt); (3) the
 fittings system is UNBLOCKED and reframed: fittings are between-run ship
 modifications earned by finishing waves, visible on the deck at run start,
 never changing mid-run. POST-PARITY-PLAN items 3/5 proceed on that basis.
+
+**Consequence (3) SHIPPED 2026-08-02 (board SG-56) — left open for your
+hands-on verdict on the screen and the six.** Six fittings, each a DECK or
+VERB change and never a stat (the hard rule is a harness check): THE WRECK
+(your first Colossus kill, riding off the bow — migrated from SG-15 into the
+berths), BOW BARRICADE (clear wave 8 — a fixed crate line at the bow of the
+middle lane), SPARE GUN (win at Heat 1+ — a fourth cannon, shipped broken,
+repaired by the verb you know), FOURTH VENT (win as the Boilerwright — his
+prize, in the bow crossing), THE WINCH (12 salvage in one run — grants
+tap-to-haul on the crate stacks, the SG-37 idiom), SCUPPER GRATING (win
+without healing — seals one crossing, stands a vent on it). At most ONE per
+run, decided where the scrip is; six berths, chosen on THE BERTHS screen off
+the title, saved with the Workshop; the run row records `ship: [ids]` and the
+report names the refit. The ship NEVER changes mid-run — your rule, now
+literally a check string: `fittings · the ship never changes mid-run — a
+berth signed mid-run waits for the next run`. A bare ship is byte-identical
+to today's. Harness 641/641; the berth screen is the audit's 24th, clean at
+all four widths; `.shots/clips/fight.gif` now films the fight with all six
+berthed.
 
 ### The editor can't REACH the screens — round two of the alignment ask
 Reported 2026-08-01, after SG-42 shipped: *"You still didnt fix the screens

@@ -387,8 +387,13 @@ static func fresh(ephemeral: bool = false) -> Dictionary:
 	## `articles` records which one-time FIRSTS have been claimed; the ones you
 	## have BOUGHT are `bought_articles`. Two dictionaries because they answer
 	## different questions and merging them once cost an afternoon.
+	##
+	## `fittings` is what the SHIP has earned and `berths` which of those it
+	## sails with (board SG-56, `scripts/fittings.gd`) — the ship's side of the
+	## same save, behind the same first-victory latch as everything else here.
 	return {"unlocked": false, "scrip": 0, "sigils": 0, "spent_sigils": 0,
 		"nodes": {}, "articles": {}, "bought_articles": {}, "seeds": [],
+		"fittings": {}, "berths": [],
 		"heat": 0, "best_heat": 0, "ephemeral": ephemeral}
 
 
@@ -409,6 +414,16 @@ static func load_state() -> Dictionary:
 		if parsed.has(key):
 			out[key] = parsed[key]
 	out.ephemeral = false
+	## MIGRATION, once — the wreck predates the berth system (SG-15 shipped it
+	## gated on `unlocked` alone; SG-56 moved it into the berths). A save that
+	## has already downed the Colossus keeps its trophy: the wreck's earn rule
+	## IS the first victory, applied here retroactively. After this the
+	## `fittings` dictionary carries the answer, so a wreck the player chooses
+	## to UN-berth stays un-berthed across loads — the `has` check is the latch.
+	if bool(out.unlocked) and not (out.fittings as Dictionary).has("wreck"):
+		(out.fittings as Dictionary)["wreck"] = true
+		if not SkyGearFittings.is_berthed(out, "wreck"):
+			SkyGearFittings.berth(out, "wreck")
 	return out
 
 
@@ -444,7 +459,8 @@ static func bank(state: Dictionary, row: Dictionary) -> Dictionary:
 	## not retroactive. A player who has not won has no Workshop and no scrip,
 	## and the run they just played was exactly the shipped game.
 	if was_locked and not won:
-		return {"scrip": 0, "sigils": 0, "unlocked": false, "first_win": false}
+		return {"scrip": 0, "sigils": 0, "unlocked": false, "first_win": false,
+			"fitting": ""}
 	if was_locked:
 		state.unlocked = true
 
@@ -466,9 +482,14 @@ static func bank(state: Dictionary, row: Dictionary) -> Dictionary:
 	## And the rung is recorded, which is what opens the next one.
 	if won:
 		state.best_heat = maxi(int(state.best_heat), int(row.get("heat", 0)))
+	## THE SHIP'S OWN PAY (board SG-56). At most one fitting per run, decided
+	## here because this is already "the one place that knows the rule", from
+	## the same row fields — and behind the same latch, which the first win
+	## flipped just above, so the unlocking run keeps the wreck it earned.
+	var kept := SkyGearFittings.award_in(state, row)
 	save_state(state)
 	return {"scrip": gained, "sigils": sigils, "unlocked": true,
-		"first_win": was_locked}
+		"first_win": was_locked, "fitting": kept}
 
 
 ## Which one-time achievements this run completed. Named `firsts` because that is

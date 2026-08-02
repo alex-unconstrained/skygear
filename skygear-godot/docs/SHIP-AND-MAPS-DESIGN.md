@@ -252,6 +252,22 @@ which before the first stowage lands, not after balance goes noisy.
 
 ## 5. The ship as the second character
 
+> **BUILT 2026-08-02 (board SG-56), with two departures this section should
+> own.** The owner's midnight direction (docs/OUTSTANDING.md) reframed the
+> mechanism: the stowage table this section says fittings change was CUT by
+> §7.1's own kill-test (SG-48), so a fitting changes the DECK DIRECTLY, once,
+> at run start, from the berthed set — never mid-run (`fittings · the ship
+> never changes mid-run — a berth signed mid-run waits for the next run`).
+> And two earn rules named data the run row does not record (cannon losses,
+> repair counts); under the no-new-tracking constraint they read `wave >= 9`
+> (both pushes held) and `salvage >= 12` instead — the mapping is on the
+> SG-56 board row. The hard rule below is enforced verbatim by `fittings ·
+> no fitting names a forbidden field`; the bare-ship baseline by `fittings ·
+> a ship with nothing berthed sails today's deck exactly — byte for byte`;
+> the WINCH shipped as the SG-37-corrected tap-to-haul, not this section's
+> 2.0-second channel. The wreck sits off the bow (SG-15's placement), not in
+> lane 1 as written below.
+
 The Workshop makes the captain better. If the ship layer also makes numbers
 bigger it is a second Workshop with a different noun, and the game will have two
 trees that have to be balanced against each other forever. The rule that

@@ -161,10 +161,11 @@ const BOILER_HEIGHT := 150.0
 ##
 ## GATED, because the doc is not silent: fittings are meta-progression and live
 ## behind `state.unlocked` — the SAME first-victory latch the Workshop opens on
-## (a win is a wave-12 Colossus kill). No parallel gate, no new tracking; the
-## wreck is hidden until the ship has earned it and permanent after. Read-only:
-## `workshop.gd` is untouched, its Dictionary is read where it already lives on
-## the game. Delete these three rows and the fitting is gone with no other change.
+## (a win is a wave-12 Colossus kill). SINCE SG-56 the wreck is the berth
+## system's first resident: earned by that same win, it occupies a berth like
+## the other five and shows while berthed (`_wreck_berthed` reads the run's
+## snapshot; `SkyGearWorkshop.load_state` migrates pre-berth winners' saves).
+## Delete its `SkyGearFittings.FITTINGS` row and these rows and it is gone.
 const WRECK_TEXTURE := "res://assets/art/props/colossus_wreck.png"
 ## Ground units. Bow edge is DECK_RECT.position.y = -1160; the spawn line is
 ## -1115 and the hulk grapples at BOW_Y -1000, so -1500 is 340 beyond the deck,
@@ -172,6 +173,11 @@ const WRECK_TEXTURE := "res://assets/art/props/colossus_wreck.png"
 const WRECK_POSITION := Vector2(0.0, -1500.0)
 ## Its authored height is PROP_HEIGHT["wreck"]; read from there so the fitting and
 ## the prop table can never disagree about how tall the same picture stands.
+
+## The SCUPPER GRATING's height in ground units (SG-56): low deck ironwork,
+## not a cargo wall — it must never hide a boarder, so it stays well under the
+## 125-unit module height `_occluded` reasons about, and out of that list.
+const GRATING_H := 55.0
 
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
@@ -249,7 +255,8 @@ var _volumes: Dictionary = {}        ## key -> MeshInstance3D, the aura cylinder
 var _decals_used: Dictionary = {}
 var _lights: Dictionary = {}         ## prop id -> OmniLight3D
 var _envelope: MeshInstance3D
-var _wreck: Sprite3D                  ## the Colossus fitting (SG-15); null if the art is absent
+var _wreck: Sprite3D                  ## the Colossus fitting (SG-15/56); null if the art is absent
+var _grating: MeshInstance3D          ## the scupper grating fitting (SG-56)
 var _focus := Vector2.ZERO
 var _focus_set := false
 var _flicker := 0.0
@@ -592,8 +599,10 @@ func _build_world() -> void:
 	## never enters the sim, the cargo rects or the per-wave stow, and nothing on
 	## the deck can path to it. Height straight from PROP_HEIGHT["wreck"], the one
 	## place the wreck's size lives. Visibility is refreshed every frame from the
-	## first-victory gate (`_wreck_earned`), so it appears the run after you first
-	## down the Colossus and stays. Absent art costs the fitting, not the frame.
+	## RUN's berthed set (`_wreck_berthed` — board SG-56 moved the SG-15 gate
+	## into the berth system), so it rides off the bow while THE WRECK is
+	## berthed and clears the sky when it is not. Absent art costs the fitting,
+	## not the frame.
 	var wreck_tex := _texture(WRECK_TEXTURE)
 	if wreck_tex != null:
 		var wreck := Sprite3D.new()
@@ -609,9 +618,46 @@ func _build_world() -> void:
 		wreck.pixel_size = wreck_h * WORLD_SCALE / maxf(1.0, float(wreck_tex.get_height()))
 		wreck.position = Vector3(WRECK_POSITION.x * WORLD_SCALE,
 			wreck_h * 0.5 * WORLD_SCALE, WRECK_POSITION.y * WORLD_SCALE)
-		wreck.visible = _wreck_earned()
+		wreck.visible = _wreck_berthed()
 		add_child(wreck)
 		_wreck = wreck
+
+	## THE SCUPPER GRATING (SG-56). The one fitting that closes ground: a low
+	## iron grate filling the port stern crossing, with a vent standing on it
+	## (the vent is a prop the stow places; this is the grate itself). Built
+	## once, toggled per frame from the RUN's berthed set like the wreck —
+	## visible geometry for a closure the captain's clamp enforces, because a
+	## wall you cannot see is a collision bug, not a fitting. LOW on purpose:
+	## at 55 units it reads as deck furniture, hides nobody (so it stays out of
+	## `_occluded`'s cargo list), and the vent on it stays in view.
+	var grate_rect: Rect2 = (SkyGearFittings.FITTINGS["scupper_grating"] as Dictionary).wall
+	var grate := MeshInstance3D.new()
+	var grate_mesh := BoxMesh.new()
+	grate_mesh.size = Vector3(grate_rect.size.x, GRATING_H, grate_rect.size.y) * WORLD_SCALE
+	grate.mesh = grate_mesh
+	var grate_mat := StandardMaterial3D.new()
+	grate_mat.albedo_color = Color("#3f3428")
+	grate_mat.metallic = 0.55
+	grate_mat.roughness = 0.5
+	grate.material_override = grate_mat
+	grate.position = Vector3(grate_rect.get_center().x * WORLD_SCALE,
+		GRATING_H * 0.5 * WORLD_SCALE, grate_rect.get_center().y * WORLD_SCALE)
+	grate.visible = game != null and game.fitted("scupper_grating")
+	add_child(grate)
+	_grating = grate
+	## A brass lip along its top edge, the cargo caps' own language, so the
+	## grate reads as the ship's ironwork rather than an untextured block.
+	var lip := MeshInstance3D.new()
+	var lip_mesh := BoxMesh.new()
+	lip_mesh.size = Vector3(grate_rect.size.x + 4.0, 5.0, grate_rect.size.y + 4.0) * WORLD_SCALE
+	lip.mesh = lip_mesh
+	var lip_mat := StandardMaterial3D.new()
+	lip_mat.albedo_color = Color("#6d5227")
+	lip_mat.metallic = 0.45
+	lip_mat.roughness = 0.55
+	lip.material_override = lip_mat
+	lip.position = Vector3(0.0, (GRATING_H * 0.5 + 2.5) * WORLD_SCALE, 0.0)
+	grate.add_child(lip)
 
 	## Our own gas bag, overhead. Tied to the camera rather than the world so it
 	## stays where a thing hanging above you stays — and kept thin, because the
@@ -2630,13 +2676,16 @@ func _spark_texture() -> ImageTexture:
 	return _made.spark
 
 
-## The Colossus fitting's gate (SG-15). True once the ship has ever survived a
-## run — `workshop.unlocked`, the same latch the Workshop and Heat open behind,
-## and a win is a wave-12 Colossus kill. Read straight off the game's own
-## workshop Dictionary so `workshop.gd` stays untouched and there is one gate,
-## not a parallel one. No save yet (a fresh boot) reads as not-earned.
-func _wreck_earned() -> bool:
-	return game != null and bool((game.workshop as Dictionary).get("unlocked", false))
+## The Colossus fitting's gate, second edition (SG-15 → SG-56). The wreck was
+## the berth system's first resident before the berths existed — it shipped
+## gated on `workshop.unlocked` alone. Now it asks the RUN's berthed set
+## (`SkyGearGame.fitted`, the snapshot `begin_run` took), which is the same
+## first-victory latch one layer up: `load_state` migrates any pre-berth
+## winner's save to an earned, berthed wreck, so nobody's trophy vanishes.
+## Between runs it follows the save through `refresh_berthed()`, so the title
+## deck shows what will sail; mid-run it cannot move — the owner's rule.
+func _wreck_berthed() -> bool:
+	return game != null and game.fitted("wreck")
 
 
 func _process(delta: float) -> void:
@@ -2669,10 +2718,13 @@ func _process(delta: float) -> void:
 		_cutscene.sway_roll = SWAY_ROLL * _roll
 		_cutscene.sway_yaw = SWAY_YAW * _yaw
 		_cutscene.advance(delta)
-	## The fitting follows the save, not the run: the wreck shows the frame after
-	## the persistent gate flips and stays. One dictionary read a frame.
+	## The fittings follow the RUN's snapshot (between runs, the save through
+	## `refresh_berthed`): the wreck and the grating show what is berthed, and
+	## mid-run the snapshot cannot move. Two array reads a frame.
 	if _wreck != null:
-		_wreck.visible = _wreck_earned()
+		_wreck.visible = _wreck_berthed()
+	if _grating != null:
+		_grating.visible = game.fitted("scupper_grating")
 	_used.clear()
 	_decals_used.clear()
 	## The ribbon batch is written from scratch every frame between these two, the

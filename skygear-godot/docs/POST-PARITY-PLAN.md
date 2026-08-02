@@ -63,7 +63,19 @@ tuned.** *Size:* days. *Owner:* two decisions filed in `NEEDS_ALEX.md` before
 the first stowage lands — the close-share threshold, and whether balance.gd's
 seed count rises or its band widens.
 
-**3 · Fittings, the berth cap, and the run-log fix.** SHIP-AND-MAPS §5:
+**3 · Fittings, the berth cap, and the run-log fix.** **DONE 2026-08-02 (board
+SG-56), under the owner's midnight reframe:** the stowage table this item said
+fittings work through was CUT (SG-48), so fittings apply their deck changes
+ONCE at run start from the berthed set — `scripts/fittings.gd`, awarded in
+`bank()`, at most one per run, six berths, `ship: [ids]` on the run row.
+Verified by the checks this item asked for, named: `fittings · a ship with
+nothing berthed sails today's deck exactly — byte for byte`, `fittings · no
+fitting names a forbidden field`, one fixture check per award rule
+(`fittings · the first victory keeps the wreck…` through `…an unhealed win
+pays the scupper grating`), and the owner's rule itself, `fittings · the ship
+never changes mid-run — a berth signed mid-run waits for the next run`. The
+WINCH verb (item 4's shape) shipped in the same pass as the fitting that
+grants it. Original text follows. — SHIP-AND-MAPS §5:
 fittings are never bought — the ship keeps at most one per run, awarded in
 `SkyGearWorkshop.bank()` from fields the run row already records. First set as
 designed: BOW BARRICADE, SPARE GUN, WINCH, FOURTH VENT, SCUPPER GRATING beside
@@ -85,7 +97,16 @@ week. *Owner:* confirm the six fittings and the cap, and the Heat
 comparability call — record fitting count in the Heat row (the design doc's
 lean) versus Heat runs sailing bare. Both to `NEEDS_ALEX.md`.
 
-**4 · THE WINCH, built to the SG-37 lesson.** The verb OUTSTANDING still owes
+**4 · THE WINCH, built to the SG-37 lesson.** **DONE 2026-08-02 with item 3
+(board SG-56), exactly as corrected here:** a tap-to-haul in the shove idiom,
+one entry in `deckwork.gd`'s verb table, `WINCH_STEP` per tap, its own ~1s
+cooldown, stops `WINCH_GAP` short of the captain, granted by the WINCH
+fitting. Verified by `fittings · the winch verb exists exactly while its
+fitting is berthed`, `fittings · the winch verb does not exist on a ship
+without the fitting`, and `fittings · a tap hauls one fixed step, and the
+stack can never land on the captain`; the owner's play-it-and-say verdict
+stays owed, with the drop-with-reason exit pre-committed. Original text
+follows. — The verb OUTSTANDING still owes
 ("dragging a crate to close a lane… shaping where the fight happens"),
 corrected by two established facts: boarders are on rails (§2 — nothing
 placeable funnels them; the verb shapes the *player's* cover), and the owner
@@ -98,7 +119,16 @@ respects the passable-crossing invariant from stow.gd, and the verb exists only
 when the fitting is berthed. *Size:* days. *Owner:* the play-it-and-say verdict
 SG-37 got, with the drop-with-reason exit pre-committed.
 
-**5 · The berth screen.** One screen in the Workshop's visual language (`ui.gd`
+**5 · The berth screen.** **DONE 2026-08-02 with item 3 (board SG-56):**
+`SkyGearHUD._draw_berths`, opened from the title's THE BERTHS button (no key —
+structurally between-runs), posed as the audit's 24th screen at its fullest
+state mix. Verified as this item asked: `fittings · the berth cap refuses a
+seventh`, `fittings · a fitting the ship has not earned refuses to berth`,
+`fittings · the earned set and the berthed set round-trip the save file`,
+`fittings · a denied write reports clean without reaching the disk`; the
+results screen's line is posed on `deck lost + workshop`; text audit clean at
+all four widths. The owner's hands-on screen verdict stays owed. Original
+text follows. — One screen in the Workshop's visual language (`ui.gd`
 widgets, the SG-14 idiom): earned fittings as objects, six berths, locked ones
 stating their earn rule on hover the way the Heat ladder's padlocks do; the
 results screen gains one line when a run earns a fitting. *Verified by:* berth

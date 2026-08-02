@@ -52,6 +52,18 @@ const BARRICADE_STAGES := [-280.0, -560.0, -450.0]
 ## re-shaping a collapsing lane is never a waiting game. Tune to feel.
 const BARRICADE_COOLDOWN := 1.0
 
+## THE WINCH — the deckwork verb the WINCH fitting grants (board SG-56, built
+## to the SG-37 lesson: instant tap, never a channel, and the crate can never
+## trap the captain). Each tap hauls the nearest crate STACK a fixed distance
+## toward her — the player placing their own cover, which is the only laning
+## the simulation supports (boarders are on rails, SHIP-AND-MAPS §2) — and it
+## stops short of her by WINCH_GAP so a stack can never land on the spot she
+## is standing on. The cost is the same shape as the shove's: a short cooldown
+## rather than seconds standing still.
+const WINCH_STEP := 150.0
+const WINCH_GAP := 90.0
+const WINCH_COOLDOWN := 1.0
+
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
 var audio: SkyGearAudio
@@ -264,8 +276,38 @@ var barricade_stage := 0
 ## Ticks down after each shove; a shove is refused while it is above zero. See
 ## `BARRICADE_COOLDOWN` and `_update_deckwork`.
 var barricade_cooldown := 0.0
+## The winch verb's own cooldown, same idiom. Exists only while the WINCH
+## fitting is berthed, but ticking an unused float is cheaper than a branch.
+var winch_cooldown := 0.0
 ## What you keep between runs. Loaded once; nothing before a first victory.
 var workshop: Dictionary = SkyGearWorkshop.load_state()
+## THE SHIP THIS RUN SAILS (board SG-56): the berthed fitting set, snapshotted
+## by `begin_run` and NEVER re-read from the workshop after — the owner's rule
+## is that the ship does not change mid-run, so a berth signed mid-run waits
+## for the next run. `refresh_berthed()` is the only other writer and it runs
+## between runs (boot, the berth screen), where the title deck should show
+## what is berthed. Everything fitting-shaped in the simulation asks
+## `fitted()`, so there is exactly one copy of the answer.
+var run_fittings: Array = []
+## Cross-passage closures the berthed set adds — the SCUPPER GRATING. Clamp
+## the CAPTAIN only (`correct_player_position`); deliberately absent from
+## `cargo_rects()`, so boarders and the x-ray pass are provably untouched.
+var fitting_walls: Array = []
+## The berth screen (SG-56), the Workshop's sibling. Opened from the title
+## only — there is no key, so it is structurally a between-runs screen.
+var berths_open := false
+
+
+func fitted(id: String) -> bool:
+	return run_fittings.has(id)
+
+
+## Re-snapshot the berthed set from the save. Between runs only: boot, and the
+## berth screen after a change — so the title's live deck (and its wreck) show
+## what will sail, while a running deck keeps the set it began with.
+func refresh_berthed() -> void:
+	run_fittings = SkyGearFittings.sailing(workshop)
+	fitting_walls = SkyGearFittings.walls(run_fittings)
 ## What the last run paid, so the results screen can say so rather than the
 ## player finding out two screens later.
 var banked: Dictionary = {}
@@ -329,6 +371,9 @@ var crew_timer := 0.0
 
 func _ready() -> void:
 	rng.seed = 0x5A17C0DE
+	## The berthed set, live from boot — the title screen is the real deck, and
+	## a berthed wreck should be riding off the bow before a run ever starts.
+	refresh_berthed()
 	player.game = self
 	hud.game = self
 	player.controls_enabled = false
@@ -453,6 +498,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
 			workshop_open = false
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+	elif berths_open:
+		if hud.ui.handle(event):
+			hud.queue_redraw()
+			get_viewport().set_input_as_handled()
+			return
+		if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+			berths_open = false
 			hud.queue_redraw()
 			get_viewport().set_input_as_handled()
 			return
@@ -1482,6 +1537,17 @@ func begin_run() -> void:
 	heat = clampi(heat, 0, SkyGearWorkshop.heat_available(workshop))
 	talents = SkyGearWorkshop.resolved(workshop)
 	articles = SkyGearWorkshop.articles_for(workshop, class_id)
+	## THE SHIP, RESOLVED ONCE — the fittings' whole application point (board
+	## SG-56, the owner's rule verbatim: "the ship itself shouldn't change
+	## during the playthrough… modification should happen in between runs").
+	## Snapshotted HERE and never re-read: `restow_props` places the set's
+	## geometry each wave from this array, the clamp reads `fitting_walls`,
+	## the verb table asks `fitted()`. Editing the workshop's berths after
+	## this line changes the NEXT run, pinned by `fittings · the ship never
+	## changes mid-run — a berth signed mid-run waits for the next run`.
+	refresh_berthed()
+	winch_cooldown = 0.0
+	berths_open = false
 	article_used = {}
 	brace_cooldown = 0.0
 	brace_left = 0.0
@@ -1540,6 +1606,14 @@ func begin_run() -> void:
 		for t in turrets:
 			t.max_hp = float(t.max_hp) * heat_turret
 			t.hp = float(t.max_hp)
+	## THE SPARE GUN (SG-56). Appended AFTER Shot Locker and the Heat scale,
+	## which both set `hp = max_hp` — a gun that ships dead has to stay at
+	## zero, so its `max_hp` takes the same two scales by hand and its `hp`
+	## does not. The repair verb that already exists is how it ever fires.
+	if fitted("spare_gun"):
+		var spare: Dictionary = SkyGearFittings.spare_gun_turret()
+		spare.max_hp = float(spare.max_hp) * (1.0 + talent("turret_hp")) * heat_turret
+		turrets.append(spare)
 	crew.clear()
 	sentries.clear()
 	hulk = {}
@@ -1650,6 +1724,15 @@ func run_report() -> String:
 	if heat > 0:
 		header += " · Heat %d" % heat
 	lines.append(header)
+	## The berthed set is part of what the seed replays onto, so a fitted run's
+	## report names it — and a bare ship stays silent, which keeps every
+	## pre-fitting report byte-identical (the same rule as the Heat suffix).
+	if not run_fittings.is_empty():
+		var kept: Array[String] = []
+		for fit_id in run_fittings:
+			kept.append(str((SkyGearFittings.FITTINGS.get(str(fit_id), {}) as Dictionary
+				).get("name", str(fit_id))))
+		lines.append("refit · " + ", ".join(kept))
 	var build: Array[String] = ["Ember Cleave (auto)"]
 	for skill in skills:
 		build.append(SkyGearData.skill_name(skill))
@@ -1746,6 +1829,10 @@ func _set_state(next_state: State) -> void:
 			## Without this a Heat 2 row cannot reproduce its own run: the seed
 			## replays the same waves against different enemy health.
 			"heat": heat,
+			## And without THIS a fitted run cannot either: the berthed set is
+			## part of the deck the seed replays onto (SG-53's blocked half,
+			## closed by SG-56). Old rows simply lack the key and read bare.
+			"ship": run_fittings.duplicate(),
 			"report": run_report(),
 		})
 		## And what it was worth. Nothing accrues before a first victory — the
@@ -1755,6 +1842,10 @@ func _set_state(next_state: State) -> void:
 			"won": next_state == State.VICTORY, "wave": wave,
 			"seed": seed_text, "vents": int(tel.vents),
 			"healed": roundi(float(tel.healed)),
+			## Salvage rides along for the WINCH's earn rule — a field the run
+			## row above already records, which is the fittings' whole bargain:
+			## no new tracking.
+			"salvage": int(tel.salvage),
 			"close_share": _close_share(), "class_id": class_id,
 			"heat": heat,
 		})
@@ -2942,8 +3033,9 @@ func use_article_v() -> bool:
 ## cooldown, not standing still. The `instant` flag on the spec selects between them.
 func _update_deckwork(delta: float) -> void:
 	## The shove cooldown ticks regardless of state, so a wave never opens with it
-	## mid-charge from the wave before.
+	## mid-charge from the wave before. The winch's ticks beside it, same reason.
 	barricade_cooldown = maxf(0.0, barricade_cooldown - delta)
+	winch_cooldown = maxf(0.0, winch_cooldown - delta)
 	if state != State.PLAY:
 		deckwork = {}
 		deckwork_progress = 0.0
@@ -2966,11 +3058,17 @@ func _update_deckwork(delta: float) -> void:
 	## machine-gunned across the deck, and the same "boarders on it" refusal.
 	if bool(here.spec.get("instant", false)):
 		deckwork_progress = 0.0
-		if bool(here.contested) or barricade_cooldown > 0.0:
+		## Each instant verb pays its own cooldown — the shove's and the winch's
+		## are separate, so hauling cover does not lock the flank crate.
+		var winching: bool = str(here.spec.id) == "winch_crate"
+		if bool(here.contested) or (winch_cooldown if winching else barricade_cooldown) > 0.0:
 			return
 		if Input.is_action_just_pressed("deckwork"):
 			SkyGearDeckwork.perform(self, here.spec, here.target)
-			barricade_cooldown = BARRICADE_COOLDOWN
+			if winching:
+				winch_cooldown = WINCH_COOLDOWN
+			else:
+				barricade_cooldown = BARRICADE_COOLDOWN
 			play_sfx("lane/crew_muster.ogg", -6.0)
 			_fx({"kind": "circle", "position": Vector2(here.target.position),
 				"radius": 90.0, "color": Color("#37f0c8"), "time": 0.0, "life": 0.32})
@@ -3230,6 +3328,26 @@ func heave_barricade() -> void:
 	barricade.global_position = Vector2(BARRICADE_STAGES[barricade_stage], BARRICADE_Y)
 
 
+## THE WINCH's haul (SG-56): drag a crate STACK a fixed step toward the
+## captain, stopping WINCH_GAP short of her — she is never trapped by cover
+## she placed (the SG-37 lesson; crates do not clamp her anyway, but a stack
+## parked on her feet would hide her and eat her own shots). Clamped inside
+## the deck. Called by the verb table's perform; the verb exists only while
+## the WINCH fitting is berthed (`SkyGearDeckwork.available` asks `fitted`).
+func winch_crate(prop: SkyGearProp) -> void:
+	if prop == null or not is_instance_valid(prop) or prop.dead:
+		return
+	var to_her: Vector2 = player.global_position - prop.global_position
+	var gap := to_her.length()
+	if gap <= WINCH_GAP + 1.0:
+		return
+	var step: float = minf(WINCH_STEP, gap - WINCH_GAP)
+	var landed: Vector2 = prop.global_position + to_her.normalized() * step
+	prop.global_position = Vector2(
+		clampf(landed.x, DECK_RECT.position.x + 60.0, DECK_RECT.end.x - 60.0),
+		clampf(landed.y, DECK_RECT.position.y + 60.0, DECK_RECT.end.y - 60.0))
+
+
 ## Put the crate back at its home. The deck re-stows between waves (a pinned
 ## behavior), and the crate re-stows with it BY DESIGN: a flank you closed is one
 ## you close again next wave, paying the seconds each time. That is the balance —
@@ -3259,6 +3377,21 @@ func restow_props() -> void:
 	## The draggable crate re-stows with everything else — see `_stow_barricade`.
 	## The old one was freed in the loop above (it lives in the "props" group).
 	_stow_barricade()
+	## THE BERTHED FITTINGS' GEOMETRY (SG-56): the bow barricade's crate line,
+	## the fourth vent, the scupper's vent. From the RUN's snapshot, never the
+	## live workshop, and constant across all twelve waves — the deck re-stows
+	## per wave, so "applied once at run start" means the same set deals the
+	## same pieces every wave of this run. Consumes NOTHING from either rng
+	## stream (positions are authored), pinned by `fittings · placing the whole
+	## berth set consumes nothing from the seeded stream`. The `fitting` meta
+	## keeps a barricade-line crate out of the winch's hands: a FIXED crate
+	## line a verb could drag off the bow would not be fixed.
+	for entry in SkyGearFittings.deck_props(run_fittings):
+		var fit_prop: SkyGearProp = PROP_SCENE.instantiate()
+		add_child(fit_prop)
+		fit_prop.global_position = entry.position
+		fit_prop.configure(self, entry.type)
+		fit_prop.set_meta("fitting", true)
 	## POWDER STORE. Extra ordnance, stowed away from the layout's own kegs so it
 	## reads as a stockpile rather than as one keg mysteriously duplicated. Placed
 	## with the cosmetic stream, or a talent would move every seeded roll after it.
@@ -3623,7 +3756,14 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 	## (STATUS failure mode two: two functions disagreeing about one number is a bug
 	## UNLESS the disagreement is the spec, stated). Pinned by
 	## `deck · the captain is never blocked by the heaved crate`.
-	for cargo: Rect2 in CARGO_RECTS:
+	##
+	## PLUS the berthed closures (SG-56): the SCUPPER GRATING's sealed
+	## crossing clamps HER — that is the fitting's whole cost — while staying
+	## out of `cargo_rects()`, so boarders and the x-ray are provably
+	## untouched (they live in the lane bands; the grating lives in the dead
+	## strip between them). One combined loop, so the push-out arithmetic
+	## cannot fork into a second copy (failure mode two).
+	for cargo: Rect2 in CARGO_RECTS + fitting_walls:
 		var expanded: Rect2 = cargo.grow(radius)
 		if expanded.has_point(corrected):
 			var left_distance := absf(corrected.x - expanded.position.x)
