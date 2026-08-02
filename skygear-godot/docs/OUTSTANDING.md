@@ -17,6 +17,16 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The editor can't REACH the screens — round two of the alignment ask
+Reported 2026-08-01, after SG-42 shipped: *"You still didnt fix the screens
+tool to allow me to interactively edit UI/text."* SG-42's "you edit the
+screen you are ON — the game navigates" rule is the miss: reaching the
+results screen means winning a run, reaching GAMEOVER means dying. The batch
+tool already knows how to POSE all 21 screens; the editor must get the same
+poser as a screen picker inside F4. One poser, shared between the editor and
+the batch tool (failure mode two forbids a second copy). Board SG-44, queued
+behind SG-26 (same file, hud.gd).
+
 ### UI alignment must be EDITABLE, not just photographed
 Asked 2026-08-01 after running the screens audit: *"I got all of the
 screenshots but I'm not able to directly edit/align content within UI
