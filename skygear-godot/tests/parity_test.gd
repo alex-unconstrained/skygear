@@ -779,6 +779,54 @@ func _view() -> void:
 			and absf(SkyGearView3D.BOILER_HEIGHT - browser_boiler_h) < 0.01,
 		"%.1f ground units vs browser boilerH %.0f" % [boiler_h_gu, browser_boiler_h])
 
+	## SG-15 — THE COLOSSUS WRECK fitting. docs/SHIP-AND-MAPS-DESIGN §5/§8's first
+	## fitting: the art was on disk and sized and NOTHING had ever placed it. It is
+	## placed as set dressing OFF THE BOW (`WRECK_POSITION`), NOT the doc's "hard
+	## cover in lane 1" — a permanent fitting may not touch the one collision source
+	## of truth (the lanes, `cargo_rects()`, the prop-per-wave count). These guard
+	## that it stays a fitting: present where the fitting says, clear of the whole
+	## envelope, and gated behind the same first-victory latch the Workshop opens
+	## on — so it can never quietly become cover or stand on a bare ship (failure
+	## modes 1 and 2). The at-camera verdict is `tools/wreck_measure.gd`, which a
+	## headless build cannot photograph (SG-29).
+	var wreck_pos: Vector2 = SkyGearView3D.WRECK_POSITION
+	_check("fitting", "the Colossus wreck is placed off the bow",
+		view._wreck != null and view._wreck.texture != null
+			and absf(view._wreck.position.z / SkyGearView3D.WORLD_SCALE - wreck_pos.y) < 1.0,
+		"at (%.0f, %.0f)" % [wreck_pos.x, wreck_pos.y])
+	## Outside the deck, every cargo rect (incl. the movable crate), every lane
+	## band, and beyond the spawn line — and not in the `props` group, so it adds
+	## nothing to the per-wave count and nothing on the deck can path to it.
+	var wreck_in_cargo := false
+	for r in game.cargo_rects():
+		if (r as Rect2).has_point(wreck_pos):
+			wreck_in_cargo = true
+	var wreck_in_lane := false
+	for c in SkyGearGame.LANE_CENTERS:
+		if absf(wreck_pos.x - float(c)) <= 190.0 and SkyGearGame.DECK_RECT.has_point(wreck_pos):
+			wreck_in_lane = true
+	var wreck_is_prop := false
+	for p in game.get_tree().get_nodes_in_group("props"):
+		if is_instance_valid(p) and p.global_position.distance_to(wreck_pos) < 1.0:
+			wreck_is_prop = true
+	_check("fitting", "and it never touches the gameplay envelope",
+		not SkyGearGame.DECK_RECT.has_point(wreck_pos)
+			and not wreck_in_cargo and not wreck_in_lane and not wreck_is_prop
+			and wreck_pos.y < -1115.0,
+		"deck=%s cargo=%s lane=%s prop=%s" % [
+			SkyGearGame.DECK_RECT.has_point(wreck_pos), wreck_in_cargo, wreck_in_lane, wreck_is_prop])
+	## The gate round-trips persistence: hidden until the ship has downed the
+	## Colossus once (`workshop.unlocked`, the Workshop's own latch), shown after.
+	game.workshop = SkyGearWorkshop.fresh(true)
+	view._process(0.05)
+	var wreck_locked_hidden: bool = view._wreck != null and not view._wreck.visible
+	game.workshop.unlocked = true
+	view._process(0.05)
+	var wreck_earned_shown: bool = view._wreck != null and view._wreck.visible
+	_check("fitting", "hidden on a bare ship and shown once the Colossus is downed",
+		wreck_locked_hidden and wreck_earned_shown,
+		"locked->hidden %s · earned->shown %s" % [wreck_locked_hidden, wreck_earned_shown])
+
 	## The x-ray. A boarder that walks behind a cargo run has to keep existing.
 	## The shadow of a cargo run is a band about forty units deep behind its far
 	## face, so the test point is placed there rather than "somewhere past it".

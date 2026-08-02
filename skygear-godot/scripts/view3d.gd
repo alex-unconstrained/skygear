@@ -137,6 +137,42 @@ const BOILER_MODEL := "boiler"
 ## primitive, and `parity_test` fails if the rendered subtree drifts off it.
 const BOILER_HEIGHT := 150.0
 
+## THE COLOSSUS WRECK — board SG-15, the first fitting in docs/SHIP-AND-MAPS-DESIGN.
+##
+## The design doc's whole thesis in one object: the ship carries the memory of
+## the runs it survived, and the Colossus is the boss you kill to survive one.
+## The art has been on disk and sized (`colossus_wreck.png`, PROP_HEIGHT/SCALES)
+## since the props pass and NOTHING has ever placed it. This places it — and it
+## is the ONLY generated deck geometry here whose position is a fitting rather
+## than a prop, so it is switched from one screenful like the rest.
+##
+## WHERE, AND WHY NOT WHERE THE DOC SAYS. §5 wants it "in lane 1, in front of the
+## Boiler" as 210 units of hard cover. A permanent fitting may not do that: the
+## gameplay envelope (the three lanes, `game.cargo_rects()`, the boarder clamp,
+## the prop-per-wave count) is the one collision source of truth and a fitting is
+## set dressing that must not touch it. So among the off-envelope homes it is put
+## OFF THE BOW, beyond the play area, resting in the cloud sea ahead — the one
+## spot that reads as a landmark at the shipped 41 deg camera. MEASURED, not
+## guessed (tools/wreck_measure.gd): the stern sits off the bottom of the frame
+## at every pose and the rails off the sides, but the bow fills the top of the
+## frame the instant the captain advances toward it, and it is the establishing
+## crane's subject and where the Colossus itself arrives and falls. The corpse of
+## the giant, adrift ahead of the prow, every run after the first you down it.
+##
+## GATED, because the doc is not silent: fittings are meta-progression and live
+## behind `state.unlocked` — the SAME first-victory latch the Workshop opens on
+## (a win is a wave-12 Colossus kill). No parallel gate, no new tracking; the
+## wreck is hidden until the ship has earned it and permanent after. Read-only:
+## `workshop.gd` is untouched, its Dictionary is read where it already lives on
+## the game. Delete these three rows and the fitting is gone with no other change.
+const WRECK_TEXTURE := "res://assets/art/props/colossus_wreck.png"
+## Ground units. Bow edge is DECK_RECT.position.y = -1160; the spawn line is
+## -1115 and the hulk grapples at BOW_Y -1000, so -1500 is 340 beyond the deck,
+## 385 beyond where anything spawns — wholly outside the fight envelope.
+const WRECK_POSITION := Vector2(0.0, -1500.0)
+## Its authored height is PROP_HEIGHT["wreck"]; read from there so the fitting and
+## the prop table can never disagree about how tall the same picture stands.
+
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
@@ -213,6 +249,7 @@ var _volumes: Dictionary = {}        ## key -> MeshInstance3D, the aura cylinder
 var _decals_used: Dictionary = {}
 var _lights: Dictionary = {}         ## prop id -> OmniLight3D
 var _envelope: MeshInstance3D
+var _wreck: Sprite3D                  ## the Colossus fitting (SG-15); null if the art is absent
 var _focus := Vector2.ZERO
 var _focus_set := false
 var _flicker := 0.0
@@ -506,6 +543,32 @@ func _build_world() -> void:
 		bow.position = Vector3(0.0, 120.0 * WORLD_SCALE,
 			(SkyGearGame.DECK_RECT.position.y - 150.0) * WORLD_SCALE)
 		add_child(bow)
+
+	## THE COLOSSUS WRECK (SG-15). An upright billboard adrift off the bow, built
+	## once here beside the prow — it is a fitting, not a `props`-group prop, so it
+	## never enters the sim, the cargo rects or the per-wave stow, and nothing on
+	## the deck can path to it. Height straight from PROP_HEIGHT["wreck"], the one
+	## place the wreck's size lives. Visibility is refreshed every frame from the
+	## first-victory gate (`_wreck_earned`), so it appears the run after you first
+	## down the Colossus and stays. Absent art costs the fitting, not the frame.
+	var wreck_tex := _texture(WRECK_TEXTURE)
+	if wreck_tex != null:
+		var wreck := Sprite3D.new()
+		wreck.texture = wreck_tex
+		wreck.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		wreck.shaded = false
+		wreck.double_sided = true
+		wreck.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		wreck.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+		wreck.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		wreck.layers = LAYER_FIGURES
+		var wreck_h: float = float(PROP_HEIGHT["wreck"])
+		wreck.pixel_size = wreck_h * WORLD_SCALE / maxf(1.0, float(wreck_tex.get_height()))
+		wreck.position = Vector3(WRECK_POSITION.x * WORLD_SCALE,
+			wreck_h * 0.5 * WORLD_SCALE, WRECK_POSITION.y * WORLD_SCALE)
+		wreck.visible = _wreck_earned()
+		add_child(wreck)
+		_wreck = wreck
 
 	## Our own gas bag, overhead. Tied to the camera rather than the world so it
 	## stays where a thing hanging above you stays — and kept thin, because the
@@ -2159,6 +2222,15 @@ func _spark_texture() -> ImageTexture:
 	return _made.spark
 
 
+## The Colossus fitting's gate (SG-15). True once the ship has ever survived a
+## run — `workshop.unlocked`, the same latch the Workshop and Heat open behind,
+## and a win is a wave-12 Colossus kill. Read straight off the game's own
+## workshop Dictionary so `workshop.gd` stays untouched and there is one gate,
+## not a parallel one. No save yet (a fresh boot) reads as not-earned.
+func _wreck_earned() -> bool:
+	return game != null and bool((game.workshop as Dictionary).get("unlocked", false))
+
+
 func _process(delta: float) -> void:
 	if game == null:
 		return
@@ -2189,6 +2261,10 @@ func _process(delta: float) -> void:
 		_cutscene.sway_roll = SWAY_ROLL * _roll
 		_cutscene.sway_yaw = SWAY_YAW * _yaw
 		_cutscene.advance(delta)
+	## The fitting follows the save, not the run: the wreck shows the frame after
+	## the persistent gate flips and stays. One dictionary read a frame.
+	if _wreck != null:
+		_wreck.visible = _wreck_earned()
 	_used.clear()
 	_decals_used.clear()
 	## The ribbon batch is written from scratch every frame between these two, the
