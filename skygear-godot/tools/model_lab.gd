@@ -13,10 +13,11 @@ extends SceneTree
 ##   ... -- --mount                           open holding it
 ##   ... -- --mount --fit boilerwright        ...on HIS weapons.json entry
 ##   ... -- --fx                              open on the effects loop
+##   ... -- --lights --model brazier          open on that model's own lights
 ##   ... -- --clip swing2 --at 0.62           pose an animation frame
 ##   ... -- --shot out.png                    render that frame and exit
 ##
-## THREE MODES, three buttons, top middle.
+## FOUR MODES, four buttons, top middle.
 ##
 ## VIEW    click a name on the left. Drag to orbit, wheel to dolly. Triangles,
 ##         surfaces, bones and height IN GROUND UNITS in the header.
@@ -25,6 +26,16 @@ extends SceneTree
 ##         writes `assets/models/weapons.json`, the file the GAME reads.
 ## FX      spawns the real renderer with the real deck and fires one effect on a
 ##         loop so it can be judged on its own instead of mid-wave.
+## LIGHTS  hangs LIGHTS on the model — the owner's ask, because none of these
+##         meshes has baked lighting. Add an omni or a spot, drag its colour,
+##         strength, reach, falloff, offset, cone and throb on the dial stack,
+##         watch it on the real model at the size the deck will draw it, and
+##         SAVE, which writes `assets/models/lights.json` — the file
+##         `scripts/view3d.gd` reads at launch and applies to EVERY instance of
+##         that model on the deck. Not the clipboard: the renderer got the
+##         reader first, and this is the thing that writes to it. DARK ROOM in
+##         the LOOK panel kills the lab's own lamps so what is left is the
+##         light you are actually dialling.
 ##
 ## THE TIMELINE runs along the bottom in all three modes. Click a clip, PLAY,
 ## drag the bar to scrub, STEP a frame at a time. This is the point of the whole
@@ -68,7 +79,17 @@ const LIFT := 0.07
 const VIEW := 0
 const MOUNT := 1
 const FX := 2
-const MODE_NAME := ["VIEW", "MOUNT", "FX"]
+const LIGHTS := 3
+const MODE_NAME := ["VIEW", "MOUNT", "FX", "LIGHTS"]
+const MODES := 4
+
+## What ADD hands you: a warm accent an arm's length up, already visible, so the
+## first click shows you something rather than a row of zeroes. Everything about
+## it is then dialled; nothing about it is magic.
+const NEW_LIGHT := {"type": "omni", "color": "ffb066", "energy": 1.0,
+	"range": 220.0, "attenuation": 1.0, "offset": [0.0, 80.0, 0.0],
+	"angle": 40.0, "aim": [0.0, -1.0, 0.0], "hz": 0.0, "depth": 0.0,
+	"shape": "pulse"}
 
 ## Backdrops to judge against. A model that reads on near-black and vanishes on
 ## grey has a value problem, and you only find that by flipping between them.
@@ -167,7 +188,7 @@ var _undo_state: Dictionary = {}
 var _has_undo := false
 
 ## Everything in the LOOK panel that is on or off.
-var _on := {"wire": false, "clay": false, "flat": false, "grid": true,
+var _on := {"wire": false, "clay": false, "flat": false, "grid": true, "dark": false,
 	"skel": false, "axis": true, "sway": false}
 var _toggle_btn: Dictionary = {}
 var _bg_at := 0
@@ -212,6 +233,22 @@ var _fx_list: VBoxContainer
 var _fx_dial := {"radius": 190.0, "life": 0.22, "arc": 1.7, "damage": 40.0,
 	"period": 1.1, "slowmo": 1.0, "glow": 1.0, "spark": 26.0, "plife": 1.0}
 
+## --- SG-81: the lights on the loaded model -----------------------------------
+## The rows themselves, in the renderer's own schema — `_save` hands this array
+## straight to `SkyGearView3D.save_model_lights`, which re-sanitises it, so the
+## lab cannot save a shape the reader would refuse.
+var _lit: Array = []
+var _lit_at := 0
+## `str()` of the list as it was loaded, which is the whole UNSAVED read.
+var _lit_saved := ""
+## The live lamps in the lab world — real Light3Ds, driven by the RENDERER's own
+## `apply_model_light`, so what you are looking at is what the deck will do.
+var _lit_nodes: Array = []
+var _lit_panel: PanelContainer
+var _lit_list: VBoxContainer
+var _lit_rows: VBoxContainer
+var _lit_clock := 0.0
+
 var _w := 1600.0
 var _h := 900.0
 ## EVERY control goes in here, not straight on the root. FX mode brings the real
@@ -251,6 +288,8 @@ func _run() -> void:
 			_fit_who = str(argv[i + 1])
 		if argv[i] == "--fx":
 			_mode = FX
+		if argv[i] == "--lights":
+			_mode = LIGHTS
 		if argv[i] == "--clip" and i + 1 < argv.size():
 			want_clip = str(argv[i + 1])
 		if argv[i] == "--at" and i + 1 < argv.size():
@@ -318,6 +357,8 @@ func _run() -> void:
 	else:
 		_load()
 	_build_rows()
+	_rebuild_light_list()
+	_apply_lights()
 	## `--clip` and `--at` exist so a grip can be checked at ONE named frame from a
 	## script — "the captain at 62% of swing2, holding the cutlass" is a thing you
 	## want a picture of before and after a change, not a thing you want to find by
@@ -422,6 +463,7 @@ func _build_ui() -> void:
 	bone_scroll.add_child(_bonelist)
 
 	_build_fx_panel()
+	_build_lights_panel()
 
 	_label = Label.new()
 	_label.position = Vector2(LIST_W + 26.0, 10.0)
@@ -436,7 +478,8 @@ func _build_ui() -> void:
 	buttons.position = Vector2(LIST_W + 26.0, 116.0)
 	buttons.add_theme_constant_override("separation", 4)
 	_ui.add_child(buttons)
-	for pair in [["VIEW", "view"], ["MOUNT", "mount"], ["FX", "fx"]]:
+	for pair in [["VIEW", "view"], ["MOUNT", "mount"], ["FX", "fx"],
+			["LIGHTS", "lights"]]:
 		var b := _chip(str(pair[0]), 74, 28)
 		b.pressed.connect(_press.bind(str(pair[1])))
 		buttons.add_child(b)
@@ -507,6 +550,8 @@ func _build_rows() -> void:
 			["mz", "ALONG    toward hilt / tip"],
 			["rx", "PITCH    tip up / tip down"], ["ry", "YAW      swing L / R"],
 			["rz", "ROLL     edge over"], ["len", "LENGTH   shorter / longer"]]
+	elif _mode == LIGHTS:
+		specs = _light_row_specs()
 	elif _mode == FX:
 		specs = [["fxr", "RADIUS   how far it reaches"],
 			["fxa", "ARC      how wide the fan"],
@@ -556,7 +601,11 @@ func _build_look() -> void:
 	frame.add_child(box)
 	_heading(box, "LOOK")
 	for pair in [["wire", "WIREFRAME"], ["clay", "CLAY"], ["flat", "FLAT LIGHT"],
-			["grid", "GRID + RULER"], ["skel", "SKELETON"], ["axis", "BONE AXES"]]:
+			["grid", "GRID + RULER"], ["skel", "SKELETON"], ["axis", "BONE AXES"],
+			## SG-81. Judging a model light under the lab's own two lamps is
+			## judging the lamps: this kills them and the ambient, so what is on
+			## the model is what the table put there.
+			["dark", "DARK ROOM"]]:
 		var b := _chip(str(pair[1]), LIST_W - 24.0, 22, 11)
 		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
 		b.pressed.connect(_flip.bind(str(pair[0])))
@@ -744,6 +793,12 @@ func _skeleton() -> Skeleton3D:
 func _draw_overlay() -> void:
 	var mesh := _overlay.mesh as ImmediateMesh
 	mesh.clear_surfaces()
+	## SG-81. The light gizmo does not need a skeleton and must not be gated on
+	## one — a brazier has no bones and a light you cannot see the position of is
+	## a number you are typing blind.
+	if _mode == LIGHTS:
+		_draw_light_gizmos(mesh)
+		return
 	## Light the weapon's own axes whenever a rotation row is hovered or just
 	## nudged, even with BONE AXES off — that is the point of the hint.
 	var want_weapon: bool = _mode == MOUNT and _active_axis() >= 0 \
@@ -832,6 +887,9 @@ func _dial(which: String, way: float) -> void:
 			_key_energy = clampf(_key_energy + 0.25 * way, 0.0, 8.0)
 		"lamb":
 			_ambient = clampf(_ambient + 0.1 * way, 0.0, 3.0)
+		"lge", "lgr", "lgf", "lgcr", "lgcg", "lgcb", "lgx", "lgy", "lgz", \
+		"lgh", "lgd", "lga", "lgax", "lgay", "lgaz":
+			_dial_light(which, way)
 		"fxr":
 			_fx_dial.radius = clampf(float(_fx_dial.radius) + 20.0 * way, 20.0, 900.0)
 		"fxa":
@@ -972,6 +1030,9 @@ func _raw_value(key: String) -> String:
 		"ry": return "%.1f" % r.y
 		"rz": return "%.1f" % r.z
 		"len": return "%.2f" % float(_fit.length)
+		"lge", "lgr", "lgf", "lgcr", "lgcg", "lgcb", "lgx", "lgy", "lgz", \
+		"lgh", "lgd", "lga", "lgax", "lgay", "lgaz":
+			return _light_raw(key)
 		"lyaw": return "%.0f" % _light_yaw
 		"lpitch": return "%.0f" % _light_pitch
 		"lkey": return "%.2f" % _key_energy
@@ -1054,6 +1115,9 @@ func _apply_typed(key: String, val: float) -> void:
 				_flash_axis = {"rx": 0, "ry": 1, "rz": 2}[key]
 				_flash_until = _clock + 0.9
 			_apply_mount()
+		"lge", "lgr", "lgf", "lgcr", "lgcg", "lgcb", "lgx", "lgy", "lgz", \
+		"lgh", "lgd", "lga", "lgax", "lgay", "lgaz":
+			_set_light(key, val)
 		"lyaw": _light_yaw = wrapf(val, -180.0, 180.0); _apply_look()
 		"lpitch": _light_pitch = clampf(val, -89.0, 0.0); _apply_look()
 		"lkey": _key_energy = clampf(val, 0.0, 8.0); _apply_look()
@@ -1081,6 +1145,7 @@ func _snapshot() -> void:
 		"mode": _mode, "fit": _fit.duplicate(true), "rot": _rot_basis,
 		"fx": _fx_dial.duplicate(true), "lyaw": _light_yaw, "lpitch": _light_pitch,
 		"lkey": _key_energy, "lamb": _ambient,
+		"lit": _lit.duplicate(true), "lit_at": _lit_at,
 	}
 	_has_undo = true
 
@@ -1104,6 +1169,12 @@ func _undo() -> void:
 		_fx_dial = (u.fx as Dictionary).duplicate(true)
 		Engine.time_scale = float(_fx_dial.slowmo)
 		_apply_fx_dials()
+	elif int(u.mode) == _mode and _mode == LIGHTS:
+		_lit = (u.lit as Array).duplicate(true)
+		_lit_at = int(u.lit_at)
+		_build_rows()
+		_rebuild_light_list()
+		_apply_lights()
 	_apply_look()
 	_note = "undid the last change."
 	_tick()
@@ -1120,8 +1191,17 @@ func _press(what: String) -> void:
 		"view": _set_mode(VIEW)
 		"mount": _set_mode(MOUNT)
 		"fx": _set_mode(FX)
+		"lights": _set_mode(LIGHTS)
+		"lgadd": _add_light("omni")
+		"lgaddspot": _add_light("spot")
+		"lgcopy": _copy_light()
+		"lgdel": _remove_light()
+		"lgtype": _flip_light_field("type")
+		"lgshape": _flip_light_field("shape")
 		"save": _save()
 		"revert":
+			if _mode == LIGHTS:
+				_load_lights()
 			if _mode == MOUNT:
 				_fit = _saved.duplicate(true)
 				_rot_basis = LabMath.fit_basis(_v3(_fit.rotation))
@@ -1318,6 +1398,7 @@ func _load() -> void:
 
 	_collect_bones()
 	_collect_clips()
+	_load_lights()
 	_apply_look()
 	_build_rows()
 
@@ -1694,17 +1775,20 @@ func _apply_look() -> void:
 		else Viewport.DEBUG_DRAW_DISABLED
 	if _grid != null:
 		_grid.visible = bool(_on.grid) and _mode != FX
+	## DARK ROOM (SG-81) beats FLAT and beats the dials: nothing but the model's
+	## own lights, which is the only way to judge one.
+	var dark: bool = bool(_on.dark)
 	if _env != null:
 		_env.background_color = BACKDROPS[_bg_at].color
 		## FLAT kills the lamps and turns the ambient up, which is the only honest
 		## way to look at an albedo texture: under a key light you are judging the
 		## lighting as much as the paint.
-		_env.ambient_light_energy = 1.7 if bool(_on.flat) else _ambient
+		_env.ambient_light_energy = 0.03 if dark else (1.7 if bool(_on.flat) else _ambient)
 	if _key_light != null:
 		_key_light.rotation = Vector3(deg_to_rad(_light_pitch), deg_to_rad(_light_yaw), 0.0)
-		_key_light.light_energy = 0.0 if bool(_on.flat) else _key_energy
+		_key_light.light_energy = 0.0 if (dark or bool(_on.flat)) else _key_energy
 	if _fill_light != null:
-		_fill_light.light_energy = 0.0 if bool(_on.flat) else 0.7
+		_fill_light.light_energy = 0.0 if (dark or bool(_on.flat)) else 0.7
 	if _fx_view != null:
 		_fx_view.sway = bool(_on.sway)
 
@@ -1729,7 +1813,7 @@ func _all_meshes() -> Array:
 
 
 func _refresh_toggles() -> void:
-	for key in ["wire", "clay", "flat", "grid", "skel", "axis", "sway"]:
+	for key in ["wire", "clay", "flat", "grid", "skel", "axis", "sway", "dark"]:
 		var b: Button = _toggle_btn.get(key)
 		if b != null:
 			b.add_theme_color_override("font_color",
@@ -1737,8 +1821,8 @@ func _refresh_toggles() -> void:
 	var bg: Button = _toggle_btn.get("backdrop")
 	if bg != null:
 		bg.text = "BACKDROP  %s" % str(BACKDROPS[_bg_at].name)
-	for i in 3:
-		var b: Button = _toggle_btn.get(["view", "mount", "fx"][i])
+	for i in MODES:
+		var b: Button = _toggle_btn.get(["view", "mount", "fx", "lights"][i])
 		if b != null:
 			b.add_theme_color_override("font_color",
 				Color("#37f0c8") if _mode == i else Color("#b9afaa"))
@@ -1799,6 +1883,15 @@ func _show() -> void:
 		lines.append("the real renderer on the real deck - pick an effect on the right - click a dial to type it.   %s"
 			% _step_hint())
 		lines.append("SAVE puts these numbers on the clipboard with the constant they belong to")
+	elif _mode == LIGHTS:
+		lines.append("%s        LIGHTS        %d on this model, editing %d"
+			% [_models[_at].to_upper(), _lit.size(),
+				(_lit_at + 1) if not _lit.is_empty() else 0])
+		lines.append(_stats)
+		lines.append("%s   %s" % [_light_summary(),
+			"UNSAVED" if str(_lit) != _lit_saved else "saved to assets/models/lights.json"])
+		lines.append("ADD one on the right, click a value to type it, wheel a row to nudge - DARK ROOM (left) kills the lab's own lamps.   %s"
+			% _step_hint())
 	else:
 		lines.append("%s        %s" % [_models[_at].to_upper(), MODE_NAME[_mode]])
 		lines.append(_stats)
@@ -1832,6 +1925,12 @@ func _show() -> void:
 			var value: Button = _row_value.get(str(pair[0]))
 			if value != null:
 				value.text = str(pair[1])
+	if _mode == LIGHTS:
+		for spec in _light_row_specs():
+			var value: Button = _row_value.get(str(spec[0]))
+			if value != null:
+				value.text = _light_shown(str(spec[0]))
+		_refresh_light_list()
 	if _mode == FX:
 		for pair in [["fxr", "%.0f" % float(_fx_dial.radius)],
 				["fxa", "%.2f rad" % float(_fx_dial.arc)],
@@ -1846,12 +1945,15 @@ func _show() -> void:
 			if value != null:
 				value.text = str(pair[1])
 	_timeline.visible = _mode != FX
+	if _lit_panel != null:
+		_lit_panel.visible = _mode == LIGHTS
 	## In FX mode none of these reach anything — the deck brings its own lights,
 	## its own sky and no skeleton. A dial that does nothing is worse than no dial.
 	if _look_frame != null:
 		_look_frame.visible = _mode != FX
 	if _bone_frame != null:
-		_bone_frame.visible = _mode != FX
+		## And in LIGHTS the lights list stands in the bone panel's place.
+		_bone_frame.visible = _mode != FX and _mode != LIGHTS
 	_refresh_scrub()
 	_refresh_toggles()
 
@@ -1876,6 +1978,11 @@ func _process(delta: float) -> bool:
 		if _fx_clock >= float(_fx_dial.period):
 			_fx_fire()
 		return false
+	if _mode == LIGHTS and not _lit.is_empty():
+		## The throb, live. Same clock shape the renderer runs `_flicker` on, so
+		## a light dialled to gutter here gutters there at the same rate.
+		_lit_clock += delta
+		_apply_lights()
 	_draw_overlay()
 	if _playing and _anim != null:
 		## A one-shot clip stops itself at the end. Looping is set on the clip, so
@@ -1982,7 +2089,7 @@ func _key(event: InputEventKey) -> void:
 			quit(0)
 			return
 		KEY_TAB:
-			_set_mode((_mode + 1) % 3)
+			_set_mode((_mode + 1) % MODES)
 			_tick()
 			return
 		KEY_SPACE:
@@ -2058,6 +2165,9 @@ func _save() -> void:
 	if _mode == FX:
 		_save_fx()
 		return
+	if _mode == LIGHTS:
+		_save_lights()
+		return
 	if _mode != MOUNT:
 		_note = "nothing to save in VIEW — MOUNT is what writes a number."
 		_show()
@@ -2118,3 +2228,439 @@ func _save_fx() -> void:
 	print("\n" + text + "\n\ncopied to the clipboard")
 	_note = "copied to the clipboard — paste it where the comment says."
 	_show()
+
+
+# ------------------------------------------------------- SG-81: model lights --
+##
+## THE OWNER'S ASK: "can we add a way to map lighting effects to 3D models in the
+## lab? ... anything that can be useful here since the models don't have baked
+## lighting." So: add a light to the model on screen, dial every field it has,
+## watch it on the real mesh at the size the deck draws it, and SAVE — which
+## writes `assets/models/lights.json`, the file `scripts/view3d.gd` reads at
+## launch and hangs on EVERY instance of that model. Not the clipboard. The FX
+## dials go to the clipboard because their home is a constant in the renderer;
+## these have a file, and the file has a reader, and that is the whole point.
+##
+## Everything here is the idioms already in this tool: rows of minus/plus with a
+## live number you can click and type into (`_make_value`, the SG-39 widget), a
+## clickable list on the right where the bones normally are, and the same
+## Shift x10 / Alt x0.1 step multiplier. Nothing needs a key a laptop lacks.
+
+
+## THE DIAL STACK for the selected light. Named in words, not in property names:
+## the person dialling a brazier knows what "how far the light reaches" means and
+## does not know what `omni_attenuation` is. Cone and aim appear only on a SPOT,
+## because on an omni they are fields nothing reads — the same rule the file
+## itself follows.
+func _light_row_specs() -> Array:
+	var specs: Array = [
+		["lge", "STRENGTH how bright"],
+		["lgr", "REACH    ground units"],
+		["lgf", "FALLOFF  soft / tight"],
+		["lgcr", "RED      0-255"],
+		["lgcg", "GREEN    0-255"],
+		["lgcb", "BLUE     0-255"],
+		["lgx", "ACROSS   left / right"],
+		["lgy", "UP       raise / lower"],
+		["lgz", "TOWARD   camera / away"],
+		["lgh", "THROB    Hz, 0 is steady"],
+		["lgd", "DEPTH    how deep the throb"],
+	]
+	if str(_lit_row().get("type", "omni")) == "spot":
+		specs.append(["lga", "CONE     half-angle"])
+		specs.append(["lgax", "AIM X    left / right"])
+		specs.append(["lgay", "AIM Y    down / up"])
+		specs.append(["lgaz", "AIM Z    back / forward"])
+	return specs
+
+
+## The light being edited, or {} when the model has none. Everything below goes
+## through this rather than indexing `_lit`, so an empty model is a no-op and
+## never an index error.
+func _lit_row() -> Dictionary:
+	if _lit_at < 0 or _lit_at >= _lit.size():
+		return {}
+	return _lit[_lit_at] as Dictionary
+
+
+func _light_channel(which: int) -> float:
+	var col := Color(str(_lit_row().get("color", "ffffff")))
+	return [col.r, col.g, col.b][which] * 255.0
+
+
+func _light_vec(field: String, which: int) -> float:
+	var v: Array = _lit_row().get(field, [0.0, 0.0, 0.0])
+	return float(v[which]) if v.size() == 3 else 0.0
+
+
+## One nudge on one light field. Same door as every other dial — `_dial` has
+## already snapshotted for undo and scaled `way` by the step multiplier.
+func _dial_light(which: String, way: float) -> void:
+	var row := _lit_row()
+	if row.is_empty():
+		_note = "no light on this model yet — ADD one on the right."
+		_show()
+		return
+	match which:
+		"lge": _set_light(which, float(row.get("energy", 1.0)) + 0.05 * way)
+		"lgr": _set_light(which, float(row.get("range", 200.0)) + 10.0 * way)
+		"lgf": _set_light(which, float(row.get("attenuation", 1.0)) + 0.1 * way)
+		"lgcr": _set_light(which, _light_channel(0) + 8.0 * way)
+		"lgcg": _set_light(which, _light_channel(1) + 8.0 * way)
+		"lgcb": _set_light(which, _light_channel(2) + 8.0 * way)
+		"lgx": _set_light(which, _light_vec("offset", 0) + 2.0 * way)
+		"lgy": _set_light(which, _light_vec("offset", 1) + 2.0 * way)
+		"lgz": _set_light(which, _light_vec("offset", 2) + 2.0 * way)
+		"lgh": _set_light(which, float(row.get("hz", 0.0)) + 0.5 * way)
+		"lgd": _set_light(which, float(row.get("depth", 0.0)) + 0.02 * way)
+		"lga": _set_light(which, float(row.get("angle", 45.0)) + 2.0 * way)
+		"lgax": _set_light(which, _light_vec("aim", 0) + 0.05 * way)
+		"lgay": _set_light(which, _light_vec("aim", 1) + 0.05 * way)
+		"lgaz": _set_light(which, _light_vec("aim", 2) + 0.05 * way)
+
+
+## Set a light field to an ABSOLUTE value, clamped to the SAME range the reader
+## clamps it to. One set of limits, named once, in `SkyGearView3D` — a lab that
+## let you dial past what the file can hold would be a lab that lies to you on
+## save.
+func _set_light(key: String, val: float) -> void:
+	var row := _lit_row()
+	if row.is_empty():
+		return
+	match key:
+		"lge": row["energy"] = clampf(val, 0.0, SkyGearView3D.MODEL_LIGHT_MAX_ENERGY)
+		"lgr": row["range"] = clampf(val, 1.0, SkyGearView3D.MODEL_LIGHT_MAX_RANGE)
+		"lgf": row["attenuation"] = clampf(val, 0.1, 8.0)
+		"lgcr", "lgcg", "lgcb":
+			var col := Color(str(row.get("color", "ffffff")))
+			var channel: int = {"lgcr": 0, "lgcg": 1, "lgcb": 2}[key]
+			var rgb := [col.r, col.g, col.b]
+			rgb[channel] = clampf(val, 0.0, 255.0) / 255.0
+			row["color"] = Color(rgb[0], rgb[1], rgb[2]).to_html(false)
+		"lgx", "lgy", "lgz":
+			var off: Array = row.get("offset", [0.0, 0.0, 0.0]).duplicate()
+			off[{"lgx": 0, "lgy": 1, "lgz": 2}[key]] = clampf(val, -3000.0, 3000.0)
+			row["offset"] = off
+		"lgh": row["hz"] = clampf(val, 0.0, SkyGearView3D.MODEL_LIGHT_MAX_HZ)
+		"lgd": row["depth"] = clampf(val, 0.0, 1.0)
+		"lga": row["angle"] = clampf(val, 1.0, 89.0)
+		"lgax", "lgay", "lgaz":
+			var aim: Array = row.get("aim", [0.0, -1.0, 0.0]).duplicate()
+			aim[{"lgax": 0, "lgay": 1, "lgaz": 2}[key]] = clampf(val, -4.0, 4.0)
+			## An aim of nothing points nowhere and the reader would refuse the
+			## row; keep it a direction rather than let the file go bad.
+			if Vector3(float(aim[0]), float(aim[1]), float(aim[2])).length_squared() < 1e-6:
+				aim[1] = -1.0
+			row["aim"] = aim
+	_apply_lights()
+	_show()
+
+
+## What the typed-input box is seeded with — the plain number, no unit.
+func _light_raw(key: String) -> String:
+	var row := _lit_row()
+	if row.is_empty():
+		return "0"
+	match key:
+		"lge": return "%.2f" % float(row.get("energy", 1.0))
+		"lgr": return "%.0f" % float(row.get("range", 200.0))
+		"lgf": return "%.2f" % float(row.get("attenuation", 1.0))
+		"lgcr": return "%.0f" % _light_channel(0)
+		"lgcg": return "%.0f" % _light_channel(1)
+		"lgcb": return "%.0f" % _light_channel(2)
+		"lgx": return "%.1f" % _light_vec("offset", 0)
+		"lgy": return "%.1f" % _light_vec("offset", 1)
+		"lgz": return "%.1f" % _light_vec("offset", 2)
+		"lgh": return "%.1f" % float(row.get("hz", 0.0))
+		"lgd": return "%.2f" % float(row.get("depth", 0.0))
+		"lga": return "%.0f" % float(row.get("angle", 45.0))
+		"lgax": return "%.2f" % _light_vec("aim", 0)
+		"lgay": return "%.2f" % _light_vec("aim", 1)
+		"lgaz": return "%.2f" % _light_vec("aim", 2)
+	return "0"
+
+
+## And what the row DISPLAYS, with its unit — the reason these are two functions
+## is that "330 u" is not a number you can type back in.
+func _light_shown(key: String) -> String:
+	var raw := _light_raw(key)
+	match key:
+		"lgr": return raw + " u"
+		"lgx", "lgy", "lgz": return raw + " u"
+		"lgh": return raw + " Hz"
+		"lga": return raw + " deg"
+	return raw
+
+
+func _light_summary() -> String:
+	var row := _lit_row()
+	if row.is_empty():
+		return "no lights on this model — this one renders exactly as it does today."
+	var throb := "steady"
+	if float(row.get("hz", 0.0)) > 0.0 and float(row.get("depth", 0.0)) > 0.0:
+		throb = "%s %.1f Hz x%.2f" % [str(row.get("shape", "pulse")),
+			float(row.get("hz", 0.0)), float(row.get("depth", 0.0))]
+	var off: Array = row.get("offset", [0.0, 0.0, 0.0])
+	return "%s #%s  strength %.2f  reach %.0f u  falloff %.2f  at %+.0f %+.0f %+.0f  %s" % [
+		str(row.get("type", "omni")).to_upper(), str(row.get("color", "ffffff")),
+		float(row.get("energy", 1.0)), float(row.get("range", 200.0)),
+		float(row.get("attenuation", 1.0)), float(off[0]), float(off[1]),
+		float(off[2]), throb]
+
+
+# ------------------------------------------------------------- lights: panel --
+
+## Right-hand column, where the bone list sits in the other modes — one list you
+## scan per side, which is the rule the model list and the LOOK panel already
+## follow.
+func _build_lights_panel() -> void:
+	_lit_panel = _panel(Vector2(_w - LIST_W - 10.0, 10.0), Vector2(LIST_W, 0))
+	var box := VBoxContainer.new()
+	box.add_theme_constant_override("separation", 2)
+	_lit_panel.add_child(box)
+	_heading(box, "LIGHTS ON THIS MODEL")
+	_lit_list = VBoxContainer.new()
+	_lit_list.add_theme_constant_override("separation", 1)
+	box.add_child(_lit_list)
+	_lit_rows = box
+	for pair in [["ADD OMNI", "lgadd"], ["ADD SPOT", "lgaddspot"],
+			["COPY THIS ONE", "lgcopy"], ["REMOVE THIS ONE", "lgdel"],
+			["OMNI <-> SPOT", "lgtype"], ["PULSE <-> FLICKER", "lgshape"]]:
+		var b := _chip(str(pair[0]), LIST_W - 24.0, 21, 11)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.pressed.connect(_press.bind(str(pair[1])))
+		box.add_child(b)
+		_toggle_btn[str(pair[1])] = b
+	_lit_panel.visible = false
+
+
+func _rebuild_light_list() -> void:
+	if _lit_list == null:
+		return
+	for old in _lit_list.get_children():
+		_lit_list.remove_child(old)
+		old.queue_free()
+	if _lit.is_empty():
+		var none := Label.new()
+		none.text = "none yet.\nADD one below."
+		none.add_theme_font_size_override("font_size", 11)
+		none.add_theme_color_override("font_color", Color("#6f655e"))
+		_lit_list.add_child(none)
+		return
+	for i in _lit.size():
+		var b := _chip("", LIST_W - 24.0, ROW_H, 11)
+		b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		b.flat = true
+		b.pressed.connect(_pick_light.bind(i))
+		_lit_list.add_child(b)
+	_refresh_light_list()
+
+
+func _refresh_light_list() -> void:
+	if _lit_list == null:
+		return
+	for i in _lit_list.get_child_count():
+		var b := _lit_list.get_child(i) as Button
+		if b == null or i >= _lit.size():
+			continue
+		var row: Dictionary = _lit[i]
+		b.text = "%d  %-4s  %.2f" % [i + 1, str(row.get("type", "omni")),
+			float(row.get("energy", 1.0))]
+		## The row's own colour on the row, because a list of four warm lights
+		## that all read "omni 1.20" is a list you cannot tell apart.
+		b.add_theme_color_override("font_color",
+			Color(str(row.get("color", "ffffff"))) if i == _lit_at
+			else Color("#b9afaa"))
+
+
+func _pick_light(which: int) -> void:
+	_lit_at = clampi(which, 0, maxi(0, _lit.size() - 1))
+	_build_rows()
+	_refresh_light_list()
+	_show()
+
+
+func _add_light(type: String) -> void:
+	_snapshot()
+	var row: Dictionary = NEW_LIGHT.duplicate(true)
+	row["type"] = type
+	_lit.append(row)
+	_lit_at = _lit.size() - 1
+	_after_light_change("added a %s. Dial it on the left; SAVE writes the file." % type)
+
+
+func _copy_light() -> void:
+	if _lit_row().is_empty():
+		return
+	_snapshot()
+	_lit.append(_lit_row().duplicate(true))
+	_lit_at = _lit.size() - 1
+	_after_light_change("copied it — two lights of different colours is most of what a furnace is.")
+
+
+func _remove_light() -> void:
+	if _lit.is_empty():
+		return
+	_snapshot()
+	_lit.remove_at(_lit_at)
+	_lit_at = clampi(_lit_at, 0, maxi(0, _lit.size() - 1))
+	_after_light_change("removed. SAVE with none left erases this model's row entirely.")
+
+
+## OMNI <-> SPOT and PULSE <-> FLICKER. Two-value fields get a toggle rather than
+## a dial: a number line with two points on it is a button.
+func _flip_light_field(field: String) -> void:
+	var row := _lit_row()
+	if row.is_empty():
+		return
+	_snapshot()
+	if field == "type":
+		row["type"] = "spot" if str(row.get("type", "omni")) == "omni" else "omni"
+	else:
+		row["shape"] = "flicker" if str(row.get("shape", "pulse")) == "pulse" else "pulse"
+	_after_light_change("")
+
+
+func _after_light_change(note: String) -> void:
+	if note != "":
+		_note = note
+	_build_rows()
+	_rebuild_light_list()
+	_apply_lights()
+	_show()
+
+
+# -------------------------------------------------------- lights: live + file --
+
+## The model's rows, from the file the GAME reads. Filled out to complete rows so
+## every dial has something to move; the sparse shape goes back on save.
+func _load_lights() -> void:
+	var table := SkyGearView3D.load_model_lights()
+	_lit.clear()
+	for row in table.get(_models[_at], []):
+		_lit.append(SkyGearView3D.model_light_full(row as Dictionary))
+	_lit_at = 0
+	_lit_saved = str(_lit)
+	_rebuild_light_list()
+	_apply_lights()
+
+
+## The lamps themselves, in the lab world, driven by the RENDERER's own applier.
+## Outside the model's transform for the reason the captain's key light is:
+## a light parented to a node scaled by 0.009 has its range scaled by 0.009 too.
+func _apply_lights() -> void:
+	var want: int = _lit.size() if _mode == LIGHTS else 0
+	while _lit_nodes.size() > want:
+		var spare: Node = _lit_nodes.pop_back()
+		spare.queue_free()
+	while _lit_nodes.size() < want:
+		_lit_nodes.append(null)
+	for i in want:
+		var row: Dictionary = _lit[i]
+		var spot: bool = str(row.get("type", "omni")) == "spot"
+		var lamp: Light3D = _lit_nodes[i]
+		## A type flip is a different node class, so the old one goes.
+		if lamp != null and (lamp is SpotLight3D) != spot:
+			lamp.queue_free()
+			lamp = null
+		if lamp == null:
+			lamp = SpotLight3D.new() if spot else OmniLight3D.new()
+			lamp.shadow_enabled = false
+			_world.add_child(lamp)
+			_lit_nodes[i] = lamp
+		## GROUND UNITS through the renderer's own WORLD_SCALE, and the lab stands
+		## every model at the deck's own size (`_load`), so an offset dialled here
+		## is the same offset there.
+		SkyGearView3D.apply_model_light(lamp, row, Vector3.ZERO, Basis.IDENTITY,
+			1.0, _lit_clock, 0.0)
+		lamp.position = _light_at(row)
+
+
+## Where a row's light sits in the lab, in world metres.
+func _light_at(row: Dictionary) -> Vector3:
+	var off: Array = row.get("offset", [0.0, 0.0, 0.0])
+	return Vector3(float(off[0]), float(off[1]), float(off[2])) \
+		* SkyGearView3D.WORLD_SCALE
+
+
+func _save_lights() -> void:
+	var why := SkyGearView3D.save_model_lights(_models[_at], _lit)
+	if why != "":
+		_note = "SAVE FAILED — %s" % why
+		print(why)
+		_show()
+		return
+	_lit_saved = str(_lit)
+	_note = "SAVED · assets/models/lights.json — every %s on the deck wears these on the next launch." % _models[_at]
+	print("saved %d light(s) on %s -> %s"
+		% [_lit.size(), _models[_at], SkyGearView3D.MODEL_LIGHTS_PATH])
+	_show()
+
+
+# ------------------------------------------------------------ lights: gizmo --
+
+## WHERE THE LIGHT IS, drawn on the model. A cross at the position, a ring at
+## its reach on the ground plane under it, and for a spot the aim line and the
+## circle its cone lands in. Through the mesh, like the bone axes: a light
+## inside a brazier is a light you would otherwise be positioning by guesswork.
+func _draw_light_gizmos(mesh: ImmediateMesh) -> void:
+	if _lit.is_empty():
+		return
+	var mat := StandardMaterial3D.new()
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.vertex_color_use_as_albedo = true
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.no_depth_test = true
+	mesh.surface_begin(Mesh.PRIMITIVE_LINES, mat)
+	for i in _lit.size():
+		var row: Dictionary = _lit[i]
+		var at := _light_at(row)
+		var live: bool = i == _lit_at
+		var tint := Color(str(row.get("color", "ffffff")))
+		tint.a = 1.0 if live else 0.28
+		var arm: float = 0.055 if live else 0.032
+		for axis in [Vector3.RIGHT, Vector3.UP, Vector3.BACK]:
+			mesh.surface_set_color(tint)
+			mesh.surface_add_vertex(at - axis * arm)
+			mesh.surface_set_color(tint)
+			mesh.surface_add_vertex(at + axis * arm)
+		## The reach, as a ring on the ground under it — read against the grid,
+		## whose squares are 25 ground units, so "how far does this carry" is a
+		## question you answer by counting squares.
+		var reach: float = float(row.get("range", 200.0)) * SkyGearView3D.WORLD_SCALE
+		var faint := tint
+		faint.a = 0.5 if live else 0.12
+		_gizmo_ring(mesh, Vector3(at.x, 0.001, at.z), reach, faint)
+		if str(row.get("type", "omni")) == "spot":
+			var aim: Array = row.get("aim", [0.0, -1.0, 0.0])
+			var dir := Vector3(float(aim[0]), float(aim[1]), float(aim[2])).normalized()
+			var far := at + dir * reach
+			mesh.surface_set_color(tint)
+			mesh.surface_add_vertex(at)
+			mesh.surface_set_color(tint)
+			mesh.surface_add_vertex(far)
+			## The cone's footprint at full reach, as four spokes — cheap, and
+			## enough to read how wide 40 degrees actually is on this model.
+			var spread: float = reach * tan(deg_to_rad(float(row.get("angle", 45.0))))
+			var side := dir.cross(Vector3.UP)
+			if side.length_squared() < 1e-6:
+				side = dir.cross(Vector3.BACK)
+			side = side.normalized()
+			var other := dir.cross(side).normalized()
+			for edge in [side, -side, other, -other]:
+				mesh.surface_set_color(faint)
+				mesh.surface_add_vertex(at)
+				mesh.surface_set_color(faint)
+				mesh.surface_add_vertex(far + edge * spread)
+	mesh.surface_end()
+
+
+func _gizmo_ring(mesh: ImmediateMesh, at: Vector3, radius: float, tint: Color) -> void:
+	var steps := 40
+	for i in steps:
+		var a: float = TAU * float(i) / float(steps)
+		var b: float = TAU * float(i + 1) / float(steps)
+		mesh.surface_set_color(tint)
+		mesh.surface_add_vertex(at + Vector3(cos(a), 0.0, sin(a)) * radius)
+		mesh.surface_set_color(tint)
+		mesh.surface_add_vertex(at + Vector3(cos(b), 0.0, sin(b)) * radius)

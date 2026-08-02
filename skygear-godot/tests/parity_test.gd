@@ -1799,6 +1799,194 @@ func _view() -> void:
 			env.ambient_light_energy, view._moon.light_energy, view._lantern.light_energy,
 			furnace_emit])
 
+	## SG-81 — MODEL LIGHTS: THE TABLE, THE BUDGET, AND EVERY FIELD SPENT.
+	##
+	## The owner asked for lighting he could map onto the models in the lab. The
+	## renderer got the READER first (`scripts/view3d.gd`, the MODEL LIGHTS
+	## region) and these are the six facts that keep it from becoming this
+	## project's sixth table nothing reads: the file round-trips, one malformed
+	## row costs one light, an absent file is today's rendering, the cap holds
+	## under a flood, the budget is arithmetic rather than a promise, and EVERY
+	## field in the schema moves something on a real Light3D.
+	var lights_raw: Variant = JSON.parse_string(
+		FileAccess.get_file_as_string(SkyGearView3D.MODEL_LIGHTS_PATH))
+	var lights_once := SkyGearView3D.sanitise_model_lights(lights_raw)
+	var lights_twice := SkyGearView3D.sanitise_model_lights({"models": lights_once})
+	_check("view", "the model lights file round-trips through its own reader",
+		not lights_once.is_empty() and str(lights_once) == str(lights_twice),
+		"%d model keys, %s" % [lights_once.size(),
+			"stable" if str(lights_once) == str(lights_twice) else "DRIFTED"])
+
+	## PER-KEY, AND FINER: a model whose entry is nonsense loses that model; a
+	## single bad ROW loses that row and leaves its neighbours lit. The
+	## `hud_layout` rule, applied to a file the renderer reads every launch.
+	var good_row := {"type": "omni", "color": "ff8a3a", "energy": 1.0,
+		"range": 200.0, "offset": [0.0, 40.0, 0.0]}
+	var spoiled := SkyGearView3D.sanitise_model_lights({"models": {
+		"brazier": [good_row],
+		"lantern_post": "this is not a list of lights",
+		"steam_vent": [{"type": "disco", "color": "ff8a3a", "offset": [0, 0, 0]},
+			good_row],
+		"boiler": [{"type": "omni", "color": "not a colour", "offset": [0, 0, 0]}],
+	}})
+	_check("view", "a malformed lights entry falls back alone, never the deck",
+		spoiled.size() == 2 and spoiled.has("brazier") and spoiled.has("steam_vent")
+			and (spoiled["brazier"] as Array).size() == 1
+			and (spoiled["steam_vent"] as Array).size() == 1,
+		"kept %s" % str(spoiled.keys()))
+
+	## AN ABSENT FILE IS TODAY'S RENDERING, EXACTLY. Not "nearly" — with no rows
+	## the flush returns on its first line, no light node is ever made, and both
+	## built-in accents the table can supersede (`model_lit_by_table` gates them)
+	## answer false for every key there is.
+	var absent := SkyGearView3D.load_model_lights(
+		"res://assets/models/lights_that_are_not_there.json")
+	var kept_rows: Dictionary = view._model_light_rows
+	var omnis_before: int = view._model_omnis.size()
+	var spots_before: int = view._model_spots.size()
+	view._model_light_rows = {}
+	view._flush_model_lights()
+	var pools_untouched: bool = view._model_omnis.size() == omnis_before \
+		and view._model_spots.size() == spots_before \
+		and not view.model_lit_by_table("brazier") \
+		and not view.model_lit_by_table(SkyGearView3D.BOILER_MODEL)
+	view._model_light_rows = kept_rows
+	_check("view", "an absent lights file makes no light and changes no picture",
+		absent.is_empty() and pools_untouched,
+		"absent %s · pools %d/%d unchanged"
+		% [str(absent.is_empty()), omnis_before, spots_before])
+
+	## THE CAP, UNDER A FLOOD. Forty rows on one key, each asking forty energy
+	## over forty metres — the shape of a tuned file that got away from
+	## somebody — against the SG-40 nearest-N pattern and the read-time clamps.
+	var flood_host := Node3D.new()
+	view.add_child(flood_host)
+	var flood_rows: Array = []
+	for i in 40:
+		flood_rows.append(SkyGearView3D.model_light_row({"type": "omni",
+			"color": "ffffff", "energy": 40.0, "range": 4000.0,
+			"offset": [float(i) * 30.0, 60.0, 0.0]}))
+	view._model_light_statics.append({"key": "sg81_flood", "node": flood_host})
+	view._model_light_rows = {"sg81_flood": flood_rows}
+	view._flush_model_lights()
+	var flood_live: int = view._model_lights_live
+	var flood_spend: float = view._model_lights_energy
+	var flood_energy: float = float((flood_rows[0] as Dictionary)["energy"])
+	var flood_range: float = float((flood_rows[0] as Dictionary)["range"])
+	_check("view", "the model-light cap holds under a flood, and no file can save a sun",
+		flood_live <= SkyGearView3D.MODEL_LIGHT_CAP
+			and flood_spend <= SkyGearView3D.MODEL_LIGHT_ENERGY_BUDGET + 0.001
+			and flood_energy <= SkyGearView3D.MODEL_LIGHT_MAX_ENERGY
+			and flood_range <= SkyGearView3D.MODEL_LIGHT_MAX_RANGE
+			and view._model_lights_asked == 40,
+		"%d of 40 asked lit for %.2f energy (cap %d, budget %.2f); a 40/4000 row read back as %.2f/%.0f"
+		% [flood_live, flood_spend, SkyGearView3D.MODEL_LIGHT_CAP,
+			SkyGearView3D.MODEL_LIGHT_ENERGY_BUDGET, flood_energy, flood_range])
+
+	## THE TWIN-GUARD, one field at a time. The SG-34 environment guard measures
+	## CONSTANTS and cannot see this table at all — so nothing there would notice
+	## a schema field the renderer had stopped spending. This walks the whole
+	## path for every field the file can carry: change it, and something on a
+	## real Light3D has to move. A dead field fails the build.
+	var probe_host := Node3D.new()
+	view.add_child(probe_host)
+	probe_host.position = Vector3(4.0, 0.0, -3.0)
+	view._model_light_statics.append({"key": "sg81_probe", "node": probe_host})
+	view._flicker = 0.37
+	var base_light := {"type": "spot", "color": "ff8a3a", "energy": 1.1,
+		"range": 240.0, "attenuation": 1.3, "offset": [0.0, 60.0, 10.0],
+		"angle": 40.0, "aim": [0.0, -1.0, 0.2], "hz": 7.0, "depth": 0.3,
+		"shape": "pulse"}
+	var base_sig := _light_signature(view, base_light)
+	var dead_fields: Array[String] = []
+	for field in [["type", "omni"], ["color", "3ac8ff"], ["energy", 1.9],
+			["range", 400.0], ["attenuation", 4.0], ["offset", [0.0, 20.0, 90.0]],
+			["angle", 70.0], ["aim", [0.6, -1.0, 0.0]], ["hz", 19.0],
+			["depth", 0.9], ["shape", "flicker"]]:
+		var mutated := base_light.duplicate(true)
+		mutated[str(field[0])] = field[1]
+		if str(_light_signature(view, mutated)) == str(base_sig):
+			dead_fields.append(str(field[0]))
+	view._model_light_rows = kept_rows
+	view._flush_model_lights()
+	_check("view", "every field in the lights schema is read by the renderer",
+		dead_fields.is_empty() and not base_sig.has("refused")
+			and not base_sig.has("dark"),
+		"11 fields walked, dead: %s" % ("none" if dead_fields.is_empty()
+			else str(dead_fields)))
+
+	## AND THE BUDGET, IN NUMBERS. The ceilings a row is clamped to on the way
+	## in, the count cap, and the summed-energy budget — pinned here because
+	## SG-34's guard reads the environment and would stay green while a tuned
+	## file lit a second sun beside it. The shipped seed is measured against the
+	## same ceilings, so a hand-edit past them fails the build rather than the eye.
+	var seed_total := 0.0
+	var seed_worst := 0.0
+	var seed_rows := 0
+	for key in lights_once.keys():
+		for row_any in (lights_once[key] as Array):
+			var row: Dictionary = row_any as Dictionary
+			seed_rows += 1
+			seed_total += float(row["energy"])
+			seed_worst = maxf(seed_worst, float(row["energy"]))
+	var no_shadow := true
+	for lamp_any in (view._model_omnis as Array) + (view._model_spots as Array):
+		if (lamp_any as Light3D).shadow_enabled:
+			no_shadow = false
+	_check("view", "model lights are accents, and the budget says so in numbers",
+		SkyGearView3D.MODEL_LIGHT_CAP <= 8
+			and SkyGearView3D.MODEL_LIGHT_MAX_ENERGY <= 2.0
+			and SkyGearView3D.MODEL_LIGHT_MAX_RANGE <= 460.0
+			and SkyGearView3D.MODEL_LIGHT_ENERGY_BUDGET <= 7.5
+			and seed_worst <= SkyGearView3D.MODEL_LIGHT_MAX_ENERGY
+			and seed_rows >= 5 and no_shadow,
+		"cap %d · per light <= %.2f over <= %.0f units · sum <= %.2f · seed %d rows, brightest %.2f, %.2f nominal, shadows %s"
+		% [SkyGearView3D.MODEL_LIGHT_CAP, SkyGearView3D.MODEL_LIGHT_MAX_ENERGY,
+			SkyGearView3D.MODEL_LIGHT_MAX_RANGE,
+			SkyGearView3D.MODEL_LIGHT_ENERGY_BUDGET, seed_rows, seed_worst,
+			seed_total, "off" if no_shadow else "ON"])
+
+	## THE LAB'S SAVE IS THE READER'S LOAD. `tools/model_lab.gd` LIGHTS mode calls
+	## `save_model_lights` and nothing else, so this drives the whole write path
+	## to a scratch file and reads it back through the shipping loader: what the
+	## lab saves is what the deck gets, and an emptied model ERASES its row rather
+	## than leaving `"lights": []` for nothing to read.
+	var scratch := "user://sg81_lights_roundtrip.json"
+	var lab_row := {"type": "spot", "color": "3ac8ff", "energy": 0.7,
+		"range": 180.0, "attenuation": 2.0, "offset": [1.0, 55.0, -3.0],
+		"angle": 33.0, "aim": [0.0, -1.0, 0.5], "hz": 4.0, "depth": 0.2,
+		"shape": "flicker"}
+	var wrote := SkyGearView3D.save_model_lights("sg81_scratch", [lab_row], scratch)
+	var read_back := SkyGearView3D.load_model_lights(scratch)
+	var same: bool = read_back.has("sg81_scratch") 		and str(read_back["sg81_scratch"]) == str([SkyGearView3D.model_light_row(lab_row)])
+	SkyGearView3D.save_model_lights("sg81_scratch", [], scratch)
+	var emptied := SkyGearView3D.load_model_lights(scratch)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(scratch))
+	_check("view", "what the lab saves is what the renderer reads back",
+		wrote == "" and same and not emptied.has("sg81_scratch"),
+		"write %s · round-trip %s · emptying the model erased its row %s"
+		% ["ok" if wrote == "" else wrote, str(same),
+			str(not emptied.has("sg81_scratch"))])
+
+	## AND A SEEDED KEY TAKES THE BUILT-IN ACCENT'S PLACE RATHER THAN DOUBLING
+	## IT. A brazier with a mesh and a row is lit ONCE — by the table — and the
+	## Boiler's own lamp node is not built at all, because the `boiler` row is
+	## authored at `BOILER_LAMP_FULL` in the same place with the same colour and
+	## `_model_light_gain` carries its health drive across. The painted floor
+	## pool under every flame stays either way: it is paint, not budget.
+	view._process(0.05)
+	var pools := 0
+	for key in view._decals.keys():
+		if str(key).begins_with("glow"):
+			pools += 1
+	_check("view", "a lit model key replaces the built-in flame light, never doubles it",
+		view._lights.is_empty() and view._boiler_glow == null and pools >= 6
+			and view._model_lights_live > 0,
+		"%d built-in flame omnis · boiler lamp from the %s · %d painted pools · %d of %d model lights live for %.2f energy"
+		% [view._lights.size(), "table" if view._boiler_glow == null else "renderer",
+			pools, view._model_lights_live, view._model_lights_asked,
+			view._model_lights_energy])
+
 	## SG-41 — NO STEEL-NAVY CARGO ON A WARM DECK. The board blamed the
 	## `crate_stack` MODEL's baked texture for the one genuinely cool object on
 	## the SG-34 deck; MEASURED (posed at the real camera, the model's screen
@@ -8448,3 +8636,40 @@ func _readability() -> void:
 		int(cap.coach._shown.get("find_vent", 0)) == 0,
 		"the vent line fired for the captain")
 	cap.queue_free()
+
+
+## SG-81's twin-guard probe: run ONE light row through the renderer's WHOLE
+## model-light path — sanitise, request, budget, apply — and read back what it
+## actually did to a real Light3D. Anything the schema can say has to turn up
+## somewhere in this signature, or the field is data with no reader.
+func _light_signature(view: SkyGearView3D, raw: Dictionary) -> Dictionary:
+	var row: Variant = SkyGearView3D.model_light_row(raw)
+	if row == null:
+		return {"refused": true}
+	view._model_light_rows = {"sg81_probe": [row]}
+	view._flush_model_lights()
+	var lamp: Light3D = null
+	for candidate in (view._model_spots as Array) + (view._model_omnis as Array):
+		if (candidate as Light3D).light_energy > 0.0:
+			lamp = candidate as Light3D
+			break
+	if lamp == null:
+		return {"dark": true}
+	var aim: Vector3 = -lamp.global_transform.basis.z
+	var sig := {
+		"class": lamp.get_class(),
+		"pos": "%.5f %.5f %.5f" % [lamp.position.x, lamp.position.y, lamp.position.z],
+		"color": lamp.light_color.to_html(false),
+		"energy": "%.6f" % lamp.light_energy,
+		"aim": "%.4f %.4f %.4f" % [aim.x, aim.y, aim.z],
+	}
+	if lamp is SpotLight3D:
+		var spot := lamp as SpotLight3D
+		sig["range"] = "%.6f" % spot.spot_range
+		sig["attenuation"] = "%.5f" % spot.spot_attenuation
+		sig["angle"] = "%.4f" % spot.spot_angle
+	else:
+		var omni := lamp as OmniLight3D
+		sig["range"] = "%.6f" % omni.omni_range
+		sig["attenuation"] = "%.5f" % omni.omni_attenuation
+	return sig

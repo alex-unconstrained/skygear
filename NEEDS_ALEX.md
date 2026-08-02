@@ -21,6 +21,17 @@ knight both came from your own Meshy sessions after prompted attempts failed;
   plate that is a filled disc with a hole in it — hence the flood.)
 - **The cape is gone**, off by default until a rebuild earns it back.
 - **Every prop was oversized** for one systematic reason and all are trued now.
+- **THE MODELS CAN BE LIT NOW, AND YOU CAN DO IT YOURSELF (SG-81).** `SkyGear
+  Tools.bat lab` → pick a model → the new **LIGHTS** button: ADD OMNI or ADD
+  SPOT on the right, dial colour/strength/reach/falloff/offset/cone/throb on the
+  left (click any number to type it, wheel a row to nudge), turn on **DARK
+  ROOM** to see only the light you are making, then **SAVE** — it writes
+  `assets/models/lights.json` and the game reads it on the next launch, on every
+  one of that model on the deck. **Feel-check the five I seeded**: the brazier,
+  the lantern post, the steam vent (a cone aimed up out of the grate), the
+  Boiler, and the furnace knight. The first four are dialled to reproduce the
+  lights they already had, so the deck should look the same to you; the knight's
+  chest light is new and is my answer to question 2 below.
 - **F4 resizes text boxes**, and **your saves work** — see below.
 
 ## Answers you owe (quick)
@@ -28,10 +39,14 @@ knight both came from your own Meshy sessions after prompted attempts failed;
 1. **Do the cannons now read too small?** They were the worst scale offender
    (2.07× oversized) and came down the most. If they look wrong, it is their
    130-unit height constant to raise, not the new ruler to loosen.
-2. **The knight's chest glow.** The pipeline reads an emission map for the
-   first time, but on the deck the painted sprite still out-glows the mesh
-   (34.1 vs 45.4 mean luminance) and raising energy does not help — the
-   tonemapper saturates. Accept, or should it get a real look? (SG-86)
+2. **The knight's chest glow — partly answered, and it wants your eye.** He now
+   carries a per-model light from SG-81's table (a 1.15-energy warm omni at the
+   chest), which measurably lifts him: right-hand knight 30.4 → 33.4 mean
+   luminance, 10 → 276 hot-orange pixels over the same crop. It does NOT shut
+   the gap to the painting's 45.4, and one of three knights came out flat
+   because a brazier beside him gave up its omni to the light budget. Is he
+   bright enough now, or does he want more? It is one number in the lab.
+   (SG-81 / SG-86)
 3. **SG-84 — the captain can walk *inside* the hulk and vanish.** Harmless with
    a flat card, not with a 429-unit-deep hull. It is a movement change, so it
    wants your feel-check before I pick a fix.

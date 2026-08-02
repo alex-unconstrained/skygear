@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "note": "SG-81. Per-MODEL-KEY light accents, read by scripts/view3d.gd (the MODEL LIGHTS region) and applied to every live instance of the key. Edited in the lab: SkyGear Tools.bat lab, LIGHTS mode, SAVE writes this file. offset/range are GROUND UNITS; offset is in the model's own frame, +Y up, +Z the face it shows the camera. type omni|spot; spot adds angle (degrees, half-cone) and aim. hz/depth/shape are the optional throb - shape pulse is a clean sine, flicker is a fire. Energy is clamped to MODEL_LIGHT_MAX_ENERGY and range to MODEL_LIGHT_MAX_RANGE at read time, and the nearest MODEL_LIGHT_CAP within MODEL_LIGHT_ENERGY_BUDGET are the ones that actually light.",
+  "models": {
+    "brazier": {
+      "lights": [
+        {
+          "type": "omni",
+          "color": "ff8a3a",
+          "energy": 1.2,
+          "range": 330.0,
+          "attenuation": 1.0,
+          "offset": [0.0, 60.0, 0.0],
+          "hz": 11.0,
+          "depth": 0.12,
+          "shape": "pulse"
+        }
+      ]
+    },
+    "lantern_post": {
+      "lights": [
+        {
+          "type": "omni",
+          "color": "ffb347",
+          "energy": 0.82,
+          "range": 260.0,
+          "attenuation": 1.0,
+          "offset": [0.0, 110.0, 0.0],
+          "hz": 6.0,
+          "depth": 0.12,
+          "shape": "pulse"
+        }
+      ]
+    },
+    "steam_vent": {
+      "lights": [
+        {
+          "type": "spot",
+          "color": "ff8f3c",
+          "energy": 0.95,
+          "range": 220.0,
+          "attenuation": 1.2,
+          "offset": [0.0, 6.0, 0.0],
+          "angle": 42.0,
+          "aim": [0.0, 1.0, 0.0],
+          "hz": 2.1,
+          "depth": 0.28,
+          "shape": "pulse"
+        }
+      ]
+    },
+    "boiler": {
+      "lights": [
+        {
+          "type": "omni",
+          "color": "ff9a4a",
+          "energy": 1.33,
+          "range": 360.0,
+          "attenuation": 1.0,
+          "offset": [0.0, 60.0, 96.0]
+        }
+      ]
+    },
+    "armored": {
+      "lights": [
+        {
+          "type": "omni",
+          "color": "ff7a30",
+          "energy": 1.15,
+          "range": 210.0,
+          "attenuation": 1.4,
+          "offset": [0.0, 128.0, 26.0],
+          "hz": 5.0,
+          "depth": 0.14,
+          "shape": "flicker"
+        }
+      ]
+    }
+  }
+}

@@ -407,6 +407,10 @@ static func camera_back() -> float:
 
 
 func _build_world() -> void:
+	## SG-81, before anything that can be lit by it: the per-model lights table.
+	## An absent or unreadable file leaves this empty, which is the "no model
+	## lights at all, today's rendering" path — see the MODEL LIGHTS region.
+	_model_light_rows = load_model_lights()
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	## A real sky, because the top of the frame is where the horizon is and a
@@ -2201,15 +2205,23 @@ func _build_boiler() -> void:
 	boiler.position = Vector3(SkyGearGame.BOILER_POSITION.x * WORLD_SCALE, 0.0,
 		SkyGearGame.BOILER_POSITION.y * WORLD_SCALE)
 	add_child(boiler)
+	## SG-81: the one host that is neither pooled nor rigged. Registered whether
+	## or not the table names it, because the table can gain a `boiler` row
+	## without this function being edited again.
+	_model_light_statics.append({"key": BOILER_MODEL, "node": boiler})
 	## A generated mesh if one has been wrapped, the primitives below if not.
 	## Both paths stay, and this one is not like the props: a prop that fails to
 	## load falls back to a painted billboard, and there is no painted Boiler.
 	## The object you lose the run by cannot be allowed to not exist.
-	if _boiler_mesh(boiler):
+	if not _boiler_mesh(boiler):
+		_boiler_primitive(boiler)
+	## And the furnace lamp — UNLESS the lights table has taken it over (SG-81).
+	## A `boiler` row is authored at `BOILER_LAMP_FULL` in the same place with
+	## the same colour, so the picture is the one this line drew; what changes is
+	## that the owner can now move it in the lab. Without a row this is exactly
+	## the call it always was.
+	if not model_lit_by_table(BOILER_MODEL):
 		_boiler_fire(boiler)
-		return
-	_boiler_primitive(boiler)
-	_boiler_fire(boiler)
 
 
 ## THE PRIMITIVE FALLBACK, rebuilt to be honest — board SG-30.
@@ -2377,15 +2389,27 @@ func _boiler_fire(boiler: Node3D) -> void:
 ## The lamp also FLICKERS harder as it fails rather than merely dimming, because
 ## a light that only fades reads as dusk falling and a light that gutters reads
 ## as something wrong.
-func _sync_boiler_damage() -> void:
-	if _boiler_glow == null:
-		return
+## The furnace lamp's brightness, as one expression with one home. Read by the
+## built-in lamp below AND — when the lights table has taken the lamp over
+## (SG-81) — by `_model_light_gain`, which divides it by `BOILER_LAMP_FULL` to
+## turn it back into the multiplier a table row rides. Two callers, one number:
+## the failure STATUS names is two functions each with their own copy.
+func _boiler_lamp() -> float:
 	var life: float = clampf(game.boiler_hp / maxf(1.0, game.boiler_max_hp), 0.0, 1.0)
 	## Never all the way out while the run is alive: at 1 hp left the Boiler is
 	## still the brightest thing on the deck and still the thing you are stood on
 	## defending. A quarter of the light is a dying fire, no light is a prop.
 	var gutter: float = 1.0 if life > 0.35 else 0.72 + 0.28 * sin(_flicker * 13.0)
-	_boiler_glow.light_energy = (0.38 + 0.95 * life) * gutter
+	return (0.38 + 0.95 * life) * gutter
+
+
+func _sync_boiler_damage() -> void:
+	var life: float = clampf(game.boiler_hp / maxf(1.0, game.boiler_max_hp), 0.0, 1.0)
+	## The lamp, when it is still the renderer's own. With a table row it is a
+	## pooled model light and `_flush_model_lights` writes it — the tint below
+	## runs either way, which is why this is a branch and not an early return.
+	if _boiler_glow != null:
+		_boiler_glow.light_energy = _boiler_lamp()
 	## And the body goes cold and grey. There is no `modulate` on a Node3D, and
 	## `set_instance_shader_parameter` is a no-op against a StandardMaterial3D —
 	## it needs a shader that declares the uniform, which an imported glTF
@@ -2815,6 +2839,9 @@ func _process(delta: float) -> void:
 	## `_flush_core_lights` — this is the cap that keeps a lane of bolts from
 	## becoming a lane of lights (SG-34).
 	_flush_core_lights()
+	## And the per-model accents, after every prop mesh and rig this frame has
+	## been placed — same shape, same reason, its own budget (SG-81).
+	_flush_model_lights()
 	_sync_airstream(delta)
 	## The flashes fade. Ember lingers, Frost is instant — the decay carries the
 	## element as much as the colour does.
@@ -4322,7 +4349,17 @@ func _sync_all(delta: float) -> void:
 			continue
 		var id := prop.get_instance_id()
 		var kind: String = prop.prop_type
-		var wants_light: bool = (not prop.dead) and (kind == "lantern" or kind == "brazier")
+		var flame: bool = (not prop.dead) and (kind == "lantern" or kind == "brazier")
+		## SG-81 — AND THE TABLE TAKES THIS LIGHT'S PLACE WHEN IT HAS ONE. Only
+		## when the MESH actually stood up this frame: a model light hangs off a
+		## model, so a brazier that fell back to its painted billboard keeps the
+		## built-in omni rather than going dark. The floor pool below is drawn
+		## either way — it is paint, it is most of why this deck reads as lit at
+		## 41 degrees, and it is not part of the light budget.
+		var by_table: bool = flame \
+			and model_lit_by_table(str(PROP_MODEL.get(kind, ""))) \
+			and _prop_models.has("p%d" % id)
+		var wants_light: bool = flame and not by_table
 		var light: OmniLight3D = _lights.get(id)
 		if wants_light and light == null:
 			light = OmniLight3D.new()
@@ -4331,23 +4368,25 @@ func _sync_all(delta: float) -> void:
 		elif not wants_light and light != null:
 			light.queue_free()
 			_lights.erase(id)
-		if light != null:
+		if flame:
 			## Accents, not floodlights. At 3.4 energy over a five-metre radius
 			## three braziers turned a dusk deck into an orange room; the browser
 			## paints its lantern haze at a fraction of the deck's own value and
 			## that ratio is the whole mood.
 			var warm: bool = kind == "brazier"
 			var jitter: float = 1.0 + sin(_flicker * (11.0 if warm else 6.0) + float(id % 17)) * 0.12
-			light.light_color = Color("#ff8a3a") if warm else Color("#ffb347")
-			light.light_energy = (1.2 if warm else 0.82) * jitter
-			light.omni_range = (330.0 if warm else 260.0) * WORLD_SCALE
-			light.position = Vector3(prop.global_position.x * WORLD_SCALE,
-				(60.0 if warm else 110.0) * WORLD_SCALE, prop.global_position.y * WORLD_SCALE)
+			if light != null:
+				light.light_color = Color("#ff8a3a") if warm else Color("#ffb347")
+				light.light_energy = (1.2 if warm else 0.82) * jitter
+				light.omni_range = (330.0 if warm else 260.0) * WORLD_SCALE
+				light.position = Vector3(prop.global_position.x * WORLD_SCALE,
+					(60.0 if warm else 110.0) * WORLD_SCALE, prop.global_position.y * WORLD_SCALE)
 			## And the pool on the planking. A point light alone falls off into
 			## the deck's own roughness and reads as nothing from this angle; the
 			## browser paints a radial gradient under every flame for exactly
 			## this reason, and it is most of why its deck looks lit rather than
-			## bright.
+			## bright. Drawn whichever tier is lighting the flame — the model
+			## light replaces the omni, never this.
 			_decal("glow%d" % id, prop.global_position, 0.0,
 				(430.0 if warm else 330.0), (430.0 if warm else 330.0), _blob_texture(),
 				Color(1.0, 0.56, 0.22, 0.26 * jitter) if warm
@@ -4509,6 +4548,12 @@ func _sync_captain(delta: float) -> bool:
 			_captain = null
 			_captain_missing = true
 			return false
+		## SG-81: the hero wears the lights table too, keyed off her scene's own
+		## folder — she has her own key light, but a class whose identity is a
+		## lamp or a furnace should be able to say so in the file like anything
+		## else. No seeded row today; the seam is one line and no lie.
+		_captain.set_meta("model_key",
+			str(model.get("scene", CAPTAIN_SCENE)).get_file().get_basename())
 		## And put a weapon in the hand if the class has a fit. It is data — see
 		## `assets/models/weapons.json` and `tools/weapon_fit.gd` — because it is a
 		## dozen small nudges and none of them is worth a build. The Boilerwright's
@@ -4661,6 +4706,12 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 			rig.queue_free()
 			_no_model[kind] = true
 			return false
+		## SG-81: which row of the lights table this figure wears. Stamped rather
+		## than re-derived at flush time, because `model_path` is the one place
+		## that knows a kind's slug and a second copy of `to_lower()` is a second
+		## place for it to disagree — and a corpse still playing `die` has left
+		## `_rigs` and no longer knows its kind at all.
+		rig.set_meta("model_key", model_path(kind).get_file().get_basename())
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"
@@ -5145,3 +5196,462 @@ func _player_texture() -> Texture2D:
 	if sprite != null and sprite.texture != null:
 		return sprite.texture
 	return _texture("res://assets/art/heroes/corsair_front_idle.png")
+
+
+## --- SG-81: MODEL LIGHTS — the accents a generated mesh does not carry --------
+##
+## The owner's ask, verbatim: "can we add a way to map lighting effects to 3D
+## models in the lab? (Add customization around types of lighting, color,
+## strength, etc... anything that can be useful here since the models don't have
+## baked lighting)".
+##
+## THE READER IS HERE AND IT CAME FIRST. `assets/models/lights.json` is a table
+## keyed by MODEL KEY — one row per directory under `assets/models/` — and every
+## LIVE INSTANCE of that key wears it: all three braziers, every furnace knight
+## in the wave, the corpse of one still playing `die`. `tools/model_lab.gd`
+## writes that file; nothing about the lab is on this path, so a light tuned in
+## the lab is a light the game has.
+##
+## A SIDECAR JSON RATHER THAN METADATA ON THE .tscn, for the reason
+## `weapons.json` is a file: those scenes are GENERATED (`tools/static_model.gd`,
+## `tools/ingest_model.py`) and a re-ingest — the furnace knight has had two —
+## would silently eat anything written into them. A sidecar also diffs, which is
+## how anybody but the person who dialled it can see what changed.
+##
+## AN ABSENT FILE IS TODAY'S RENDERING, EXACTLY. `_model_light_rows` stays empty,
+## `_flush_model_lights` returns on its first line, no node is ever made, and the
+## two hard-coded accents this table can supersede — the brazier/lantern omni in
+## the prop loop, and the Boiler's furnace lamp — are left exactly where they
+## were. A key WITH a row REPLACES the built-in rather than adding to it: two
+## lights on one flame is the two-functions-disagreeing-about-one-number failure
+## STATUS names, with a candle in it.
+##
+## MODEL LIGHTS ARE ACCENTS, NOT SUNS. That is SG-34's law and here it is
+## arithmetic rather than a promise:
+##
+##   * `MODEL_LIGHT_MAX_ENERGY` / `MODEL_LIGHT_MAX_RANGE` clamp every row AS IT
+##     IS READ, so a hand-typed 40 in the file is a 2.0 on the deck and the lab
+##     cannot save a sun even by accident;
+##   * `MODEL_LIGHT_CAP` is the SG-40 nearest-N-to-camera pattern, second use:
+##     the deck asks for ten seeded lights and gets the eight nearest the
+##     eye — the far ones keep their painted floor pool, which is most of what
+##     reads as "lit" at this camera anyway;
+##   * `MODEL_LIGHT_ENERGY_BUDGET` caps the SUM as well as the count, because a
+##     cap on count alone is a cap a tuned file walks straight through.
+##
+## The SG-34 guard itself measures the ENVIRONMENT constants — exposure, ambient,
+## the moon, the lantern fill, the furnace emission — and cannot see this table
+## at all. Saying so is the honest half: the budget above is guarded separately,
+## by `view · model lights are accents, and the budget says so in numbers`, and
+## between them the two checks cover what one of them alone cannot.
+const MODEL_LIGHTS_PATH := "res://assets/models/lights.json"
+
+## Eight live model lights at once. The seeded deck asks for ten (three
+## braziers, three lanterns, three vents and the Boiler, plus one per furnace
+## knight in the wave) and at this camera you see about half a deck, so the
+## nearest eight is every one that reads and none that does not.
+const MODEL_LIGHT_CAP := 8
+## Per-row ceilings, applied at READ time. 2.0 is a shade over the moon key's
+## 1.45: enough for a furnace chest to carry across the deck, nowhere near
+## enough to be a second key at a 460-unit reach.
+const MODEL_LIGHT_MAX_ENERGY := 2.0
+const MODEL_LIGHT_MAX_RANGE := 460.0        ## ground units
+const MODEL_LIGHT_MAX_HZ := 40.0
+## And the sum. Today's deck carries 7.39 of fixed accent energy (three braziers
+## at 1.2, three lanterns at 0.82, the Boiler lamp at 1.33); the seeded table
+## asks 10.24 with the vents on top. 7.5 is deliberately just over the number the
+## deck already lives at, so the table cannot make the deck brighter than the one
+## SG-34 measured and signed off — it can only move that light around.
+const MODEL_LIGHT_ENERGY_BUDGET := 7.5
+## The Boiler lamp at full health, which is what `_boiler_lamp()` returns for
+## `life = 1`. The seeded `boiler` row is authored at exactly this energy so the
+## table reproduces the built-in lamp, and `_model_light_gain` divides by it to
+## turn the health drive back into a multiplier.
+const BOILER_LAMP_FULL := 1.33
+
+## What a row means when it does not say. Every key here is read by
+## `_apply_model_light` below — the twin-guard pins that, one field at a time.
+const MODEL_LIGHT_DEFAULT := {
+	"type": "omni", "color": "ffffff", "energy": 1.0, "range": 200.0,
+	"attenuation": 1.0, "offset": [0.0, 0.0, 0.0],
+	"angle": 45.0, "aim": [0.0, -1.0, 0.0],
+	"hz": 0.0, "depth": 0.0, "shape": "pulse",
+}
+const MODEL_LIGHT_TYPES := ["omni", "spot"]
+## PULSE is a clean sine — the smooth throb the brazier and the vent have always
+## had. FLICKER adds a faster out-of-step term so the crest never lands twice in
+## the same place: a fire guttering rather than a lamp humming. Both are read.
+const MODEL_LIGHT_SHAPES := ["pulse", "flicker"]
+
+## model key -> Array of normalised rows. Empty when there is no file.
+var _model_light_rows: Dictionary = {}
+## The pools, one per light class — a spot is not an omni, and handing one node
+## to the other role would need every property rewritten anyway.
+var _model_omnis: Array[OmniLight3D] = []
+var _model_spots: Array[SpotLight3D] = []
+## Hosts that are neither a pooled prop mesh nor a rig and never move: the
+## Boiler. `{"key": model key, "node": Node3D}`.
+var _model_light_statics: Array = []
+## What the last frame actually spent, for the lab's header and the harness.
+var _model_lights_live := 0
+var _model_lights_asked := 0
+var _model_lights_energy := 0.0
+
+
+## The table, checked. A missing file, an unreadable file, an unparseable file
+## and a file that is not an object all mean the same thing, and it is not an
+## error: no model lights, today's rendering.
+static func load_model_lights(path: String = MODEL_LIGHTS_PATH) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return {}
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return {}
+	var text := file.get_as_text()
+	file.close()
+	return sanitise_model_lights(JSON.parse_string(text))
+
+
+## THE WRITE, living beside the read so the two cannot drift — `tools/model_lab.gd`
+## calls this and nothing else. Only the ONE model key handed in is touched: a
+## tool that rewrites more than it was asked to is a tool nobody runs twice
+## (`weapons.json`, the same rule, the same sentence). Every row goes back out
+## through `model_light_row`, so what is saved is exactly what will be read, and
+## an empty list ERASES the key rather than leaving `"lights": []` behind.
+## Returns "" on success, or the reason, because a save that quietly does
+## nothing is the shape of bug SG-83 was.
+static func save_model_lights(model_key: String, rows: Array,
+		path: String = MODEL_LIGHTS_PATH) -> String:
+	var table: Variant = null
+	if FileAccess.file_exists(path):
+		table = JSON.parse_string(FileAccess.get_file_as_string(path))
+	var doc: Dictionary = table as Dictionary if table is Dictionary else {"version": 1}
+	if doc.get("models") is not Dictionary:
+		doc["models"] = {}
+	var models: Dictionary = doc["models"]
+	var kept: Array = []
+	for raw in rows:
+		if raw is Dictionary:
+			var row: Variant = model_light_row(raw)
+			if row != null:
+				kept.append(row)
+	if kept.is_empty():
+		models.erase(model_key)
+	else:
+		var was: Variant = models.get(model_key)
+		var entry: Dictionary = was as Dictionary if was is Dictionary else {}
+		entry["lights"] = kept
+		models[model_key] = entry
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return "could not open %s for writing" % path
+	file.store_string(JSON.stringify(doc, "  ") + "
+")
+	file.close()
+	return ""
+
+
+## PER-KEY FALLBACK, and finer than per-key where it can be — the `hud_layout`
+## precedent. A model whose entry is not a list of rows loses THAT MODEL and no
+## other; a single malformed ROW inside a good model loses that one light and
+## leaves its neighbours lit. A half-typed file costs you the thing you were
+## half-typing, never the deck.
+static func sanitise_model_lights(raw: Variant) -> Dictionary:
+	var out := {}
+	if raw is not Dictionary:
+		return out
+	var models: Variant = (raw as Dictionary).get("models")
+	if models is not Dictionary:
+		return out
+	for key in (models as Dictionary).keys():
+		var entry: Variant = (models as Dictionary)[key]
+		var list: Variant = entry
+		## Either `"brazier": [ ... ]` or `"brazier": {"lights": [ ... ]}`. The
+		## second is the shape the lab writes, because a model row is where a
+		## future per-model field would go and a bare array has nowhere to put one.
+		if entry is Dictionary:
+			list = (entry as Dictionary).get("lights")
+		if list is not Array:
+			continue
+		var kept: Array = []
+		for item in (list as Array):
+			var row: Variant = model_light_row(item)
+			if row != null:
+				kept.append(row)
+		if not kept.is_empty():
+			out[str(key)] = kept
+	return out
+
+
+## ONE LIGHT, CHECKED AND CLAMPED — or null, which drops it.
+##
+## The normalised row carries ONLY the keys that are read for its type: an omni
+## has no `angle` and no `aim`, because nothing would consume them, and a steady
+## light has no `hz`/`depth`/`shape`. That is the `hud_layout` "zero halves are
+## ERASED" rule, and it is the same rule for the same reason — a field in a file
+## that nothing reads is failure mode one with a colour picker on it.
+static func model_light_row(raw: Variant) -> Variant:
+	if raw is not Dictionary:
+		return null
+	var d := raw as Dictionary
+	var type := str(d.get("type", MODEL_LIGHT_DEFAULT["type"]))
+	if not type in MODEL_LIGHT_TYPES:
+		return null
+	var colour := str(d.get("color", MODEL_LIGHT_DEFAULT["color"]))
+	if not Color.html_is_valid(colour):
+		return null
+	var offset: Variant = _light_triple(d.get("offset", MODEL_LIGHT_DEFAULT["offset"]))
+	if offset == null:
+		return null
+	var energy: Variant = _light_number(d.get("energy", MODEL_LIGHT_DEFAULT["energy"]))
+	var reach: Variant = _light_number(d.get("range", MODEL_LIGHT_DEFAULT["range"]))
+	var fall: Variant = _light_number(d.get("attenuation", MODEL_LIGHT_DEFAULT["attenuation"]))
+	if energy == null or reach == null or fall == null:
+		return null
+	var row := {
+		"type": type,
+		"color": Color(colour).to_html(false),
+		"energy": clampf(float(energy), 0.0, MODEL_LIGHT_MAX_ENERGY),
+		"range": clampf(float(reach), 1.0, MODEL_LIGHT_MAX_RANGE),
+		"attenuation": clampf(float(fall), 0.1, 8.0),
+		"offset": offset,
+	}
+	if type == "spot":
+		var angle: Variant = _light_number(d.get("angle", MODEL_LIGHT_DEFAULT["angle"]))
+		var aim: Variant = _light_triple(d.get("aim", MODEL_LIGHT_DEFAULT["aim"]))
+		if angle == null or aim == null:
+			return null
+		if Vector3(float(aim[0]), float(aim[1]), float(aim[2])).length_squared() < 1e-6:
+			return null
+		row["angle"] = clampf(float(angle), 1.0, 89.0)
+		row["aim"] = aim
+	var hz: Variant = _light_number(d.get("hz", MODEL_LIGHT_DEFAULT["hz"]))
+	var depth: Variant = _light_number(d.get("depth", MODEL_LIGHT_DEFAULT["depth"]))
+	if hz == null or depth == null:
+		return null
+	if float(hz) > 0.0 and float(depth) > 0.0:
+		var shape := str(d.get("shape", MODEL_LIGHT_DEFAULT["shape"]))
+		if not shape in MODEL_LIGHT_SHAPES:
+			return null
+		row["hz"] = clampf(float(hz), 0.0, MODEL_LIGHT_MAX_HZ)
+		row["depth"] = clampf(float(depth), 0.0, 1.0)
+		row["shape"] = shape
+	return row
+
+
+static func _light_number(raw: Variant) -> Variant:
+	if raw is float or raw is int:
+		return float(raw)
+	return null
+
+
+static func _light_triple(raw: Variant) -> Variant:
+	if raw is not Array or (raw as Array).size() != 3:
+		return null
+	for i in 3:
+		if _light_number(raw[i]) == null:
+			return null
+	return [float(raw[0]), float(raw[1]), float(raw[2])]
+
+
+## A row filled out with the defaults for the keys it dropped — what the applier
+## and the lab both read, so the file's sparseness never becomes a second set of
+## rules about what a missing key means.
+static func model_light_full(row: Dictionary) -> Dictionary:
+	var out: Dictionary = MODEL_LIGHT_DEFAULT.duplicate(true)
+	for key in row.keys():
+		out[key] = row[key]
+	return out
+
+
+## The brightness multiplier a row is riding this instant. `pulse` is the clean
+## sine the brazier and the vent have always used — seeded at the same hz and
+## depth, so those two objects breathe exactly as they did. `flicker` is a fire.
+static func model_light_throb(row: Dictionary, clock: float, phase: float) -> float:
+	var hz := float(row.get("hz", 0.0))
+	var depth := float(row.get("depth", 0.0))
+	if hz <= 0.0 or depth <= 0.0:
+		return 1.0
+	var wave := sin(clock * hz + phase)
+	if str(row.get("shape", "pulse")) == "flicker":
+		wave = (wave + 0.5 * sin(clock * hz * 2.37 + phase * 1.7)) / 1.5
+	return maxf(0.0, 1.0 + depth * wave)
+
+
+## Is this model key lit from the table? The prop loop and the Boiler both ask,
+## because a key with a row takes the built-in accent's place rather than
+## doubling it.
+func model_lit_by_table(model_key: String) -> bool:
+	return _model_light_rows.has(model_key)
+
+
+## A live multiplier the SIMULATION owns rather than the file. Exactly one row
+## has one — the Boiler, whose lamp goes out as it dies, which is a fact about
+## the run and not a number anybody should be able to dial. Everything else is
+## 1.0, and `_boiler_lamp()` stays the single copy of that arithmetic.
+func _model_light_gain(model_key: String) -> float:
+	if model_key == BOILER_MODEL and game != null:
+		return _boiler_lamp() / BOILER_LAMP_FULL
+	return 1.0
+
+
+## Every live wearer of a lit model key, this frame: pooled prop meshes, rigged
+## boarders, the captain, corpses still playing their death, and the statics.
+func _model_light_requests() -> Array:
+	var out: Array = []
+	if _model_light_rows.is_empty():
+		return out
+	## `[model key, node, is a figure]`. The third column is the budget's tie
+	## break — see `_flush_model_lights`.
+	var hosts: Array = []
+	for key in _prop_models:
+		var node: Node3D = _prop_models[key]
+		hosts.append([str(node.get_meta("prop_model", "")), node, false])
+	for key in _rigs:
+		var rig: SkyGearRig3D = _rigs[key]
+		hosts.append([str(rig.get_meta("model_key", "")), rig, true])
+	for key in _corpses:
+		var corpse: SkyGearRig3D = (_corpses[key] as Dictionary).rig
+		if is_instance_valid(corpse):
+			hosts.append([str(corpse.get_meta("model_key", "")), corpse, true])
+	if _captain != null:
+		hosts.append([str(_captain.get_meta("model_key", "")), _captain, true])
+	for entry in _model_light_statics:
+		var node: Node3D = (entry as Dictionary).node
+		if is_instance_valid(node):
+			hosts.append([str((entry as Dictionary).key), node, false])
+	for host in hosts:
+		var model_key: String = str(host[0])
+		if not _model_light_rows.has(model_key):
+			continue
+		var node: Node3D = host[1]
+		if not is_instance_valid(node) or not node.is_inside_tree():
+			continue
+		## The host's ROTATION without its scale: a prop mesh is scaled by
+		## `_sync_prop_model` and a rig by its own fit height, and an offset in
+		## ground units must not ride either — the same reason the captain's key
+		## light hangs OUTSIDE her transform.
+		var xf := node.global_transform
+		var turn := xf.basis.orthonormalized()
+		var gain := _model_light_gain(model_key)
+		var phase := float(node.get_instance_id() % 17)
+		for row_any in (_model_light_rows[model_key] as Array):
+			var row: Dictionary = row_any as Dictionary
+			var offset: Array = row.get("offset", [0.0, 0.0, 0.0])
+			var at: Vector3 = xf.origin + turn * (Vector3(float(offset[0]),
+				float(offset[1]), float(offset[2])) * WORLD_SCALE)
+			out.append({"row": row, "at": at, "turn": turn, "gain": gain,
+				"phase": phase, "figure": bool(host[2])})
+	return out
+
+
+## Resolve the frame's model lights against the budget: nearest to the camera
+## first, admitted while BOTH the count cap and the summed-energy budget hold.
+## A light that does not fit is simply not lit — never half-lit, never scaled
+## down to fit, because a lamp that dims as you walk toward it is worse than one
+## that was never there. This is the SG-40 pattern, second use.
+func _flush_model_lights() -> void:
+	if _model_light_rows.is_empty():
+		return
+	var wanted := _model_light_requests()
+	_model_lights_asked = wanted.size()
+	var eye: Vector3 = camera.global_position if camera != null else Vector3.ZERO
+	## FIGURES FIRST, then nearest to the camera. Not a preference — a rule with
+	## a reason: a brazier that loses its light keeps the painted floor pool that
+	## has always been most of its read at this camera, and a boarder has nothing
+	## to fall back on. Without this the deck's own furniture, which sits behind
+	## the captain and is therefore NEARER the eye than anything she is fighting,
+	## spends the whole budget on scenery she has her back to (measured: seven
+	## props took 7.40 of 7.50 and the three furnace knights up-deck got none).
+	wanted.sort_custom(func(a, b):
+		if bool(a.figure) != bool(b.figure):
+			return bool(a.figure)
+		return (a.at as Vector3).distance_squared_to(eye) < (b.at as Vector3).distance_squared_to(eye))
+	var omni_at := 0
+	var spot_at := 0
+	var spent := 0.0
+	var live := 0
+	for want in wanted:
+		var row: Dictionary = want.row
+		var energy := float(row.get("energy", 0.0))
+		if live >= MODEL_LIGHT_CAP or spent + energy > MODEL_LIGHT_ENERGY_BUDGET:
+			continue
+		var spot: bool = str(row.get("type", "omni")) == "spot"
+		var light: Light3D = _claim_model_light(spot, spot_at if spot else omni_at)
+		if light == null:
+			continue
+		if spot:
+			spot_at += 1
+		else:
+			omni_at += 1
+		_apply_model_light(light, want)
+		live += 1
+		spent += energy
+	## Everything the budget did not reach goes dark rather than stale. Kept in
+	## the pool, not freed — the lit set changes as the camera walks the deck.
+	while omni_at < _model_omnis.size():
+		_model_omnis[omni_at].light_energy = 0.0
+		omni_at += 1
+	while spot_at < _model_spots.size():
+		_model_spots[spot_at].light_energy = 0.0
+		spot_at += 1
+	_model_lights_live = live
+	_model_lights_energy = spent
+
+
+func _claim_model_light(spot: bool, at: int) -> Light3D:
+	var pool: Array = _model_spots if spot else _model_omnis
+	if at < pool.size():
+		return pool[at]
+	if pool.size() >= MODEL_LIGHT_CAP:
+		return null
+	var light: Light3D = SpotLight3D.new() if spot else OmniLight3D.new()
+	## No shadows, ever. Eight shadow-casting accents is the frame budget gone
+	## on something nobody would name if you asked them what had changed.
+	light.shadow_enabled = false
+	add_child(light)
+	if spot:
+		_model_spots.append(light as SpotLight3D)
+	else:
+		_model_omnis.append(light as OmniLight3D)
+	return light
+
+
+## WHERE EVERY FIELD IS SPENT. The twin-guard walks this function's effects one
+## key at a time — move a field in the row, something on the Light3D has to move
+## — so a field can never be added to the schema and to the lab without also
+## being read here.
+func _apply_model_light(light: Light3D, want: Dictionary) -> void:
+	apply_model_light(light, want.row, want.at, want.turn, float(want.gain),
+		_flicker, float(want.phase))
+
+
+## STATIC, AND THE ONLY IMPLEMENTATION. `tools/model_lab.gd` calls exactly this
+## to light the model you are dialling, so what the lab shows you and what the
+## deck draws are the same twelve lines rather than two readings of one schema
+## — the failure mode `SkyGearHUD.rail()` and `scripts/ink.gd` both exist over.
+static func apply_model_light(light: Light3D, row: Dictionary, at: Vector3,
+		turn: Basis, gain: float, clock: float, phase: float) -> void:
+	var throb := model_light_throb(row, clock, phase)
+	light.position = at
+	light.light_color = Color(str(row.get("color", "ffffff")))
+	light.light_energy = float(row.get("energy", 1.0)) * throb * gain
+	var reach := float(row.get("range", 200.0)) * WORLD_SCALE
+	var fall := float(row.get("attenuation", 1.0))
+	if light is SpotLight3D:
+		var spot := light as SpotLight3D
+		spot.spot_range = reach
+		spot.spot_attenuation = fall
+		spot.spot_angle = float(row.get("angle", 45.0))
+		var aim: Array = row.get("aim", [0.0, -1.0, 0.0])
+		var dir: Vector3 = (turn * Vector3(float(aim[0]),
+			float(aim[1]), float(aim[2]))).normalized()
+		## A spot points down its own -Z. `look_at` needs an up that is not the
+		## direction itself, and the useful aim for a model light is very often
+		## straight down.
+		var up := Vector3.UP if absf(dir.y) < 0.99 else Vector3.BACK
+		spot.look_at_from_position(at, at + dir, up)
+	else:
+		var omni := light as OmniLight3D
+		omni.omni_range = reach
+		omni.omni_attenuation = fall

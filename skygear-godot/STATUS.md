@@ -17,11 +17,31 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **719 harness checks**; the text audit covers 24 screens at
+board SG-56). **727 harness checks**; the text audit covers 24 screens at
 4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE MODELS CAN BE LIT NOW, AND THE LIGHTS ARE DATA (SG-81, owner ask:
+"the models don't have baked lighting").** `assets/models/lights.json` is a
+per-MODEL-KEY table — omni or spot, colour, strength, reach, falloff, offset in
+ground units, a spot's cone and aim, an optional pulse or flicker — read by
+`scripts/view3d.gd` at launch and worn by EVERY live instance of that model.
+**The lab writes it**: `SkyGear Tools.bat lab`, the new **LIGHTS** mode, add a
+light, dial every field on the SG-39 typed widget, see it on the real mesh with
+a gizmo showing where it is and how far it reaches, DARK ROOM to kill the lab's
+own lamps, SAVE. Not the clipboard — the renderer got the reader first. **Model
+lights are ACCENTS and the budget is arithmetic:** every row is clamped to 2.0
+energy over 460 ground units as it is read, at most 8 are live, and their summed
+energy cannot pass 7.5 — which is the 7.39 the deck already carried, so the
+table moves light around rather than adding it (a 40-row flood lights 3).
+Figures are admitted before scenery, because a brazier that loses its light
+keeps its painted floor pool and a boarder has nothing. Five seeded: the
+brazier, the lantern post, the steam vent (a spot, up out of the grate), the
+Boiler, and the furnace knight — whose chest light is SG-86's named candidate
+and measurably lifts him (30.4 → 33.4 mean luminance, 10 → 276 hot pixels).
+`.shots/sg81/` is the witness.
 
 **F4 RESIZES NOW (SG-80, owner ask): a selected element has a size as well as
 a position** — drag a grip, type into the w×h readout, or hold Ctrl and use the
@@ -62,7 +82,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (719 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (727 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -116,7 +136,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 719 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 727 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -144,7 +164,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 719 checks. Green before anything ships |
+| `harness` | 727 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
