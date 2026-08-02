@@ -18,6 +18,24 @@ decision below) needs the raw FBX from you, or those two archives restored to
 
 ## Decisions
 
+**0 · The post-parity plan is written — skim it first** —
+`skygear-godot/docs/POST-PARITY-PLAN.md`, produced overnight by a 3-designer /
+2-judge / 1-synthesis workflow per your ultracode instruction. Two threads:
+the ship becomes the second character (stowage variety, earned fittings, the
+berth screen), and the figures come alive (the Boilerwright's kneel, a
+one-enemy animation pilot before scaling). Its decisions for you, each with
+the plan's recommendation:
+  - **Stowage kill-test threshold** (item 2): what close-share difference
+    counts as "real variety"? Recommendation: accept the plan's band and let
+    the measurement decide.
+  - **Fittings** (item 3): confirm the six named fittings + one-per-run cap,
+    and whether Heat rows record fitting count (recommended) or Heat runs
+    sail bare.
+  - **SG-38, the wrench** (~35 credits, item 6): approve and he gets his tool
+    fitted in the lab.
+  - **The scrapper animation pilot** (item 7): one enemy first, ~10 credits,
+    before any talk of animating all four. Recommendation: approve the pilot.
+
 **3 · Boilerwright mobility gap** (SG-7) — *you took this one* (2026-08-01:
 "I'll test boilerwright movement myself"). The deterministic number when you
 do: he covers 40% of a dashing captain's ground. Report back what it feels
