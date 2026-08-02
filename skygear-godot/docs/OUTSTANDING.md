@@ -17,6 +17,19 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The crate mechanics suck — the owner, after playing them
+Reported 2026-08-01, verbatim: *"The crate mechanics kind of suck to be honest.
+Don't like them at all, the hold to move is not fun. It's too easy to just get
+stuck on the crates yourself and lose your ability to move between lanes."*
+
+Two distinct defects in that: the 2.8-second hold-to-heave channel is not fun
+as an interaction, and the crate collides with the CAPTAIN — which breaks
+pillar 4 (cross-passages preserve mobility) for the one person the deck is
+supposed to serve. The crate exists to shape the BOARDERS' movement, never
+hers. Board SG-37; the rework replaces the channel with an instant shove and
+makes the crate something she can never be trapped by. If it still is not fun
+after that, the verb gets dropped with this entry as the reason.
+
 ### The Boilerwright's mobility gap is 60%, not the 21% the numbers say
 Reported at playtest as "Boilerwright feels slower", alongside "I'm not sure I
 understand what the class actually does". The second half is fixed — the

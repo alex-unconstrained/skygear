@@ -39,10 +39,10 @@ running; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
   filled danger wedge at the true swing arc; melee reach shifted a few units
   to match the browser exactly (ARMORED slightly longer, SWARM slightly
   shorter). Worth a feel-check that nothing reads unfair.
-- **HEAVE THE CRATE** (SG-10, new verb): hold the bound key at the movable
-  crate to narrow a lane and funnel boarders; it cycles stow→narrow→funnel
-  and re-stows every wave, costing only the 2.8s you're out of the fight.
-  First new gameplay verb since repair — does it read, and is 2.8s right?
+- ~~HEAVE THE CRATE~~ — **you answered: it sucks** (hold not fun, crate traps
+  you). Rework in flight (SG-37): instant tap-shove, and the crate can never
+  block you — only boarders. Re-judge on the next build; if it still isn't
+  fun, it gets dropped.
 - **Cutscenes** (SG-8, all five cues now filled): a 2.5s run-opening reveal,
   1.4s flourishes on waves 4 and 8, a 5.4s victory crane-up to the horizon
   (the one angle gameplay never shows), and a 3.6s defeat push onto the
