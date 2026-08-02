@@ -13,8 +13,8 @@ ceiling. Judge visual work by "is it better and legible," not "does it match."
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory
-and defeat shots. **583 harness checks**; the text audit covers 23 screens at
-4 widths and is clean. Build 35 is on itch at
+and defeat shots. **604 harness checks**; the text audit covers 23 screens at
+4 widths and is clean. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
@@ -31,7 +31,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (583 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (604 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 23 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -85,7 +85,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair (held), shove (instant) |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 583 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 604 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -113,7 +113,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 583 checks. Green before anything ships |
+| `harness` | 604 checks. Green before anything ships |
 | `text` | every string on 23 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
