@@ -125,6 +125,8 @@ func _run() -> void:
 	_ink()
 	await process_frame
 	_lab()
+	await process_frame
+	_clip()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -6314,3 +6316,84 @@ func _lab() -> void:
 			refuse_detail = "accepted '%s'" % text
 	_check("lab", "and refuses malformed input so the old value is kept",
 		refuse_ok, refuse_detail)
+
+
+## SG-47: the clip tool's plan arithmetic and scenario table, tested through
+## `ClipMath` (tools/clip_math.gd) — the LabMath split, for the same reason: the
+## tool itself is windowed (the readback hangs headless, SG-29), so everything
+## it must get right BEFORE a window opens is pulled out where the harness can
+## load it. The stitcher's zero-frame refusal runs here too, because that half
+## is Python and needs no framebuffer. The windowed halves — a real clip end to
+## end, file on disk, frame count matching — are the tool's own smoke, which
+## `hub -- all` runs (bare `tools/clip.gd` is the smoke).
+func _clip() -> void:
+	## The default ask: 4 seconds at 20 fps is every-3-ticks, 80 frames, 50 ms a
+	## frame — and the GIF's own clock (frames x delay) is the sim's clock.
+	var plan := ClipMath.plan(4.0, 20.0)
+	_check("clip", "a plan's frames follow from seconds and fps",
+		int(plan.every) == 3 and int(plan.frames) == 80
+		and int(plan.ticks) == 240 and int(plan.delay_ms) == 50
+		and is_equal_approx(float(plan.seconds), 4.0), str(plan))
+	## Degenerate asks still produce a clip: zero seconds is one frame, and an
+	## fps above the sim rate clamps to one tick per frame rather than skipping.
+	var tiny := ClipMath.plan(0.0, 999.0)
+	_check("clip", "a degenerate ask still yields one whole frame",
+		int(tiny.frames) == 1 and int(tiny.every) == 1, str(tiny))
+	## Duration never comes back silently short: a fractional ask rounds UP to
+	## whole frames, so 1.01 s at 12 fps is 13 frames, not 12.
+	var up := ClipMath.plan(1.01, 12.0)
+	_check("clip", "a fractional ask rounds up to whole frames",
+		int(up.every) == 5 and int(up.frames) == 13
+		and float(up.seconds) >= 1.01, str(up))
+
+	## THE TABLE IS COMPLETE: every name the tool advertises resolves to a spec
+	## with a stageable kind and a positive default length. A scenario that is
+	## listed and does not resolve is a tool that fails at the exact moment
+	## somebody reaches for evidence.
+	var kinds := ["fight", "dash", "projectiles", "cutscene"]
+	var unresolved := ""
+	for id in ClipMath.ids():
+		var spec := ClipMath.find(str(id))
+		if spec.is_empty() or not kinds.has(str(spec.get("kind", ""))) \
+				or float(spec.get("seconds", 0.0)) <= 0.0:
+			unresolved = str(id)
+	_check("clip", "every named scenario resolves", unresolved == "", unresolved)
+
+	## SG-32'S CLOSURE: every shipped cutscene is a clip scenario, derived from
+	## the same `list_ids()` the game plays from — a scene authored tomorrow has
+	## a motion-evidence path the same day, with nobody remembering to add it.
+	var missing := ""
+	var cut_short := ""
+	for id in SkyGearCutscene.list_ids():
+		if not ClipMath.ids().has(str(id)):
+			missing = str(id)
+			continue
+		var spec := ClipMath.find(str(id))
+		var scene := SkyGearCutscene.load_scene(str(id))
+		if float(spec.seconds) < SkyGearCutscene.length(scene) \
+				+ ClipMath.CUTSCENE_TAIL - 0.001:
+			cut_short = str(id)
+	_check("clip", "the scenario set covers every shipped cutscene",
+		missing == "", missing)
+	## And a cutscene clip's default length films the whole authored scene PLUS
+	## the tail that shows the camera handed back — the half of the player's
+	## contract a still can never witness.
+	_check("clip", "a cutscene clip's default length films the whole scene plus the hand-back",
+		cut_short == "", cut_short)
+
+	## THE STITCHER REFUSES ZERO FRAMES. An empty clip must fail loudly at the
+	## stitch, not become a 0-byte file somebody opens three days later. The
+	## refusal is exercised for real — the actual script, an actually empty
+	## directory — because a refusal asserted from reading the source is the
+	## claims-from-memory failure mode with extra steps.
+	var empty_dir := ProjectSettings.globalize_path("user://clip_zero_frames")
+	DirAccess.make_dir_recursive_absolute(empty_dir)
+	for stale in DirAccess.get_files_at(empty_dir):
+		DirAccess.remove_absolute("%s/%s" % [empty_dir, str(stale)])
+	var refused_gif := "%s/refused.gif" % empty_dir
+	var lines: Array = []
+	var code := OS.execute("python", [
+		ProjectSettings.globalize_path("res://tools/clip_stitch.py"),
+		empty_dir, refused_gif], lines, true)
+	_check("clip", "the stitcher refuses zero frames",
+		code != 0 and not FileAccess.file_exists(refused_gif), "exit %d" % code)
