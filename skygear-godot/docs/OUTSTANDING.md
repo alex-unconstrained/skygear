@@ -42,6 +42,33 @@ components will do the same thing there. Board SG-39: typed input on every
 numeric row, rotation nudges applied about the weapon's live local axes
 rather than Euler fields, and a general friendliness pass.
 
+**SHIPPED (SG-39, 2026-08-01) — awaiting your hands-on verdict; NOT closed.**
+The mechanical cause was confirmed by measurement: at pitch −90 the stored Euler
+yaw and roll build the *same* basis to 1.6e-8 — genuinely one control, not a
+perception issue. Three things are in the next build.
+
+1. **The collapse is gone.** Every rotation nudge — the PITCH/YAW/ROLL buttons,
+the A/D/W/S/Q/E keys, the wheel, and right-drag — now composes a turn about the
+blade's OWN live local axis instead of incrementing an Euler field, so the three
+rows always do visibly different things at any orientation (measured 0.59 apart
+at the exact pitch that used to collapse). The file stays Euler, and your saved
+cutlass fit loads to the identical pose it saved at — guarded so it cannot
+regress.
+
+2. **Type any value.** Click a number on any row — MOUNT's seven, the four LIGHT
+rows, the nine FX dials — type it, ENTER applies, ESC or a click away cancels,
+and a malformed entry is refused with the old value kept. One reused box, not
+seven.
+
+3. **Friendlier all round.** Hovering (or nudging) a rotation row lights the
+matching coloured axis line on the blade so you can SEE which line it spins.
+Shift makes every step ×10 and Alt makes it ×0.1, both spelled out in the header.
+The wheel over a row nudges it. The dev-note instruction block was rewritten to a
+plain hint. The "no size for this" line now reads as information, not an error.
+And Ctrl+Z takes back the last nudge or typed entry.
+
+Play it and say — if a control still fights you, that is the thing to name.
+
 ### The crate mechanics suck — the owner, after playing them
 Reported 2026-08-01, verbatim: *"The crate mechanics kind of suck to be honest.
 Don't like them at all, the hold to move is not fun. It's too easy to just get

@@ -126,10 +126,38 @@ var _stats := ""
 var _note := ""
 var _dragging := 0
 var _shift := false
+var _alt := false
 var _shot_to := ""
 var _rows: VBoxContainer
 var _row_value: Dictionary = {}
 var _row_widget: Dictionary = {}
+
+## The weapon's rotation as a live BASIS, not three Euler fields. The whole point
+## of SG-39's part 1: a nudge composes an axis rotation onto this basis about the
+## weapon's OWN local axis, so the three rows stay visibly distinct even at pitch
+## -90 where the stored Euler yaw and roll collapse onto the same axis. `_fit`
+## keeps an Euler `rotation` array in sync with it (extracted through `LabMath`)
+## so the FILE format is unchanged and every existing weapons.json fit loads to
+## the same pose. See tools/lab_math.gd.
+var _rot_basis: Basis = Basis.IDENTITY
+
+## The one typed-input widget, reused across every numeric row — MOUNT's seven,
+## the four LIGHT rows and the nine FX dials. Repositioned over whichever value
+## was clicked rather than seven boxes hand-rolled into the layout.
+var _editor: LineEdit
+var _editing_key := ""
+
+## Which local axis to light up on the blade (0 = X/pitch, 1 = Y/yaw, 2 = Z/roll)
+## and until when. Set while a rotation row is hovered, and flashed briefly after
+## a rotation nudge, so you can SEE which line the row will spin about right now.
+var _hover_axis := -1
+var _flash_axis := -1
+var _flash_until := 0.0
+var _clock := 0.0
+
+## Single-level undo (Ctrl+Z), enough to take back the last nudge or typed entry.
+var _undo_state: Dictionary = {}
+var _has_undo := false
 
 ## Everything in the LOOK panel that is on or off.
 var _on := {"wire": false, "clay": false, "flat": false, "grid": true,
@@ -428,6 +456,34 @@ func _build_ui() -> void:
 
 	_build_timeline()
 
+	## The one typed-input box, added last so it draws above every row it lands on.
+	## Hidden until a value is clicked; ENTER applies, ESC or a click away cancels,
+	## a malformed entry is refused and the old value kept (see `_commit_edit`).
+	_editor = LineEdit.new()
+	_editor.visible = false
+	_editor.select_all_on_focus = true
+	_editor.add_theme_font_size_override("font_size", 13)
+	_editor.text_submitted.connect(_editor_submit)
+	_editor.focus_exited.connect(_editor_focus_lost)
+	_editor.gui_input.connect(_editor_gui)
+	_ui.add_child(_editor)
+
+
+## A row's live value, as a small flat button. Clicking it opens the typed-input
+## box; the wheel over it nudges the row. One helper feeds every numeric row so
+## there is exactly one typed-input path, not seven.
+func _make_value(key: String, width: float, font: int) -> Button:
+	var b := Button.new()
+	b.flat = true
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	b.custom_minimum_size = Vector2(width, 22.0 if font >= 13 else 20.0)
+	b.add_theme_font_size_override("font_size", font)
+	b.add_theme_color_override("font_color", Color("#e8c376"))
+	b.pressed.connect(_begin_edit.bind(key))
+	b.gui_input.connect(_row_scroll.bind(key))
+	_row_value[key] = b
+	return b
+
 
 ## Rebuilt when the mode changes rather than hidden, because a stale row showing
 ## a number from the other mode is worse than no row.
@@ -452,25 +508,32 @@ func _build_rows() -> void:
 			["fxg", "GLOW     bloom strength"],
 			["fxq", "SPARK    particle size"],
 			["fxt", "SPARK    particle lifetime"]]
+	## Which local axis (if any) each MOUNT rotation row spins about, so hovering
+	## the row can light the matching coloured line on the blade.
+	var rot_axis := {"rx": 0, "ry": 1, "rz": 2}
 	for spec in specs:
+		var key := str(spec[0])
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 4)
 		for way in [-1.0, 1.0]:
 			var b := _chip("-" if way < 0.0 else "+", 30, 22, 13)
-			b.pressed.connect(_dial.bind(str(spec[0]), way))
+			b.pressed.connect(_dial.bind(key, way))
 			row.add_child(b)
 		var name_label := Label.new()
 		name_label.text = str(spec[1])
 		name_label.custom_minimum_size = Vector2(232, 22)
 		name_label.add_theme_font_size_override("font_size", 13)
 		name_label.add_theme_color_override("font_color", Color("#b9afaa"))
+		## Hovering a rotation row lights its axis on the blade (priority 3a).
+		if rot_axis.has(key):
+			var axis: int = rot_axis[key]
+			name_label.mouse_entered.connect(func() -> void: _hover_axis = axis)
+			name_label.mouse_exited.connect(func() -> void:
+				if _hover_axis == axis:
+					_hover_axis = -1)
 		row.add_child(name_label)
-		var value := Label.new()
-		value.custom_minimum_size = Vector2(78, 22)
-		value.add_theme_font_size_override("font_size", 13)
-		value.add_theme_color_override("font_color", Color("#e8c376"))
-		_row_value[str(spec[0])] = value
-		row.add_child(value)
+		row.add_child(_make_value(key, 78, 13))
+		_row_widget[key] = row
 		_rows.add_child(row)
 
 
@@ -510,11 +573,7 @@ func _build_look() -> void:
 		name_label.add_theme_font_size_override("font_size", 11)
 		name_label.add_theme_color_override("font_color", Color("#b9afaa"))
 		row.add_child(name_label)
-		var value := Label.new()
-		value.add_theme_font_size_override("font_size", 11)
-		value.add_theme_color_override("font_color", Color("#e8c376"))
-		_row_value[str(pair[0])] = value
-		row.add_child(value)
+		row.add_child(_make_value(str(pair[0]), 44, 11))
 		box.add_child(row)
 
 
@@ -676,7 +735,11 @@ func _skeleton() -> Skeleton3D:
 func _draw_overlay() -> void:
 	var mesh := _overlay.mesh as ImmediateMesh
 	mesh.clear_surfaces()
-	if _mode == FX or (not bool(_on.skel) and not bool(_on.axis)):
+	## Light the weapon's own axes whenever a rotation row is hovered or just
+	## nudged, even with BONE AXES off — that is the point of the hint.
+	var want_weapon: bool = _mode == MOUNT and _active_axis() >= 0 \
+		and _rig != null and _rig.held != null
+	if _mode == FX or (not bool(_on.skel) and not bool(_on.axis) and not want_weapon):
 		return
 	var sk := _skeleton()
 	if sk == null:
@@ -716,6 +779,28 @@ func _draw_overlay() -> void:
 				mesh.surface_add_vertex(at.origin)
 				mesh.surface_set_color(axis[1])
 				mesh.surface_add_vertex(at.origin + dir)
+	## The WEAPON's live local axes at the grip: X red / pitch, Y green / yaw,
+	## Z blue / roll — the same colours as the row hints, the active one bright.
+	## This is what makes it visible that each rotation row spins about a
+	## different line, which is exactly what the gimbal collapse hid.
+	if want_weapon and _rig.held.get_child_count() > 0:
+		var holder := _rig.held.get_child(0) as Node3D
+		if holder != null:
+			var active := _active_axis()
+			var wb := holder.global_transform.basis.orthonormalized()
+			var origin := holder.global_position
+			var span := 0.18
+			var cols := [Color(1.0, 0.30, 0.30), Color(0.35, 1.0, 0.40),
+				Color(0.40, 0.60, 1.0)]
+			for a in 3:
+				var bright: bool = a == active
+				var col: Color = cols[a]
+				col.a = 1.0 if bright else 0.16
+				var dir: Vector3 = wb[a].normalized() * span * (1.0 if bright else 0.55)
+				mesh.surface_set_color(col)
+				mesh.surface_add_vertex(origin - dir * 0.28)
+				mesh.surface_set_color(col)
+				mesh.surface_add_vertex(origin + dir)
 	mesh.surface_end()
 
 
@@ -724,6 +809,11 @@ func _draw_overlay() -> void:
 ## One nudge on one dial. Every button and every key lands here, so exactly one
 ## place knows what a step is.
 func _dial(which: String, way: float) -> void:
+	_snapshot()
+	## Shift coarsens a step ten-fold and Alt fines it to a tenth — shown in the
+	## header so it is not a secret gesture (priority 3b).
+	var s := _step_mult()
+	way *= s
 	match which:
 		"lyaw":
 			_light_yaw = wrapf(_light_yaw + 15.0 * way, -180.0, 180.0)
@@ -756,6 +846,7 @@ func _dial(which: String, way: float) -> void:
 			_fx_dial.plife = clampf(float(_fx_dial.plife) + 0.1 * way, 0.1, 4.0)
 			_apply_fx_dials()
 		_:
+			## `way` already carries the step multiplier.
 			_dial_mount(which, way)
 			return
 	if which.begins_with("l"):
@@ -763,23 +854,250 @@ func _dial(which: String, way: float) -> void:
 	_show()
 
 
+## Nudge a MOUNT row. `way` arrives already scaled by the step multiplier. The
+## three rotation rows compose a rotation about the weapon's OWN live local axis
+## (via `LabMath.rotate_local`) rather than incrementing an Euler field — the
+## whole fix for the yaw/roll collapse. Offset and length stay linear.
 func _dial_mount(which: String, way: float) -> void:
 	if _mode != MOUNT or _fit.is_empty():
 		return
 	var o := _v3(_fit.offset)
-	var r := _v3(_fit.rotation)
 	match which:
-		"mx": o.x += NUDGE * way
-		"my": o.y += NUDGE * way
-		"mz": o.z += NUDGE * way
-		"rx": r.x += TURN * way
-		"ry": r.y += TURN * way
-		"rz": r.z += TURN * way
+		"mx": o.x += NUDGE * way; _set_v("offset", o)
+		"my": o.y += NUDGE * way; _set_v("offset", o)
+		"mz": o.z += NUDGE * way; _set_v("offset", o)
+		"rx": _rotate_weapon(0, TURN * way)
+		"ry": _rotate_weapon(1, TURN * way)
+		"rz": _rotate_weapon(2, TURN * way)
 		"len": _fit.length = maxf(0.15, float(_fit.length) + GROW * way)
-	_set_v("offset", o)
-	_set_v("rotation", r)
 	_apply_mount()
 	_show()
+
+
+## Compose a rotation about the weapon's live local axis onto `_rot_basis`, keep
+## the Euler `rotation` array in sync for the file and the readout, and flash the
+## axis on the blade so it is clear which line just turned.
+func _rotate_weapon(axis: int, degrees: float) -> void:
+	_rot_basis = LabMath.rotate_local(_rot_basis, axis, degrees)
+	_fit["rotation"] = _euler_array(_rot_basis)
+	_flash_axis = axis
+	_flash_until = _clock + 0.9
+
+
+func _euler_array(b: Basis) -> Array:
+	var e := LabMath.fit_euler_deg(b)
+	return [e.x, e.y, e.z]
+
+
+func _step_mult() -> float:
+	if _shift:
+		return 10.0
+	if _alt:
+		return 0.1
+	return 1.0
+
+
+## The step size shown in the header, so the coarse/fine modifiers are visible
+## rather than a gesture you have to already know (priority 3b).
+func _step_hint() -> String:
+	if _shift:
+		return "STEP x10 (Shift held)"
+	if _alt:
+		return "STEP x0.1 (Alt held)"
+	return "STEP x1 - Shift x10, Alt x0.1"
+
+
+## Which axis to light on the blade right now: a freshly nudged one flashes for
+## a moment, otherwise whichever rotation row the mouse is over. -1 draws nothing.
+func _active_axis() -> int:
+	if _clock < _flash_until and _flash_axis >= 0:
+		return _flash_axis
+	return _hover_axis
+
+
+# ------------------------------------------------------------- typed input --
+
+## Wheel over a row's value nudges it, the way every DCC tool does (priority 3d).
+func _row_scroll(event: InputEvent, key: String) -> void:
+	if event is not InputEventMouseButton:
+		return
+	var mb := event as InputEventMouseButton
+	if not mb.pressed:
+		return
+	if mb.button_index == MOUSE_BUTTON_WHEEL_UP:
+		_shift = mb.shift_pressed
+		_alt = mb.alt_pressed
+		_dial(key, 1.0)
+	elif mb.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+		_shift = mb.shift_pressed
+		_alt = mb.alt_pressed
+		_dial(key, -1.0)
+
+
+## Open the typed-input box over a value. It appears where the number was, seeded
+## with the current number and everything selected, so a type-over replaces it.
+func _begin_edit(key: String) -> void:
+	if not _row_value.has(key):
+		return
+	_finish_edit()
+	_editing_key = key
+	var btn := _row_value[key] as Control
+	var rect := btn.get_global_rect()
+	_editor.position = rect.position - Vector2(2.0, 1.0)
+	_editor.size = Vector2(maxf(74.0, rect.size.x + 8.0), maxf(20.0, rect.size.y + 2.0))
+	_editor.text = _raw_value(key)
+	_editor.visible = true
+	_editor.grab_focus()
+	_editor.select_all()
+
+
+## The plain number a row currently holds, with no unit suffix — what you edit.
+func _raw_value(key: String) -> String:
+	var o := _v3(_fit.offset) if _mode == MOUNT and not _fit.is_empty() else Vector3.ZERO
+	var r := _v3(_fit.rotation) if _mode == MOUNT and not _fit.is_empty() else Vector3.ZERO
+	match key:
+		"mx": return "%.3f" % o.x
+		"my": return "%.3f" % o.y
+		"mz": return "%.3f" % o.z
+		"rx": return "%.1f" % r.x
+		"ry": return "%.1f" % r.y
+		"rz": return "%.1f" % r.z
+		"len": return "%.2f" % float(_fit.length)
+		"lyaw": return "%.0f" % _light_yaw
+		"lpitch": return "%.0f" % _light_pitch
+		"lkey": return "%.2f" % _key_energy
+		"lamb": return "%.2f" % _ambient
+		"fxr": return "%.0f" % float(_fx_dial.radius)
+		"fxa": return "%.2f" % float(_fx_dial.arc)
+		"fxl": return "%.2f" % float(_fx_dial.life)
+		"fxd": return "%.0f" % float(_fx_dial.damage)
+		"fxp": return "%.1f" % float(_fx_dial.period)
+		"fxs": return "%.2f" % float(_fx_dial.slowmo)
+		"fxg": return "%.2f" % float(_fx_dial.glow)
+		"fxq": return "%.0f" % float(_fx_dial.spark)
+		"fxt": return "%.1f" % float(_fx_dial.plife)
+	return ""
+
+
+func _editor_submit(text: String) -> void:
+	_commit_edit(text)
+
+
+func _editor_focus_lost() -> void:
+	## Clicking away cancels — the entry only takes on ENTER.
+	if _editing_key != "":
+		_finish_edit()
+
+
+func _editor_gui(event: InputEvent) -> void:
+	if event is InputEventKey and (event as InputEventKey).pressed \
+			and (event as InputEventKey).keycode == KEY_ESCAPE:
+		_finish_edit()
+		_editor.accept_event()
+
+
+## ENTER landed. A well-formed number is applied (and is an undo point); a
+## malformed one is refused and the old value kept — a bad entry never moves
+## anything.
+func _commit_edit(text: String) -> void:
+	var key := _editing_key
+	var parsed := LabMath.parse_number(text)
+	if bool(parsed.ok) and key != "":
+		_snapshot()
+		_apply_typed(key, float(parsed.value))
+	_finish_edit()
+
+
+## Hide the box and drop focus. Idempotent — clearing `_editing_key` first stops
+## the focus_exited it triggers from re-entering.
+func _finish_edit() -> void:
+	if _editing_key == "":
+		return
+	_editing_key = ""
+	if _editor != null:
+		_editor.visible = false
+		if _editor.has_focus():
+			_editor.release_focus()
+	_show()
+
+
+## Set a row to an ABSOLUTE typed value, clamped to the same range its nudge uses.
+## Rotation sets an Euler component and rebuilds the basis from the three — an
+## absolute type-in is exactly where naming yaw/pitch/roll separately is wanted.
+func _apply_typed(key: String, val: float) -> void:
+	match key:
+		"mx", "my", "mz", "len", "rx", "ry", "rz":
+			if _mode != MOUNT or _fit.is_empty():
+				return
+			var o := _v3(_fit.offset)
+			var e := _v3(_fit.rotation)
+			match key:
+				"mx": o.x = val; _set_v("offset", o)
+				"my": o.y = val; _set_v("offset", o)
+				"mz": o.z = val; _set_v("offset", o)
+				"len": _fit.length = maxf(0.15, val)
+				"rx": e.x = val
+				"ry": e.y = val
+				"rz": e.z = val
+			if key.begins_with("r"):
+				_rot_basis = LabMath.fit_basis(e)
+				_fit["rotation"] = _euler_array(_rot_basis)
+				_flash_axis = {"rx": 0, "ry": 1, "rz": 2}[key]
+				_flash_until = _clock + 0.9
+			_apply_mount()
+		"lyaw": _light_yaw = wrapf(val, -180.0, 180.0); _apply_look()
+		"lpitch": _light_pitch = clampf(val, -89.0, 0.0); _apply_look()
+		"lkey": _key_energy = clampf(val, 0.0, 8.0); _apply_look()
+		"lamb": _ambient = clampf(val, 0.0, 3.0); _apply_look()
+		"fxr": _fx_dial.radius = clampf(val, 20.0, 900.0)
+		"fxa": _fx_dial.arc = clampf(val, 0.15, TAU)
+		"fxl": _fx_dial.life = clampf(val, 0.04, 3.0)
+		"fxd": _fx_dial.damage = clampf(val, 1.0, 300.0)
+		"fxp": _fx_dial.period = clampf(val, 0.15, 6.0)
+		"fxs":
+			_fx_dial.slowmo = clampf(val, 0.05, 2.0)
+			Engine.time_scale = float(_fx_dial.slowmo)
+		"fxg": _fx_dial.glow = clampf(val, 0.0, 4.0); _apply_fx_dials()
+		"fxq": _fx_dial.spark = clampf(val, 4.0, 160.0); _apply_fx_dials()
+		"fxt": _fx_dial.plife = clampf(val, 0.1, 4.0); _apply_fx_dials()
+	_show()
+
+
+# -------------------------------------------------------------------- undo --
+
+## One level of undo. Snapshotted before every nudge, drag and typed entry;
+## restored by Ctrl+Z. Single level is enough to take back the last mistake.
+func _snapshot() -> void:
+	_undo_state = {
+		"mode": _mode, "fit": _fit.duplicate(true), "rot": _rot_basis,
+		"fx": _fx_dial.duplicate(true), "lyaw": _light_yaw, "lpitch": _light_pitch,
+		"lkey": _key_energy, "lamb": _ambient,
+	}
+	_has_undo = true
+
+
+func _undo() -> void:
+	if not _has_undo:
+		_note = "nothing to undo."
+		_show()
+		return
+	_has_undo = false
+	var u := _undo_state
+	_light_yaw = float(u.lyaw)
+	_light_pitch = float(u.lpitch)
+	_key_energy = float(u.lkey)
+	_ambient = float(u.lamb)
+	if int(u.mode) == _mode and _mode == MOUNT:
+		_fit = (u.fit as Dictionary).duplicate(true)
+		_rot_basis = u.rot
+		_apply_mount()
+	elif int(u.mode) == _mode and _mode == FX:
+		_fx_dial = (u.fx as Dictionary).duplicate(true)
+		Engine.time_scale = float(_fx_dial.slowmo)
+		_apply_fx_dials()
+	_apply_look()
+	_note = "undid the last change."
+	_tick()
 
 
 func _flip(key: String) -> void:
@@ -797,6 +1115,7 @@ func _press(what: String) -> void:
 		"revert":
 			if _mode == MOUNT:
 				_fit = _saved.duplicate(true)
+				_rot_basis = LabMath.fit_basis(_v3(_fit.rotation))
 				_apply_mount()
 		"spin": _spin = not _spin
 		"backdrop":
@@ -936,7 +1255,7 @@ func _load() -> void:
 		stand = deck * SkyGearView3D.WORLD_SCALE
 	_stats = "%d tris  -  %d surfaces  -  %d bones  -  %.0f ground units tall (%.2f m)%s" % [
 		tris, mats, bone_count, stand / SkyGearView3D.WORLD_SCALE, stand,
-		"" if deck > 0.0 else "  from the file - the renderer has no size for this"]
+		"" if deck > 0.0 else "  (measured from the file - no deck size is registered for this model yet)"]
 	if tris > 20000:
 		_stats += "     HEAVY: over 20k triangles."
 
@@ -1048,6 +1367,10 @@ func _build_mount() -> void:
 			_fit = {"bone": "mixamorig_RightHand", "length": 0.95,
 				"offset": [0.0, 0.0, 0.0], "rotation": [-120.0, 0.0, 0.0]}
 		_saved = _fit.duplicate(true)
+	## The live rotation basis is seeded from the fit's stored Euler through the
+	## same conversion the file uses, so an existing weapons.json fit mounts to the
+	## exact pose it saved at — the fit-compatibility guarantee (SG-39 part 1).
+	_rot_basis = LabMath.fit_basis(_v3(_fit.rotation))
 	## Far enough back that her whole silhouette is in frame. A grip judged on a
 	## crop of one hand is a grip you cannot see leaving the hand.
 	_dolly = 1.8 * FIT
@@ -1454,7 +1777,8 @@ func _show() -> void:
 		lines.append("EFFECTS LOOP        %s / %s        every %.1fs"
 			% [FX_KINDS[_fx_kind].to_upper(), FX_ELEMENTS[_fx_element],
 				float(_fx_dial.period)])
-		lines.append("the real renderer on the real deck - pick an effect on the right")
+		lines.append("the real renderer on the real deck - pick an effect on the right - click a dial to type it.   %s"
+			% _step_hint())
 		lines.append("SAVE puts these numbers on the clipboard with the constant they belong to")
 	else:
 		lines.append("%s        %s" % [_models[_at].to_upper(), MODE_NAME[_mode]])
@@ -1466,9 +1790,11 @@ func _show() -> void:
 				% [str(_fit.bone).replace("mixamorig_", ""), o.x, o.y, o.z, r.x, r.y, r.z,
 					float(_fit.length),
 					"UNSAVED" if str(_fit) != str(_saved) else "saved to weapons.json"])
-			lines.append("nudge one axis below - click a bone right - play a swing below and watch it hold")
+			lines.append("Click a value to type it - wheel a row to nudge - each PITCH/YAW/ROLL spins the blade's OWN axis.   %s"
+				% _step_hint())
 		else:
-			lines.append("drag to orbit, wheel to dolly - grid squares are 25 ground units, the post is 176")
+			lines.append("Drag to orbit, wheel to dolly - click a value to type it - grid squares are 25 ground units, the post 176.   %s"
+				% _step_hint())
 	if _note != "":
 		lines.append(_note)
 	_label.text = "\n".join(lines)
@@ -1484,7 +1810,7 @@ func _show() -> void:
 		for pair in [["mx", "%+.3f" % o.x], ["my", "%+.3f" % o.y], ["mz", "%+.3f" % o.z],
 				["rx", "%+.0f" % r.x], ["ry", "%+.0f" % r.y], ["rz", "%+.0f" % r.z],
 				["len", "%.2f m" % float(_fit.length)]]:
-			var value: Label = _row_value.get(str(pair[0]))
+			var value: Button = _row_value.get(str(pair[0]))
 			if value != null:
 				value.text = str(pair[1])
 	if _mode == FX:
@@ -1497,7 +1823,7 @@ func _show() -> void:
 				["fxg", "%.2f" % float(_fx_dial.glow)],
 				["fxq", "%.0f" % float(_fx_dial.spark)],
 				["fxt", "%.1f s" % float(_fx_dial.plife)]]:
-			var value: Label = _row_value.get(str(pair[0]))
+			var value: Button = _row_value.get(str(pair[0]))
 			if value != null:
 				value.text = str(pair[1])
 	_timeline.visible = _mode != FX
@@ -1522,6 +1848,7 @@ func _set_v(field: String, v: Vector3) -> void:
 
 
 func _process(delta: float) -> bool:
+	_clock += delta
 	if _spin and _mode != FX:
 		_yaw += delta * 0.6
 		_tick()
@@ -1550,11 +1877,17 @@ func _process(delta: float) -> bool:
 func hand(event: InputEvent) -> void:
 	if event is InputEventKey:
 		_shift = (event as InputEventKey).shift_pressed
+		_alt = (event as InputEventKey).alt_pressed
+		## While a value is being typed the LineEdit owns the keyboard — the global
+		## shortcuts (and ESC-quits) must stay out of its way.
+		if _editing_key != "":
+			return
 		_key(event as InputEventKey)
 		return
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		_shift = mb.shift_pressed
+		_alt = mb.alt_pressed
 		## Never over the lists or the timeline, or dragging to pick a model
 		## orbits the camera underneath it.
 		if mb.position.x < LIST_W + 20.0 or mb.position.x > _w - LIST_W - 20.0:
@@ -1563,8 +1896,14 @@ func hand(event: InputEvent) -> void:
 				and mb.position.y > _timeline.position.y - 6.0:
 			return
 		match mb.button_index:
-			MOUSE_BUTTON_LEFT: _dragging = 1 if mb.pressed else 0
-			MOUSE_BUTTON_RIGHT: _dragging = 2 if mb.pressed else 0
+			MOUSE_BUTTON_LEFT:
+				if mb.pressed and _mode == MOUNT:
+					_snapshot()
+				_dragging = 1 if mb.pressed else 0
+			MOUSE_BUTTON_RIGHT:
+				if mb.pressed and _mode == MOUNT:
+					_snapshot()
+				_dragging = 2 if mb.pressed else 0
 			MOUSE_BUTTON_WHEEL_UP: _wheel(-1.0)
 			MOUSE_BUTTON_WHEEL_DOWN: _wheel(1.0)
 		return
@@ -1592,19 +1931,20 @@ func _drag(by: Vector2) -> void:
 		_tick()
 		return
 	var o := _v3(_fit.offset)
-	var r := _v3(_fit.rotation)
 	if _dragging == 2:
-		r.y += by.x * DRAG_TURN
-		r.x += by.y * DRAG_TURN
+		## Right-drag turns the blade about its OWN live axes — yaw about local Y,
+		## pitch about local X — so a drag never collapses the way Euler edits did.
+		_rotate_weapon(1, by.x * DRAG_TURN)
+		_rotate_weapon(0, by.y * DRAG_TURN)
 	elif _shift:
 		## Along its own length, which is the axis you cannot see from the front
 		## and the one a grip usually needs.
 		o.z += by.y * DRAG_MOVE
+		_set_v("offset", o)
 	else:
 		o.x += by.x * DRAG_MOVE
 		o.y -= by.y * DRAG_MOVE
-	_set_v("offset", o)
-	_set_v("rotation", r)
+		_set_v("offset", o)
 	_apply_mount()
 	_show()
 
@@ -1613,6 +1953,10 @@ func _key(event: InputEventKey) -> void:
 	if not event.pressed or event.echo:
 		return
 	var k := event.keycode
+	## Ctrl+Z takes back the last nudge, drag or typed entry, in any mode.
+	if event.ctrl_pressed and k == KEY_Z:
+		_undo()
+		return
 	match k:
 		KEY_ESCAPE:
 			_leave_fx()
@@ -1635,41 +1979,38 @@ func _key(event: InputEventKey) -> void:
 			_press("spin")
 			return
 	if _mode == MOUNT:
-		var o := _v3(_fit.offset)
-		var r := _v3(_fit.rotation)
+		## Every mount nudge routes through `_dial`, so keys, buttons and the wheel
+		## share one path: it snapshots for undo, applies the step multiplier, and
+		## rotates about the blade's live local axis. A/D yaw, W/S pitch, Q/E roll.
 		match k:
-			KEY_LEFT: o.x -= NUDGE
-			KEY_RIGHT: o.x += NUDGE
-			KEY_UP: o.y += NUDGE
-			KEY_DOWN: o.y -= NUDGE
-			KEY_A: r.y -= TURN
-			KEY_D: r.y += TURN
-			KEY_W: r.x -= TURN
-			KEY_S: r.x += TURN
-			KEY_Q: r.z -= TURN
-			KEY_E: r.z += TURN
-			KEY_BRACKETLEFT: _fit.length = maxf(0.15, float(_fit.length) - GROW)
-			KEY_BRACKETRIGHT: _fit.length = float(_fit.length) + GROW
-			KEY_R: _fit = _saved.duplicate(true)
+			KEY_LEFT: _dial("mx", -1.0)
+			KEY_RIGHT: _dial("mx", 1.0)
+			KEY_UP: _dial("my", 1.0)
+			KEY_DOWN: _dial("my", -1.0)
+			KEY_A: _dial("ry", -1.0)
+			KEY_D: _dial("ry", 1.0)
+			KEY_W: _dial("rx", -1.0)
+			KEY_S: _dial("rx", 1.0)
+			KEY_Q: _dial("rz", -1.0)
+			KEY_E: _dial("rz", 1.0)
+			KEY_BRACKETLEFT: _dial("len", -1.0)
+			KEY_BRACKETRIGHT: _dial("len", 1.0)
+			KEY_R:
+				_snapshot()
+				_fit = _saved.duplicate(true)
+				_rot_basis = LabMath.fit_basis(_v3(_fit.rotation))
+				_apply_mount()
+				_show()
 			KEY_ENTER, KEY_KP_ENTER:
 				_save()
-				return
 			KEY_Z:
 				_at = wrapi(_at - 1, 0, _models.size())
 				_load()
 				_tick()
-				return
 			KEY_X:
 				_at = wrapi(_at + 1, 0, _models.size())
 				_load()
 				_tick()
-				return
-			_:
-				return
-		_set_v("offset", o)
-		_set_v("rotation", r)
-		_apply_mount()
-		_show()
 		return
 	match k:
 		## Z and X rather than PgUp/PgDn: a laptop has no page keys, which is how

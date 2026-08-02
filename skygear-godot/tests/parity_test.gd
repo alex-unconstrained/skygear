@@ -115,6 +115,8 @@ func _run() -> void:
 	_mobility()
 	await process_frame
 	_ink()
+	await process_frame
+	_lab()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -5062,3 +5064,79 @@ func _mobility() -> void:
 		real_ratio < walk_ratio - 0.05,
 		"he covers %.0f%% of her distance against a %.0f%% walk speed"
 			% [real_ratio * 100.0, walk_ratio * 100.0])
+
+
+## SG-39: the model lab's weapon-mount fix and typed-input parser, tested through
+## `LabMath` (tools/lab_math.gd) because the lab itself is windowed and its
+## readback hangs under --headless on this machine (SG-29). The tool wires these
+## functions; the harness pins the arithmetic they turn on.
+func _lab() -> void:
+	## The order Node3D.rotation uses, which is what SkyGearRig3D.hold applies a
+	## fit's stored Euler in. Every basis<->euler round trip below depends on it —
+	## pin it, so a future engine default cannot silently break every saved fit.
+	var probe := Node3D.new()
+	_check("lab", "the fit Euler order is Node3D's own default, so hold() reproduces the basis",
+		LabMath.FIT_EULER_ORDER == probe.rotation_order,
+		"LabMath %d vs Node3D %d" % [LabMath.FIT_EULER_ORDER, probe.rotation_order])
+	probe.free()
+
+	## THE FIT-COMPATIBILITY GUARANTEE. The refactor moved the mount's live
+	## rotation to a Basis, but a saved fit must still load to the exact pose it
+	## saved at. The shipped cutlass fit sits on the pitch -90 singularity, the
+	## worst case: build the basis the OLD lab built by passing its Euler straight
+	## through, then the basis the NEW lab rebuilds after a load->extract->reload
+	## round trip, and assert they are the same orientation.
+	var fit := SkyGearRig3D.weapon_fit("captain")
+	var stored := Vector3(-96.0, -96.0, 0.0)
+	if fit.has("rotation") and fit.rotation is Array and (fit.rotation as Array).size() >= 3:
+		stored = Vector3(float(fit.rotation[0]), float(fit.rotation[1]), float(fit.rotation[2]))
+	var old_basis := LabMath.fit_basis(stored)
+	var reloaded := LabMath.fit_basis(LabMath.fit_euler_deg(old_basis))
+	var fit_drift := LabMath.basis_drift(old_basis, reloaded)
+	_check("lab", "the shipped weapons.json fit loads to the same basis after the local-axis refactor",
+		fit_drift < 0.0001, "drift %.7f at rot %s" % [fit_drift, str(stored)])
+
+	## THE GIMBAL COLLAPSE the owner reported: at pitch -90, incrementing the
+	## stored Euler yaw and incrementing the stored Euler roll build the SAME
+	## basis — the two rows "do the same thing".
+	var at_lock := LabMath.fit_basis(Vector3(-90.0, 0.0, 0.0))
+	var euler_yaw := LabMath.fit_basis(Vector3(-90.0, 10.0, 0.0))
+	var euler_roll := LabMath.fit_basis(Vector3(-90.0, 0.0, 10.0))
+	_check("lab", "at pitch -90 the Euler yaw and roll rows collapse to one pose — the reported bug",
+		LabMath.basis_drift(euler_yaw, euler_roll) < 0.0001,
+		"euler yaw-vs-roll drift %.8f" % LabMath.basis_drift(euler_yaw, euler_roll))
+
+	## THE FIX: rotating about the weapon's live LOCAL axes stays distinct there.
+	var lx := LabMath.rotate_local(at_lock, 0, 10.0)
+	var ly := LabMath.rotate_local(at_lock, 1, 10.0)
+	var lz := LabMath.rotate_local(at_lock, 2, 10.0)
+	var min_split: float = min(LabMath.basis_drift(lx, ly),
+		min(LabMath.basis_drift(ly, lz), LabMath.basis_drift(lx, lz)))
+	_check("lab", "but a local-axis nudge about pitch, yaw and roll stays distinct at that singularity",
+		min_split > 0.1, "closest pair %.4f apart" % min_split)
+	## And each nudge actually moves the pose it is applied to.
+	_check("lab", "a local-axis rotation nudge changes the pose",
+		LabMath.basis_drift(at_lock, lx) > 0.01, "%.4f" % LabMath.basis_drift(at_lock, lx))
+
+	## THE TYPED-INPUT PARSER: accepts well-formed numbers with the right value.
+	var accepts := {"0.303": 0.303, " -96 ": -96.0, "+.5": 0.5, "3": 3.0, "-0.02": -0.02}
+	var accept_ok := true
+	var accept_detail := ""
+	for text in accepts:
+		var p := LabMath.parse_number(text)
+		if not bool(p.ok) or not is_equal_approx(float(p.value), float(accepts[text])):
+			accept_ok = false
+			accept_detail = "'%s' -> %s" % [text, str(p)]
+	_check("lab", "the typed-input parser accepts a well-formed number and reads its value",
+		accept_ok, accept_detail)
+
+	## And refuses malformed input, so a bad entry keeps the old value.
+	var refuses := ["12deg", "1,5", "", "  ", "abc", "--3", "1.2.3"]
+	var refuse_ok := true
+	var refuse_detail := ""
+	for text in refuses:
+		if bool(LabMath.parse_number(text).ok):
+			refuse_ok = false
+			refuse_detail = "accepted '%s'" % text
+	_check("lab", "and refuses malformed input so the old value is kept",
+		refuse_ok, refuse_detail)
