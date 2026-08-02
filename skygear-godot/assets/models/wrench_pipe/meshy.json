@@ -1,0 +1,35 @@
+{
+  "key": "wrench_pipe",
+  "ai_model": "meshy-6",
+  "prompt": "A huge two-handed steampunk pipe wrench: a massive blackened steel head with two broad flat jaws, the lower jaw riding a chunky knurled brass adjustment ring; a long straight thick steel shaft; the lower half of the shaft wrapped in oxblood leather as a two-handed grip; a plain round brass butt cap. One tool alone, upright, head up. No stand, no base, no hand, no figure, no duplicate, no text, no gems. Head, shaft and grip clearly separated. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Blackened gunmetal head and shaft, warm polished brass adjustment ring and butt cap, deep oxblood leather grip wrap, verdigris settled in the jaw recesses, bare worn steel along the jaw teeth. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 12000,
+  "texture_resolution": "2k",
+  "preview_task": "019fc112-2d52-7c6b-a45a-8479e856f5b5",
+  "refine_task": "019fc117-0e79-7fd5-ab59-3c01b2392c54",
+  "credits": 30,
+  "files": [
+    "wrench_pipe.glb",
+    "wrench_pipe.fbx",
+    "wrench_pipe_base_color.png",
+    "wrench_pipe_metallic.png",
+    "wrench_pipe_roughness.png",
+    "wrench_pipe_normal.png",
+    "wrench_pipe_emission.png",
+    "wrench_pipe_thumb.png"
+  ],
+  "screen_units": 125.0,
+  "remesh_task": "019fc118-61ea-7001-a90c-579978d26773",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 245720,
+    "original_bytes": 9639396
+  }
+}

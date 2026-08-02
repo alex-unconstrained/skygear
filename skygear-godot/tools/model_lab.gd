@@ -11,6 +11,7 @@ extends SceneTree
 ##   godot --path . --resolution 1600x900 --script tools/model_lab.gd
 ##   ... -- --model boiler                    open on one
 ##   ... -- --mount                           open holding it
+##   ... -- --mount --fit boilerwright        ...on HIS weapons.json entry
 ##   ... -- --fx                              open on the effects loop
 ##   ... -- --clip swing2 --at 0.62           pose an animation frame
 ##   ... -- --shot out.png                    render that frame and exit
@@ -122,6 +123,12 @@ var _bones: Array[String] = []
 var _bone_at := 0
 var _fit := {}
 var _saved := {}
+## WHOSE fit `weapons.json` is read from and saved to. `--fit boilerwright`
+## opens the lab on his entry (SG-38 — his wrench is fitted numerically first,
+## and the two minutes of hand-polish later need the lab pointed at HIS row,
+## not silently overwriting the captain's). Default is the captain, so every
+## existing invocation behaves exactly as before.
+var _fit_who := "captain"
 var _stats := ""
 var _note := ""
 var _dragging := 0
@@ -240,6 +247,8 @@ func _run() -> void:
 			_at = _models.find(str(argv[i + 1]))
 		if argv[i] == "--mount":
 			_mode = MOUNT
+		if argv[i] == "--fit" and i + 1 < argv.size():
+			_fit_who = str(argv[i + 1])
 		if argv[i] == "--fx":
 			_mode = FX
 		if argv[i] == "--clip" and i + 1 < argv.size():
@@ -1362,7 +1371,7 @@ func _build_mount() -> void:
 		_mode = VIEW
 		return
 	if _fit.is_empty():
-		_fit = SkyGearRig3D.weapon_fit("captain")
+		_fit = SkyGearRig3D.weapon_fit(_fit_who)
 		if _fit.is_empty():
 			_fit = {"bone": "mixamorig_RightHand", "length": 0.95,
 				"offset": [0.0, 0.0, 0.0], "rotation": [-120.0, 0.0, 0.0]}
@@ -2043,20 +2052,21 @@ func _save() -> void:
 		_note = "nothing to save in VIEW — MOUNT is what writes a number."
 		_show()
 		return
-	## Only the captain entry, and only the fields the mount owns. A tool that
-	## rewrites more than it was asked to is a tool nobody runs twice.
+	## Only the entry the lab was opened on (`--fit`, the captain by default),
+	## and only the fields the mount owns. A tool that rewrites more than it was
+	## asked to is a tool nobody runs twice.
 	var table = JSON.parse_string(
 		FileAccess.get_file_as_string(SkyGearRig3D.WEAPON_TABLE))
 	if table is not Dictionary:
 		print("could not read the weapon table")
 		return
-	var captain: Dictionary = (table as Dictionary).get("captain", {})
-	captain["weapon"] = _models[_at]
-	captain["bone"] = str(_fit.bone)
-	captain["length"] = float(_fit.length)
-	captain["offset"] = _fit.offset
-	captain["rotation"] = _fit.rotation
-	(table as Dictionary)["captain"] = captain
+	var wearer: Dictionary = (table as Dictionary).get(_fit_who, {})
+	wearer["weapon"] = _models[_at]
+	wearer["bone"] = str(_fit.bone)
+	wearer["length"] = float(_fit.length)
+	wearer["offset"] = _fit.offset
+	wearer["rotation"] = _fit.rotation
+	(table as Dictionary)[_fit_who] = wearer
 	var weapons: Dictionary = (table as Dictionary).get("weapons", {})
 	if not weapons.has(_models[_at]):
 		weapons[_models[_at]] = {"path": _path_for(_models[_at])}

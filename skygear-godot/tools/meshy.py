@@ -173,6 +173,18 @@ PROP = (
     "clearly separated. " + STYLE_3D
 )
 
+# The frame for a hand TOOL. PROP is written in sword parts — "blade up",
+# "blade, guard, grip and pommel" — and this file has been burned three times
+# by one prompt carrying two vocabularies (the furnace knight, the hulk, the
+# gearblade's second crossguard). A wrench prompted in blade-nouns comes back
+# half sword. Same discipline as PROP otherwise: one object, nothing to stand
+# on, nothing holding it, closed silhouette.
+TOOL = (
+    "One tool alone, upright, head up. No stand, no base, no hand, no figure, "
+    "no duplicate, no text, no gems. Head, shaft and grip clearly separated. "
+    + STYLE_3D
+)
+
 # The texture pass gets its own prompt. The refine stage is only painting an
 # existing mesh, so geometry words ("no stand", "symmetrical") are wasted tokens
 # there — it takes colour and material direction instead.
@@ -391,6 +403,46 @@ ASSETS = [
       "Blackened steel head with a brass cheek plate, oxblood leather haft "
       "wrap, brass butt cap, bare worn steel along the cutting edge.",
       "axe", screen=95.0),
+
+    # --- the Boilerwright's wrench (board SG-38, owner approved ~35 credits) ---
+    # His hands are generated EMPTY by the standing rule — weapons are separate
+    # bone-mounted models, the cutlass pattern — and this is the tool the empty
+    # mount has been waiting for: CLASS-2 §1's engineer who fights by cracking
+    # steam mains open. A pipe wrench, not a valve spanner, because a pipe
+    # wrench is a shape the generator has an image of (the gearblade lesson:
+    # name familiar parts, put the machinery on as small detail). Two-handed,
+    # so the grip wrap runs half the shaft; the jaws are the silhouette read at
+    # the 41-degree camera and everything expensive goes there. TOOL frame, not
+    # PROP — a wrench prompted in blade-nouns comes back half sword.
+    # `screen` 125: weapons.json length 1.25 m * 100, the header's own rule.
+    #
+    # WHAT THE FIRST GENERATION TAUGHT, recorded because the mesh SHIPPED with
+    # both marks on it (board SG-38, the 45-credit cap ruled a meshy-6 redo out):
+    #   * "two-handed" was read as TWO HANDLES — the shaft forked at the butt
+    #     into a second, thinner grip, each tine ending in a ring. The same
+    #     failure as the gearblade's second crossguard: a count adjective near
+    #     a part noun duplicates the part. If this is ever re-rolled, say how
+    #     LONG the grip is, never how many hands take it.
+    #   * "riding a chunky knurled brass adjustment ring" hung a small
+    #     articulated linkage off the worm screw — a mechanism the generator
+    #     had no image of, resolved into the nearest familiar dangling shape.
+    #     The fit turns both marks toward the figure; at 234 px they read as
+    #     steampunk greeble, and the head — which is the whole read — is right.
+    #   * the cheap second opinion was WORSE: a meshy-5 preview (5 credits,
+    #     v2 prompt with both fixes) came back crab-clawed with a hose dangling
+    #     to the grip — the header's "sword-shaped lump" warning, verbatim.
+    #     Chunky does not save a weak model; the jaws are still a silhouette.
+    #     Rejected; the refine went onto the meshy-6 preview.
+    A("wrench_pipe",
+      "A huge two-handed steampunk pipe wrench: a massive blackened steel head "
+      "with two broad flat jaws, the lower jaw riding a chunky knurled brass "
+      "adjustment ring; a long straight thick steel shaft; the lower half of "
+      "the shaft wrapped in oxblood leather as a two-handed grip; a plain "
+      "round brass butt cap.",
+      "Blackened gunmetal head and shaft, warm polished brass adjustment ring "
+      "and butt cap, deep oxblood leather grip wrap, verdigris settled in the "
+      "jaw recesses, bare worn steel along the jaw teeth.",
+      "wrench", frame=TOOL, screen=125.0),
 
     # --- the five boarders ----------------------------------------------------
     # These are not new characters. Every one of them already exists as a
@@ -734,7 +786,7 @@ ASSETS = [
       "props", 6000, DECK, SURFACE_WOOD, screen=30.0),
 ]
 
-BATCHES = ["sword", "axe", "boarders", "props", "boilerwright"]
+BATCHES = ["sword", "axe", "wrench", "boarders", "props", "boilerwright"]
 
 # Generation settings. meshy-6 costs 20 credits at preview against meshy-5's 5,
 # and is the difference between a sword and a sword-shaped lump at this

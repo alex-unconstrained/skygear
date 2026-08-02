@@ -98,9 +98,18 @@ point of route 2). Two things need you:
     two-handed wrench or hammer swing** (to replace the light axe cuts). Hand me
     the FBX and the retarget path (`tools/retarget_library.gd`) brings them in.
 
-**6 · His tool is unbuilt on purpose** (SG-38, filed unpriced). His hands are
-empty by the standing rule — a pipe wrench is a separate bone-mounted mesh, the
-cutlass pattern. Approve SG-38 and I generate + fit it.
+**6 · His tool — DELIVERED** (SG-38, approved 2026-08-02, built the same
+night). The pipe wrench is generated, remeshed to the prop budget, and fitted
+to his right hand in `assets/models/weapons.json` — the cutlass pattern,
+40 credits of the ~35 you approved (one meshy-5 second opinion was bought and
+rejected; the story is in the manifest comment at `tools/meshy.py`). The fit
+was placed numerically and verified at rest and through `swing2`
+(`.shots/wrench/`); it reads right at the 41° camera, but a perfect grip is
+your two minutes in the lab — `model_lab` now takes `--fit boilerwright` so
+SAVE writes HIS row, not hers. Two honest marks on the mesh, recorded on the
+SG-38 board row: a small linkage dangles at the worm screw and the butt forks
+into two rings — both turned toward his body by the fit, both invisible at
+game scale. Re-roll is one command if they bother you.
 
 *(Resolved 2026-08-01: #2 Boilerwright route — route 2 approved AND delivered,
 SG-12; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*

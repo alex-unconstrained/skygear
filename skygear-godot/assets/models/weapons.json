@@ -42,6 +42,26 @@
       "path": "res://assets/models/sword_gearblade/sword_gearblade.glb",
       "grip_at": 0.42,
       "length": 1.9
+    },
+    "wrench_pipe": {
+      "path": "res://assets/models/wrench_pipe/wrench_pipe.glb",
+      "grip_at": 0.35,
+      "length": 1.9
     }
+  },
+  "boilerwright": {
+    "weapon": "wrench_pipe",
+    "bone": "mixamorig_RightHand",
+    "length": 1.25,
+    "offset": [
+      0.0,
+      -0.08,
+      -0.14
+    ],
+    "rotation": [
+      -120.0,
+      25.0,
+      0.0
+    ]
   }
 }

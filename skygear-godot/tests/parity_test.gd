@@ -4550,11 +4550,10 @@ func _view() -> void:
 			_check("figure", "and his triangle count is inside the remesh budget",
 				bwtris > 0 and bwtris <= 4000,
 				"%d tris (target ~3000; the captain's SG-13 was 30634)" % bwtris)
-			## SG-18 — HIS EMPTY HAND STILL CARRIES THE TRAIL. His tool is a
-			## separate unpriced asset (SG-38), so `weapon_fit` returns {} and
-			## nothing is held — but the trail mounts the same family's hand bone
-			## anyway and extends a knuckle's reach along it, so the Boilerwright's
-			## retargeted swings draw a blade trail before his wrench ever lands.
+			## SG-18 — HIS EMPTY HAND STILL CARRIES THE TRAIL. The wrench landed
+			## (SG-38, the block below), but the knuckle mount stays pinned as
+			## the FALLBACK tier: a missing or renamed wrench scene must degrade
+			## to the empty fist drawing its arc, never to no trail at all.
 			## Same rig family as the captain, same mount, same reader.
 			var bw_mounted: bool = bwrig.mount_hand()
 			var bw_pts := bwrig.blade_points()
@@ -4574,6 +4573,80 @@ func _view() -> void:
 				"reach %.2f m, tip travelled %.2f m between two clip times"
 					% [bw_pts[0].distance_to(bw_pts[1]) if bw_pts.size() == 2 else -1.0,
 						bw_early.distance_to(bw_late)])
+			## SG-38 — AND NOW THE WRENCH LANDS IN THAT HAND. The empty-hand
+			## mount above stays pinned as the fallback tier; these assert the
+			## delivered tool on top of it: his fit row exists, the generated
+			## scene loads self-contained (the prune trap is a scene with no
+			## meshes and no error), `hold()` replaces the empty fist with the
+			## real mesh through the same call the renderer makes, and the
+			## measured tip — the trail's own source — reaches PAST the knuckle
+			## fallback, so his blade trail now traces the wrench's head.
+			var bw_knuckle: float = bw_pts[0].distance_to(bw_pts[1]) \
+				if bw_pts.size() == 2 else 0.0
+			var bw_fit := SkyGearRig3D.weapon_fit("boilerwright")
+			_check("weapon", "the Boilerwright has a weapons.json fit, and his wrench is on disk",
+				not bw_fit.is_empty()
+					and ResourceLoader.exists(str(bw_fit.get("path", ""))),
+				"fit '%s' -> %s" % [str(bw_fit.get("weapon", "NO FIT")),
+					str(bw_fit.get("path", "no path"))])
+			if not bw_fit.is_empty() and ResourceLoader.exists(str(bw_fit.get("path", ""))):
+				var bw_off: Array = bw_fit.get("offset", [0, 0, 0])
+				var bw_turn: Array = bw_fit.get("rotation", [0, 0, 0])
+				## The same metres-of-world conversion `_sync_captain` applies —
+				## the fit table is authored against a 1.8 m figure.
+				var bw_world: float = float(bw_row.height) * SkyGearView3D.WORLD_SCALE / 1.8
+				var bw_held: bool = bwrig.hold(str(bw_fit.path), str(bw_fit.bone),
+					Vector3(bw_off[0], bw_off[1], bw_off[2]) * bw_world,
+					Vector3(bw_turn[0], bw_turn[1], bw_turn[2]),
+					float(bw_fit.get("length", 0.95)) * bw_world,
+					SkyGearView3D.LAYER_FIGURES)
+				_check("weapon", "his mount carries the wrench itself now, not the empty hand",
+					bw_held and bwrig.held != null and bwrig.held.has_meta("blade_tip"),
+					"held through the renderer's own hold(), tip measured in mount space")
+				var held_pts := bwrig.blade_points()
+				var bw_reach: float = held_pts[0].distance_to(held_pts[1]) \
+					if held_pts.size() == 2 else 0.0
+				_check("weapon", "and his trail tip measures the wrench — nonzero, past the empty hand's knuckle reach",
+					bw_reach > 0.0 and bw_reach >= bw_knuckle,
+					"tip %.2f m against the empty hand's %.2f m" % [bw_reach, bw_knuckle])
+				## Budgets, the same reader as his own body above: the wrench is a
+				## prop remesh (3000 triangles, 512 base colour) and has to stay one.
+				var wrench_scene := load(str(bw_fit.path)) as PackedScene
+				var wrench_node: Node = wrench_scene.instantiate() if wrench_scene != null else null
+				var wrench_tris := 0
+				var wrench_side := 0
+				if wrench_node != null:
+					root.add_child(wrench_node)
+					for mi in wrench_node.find_children("*", "MeshInstance3D", true, false):
+						var wm: Mesh = (mi as MeshInstance3D).mesh
+						if wm == null:
+							continue
+						for s in wm.get_surface_count():
+							var war := wm.surface_get_arrays(s)
+							var wii: PackedInt32Array = war[Mesh.ARRAY_INDEX]
+							var wvv: PackedVector3Array = war[Mesh.ARRAY_VERTEX]
+							wrench_tris += (wii.size() / 3) if wii.size() > 0 \
+								else (wvv.size() / 3)
+							var wmat := wm.surface_get_material(s) as BaseMaterial3D
+							if wmat != null and wmat.albedo_texture != null:
+								wrench_side = maxi(wrench_side,
+									maxi(wmat.albedo_texture.get_width(),
+										wmat.albedo_texture.get_height()))
+					wrench_node.queue_free()
+				_check("weapon", "and the wrench sits inside the prop remesh budget — triangles and base colour both",
+					wrench_tris > 0 and wrench_tris <= 4000
+						and wrench_side > 0 and wrench_side <= 512,
+					"%d tris, %d px base colour (budget 3000 / 512)"
+						% [wrench_tris, wrench_side])
+				## The captain is untouched by his fit landing: her row still
+				## names her cutlass and its scene still resolves — one table,
+				## two wearers, neither able to eat the other's entry.
+				var cap_fit := SkyGearRig3D.weapon_fit("captain")
+				_check("weapon", "and the captain's own fit still carries her cutlass beside his",
+					not cap_fit.is_empty()
+						and str(cap_fit.get("weapon", "")) == "sword_cutlass"
+						and ResourceLoader.exists(str(cap_fit.get("path", ""))),
+					"captain holds '%s'" % str(cap_fit.get("weapon", "nothing")))
 		bwrig.queue_free()
 
 	## --- board SG-55: the scrapper pilot's guard rail, laid before the rig ---

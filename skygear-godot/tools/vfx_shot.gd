@@ -27,12 +27,12 @@ func _initialize() -> void: call_deferred("_run")
 const SCENES := [
 	{"id": "arc", "shape": "CLOSEHIT", "element": "EMBER", "tick": 4,
 		"what": "Ember Cleave - the captain's auto-attack, the most-seen effect in the game"},
-	## SG-18: the same swing on the OTHER class. His hand is empty (the wrench is
-	## SG-38, unpriced), so this is the knuckle-mounted trail through his
-	## retargeted swing — the both-classes claim, photographed.
+	## SG-18: the same swing on the OTHER class — and since SG-38 landed his
+	## pipe wrench, this photographs the trail tracing the WRENCH through his
+	## retargeted swing, not the empty knuckle mount it started on.
 	{"id": "trail-bw", "shape": "CLOSEHIT", "element": "STEAM", "tick": 4,
 		"class": "boilerwright",
-		"what": "SG-18 - the Boilerwright's blade trail off his empty hand"},
+		"what": "SG-18/SG-38 - the Boilerwright's blade trail off his wrench"},
 	{"id": "cone", "shape": "CONE", "element": "STEAM", "tick": 5,
 		"what": "Steam Gale - the Boilerwright's auto-attack"},
 	{"id": "line", "shape": "LINE_BURST", "element": "ARC", "tick": 3,

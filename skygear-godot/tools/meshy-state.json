@@ -509,5 +509,34 @@
    "boilerwright_rigged.glb",
    "boilerwright_rigged.fbx"
   ]
+ },
+ "wrench_pipe": {
+  "preview": "019fc112-2d52-7c6b-a45a-8479e856f5b5",
+  "preview_v2": "019fc115-eba1-7ce4-bbbe-2a9c61e39f83",
+  "refine": "019fc117-0e79-7fd5-ab59-3c01b2392c54",
+  "credits": 30,
+  "files": [
+   "wrench_pipe.glb",
+   "wrench_pipe.fbx",
+   "wrench_pipe_base_color.png",
+   "wrench_pipe_metallic.png",
+   "wrench_pipe_roughness.png",
+   "wrench_pipe_normal.png",
+   "wrench_pipe_emission.png",
+   "wrench_pipe_thumb.png"
+  ],
+  "remesh": "019fc118-61ea-7001-a90c-579978d26773",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 245720,
+   "original_bytes": 9639396
+  }
  }
 }
