@@ -17,6 +17,18 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### Projectiles look like cheap 2D sprites — the first ask of the post-parity era
+Asked 2026-08-01 with a screenshot of the cartoon fireball bolts: *"Can we get
+better VFX particles? Instead of these 2D sprites that look like they are
+cheap? What did our VFX investigation into Godot yield for us?"*
+
+The bolts are the browser's painted sprites billboarded into 3D — kept
+because parity said keep them, un-blocked the moment parity was retired. The
+research audit's architecture is already in place (emit_particle injection,
+behaviour-keyed emitters, element motion signatures); what was never done is
+making the projectiles THEMSELVES 3D — emissive cores, particle trails,
+per-element light. Board SG-40, queued behind the lighting pass (same file).
+
 ### The lab needs a usability pass — typed values, and yaw/roll collapse
 Asked 2026-08-01, with a screenshot of MOUNT mode on the cutlass: *"Yaw and
 roll here seem to do the same thing. I like the changes to the Lab, but I do
