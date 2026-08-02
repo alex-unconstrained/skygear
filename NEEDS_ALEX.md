@@ -18,6 +18,12 @@ decision below) needs the raw FBX from you, or those two archives restored to
 
 ## Decisions
 
+*(Answered 2026-08-02, 00:30, before sleep: stowage stays cut — variety
+belongs to ENEMIES within runs, ship modification happens BETWEEN runs
+(fittings reframed and unblocked); wrench + scrapper pilot both approved
+(~45 credits); captain's triangle cost accepted and recorded; the pouches
+accepted. All in motion.)*
+
 **0 · The post-parity plan is written — skim it first** —
 `skygear-godot/docs/POST-PARITY-PLAN.md`, produced overnight by a 3-designer /
 2-judge / 1-synthesis workflow per your ultracode instruction. Two threads:

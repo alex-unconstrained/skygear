@@ -17,6 +17,23 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The variety direction, from the owner — enemies vary the run, the ship changes between runs
+Answered 2026-08-02, 00:30, when asked whether to resurrect the cut stowage
+spine: *"When you're talking about deck variety, it should be minor deck
+variety within waves because the ship itself shouldn't change during the
+playthrough that much. It should be more based on the enemies. The ship
+modification should happen in between runs. As you complete all twelve waves,
+you would want to see modifications and changes and upgrades that can be made
+to the ship itself."*
+
+Three consequences: (1) the stowage spine stays CUT — per-wave deck shuffling
+was the wrong axis, the kill-test and the owner agree; (2) run-to-run variety
+work goes to the ENEMY side (composition, mutations, behaviors — the plan's
+figure thread grows a variety limb; needs its own design pass); (3) the
+fittings system is UNBLOCKED and reframed: fittings are between-run ship
+modifications earned by finishing waves, visible on the deck at run start,
+never changing mid-run. POST-PARITY-PLAN items 3/5 proceed on that basis.
+
 ### The editor can't REACH the screens — round two of the alignment ask
 Reported 2026-08-01, after SG-42 shipped: *"You still didnt fix the screens
 tool to allow me to interactively edit UI/text."* SG-42's "you edit the
