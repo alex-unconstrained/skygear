@@ -140,9 +140,13 @@ func _run() -> void:
 	if skel == null or mesh_node == null:
 		print("FAIL the rigged glb has no skeleton or mesh"); quit(1); return
 
-	## Rename the rig's bones to the names the clips address. Nothing else in the
-	## pipeline touches bone names, so this is the whole of "write the mapping,
-	## don't edit the clips".
+	## Rename the rig's bones to the names the clips address. The SKELETON is not
+	## the only place the rig keeps bone names: the mesh's Skin resource carries
+	## one NAMED bind per joint, and Godot resolves those binds BY NAME against
+	## the skeleton — so both must be renamed through the same map or they stop
+	## agreeing and the skinned mesh silently draws NOTHING. Board SG-45: the
+	## first cut of this tool renamed only the skeleton, and the Boilerwright
+	## shipped three builds invisible while every bookkeeping check stayed green.
 	var bone_map: Dictionary = spec.get("bone_map", {})
 	var renamed := 0
 	if not bone_map.is_empty():
@@ -151,6 +155,30 @@ func _run() -> void:
 			if bone_map.has(nm):
 				skel.set_bone_name(b, str(bone_map[nm]))
 				renamed += 1
+	var skin: Skin = mesh_node.skin
+	var binds_renamed := 0
+	if skin != null and not bone_map.is_empty():
+		for i in skin.get_bind_count():
+			var bind_name := String(skin.get_bind_name(i))
+			if bone_map.has(bind_name):
+				skin.set_bind_name(i, str(bone_map[bind_name]))
+				binds_renamed += 1
+	## And PROVE the agreement rather than assume it: every named bind must
+	## resolve to a bone the (renamed) skeleton actually has, or the scene this
+	## tool is about to save can never render. Refuse to save an invisible
+	## character — this line going red is the whole of SG-45's lesson.
+	var unresolved := PackedStringArray()
+	if skin != null:
+		for i in skin.get_bind_count():
+			var bind_name := String(skin.get_bind_name(i))
+			if bind_name != "" and skel.find_bone(bind_name) < 0:
+				unresolved.append(bind_name)
+	print("skin ", skin.get_bind_count() if skin != null else 0,
+		" binds  (%d renamed by the map)" % binds_renamed)
+	if not unresolved.is_empty():
+		print("FAIL %d skin binds name bones the skeleton does not have — the mesh would draw nothing: %s"
+			% [unresolved.size(), ", ".join(unresolved)])
+		quit(1); return
 	var skeleton_path := String(src.get_path_to(skel))
 	var to_rest := {}
 	for b in skel.get_bone_count():
@@ -223,10 +251,30 @@ func _run() -> void:
 	player.add_animation_library("", load(out + name + "_anims.res"))
 
 	root.add_child(src)
+	## The ruler is the SKELETON, not the static mesh AABB. A skinned mesh draws
+	## where the bones put it, and Meshy's rigged glb is MIXED-UNIT: the mesh
+	## vertices are in metres (static AABB 1.8 tall) while the bones are in
+	## centimetres under an 0.01-scaled Armature — so the AABB ruler read 0.018,
+	## the renderer scaled him a hundredfold to reach 1.76 m, and the drawn
+	## figure stood 176 METRES tall with his hips ninety metres off the deck
+	## (board SG-45's second fault; the captain's rig is same-unit throughout,
+	## so the AABB and the skeleton agree on her and this never showed). Walking
+	## the bone rests measures what the SKINNED mesh will actually stand at
+	## scale 1, in every unit convention. Bone parents always precede their
+	## children in a Skeleton3D, so one forward pass accumulates the chain.
 	var tall := 0.0
-	for child in src.find_children("*", "MeshInstance3D", true, false):
-		var mi := child as MeshInstance3D
-		tall = maxf(tall, mi.get_aabb().size.y * mi.global_transform.basis.get_scale().y)
+	var lowest := INF
+	var highest := -INF
+	var rests: Array[Transform3D] = []
+	rests.resize(skel.get_bone_count())
+	for b in skel.get_bone_count():
+		var parent := skel.get_bone_parent(b)
+		rests[b] = (rests[parent] * skel.get_bone_rest(b)) if parent >= 0 \
+			else skel.get_bone_rest(b)
+		var world_y := (skel.global_transform * rests[b]).origin.y
+		lowest = minf(lowest, world_y)
+		highest = maxf(highest, world_y)
+	tall = highest - minf(lowest, 0.0)
 	root.remove_child(src)
 	src.set_meta("model_height", tall)
 	src.set_meta("target_height", float(spec.get("height", 176.0)))

@@ -4,16 +4,16 @@
 [ext_resource type="Skin" path="res://assets/models/boilerwright/boilerwright_skin.res" id="2_6r7au"]
 [ext_resource type="AnimationLibrary" path="res://assets/models/boilerwright/boilerwright_anims.res" id="3_poppk"]
 
-[node name="Boilerwright" type="Node3D" unique_id=486378342]
-metadata/model_height = 0.018000001505017238
+[node name="Boilerwright" type="Node3D" unique_id=1788041759]
+metadata/model_height = 1.8061973
 metadata/target_height = 176.0
 metadata/facing_degrees = 0.0
 metadata/clips = PackedStringArray("block", "combo", "dash", "hurt", "idle", "idle_alt", "run", "run_back", "spin", "swing", "swing2", "swing3", "taunt", "walk")
 
-[node name="Armature" type="Node3D" parent="." unique_id=2120818713]
+[node name="Armature" type="Node3D" parent="." unique_id=1660709930]
 transform = Transform3D(0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01, 0, 0, 0)
 
-[node name="Skeleton3D" type="Skeleton3D" parent="Armature" unique_id=951020265]
+[node name="Skeleton3D" type="Skeleton3D" parent="Armature" unique_id=288346673]
 bones/0/name = "mixamorig_Hips"
 bones/0/parent = -1
 bones/0/rest = Transform3D(0.965414, 0.11686177, -0.23306449, -0.23306458, 0.7874964, -0.5705524, 0.11686174, 0.60513854, 0.78749615, 0.23267654, 91.4467, -3.314191)
@@ -183,10 +183,10 @@ bones/23/position = Vector3(0.056571864, 4.506733, 9.889416)
 bones/23/rotation = Quaternion(0.54097307, -4.401732e-08, -0.0030946236, 0.84103423)
 bones/23/scale = Vector3(1, 1.0000001, 1.0000001)
 
-[node name="char1" type="MeshInstance3D" parent="Armature/Skeleton3D" unique_id=919127115]
+[node name="char1" type="MeshInstance3D" parent="Armature/Skeleton3D" unique_id=1067768662]
 mesh = ExtResource("1_i6wxr")
 skin = ExtResource("2_6r7au")
 skeleton = NodePath("..")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1829006707]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2000350924]
 libraries/ = ExtResource("3_poppk")
