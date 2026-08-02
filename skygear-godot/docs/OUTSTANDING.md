@@ -37,8 +37,19 @@ board row:
    gameplaywise this is a game breaking bug."* Build carried SLEDGE FORCE +
    OVERPRESSURE + Frost; crew/cannons took 58% damage share, consistent with
    flung enemies being delivered to the stern guns. (SG-62, P1)
+   **DONE 2026-08-02 — the vector was the frame, not the cap**: the July-31 fix
+   capped the shove's VELOCITY, but `velocity += knock_velocity` folded the
+   capped shove into the walk velocity the move-lerp keeps ~90% of, so it was
+   integrated twice — one capped hit measured 1,338 units of carry, mid-deck
+   to the stern wall. Fixed with two positional laws in `enemy.gd`
+   (`KNOCK_TRAVEL_MAX` 390, `KNOCK_STERN_GIVE` 60) — evidence and check
+   strings on board SG-62's Done row.
 6. **Hard cap on allied units alive** — plus the 58% ally share wants
    measuring while in there (SG-62, same sim pass).
+   **DONE 2026-08-02**: `SkyGearGame.ALLY_CAP` 32, crew + sentries counted
+   together, refused at every spawn door — `allies · the alive cap holds
+   under flood`. Share numbers on the board row; the owner's 58% was a real
+   run, so the number that matters is his next playtest.
 7. **2D reads remaining** — impacts/puffs, skill-shape billboards in the air,
    AND the 2D crew/ally figures all named: *"I still see 2D sprite particles
    on skill usage, why?"* (SG-63 renderer pass; figures gated on rigging)

@@ -36,7 +36,35 @@ const KNOCK_MAX := 900.0
 ## whoever is standing nearest the edge.
 const OVERBOARD_SPEED := 520.0
 
+## HOW FAR A SHOVE CAN EVER CARRY — in GROUND, not velocity. The July-31 cap
+## bounded `knock_velocity` and asserted the distance it implies analytically
+## (v²/2a = 386), but never measured the enemy's own frame. The frame betrayed
+## it: `velocity += knock_velocity` folded the capped shove into the WALK
+## velocity, and the walk lerp only bleeds ~10% a frame — so the shove was
+## integrated a second time with a ninefold gain. Measured: ONE capped hit on
+## a moving boarder carried 1,338 units, mid-deck to the stern wall, straight
+## past the Boiler (board SG-62, the owner's "game breaking"). The walk keeps
+## only the walk now (see the bottom of `_physics_process`), and this cap is
+## POSITIONAL — anchored where the shove began, enforced after the move, so no
+## stack of multipliers and no future integration slip can carry past it.
+const KNOCK_TRAVEL_MAX := 390.0
+
+## THE STERN LINE. Knockback may STOP a boarder; it may never DELIVER one.
+## Spawn is at the bow (y = -1115), the Boiler at the stern (y = +850), so a
+## hit taken from the bow side points `away` stern-ward — which made hitting a
+## boarding party from behind the fastest way to hand it to the Boiler. While
+## a shove is live, a boarder may not end a frame more than this many units
+## stern-ward of where the shove began. Sideways and bow-ward stay free: the
+## rail kill and pushing them back the way they came are the point of knockback.
+const KNOCK_STERN_GIVE := 60.0
+
 var knock_velocity := Vector2.ZERO
+## Where the live shove began — the anchor `KNOCK_TRAVEL_MAX` and
+## `KNOCK_STERN_GIVE` measure from. A hit landing while a shove is already
+## live keeps the OLD anchor, so chained hits cannot ratchet the line forward;
+## the anchor releases only when the shove has fully decayed.
+var knock_anchor := Vector2.ZERO
+var knock_live := false
 ## Past the rail and no longer the lane's problem. Kept as state rather than
 ## resolved on the spot because the clamp has to STOP running for them, and a
 ## boarder mid-fall is briefly outside every rule the deck has.
@@ -114,6 +142,7 @@ func _physics_process(delta: float) -> void:
 		velocity = knock_velocity
 		knock_velocity = knock_velocity.move_toward(Vector2.ZERO, 900.0 * delta)
 		move_and_slide()
+		_rein_in_knock()
 		if _went_over():
 			return
 		global_position = game.correct_enemy_position(global_position, lane, radius,
@@ -201,9 +230,19 @@ func _physics_process(delta: float) -> void:
 		if state_time <= 0.0:
 			state = "move"
 
-	velocity += knock_velocity
+	## THE SG-62 VECTOR LIVED ON THIS LINE. `velocity += knock_velocity` looks
+	## like "add the shove for this frame", but `velocity` PERSISTS — the move
+	## state's lerp keeps ~90% of it each frame — so every frame re-added the
+	## whole shove on top of what the lerp still remembered of the last one.
+	## A capped 900 shove integrated that way peaks near nine times itself and
+	## carried 1,338 measured units. The walk keeps only the walk now: the shove
+	## is added for the move and taken back off before the lerp can bank it.
+	var walk := velocity
+	velocity = walk + knock_velocity
 	knock_velocity = knock_velocity.move_toward(Vector2.ZERO, 1050.0 * delta)
 	move_and_slide()
+	velocity = walk
+	_rein_in_knock()
 	if _went_over():
 		return
 	## The lane clamp is RELAXED while a real shove is on them, and that single
@@ -215,6 +254,33 @@ func _physics_process(delta: float) -> void:
 	global_position = game.correct_enemy_position(global_position, lane, radius,
 		knock_velocity.length() > OVERBOARD_SPEED)
 	queue_redraw()
+
+## The two positional laws of a shove, enforced the frame it moved them —
+## AFTER `move_and_slide`, BEFORE the rail and lane checks, in both the stunned
+## and the walking paths:
+##
+##   1. `KNOCK_TRAVEL_MAX` — no shove carries more than this from its anchor,
+##      whatever stack of multipliers or integration arithmetic produced it.
+##   2. `KNOCK_STERN_GIVE` — no shove ends a frame more than this stern-ward of
+##      its anchor. Stopped, never delivered to the Boiler.
+##
+## Positional on purpose: every earlier attempt capped a VELOCITY and was then
+## beaten by whatever integrated that velocity (board SG-62's history, twice).
+func _rein_in_knock() -> void:
+	if not knock_live:
+		return
+	var offset := global_position - knock_anchor
+	if offset.length() > KNOCK_TRAVEL_MAX:
+		global_position = knock_anchor + offset.limit_length(KNOCK_TRAVEL_MAX)
+	var stern_line := knock_anchor.y + KNOCK_STERN_GIVE
+	if global_position.y > stern_line:
+		global_position.y = stern_line
+		## And stop pushing at the line, so the clamp is a wall rather than a
+		## fight the shove keeps having every frame.
+		knock_velocity.y = minf(knock_velocity.y, 0.0)
+	if knock_velocity.length() <= 1.0:
+		knock_live = false
+		knock_velocity = Vector2.ZERO
 
 ## Are they past the rail? Called after the move and before the clamp, because
 ## the clamp is what would put them back.
@@ -247,6 +313,14 @@ func take_damage(amount: float, origin: Vector2, element: String, knock: float) 
 	if away.length_squared() == 0.0:
 		away = Vector2.UP
 	knock_velocity = (knock_velocity + away * knock / mass).limit_length(KNOCK_MAX)
+	## The shove's ground rules are measured from where it BEGAN. A fresh hit
+	## on an already-flying boarder keeps the old anchor — that is what stops a
+	## fast-ticking build (the SG-62 report: Frost Mortar + Pulse + the auto,
+	## SLEDGE FORCE on top) from ratcheting the travel and stern lines forward
+	## hit by hit.
+	if not knock_live and knock_velocity.length() > 1.0:
+		knock_live = true
+		knock_anchor = global_position
 	_apply_element(element)
 	if hp <= 0.0:
 		dead = true

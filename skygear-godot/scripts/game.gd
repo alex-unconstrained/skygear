@@ -64,6 +64,19 @@ const WINCH_STEP := 150.0
 const WINCH_GAP := 90.0
 const WINCH_COOLDOWN := 1.0
 
+## THE MOST ALLIED UNITS THAT CAN EVER BE ALIVE AT ONCE — standing crew (the
+## muster, the press-gang, anything a card spawns) plus deployed sentries,
+## counted together by `allies_alive()` and refused at the door (board SG-62).
+## Crew had NO ceiling: a muster is 3 lanes × (2 + Muster Roll) = up to 9 every
+## 14 seconds, crew never expire, and on a deck the player clears before the
+## boarders reach them the count only climbs — the no-attrition arithmetic is
+## 700+ by a run's end. The number: the lane layer's own doctrine is "a dozen
+## crew" (lanes.gd), a full double muster arriving on top of that is 9 more,
+## and the fattest sentry loadout is 8 (2 per slot × 4 slots, their own
+## retire-oldest law) — 12 + 9 + 8 = 29, so 32 with margin. It bites nothing
+## the game intends and everything runaway.
+const ALLY_CAP := 32
+
 @onready var player: SkyGearPlayer = $Player
 @onready var hud: SkyGearHUD = $HUD/Overlay
 var audio: SkyGearAudio
@@ -2506,7 +2519,12 @@ static func stats_with(skill: Dictionary, mods: Dictionary,
 		"kind": str(shape.kind),
 		"damage": float(shape.damage) * float(m.get("damage", 1.0)) * elem_damage * damage_multiplier,
 		"cooldown": float(shape.cooldown) * float(m.get("cooldown", 1.0)) * elem_cooldown * 0.8,
-		"knock": float(shape.get("knock", 0.0)) * float(m.get("knock", 1.0)) * float(mods.knock_multiplier),
+		## No `mods.knock_multiplier` here — `damage_enemy` is the single funnel
+		## and applies it to EVERY source (which is PRESSURE SPIKE's own text).
+		## It was applied in both places, so the skill path squared it: +40%
+		## printed on the card, +96% dealt on the deck (board SG-66, found
+		## chasing SG-62's fling).
+		"knock": float(shape.get("knock", 0.0)) * float(m.get("knock", 1.0)),
 		"multi": int(m.get("multi", 1)),
 		## LONG ARMS is folded in through `damage_multiplier`'s sibling rather than
 		## through `m`, which belongs to the skill and is what a card writes.
@@ -2877,8 +2895,10 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		pressure_grace = float(SkyGearData.CLOSE.pressure_grace)
 		player.refund_dash(float(SkyGearData.CLOSE.dash_refund))
 		## PRESS-GANG. A close kill sometimes gets back up on your side. Rolled on
-		## the seeded stream, so a run with it is still reproducible.
-		if article("press_gang") and rng.randf() < 0.06:
+		## the seeded stream, so a run with it is still reproducible. The ALLY_CAP
+		## test sits AFTER the roll on purpose: the stream is consumed identically
+		## whether or not the deck is full (board SG-62).
+		if article("press_gang") and rng.randf() < 0.06 and allies_alive() < ALLY_CAP:
 			crew.append(SkyGearLanes.make_crew(enemy.lane, LANE_CENTERS, BASE_Y, rng))
 			crew[crew.size() - 1].position = enemy.global_position
 			play_sfx("lane/crew_muster.ogg", -12.0)
@@ -3699,6 +3719,18 @@ func turret_in_lane(lane: int) -> Dictionary:
 
 
 ## --- crew -----------------------------------------------------------------
+## Every allied UNIT alive: standing crew plus deployed sentries — the two
+## things that spawn during play. The deck cannons are structures with fixed
+## berths (three, plus the Spare Gun fitting) and are not counted. Everything
+## that spawns an ally asks this against `ALLY_CAP` first.
+func allies_alive() -> int:
+	var alive := sentries.size()
+	for c in crew:
+		if not bool(c.dead):
+			alive += 1
+	return alive
+
+
 ## Your own boarders, pushing the other way. They are minions: they hold a lane
 ## while you are somewhere else, and on a push they are what breaks the hulk if
 ## you do not.
@@ -3713,13 +3745,19 @@ func _update_crew(delta: float) -> void:
 		## arrive, because those are the player's doing, not the ship's.
 		crew_timer = SkyGearLanes.CREW.push_every if pushing else SkyGearLanes.CREW.every
 		if SkyGearWorkshop.musters(int(heat)):
+			var mustered := 0
 			for lane in LANE_CENTERS.size():
 				## MUSTER ROLL. One more hand per lane per muster.
 				for _i in int(SkyGearLanes.CREW.per_wave) + int(talent("extra_crew")):
+					## THE ALLY CAP (board SG-62). A full deck musters nobody.
+					if allies_alive() >= ALLY_CAP:
+						break
 					crew.append(SkyGearLanes.make_crew(lane, LANE_CENTERS, BASE_Y, rng))
-			play_sfx("lane/crew_muster.ogg", -10.0)
-			if voice != null:
-				voice.say("crew_muster")
+					mustered += 1
+			if mustered > 0:
+				play_sfx("lane/crew_muster.ogg", -10.0)
+				if voice != null:
+					voice.say("crew_muster")
 
 	for i in range(crew.size() - 1, -1, -1):
 		var c: Dictionary = crew[i]
@@ -4060,6 +4098,16 @@ func deploy_sentry(skill: Dictionary, at: Vector2, manual: bool) -> void:
 	while mine.size() >= cap:
 		var oldest: Dictionary = mine.pop_front()
 		sentries.erase(oldest)
+
+	## THE ALLY CAP is total and hard (board SG-62). Sentries are already
+	## bounded by the retire-oldest law above, so this only ever fires on a
+	## deck flooded with crew — and then the cast is honoured by retiring the
+	## oldest sentry standing, or refused outright (cooldown unspent) on the
+	## one deck that has none to retire.
+	if allies_alive() >= ALLY_CAP:
+		if sentries.is_empty():
+			return
+		sentries.pop_front()
 
 	_sentry_seq += 1
 	sentries.append({

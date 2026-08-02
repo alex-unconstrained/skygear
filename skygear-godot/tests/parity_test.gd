@@ -90,6 +90,8 @@ func _run() -> void:
 	await process_frame
 	_lanes()
 	await process_frame
+	_sg62()
+	await process_frame
 	_draft()
 	await process_frame
 	_seed()
@@ -1067,6 +1069,168 @@ func _lanes() -> void:
 	_check("lanes", "breaking the hulk clears the push",
 		game.wave_clear_time >= 0.0 or game.state_name == "DRAFT",
 		"clear timer %.2f, state %s" % [game.wave_clear_time, game.state_name])
+	game.queue_free()
+
+
+## SG-62. The owner, 2026-08-02: "Something is still knocking back enemies all
+## the way to the boiler area … game breaking." The July-31 fix capped
+## `knock_velocity` and asserted the distance the cap implies ANALYTICALLY
+## (v²/2a = 386) — it never measured the enemy's own frame. The frame betrayed
+## it: `velocity += knock_velocity` folded the capped shove into the walk
+## velocity that the move-state lerp keeps ~90% of, so the shove was integrated
+## a second time with a ninefold gain. Measured red before the fix: ONE capped
+## hit on a moving boarder carried 1,338 units — mid-deck to the stern wall,
+## straight past the Boiler. Everything here is measured through
+## `_physics_process`, because a knockback claim proved any other way has now
+## been wrong twice.
+func _sg62() -> void:
+	var game := _new_game()
+	_begin(game, "SG62")
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+
+	## THE REPRO. One hit already at the velocity cap, from the bow side, on a
+	## boarder mid-deck in the move state — the exact shape of the report.
+	game.spawn_enemy("SCRAPPER", 1)
+	var mule: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			mule = e
+	mule.state = "move"
+	mule.hp = 1e9
+	mule.max_hp = 1e9
+	mule.global_position = Vector2(0.0, -200.0)
+	var start: Vector2 = mule.global_position
+	mule.take_damage(0.5, start + Vector2(0.0, -90.0), "FROST", 900.0)
+	## `stern_carried` is measured only on ticks the shove was live ENTERING the
+	## frame — after it dies the mule's own walk to the lane's deck gun (it
+	## winds up at y≈430) is the AI's business, not the shove's. `deepest_y`
+	## stays measured across the WHOLE window: before the fix the shove itself
+	## put them at the stern wall (y 1138), and 500 sits between everywhere the
+	## walk legitimately stops and everywhere only a fling could reach.
+	var stern_carried := 0.0
+	var deepest_y := start.y
+	for _i in 80:
+		var shoved: bool = mule.knock_live
+		mule._physics_process(0.05)
+		if shoved:
+			stern_carried = maxf(stern_carried, mule.global_position.y - start.y)
+		deepest_y = maxf(deepest_y, mule.global_position.y)
+	_check("knockback", "the SG-62 fling is dead: one capped hit through the enemy's own frame carries a shove, not the deck",
+		stern_carried <= SkyGearEnemy.KNOCK_STERN_GIVE + 0.5 and deepest_y < 500.0,
+		"the shove carried them %.0f stern-ward against the %.0f line; deepest y %.0f (before the fix: 1338 units of carry, to the stern wall past the Boiler at %.0f)"
+			% [stern_carried, SkyGearEnemy.KNOCK_STERN_GIVE, deepest_y,
+				SkyGearGame.BOILER_POSITION.y])
+	mule.kill()
+
+	## THE STACK. The report's build through the REAL funnel: a Frost Mortar
+	## carrying SLEDGE FORCE (skill mods.knock ×1.6), PRESSURE SPIKE's global
+	## multiplier, hits landing every 0.15 s the way a Mortar + Pulse + auto
+	## build lands them — the shove never decays out, the worst case the
+	## anchor rule exists for.
+	game.spawn_enemy("SCRAPPER", 1)
+	var mule2: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			mule2 = e
+	mule2.state = "move"
+	mule2.hp = 1e9
+	mule2.max_hp = 1e9
+	mule2.global_position = Vector2(0.0, -200.0)
+	game.mods.knock_multiplier = 1.4
+	var sledge_mortar := {"shape": "RANGED_AOE", "element": "FROST",
+		"mods": {"knock": 1.6}, "cooldown_left": 0.0}
+	var st: Dictionary = game.skill_stats(sledge_mortar)
+	var kb_peak := 0.0
+	var travel_peak := 0.0
+	var stern_peak := 0.0
+	for i in 60:
+		if i % 3 == 0:
+			## From over the bow shoulder — stern-ward AND sideways, so the
+			## stern wall absorbs one component and the travel cap has to hold
+			## the other on its own.
+			game.damage_enemy(mule2, 0.5, "FROST", float(st.knock),
+				mule2.global_position + Vector2(30.0, -60.0), true)
+			kb_peak = maxf(kb_peak, mule2.knock_velocity.length())
+		var live: bool = mule2.knock_live
+		mule2._physics_process(0.05)
+		if live:
+			travel_peak = maxf(travel_peak, mule2.knock_anchor.distance_to(mule2.global_position))
+			stern_peak = maxf(stern_peak, mule2.global_position.y - mule2.knock_anchor.y)
+	_check("knockback", "no stack of multipliers beats the per-hit cap",
+		kb_peak <= SkyGearEnemy.KNOCK_MAX + 0.5
+		and travel_peak <= SkyGearEnemy.KNOCK_TRAVEL_MAX + 0.5,
+		"SLEDGE ×1.6 · ×1.4 every source · hits every 0.15 s: shove speed peaked %.0f (cap %.0f), ground carried %.0f (cap %.0f)"
+			% [kb_peak, SkyGearEnemy.KNOCK_MAX, travel_peak,
+				SkyGearEnemy.KNOCK_TRAVEL_MAX])
+	_check("knockback", "an enemy is never delivered stern-ward",
+		stern_peak <= SkyGearEnemy.KNOCK_STERN_GIVE + 0.5,
+		"every hit from the bow side, and the whole barrage moved them %.0f stern-ward against the %.0f line — stopped, never handed to the Boiler"
+			% [stern_peak, SkyGearEnemy.KNOCK_STERN_GIVE])
+	mule2.kill()
+
+	## SG-66, found chasing this: `stats_with` AND `damage_enemy` both applied
+	## `mods.knock_multiplier`, so the skill path squared it — PRESSURE SPIKE's
+	## +40% printed on the card was +96% on the deck. One funnel now.
+	game.mods.knock_multiplier = 2.0
+	game.spawn_enemy("SCRAPPER", 1)
+	var mule3: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			mule3 = e
+	mule3.hp = 1e9
+	mule3.max_hp = 1e9
+	mule3.knock_velocity = Vector2.ZERO
+	var plain_mortar := {"shape": "RANGED_AOE", "element": "FROST",
+		"mods": {}, "cooldown_left": 0.0}
+	var st2: Dictionary = game.skill_stats(plain_mortar)
+	game.damage_enemy(mule3, 0.5, "FROST", float(st2.knock),
+		mule3.global_position + Vector2(0.0, -70.0), true)
+	_check("knockback", "a knock multiplier is applied once, not squared",
+		absf(mule3.knock_velocity.length() - 260.0 * 2.0) < 1.0,
+		"table 260 at ×2.0 landed %.0f — the squared version dealt 1040"
+			% mule3.knock_velocity.length())
+	game.mods.knock_multiplier = 1.0
+	mule3.kill()
+
+	## THE ALLY CAP (the same board row). Crew had no ceiling at all: they never
+	## expire, and a muster is up to 9 every 14 seconds forever. Flood the bell
+	## through the real muster path and the deck refuses at ALLY_CAP.
+	game.crew.clear()
+	game.sentries.clear()
+	for _i in 80:
+		game.crew_timer = 0.0
+		game._update_crew(0.05)
+	var flooded: int = game.allies_alive()
+	_check("allies", "the alive cap holds under flood",
+		flooded == SkyGearGame.ALLY_CAP,
+		"80 muster bells asked for 480 crew; %d allies stand against the cap of %d"
+			% [flooded, SkyGearGame.ALLY_CAP])
+	## And a sentry cast on a flooded deck is refused rather than squeezed past
+	## the cap — then honoured again the moment there is room.
+	var sentry_skill := {"shape": "SENTRY", "element": "FROST", "mods": {},
+		"cooldown_left": 0.0, "casts": 0}
+	game.deploy_sentry(sentry_skill, game.player.global_position, true)
+	var refused: bool = game.allies_alive() <= SkyGearGame.ALLY_CAP \
+		and game.sentries.is_empty()
+	game.crew[0].dead = true
+	game._update_crew(0.05)
+	game.deploy_sentry(sentry_skill, game.player.global_position, true)
+	_check("allies", "and a sentry never squeezes past the cap — refused full, honoured with room",
+		refused and game.sentries.size() == 1
+		and game.allies_alive() <= SkyGearGame.ALLY_CAP,
+		"%d allies with the sentry placed" % game.allies_alive())
+	## And the cap does not bite the muster the game intends: an empty deck
+	## musters the full bell.
+	game.crew.clear()
+	game.sentries.clear()
+	game.crew_timer = 0.0
+	game._update_crew(0.05)
+	_check("allies", "an ordinary muster still arrives whole",
+		game.crew.size() == 3 * int(SkyGearLanes.CREW.per_wave),
+		"%d crew from one bell" % game.crew.size())
 	game.queue_free()
 
 
