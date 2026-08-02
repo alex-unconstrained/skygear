@@ -70,9 +70,14 @@ designed: BOW BARRICADE, SPARE GUN, WINCH, FOURTH VENT, SCUPPER GRATING beside
 the shipped Wreck (SG-15). Six berths, chosen between runs, behind
 `state.unlocked`. The hard rule verbatim: no fitting touches `mods`, `player`,
 a starting value, or any `SkyGearWorkshop.NODES` field — a fitting may only
-change the stowage table or the deckwork verb table. Same pass fixes the
-recorded bug: `SkyGearRunLog.record` writes neither `heat` nor a `ship: [ids]`
-field, so a Heat 2 row already cannot reproduce its run. *Verified by:* a
+change the stowage table or the deckwork verb table. Same pass adds the
+`ship: [ids]` field to `SkyGearRunLog.record` — the last reproduction hole.
+(The recorded bug this item originally carried was HALF stale: `record` has
+written `class_id` since the class shipped and `heat` since e32210d, and the
+unblocked half was closed as board SG-53 — the round-trip is pinned by
+`log · and the row carries the class and the heat that reproduce the run`,
+old-format rows by `log · an old-format row without heat or class still loads
+and counts`, and heat is surfaced on the report line and the title readout.) *Verified by:* a
 bare-ship baseline check (a run on the bare deck reproduces today's numbers
 exactly, the §7.2 pattern), a data-shape check that no fitting names a
 forbidden field, and one fixture-row check per award rule. *Size:* about a

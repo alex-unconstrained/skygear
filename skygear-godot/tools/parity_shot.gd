@@ -12,6 +12,17 @@ func _initialize() -> void: call_deferred("_run")
 
 
 func _run() -> void:
+	## `--resolution` is silently ignored for tool scripts on this machine (board
+	## SG-46): the window opens at desktop size and the root viewport tracks the
+	## OS window, so every Godot half this tool ever saved was 2560×1440 against
+	## the browser's 1600×900 — supersampled, finer AA, thinner hairlines, a
+	## small systematic flattery in every stitch. Force the browser's frame
+	## before anything renders — the `tools/deck_probe.gd` hunk verbatim.
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	DisplayServer.window_set_size(Vector2i(1600, 900))
+	root.size = Vector2i(1600, 900)
+	await process_frame
+
 	var argv := OS.get_cmdline_user_args()
 	if argv.is_empty():
 		print("no scene given")
@@ -82,6 +93,14 @@ func _run() -> void:
 	var kinds: Array = scene.get("enemies", [])
 	for i in kinds.size():
 		game.spawn_enemy(str(kinds[i]), i % 3)
+	## An enemyless scene AUTO-CLEARS (board SG-36): nothing queued and nothing
+	## alive reads as a finished wave on the very first tick, and the WAVE CLEAR
+	## banner fires across the one scene whose whole job is lighting, materials
+	## and sky — while the browser holds on a clean "WAVE 1 / 12". One spawn
+	## parked in the far future holds the wave open without putting a boarder in
+	## any frame — the `cloak_shot.gd`/`clip.gd` idiom, met there first-hand.
+	if kinds.is_empty():
+		game.spawn_queue.append({"time": 99999.0, "type": "SCRAPPER", "lane": 1})
 
 	var casts: Array = scene.get("casts", [])
 	var cast_last: bool = bool(scene.get("cast_last", false))

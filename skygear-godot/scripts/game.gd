@@ -1642,8 +1642,14 @@ func run_report() -> String:
 	var won := state == State.VICTORY
 	lines.append("SKYGEAR — Godot port")
 	lines.append(("DECK HELD" if won else "BOARDED") + " — " + end_reason)
-	lines.append("wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
-		_format_time(run_time), seed_text])
+	var header := "wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
+		_format_time(run_time), seed_text]
+	## A Heat run's seed replays the same waves against different enemy health,
+	## so a report line that hides its Heat is a report that cannot reproduce
+	## its own run. Heat 0 stays silent — STOKED is the ground, not a mode.
+	if heat > 0:
+		header += " · Heat %d" % heat
+	lines.append(header)
 	var build: Array[String] = ["Ember Cleave (auto)"]
 	for skill in skills:
 		build.append(SkyGearData.skill_name(skill))

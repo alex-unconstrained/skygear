@@ -332,11 +332,12 @@ And the gate: fittings are meta-progression, so they live behind
 `state.unlocked` and are awarded in `SkyGearWorkshop.bank()`, which is already
 *"the one place that knows the rule."* Not a parallel gate. The same one.
 
-**The run log has to record them, and there is an existing bug here.**
-`SkyGearRunLog.record` writes `seed`, `build`, `cards`, `class_id` — and **not
-`heat`**, although `workshop.bank` receives it. A row from a Heat 2 run already
-does not reproduce that run. Fittings would widen the same hole, so one field:
-`"ship": [ids]`, plus the `heat` that should have been there.
+**The run log has to record them.** (The bug this paragraph originally named
+is fixed: `SkyGearRunLog.record` writes `heat` since e32210d beside `seed`,
+`build`, `cards`, `class_id`, and board SG-53 pinned the round-trip —
+`log · and the row carries the class and the heat that reproduce the run` —
+and surfaced heat on the report line and the title readout.) Fittings would
+open the same hole again, so one field when they exist: `"ship": [ids]`.
 
 ## 6. Downtime — walking the ship
 

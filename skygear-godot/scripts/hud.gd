@@ -209,6 +209,11 @@ func _draw_title() -> void:
 	var history: Dictionary = SkyGearRunLog.summary()
 	if int(history.runs) > 0:
 		var line := "%d runs · best wave %d" % [int(history.runs), int(history.best_wave)]
+		## Only a Heat run says so. Heat 0 is STOKED, the ground you stand on,
+		## and naming it here would make every fresh profile read like a mode.
+		## `get` with a default: a log full of pre-heat rows still composes.
+		if int(history.get("best_heat", 0)) > 0:
+			line += " (Heat %d)" % int(history.best_heat)
 		if int(history.wins) > 0:
 			line += " · %d held" % int(history.wins)
 			if str(history.best_time) != "":

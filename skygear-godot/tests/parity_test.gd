@@ -4719,6 +4719,9 @@ func _persistence() -> void:
 	_begin(game)
 	game.wave = 6
 	game.run_time = 214.0
+	## Heat set before the ending fires, so the row below is a Heat 2 row — the
+	## exact shape POST-PARITY-PLAN item 3 said could not reproduce its own run.
+	game.heat = 2
 	game.damage_player(99999.0)
 	_check("log", "a finished run is written to disk",
 		game.run_logged and SkyGearRunLog.load_all().size() == 1,
@@ -4730,6 +4733,15 @@ func _persistence() -> void:
 		"seed %s, wave %d" % [str(row.get("seed", "?")), int(row.get("wave", 0))])
 	_check("log", "the report itself is kept, not just the numbers",
 		str(row.get("report", "")).contains("SKYGEAR"))
+	## What REPRODUCES the run: the seed replays the waves, but only against the
+	## same class and the same Heat (same waves, different enemy health). Both
+	## were in the row already — this pins them so they cannot quietly leave
+	## (board SG-53; the `ship: [ids]` half waits on fittings existing).
+	_check("log", "and the row carries the class and the heat that reproduce the run",
+		str(row.get("class_id", "")) == "captain" and int(row.get("heat", -1)) == 2,
+		"class %s, heat %s" % [str(row.get("class_id", "?")), str(row.get("heat", "?"))])
+	_check("log", "and a Heat run's report line names its Heat",
+		str(row.get("report", "")).contains("Heat 2"))
 	game.queue_free()
 
 	var second := _new_game()
@@ -4741,6 +4753,19 @@ func _persistence() -> void:
 		int(summary.runs) == 2 and int(summary.best_wave) == 11,
 		"%d runs, best %d" % [int(summary.runs), int(summary.best_wave)])
 	second.queue_free()
+
+	## An old-format row — written before `heat` and `class_id` existed — still
+	## loads, still counts, and reads as Heat 0: per-key fallback, the layout-
+	## file pattern, never a migration step. And `best_heat` is the BEST ROW'S
+	## heat, not a max across the log: this legacy wave 12 outranks the Heat 2
+	## wave 6 above, so the readout must say Heat 0 (silence), not Heat 2.
+	SkyGearRunLog.record({"won": true, "wave": 12, "time": "09:59"})
+	var mixed: Dictionary = SkyGearRunLog.summary()
+	_check("log", "an old-format row without heat or class still loads and counts",
+		int(mixed.runs) == 3 and int(mixed.best_wave) == 12
+			and int(mixed.get("best_heat", -1)) == 0,
+		"%d runs, best %d at heat %s" % [int(mixed.runs), int(mixed.best_wave),
+			str(mixed.get("best_heat", "?"))])
 
 	## The log is capped. Sixty runs of a twelve-wave game is a file somebody
 	## keeps for a year, and an uncapped one is a file that eventually is not.
