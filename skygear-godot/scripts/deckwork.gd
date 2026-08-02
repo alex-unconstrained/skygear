@@ -46,7 +46,10 @@ const REPAIR_FRACTION := 0.55
 ## your back is not a decision, it is a free action with extra steps.
 const CONTESTED := 150.0
 
-## SHOVE THE CRATE — the second verb, and the first that shapes the ground rather
+## SHOVE THE CRATE — TABLED (board SG-68, owner: "boring… we can revisit
+## interactions like that later"); the row leaves `actions()` while
+## `SkyGearGame.CRATE_VERBS_ENABLED` is false. The design record below stands
+## for the revisit. The second verb, and the first that shapes the ground rather
 ## than mends it (board SG-10, reworked SG-37). Repair is a coach line, a prompt,
 ## a refusal reason; every one of those is generic, so laning is one more row here
 ## and not a rewrite — which is the entire reason this was a table on day one.
@@ -68,7 +71,9 @@ const CONTESTED := 150.0
 const HEAVE_REACH := 150.0
 
 
-## THE WINCH — the third verb, and the first a FITTING grants (board SG-56;
+## THE WINCH — TABLED with the shove (board SG-68, same family, same flag);
+## its fitting reads this table to know it is tabled (`SkyGearFittings.tabled`).
+## The third verb, and the first a FITTING grants (board SG-56;
 ## POST-PARITY-PLAN item 4, built to the SG-37 lesson). `fitting` names the
 ## berthed fitting that switches the row on: `available` skips the row on a
 ## ship sailing without it, so the verb table is where the grant lives and a
@@ -80,7 +85,7 @@ const WINCH_REACH := 150.0
 
 
 static func actions() -> Array[Dictionary]:
-	return [
+	var rows: Array[Dictionary] = [
 		{
 			"id": "repair_turret", "verb": "REPAIR THE CANNON",
 			"at": "turret", "reach": REPAIR_REACH, "seconds": REPAIR_SECONDS,
@@ -98,6 +103,20 @@ static func actions() -> Array[Dictionary]:
 			"blocked": "boarders are on it",
 		},
 	]
+	## TABLED (board SG-68). The owner, 2026-08-02: "the current push crate
+	## mechanic is boring. table that feature for now we can revisit
+	## interactions like that later." Both crate-moving rows leave the table
+	## while the flag is down — kept above rather than deleted, because the
+	## revisit is one flag (`SkyGearGame.CRATE_VERBS_ENABLED`), and pinned so:
+	## `deckwork · the tabled verbs come back with one flag`. The repair verb
+	## is not part of the family and never leaves.
+	if not SkyGearGame.CRATE_VERBS_ENABLED:
+		var kept: Array[Dictionary] = []
+		for row in rows:
+			if str(row.at) != "crate" and str(row.at) != "crates":
+				kept.append(row)
+		return kept
+	return rows
 
 
 ## What you are standing next to that you could work on, or {}. One target, the

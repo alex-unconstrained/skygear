@@ -87,6 +87,10 @@ const FITTINGS := {
 			{"type": "vent", "position": Vector2(-280.0, -470.0)},
 		],
 	},
+	## TABLED (board SG-68) — see `tabled()` below: while the crate-verb family
+	## is down this row is unearnable, unberthable and never sails; it stays in
+	## the table so THE BERTHS can say "TABLED" rather than making it vanish,
+	## and so an already-earned one survives in saves for the revisit.
 	"winch": {
 		"name": "THE WINCH",
 		"text": "grants a deck verb: tap to winch the nearest crate stack toward you — place your own cover",
@@ -108,6 +112,44 @@ const FITTINGS := {
 		"wall": Rect2(-340.0, 410.0, 120.0, 210.0),
 	},
 }
+
+
+## --- the tabled family ----------------------------------------------------------
+
+## TABLED (board SG-68). The owner, 2026-08-02: "the current push crate
+## mechanic is boring. table that feature for now we can revisit interactions
+## like that later." A fitting whose whole grant is a crate verb would grant
+## NOTHING while the family is down — a fitting that grants nothing is a lie —
+## so THE WINCH is UNAVAILABLE while tabled: its award rule is skipped (the
+## next rule in table order takes its place), it refuses to berth, it never
+## sails, and the berth screen says TABLED instead of making it vanish. The
+## answer is read from the VERB TABLE itself — a fitting is tabled exactly
+## when the verb it grants has left `SkyGearDeckwork.actions()` — so this can
+## never disagree with what the deck actually offers (STATUS failure mode
+## two), and lifting `SkyGearGame.CRATE_VERBS_ENABLED` restores the fitting
+## and the verb in the same breath. An EARNED winch stays earned throughout:
+## nothing is lost when the interaction pass brings it back.
+static func tabled(id: String) -> bool:
+	var verb := str((FITTINGS.get(str(id), {}) as Dictionary).get("verb", ""))
+	if verb == "":
+		return false
+	for spec in SkyGearDeckwork.actions():
+		if str(spec.id) == verb:
+			return false
+	return true
+
+
+## Un-berth every tabled fitting, keeping it EARNED — the graceful exit for a
+## save that berthed the winch before the tabling. Called by
+## `SkyGearWorkshop.load_state` (the file's one migration point); reports
+## whether anything moved so a caller could save. Idempotent.
+static func reconcile_tabled(state: Dictionary) -> bool:
+	var changed := false
+	for id in berthed_ids(state).duplicate():
+		if tabled(str(id)):
+			(state.berths as Array).erase(id)
+			changed = true
+	return changed
 
 
 ## --- reading the state --------------------------------------------------------
@@ -136,6 +178,9 @@ static func earned_count(state: Dictionary) -> int:
 
 static func can_berth(state: Dictionary, id: String) -> bool:
 	if not FITTINGS.has(id) or not bool(state.get("unlocked", false)):
+		return false
+	## A tabled fitting refuses the berth — it would grant a dead verb (SG-68).
+	if tabled(id):
 		return false
 	if not earned(state, id) or is_berthed(state, id):
 		return false
@@ -169,6 +214,10 @@ static func award_for(state: Dictionary, row: Dictionary) -> String:
 	var won := bool(row.get("won", false))
 	for id in FITTINGS.keys():
 		if earned(state, str(id)):
+			continue
+		## A tabled fitting's award rule is SKIPPED (SG-68) — the next rule in
+		## table order takes its place, exactly as if the row were already owned.
+		if tabled(str(id)):
 			continue
 		if _rule_met(str(id), row, won):
 			return str(id)
@@ -234,6 +283,10 @@ static func sailing(state: Dictionary) -> Array:
 	if not bool(state.get("unlocked", false)):
 		return out
 	for id in berthed_ids(state):
+		## A tabled fitting never sails (SG-68) — even out of a stale save
+		## whose berths array still carries it.
+		if tabled(str(id)):
+			continue
 		if FITTINGS.has(str(id)) and earned(state, str(id)) \
 				and not out.has(str(id)) and out.size() < CAP:
 			out.append(str(id))

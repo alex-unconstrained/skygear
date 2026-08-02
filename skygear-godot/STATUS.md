@@ -86,10 +86,10 @@ Assume you are about to commit one:
 | `scripts/ui.gd` | the widget layer: immediate mode, retained focus |
 | `scripts/cards.gd` | 41 draft cards. `preview()` runs a card on a sandbox copy |
 | `scripts/workshop.gd` | persistent progression, gated behind a first victory |
-| `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair (held), shove (instant) |
+| `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 682 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 683 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked

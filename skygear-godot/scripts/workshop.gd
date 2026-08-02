@@ -424,6 +424,11 @@ static func load_state() -> Dictionary:
 		(out.fittings as Dictionary)["wreck"] = true
 		if not SkyGearFittings.is_berthed(out, "wreck"):
 			SkyGearFittings.berth(out, "wreck")
+	## TABLED fittings (board SG-68): a save that berthed THE WINCH before the
+	## crate-verb family was tabled un-berths it gracefully here — the fitting
+	## stays EARNED, so nothing is lost the day the interaction pass lifts the
+	## flag and it can be berthed again.
+	SkyGearFittings.reconcile_tabled(out)
 	return out
 
 

@@ -25,6 +25,23 @@ const CARGO_RECTS := [
 	Rect2(220, 620, 120, 250),
 ]
 
+## THE CRATE-MOVING FAMILY IS TABLED (board SG-68). The owner, 2026-08-02:
+## "the current push crate mechanic is boring. table that feature for now we
+## can revisit interactions like that later." TABLED, not deleted — this one
+## flag gates the whole family so the revisit is flipping a line, not an
+## archaeology dig: the shove verb and the winch verb leave the deckwork
+## table (`SkyGearDeckwork.actions`), the movable crate becomes an ORDINARY
+## stowed prop at its home (`_stow_barricade` — no cargo rect, no funnel, no
+## x-ray shadow, no verb target), the coach's shove line goes quiet (it is
+## gated on `barricade`, which stays null), the HUD prompt never draws (no
+## verb is ever offered), and THE WINCH fitting is unavailable
+## (`SkyGearFittings.tabled`: unearnable, unberthable, shown as TABLED on
+## THE BERTHS). A `static var` rather than `const` ONLY so the harness can
+## flip it in a sandbox and prove the family comes back whole
+## (`deckwork · the tabled verbs come back with one flag`); nothing in the
+## shipped game ever writes it.
+static var CRATE_VERBS_ENABLED := false
+
 ## THE DRAGGABLE CRATE — the deckwork verb "HEAVE THE CRATE" (board SG-10).
 ##
 ## A movable cargo stack the captain heaves across the PORT lane to funnel the
@@ -3431,6 +3448,10 @@ func barricade_target() -> Dictionary:
 ## Heave the crate one step along its cycle. Called by `deckwork.gd`'s perform, so
 ## the verb table stays what-and-how-long and the sim owns the move.
 func heave_barricade() -> void:
+	## TABLED (board SG-68) — the null `barricade` already refuses, but the
+	## flag is stated here too so the refusal survives any future re-stow edit.
+	if not CRATE_VERBS_ENABLED:
+		return
 	if barricade == null or not is_instance_valid(barricade) or bool(barricade.dead):
 		return
 	barricade_stage = (barricade_stage + 1) % BARRICADE_STAGES.size()
@@ -3444,6 +3465,11 @@ func heave_barricade() -> void:
 ## the deck. Called by the verb table's perform; the verb exists only while
 ## the WINCH fitting is berthed (`SkyGearDeckwork.available` asks `fitted`).
 func winch_crate(prop: SkyGearProp) -> void:
+	## TABLED (board SG-68): the fitting cannot sail (`SkyGearFittings.tabled`)
+	## so the verb row never appears — and the haul itself refuses too, so a
+	## stale save or a direct call cannot move a stack while the family is down.
+	if not CRATE_VERBS_ENABLED:
+		return
 	if prop == null or not is_instance_valid(prop) or prop.dead:
 		return
 	var to_her: Vector2 = player.global_position - prop.global_position
@@ -3464,6 +3490,19 @@ func winch_crate(prop: SkyGearProp) -> void:
 ## returns to the bow every wave with the rest of the ordnance.
 func _stow_barricade() -> void:
 	barricade_stage = 0
+	## TABLED (board SG-68): the deck still LOOKS the same — a crate stack
+	## stands at the same home — but it is an ORDINARY stowed prop, exactly
+	## like every other stack: `barricade` stays null, so it is never a verb
+	## target, never a cargo rect (no boarder funnel, no x-ray shadow — the
+	## eight fixed walls are the whole collision story, for her AND for them),
+	## and the coach's shove line (gated on `barricade`) stays quiet.
+	if not CRATE_VERBS_ENABLED:
+		barricade = null
+		var stowed: SkyGearProp = PROP_SCENE.instantiate()
+		add_child(stowed)
+		stowed.global_position = Vector2(BARRICADE_STAGES[0], BARRICADE_Y)
+		stowed.configure(self, "crates")
+		return
 	barricade = PROP_SCENE.instantiate()
 	add_child(barricade)
 	barricade.global_position = Vector2(BARRICADE_STAGES[0], BARRICADE_Y)

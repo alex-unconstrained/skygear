@@ -652,25 +652,35 @@ func _fittings() -> void:
 		"class_id": "boilerwright", "seed": "FIT4"})
 	_check("fittings", "a Boilerwright win pays his vent",
 		str(out.get("fitting", "")) == "fourth_vent", str(out.get("fitting", "")))
+	## TABLED (board SG-68): THE WINCH's award rule is skipped while the family
+	## is down — a run that would have paid it pays nothing, and a run that
+	## also satisfies a LATER rule pays that one instead (the next rule in
+	## table order takes the tabled slot). Was `fittings · twelve salvage pays
+	## the winch, win or lose` — rewritten, named on the board row.
 	out = SkyGearWorkshop.bank(shop, {"won": false, "wave": 5, "salvage": 12, "seed": "FIT5"})
-	_check("fittings", "twelve salvage pays the winch, win or lose",
-		str(out.get("fitting", "")) == "winch", str(out.get("fitting", "")))
-	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "healed": 0, "seed": "FIT6"})
-	_check("fittings", "an unhealed win pays the scupper grating",
+	_check("fittings", "twelve salvage pays nothing while the winch is tabled — its award rule is skipped",
+		str(out.get("fitting", "")) == ""
+			and not SkyGearFittings.earned(shop, "winch"),
+		"kept '%s'" % str(out.get("fitting", "")))
+	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "healed": 0,
+		"salvage": 30, "seed": "FIT6"})
+	_check("fittings", "an unhealed win pays the scupper grating — the next rule takes the tabled winch's turn",
 		str(out.get("fitting", "")) == "scupper_grating", str(out.get("fitting", "")))
 	out = SkyGearWorkshop.bank(shop, {"won": true, "wave": 12, "heat": 3,
 		"class_id": "boilerwright", "healed": 0, "salvage": 99, "seed": "FIT7"})
-	_check("fittings", "and a ship that owns the set earns nothing more",
+	_check("fittings", "and a ship that owns everything awardable earns nothing more — the winch stays unearnable while tabled",
 		str(out.get("fitting", "")) == ""
-			and SkyGearFittings.earned_count(shop) == SkyGearFittings.FITTINGS.size())
-	_check("fittings", "six earned fittings berthed themselves into exactly six berths",
-		SkyGearFittings.berthed_ids(shop).size() == SkyGearFittings.CAP,
+			and SkyGearFittings.earned_count(shop) == SkyGearFittings.FITTINGS.size() - 1
+			and not SkyGearFittings.earned(shop, "winch"))
+	_check("fittings", "five earned fittings berthed themselves into five berths — the tabled winch takes none",
+		SkyGearFittings.berthed_ids(shop).size() == SkyGearFittings.FITTINGS.size() - 1
+			and not SkyGearFittings.is_berthed(shop, "winch"),
 		str(SkyGearFittings.berthed_ids(shop)))
 
 	## 3 · THE BERTH RULES: the cap, the lock, and the latch.
 	var refit := SkyGearWorkshop.fresh(true)
 	refit.unlocked = true
-	refit.fittings = {"wreck": true, "bow_barricade": true}
+	refit.fittings = {"wreck": true, "bow_barricade": true, "winch": true}
 	refit.berths = ["b1", "b2", "b3", "b4", "b5", "b6"]
 	_check("fittings", "the berth cap refuses a seventh",
 		not SkyGearFittings.can_berth(refit, "wreck")
@@ -679,6 +689,11 @@ func _fittings() -> void:
 	refit.berths = []
 	_check("fittings", "a fitting the ship has not earned refuses to berth",
 		not SkyGearFittings.berth(refit, "spare_gun"))
+	## SG-68: an EARNED winch — grandfathered in a save — still refuses the
+	## berth while tabled; it would grant a dead verb.
+	_check("fittings", "an earned winch refuses to berth while tabled",
+		not SkyGearFittings.can_berth(refit, "winch")
+			and not SkyGearFittings.berth(refit, "winch"))
 	var still_locked := SkyGearWorkshop.fresh(true)
 	still_locked.fittings = {"wreck": true}
 	_check("fittings", "and nothing berths before the first victory",
@@ -695,16 +710,23 @@ func _fittings() -> void:
 	## in memory. The runlog checks already own `user://runs.json` this way.
 	var had_file := FileAccess.file_exists(SkyGearWorkshop.PATH)
 	var backup := FileAccess.get_file_as_string(SkyGearWorkshop.PATH) if had_file else ""
+	## SG-68 rewrote this fixture (was: berths ["winch"], asserted the winch
+	## rode the round-trip): a pre-tabling save with the winch BERTHED now
+	## un-berths it gracefully on load — the graceful exit — while the winch
+	## stays EARNED (nothing is lost for the revisit), a berthed ordinary
+	## fitting still round-trips, and an un-berthed wreck stays un-berthed
+	## (the migration's `has` latch, unchanged).
 	var real := SkyGearWorkshop.fresh()
 	real.unlocked = true
-	real.fittings = {"wreck": true, "winch": true}
-	real.berths = ["winch"]
+	real.fittings = {"wreck": true, "bow_barricade": true, "winch": true}
+	real.berths = ["bow_barricade", "winch"]
 	var wrote := SkyGearWorkshop.save_state(real)
 	var back := SkyGearWorkshop.load_state()
-	_check("fittings", "the earned set and the berthed set round-trip the save file",
+	_check("fittings", "the earned set round-trips the save file, and a berthed winch un-berths gracefully on load — earned, never lost",
 		wrote and SkyGearFittings.earned(back, "wreck")
 			and SkyGearFittings.earned(back, "winch")
-			and SkyGearFittings.berthed_ids(back) == ["winch"]
+			and SkyGearFittings.berthed_ids(back) == ["bow_barricade"]
+			and not SkyGearFittings.is_berthed(back, "winch")
 			and not SkyGearFittings.is_berthed(back, "wreck"),
 		"berths %s" % str(SkyGearFittings.berthed_ids(back)))
 	## A pre-berth winner's save — no `fittings` key at all — keeps its trophy:
@@ -786,6 +808,10 @@ func _fittings() -> void:
 	for id in SkyGearFittings.FITTINGS.keys():
 		(kitted.workshop.fittings as Dictionary)[id] = true
 		SkyGearFittings.berth(kitted.workshop, str(id))
+	## SG-68: `berth()` refuses the tabled winch, so reproduce the STALE-SAVE
+	## shape directly — a berths array written before the tabling still
+	## carrying "winch". `sailing()` must keep it ashore all the same.
+	(kitted.workshop.berths as Array).append("winch")
 	kitted.set_seed_text("REFIT")
 	kitted.begin_run()
 	_check("fittings", "placing the whole berth set consumes nothing from the seeded stream",
@@ -816,9 +842,13 @@ func _fittings() -> void:
 	var pushed: Vector2 = kitted.correct_player_position(inside, 18.0)
 	_check("fittings", "the scupper grating is closed to the captain",
 		pushed != inside, "corrected to %.0f,%.0f" % [pushed.x, pushed.y])
-	_check("fittings", "and invisible to the boarders' world — the cargo list is untouched",
-		kitted.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size() + 1,
-		"%d rects (8 walls + the flank crate)" % kitted.cargo_rects().size())
+	## SG-68 note: was `== CARGO_RECTS.size() + 1` ("8 walls + the flank
+	## crate") — the tabled crate is an ordinary prop now, so the cargo list
+	## IS the eight fixed walls, for the scupper's boarders and everyone else.
+	_check("fittings", "and invisible to the boarders' world — the cargo list is the eight walls",
+		kitted.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size(),
+		"%d rects (8 walls; the tabled crate is an ordinary prop — SG-68)"
+			% kitted.cargo_rects().size())
 
 	## The stow.gd-style invariant: with EVERY fitting berthed, the deck's
 	## lateral movement graph survives. The scupper seals port-stern by
@@ -838,35 +868,33 @@ func _fittings() -> void:
 		"port %d of 3 open (the scupper seals one by design), starboard %d of 3"
 			% [open_port, open_star])
 
-	## THE WINCH, berthed: offered at a crate stack, one fixed step per tap,
-	## and the stack can never land on the captain.
+	## THE WINCH, TABLED (board SG-68). This block used to pin the LIVE grant
+	## (`fittings · the winch verb exists exactly while its fitting is
+	## berthed` / `fittings · a tap hauls one fixed step, and the stack can
+	## never land on the captain`) — rewritten to pin the tabled state, named
+	## old→new on the board row: a stale save's berthed winch never sails, the
+	## verb is never offered at a stack, and the haul itself refuses to move
+	## one. The live step/gap contract returns with the flag (SG-37's shape is
+	## preserved in `deckwork · the tabled verbs come back with one flag`).
 	var stack: SkyGearProp = null
 	for p in kitted.props():
 		if is_instance_valid(p) and not p.dead and str(p.prop_type) == "crates" \
-				and p != kitted.barricade and not bool(p.get_meta("fitting", false)):
+				and not bool(p.get_meta("fitting", false)):
 			stack = p
 			break
-	_check("fittings", "there is a crate stack for the winch to haul", stack != null)
+	_check("fittings", "there is still a crate stack the winch would have hauled", stack != null)
 	if stack != null:
 		kitted.player.global_position = stack.global_position + Vector2(0.0, 120.0)
 		var offer := SkyGearDeckwork.available(kitted)
-		_check("fittings", "the winch verb exists exactly while its fitting is berthed",
-			not offer.is_empty() and str(offer.spec.id) == "winch_crate",
+		_check("fittings", "the winch is tabled — a stale save's berthed winch never sails and grants no verb",
+			not kitted.fitted("winch")
+				and (offer.is_empty() or str(offer.spec.id) != "winch_crate"),
 			"offered %s" % (str(offer.spec.id) if not offer.is_empty() else "nothing"))
-		kitted.player.global_position = stack.global_position + Vector2(0.0, 320.0)
 		var start: Vector2 = stack.global_position
 		kitted.winch_crate(stack)
-		var first_step: float = start.distance_to(stack.global_position)
-		kitted.winch_crate(stack)
-		var close_gap: float = stack.global_position.distance_to(
-			kitted.player.global_position)
-		var parked: Vector2 = stack.global_position
-		kitted.winch_crate(stack)
-		_check("fittings", "a tap hauls one fixed step, and the stack can never land on the captain",
-			absf(first_step - SkyGearGame.WINCH_STEP) < 0.5
-				and absf(close_gap - SkyGearGame.WINCH_GAP) < 1.5
-				and stack.global_position == parked,
-			"step %.0f, parked at %.0f" % [first_step, close_gap])
+		_check("fittings", "and the haul itself refuses while tabled — the stack never moves",
+			stack.global_position == start,
+			"moved %.1f units" % start.distance_to(stack.global_position))
 
 	## 7 · THE RUN LOG carries the berthed set (SG-53's blocked half), and the
 	## report names the refit — the deck half of what reproduces a run.
@@ -877,8 +905,9 @@ func _fittings() -> void:
 	var last: Dictionary = rows_all[rows_all.size() - 1] if not rows_all.is_empty() else {}
 	_check("log", "the row carries the berthed set that reproduces the deck",
 		(last.get("ship", []) as Array) == kitted.run_fittings
-			and (last.get("ship", []) as Array).size() == SkyGearFittings.CAP,
-		str(last.get("ship", [])))
+			and (last.get("ship", []) as Array).size() == SkyGearFittings.CAP - 1
+			and not (last.get("ship", []) as Array).has("winch"),
+		"%s (five sail — the tabled winch stays ashore, SG-68)" % str(last.get("ship", [])))
 	_check("log", "and the report names the refit",
 		str(last.get("report", "")).contains("refit · THE WRECK"),
 		str(last.get("report", "")).split("\n")[3] if str(last.get("report", "")) != "" else "")
@@ -903,9 +932,11 @@ func _fittings() -> void:
 			mid.turrets.size(), mid.fitting_walls.size()])
 	mid.begin_run()
 	mid.choose_draft(0)
-	_check("fittings", "and the next run collects everything that was signed",
+	## SG-68: was `… and mid.fitted("winch")` — the next run now collects
+	## every berthable fitting while the tabled winch stays ashore.
+	_check("fittings", "and the next run collects everything that was signed — except the tabled winch",
 		_prop_count(mid, "vent") == 5 and mid.turrets.size() == 4
-			and mid.fitting_walls.size() == 1 and mid.fitted("winch"),
+			and mid.fitting_walls.size() == 1 and not mid.fitted("winch"),
 		"%d vents, %d guns, %d walls" % [_prop_count(mid, "vent"),
 			mid.turrets.size(), mid.fitting_walls.size()])
 	mid.queue_free()
@@ -1769,43 +1800,57 @@ func _view() -> void:
 	_check("view", "and neither is one well clear of the run",
 		not view._occluded(eye + ray * (to_far_face + 420.0), stand))
 
-	## SG-31. The heaved crate (SG-10) is a NINTH, movable cargo rect. `_occluded`
-	## read the eight-rect const and never saw it, so a boarder tucked on the bow
-	## face of a deployed crate — where the funnel piles them — got no silhouette.
-	## It now reads `game.cargo_rects()`, the one source of truth (the 8 walls +
-	## the live crate), so the x-ray shadow moves with the crate the player heaves.
-	## The crate is parked in the port lane, OUTBOARD of the fixed wall columns
-	## (x -340..-220 and 220..340), so it is the sole occluder of the test point.
-	game.barricade.global_position = Vector2(-560.0, -480.0)
-	var crate: Rect2 = game.barricade_rect()
-	_check("view", "the heaved crate is a cargo rect the x-ray can see",
-		crate.size.x > 0.0 and game.cargo_rects().has(crate))
-	var cray: Vector2 = (crate.get_center() - eye).normalized()
-	var crate_far: float = (eye.y - crate.position.y) / -cray.y
+	## SG-31, REWRITTEN FOR THE TABLING (board SG-68). The heaved crate used to
+	## be a NINTH, movable cargo rect and these four checks pinned its moving
+	## x-ray shadow (`the heaved crate is a cargo rect the x-ray can see` /
+	## `a boarder tucked behind the heaved crate is x-rayed` / `and with the
+	## crate gone that same spot is clear` / `moving the crate moves its x-ray
+	## shadow with it` + `and a boarder behind the crate's new footprint is
+	## x-rayed`). With the family tabled the crate is an ORDINARY prop —
+	## collision and x-ray exactly as a fixed prop, which for crate stacks
+	## means NONE: props are scenery, only the eight walls occlude. Each old
+	## check has its tabled twin below, named old→new on the board row.
+	_check("view", "the tabled crate is no cargo rect — the x-ray reads the eight walls",
+		game.barricade == null and game.barricade_rect().size.x == 0.0
+			and game.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size(),
+		"%d rects" % game.cargo_rects().size())
+	## An ordinary crates stack parked where the heaved crate used to make its
+	## shadow (port lane, outboard of the wall columns, the sole would-be
+	## occluder of the test point) throws none.
+	var parked_stack: SkyGearProp = null
+	for p in game.props():
+		if is_instance_valid(p) and not p.dead and str(p.prop_type) == "crates":
+			parked_stack = p
+			break
+	var parked_home := Vector2.ZERO
+	if parked_stack != null:
+		parked_home = parked_stack.global_position
+		parked_stack.global_position = Vector2(-560.0, -480.0)
+	var crate_box := Rect2(Vector2(-560.0, -480.0) - SkyGearGame.BARRICADE_SIZE * 0.5,
+		SkyGearGame.BARRICADE_SIZE)
+	var cray: Vector2 = (crate_box.get_center() - eye).normalized()
+	var crate_far: float = (eye.y - crate_box.position.y) / -cray.y
 	var behind_crate: Vector2 = eye + cray * (crate_far + 26.0)
-	_check("view", "a boarder tucked behind the heaved crate is x-rayed",
-		view._occluded(behind_crate, stand),
+	_check("view", "a boarder behind an ordinary crate stack is in clear air — props cast no x-ray shadow",
+		parked_stack != null and not view._occluded(behind_crate, stand),
 		"at %.0f, %.0f" % [behind_crate.x, behind_crate.y])
-	## And it is the CRATE doing it, not a fixed wall behind it: take the crate off
-	## the deck and the same spot stands in clear air. This is the exact SG-31 bug
-	## in reverse — with the const, the crate was never an occluder at all.
-	var live_crate: SkyGearProp = game.barricade
-	game.barricade = null
-	_check("view", "and with the crate gone that same spot is clear",
-		not view._occluded(behind_crate, stand))
-	game.barricade = live_crate
-	## Moving the crate moves the occlusion with it: heave it far to starboard and
-	## the old shadow is empty while a new one falls behind the new footprint.
-	game.barricade.global_position = Vector2(600.0, -480.0)
-	_check("view", "moving the crate moves its x-ray shadow with it",
-		not view._occluded(behind_crate, stand))
-	var moved: Rect2 = game.barricade_rect()
-	var mray: Vector2 = (moved.get_center() - eye).normalized()
-	var moved_far: float = (eye.y - moved.position.y) / -mray.y
-	_check("view", "and a boarder behind the crate's new footprint is x-rayed",
-		view._occluded(eye + mray * (moved_far + 26.0), stand))
-	game.barricade.global_position = Vector2(
-		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+	## The walls still cast theirs — the tabling turned off the crate's shadow,
+	## not the x-ray.
+	_check("view", "and the fixed walls still cast theirs",
+		view._occluded(behind, stand))
+	## And moving the prop moves nothing: no shadow appears behind its new
+	## footprint, because scenery was never in the occlusion arithmetic.
+	if parked_stack != null:
+		parked_stack.global_position = Vector2(600.0, -480.0)
+	var moved_box := Rect2(Vector2(600.0, -480.0) - SkyGearGame.BARRICADE_SIZE * 0.5,
+		SkyGearGame.BARRICADE_SIZE)
+	var mray: Vector2 = (moved_box.get_center() - eye).normalized()
+	var moved_far: float = (eye.y - moved_box.position.y) / -mray.y
+	_check("view", "moving the ordinary prop moves no shadow anywhere",
+		not view._occluded(behind_crate, stand)
+			and not view._occluded(eye + mray * (moved_far + 26.0), stand))
+	if parked_stack != null:
+		parked_stack.global_position = parked_home
 
 	## Every living thing gets a body in the mirror, or it is in the fight
 	## without being on the screen.
@@ -3191,119 +3236,114 @@ func _view() -> void:
 			and SkyGearDeckwork.actions()[0].has("verb")
 			and SkyGearDeckwork.actions()[0].has("at"))
 
-	## THE SECOND VERB — SHOVE THE CRATE (board SG-10, reworked SG-37). The first
-	## entry that shapes the ground rather than mending it, and the proof the table
-	## was worth being a table. The owner played the SG-10 hold-to-heave and
-	## rejected it: the 2.8s channel was not fun and the crate trapped the captain.
-	## So this is now an INSTANT tap-shove (no channel, a short cooldown instead)
-	## that the captain can never be blocked by — the checks below are rewritten to
-	## that contract, and the funnel/open-side pair is carried forward from SG-10
-	## intact because the boarders MUST stay funnelled.
-	_check("deck", "the deck carries a movable crate to heave",
-		deck.barricade != null and is_instance_valid(deck.barricade)
-			and not bool(deck.barricade.dead))
-	## Its footprint is derived from the PROP the player sees, and it is in the ONE
-	## cargo source of truth — so the collision clamp, the boarder funnel and the
-	## debug draw cannot disagree about where it is (STATUS failure mode two).
-	_check("deck", "the crate joins the one cargo source of truth",
-		deck.barricade_rect().size.x > 0.0
-			and deck.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size() + 1)
+	## THE SECOND VERB IS TABLED (board SG-68). The owner, 2026-08-02: "the
+	## current push crate mechanic is boring. table that feature for now we can
+	## revisit interactions like that later." The SG-10/SG-37 checks that
+	## pinned the LIVE shove are rewritten below to pin the TABLED state —
+	## none silenced, each named old→new on the board row — and the SG-37
+	## instant contract is preserved for the revisit inside
+	## `deckwork · the tabled verbs come back with one flag` at the end.
+	##
+	## Was `deck · the deck carries a movable crate to heave`: the deck still
+	## carries a crate AT THE SAME HOME — the picture is unchanged — but it is
+	## an ordinary stowed prop and `barricade` is null.
+	var home := Vector2(SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
+	var home_prop: SkyGearProp = null
+	for hp in deck.props():
+		if is_instance_valid(hp) and not hp.dead and str(hp.prop_type) == "crates" \
+				and hp.global_position.distance_to(home) < 1.0:
+			home_prop = hp
+	_check("deck", "the tabled crate is an ordinary stowed prop at its home",
+		deck.barricade == null and home_prop != null,
+		"barricade=%s, prop at home=%s" % [deck.barricade, home_prop != null])
+	## Was `deck · the crate joins the one cargo source of truth`: the one
+	## cargo source of truth is the eight fixed walls again — no movable rect,
+	## which is the STATIC-COLLISION choice: like every crate stack, the prop
+	## blocks nobody, captain or boarder (pinned below).
+	_check("deck", "the cargo source of truth is the eight fixed walls — no movable rect",
+		deck.barricade_rect().size.x == 0.0
+			and deck.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size())
 
-	## Stand at it and the table offers a HEAVE, not a repair — same held key, read
-	## from the target you are next to.
-	deck.barricade_stage = 0
-	deck.barricade.global_position = Vector2(
-		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
-	deck.player.global_position = deck.barricade.global_position
+	## Was `deck · standing at the crate offers a heave`: standing at it now
+	## offers NOTHING — the verb is refused because the row is off the table,
+	## so the HUD prompt (which only draws an offered verb) never appears.
+	deck.player.global_position = home
 	var crate_job: Dictionary = SkyGearDeckwork.available(deck)
-	_check("deck", "standing at the crate offers a heave",
-		not crate_job.is_empty() and str(crate_job.spec.id) == "heave_crate")
-	## The generic prompt draws it because the spec carries a verb and a refusal
-	## reason, exactly like repair — no HUD change to reach the second verb.
-	_check("deck", "the heave verb has a prompt and a reason it refuses",
-		not crate_job.is_empty()
-			and str(crate_job.spec.get("verb", "")) != ""
-			and str(crate_job.spec.get("blocked", "")) != "")
+	_check("deck", "standing at the crate offers nothing — the shove verb is refused while tabled",
+		crate_job.is_empty(),
+		"offered %s" % (str(crate_job.spec.id) if not crate_job.is_empty() else "nothing"))
+	## Was `deck · the heave verb has a prompt and a reason it refuses`: the
+	## verb table carries NO crate rows while tabled — and the repair row
+	## still carries its prompt and refusal reason, untouched.
+	var has_crate_rows := false
+	for spec in SkyGearDeckwork.actions():
+		if str(spec.at) == "crate" or str(spec.at) == "crates":
+			has_crate_rows = true
+	_check("deck", "the verb table carries no crate rows while tabled — and repair keeps its prompt",
+		not has_crate_rows
+			and str(SkyGearDeckwork.actions()[0].get("verb", "")) != ""
+			and str(SkyGearDeckwork.actions()[0].get("blocked", "")) != "",
+		"%d rows" % SkyGearDeckwork.actions().size())
 
-	## HEAVING MOVES THE SIM RECT — the actual footprint boarders path against, not
-	## only the picture.
-	var before_x: float = deck.barricade.global_position.x
-	SkyGearDeckwork.perform(deck, crate_job.spec, crate_job.target)
-	_check("deck", "heaving actually moves the crate's footprint",
-		absf(deck.barricade.global_position.x - before_x) > 40.0,
-		"%.0f -> %.0f" % [before_x, deck.barricade.global_position.x])
+	## Was `deck · heaving actually moves the crate's footprint`: the sim's own
+	## heave is a NO-OP now — a stale call path cannot move cargo while tabled.
+	deck.heave_barricade()
+	_check("deck", "heave_barricade is a no-op while tabled — the crate is static",
+		deck.barricade == null and int(deck.barricade_stage) == 0
+			and home_prop != null and home_prop.global_position.distance_to(home) < 0.5,
+		"stage %d" % int(deck.barricade_stage))
 
-	## AND A BOARDER'S PATH RESPONDS. Heave the crate to its funnel stage and a
-	## boarder walking that column is displaced clear of the footprint — the routing
-	## measurably narrows, rather than a wall drawn over boarders who stroll through
-	## it (STATUS failure mode one). Tested straight through `correct_enemy_position`,
-	## the three lines the boarders actually path by.
-	deck.barricade_stage = 2
-	deck.barricade.global_position = Vector2(
-		SkyGearGame.BARRICADE_STAGES[2], SkyGearGame.BARRICADE_Y)
+	## Was the funnel trio (`a boarder in the port lane is funnelled by the
+	## heaved crate` / `and the open side of the funnelled lane still passes` /
+	## `and stowing the crate re-opens that column`): with no movable rect the
+	## port column is NEVER bent — the old choke point, the outboard route and
+	## the home footprint itself all pass a boarder straight through.
 	var choke := Vector2(SkyGearGame.BARRICADE_STAGES[2], SkyGearGame.BARRICADE_Y)
 	var routed: Vector2 = deck.correct_enemy_position(
 		choke, SkyGearGame.BARRICADE_LANE, 15.0)
-	_check("deck", "a boarder in the port lane is funnelled by the heaved crate",
-		routed.distance_to(choke) > 30.0
-			and not deck.barricade_rect().has_point(routed),
-		"stayed at %.0f, %.0f" % [routed.x, routed.y])
-	## But the OUTBOARD side stays open — one crate narrows a lane, it never walls it
-	## shut for free. That is the balance, and it is geometry, not a new currency.
+	_check("deck", "a boarder walks the old funnel line unbent — the tabled crate shapes nothing",
+		routed.distance_to(choke) < 30.0,
+		"bent to %.0f, %.0f" % [routed.x, routed.y])
 	var outboard := Vector2(-720.0, SkyGearGame.BARRICADE_Y)
 	var through: Vector2 = deck.correct_enemy_position(
 		outboard, SkyGearGame.BARRICADE_LANE, 15.0)
-	_check("deck", "and the open side of the funnelled lane still passes",
+	_check("deck", "and the outboard route passes exactly as before",
 		through.distance_to(outboard) < 30.0,
 		"outboard route bent to %.0f, %.0f" % [through.x, through.y])
-	## With the crate stowed, the very same column is clear — proof the funnel is the
-	## crate and not the lane clamp doing it anyway.
-	deck.barricade_stage = 0
-	deck.barricade.global_position = Vector2(
-		SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
-	var stowed_route: Vector2 = deck.correct_enemy_position(
-		choke, SkyGearGame.BARRICADE_LANE, 15.0)
-	_check("deck", "and stowing the crate re-opens that column",
-		stowed_route.distance_to(choke) < 30.0)
+	## The home prop adds NOTHING on top of the lane band: the band clamp alone
+	## decides where a lane-0 boarder stands at the home's Y (the home sits
+	## outside the band — even live, the stowed crate blocked no lane), and the
+	## ordinary prop bends that answer not one unit further.
+	var c0: float = SkyGearGame.LANE_CENTERS[SkyGearGame.BARRICADE_LANE]
+	var band_only := Vector2(
+		clampf(home.x, c0 - 190.0 + 15.0, c0 + 190.0 - 15.0), home.y)
+	var through_home: Vector2 = deck.correct_enemy_position(
+		Vector2(home.x, home.y), SkyGearGame.BARRICADE_LANE, 15.0)
+	_check("deck", "and the home prop's footprint adds nothing to the lane clamp — ordinary props stop nobody",
+		through_home.distance_to(band_only) < 0.5,
+		"landed %.0f, %.0f against the band's own %.0f, %.0f"
+			% [through_home.x, through_home.y, band_only.x, band_only.y])
 
-	## THE RE-STOW DECISION, PINNED. The deck re-stows between waves (a pinned
-	## behavior) and the crate re-stows WITH it, by design: a flank you close is one
-	## you pay to close again next wave, never a permanent free wall. So a deployed
-	## crate returns to its home the moment the next wave is stowed.
-	deck.barricade_stage = 2
-	deck.barricade.global_position = Vector2(500.0, 200.0)
+	## Was `deck · the crate re-stows to its home for the next wave`: the
+	## re-stow still deals the SAME picture — an ordinary crates prop at the
+	## same home, `barricade` still null, every wave.
 	deck.start_wave(4)
-	_check("deck", "the crate re-stows to its home for the next wave",
-		deck.barricade != null and int(deck.barricade_stage) == 0
-			and absf(deck.barricade.global_position.x
-				- SkyGearGame.BARRICADE_STAGES[0]) < 1.0
-			and absf(deck.barricade.global_position.y - SkyGearGame.BARRICADE_Y) < 1.0,
-		"stage %d at %.0f, %.0f" % [int(deck.barricade_stage),
-			deck.barricade.global_position.x, deck.barricade.global_position.y])
-
-	## SG-37 REWORK — THE INSTANT SHOVE. The channel is gone: the crate verb is
-	## flagged `instant` and carries NO `seconds`, so nothing fills before it fires
-	## and one `perform` steps the footprint at once (the "moves the crate's
-	## footprint" check above already proves the single-call step). The repair verb
-	## still carries channel seconds — the divergence is deliberate, the crate is
-	## the ONLY instant verb. If the channel ever creeps back onto the crate, this
-	## fails.
-	var heave_spec: Dictionary = SkyGearDeckwork.actions()[1]
-	var repair_spec: Dictionary = SkyGearDeckwork.actions()[0]
-	_check("deck", "the shove is instant — no channel gates it",
-		str(heave_spec.id) == "heave_crate"
-			and bool(heave_spec.get("instant", false))
-			and not heave_spec.has("seconds")
-			and float(repair_spec.get("seconds", 0.0)) > 1.0,
-		"heave instant=%s seconds?=%s · repair seconds=%.1f" % [
-			bool(heave_spec.get("instant", false)), heave_spec.has("seconds"),
-			float(repair_spec.get("seconds", 0.0))])
+	var restowed: SkyGearProp = null
+	for hp2 in deck.props():
+		if is_instance_valid(hp2) and not hp2.dead and str(hp2.prop_type) == "crates" \
+				and hp2.global_position.distance_to(home) < 1.0:
+			restowed = hp2
+	_check("deck", "the ordinary crate prop re-stows at the same home every wave",
+		deck.barricade == null and int(deck.barricade_stage) == 0 and restowed != null,
+		"stage %d, prop at home=%s" % [int(deck.barricade_stage), restowed != null])
 
 	## THE COST THAT REPLACES THE CHANNEL — a short per-crate cooldown so the shove
 	## cannot be machine-gunned across the deck. It is a real, positive duration, it
 	## ticks down over time, and it drains back to zero (recovers). The tick runs at
 	## the top of `_update_deckwork` regardless of state, so this exercises the real
-	## code path, not a stand-in.
+	## code path, not a stand-in. KEPT VERBATIM under the SG-68 tabling: the
+	## cooldown machinery is part of what the flag brings back, and it ticks
+	## whether or not the verb exists, so this pins it through the dormancy.
 	deck.barricade_cooldown = SkyGearGame.BARRICADE_COOLDOWN
 	deck._update_deckwork(0.25)
 	var cd_ticks: bool = deck.barricade_cooldown > 0.0 \
@@ -3315,28 +3355,75 @@ func _view() -> void:
 		"const %.1fs · ticked %s · drained to %.2f" % [
 			SkyGearGame.BARRICADE_COOLDOWN, cd_ticks, deck.barricade_cooldown])
 
-	## THE CAPTAIN IS NEVER BLOCKED BY THE CRATE (board SG-37, the owner's core
-	## complaint). Her collision (`correct_player_position`) clamps only the eight
-	## FIXED walls, never the movable crate, so a point inside the crate's footprint
-	## comes back UNCHANGED — a path across it succeeds for her. The same call still
-	## clamps her OUT of a fixed wall, so collision is not globally off: the crate,
-	## and only the crate, is excluded. This is the deliberate divergence from the
-	## enemy rects (the funnel checks above prove boarders ARE still shaped by it),
-	## stated at the site per STATUS failure mode two. Under the SG-10 code (which
-	## clamped `cargo_rects()`, crate included) this point was pushed clear of the
-	## crate and this check would fail — that is the rework, pinned.
-	deck.barricade_stage = 1
-	deck.barricade.global_position = Vector2(
-		SkyGearGame.BARRICADE_STAGES[1], SkyGearGame.BARRICADE_Y)
-	var crate_c: Vector2 = deck.barricade.global_position
+	## THE STATIC-COLLISION CHOICE, PINNED (board SG-68; was `deck · the
+	## captain is never blocked by the heaved crate`, SG-37's deliberate
+	## divergence). With the verb tabled the honest static behaviour is the
+	## SIMPLEST one: the crate rejoins ordinary prop collision LIKE ANY CRATE
+	## STACK — and ordinary stacks are scenery, colliding with NOBODY. So the
+	## captain still walks its footprint (her SG-37 freedom, kept — no
+	## regression to the trap the owner rejected), the boarder clamp reads
+	## the same eight walls she does (the funnel checks above), and the old
+	## her-vs-boarders divergence about the crate is GONE: one collision
+	## story, stated here per STATUS failure mode two. The fixed walls still
+	## push her out, so collision is not globally off.
+	var crate_c := Vector2(SkyGearGame.BARRICADE_STAGES[1], SkyGearGame.BARRICADE_Y)
 	var in_crate: Vector2 = deck.correct_player_position(crate_c, 17.0)
 	var wall: Rect2 = SkyGearGame.CARGO_RECTS[0]
 	var in_wall: Vector2 = deck.correct_player_position(wall.get_center(), 17.0)
-	_check("deck", "the captain is never blocked by the heaved crate",
+	_check("deck", "the tabled crate blocks nobody — the captain passes, and only fixed walls push",
 		in_crate.distance_to(crate_c) < 0.5
 			and in_wall.distance_to(wall.get_center()) > 1.0,
-		"crate push %.1f (want ~0) · fixed-wall push %.1f (want >0)" % [
+		"crate-line push %.1f (want ~0) · fixed-wall push %.1f (want >0)" % [
 			in_crate.distance_to(crate_c), in_wall.distance_to(wall.get_center())])
+
+	## THE WAY BACK, PINNED (board SG-68). Tabled means tabled, not deleted:
+	## ONE flag (`SkyGearGame.CRATE_VERBS_ENABLED`) brings the family home.
+	## Flip it in a sandbox: both rows return to the table with the SG-37
+	## contract intact (the shove instant, no channel seconds; the winch row
+	## naming its fitting), a fresh stow deals a MOVABLE crate again, standing
+	## at it offers the shove, one perform steps the footprint, and the winch
+	## fitting stops reading as tabled. Flip it back and the table is bare
+	## again. If lifting the flag ever needs more than this, the tabling has
+	## rotted into a deletion.
+	SkyGearGame.CRATE_VERBS_ENABLED = true
+	var back_rows := {}
+	for back_spec in SkyGearDeckwork.actions():
+		back_rows[str(back_spec.id)] = back_spec
+	var winch_untabled: bool = not SkyGearFittings.tabled("winch")
+	var sg68 := _new_game()
+	sg68.set_seed_text("SG68")
+	sg68.begin_run()
+	sg68.choose_draft(0)
+	var revived: bool = sg68.barricade != null and is_instance_valid(sg68.barricade)
+	var offered_back := false
+	var moved_back := false
+	if revived:
+		sg68.player.global_position = sg68.barricade.global_position
+		var sg68_offer: Dictionary = SkyGearDeckwork.available(sg68)
+		offered_back = not sg68_offer.is_empty() \
+			and str(sg68_offer.spec.id) == "heave_crate"
+		if offered_back:
+			var bx: float = sg68.barricade.global_position.x
+			SkyGearDeckwork.perform(sg68, sg68_offer.spec, sg68_offer.target)
+			moved_back = absf(sg68.barricade.global_position.x - bx) > 40.0
+	sg68.queue_free()
+	SkyGearGame.CRATE_VERBS_ENABLED = false
+	var bare_again := true
+	for gone_spec in SkyGearDeckwork.actions():
+		if str(gone_spec.at) == "crate" or str(gone_spec.at) == "crates":
+			bare_again = false
+	var heave_back: Dictionary = back_rows.get("heave_crate", {})
+	_check("deckwork", "the tabled verbs come back with one flag",
+		back_rows.has("heave_crate") and back_rows.has("winch_crate")
+			and bool(heave_back.get("instant", false))
+			and not heave_back.has("seconds")
+			and str((back_rows.get("winch_crate", {}) as Dictionary).get("fitting", "")) == "winch"
+			and winch_untabled and revived and offered_back and moved_back
+			and bare_again,
+		"rows back=%s · instant=%s · winch untabled=%s · crate revived=%s · offered=%s · moved=%s · bare again=%s" % [
+			back_rows.has("heave_crate") and back_rows.has("winch_crate"),
+			bool(heave_back.get("instant", false)), winch_untabled, revived,
+			offered_back, moved_back, bare_again])
 	deck.queue_free()
 
 	## MOVEMENT FEEL, as a shape rather than as numbers. Both directions of this
@@ -4726,11 +4813,15 @@ func _view() -> void:
 	game.turrets[1].hp = game.turrets[1].max_hp
 	game.deckwork = {}
 
-	## THE SHAPING VERB IS INVISIBLE TOO. Like the downed cannon, nothing on screen
-	## says a crate can be heaved to funnel a lane, so the coach announces it — and
-	## like every keyed line it carries the LIVE binding, never the raw {key} token.
-	## This is the check that catches the substitution being dropped for the new
-	## line. Its own game, so the crate is freshly stowed and the state is known.
+	## THE SHAPING VERB IS TABLED (board SG-68; was `coach · the crate's heave
+	## is announced with a lane walking through` + `coach · and the heave line
+	## names the bound key, not the {key} token` — rewritten, named old→new on
+	## the board row). The shove line must now stay QUIET: a coach announcing
+	## a verb the table refuses would teach a dead key. Same fixture as the
+	## old pair — a lane walking through, the crate stowed at home — but the
+	## crate is an ordinary prop (`barricade` null gates `shape_lane`), so the
+	## FIRST word out is the plain `lane` line, and no word of the whole
+	## window names the crate or the shove.
 	var shaper := _new_game()
 	shaper.set_seed_text("SHAPE")
 	shaper.begin_run()
@@ -4740,10 +4831,6 @@ func _view() -> void:
 	shaper.coach.reset()
 	shaper.deckwork = {}
 	shaper.pressure = 0.0
-	shaper.barricade_stage = 0
-	if shaper.barricade != null and is_instance_valid(shaper.barricade):
-		shaper.barricade.global_position = Vector2(
-			SkyGearGame.BARRICADE_STAGES[0], SkyGearGame.BARRICADE_Y)
 	## A lane walking through, the captain committed elsewhere — and standing on a
 	## boarder, so the kiting line (higher priority) cannot win ahead of this one.
 	shaper.player.global_position = Vector2(400.0, -300.0)
@@ -4764,22 +4851,21 @@ func _view() -> void:
 	if nearby != null:
 		nearby.global_position = shaper.player.global_position
 		nearby.state = "move"
-	## Capture the FIRST hint to fire, not the last: `shape_lane` and the plain
-	## `lane` line share the same trigger, and `shape_lane` wins the priority order,
-	## so it speaks first — a loop that kept the last word would catch `lane`
-	## overwriting it seconds later and read the wrong line.
-	var crate_told := ""
+	var first_word := ""
+	var crate_words := ""
 	for _t in 400:
 		var w3: String = shaper.coach.advise(shaper, 0.1)
 		shaper.run_time += 0.1
 		if w3 != "":
-			crate_told = w3
-			break
-	_check("coach", "the crate's heave is announced with a lane walking through",
-		crate_told != "", "said nothing with a lane being lost and the crate stowed")
-	_check("coach", "and the heave line names the bound key, not the {key} token",
-		crate_told.contains(bound) and not crate_told.contains("{key}"),
-		"'%s' does not carry '%s'" % [crate_told, bound])
+			if first_word == "":
+				first_word = w3
+			if w3.containsn("crate") or w3.containsn("shove"):
+				crate_words = w3
+	_check("coach", "the shove line is tabled — a lane walking through gets the plain lane hint",
+		first_word == str(SkyGearCoach.TEXT.lane),
+		"first said '%s'" % first_word)
+	_check("coach", "and no coaching in the whole window names the crate or the shove",
+		crate_words == "", "said '%s'" % crate_words)
 	shaper.queue_free()
 
 	game.spawn_queue.clear()

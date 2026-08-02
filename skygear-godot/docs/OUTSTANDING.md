@@ -110,6 +110,16 @@ to today's. Harness 641/641; the berth screen is the audit's 24th, clean at
 all four widths; `.shots/clips/fight.gif` now films the fight with all six
 berthed.
 
+**THE WINCH TABLED 2026-08-02 (board SG-68), with the crate-verb family your
+"boring" verdict tabled:** a fitting whose whole grant is a dead verb would
+be a lie, so while the family is down the winch is unearnable (its award
+rule is skipped; the next rule in table order takes its place), unberthable,
+and never sails — THE BERTHS shows it as "TABLED — an interaction pass will
+revisit" rather than vanishing, an earned one in a save stays earned (a
+berthed one un-berths gracefully on load), and the other five fittings are
+untouched. It returns with the family:
+`deckwork · the tabled verbs come back with one flag`.
+
 ### The editor can't REACH the screens — round two of the alignment ask
 Reported 2026-08-01, after SG-42 shipped: *"You still didnt fix the screens
 tool to allow me to interactively edit UI/text."* SG-42's "you edit the
@@ -221,32 +231,6 @@ plain hint. The "no size for this" line now reads as information, not an error.
 And Ctrl+Z takes back the last nudge or typed entry.
 
 Play it and say — if a control still fights you, that is the thing to name.
-
-### The crate mechanics suck — the owner, after playing them
-Reported 2026-08-01, verbatim: *"The crate mechanics kind of suck to be honest.
-Don't like them at all, the hold to move is not fun. It's too easy to just get
-stuck on the crates yourself and lose your ability to move between lanes."*
-
-Two distinct defects in that: the 2.8-second hold-to-heave channel is not fun
-as an interaction, and the crate collides with the CAPTAIN — which breaks
-pillar 4 (cross-passages preserve mobility) for the one person the deck is
-supposed to serve. The crate exists to shape the BOARDERS' movement, never
-hers. Board SG-37; the rework replaces the channel with an instant shove and
-makes the crate something she can never be trapped by. If it still is not fun
-after that, the verb gets dropped with this entry as the reason.
-
-**REWORK SHIPPED (SG-37, 2026-08-01) — awaiting your re-judgement; NOT closed.**
-Both halves are in the next build. The channel is gone: the deckwork key at the
-crate now SHOVES it instantly (the prompt reads "TAP", the coach says "TAP … to
-shove"), the captain keeps moving and fighting, and a ~1s per-crate cooldown
-replaces the seconds-standing-still as the cost — each tap still steps one stage
-of stow→narrow→funnel→stow (a fixed distance per press). And she is NEVER blocked
-by the crate: her collision now clamps only the eight fixed cargo walls and
-excludes the movable crate entirely, so she slips straight through it while the
-boarders stay fully funnelled by it (deliberate divergence, commented at the
-site and pinned). This stays OPEN because YOU judge whether it is fun now, not
-us — play it and say. If it still is not fun, it gets dropped with this entry as
-the reason.
 
 ### The Boilerwright's mobility gap is 60%, not the 21% the numbers say
 Reported at playtest as "Boilerwright feels slower", alongside "I'm not sure I
@@ -466,9 +450,14 @@ prompt over the gun says you are standing where it works, with the progress
 under it and the reason when it refuses. Three checks, including one asserting
 the line carries the live binding and not the raw `{key}` token.
 
-What the ask was actually about is still owed: dragging a crate to close a
-lane, funnelling, shaping where the fight happens. Each is one entry in the
-verb table in `scripts/deckwork.gd`.
+What the ask was actually about — dragging a crate to close a lane,
+funnelling, shaping where the fight happens — was built (SG-10, reworked
+SG-37, extended by SG-56's winch) and then TABLED by your 2026-08-02 verdict:
+"the current push crate mechanic is boring. table that feature for now we can
+revisit interactions like that later." (Board SG-68.) The verb TABLE stands —
+repair lives in it, and the tabled rows return with one flag when the
+interaction pass revisits; new verbs remain one entry each in
+`scripts/deckwork.gd`.
 
 ### A cloak with cloth physics
 Raised again. Godot has `SoftBody3D`, which is the obvious route, but it wants a
@@ -716,6 +705,20 @@ to average wave 10.2, and held Heat 5 none, dying on wave 4 every run.
 ---
 
 ## Done
+
+- **DROPPED — the crate mechanics ("The crate mechanics suck"), by your own
+  verdict, 2026-08-02:** *"the current push crate mechanic is boring. table
+  that feature for now we can revisit interactions like that later."* The
+  entry's own exit clause fired — it said the verb gets dropped with the entry
+  as the reason if the SG-37 rework still was not fun, and it was not. The
+  first entry to leave this file by the drop door rather than the done door.
+  TABLED, not deleted (board SG-68): one flag (`SkyGearGame.CRATE_VERBS_ENABLED`)
+  holds the shove verb, the winch verb and THE WINCH fitting dormant — the
+  crate stands at its home as an ordinary stowed prop, the coach's shove line
+  is quiet, THE BERTHS shows the winch as "TABLED — an interaction pass will
+  revisit" (an earned one stays earned), and
+  `deckwork · the tabled verbs come back with one flag` proves the whole
+  family returns when the revisit comes. The repair verb is untouched.
 
 - **Player projectiles and VFX reading as 2D.** Both halves. The hitscan shapes
   now draw a travelling bolt inside the window the effect already lived for —

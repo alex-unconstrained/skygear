@@ -56,6 +56,12 @@ WINCH (12 salvage in one run → tap-to-haul verb), SCUPPER GRATING (win
 without healing). One earned per run, six berths, THE BERTHS screen off the
 title.
 
+**Done, no decision needed:** your "push crate mechanic is boring" tabling
+LANDED (board SG-68) — shove + winch verbs dormant behind one flag, the crate
+is an ordinary stowed prop, THE WINCH shows "TABLED — an interaction pass
+will revisit" on THE BERTHS (earned ones stay earned), and the checks now pin
+the tabled state, none silenced.
+
 **4 · The Muster** (ENEMY-VARIETY §2.1, ~a week): seeded wave mutations
 inside a conserved threat budget — the biggest remaining enemy-variety item.
 Proceed after your noise-floor call in #2?

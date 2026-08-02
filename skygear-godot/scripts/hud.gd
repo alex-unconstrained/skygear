@@ -4178,6 +4178,13 @@ func _draw_berths() -> void:
 			state = Fit.READY
 		elif have:
 			state = Fit.DEAR
+		## TABLED (board SG-68): the winch's slate is SHOWN, not vanished — a
+		## slate that silently disappeared would read as a lost save. It draws
+		## muted (the DEAR palette), the tap is refused by `can_berth`, and the
+		## row itself says why instead of pretending to be earnable.
+		var shelved: bool = SkyGearFittings.tabled(str(id))
+		if shelved:
+			state = Fit.DEAR
 		var box := Rect2(room.position.x, y + 3.0, list_w, step - 6.0)
 		var cy: float = box.get_center().y
 		var mine := ui.declared().size()
@@ -4203,6 +4210,9 @@ func _draw_berths() -> void:
 			Fit.LOCKED:
 				tag = "LOCKED"
 				_padlock(Vector2(box.end.x - 14.0, cy - 3.0), FIT_INK[state])
+		if shelved:
+			tag = "TABLED"
+			tag_ink = FIT_INK[Fit.DEAR]
 		var tag_w := 118.0
 		_label(tag, Vector2(box.position.x, cy + 5.0),
 			box.size.x - (26.0 if state == Fit.LOCKED else 12.0),
@@ -4215,10 +4225,15 @@ func _draw_berths() -> void:
 				name_w, HORIZONTAL_ALIGNMENT_LEFT,
 				_fits(str(fit.name), name_w, 13), FIT_INK[state])
 			var blurb_w: float = box.size.x - 26.0 - tag_w - 12.0
-			_label(str(fit.text), Vector2(box.position.x + 14.0, cy + 15.0),
+			## A tabled slate's blurb IS the tabling (SG-68) — the deck change
+			## it used to promise is not on offer, and saying so beats a
+			## description of a verb that does not exist.
+			var blurb: String = "TABLED — an interaction pass will revisit" \
+				if shelved else str(fit.text)
+			_label(blurb, Vector2(box.position.x + 14.0, cy + 15.0),
 				blurb_w, HORIZONTAL_ALIGNMENT_LEFT,
-				_fits(str(fit.text), blurb_w, 11, 9),
-				Color("#8f8697") if state == Fit.LOCKED else Color("#b9afaa"))
+				_fits(blurb, blurb_w, 11, 9),
+				Color("#8f8697") if state == Fit.LOCKED or shelved else Color("#b9afaa"))
 		else:
 			_label(str(fit.name), Vector2(box.position.x + 14.0, cy + 5.0),
 				name_w, HORIZONTAL_ALIGNMENT_LEFT,
@@ -4234,7 +4249,15 @@ func _draw_berths() -> void:
 					status = "earned · the berth row is full — clear one first"
 				Fit.LOCKED:
 					status = "locked · earned by: %s" % str(fit.earn)
-			told = {"name": str(fit.name), "text": str(fit.text),
+			if shelved:
+				status = "TABLED — an interaction pass will revisit"
+			## A tabled slate's hover lead states the tabling, never the dead
+			## verb's sales pitch — honest, and it also cures the one
+			## foot-strip OVERFLOW the text audit caught on the winch's long
+			## verb description ("needs 614, given 578").
+			told = {"name": str(fit.name),
+				"text": ("tabled with the crate-verb family — nothing is lost"
+					if shelved else str(fit.text)),
 				"status": status, "tint": FIT_INK[state]}
 		y += step
 
