@@ -17,6 +17,19 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### UI alignment must be EDITABLE, not just photographed
+Asked 2026-08-01 after running the screens audit: *"I got all of the
+screenshots but I'm not able to directly edit/align content within UI
+elements. Add this functionality as the primary purpose, and then the massive
+screenshot dump is a secondary."*
+
+The F4 editor drags whole panels on the gameplay HUD; the audit photographs
+21 screens; neither lets a person move a label inside a plate, a glyph inside
+a slot, or anything on the title/draft/workshop/results screens. The primary
+tool is now: navigate to any screen in-game, select sub-elements inside
+panels, drag/nudge/type offsets, save to the layout system the game reads.
+The screenshot dump stays as the secondary batch-evidence mode. Board SG-42.
+
 ### Projectiles look like cheap 2D sprites — the first ask of the post-parity era
 Asked 2026-08-01 with a screenshot of the cartoon fireball bolts: *"Can we get
 better VFX particles? Instead of these 2D sprites that look like they are
