@@ -27,7 +27,15 @@ one-enemy animation pilot before scaling). Its decisions for you, each with
 the plan's recommendation:
   - **Stowage kill-test threshold** (item 2): what close-share difference
     counts as "real variety"? Recommendation: accept the plan's band and let
-    the measurement decide.
+    the measurement decide. **MEASURED 2026-08-02 (board SG-48): it decided.**
+    Close-share over 60 runs per config came back 5.38% live vs 5.25% flat —
+    indistinguishable — so the seeded variety was cut per the plan's own
+    pre-committed rule, not tuned. The full spine (third RNG stream, STOWAGE
+    table, `tools/stow.gd`) is preserved at commit d10f09c: if you want the
+    cosmetic variety anyway (it costs nothing and reads as twelve different
+    decks), or want the test re-run with a better bot than balance.gd's
+    long-range kiter, say so and it is one revert away. The numbers are on
+    the SG-48 board row.
   - **Fittings** (item 3): confirm the six named fittings + one-per-run cap,
     and whether Heat rows record fitting count (recommended) or Heat runs
     sail bare.

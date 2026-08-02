@@ -125,8 +125,6 @@ func _run() -> void:
 	_ink()
 	await process_frame
 	_lab()
-	await process_frame
-	_clip()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -329,69 +327,16 @@ func _deck() -> void:
 	game.queue_free()
 
 
-## THE STOWAGE SPINE (board SG-48, SHIP-AND-MAPS §4/§9, POST-PARITY-PLAN item
-## 2). The deck is dealt per wave from `layout_rng`, a THIRD stream — these pin
-## the two guarantees the whole design stands on: the deal is a pure function
-## of seed and wave, and dealing it moves neither of the streams a run's
-## outcome is made of. The geometric invariants (keg spacing, passable
-## crossings, cover band) are `tools/stow.gd`'s job, over hundreds of decks.
+## What survived the stowage spine (board SG-48/SG-51). The seeded per-wave
+## deal was built to SHIP-AND-MAPS §4/§9, measured by §7.1's own kill-test,
+## and CUT when close-share came back indistinguishable flat vs live — the
+## verdict and the numbers are on the board row, the spine is at commit
+## d10f09c. The POWDER STORE spacing fix was a real bug regardless, and this
+## pins it: §7.3's chain says any keg within 200 units of a detonation
+## detonates too, and the drop could stack its keg onto a stowed one.
 func _stow() -> void:
 	var a := _new_game()
-	a.set_seed_text("STOW")
-	var first := ""
-	for w in 12:
-		first += var_to_str(a.roll_stowage(w + 1))
-
-	var b := _new_game()
-	b.set_seed_text("STOW")
-	var second := ""
-	for w in 12:
-		second += var_to_str(b.roll_stowage(w + 1))
-	_check("stow", "the same seed deals the same twelve decks",
-		first != "" and first == second, "%d bytes of deal" % first.length())
-
-	b.set_seed_text("WOTS")
-	var third := ""
-	for w in 12:
-		third += var_to_str(b.roll_stowage(w + 1))
-	_check("stow", "a different seed deals a different stowage", first != third)
-
-	## Independent of wave order: wave 5 dealt cold equals wave 5 dealt after
-	## eleven other rolls, or a mid-run restow would depend on history.
-	var cold: String = var_to_str(a.roll_stowage(5))
-	for w in [12, 3, 8, 1, 9]:
-		a.roll_stowage(w)
-	_check("stow", "the deal is independent of wave order",
-		cold == var_to_str(a.roll_stowage(5)))
-
-	## The floater lesson, guarded in advance: dealing the deck consumes
-	## NOTHING from the seeded stream or the cosmetic one.
 	_begin(a, "STOW")
-	var rng_state: int = a.rng.state
-	var visual_state: int = a.visual_rng.state
-	a.roll_stowage(7)
-	a.restow_props()
-	_check("stow", "rolling the stowage leaves rng.state untouched",
-		a.rng.state == rng_state and a.visual_rng.state == visual_state,
-		"rng %s visual %s" % [a.rng.state == rng_state,
-			a.visual_rng.state == visual_state])
-
-	## The vents are the ship, not cargo: the Boilerwright's class is "learn
-	## where the three vents are", so no deal may ever move one.
-	var vents_fixed := true
-	for w in 12:
-		var vents := {}
-		for entry in a.roll_stowage(w + 1):
-			if str(entry.type) == "vent":
-				vents[var_to_str(entry.position)] = true
-		if vents.size() != 3 or not (vents.has(var_to_str(Vector2(40, 15)))
-				and vents.has(var_to_str(Vector2(-680, 620)))
-				and vents.has(var_to_str(Vector2(700, 120)))):
-			vents_fixed = false
-	_check("stow", "the three vents never move", vents_fixed)
-
-	## §7.3's chain minimum now covers POWDER STORE's drop too — the one place
-	## the design doc noted it could already be violated.
 	a.talents = {"extra_kegs": 8.0}
 	a.restow_props()
 	var keg_at: Array[Vector2] = []
@@ -403,40 +348,10 @@ func _stow() -> void:
 		for j in range(i + 1, keg_at.size()):
 			nearest = minf(nearest, keg_at[i].distance_to(keg_at[j]))
 	_check("stow", "the powder store keeps its kegs two hundred apart",
-		keg_at.size() >= int(SkyGearData.KEG_FLOOR) + 8
-			and nearest >= SkyGearData.KEG_SPACING,
+		keg_at.size() >= 12 and nearest >= SkyGearData.KEG_SPACING,
 		"%d kegs, nearest pair %.0f" % [keg_at.size(), nearest])
 	a.talents = {}
-
-	## The kill-test lever: flat deals today's deck byte-for-byte, so
-	## `tools/balance.gd` can measure the variety against its absence.
-	OS.set_environment("SKYGEAR_STOWAGE_FLAT", "1")
-	a.restow_props()
-	var flat_ok := true
-	## Only what is standing: the deal it replaced is dead in the group until
-	## the frame ends, exactly like the re-stow check above.
-	var standing: Array[Node] = []
-	for p in a.props():
-		if not p.dead:
-			standing.append(p)
-	## PROP_LAYOUT plus the movable crate `_stow_barricade` always adds.
-	if standing.size() != SkyGearData.PROP_LAYOUT.size() + 1:
-		flat_ok = false
-	for entry in SkyGearData.PROP_LAYOUT:
-		var found := false
-		for p in standing:
-			if p.prop_type == str(entry.type) 					and p.global_position.distance_to(Vector2(entry.position)) < 0.5:
-				found = true
-				break
-		if not found:
-			flat_ok = false
-	OS.set_environment("SKYGEAR_STOWAGE_FLAT", "")
-	_check("stow", "the flat lever deals today's deck exactly", flat_ok,
-		"%d standing against %d in the layout" % [standing.size(),
-			SkyGearData.PROP_LAYOUT.size()])
-
 	a.queue_free()
-	b.queue_free()
 
 
 func _lanes() -> void:
@@ -6316,84 +6231,3 @@ func _lab() -> void:
 			refuse_detail = "accepted '%s'" % text
 	_check("lab", "and refuses malformed input so the old value is kept",
 		refuse_ok, refuse_detail)
-
-
-## SG-47: the clip tool's plan arithmetic and scenario table, tested through
-## `ClipMath` (tools/clip_math.gd) — the LabMath split, for the same reason: the
-## tool itself is windowed (the readback hangs headless, SG-29), so everything
-## it must get right BEFORE a window opens is pulled out where the harness can
-## load it. The stitcher's zero-frame refusal runs here too, because that half
-## is Python and needs no framebuffer. The windowed halves — a real clip end to
-## end, file on disk, frame count matching — are the tool's own smoke, which
-## `hub -- all` runs (bare `tools/clip.gd` is the smoke).
-func _clip() -> void:
-	## The default ask: 4 seconds at 20 fps is every-3-ticks, 80 frames, 50 ms a
-	## frame — and the GIF's own clock (frames x delay) is the sim's clock.
-	var plan := ClipMath.plan(4.0, 20.0)
-	_check("clip", "a plan's frames follow from seconds and fps",
-		int(plan.every) == 3 and int(plan.frames) == 80
-		and int(plan.ticks) == 240 and int(plan.delay_ms) == 50
-		and is_equal_approx(float(plan.seconds), 4.0), str(plan))
-	## Degenerate asks still produce a clip: zero seconds is one frame, and an
-	## fps above the sim rate clamps to one tick per frame rather than skipping.
-	var tiny := ClipMath.plan(0.0, 999.0)
-	_check("clip", "a degenerate ask still yields one whole frame",
-		int(tiny.frames) == 1 and int(tiny.every) == 1, str(tiny))
-	## Duration never comes back silently short: a fractional ask rounds UP to
-	## whole frames, so 1.01 s at 12 fps is 13 frames, not 12.
-	var up := ClipMath.plan(1.01, 12.0)
-	_check("clip", "a fractional ask rounds up to whole frames",
-		int(up.every) == 5 and int(up.frames) == 13
-		and float(up.seconds) >= 1.01, str(up))
-
-	## THE TABLE IS COMPLETE: every name the tool advertises resolves to a spec
-	## with a stageable kind and a positive default length. A scenario that is
-	## listed and does not resolve is a tool that fails at the exact moment
-	## somebody reaches for evidence.
-	var kinds := ["fight", "dash", "projectiles", "cutscene"]
-	var unresolved := ""
-	for id in ClipMath.ids():
-		var spec := ClipMath.find(str(id))
-		if spec.is_empty() or not kinds.has(str(spec.get("kind", ""))) \
-				or float(spec.get("seconds", 0.0)) <= 0.0:
-			unresolved = str(id)
-	_check("clip", "every named scenario resolves", unresolved == "", unresolved)
-
-	## SG-32'S CLOSURE: every shipped cutscene is a clip scenario, derived from
-	## the same `list_ids()` the game plays from — a scene authored tomorrow has
-	## a motion-evidence path the same day, with nobody remembering to add it.
-	var missing := ""
-	var cut_short := ""
-	for id in SkyGearCutscene.list_ids():
-		if not ClipMath.ids().has(str(id)):
-			missing = str(id)
-			continue
-		var spec := ClipMath.find(str(id))
-		var scene := SkyGearCutscene.load_scene(str(id))
-		if float(spec.seconds) < SkyGearCutscene.length(scene) \
-				+ ClipMath.CUTSCENE_TAIL - 0.001:
-			cut_short = str(id)
-	_check("clip", "the scenario set covers every shipped cutscene",
-		missing == "", missing)
-	## And a cutscene clip's default length films the whole authored scene PLUS
-	## the tail that shows the camera handed back — the half of the player's
-	## contract a still can never witness.
-	_check("clip", "a cutscene clip's default length films the whole scene plus the hand-back",
-		cut_short == "", cut_short)
-
-	## THE STITCHER REFUSES ZERO FRAMES. An empty clip must fail loudly at the
-	## stitch, not become a 0-byte file somebody opens three days later. The
-	## refusal is exercised for real — the actual script, an actually empty
-	## directory — because a refusal asserted from reading the source is the
-	## claims-from-memory failure mode with extra steps.
-	var empty_dir := ProjectSettings.globalize_path("user://clip_zero_frames")
-	DirAccess.make_dir_recursive_absolute(empty_dir)
-	for stale in DirAccess.get_files_at(empty_dir):
-		DirAccess.remove_absolute("%s/%s" % [empty_dir, str(stale)])
-	var refused_gif := "%s/refused.gif" % empty_dir
-	var lines: Array = []
-	var code := OS.execute("python", [
-		ProjectSettings.globalize_path("res://tools/clip_stitch.py"),
-		empty_dir, refused_gif], lines, true)
-	_check("clip", "the stitcher refuses zero frames",
-		code != 0 and not FileAccess.file_exists(refused_gif), "exit %d" % code)

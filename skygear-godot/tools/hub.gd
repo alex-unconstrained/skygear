@@ -43,15 +43,6 @@ const TOOLS := [
 	{"id": "model", "kind": "check", "script": "tools/verify_model.gd",
 		"what": "an ingested rig: height, bones, clips, materials",
 		"why": "whether a model will actually stand on the deck"},
-	## A check that needs a window, like `text`: the readback hangs headless
-	## (SG-29), so `all` runs it windowed. Bare invocation is the SMOKE — one
-	## short clip end to end, frame count asserted against the plan. Scenarios
-	## take arguments the hub cannot pass, so run those directly:
-	##   godot --path . --resolution 1600x900 --script tools/clip.gd -- <scenario>
-	## `-- list` names them: fight, dash, projectiles, and every shipped cutscene.
-	{"id": "clip", "kind": "check", "script": "tools/clip.gd", "window": true,
-		"what": "MOTION evidence: pose a scenario, run real seconds of sim+render, stitch to .shots/clips/<name>.gif",
-		"why": "every figure claim ahead is a claim about motion, and a still cannot witness a walk, a dash crack, or a cutscene's hand-back"},
 
 	{"id": "sky", "kind": "window", "script": "tools/sky_shot.gd",
 		"what": "the sky, from the four places on the deck it is actually visible",

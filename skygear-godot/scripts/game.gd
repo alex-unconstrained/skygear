@@ -83,21 +83,17 @@ var rng := RandomNumberGenerator.new()
 ## jitter for the rest of the run shifted by however many boarders had been hit.
 ## A seed has to reproduce a run, so nothing cosmetic may touch it.
 var visual_rng := RandomNumberGenerator.new()
-## A THIRD stream, for the stowage roll alone (board SG-48, SHIP-AND-MAPS §4).
-##
-## The floater lesson above, applied in advance rather than after the bug: the
-## deck is re-dealt every wave, and if that draw touched `rng` then owning a
-## talent or playing a different class would move every crit and draft offer
-## for the rest of the run — and if it touched `visual_rng`, POWDER STORE's
-## keg drop would move the deal. So the stowage gets its own stream, reseeded
-## from `hash(seed_text) ^ (wave * LAYOUT_SALT)` at every roll: deterministic
-## in the seed, independent of wave order, independent of the player's entire
-## history. Pinned by `stow · the same seed deals the same twelve decks` and
-## `stow · rolling the stowage leaves rng.state untouched`.
-var layout_rng := RandomNumberGenerator.new()
-## Knuth's multiplicative hash constant — spreads consecutive wave numbers
-## across the seed space so wave 2 is not wave 1 plus one.
-const LAYOUT_SALT := 2654435761
+## THERE WAS BRIEFLY A THIRD STREAM. Board SG-48 built SHIP-AND-MAPS §4 as
+## written — `layout_rng`, a STOWAGE table, a per-wave seeded deal — and then
+## ran the §7.1 kill-test the design pre-committed to: `tools/balance.gd`,
+## six seeds × ten reps, deal live against deal flat. Close-share came back
+## indistinguishable (5.38% vs 5.25%, t≈0.36), and so did everything else the
+## bot measures. The rule was written before the numbers existed: variety
+## that does not change where you stand is cosmetic AND GETS CUT, not tuned.
+## The whole spine — stream, table, `tools/stow.gd`, seven checks, the
+## kill-test lever — lives at commit d10f09c if a sharper instrument ever
+## re-asks the question. What survived is the POWDER STORE spacing fix in
+## `restow_props`, which was a real §7.3 bug regardless (board SG-51).
 var state := State.TITLE
 var state_name := "TITLE"
 var wave := 0
@@ -3241,88 +3237,13 @@ func _stow_barricade() -> void:
 	barricade.configure(self, "crates")
 
 
-## The §7.1 kill-test lever (board SG-48). With `SKYGEAR_STOWAGE_FLAT` set,
-## `restow_props` deals `PROP_LAYOUT` byte-for-byte — today's deck, every wave —
-## so `tools/balance.gd` can be run flat against live and the close-share
-## distributions compared without editing code. If they are indistinguishable,
-## the variety is cosmetic and gets cut, not tuned. Pinned by
-## `stow · the flat lever deals today's deck exactly`.
-func stowage_flat() -> bool:
-	return OS.get_environment("SKYGEAR_STOWAGE_FLAT") != ""
-
-
-## Deal one wave's stowage (board SG-48, SHIP-AND-MAPS §4/§9): the STOWAGE
-## table's fixed entries as written, and each slot rolled from `layout_rng` —
-## a weighted kind (possibly empty) and a jittered position. Pure in the seed
-## and the wave: it reseeds its own stream every call and touches nothing
-## else, so `tools/stow.gd` can audit five hundred decks without instantiating
-## a prop, and the same seed deals the same twelve decks forever, for everyone.
-##
-## Two invariants are enforced IN the deal rather than hoped about the table:
-## a keg that lands within `KEG_SPACING` of another is demoted to a crate
-## (§7.3's chain: within 200 units, one detonation is all of them), and a deal
-## that comes up short of `KEG_FLOOR` kegs stands them on the floor anchors —
-## zero ordnance is a bad hand dealt by the floor, not variety.
-func roll_stowage(for_wave: int) -> Array:
-	layout_rng.seed = hash(seed_text) ^ (for_wave * LAYOUT_SALT)
-	var placed: Array = []
-	var kegs: Array[Vector2] = []
-	for entry in SkyGearData.STOWAGE:
-		if bool(entry.get("fixed", false)):
-			placed.append({"type": str(entry.type), "position": Vector2(entry.position)})
-			continue
-		var kinds: Array = entry.of
-		var weights: Array = entry.weight
-		var total := 0.0
-		for w in weights:
-			total += float(w)
-		var draw: float = layout_rng.randf() * total
-		var kind := ""
-		for i in kinds.size():
-			draw -= float(weights[i])
-			if draw <= 0.0:
-				kind = str(kinds[i])
-				break
-		## The jitter is drawn even when the slot stows empty, so one slot's
-		## outcome can never shift where another slot's cargo stands.
-		var jitter := float(entry.get("jitter", 0.0))
-		var at: Vector2 = Vector2(entry.position) + Vector2(
-			layout_rng.randf_range(-jitter, jitter),
-			layout_rng.randf_range(-jitter, jitter))
-		if kind == "":
-			continue
-		if kind == "keg":
-			for other in kegs:
-				if other.distance_to(at) < SkyGearData.KEG_SPACING:
-					kind = "crate"
-					break
-		if kind == "keg":
-			kegs.append(at)
-		placed.append({"type": kind, "position": at})
-	for anchor: Vector2 in SkyGearData.KEG_FLOOR_ANCHORS:
-		if kegs.size() >= SkyGearData.KEG_FLOOR:
-			break
-		var clear := true
-		for other in kegs:
-			if other.distance_to(anchor) < SkyGearData.KEG_SPACING:
-				clear = false
-				break
-		if clear:
-			kegs.append(anchor)
-			placed.append({"type": "keg", "position": anchor})
-	return placed
-
-
 func restow_props() -> void:
 	for prop in props():
 		if is_instance_valid(prop):
 			prop.dead = true
 			prop.queue_free()
-	## The stowage spine (board SG-48): the deck is dealt from the seed, per
-	## wave, or dealt flat for the kill-test — see `stowage_flat` above.
-	var stowage: Array = SkyGearData.PROP_LAYOUT if stowage_flat() 		else roll_stowage(wave)
 	var keg_spots: Array[Vector2] = []
-	for entry in stowage:
+	for entry in SkyGearData.PROP_LAYOUT:
 		var prop: SkyGearProp = PROP_SCENE.instantiate()
 		add_child(prop)
 		prop.global_position = entry.position

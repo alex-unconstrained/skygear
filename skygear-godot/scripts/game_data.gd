@@ -345,96 +345,15 @@ const PROP_LAYOUT := [
 	{"type": "railing", "position": Vector2(780, 240)},
 ]
 
-## THE STOWAGE (board SG-48) — SHIP-AND-MAPS §4 as written: one deck,
-## differently stowed. `PROP_LAYOUT` above stays as the flat reference deck
-## (the kill-test lever and `SKYGEAR_STOWAGE_FLAT` deal it byte-for-byte);
-## this table is what `roll_stowage` deals live, per wave, from `layout_rng`.
-##
-## Two entry shapes. FIXED is the ship — the mast, the hatches, the ballistae,
-## the rails and ALL THREE VENTS (`class · and every lane has a vent to refill
-## at` is a class built on knowing where they are; the vents never move).
-## A SLOT is cargo: a position lifted from `PROP_LAYOUT` because that layout
-## was already looked at and approved, a jitter, and a weighted hand of what
-## might stand there ("" is the slot stowed empty). Positions and jitters are
-## chosen so no slot can reach a cross-passage opening or the spawn band —
-## `tools/stow.gd` proves it over seeds rather than trusting this comment.
-##
-## Guarantees built into the weights rather than patched after:
-##   · the three brazier slots and the bow rope always stow dressing, so
-##     `view · the deck is dressed` (>= 4 pieces) holds on every seed;
-##   · `waist_cover` always stows a crate stack and only four other slots can,
-##     so hard cover stays in a band of 1..5 stacks (§7.3 "too much cover");
-##   · kegs get a floor and a spacing rule in `roll_stowage`, not here.
-const STOWAGE := [
-	## the ship itself — fixed forever
-	{"type": "mast", "position": Vector2(0, -180), "fixed": true},
-	{"type": "hatch", "position": Vector2(-250, 520), "fixed": true},
-	{"type": "hatch", "position": Vector2(300, -740), "fixed": true},
-	{"type": "vent", "position": Vector2(-680, 620), "fixed": true},
-	{"type": "vent", "position": Vector2(700, 120), "fixed": true},
-	{"type": "vent", "position": Vector2(40, 15), "fixed": true},
-	{"type": "ballista", "position": Vector2(-700, -820), "fixed": true},
-	{"type": "ballista", "position": Vector2(700, -820), "fixed": true},
-	{"type": "railing", "position": Vector2(-780, -300), "fixed": true},
-	{"type": "railing", "position": Vector2(-780, 240), "fixed": true},
-	{"type": "railing", "position": Vector2(780, -300), "fixed": true},
-	{"type": "railing", "position": Vector2(780, 240), "fixed": true},
-	## the cargo — dealt fresh every wave
-	{"slot": "bow_port_powder", "position": Vector2(-520, -650), "jitter": 60.0,
-		"of": ["keg", "crate", ""], "weight": [4, 2, 1]},
-	{"slot": "bow_star_powder", "position": Vector2(520, -560), "jitter": 60.0,
-		"of": ["keg", "crate", ""], "weight": [4, 2, 1]},
-	{"slot": "bow_centre_stores", "position": Vector2(-80, -360), "jitter": 50.0,
-		"of": ["crate", "keg", "rope", ""], "weight": [3, 2, 1, 1]},
-	{"slot": "port_rail_light", "position": Vector2(-610, -100), "jitter": 40.0,
-		"of": ["lantern", "brazier", ""], "weight": [4, 2, 1]},
-	{"slot": "amidships_powder", "position": Vector2(100, 50), "jitter": 50.0,
-		"of": ["keg", "crate", "lantern"], "weight": [3, 2, 2]},
-	{"slot": "star_waist_stores", "position": Vector2(590, 300), "jitter": 50.0,
-		"of": ["crate", "crates", "keg", ""], "weight": [3, 2, 1, 1]},
-	{"slot": "aft_port_powder", "position": Vector2(-520, 480), "jitter": 60.0,
-		"of": ["keg", "crates", "crate"], "weight": [3, 2, 2]},
-	{"slot": "aft_centre_light", "position": Vector2(130, 610), "jitter": 40.0,
-		"of": ["lantern", "crate", "brazier", ""], "weight": [3, 2, 1, 1]},
-	{"slot": "bow_brazier", "position": Vector2(-120, -700), "jitter": 40.0,
-		"of": ["brazier", "rope"], "weight": [3, 1]},
-	{"slot": "waist_brazier", "position": Vector2(160, 330), "jitter": 40.0,
-		"of": ["brazier", "rope"], "weight": [3, 1]},
-	{"slot": "port_brazier", "position": Vector2(-600, 160), "jitter": 40.0,
-		"of": ["brazier", "rope"], "weight": [3, 1]},
-	## Ten units aft and inboard of PROP_LAYOUT's (-150, -140), and on a
-	## tighter jitter: at 40 the stack's 38-radius footprint could graze the
-	## middle crossing's corner at (-220, -100) by 8 units — found by
-	## `tools/stow.gd` on its first 480 decks, which is exactly the job §9
-	## gave it. This placement clears the corner by 15+ units at the worst
-	## roll.
-	{"slot": "waist_cover", "position": Vector2(-140, -150), "jitter": 30.0,
-		"of": ["crates"], "weight": [1]},
-	{"slot": "bow_star_cover", "position": Vector2(430, -260), "jitter": 40.0,
-		"of": ["crates", "crate", "keg", ""], "weight": [3, 1, 1, 1]},
-	{"slot": "aft_port_cover", "position": Vector2(-430, 760), "jitter": 40.0,
-		"of": ["crates", "rope", ""], "weight": [3, 1, 2]},
-	{"slot": "aft_star_stores", "position": Vector2(500, 680), "jitter": 50.0,
-		"of": ["crate", "keg", ""], "weight": [3, 1, 2]},
-	{"slot": "bow_rope", "position": Vector2(60, -520), "jitter": 40.0,
-		"of": ["rope", "brazier"], "weight": [3, 1]},
-	{"slot": "waist_rope", "position": Vector2(-155, 300), "jitter": 40.0,
-		"of": ["rope", "lantern", ""], "weight": [3, 1, 2]},
-	{"slot": "star_rail_light", "position": Vector2(620, -420), "jitter": 40.0,
-		"of": ["lantern", "brazier", "rope", ""], "weight": [3, 1, 1, 1]},
-]
-
-## §7.3's keg-chain numbers: `explode_keg` deals 78 into a 175 radius and a keg
-## dies at 34, so any keg within 200 units of a detonation detonates too. The
-## spacing is therefore a HARD invariant of every roll — including POWDER
-## STORE's dropped kegs, which could violate it before SG-48 — and the floor
-## keeps "a keg exists to light" true on every seed (two kegs is today's
-## poorest honest hand; zero is a bad deal, not variety). The anchors are the
-## two bow powder positions, 1044 units apart, so at most one of them can ever
-## be crowded out by a rolled keg and the floor always has somewhere to stand.
+## §7.3's keg-chain numbers: `explode_keg` deals 78 into a 175 radius and a
+## keg dies at 34, so any keg within 200 units of a detonation detonates too.
+## POWDER STORE's dropped kegs respect this spacing since board SG-51 (they
+## could stack before). The seeded STOWAGE table that briefly stood here — a
+## per-wave deal over these positions — was built and then CUT by SHIP-AND-
+## MAPS §7.1's own kill-test (board SG-48: close-share flat vs live came back
+## indistinguishable, so the variety was cosmetic; the rule was written before
+## the numbers). The whole spine is at commit d10f09c if it is ever re-asked.
 const KEG_SPACING := 200.0
-const KEG_FLOOR := 2
-const KEG_FLOOR_ANCHORS := [Vector2(-520, -650), Vector2(520, -560)]
 
 static func skill_name(skill: Dictionary) -> String:
 	return "%s %s" % [ELEMENTS[skill.element].name, SHAPES[skill.shape].name]
