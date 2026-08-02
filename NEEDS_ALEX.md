@@ -63,7 +63,16 @@ made the call. **Recommendation: drop.** One word from you closes it.
   (the one angle gameplay never shows), and a 3.6s defeat push onto the
   Boiler. All skippable with click/space. These are taste calls made by an
   agent — your eyes needed.
+- **Heat 3–5 exist now** (SG-14): COLD DECK (thinner drafts), BOARDERS ALOFT
+  (a hulk every second wave), SKELETON CREW (no crew, half cannons), behind a
+  five-rung ladder on the title. The balance bot says the grade is real —
+  but it also went 0/6 at Heat 3 and died on wave 4 every time at Heat 5.
+  The bot is not you; whether the upper rungs are brutal-fair or just brutal
+  is a feel-call for a human clear attempt.
+- **The Colossus wreck** (SG-15) now floats off the bow after your first
+  Colossus kill — visible when you push forward, subject of the run-open
+  crane. Judge whether it earns its place.
 - **A fresh build is cut**: `skygear-godot/builds/itch/SkyGear-Windows.zip`
   (everything from today: telegraphs, legibility floor, Boiler scale, the
-  heave verb, crate x-ray, cutscenes). Upload to itch by hand until
-  `butler login` is done.
+  heave verb, crate x-ray, five cutscene shots, Heat 3–5 + ladder, the
+  wreck). Upload to itch by hand until `butler login` is done.

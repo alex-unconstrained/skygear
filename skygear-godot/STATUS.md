@@ -8,13 +8,13 @@ the board as workable items.**
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, and a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory
-and defeat shots. **478 harness checks**; the text audit covers 21 screens at
+and defeat shots. **487 harness checks**; the text audit covers 21 screens at
 4 widths and is clean. Build 31 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test and the source is at
 https://github.com/alex-unconstrained/skygear
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (478 checks), `text` (the audit), `screens` (photograph all 21
+`harness` (487 checks), `text` (the audit), `screens` (photograph all 21
 screens at all 4 widths as one page — for the human judgement no checker can
 make), and `layout` (promote the F4 HUD alignment out of `user://` and into the
 repo, which is the step that makes a hand-alignment pass real).
@@ -67,7 +67,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. Two verbs: repair, heave |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 478 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 487 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -95,7 +95,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 478 checks. Green before anything ships |
+| `harness` | 487 checks. Green before anything ships |
 | `text` | every string on 21 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
@@ -114,11 +114,12 @@ file.
 ## Designed, not built
 
 - `docs/SHIP-AND-MAPS-DESIGN.md` -- maps, run diversity, ship progression,
-  between-run downtime. Its first recommendation is the Colossus wreck as a
-  permanent fitting: the art exists and has never been placed.
+  between-run downtime. Its first recommendation, the Colossus wreck fitting,
+  was placed 2026-08-01 (board SG-15); the rest is unbuilt.
 - `docs/AUDIT-2026-07-31.md` -- an independent audit. Its top three findings are
-  fixed; its documentation recommendations are not.
-- Two Articles, Heat 3-5, and every `VFX-PLAN.md` item past section 2.
+  fixed; its documentation recommendations are not (board SG-11).
+- Two Articles (SG-26), and `VFX-PLAN.md` §5 (a drop decision, SG-19) and §6
+  (the blade-driven weapon trail, SG-18). Heat 3-5 were built 2026-08-01.
 
 ## Generated assets
 
