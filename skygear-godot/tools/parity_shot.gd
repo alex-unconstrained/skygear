@@ -69,8 +69,13 @@ func _run() -> void:
 	for i in kinds.size():
 		game.spawn_enemy(str(kinds[i]), i % 3)
 
-	for slot in (scene.get("casts", []) as Array):
-		game.cast_skill(int(slot), game.player.global_position + Vector2(0, -260))
+	var casts: Array = scene.get("casts", [])
+	var cast_last: bool = bool(scene.get("cast_last", false))
+	var _cast := func() -> void:
+		for slot in casts:
+			game.cast_skill(int(slot), game.player.global_position + Vector2(0, -260))
+	if not cast_last:
+		_cast.call()
 
 	## Fixed ticks, not seconds. The browser steps its own `DT`; this steps the
 	## same count at the same size, so neither build is given more simulation
@@ -78,6 +83,32 @@ func _run() -> void:
 	var steps: int = int(scene.get("steps", 60))
 	for _i in steps:
 		game._process(1.0 / 60.0)
+		await process_frame
+
+	## cast_last leaves a cooldown sweep still on the slot; the settle steps roll
+	## it back to a partial sweep with a countdown number, matching the browser.
+	if cast_last:
+		_cast.call()
+		for _i in int(scene.get("settle", 0)):
+			game._process(1.0 / 60.0)
+			await process_frame
+
+	## The two HUD gauges only a played run fills — the pressure dial and a spent
+	## dash pip — seated to the same fixed values the browser pose seats, AFTER
+	## the stepping that would otherwise reset them. `pressure` reads through the
+	## clamp so a scene cannot ask for an impossible gauge.
+	if scene.has("pressure"):
+		game.player.set_pressure(float(scene.get("pressure", 0.0)))
+	if scene.has("dash_spent"):
+		game.player.dash_charges = maxi(0,
+			game.player.max_dash_charges - int(scene.get("dash_spent", 0)))
+
+	## The between-waves draft, opened over the posed deck. With four skills in
+	## hand this rolls the three upgrade cards — the same three-card layout the
+	## browser draws — and drops the game into DRAFT so the HUD dims the fight
+	## behind it exactly as the browser's drawDraft does.
+	if bool(scene.get("draft", false)):
+		game.open_draft()
 		await process_frame
 
 	var out := str(scene.get("out", ""))

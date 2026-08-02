@@ -54,6 +54,15 @@ SIZE = (1600, 900)
 #   fight     boarders in three lanes. Figure legibility at the real distance.
 #   effects   several skills mid-cast. Telegraphs, elements, impact.
 #   hud       the full HUD under load. Readability, which is what was reported.
+#   draft     the between-waves three-card draft. Card art, framing, typography.
+#
+# Two fields beyond the original four let a scene fill the gauges only a played
+# run fills, so the HUD is exercised rather than posed at rest:
+#   pressure    0..100, seats the pressure/head gauge directly on both builds
+#   dash_spent  how many dash pips are used, so the pip row is not always full
+#   cast_last   cast AFTER the steps (so a cooldown sweep is still on the slot)
+#   settle      steps to run after a cast_last, to leave a partial sweep + number
+#   draft       open a between-waves draft over the posed deck
 SCENES = [
     {
         "id": "deck",
@@ -77,6 +86,20 @@ SCENES = [
         "what": "the Colossus — the largest thing either build draws",
         "wave": 12, "enemies": ["BOSS", "SWARM", "SWARM"], "steps": 480,
         "casts": [],
+    },
+    {
+        "id": "hud",
+        "what": "the full HUD mid-fight — portrait, gauges, dash pips, cooldowns, lanes",
+        "wave": 7,
+        "enemies": ["SCRAPPER", "GUNNER", "SWARM", "SWARM", "ARMORED", "SCRAPPER"],
+        "steps": 280, "casts": [1, 2], "cast_last": True, "settle": 16,
+        "pressure": 64, "dash_spent": 1,
+    },
+    {
+        "id": "draft",
+        "what": "the between-waves three-card draft — card art, framing, values",
+        "wave": 3, "enemies": ["SCRAPPER", "SWARM", "SCRAPPER"], "steps": 90,
+        "casts": [], "draft": True,
     },
 ]
 
@@ -125,18 +148,43 @@ def browser_shot(scene, path):
       // startRun opens the weapon draft. Leaving it open photographs a menu
       // rather than the deck, which is what the first run of this tool did.
       try { G.pickCard(0); } catch (e) { try { G.closeDraft(); } catch (e2) {} }
-      // The same three extra skills the Godot side is given, so the hand is
-      // comparable and the HUD has something in it.
+      // A COMPARABLE HAND, ACTUALLY SEATED. `newSkill` builds a skill but never
+      // puts it in a slot, so the browser HUD drew two filled slots and an EMPTY
+      // one against the Godot side's four — a tooling artefact photographed as a
+      // real difference. Assigning S.slots is what the build's own loadFeel does;
+      // it seats the same four the Godot pose seats, so the skill bar becomes a
+      // comparison rather than two different hands. Slots 1-3 match the Godot
+      // append order (RANGED_AOE/FROST, CHAIN/ARC, CONE/STEAM) shape-for-shape.
       try {
-        for (const [shape, element] of [["RANGED_AOE","FROST"],
-                                        ["CHAIN","ARC"], ["CONE","STEAM"]]) {
-          G.newSkill(shape, element);
-        }
+        const LOADOUT = [["CLOSEHIT","EMBER"], ["RANGED_AOE","FROST"],
+                         ["CHAIN","ARC"], ["CONE","STEAM"]];
+        for (let i = 0; i < LOADOUT.length; i++)
+          G.S.slots[i] = G.newSkill(LOADOUT[i][0], LOADOUT[i][1]);
+        G.S.unlockedSlots = 4;
       } catch (e) {}
       G.startWave(scene.wave);
       scene.enemies.forEach((kind, i) => G.spawnEnemy(kind, i % 3));
-      for (const slot of scene.casts) { try { G.castSlot(slot); } catch (e) {} }
+      const cast = () => {
+        for (const slot of scene.casts) { try { G.castSlot(slot); } catch (e) {} }
+      };
+      if (!scene.cast_last) cast();
       for (let i = 0; i < scene.steps; i++) G.step(G.DT);
+      // cast_last leaves a cooldown sweep still on the slot; the settle steps
+      // roll it back to a partial sweep with a countdown number on it.
+      if (scene.cast_last) {
+        cast();
+        for (let i = 0; i < (scene.settle || 0); i++) G.step(G.DT);
+      }
+      // The two HUD gauges only a played run fills. Set to fixed demonstrative
+      // values, after the stepping that would otherwise reset them, so both
+      // builds show a mid-charge gauge and a partly-spent pip row.
+      try {
+        if (scene.pressure != null) G.S.player.pressure = scene.pressure;
+        if (scene.dash_spent != null)
+          G.S.player.dashStock = Math.max(0,
+            (G.S.mods.dashCharges || 2) - scene.dash_spent);
+      } catch (e) {}
+      if (scene.draft) { try { G.openDraft(); } catch (e) {} }
       G.render();
       return "ok";
     }
