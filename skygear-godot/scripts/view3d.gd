@@ -3241,34 +3241,55 @@ func _aim_dash_ribbon(from: Vector2, dir: Vector2, length: float, wind: float) -
 	_aim_dashes_drawn += drawn
 
 
-## --- SG-60: the player's own aim, on the deck --------------------------------
+## --- SG-60/SG-78: the player's own aim, on the deck ---------------------------
 ##
 ## "Hard to tell where an aimed skill will land — or determine range." The
 ## enemies telegraph everything (the oxblood language above); the player's own
-## weapons telegraphed nothing. So, in the PLAYER's teal and only while a
-## TARGETED skill is armed:
+## weapons telegraphed nothing. SG-60 answered that with three shapes: a range
+## RING at `skill_stats().range`, a landing marker, and a cursor echo past the
+## reach.
 ##
-##   * a RANGE RING on the planking at the skill's live `skill_stats().range` —
-##     the cast's own number, so a card that extends the range extends the
-##     ring with no second place to change;
-##   * a LANDING MARKER where the shot will actually land: the cursor, clamped
-##     to the range exactly as `cast_skill`'s aoe branch clamps it — a Mortar
-##     thrown past its arc shows you the clamp instead of lying;
-##   * an OUT-OF-RANGE read: past the reach the marker loses its glow and dims
-##     (the dim IS the read), and a faint echo stays under the cursor so the
-##     clamp is legible as a clamp rather than as a miss.
+## SG-78 CUT IT BACK TO ONE, on the owner's screenshot of 2026-08-02. Verbatim:
+## "it should be subtle, way more subtle. I am more interested in the smaller
+## aiming reticle that's locked to the aiming distance of the player, I don't
+## think we need more than that in-game." So the range ring is GONE from
+## gameplay, the cursor echo with it, and what is left is the RETICLE: a small
+## hollow collar where the shot will actually land — the cursor, clamped to the
+## reach exactly as `cast_skill`'s aoe branch clamps it, so a Mortar thrown past
+## its arc shows you the clamp instead of lying. Past the reach it loses its
+## glow and dims: the dim IS the out-of-range read, and it costs no second
+## shape.
+##
+## WHY IT DREW AS A FLOODED OPAQUE DISC, recorded because it is DESIGN §13e's
+## trap arriving through a door §13e did not name. §13e fixed the EMISSION
+## channel — a Decal's emission ignores texture alpha, so it is fed a
+## premultiplied glow map instead. But the ring here was drawn through
+## `_art("ring", …)`, which prefers the painted plate `rune_player.png` over the
+## generated rim-only `_ring_texture()` — and that plate is 68% ALPHA-255: a
+## filled disc, not a hollow ring. A filled disc premultiplies to a filled glow
+## map, so the whole projection box lit; at `range * 2` — 840 ground units for a
+## Mortar — that is a glowing opaque plate across half the deck. The reticle
+## below therefore draws through `_ring_texture()` DIRECTLY, the same generated
+## hollow rim the sentry collars and the Boiler ring use, and never through the
+## painted-art seam.
 ##
 ## ARMED means: a skill key held, or the beat after a cast (`AIM_LINGER`), so
-## every throw paints its own range and a player who wants to study a weapon
-## holds its key. Cleave-shaped skills (kind "arc" — the auto-attack language,
-## melee around the captain) and passives draw NOTHING: an aura already draws
-## its own edge, and a ring under an auto-swing is noise with a palette.
+## every throw paints its own landing point for a beat and a player who wants to
+## study a weapon holds its key. Cleave-shaped skills (kind "arc" — the
+## auto-attack language, melee around the captain) and passives draw NOTHING: an
+## aura already draws its own edge, and a mark under an auto-swing is noise with
+## a palette.
 ##
 ## Keys are `fxaim_*` — the `fx` prefix routes them to the PLAYER decal
 ## reserve, so a flooded deck can never spend the aim read away (nor the aim
 ## read a telegraph).
 const AIM_LINGER := 1.1
-const AIM_MARK_MIN := 42.0        ## a point shape's marker collar, ground units
+const AIM_MARK_MIN := 30.0        ## a point shape's marker collar, ground units
+## And the ceiling. An aoe reticle shows its own blast footprint, which is
+## honest — but a radius card must never be able to inflate the one remaining
+## shape back into the disc SG-78 removed. Above a base Mortar's 110, below the
+## width of a lane.
+const AIM_MARK_MAX := 150.0
 var _aim_pose_slot := -1          ## tool/harness seam — poses win over Input
 var _aim_pose_cursor := Vector2.INF
 var _aim_last := -1               ## last armed slot, for the post-cast linger
@@ -3296,6 +3317,14 @@ func clear_aim_pose() -> void:
 static func aim_shows(shape: Dictionary) -> bool:
 	return not bool(shape.get("passive", false)) \
 		and str(shape.get("kind", "")) != "arc"
+
+
+## The reticle's radius for a blast of `blast`, in ground units: the skill's own
+## footprint, floored so a point shape still has a mark and ceilinged so no card
+## can grow the last remaining shape back into SG-78's disc. Static and pure so
+## the harness pins both ends without posing a cast.
+static func aim_mark_girth(blast: float) -> float:
+	return clampf(blast, AIM_MARK_MIN, AIM_MARK_MAX)
 
 
 ## The whole read, computed once and drawn from — and the harness's window into
@@ -3355,26 +3384,20 @@ func _sync_aim() -> void:
 	var read := aim_read(_armed_slot())
 	if read.is_empty():
 		return
-	## The ring: how far this weapon reaches, at its live range, from where you
-	## stand. Breathes slightly so it reads as a tell rather than as flooring.
-	var ring_a: float = 0.34 + 0.06 * sin(_flicker * 3.1)
-	_decal("fxaim_ring", read.origin, 0.0,
-		float(read.range) * 2.0, float(read.range) * 2.0,
-		_art("ring", _ring_texture()),
-		Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b, ring_a))
-	## The marker: an aoe shows its true blast footprint, a point shape a small
-	## collar. In range it glows; past it the glow goes and the alpha halves —
-	## which is the out-of-range read, colour untouched.
-	var girth: float = maxf(float(read.blast), AIM_MARK_MIN)
+	## THE RETICLE, AND NOTHING ELSE (SG-78). An aoe shows its true blast
+	## footprint between the collar and the ceiling, a point shape the collar. In
+	## range it glows; past it the glow goes and the alpha halves — which is the
+	## whole out-of-range read, colour untouched.
+	##
+	## `_ring_texture()` directly, NOT `_art("ring", …)`: the painted plate is a
+	## filled disc and this is the one shape left, so it stays hollow. See the
+	## block above.
+	var girth: float = aim_mark_girth(float(read.blast))
 	var hot: bool = not bool(read.beyond)
 	_decal("fxaim_land", read.land, 0.0, girth * 2.0, girth * 2.0,
-		_art("ring", _ring_texture()),
+		_ring_texture(),
 		Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b,
-			0.55 if hot else 0.26), hot)
-	if bool(read.beyond):
-		_decal("fxaim_out", read.cursor, 0.0, 60.0, 60.0,
-			_art("ring", _ring_texture()),
-			Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b, 0.15), false)
+			0.45 if hot else 0.22), hot)
 
 
 func _sync_effects() -> void:
@@ -4329,14 +4352,27 @@ const HERO_MODELS := {
 		"height": CAPTAIN_HEIGHT, "fit": "boilerwright"},
 }
 ## WHO WEARS A CAPE — board SG-23, one row per class, like HERO_MODELS. The
-## captain wears hers (removed from her generated model by the standing rule
-## precisely so it could come back as its own bone-chain layer); the
-## Boilerwright's heavy leathers read right without one, so he has no row —
-## and giving him one later is data, not code. Delete a row and that class
-## renders exactly as before: `wear()` is additive and refuses cleanly.
-## The row's dictionary is reserved for per-class tint/cut overrides.
+## table is data: `wear()` is additive and refuses cleanly, so a class with no
+## row renders byte-for-byte the figure that shipped before capes existed.
+##
+## IT IS EMPTY, AND THAT IS THE SHIPPED STATE — board SG-82, 2026-08-02.
+##
+## The owner has now given this cape two verdicts, unprompted, on two different
+## builds: "looks horrible", and then "atrocious". His 2026-08-02 screenshot is
+## why — at the locked camera it reads as a rigid mahogany PLANK bolted to her
+## shoulders, not as cloth. The reason is geometry and it is written on the
+## SG-82 board row for whoever rebuilds it; the short version is that a 5x5
+## vertex grid whose every ring is bound rigidly to one bone has four hinges and
+## no cloth in it, and the cut is nearly as wide as it is long.
+##
+## NOTHING BELOW IS DELETED. `scripts/cloak.gd` — the chain, the spring, the
+## dash crack, the clamps, the deterministic rest — stays in the build and stays
+## under harness, because SG-63 rebuilds the cape on top of it and the simulation
+## half was never what he was looking at. Restoring the captain's cape is
+## uncommenting ONE LINE, and it happens when his verdict turns it on and not
+## before.
 const HERO_CLOAKS := {
-	"captain": {},
+	## "captain": {},   ## OFF since 2026-08-02 — SG-82. Re-earn it in SG-63.
 }
 var _captain: SkyGearRig3D
 var _captain_missing := false
@@ -4553,6 +4589,72 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 ## positive — and `tools/static_model.gd` has already turned every model so its
 ## own front is +Z. So zero is right for everything whose read is one face
 ## pointed at the player, and only the cannon disagrees.
+## --- SG-79: the honest ruler learns about the camera --------------------------
+##
+## Owner, 2026-08-02, over the same screenshot: "some 3D objects once imported
+## are too large." He is right, the amount is measurable, and the cause is not
+## the exporter — it is that the ruler was measuring the wrong thing.
+##
+## `PROP_HEIGHT` is the browser's own `PROP_H`, and in the browser every prop is
+## a BILLBOARD: camera-facing, so all of its authored height lands on the screen
+## as height, and it has no depth at all. Scaling a generated MESH so its AABB is
+## `PROP_HEIGHT` tall is therefore not the same picture. At the locked 0.72 rad
+## camera a world-vertical edge foreshortens to cos(0.72) = 0.75 of itself, while
+## the model's DEPTH — which a card does not have — projects 0.66 of itself back
+## on top. A tall, thin prop barely notices. A squat, deep one balloons: the
+## steam vent, a 52 x 57 x 64 box and the owner's own prime suspect at the bottom
+## of the frame, covered 81 ground units of screen height where its painting
+## covered 52. That is 1.56x, and the deck cannon was 2.07x.
+##
+## So the ruler measures what the CAMERA sees. `height_units` still means exactly
+## what it always meant — the screen height of the card this object replaces —
+## and a prop is scaled until its projected extent equals it. Tall thin props are
+## untouched (the mast, the ballista and the crate stack all move under half a
+## percent); the squat deep ones come down to the size of the picture they
+## replaced, which is the whole complaint.
+const COS_PITCH := 0.751806     ## cos(PITCH), the vertical foreshortening
+const SIN_PITCH := 0.659385     ## sin(PITCH), the depth that reads as height
+
+
+## What a model of extent `span` (model units, unrotated), turned `yaw_degrees`
+## about +Y, covers VERTICALLY on screen at the locked camera — in model units,
+## so `height_units / camera_span` is the scale that makes it cover a card's
+## worth. Static and pure: the harness pins every wired prop through this without
+## standing a deck up.
+static func camera_span(span: Vector3, yaw_degrees: float = 0.0) -> float:
+	var yaw := deg_to_rad(yaw_degrees)
+	## The footprint that ends up lying along the view direction. Zero yaw leaves
+	## the model's own depth there; the deck cannon's -90 swings its length into
+	## it, which is why the cannon was the worst row in the audit.
+	var toward: float = absf(sin(yaw)) * span.x + absf(cos(yaw)) * span.z
+	return span.y * COS_PITCH + toward * SIN_PITCH
+
+
+## The union of every mesh in a prop scene, in the scene root's own frame — the
+## same measurement `tools/static_model.gd` writes `model_height` from, widened
+## to all three axes. Composed by WALKING the local transforms rather than
+## reading `global_transform`, so it works on a scene that has just been
+## instantiated and is not in a tree yet, and cannot pick up the renderer's own
+## transform if it is.
+static func measure_span(model: Node3D) -> Vector3:
+	var box := AABB()
+	var first := true
+	for child in model.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		var local := Transform3D.IDENTITY
+		var walk: Node = mi
+		while walk != null and walk != model:
+			if walk is Node3D:
+				local = (walk as Node3D).transform * local
+			walk = walk.get_parent()
+		var here: AABB = local * mi.get_aabb()
+		box = here if first else box.merge(here)
+		first = false
+	return box.size
+
+
 func _sync_prop_model(key: String, model_key: String, ground: Vector2,
 		height_units: float, lift: float = 0.0, yaw_degrees: float = 0.0) -> bool:
 	## An empty key is a prop_type with no row in PROP_MODEL, which is the normal
@@ -4571,8 +4673,13 @@ func _sync_prop_model(key: String, model_key: String, ground: Vector2,
 	## the position has to move anyway, and PROP_HEIGHT is data another session
 	## can edit — a scale cached at claim time would keep the old number for as
 	## long as that prop lived, which is the whole run.
-	var measured: float = float(node.get_meta("model_height", 0.0))
-	var s: float = height_units * WORLD_SCALE / maxf(0.0001, measured)
+	var span: Vector3 = node.get_meta("model_span", Vector3.ZERO)
+	## `model_height` when there is no span to be had — the pre-SG-79 ruler,
+	## verbatim, so a node that somehow arrived without one is the old picture
+	## rather than a new wrong one.
+	var seen: float = camera_span(span, yaw_degrees) if span.y > 0.0 \
+		else float(node.get_meta("model_height", 0.0))
+	var s: float = height_units * WORLD_SCALE / maxf(0.0001, seen)
 	node.scale = Vector3(s, s, s)
 	node.rotation.y = deg_to_rad(yaw_degrees)
 	node.position = Vector3(ground.x * WORLD_SCALE, lift * WORLD_SCALE,
@@ -4623,6 +4730,14 @@ func _claim_prop_model(model_key: String) -> Node3D:
 	## Stamped on the node so `_recycle` can shelve it on the right list without
 	## carrying a second key -> model map that could disagree with this one.
 	node.set_meta("prop_model", model_key)
+	## And its full extent, measured HERE rather than read from the scene (SG-79).
+	## `static_model.gd` writes only `model_height`; the camera-aware ruler needs
+	## the depth as well, and measuring it at claim time — once per model key, not
+	## once per prop — means the eight generated scenes on disk do not have to be
+	## regenerated to gain a number that was always derivable from their meshes.
+	## `model_height` stays the authority it always was: this is asserted against
+	## it, so a stale ruler is still a fault rather than a silent disagreement.
+	node.set_meta("model_span", measure_span(node))
 	add_child(node)
 	return node
 

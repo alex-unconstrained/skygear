@@ -2589,19 +2589,34 @@ func _view() -> void:
 	_check("trail", "and the trail dies with the swing instead of running its own clock",
 		view._trail.is_empty(), "%d stale samples" % view._trail.size())
 
-	## SG-23 — THE CAPTAIN'S CAPE IS A BONE CHAIN: DRIVEN, CLAMPED, AND STILL
-	## WHEN THE SCREEN MUST BE. Four bones on a mount at her chest carry a
-	## skinned banner (the standing rule: capes are their OWN layer, never
-	## baked into the character mesh — her model was generated bare-backed for
-	## exactly this). The sim's velocity swings the chain, the dash cracks it,
-	## the swing is clamped clear of her torso, and with the sway off it snaps
-	## to its rest constants bitwise — the framing-check rule: a still screen
-	## has to actually be still.
-	var cape: SkyGearCloak = cap_rig.cloak if cap_rig != null else null
+	## SG-23/SG-82 — THE CAPE IS OFF, AND THE SIMULATION UNDER IT IS NOT.
+	##
+	## SG-23 built the cape as a bone chain on its own layer: four bones on a
+	## mount at her chest carrying a skinned banner, driven by the sim's velocity,
+	## cracked by the dash, clamped clear of her torso, and bitwise still when the
+	## framing tools ask for still.
+	##
+	## The OWNER HAS REJECTED IT TWICE — "looks horrible", then "atrocious" — and
+	## on 2026-08-02 the screenshot said why: it reads as a rigid mahogany plank.
+	## So `HERO_CLOAKS` is empty and NOBODY wears one in the shipped build; the
+	## reason is on the SG-82 board row and the rebuild is SG-63.
+	##
+	## The physics below is therefore driven on a rig this test wears one onto by
+	## hand, not on the live captain. That is deliberate: the code stays in the
+	## build and stays under harness because SG-63 rebuilds ON it, and a check
+	## deleted along with a disabled feature is a check nobody restores.
+	var worn := SkyGearRig3D.new()
+	root.add_child(worn)
+	var worn_up: bool = worn.setup(SkyGearView3D.CAPTAIN_SCENE,
+		SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+		SkyGearView3D.LAYER_FIGURES)
+	if worn_up:
+		worn.wear({}, SkyGearView3D.LAYER_FIGURES)
+	var cape: SkyGearCloak = worn.cloak if worn_up else null
 	var cape_bone := ""
 	if cape != null and cape.get_parent() is BoneAttachment3D:
 		cape_bone = str((cape.get_parent() as BoneAttachment3D).bone_name)
-	_check("cloak", "the captain wears a cape: a four-bone chain mounted at her shoulders",
+	_check("cloak", "worn by hand it is still a four-bone chain mounted at her shoulders — the rebuild has something to stand on",
 		cape != null and cape.bone_count() == SkyGearCloak.BONES
 			and cape_bone.ends_with("Spine2"),
 		"%d bones on '%s'" % [cape.bone_count() if cape != null else 0, cape_bone])
@@ -2689,21 +2704,34 @@ func _view() -> void:
 	_check("cloak", "a thousand driven frames grow nothing: fixed bones, pooled state",
 		nodes_before > 0 and nodes_before == nodes_after and state_fixed,
 		"%d nodes before and %d after" % [nodes_before, nodes_after])
-	## The class rule is one row per class, and the fallback is intact: a rig
-	## built WITHOUT its row carries nothing cape-shaped anywhere in its tree
-	## — she renders exactly as she did before capes existed — and the
-	## Boilerwright has no row, so his leathers stay bare until one is added.
+	## THE WEAR STATE, PINNED OFF — board SG-82, 2026-08-02.
+	##
+	## Two things at once, and both matter. First the table: NO class has a cloak
+	## row, so nobody wears one — this is the check that fails the day somebody
+	## uncomments the captain without the owner's verdict. Second the fallback,
+	## unchanged since SG-23: a rig built without a row carries nothing
+	## cape-shaped ANYWHERE in its tree, so "off" means the figure that shipped
+	## before capes existed rather than a cape at zero opacity.
 	var unworn := SkyGearRig3D.new()
 	root.add_child(unworn)
 	var unworn_up := unworn.setup("res://assets/models/captain/captain.tscn", 1.76, 2)
 	var unworn_clean: bool = unworn_up and unworn.cloak == null \
 		and unworn.find_children("CapeBones", "", true, false).is_empty() \
 		and unworn.find_children("*", "SkyGearCloak", true, false).is_empty()
-	_check("cloak", "without the class row nothing cape-shaped exists — the fallback is intact",
-		unworn_clean and SkyGearView3D.HERO_CLOAKS.has("captain")
-			and not SkyGearView3D.HERO_CLOAKS.has("boilerwright"),
-		"a bare rig carries no cape nodes; rows: captain only")
+	_check("cloak", "no class wears a cape — the owner rejected it twice and it ships OFF until SG-63 re-earns it",
+		SkyGearView3D.HERO_CLOAKS.is_empty(),
+		"rows: %s" % ("none" if SkyGearView3D.HERO_CLOAKS.is_empty()
+			else ", ".join(SkyGearView3D.HERO_CLOAKS.keys())))
+	_check("cloak", "and off means gone: without a row nothing cape-shaped exists in the tree",
+		unworn_clean,
+		"a bare rig carries no cape nodes")
+	## And the live captain, through the real renderer path, wears nothing —
+	## the table and `_sync_captain` cannot disagree about who is dressed.
+	_check("cloak", "the captain on the deck is bare-backed, through the renderer's own path",
+		cap_rig == null or cap_rig.cloak == null,
+		"the live rig came back wearing one")
 	unworn.queue_free()
+	worn.queue_free()
 
 	## SG-28 — THE RANGED AIM LINE TRAVELS. SG-3's solid band says "this lane is
 	## dangerous"; the browser additionally marches a dashed line down the shot
@@ -5708,6 +5736,73 @@ func _view() -> void:
 		"%d scenes: %s" % [prop_scenes,
 			"clean" if prop_faults.is_empty() else ", ".join(prop_faults)])
 
+	## --- board SG-79: and the ruler measures what the CAMERA sees -------------
+	## Owner, 2026-08-02: "some 3D objects once imported are too large." He was
+	## right and the amount was measurable. `PROP_HEIGHT` is the browser's own
+	## `PROP_H`, and in the browser a prop is a BILLBOARD: camera-facing, all of
+	## its height on screen as height, no depth at all. A mesh scaled so its AABB
+	## is `PROP_HEIGHT` tall is a different picture — at the locked 0.72 rad
+	## camera its vertical extent foreshortens to 0.75 while its depth, which a
+	## card has none of, projects 0.66 of itself back on top. Squat deep props
+	## ballooned: the steam vent at 1.56x and the deck cannon at 2.07x of the art
+	## they replaced.
+	##
+	## So every wired row is held to the SG-45/SG-64 bargain's other half: a
+	## generated mesh must occupy the SAME SCREEN HEIGHT as the painting it
+	## replaced, within a tenth. This is the check the audit table on the board
+	## row was produced by, and it is what stops the next generated prop landing
+	## at whatever size its exporter felt like.
+	var scale_rows: Array = []
+	for pt in SkyGearView3D.PROP_MODEL:
+		scale_rows.append([str(pt), str(SkyGearView3D.PROP_MODEL[pt]),
+			float(SkyGearView3D.PROP_HEIGHT.get(pt, 0.0)), 0.0])
+	## Not `PROP_MODEL` rows, but the same ruler and the same two call sites —
+	## and the cannon, at -90 degrees, was the largest outlier on the deck.
+	scale_rows.append(["turret", SkyGearView3D.TURRET_MODEL, 130.0, -90.0])
+	scale_rows.append(["salvage", SkyGearView3D.SALVAGE_MODEL, 62.0, 0.0])
+	var scale_faults := PackedStringArray()
+	var scale_seen := 0
+	for row in scale_rows:
+		var spath: String = SkyGearView3D.model_path(str(row[1]))
+		if not ResourceLoader.exists(spath):
+			scale_faults.append("%s: no scene" % row[0])
+			continue
+		var snode: Node3D = (load(spath) as PackedScene).instantiate() as Node3D
+		var extent: Vector3 = SkyGearView3D.measure_span(snode)
+		var ruler: float = float(snode.get_meta("model_height", 0.0))
+		snode.free()
+		## The extent this test measures and the ruler the scene was written with
+		## have to be the same number, or one of them is stale.
+		if extent.y <= 0.0 or absf(extent.y - ruler) > 0.001:
+			scale_faults.append("%s: span %.3f against a ruler of %.3f" % [row[0], extent.y, ruler])
+			continue
+		var intent: float = float(row[2])
+		var seen: float = SkyGearView3D.camera_span(extent, float(row[3]))
+		var s: float = intent * SkyGearView3D.WORLD_SCALE / maxf(0.0001, seen)
+		var drawn: float = seen * s / SkyGearView3D.WORLD_SCALE
+		scale_seen += 1
+		if absf(drawn - intent) > intent * 0.10:
+			scale_faults.append("%s: draws %.0f against an intended %.0f" % [row[0], drawn, intent])
+	_check("prop", "every wired prop stands the height of the picture it replaced, at the camera that actually looks at it",
+		scale_seen >= SkyGearView3D.PROP_MODEL.size() and scale_faults.is_empty(),
+		"%d rows: %s" % [scale_seen,
+			"all within a tenth" if scale_faults.is_empty() else ", ".join(scale_faults)])
+	## The rule itself, at both ends, so the arithmetic above cannot be satisfied
+	## by a ruler that has quietly stopped looking at the camera: a card has no
+	## depth and reads its full height, a cube of the same height reads MORE
+	## because its depth projects into the frame, and a yaw that swings the long
+	## axis toward the lens is what made the cannon the worst row.
+	var card_span := SkyGearView3D.camera_span(Vector3(1.0, 1.0, 0.0), 0.0)
+	var cube_span := SkyGearView3D.camera_span(Vector3(1.0, 1.0, 1.0), 0.0)
+	var long_span := SkyGearView3D.camera_span(Vector3(2.0, 1.0, 0.5), 0.0)
+	var swung_span := SkyGearView3D.camera_span(Vector3(2.0, 1.0, 0.5), -90.0)
+	_check("prop", "the ruler is the camera's: depth reads as height, and turning the long axis into the lens costs the most",
+		card_span < cube_span and cube_span < 1.0 + card_span
+			and swung_span > long_span + 0.5
+			and absf(card_span - cos(SkyGearView3D.PITCH)) < 0.001,
+		"card %.3f, cube %.3f, long %.3f, swung %.3f"
+			% [card_span, cube_span, long_span, swung_span])
+
 	## --- board SG-55: speed-sync at boarder scale — the skating lesson, part two
 	## `AUTHORED_RUN_SPEED` alone matches the cycle to the ground the CAPTAIN
 	## covers. A boarder is drawn smaller, its stride sweeps proportionally
@@ -7634,9 +7729,24 @@ func _readability() -> void:
 		view._vent_puffs >= vents.size(),
 		"%d plume ticks across %d vents" % [view._vent_puffs, vents.size()])
 
-	## SG-60 — the aim read, in the player's teal, off skill_stats' own numbers.
+	## SG-60/SG-78 — the aim read, cut back to ONE shape.
+	##
+	## SG-60 drew three: a range ring at `skill_stats().range`, a landing marker,
+	## and a cursor echo past the reach. The owner's 2026-08-02 screenshot showed
+	## the range ring flooding half the deck as an opaque glowing disc — the
+	## painted `rune_player.png` plate is 68 percent alpha-255, so it
+	## premultiplied to a filled glow map at 840 ground units across (DESIGN §13e's
+	## trap, arriving through the `_art()` seam rather than the emission channel).
+	## His answer was not "dim it": "I don't think we need more than [the reticle]
+	## in-game."
+	##
+	## So the checks below are ABSENCE checks where they used to be ring checks.
+	## Nothing here is silenced — the reduced contract is asserted just as hard as
+	## the old one, because the way a removed feature comes back is nobody having
+	## written down that it was removed on purpose.
 	_check("aim", "nothing is drawn while nothing is armed",
-		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land"),
+		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land")
+			and not view._decals.has("fxaim_out"),
 		"aim decals on an idle deck")
 	game.skills.append(SkyGearData.make_skill("RANGED_AOE", "FROST"))
 	var mortar: int = game.skills.size() - 1
@@ -7644,24 +7754,48 @@ func _readability() -> void:
 	var st: Dictionary = game.skill_stats(game.skills[mortar])
 	view.pose_aim(mortar, origin + Vector2(0.0, -float(st.range) * 0.5))
 	view._process(0.05)
-	var ring_gu := -1.0
-	if view._decals.has("fxaim_ring"):
-		ring_gu = view._decals["fxaim_ring"].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
-	_check("aim", "arming a targeted skill draws the ring at skill_stats' own range",
-		absf(ring_gu - float(st.range)) < 1.0
-			and SkyGearView3D._decal_class("fxaim_ring") == SkyGearView3D.DecalClass.PLAYER,
-		"drew %.0f against a live range of %.0f, from the player reserve" % [ring_gu, float(st.range)])
+	_check("aim", "no ring, no disc — the reticle is the whole feature",
+		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_out")
+			and view._decals.has("fxaim_land")
+			and SkyGearView3D._decal_class("fxaim_land") == SkyGearView3D.DecalClass.PLAYER,
+		"an armed skill drew a range shape, or drew no reticle at all")
+	## SUBTLE, and provably so: the one shape left is a fraction of the reach it
+	## used to be drawn at. The old ring was `range * 2` across — 840 units for
+	## this Mortar; the reticle is its blast, and never a tenth of that.
+	var mark_gu := -1.0
+	if view._decals.has("fxaim_land"):
+		mark_gu = view._decals["fxaim_land"].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
+	_check("aim", "the reticle is small: its own blast, never the reach",
+		absf(mark_gu - SkyGearView3D.aim_mark_girth(float(st.radius))) < 1.0
+			and mark_gu < float(st.range) * 0.5,
+		"drew %.0f against a blast of %.0f and a reach of %.0f"
+			% [mark_gu, float(st.radius), float(st.range)])
+	## And it CANNOT grow back into the disc. A point shape still gets a mark, and
+	## no radius a card can reach opens the reticle past the ceiling.
+	_check("aim", "the reticle is floored and ceilinged, so no card reopens the disc",
+		SkyGearView3D.aim_mark_girth(0.0) == SkyGearView3D.AIM_MARK_MIN
+			and SkyGearView3D.aim_mark_girth(9999.0) == SkyGearView3D.AIM_MARK_MAX
+			and SkyGearView3D.AIM_MARK_MAX < 420.0 * 0.5,
+		"%.0f..%.0f ground units" % [SkyGearView3D.AIM_MARK_MIN, SkyGearView3D.AIM_MARK_MAX])
 	## The card: +35 percent range on THIS mortar. One number — the cast's — so
-	## the ring must follow with no second place to change.
+	## the CLAMP must follow with no second place to change. The ring used to be
+	## how you saw that; with the ring gone the clamp point is the read, and it is
+	## the same single number driving it.
 	game.skills[mortar].mods.range = 1.35
 	var st2: Dictionary = game.skill_stats(game.skills[mortar])
+	var over: Vector2 = origin + Vector2(0.0, -float(st2.range) * 4.0)
+	view.pose_aim(mortar, over)
 	view._process(0.05)
-	var ring2 := -1.0
-	if view._decals.has("fxaim_ring"):
-		ring2 = view._decals["fxaim_ring"].size.x / (2.0 * SkyGearView3D.WORLD_SCALE)
-	_check("aim", "a range card moves the ring, because there is only one number",
-		st2.range > st.range + 1.0 and absf(ring2 - float(st2.range)) < 1.0,
-		"card took the range %.0f -> %.0f and the ring drew %.0f" % [float(st.range), float(st2.range), ring2])
+	var reach_gu := -1.0
+	if view._decals.has("fxaim_land"):
+		var far_node: Decal = view._decals["fxaim_land"]
+		reach_gu = (Vector2(far_node.position.x, far_node.position.z)
+			/ SkyGearView3D.WORLD_SCALE).distance_to(origin)
+	_check("aim", "a range card moves the clamp, because there is only one number",
+		st2.range > st.range + 1.0 and absf(reach_gu - float(st2.range)) < 1.0
+			and not view._decals.has("fxaim_ring"),
+		"card took the range %.0f -> %.0f and the reticle stopped at %.0f"
+			% [float(st.range), float(st2.range), reach_gu])
 	## In range: the marker sits AT the cursor and glows.
 	var near_cursor: Vector2 = origin + Vector2(0.0, -float(st2.range) * 0.5)
 	view.pose_aim(mortar, near_cursor)
@@ -7675,10 +7809,10 @@ func _readability() -> void:
 		land_hot = node.emission_energy > 0.0
 	_check("aim", "in range the marker sits at the cursor and glows",
 		land_ok and land_hot and not view._decals.has("fxaim_out"),
-		"marker off the cursor, cold, or wearing the clamp echo in range")
+		"marker off the cursor, cold, or wearing the removed clamp echo")
 	## Past the reach: the marker CLAMPS at the range — cast_skill's own aoe
-	## arithmetic — the glow dies, and a faint echo stays under the cursor so
-	## the clamp reads as a clamp.
+	## arithmetic — and the glow dies. The dim IS the read now: SG-78 took the
+	## cursor echo with the ring, so a second shape must NOT appear out there.
 	var far_cursor: Vector2 = origin + Vector2(0.0, -float(st2.range) * 1.6)
 	var clamp_at: Vector2 = origin + (far_cursor - origin).normalized() * float(st2.range)
 	view.pose_aim(mortar, far_cursor)
@@ -7690,9 +7824,10 @@ func _readability() -> void:
 		var at2 := Vector2(node2.position.x, node2.position.z) / SkyGearView3D.WORLD_SCALE
 		clamped = at2.distance_to(clamp_at) < 1.0
 		cold = node2.emission_energy == 0.0
-	_check("aim", "past the reach the marker clamps at the range and the glow dies",
-		clamped and cold and view._decals.has("fxaim_out"),
-		"marker unclamped, still glowing, or the cursor echo missing")
+	_check("aim", "past the reach the marker clamps at the range, the glow dies, and nothing else appears",
+		clamped and cold and not view._decals.has("fxaim_out")
+			and not view._decals.has("fxaim_ring"),
+		"marker unclamped, still glowing, or a second shape out past the reach")
 	## Cleave (the auto language) and passives arm NOTHING. Appended rather than
 	## hunted in the drafted hand — the opening draft under this seed owes the
 	## check no particular shape.
@@ -7702,10 +7837,10 @@ func _readability() -> void:
 	var aura: int = game.skills.size() - 1
 	view.pose_aim(cleave, origin + Vector2(0.0, -200.0))
 	view._process(0.05)
-	var cleave_silent: bool = not view._decals.has("fxaim_ring")
+	var cleave_silent: bool = not view._decals.has("fxaim_land")
 	view.pose_aim(aura, origin + Vector2(0.0, -200.0))
 	view._process(0.05)
-	var aura_silent: bool = not view._decals.has("fxaim_ring")
+	var aura_silent: bool = not view._decals.has("fxaim_land")
 	_check("aim", "Cleave and passives arm nothing",
 		cleave != -1 and cleave_silent and aura_silent
 			and view.aim_read(cleave).is_empty() and view.aim_read(aura).is_empty(),
@@ -7713,7 +7848,8 @@ func _readability() -> void:
 	view.clear_aim_pose()
 	view._process(0.05)
 	_check("aim", "the read stops the frame nothing is armed",
-		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land"),
+		not view._decals.has("fxaim_ring") and not view._decals.has("fxaim_land")
+			and not view._decals.has("fxaim_out"),
 		"aim decals survived disarming")
 
 	## SG-61 — the hulk's bar: one function, drawn and asserted.

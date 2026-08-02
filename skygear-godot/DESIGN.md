@@ -381,6 +381,17 @@ projection box, painting a solid glowing rectangle over the deck, the crates and
 the fight. The fix is a premultiplied emission map, alpha baked into RGB, so the
 hollow parts are black and black emits nothing.
 
+**And the trap has a second door — found 2026-08-02, board SG-78.** The
+premultiplied map only saves you if the SHAPE is hollow. `_art("ring", …)`
+prefers the painted plate `assets/art/ground/rune_player.png` over the generated
+rim-only `_ring_texture()`, and that plate is 68 percent alpha-255: a filled
+disc with a circular cutout, not a ring. Premultiplying a filled disc gives a
+filled glow map, so the SG-60 aim ring — drawn at `range * 2`, 840 ground units
+for a Mortar — lit as a glowing opaque plate across half the deck, which is what
+the owner photographed. The rule the fix leaves behind: **a decal whose size
+scales with a gameplay number must draw through a texture whose hollowness is
+guaranteed**, which for now means `_ring_texture()` and not the painted seam.
+
 **The aura got a body.** A soft cylinder of charged air around the captain with
 its far wall only — you are standing inside it, so the near wall is between the
 camera and you, and additively that bleached her and anyone next to her — plus a

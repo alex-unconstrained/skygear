@@ -5,8 +5,11 @@ extends SceneTree
 ##   vent.png — the Boilerwright beside a deck vent: the standing plume, the
 ##              lit grate, and HIS teal stand-here ring at VENT_STAND;
 ##   aim.png  — a Frost Mortar armed with the cursor thrown PAST its range:
-##              the teal range ring, the marker clamped at the reach with its
-##              glow gone, and the faint echo under the cursor;
+##              the teal reticle clamped at the reach with its glow gone, and
+##              — since SG-78 — NOTHING else. The range ring and the cursor
+##              echo are gone from gameplay on the owner's verdict, so this
+##              frame is now also the evidence that they are gone: if a second
+##              shape appears anywhere in it, the disc is back;
 ##   hulk.png — a half-broken boarding hulk at the bow wearing its own
 ##              unprojected health bar and nameplate.
 ##
@@ -93,10 +96,24 @@ func _aim_shot(path: String) -> void:
 	var slot: int = game.skills.size() - 1
 	var reach: float = float(game.skill_stats(game.skills[slot]).range)
 	## The cursor thrown PAST the range, so the frame shows the clamp read:
-	## marker at the reach, dimmed, echo under the cursor.
+	## the reticle at the reach, dimmed, and no second shape anywhere (SG-78).
 	world.pose_aim(slot, game.player.global_position + Vector2(60.0, -reach * 1.45))
 	await _settle(game, 12)
 	await _save(world, path)
+	## And the same weapon aimed WITHIN its reach, because "subtle" is a claim
+	## about the common case: the reticle sits under the cursor, small and lit,
+	## and the deck behind it is deck.
+	var near: Array = await _pose("captain", "READAIM")
+	var near_world = near[0]
+	var near_game: SkyGearGame = near[1]
+	near_game.player.global_position = Vector2(0, 300)
+	near_game.skills.append(SkyGearData.make_skill("RANGED_AOE", "FROST"))
+	var near_slot: int = near_game.skills.size() - 1
+	var near_reach: float = float(near_game.skill_stats(near_game.skills[near_slot]).range)
+	near_world.pose_aim(near_slot,
+		near_game.player.global_position + Vector2(40.0, -near_reach * 0.55))
+	await _settle(near_game, 12)
+	await _save(near_world, path.replace("aim.png", "aim-in-range.png"))
 
 
 func _hulk_shot(path: String) -> void:

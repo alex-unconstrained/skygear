@@ -15,6 +15,24 @@ details live on the board rows.
 cracking on a dash, projectiles, every cutscene) and
 `.shots/screens/morning/index.html` (the fresh 24-screen gallery).
 
+## Your 2026-08-02 screenshot — the three corrections, one line each
+
+- **SG-78, the aim indicator:** the range ring and the cursor echo are gone;
+  the small reticle clamped at the skill's reach is the whole in-game feature —
+  look at `.shots/sg78-82/aim-in-range.png` and say whether it is now subtle
+  enough, because the disc was the painted `rune_player.png` plate being a
+  filled disc rather than a ring, and the other effect rings still draw through
+  that same plate if you ever see one flood.
+- **SG-82, the cape:** off, and `HERO_CLOAKS` is empty — nobody wears one until
+  you say so; the SG-82 board row records exactly why it read as a plank
+  (rigid ring binds, board proportions, one flat baked normal, and a texture
+  that is the deck-planking painter in red), which is the brief SG-63 rebuilds
+  against.
+- **SG-79, the prop sizes:** all ten wired props now stand the screen height of
+  the painting they replaced (audit table on the board row) — the deck cannon
+  was the worst at 2.07x and comes down the most, so if the guns now read SMALL
+  to you it is their 130-unit height constant to raise, not the ruler.
+
 ## Blockers
 
 None hard. ~~**Soft:** adding NEW Mixamo clips (the Boilerwright's kneel, a
