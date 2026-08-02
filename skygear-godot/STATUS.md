@@ -153,6 +153,13 @@ poses the four places sky is actually visible; judge it from those.
 | `todo` | the open half of OUTSTANDING |
 | `all` | every checker in sequence, one verdict |
 
+**A third party works in this repo.** Codex runs side experiments on its own
+branches (e.g. `codex/browser-2d-godot-parity`, an isolated browser 2D
+project). Leave them alone — they are the owner's, they are not the port, and
+they do not reopen the retired parity goal. But CHECK `git branch
+--show-current` is `main` before you work: a Codex branch checked out over
+the shared tree once made every agent read its own committed work as a mess.
+
 **Two build gotchas.** The Windows export template lives in a GITIGNORED
 `skygear-godot/.templates/`, so a fresh clone cannot build. And when agents are
 working, build from a clean `git worktree` of HEAD or you ship a half-written
