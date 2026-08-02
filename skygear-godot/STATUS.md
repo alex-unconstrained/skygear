@@ -108,7 +108,11 @@ poses the four places sky is actually visible; judge it from those.
 **Two build gotchas.** The Windows export template lives in a GITIGNORED
 `skygear-godot/.templates/`, so a fresh clone cannot build. And when agents are
 working, build from a clean `git worktree` of HEAD or you ship a half-written
-file.
+file — **and that goes for the screenshot tools too**: `screens`/`text`/
+`parity` run against the live tree, and a mid-edit `hud.gd` renders a deck
+with no UI (bitten 2026-08-01, three times in one day). When agents are
+active, run visual tools from a worktree of HEAD or wait for the next
+verified push.
 
 ---
 
