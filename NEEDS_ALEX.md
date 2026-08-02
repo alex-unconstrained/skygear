@@ -1,111 +1,76 @@
-# NEEDS ALEX — the morning edition
+# NEEDS ALEX
 
-_Last updated: 2026-08-02, ~02:15, end of the overnight run._
+_Last updated: 2026-08-02, build 42._
 
-## Good morning — the night in five lines
+## Build 42 is live — what to look at
 
-Builds **36 through 40** shipped to itch (40 is live). Harness **499 → 649**,
-every build verified green on the committed tree before butler pushed. Two
-guiding documents written by ultracode panels: `docs/POST-PARITY-PLAN.md` and
-`docs/ENEMY-VARIETY-DESIGN.md`. Your four midnight answers were executed the
-same hour. Everything below is either a decision or a play-verdict; the
-details live on the board rows.
+**You made two of its best pieces.** The hulk's three states and the furnace
+knight both came from your own Meshy sessions after prompted attempts failed;
+`handoff-3d/` is now an empty queue.
 
-**Look first:** `.shots/clips/` (ten animated clips — the fight, the cloak
-cracking on a dash, projectiles, every cutscene) and
-`.shots/screens/morning/index.html` (the fresh 24-screen gallery).
+- **The furnace knight walks, swings and DIES** — the game's first death
+  animation; a 180-hp wall that falls on the planking instead of vanishing.
+  `.shots/clips/knight.gif` against `knight-before.gif`.
+- **The boarding hulk has three real faces.** Two of your three filenames were
+  mislabelled and the evidence overruled them: *Ironbound Gate* is the SEALED
+  state (emission map entirely black), *Emberforge Core* is OPEN (the only one
+  with fire in it). Also: the sealed state had **never once been on screen** in
+  this port's life — the sim marked the hulk vulnerable the instant it grappled.
+  There is a real invulnerable beat now while the door is shut.
+- **Aim is just the reticle**, per your spec. (The "ring" was drawing a painted
+  plate that is a filled disc with a hole in it — hence the flood.)
+- **The cape is gone**, off by default until a rebuild earns it back.
+- **Every prop was oversized** for one systematic reason and all are trued now.
+- **F4 resizes text boxes**, and **your saves work** — see below.
 
-**F4 resizes now (SG-80), and your Ctrl+S bug was real (SG-83): the harness had been deleting `user://hud_layout.json` six times a run, so the editor saved correctly and a tool run wiped it minutes later — fixed, and the bar now says SAVED with the real path, or shouts if a write fails.**
+## Answers you owe (quick)
 
-**The knight lives (SG-85) — feel-check his walk, his slash, his death and his chest glow: `.shots/clips/knight.gif` beside `.shots/clips/knight-before.gif` (same seed, same ticks, mesh against the old billboard). Two things I could measure but not judge: on the deck he reads about a quarter darker than his painting (34.1 mean luminance against 45.4) and his hands are EMPTY where the sprite carries an axe — both are SG-86, and both are your call on whether they matter at fight range.**
+1. **Do the cannons now read too small?** They were the worst scale offender
+   (2.07× oversized) and came down the most. If they look wrong, it is their
+   130-unit height constant to raise, not the new ruler to loosen.
+2. **The knight's chest glow.** The pipeline reads an emission map for the
+   first time, but on the deck the painted sprite still out-glows the mesh
+   (34.1 vs 45.4 mean luminance) and raising energy does not help — the
+   tonemapper saturates. Accept, or should it get a real look? (SG-86)
+3. **SG-84 — the captain can walk *inside* the hulk and vanish.** Harmless with
+   a flat card, not with a 429-unit-deep hull. It is a movement change, so it
+   wants your feel-check before I pick a fix.
+4. **The Muster** (ENEMY-VARIETY §2.1) is the biggest remaining gameplay item
+   and still waits on your noise-floor threshold from the tempo work.
+5. **Codex is running in your repo.** A branch `codex/browser-2d-godot-parity`
+   appeared mid-session building a new browser 2D project. Not mine, and not
+   yours as far as I know. It left its branch checked out over my working tree,
+   which cost some untangling. Worth knowing it is there; it cuts against the
+   retired-parity direction if it is meant seriously.
 
-**Your three boarding-hulk models are in and all three states are wired (SG-76) — feel-check the sequence in a push wave (wave 4): it now hangs on SEALED and shrugs off everything for 2.5 s, opens and starts unloading, and wears the wreck when it breaks; and say whether the sealed 2.5 s is the right beat, because that number is the only thing in it I picked rather than measured.**
+## Your F4 saves — the cause was ugly
 
-## Your 2026-08-02 screenshot — the three corrections, one line each
+Your alignment work was not lost to a broken save. **The harness was deleting
+`user://hud_layout.json` six times per run** and writing fixtures over it — and
+agents run the harness on your machine constantly. Same family as the bug where
+posed screens wrote fake rows into your run log. Fixed: the harness uses a
+scratch file, and the last check of every run proves your real file was never
+touched. Two dead keys fixed too (the picker swallowed Ctrl+S; inside the typed
+box Ctrl+S typed a literal "s"), and the editor now says `SAVED · <path>` or
+shouts if a write fails. **Redo that pass on build 42** — worth it now, since
+every prop changed size anyway.
 
-- **SG-78, the aim indicator:** the range ring and the cursor echo are gone;
-  the small reticle clamped at the skill's reach is the whole in-game feature —
-  look at `.shots/sg78-82/aim-in-range.png` and say whether it is now subtle
-  enough, because the disc was the painted `rune_player.png` plate being a
-  filled disc rather than a ring, and the other effect rings still draw through
-  that same plate if you ever see one flood.
-- **SG-82, the cape:** off, and `HERO_CLOAKS` is empty — nobody wears one until
-  you say so; the SG-82 board row records exactly why it read as a plank
-  (rigid ring binds, board proportions, one flat baked normal, and a texture
-  that is the deck-planking painter in red), which is the brief SG-63 rebuilds
-  against.
-- **SG-79, the prop sizes:** all ten wired props now stand the screen height of
-  the painting they replaced (audit table on the board row) — the deck cannon
-  was the worst at 2.07x and comes down the most, so if the guns now read SMALL
-  to you it is their 130-unit height constant to raise, not the ruler.
+## Still open from before
 
-## Blockers
+- **Boilerwright feel-checks**: do the wrench cuts read as wrench work, does
+  the Tap Main kneel feel planted (0.7 s)?
+- **Heat 3–5**: brutal-fair or just brutal? The bot went 0/6 at Heat 3.
+- **The berths and the six fittings** — confirm or amend the set.
+- **Scrapper rollout**: the pilot says SWARM/ARMORED via Meshy, the boss via the
+  free local rig, the gunner procedural forever. Approve and I run it.
+- **Your cutlass fit** is still uncommitted in the tree, preserved through every
+  build. Re-fit it in the fixed lab (`model_lab --fit captain`) and say the word
+  to commit it.
 
-None hard. ~~**Soft:** adding NEW Mixamo clips (the Boilerwright's kneel, a
-wrench swing) needs raw FBX from you.~~ **DELIVERED — your Great Sword Pack
-landed and the whole thing is in** (board SG-74): he stands on HIS OWN Mixamo
-rig now with all 51 of your clips aboard — the five heavy slashes are his
-attack rotation, impact is his flinch, and **the kneel is wired to Tap Main**
-(the "Two clips would make him HIM" ask, both halves). Feel-check when you
-play him: (1) do the slash cuts read as WRENCH work now rather than sword
-work, and (2) does the kneel's 0.7 s on a tap feel planted or sluggish —
-`.shots/clips/boilerwright.gif` is the 6-second preview (march, two cuts,
-the kneel inside his tap ring). One number for you: the OBJ you ran through
-Mixamo carried the 12,476-tri REFINE mesh, not the 3,093 remesh — harmless
-on screen and pinned by a check, but if you ever re-export the REMESHED OBJ
-through the same Mixamo pack, one re-run of
-`python tools/ingest_model.py boilerwright` puts him back under budget for
-zero credits.
+## Next round, ready to start
 
-## Decisions
-
-**1 · Scrapper regeneration, ~40 credits** (SG-55). Meshy's rigger refused
-the current mesh five times — arms welded to torso, no neck; it predates your
-T-pose rules. 0 credits were spent finding this out. Approve ~40 (regen to
-the standing rules + remesh + rig) and the animation pilot resumes; or name a
-different boarder to try first (refused submissions are free).
-**Recommendation: approve.** Balance: 507 credits.
-**DONE 2026-08-02 (SG-65): the scrapper is rigged and WALKING — the pilot verdict awaits your eyes at `.shots/clips/scrapper.gif` (statue-glide kept as `scrapper-before.gif`); Meshy refused even a textbook A-pose, so the rig is local and free — SG-65 on the board has the read and the rollout fork.**
-
-**2 · Tempo's held-rate flag** (SG-57 / NEEDS #8). The spawn-rhythm system
-shipped gated on hard queue statistics (SURGE is provably bimodal). But the
-balance bot held the deck less often under SURGE (23/60 vs 34/60) — possibly
-real difficulty, possibly the bot not using lulls to repair like a human
-would. Play a SURGE wave and say; also set the noise-floor threshold the
-ENEMY-VARIETY doc wants before the Muster gets built.
-
-**3 · The six fittings as built** (SG-56) — confirm or amend: THE WRECK
-(first Colossus kill), BOW BARRICADE (clear wave 8), SPARE GUN (win at
-Heat 1+, ships broken, repair it), FOURTH VENT (win as Boilerwright), THE
-WINCH (12 salvage in one run → tap-to-haul verb), SCUPPER GRATING (win
-without healing). One earned per run, six berths, THE BERTHS screen off the
-title.
-
-**Done, no decision needed:** your "push crate mechanic is boring" tabling
-LANDED (board SG-68) — shove + winch verbs dormant behind one flag, the crate
-is an ordinary stowed prop, THE WINCH shows "TABLED — an interaction pass
-will revisit" on THE BERTHS (earned ones stay earned), and the checks now pin
-the tabled state, none silenced.
-
-**4 · The Muster** (ENEMY-VARIETY §2.1, ~a week): seeded wave mutations
-inside a conserved threat budget — the biggest remaining enemy-variety item.
-Proceed after your noise-floor call in #2?
-
-**5 · The belt pouches** (SG-12, still pending your eyes): Meshy refused a
-beltless engineer three times; the kept pair is small at game camera.
-Accept, or 20 credits a re-roll.
-
-## Play-verdicts you owe the ledger (all in build 40)
-
-The ledger keeps these OPEN until you say fun/not-fun — one word each is
-enough: **the crate shove** (your "sucks" rework) · **the lab** (gimbal fix,
-typed values) · **the F4 editor + P screen picker** (your two alignment
-asks) · **projectiles** (your "cheap sprites" ask) · **cutscenes** (five
-cues) · **Heat 3–5** (brutal-fair?) · **the cloak** · **the wrench** (2-min
-grip polish in the lab: `--fit boilerwright`) · **the Boilerwright visible**
-(he never rendered before last night) · **THE BERTHS + fittings** · **SURGE
-tempo waves** · **the wreck** · **text size at 1920** · **telegraph
-fairness**.
-
-Your uncommitted cutlass fit still sits safely in the working tree — re-fit
-with the fixed lab when ready and say the word to commit it.
+Unblocked and queued: **SG-81** (lab lighting — attach and tune lights per model,
+saved where the renderer reads them; the tool you asked for), **SG-63** (the last
+2D reads: impact particles, in-air skill shapes, and the cape rebuild), and the
+**figure migration** for the remaining boarders. Say if you would rather steer
+elsewhere.
