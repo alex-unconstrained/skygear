@@ -3696,7 +3696,6 @@ func _sync_all(delta: float) -> void:
 	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
-		var config: Dictionary = SkyGearData.ENEMIES.get(enemy.kind, {})
 		## HOW TALL A BOARDER STANDS, and it was wrong for the small ones.
 		##
 		## `120 + radius * 3` put a SCRAPPER at 186 and a GUNNER at 183 against a
@@ -3715,7 +3714,7 @@ func _sync_all(delta: float) -> void:
 		## always was to hit. That is deliberate — changing reach is a balance
 		## change wearing a visual one — but it is the number to revisit if they
 		## look stubby.
-		var height: float = (120.0 + float(config.get("radius", 22.0)) * 3.0) 			* float(FIGURE_SCALE.get(enemy.kind, 1.0))
+		var height: float = boarder_height(enemy.kind)
 		var key := "e%d" % enemy.get_instance_id()
 		_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
 		## Boarders come DOWN the deck, so most of the time you are looking at
@@ -4217,6 +4216,18 @@ const FIGURE_SCALE := {
 static func model_path(kind: String) -> String:
 	var slug := kind.to_lower()
 	return "res://assets/models/%s/%s.tscn" % [slug, slug]
+
+
+## How tall a boarder of this kind is DRAWN, in ground units — the `_sync_all`
+## formula (120 + radius·3, per-kind scaled) with exactly one copy of itself.
+## Hoisted for the scrapper pilot (board SG-55): the SG-45 guard has to stand a
+## rigged boarder up at the same height the renderer will, and a second copy of
+## this arithmetic in the harness is the two-functions-disagreeing-about-one-
+## number failure STATUS names.
+static func boarder_height(kind: String) -> float:
+	var config: Dictionary = SkyGearData.ENEMIES.get(kind, {})
+	return (120.0 + float(config.get("radius", 22.0)) * 3.0) \
+		* float(FIGURE_SCALE.get(kind, 1.0))
 
 
 ## Drive a rigged figure, if this kind has one. Returns false when it does not,

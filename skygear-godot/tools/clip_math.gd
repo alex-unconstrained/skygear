@@ -56,6 +56,8 @@ const SCENARIOS := [
 		"what": "the cloak's crack (SG-23) — a held run through the real key, then the dash"},
 	{"id": "projectiles", "kind": "projectiles", "seconds": 3.0, "still": false,
 		"what": "the SG-40 bolt heads in flight — a mortar shell's arc, a lance, and the deck guns"},
+	{"id": "scrapper", "kind": "scrapper", "seconds": 6.0, "still": false,
+		"what": "the scrapper pilot's witness (SG-55): a rank of scrappers walks the deck and closes to swing — today the statue-glide, and the same lens judges the rig when it lands"},
 ]
 
 

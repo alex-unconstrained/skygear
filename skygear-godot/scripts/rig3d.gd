@@ -62,6 +62,18 @@ const BLEND := {
 ## by actual speed over this, so the feet stop skating at any move-speed card.
 const AUTHORED_RUN_SPEED := 210.0
 
+## ...and the drawn height that 210 was measured against (the captain's 1.76 m).
+## The clip's stride is drawn through the rig's own scale, so at half her height
+## the same cycle sweeps HALF the ground per beat — and a half-height boarder
+## fed the raw constant is back to skating at exactly the speed the constant was
+## meant to kill. Found verifying the speed sync for enemy velocities (board
+## SG-55, the scrapper pilot): a 93-unit scrapper covering its simulated 150
+## units a second needs the cycle at 150 / (210 × 93/176), not 150 / 210 — the
+## raw quotient understates the required rate by half. `fit_height` over this is
+## the stride ratio; a full-height figure divides by one and plays exactly as
+## before.
+const AUTHORED_RUN_HEIGHT := 1.76
+
 ## ONE-SHOTS ARE FITTED TO THE WINDOW THEY GET.
 ##
 ## Measured by `tools/anim_timing.gd`: a Cleave has a 0.36 second cooldown and
@@ -497,7 +509,11 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 		elif not _reverse and _clip == "run_back" and has_clip(clip):
 			anim.play(clip, 0.12)
 			_clip = clip
-		anim.speed_scale = clampf(speed / AUTHORED_RUN_SPEED, 0.55, 1.9)
+		## Scaled by the figure's own stride: the cycle covers ground through
+		## the rig's height scale, so what matters is speed against the ground
+		## THIS figure's stride actually sweeps (see AUTHORED_RUN_HEIGHT).
+		var stride: float = (fit_height / AUTHORED_RUN_HEIGHT) if fit_height > 0.0 else 1.0
+		anim.speed_scale = clampf(speed / (AUTHORED_RUN_SPEED * stride), 0.55, 1.9)
 	elif ONE_SHOT.get(next, false) and window > 0.0 and has_clip(clip):
 		anim.speed_scale = clampf(anim.get_animation(clip).length / window,
 			ATTACK_RATE_MIN, ATTACK_RATE_MAX)

@@ -50,6 +50,23 @@ the plan's recommendation:
   - **The scrapper animation pilot** (item 7): one enemy first, ~10 credits,
     before any talk of animating all four. Recommendation: approve the pilot.
 
+**7 · The scrapper pilot stalled at Meshy's front door — 0 of your ~10 credits
+spent** (SG-55, blocked 2026-08-02). The rig endpoint refused the scrapper five
+times over ("Pose estimation failed", never charged): its arms are welded
+against the spherical torso and the head has no neck — the mesh predates your
+T-pose standing rules, exactly as POST-PARITY-PLAN item 7 warned. The pipeline
+itself is fine (the Boilerwright sailed through the same path for 5 credits),
+and everything around the rig is already landed and waiting: the SG-45 guards
+now cover boarder scenes, the run-cycle speed sync is fixed for half-height
+figures, and `tools/clip.gd -- scrapper` films the walk-and-swing witness (it
+shows the statue-glide today). **The call:** approve ~40 credits to restart —
+regenerate the scrapper to the standing rules (keep the hooks and the hunch as
+identity, hold the arms clear, give it a neck; ~30) + remesh (5) + rig (5) —
+and the pilot resumes at one models.json entry and one retarget run.
+Recommendation: approve. Cheaper alternative if you would rather not respend on
+this mesh: say which boarder to try instead — a refused rig submission costs
+nothing, so candidates can be tested for free before a credit moves.
+
 **3 · Boilerwright mobility gap** (SG-7) — *you took this one* (2026-08-01:
 "I'll test boilerwright movement myself"). The deterministic number when you
 do: he covers 40% of a dashing captain's ground. Report back what it feels

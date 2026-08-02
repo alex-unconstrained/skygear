@@ -213,6 +213,26 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 			## first second and again near its end.
 			for turret in game.turrets:
 				turret.cooldown = 0.0
+		"scrapper":
+			## The pilot's lens (SG-55): a rank of scrappers, placed close
+			## enough that six seconds shows the whole read — the march down
+			## the deck AND the closing swing. Spawned through the real
+			## `spawn_enemy` (so each is the simulation's own boarder, lane,
+			## AI and all) and then placed up-deck of the captain, in frame at
+			## the locked camera, walking toward her.
+			game.start_wave(1)
+			_hold_wave_open(game)
+			for stand in [
+					{"lane": 0, "at": Vector2(-300.0, 240.0)},
+					{"lane": 1, "at": Vector2(-40.0, 110.0)},
+					{"lane": 2, "at": Vector2(260.0, 200.0)}]:
+				game.spawn_enemy("SCRAPPER", int(stand.lane))
+				var rank := game.get_tree().get_nodes_in_group("enemies")
+				var walker = rank[rank.size() - 1]
+				walker.global_position = stand.at
+				walker.lane = int(stand.lane)
+				walker.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
 		"cutscene":
 			## Stage the moment the scene is authored for: its own wave for a
 			## narrowed wave_start, wave 12's real spawn queue for the Colossus

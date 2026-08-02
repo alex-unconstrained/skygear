@@ -4576,6 +4576,122 @@ func _view() -> void:
 						bw_early.distance_to(bw_late)])
 		bwrig.queue_free()
 
+	## --- board SG-55: the scrapper pilot's guard rail, laid before the rig ---
+	## The SG-45 pair above iterates HERO_MODELS; the boarders reach the same
+	## renderer through `model_path(kind)` and `_sync_rig`, so the same two
+	## faults — Skin binds resolving against nothing, and a rig scaled off the
+	## frame — get the same guard, iterating every kind the simulation can
+	## spawn. Today every committed boarder scene is a STATIC statue (Meshy's
+	## rig endpoint refused the scrapper's fused anatomy — the pilot is blocked
+	## on a T-pose regeneration, see the SG-55 row); the moment the first rigged
+	## boarder scene lands, the skinned half of this loop is the check that
+	## meets it, at the height `_sync_all` will actually draw it.
+	var boarder_scenes := 0
+	var boarder_rigged := 0
+	var boarder_faults := PackedStringArray()
+	for ekind in SkyGearData.ENEMIES.keys():
+		var epath := SkyGearView3D.model_path(str(ekind))
+		if not ResourceLoader.exists(epath):
+			continue
+		boarder_scenes += 1
+		var enode: Node = (load(epath) as PackedScene).instantiate()
+		var eskel: Skeleton3D = null
+		for esk in enode.find_children("*", "Skeleton3D", true, false):
+			eskel = esk as Skeleton3D
+			break
+		var emeshes := enode.find_children("*", "MeshInstance3D", true, false)
+		if emeshes.is_empty():
+			boarder_faults.append("%s: no meshes" % ekind)
+		## The ruler `SkyGearRig3D.setup` scales by: the scene's own measured
+		## height, or a measurable AABB when the meta is absent. A scene with
+		## neither is drawn at whatever size the exporter felt like.
+		var eruler: float = float(enode.get_meta("model_height", 0.0))
+		if eruler <= 0.0:
+			for emi in emeshes:
+				eruler = maxf(eruler, (emi as MeshInstance3D).get_aabb().size.y)
+		if eruler <= 0.0:
+			boarder_faults.append("%s: no honest ruler" % ekind)
+		if eskel != null:
+			## SG-45 fault one, boarder edition: every named bind resolves
+			## against the skeleton it ships beside, or the mesh draws NOTHING.
+			for emi in emeshes:
+				var eskin: Skin = (emi as MeshInstance3D).skin
+				if eskin == null:
+					continue
+				for ebi in eskin.get_bind_count():
+					var ebn := String(eskin.get_bind_name(ebi))
+					if ebn != "" and eskel.find_bone(ebn) < 0:
+						boarder_faults.append("%s: bind %s unresolved" % [ekind, ebn])
+		enode.free()
+		if eskel == null:
+			continue
+		boarder_rigged += 1
+		## SG-45 fault two, boarder edition: built through the game's own
+		## setup() at the height boarder_height() says — the renderer's one
+		## copy of that arithmetic — the hips stand at CREATURE height. A
+		## scrapper is drawn 93 units (0.93 m); its hips belong inside a metre
+		## of the planking, not 89 of them up.
+		var eheight: float = SkyGearView3D.boarder_height(str(ekind))
+		var erig := SkyGearRig3D.new()
+		root.add_child(erig)
+		var ebuilt: bool = erig.setup(epath, eheight * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		var ehip := -1.0
+		if ebuilt and erig.skeleton != null:
+			if erig.has_clip("idle"):
+				erig.anim.play("idle")
+				erig.anim.seek(0.05, true)
+			var ehipb: int = erig.skeleton.find_bone("mixamorig_Hips")
+			if ehipb >= 0:
+				ehip = (erig.skeleton.global_transform
+					* erig.skeleton.get_bone_global_pose(ehipb)).origin.y
+		if not (ebuilt and ehip > eheight * SkyGearView3D.WORLD_SCALE * 0.15
+				and ehip < eheight * SkyGearView3D.WORLD_SCALE * 1.1):
+			boarder_faults.append("%s: hips %.2f m against a %.0f-unit figure"
+				% [ekind, ehip, eheight])
+		erig.queue_free()
+	_check("figure", "every committed boarder scene keeps the SG-45 bargain — meshes, an honest ruler, and any skeleton it carries resolving its binds at creature height",
+		boarder_scenes > 0 and boarder_faults.is_empty(),
+		"%d scenes (%d rigged, %d static): %s" % [boarder_scenes, boarder_rigged,
+			boarder_scenes - boarder_rigged,
+			"clean" if boarder_faults.is_empty() else ", ".join(boarder_faults)])
+
+	## --- board SG-55: speed-sync at boarder scale — the skating lesson, part two
+	## `AUTHORED_RUN_SPEED` alone matches the cycle to the ground the CAPTAIN
+	## covers. A boarder is drawn smaller, its stride sweeps proportionally
+	## less deck per beat, and the raw quotient hands a half-height scrapper
+	## the old ice-skate straight back — understating the needed rate by
+	## exactly the height ratio. The rate must scale by the figure's own drawn
+	## height (`AUTHORED_RUN_HEIGHT`), and a full-height figure must notice
+	## nothing.
+	var stride_full := SkyGearRig3D.new()
+	root.add_child(stride_full)
+	var stride_half := SkyGearRig3D.new()
+	root.add_child(stride_half)
+	var stride_full_ok: bool = stride_full.setup(SkyGearView3D.CAPTAIN_SCENE,
+		SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+		SkyGearView3D.LAYER_FIGURES)
+	var stride_half_ok: bool = stride_half.setup(SkyGearView3D.CAPTAIN_SCENE,
+		SkyGearView3D.CAPTAIN_HEIGHT * 0.5 * SkyGearView3D.WORLD_SCALE,
+		SkyGearView3D.LAYER_FIGURES)
+	if stride_full_ok and stride_half_ok:
+		stride_full.want("run", SkyGearRig3D.AUTHORED_RUN_SPEED)
+		_check("rig", "a full-height figure at the authored speed plays the cycle one-to-one",
+			absf(stride_full.anim.speed_scale - 1.0) < 0.01,
+			"rate %.3f" % stride_full.anim.speed_scale)
+		## The scrapper's own numbers: half the reference height, 150 simulated
+		## ground units a second — the same ground speed has to drive the small
+		## figure's cycle twice as hard, or its feet slide.
+		stride_full.want("run", 150.0)
+		stride_half.want("run", 150.0)
+		_check("rig", "the same ground speed drives a half-height figure's cycle twice as hard — stride, not just speed",
+			absf(stride_half.anim.speed_scale - stride_full.anim.speed_scale * 2.0) < 0.02
+				and absf(stride_half.anim.speed_scale - 150.0 / (210.0 * 0.5)) < 0.02,
+			"half %.3f vs full %.3f" % [stride_half.anim.speed_scale,
+				stride_full.anim.speed_scale])
+	stride_full.queue_free()
+	stride_half.queue_free()
+
 	## Clicking a card. It was 1/2/3 only, and a screen full of cards that do not
 	## respond to a cursor reads as broken rather than as keyboard-driven.
 	var cards := SkyGearHUD.draft_cards(Vector2(1366, 768), 3)
@@ -6305,7 +6421,7 @@ func _clip() -> void:
 	## with a stageable kind and a positive default length. A scenario that is
 	## listed and does not resolve is a tool that fails at the exact moment
 	## somebody reaches for evidence.
-	var kinds := ["fight", "dash", "projectiles", "cutscene"]
+	var kinds := ["fight", "dash", "projectiles", "scrapper", "cutscene"]
 	var unresolved := ""
 	for id in ClipMath.ids():
 		var spec := ClipMath.find(str(id))
