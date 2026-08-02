@@ -161,8 +161,12 @@ on an asset the animation pipeline cannot use:
   Never prompt a character holding their weapon.
 - **Capes, cloaks and loose cloth are separate too.** The captain's cape was
   removed from her model for exactly this reason; cloth gets added back as its
-  own layer (the bone-chain route, board SG-23), never baked into the
-  character mesh.
+  own layer, never baked into the character mesh. **The payoff shipped
+  2026-08-02 (board SG-23):** her cape is a four-bone chain (`scripts/cloak.gd`)
+  on a chest mount — trails at a run, cracks on the dash, bitwise-still at
+  rest when sway is off (`cloak ·` checks, seven of them; `.shots/cloak/`).
+  Per-class rows in `view3d.HERO_CLOAKS`; the Boilerwright opts in with one
+  row when his day comes.
 
 `prune` strips the 77 MB an asset arrives as down to the ~10 MB GLB actually
 used, and refuses to run before the first import because extract-mode textures

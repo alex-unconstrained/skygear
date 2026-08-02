@@ -4067,6 +4067,16 @@ const HERO_MODELS := {
 		"scene": "res://assets/models/boilerwright/boilerwright.tscn",
 		"height": CAPTAIN_HEIGHT, "fit": "boilerwright"},
 }
+## WHO WEARS A CAPE — board SG-23, one row per class, like HERO_MODELS. The
+## captain wears hers (removed from her generated model by the standing rule
+## precisely so it could come back as its own bone-chain layer); the
+## Boilerwright's heavy leathers read right without one, so he has no row —
+## and giving him one later is data, not code. Delete a row and that class
+## renders exactly as before: `wear()` is additive and refuses cleanly.
+## The row's dictionary is reserved for per-class tint/cut overrides.
+const HERO_CLOAKS := {
+	"captain": {},
+}
 var _captain: SkyGearRig3D
 var _captain_missing := false
 var _captain_class := ""             ## which class the current figure was built for
@@ -4122,6 +4132,11 @@ func _sync_captain(delta: float) -> bool:
 				Vector3(offset[0], offset[1], offset[2]) * to_world,
 				Vector3(turn[0], turn[1], turn[2]),
 				float(fit.get("length", 0.95)) * to_world, LAYER_FIGURES)
+		## And the cape, if this class has a row (SG-23). Additive only: a
+		## class without a row — or a rig `wear()` refuses — is byte-for-byte
+		## the figure that shipped before capes existed.
+		if HERO_CLOAKS.has(who):
+			_captain.wear(HERO_CLOAKS[who], LAYER_FIGURES)
 	var player := game.player
 	## What she is doing, in the order the rig resolves it. Dash beats run, swing
 	## beats dash — and the rig holds a one-shot for its own length rather than
@@ -4164,6 +4179,13 @@ func _sync_captain(delta: float) -> bool:
 	## uses, so aim is what the player has to be able to read off her.
 	_captain.place(player.global_position, player.aim_direction, WORLD_SCALE, delta,
 		player.velocity)
+	## The cape rides the same simulation frame she does (SG-23): the sim's
+	## velocity and dash window in, and the RENDERER'S sway flag and clock —
+	## the pair the camera itself rocks on — so cape and deck share one
+	## metronome, and both go still when a framing check turns the sway off.
+	if _captain.cloak != null:
+		_captain.cloak.drive(delta, player.velocity, _captain.facing,
+			player.dash_time_left > 0.0, sway, _flicker)
 
 	if _hero == null:
 		## OUTSIDE her transform. A light parented to a node scaled by 0.009 has

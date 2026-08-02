@@ -374,6 +374,17 @@ velocity (no new mesh, no solver, works with the animation blend); a separate
 The bone chain is almost certainly right for a figure this size on screen — at
 this camera distance the cape is about forty pixels tall.
 
+**BUILT 2026-08-02 (board SG-23), the bone-chain route as chosen above — left
+open here for the owner's eyes on the cloth, like the crate and the lab.**
+Four cape bones on a mount at her chest, a 32-triangle skinned banner in
+procedural oxblood, a spring chain that trails at a run (1.19 rad, measured),
+CRACKS on the dash (2.11 rad — the signature move gets the signature cloth),
+sways at the ship's own periods when she stands, and snaps to a bitwise-exact
+rest when the sway is off (the framing-check rule). Clamped so it can never
+cross her torso at the 41° camera. Captain only, one `HERO_CLOAKS` row per
+class — the Boilerwright opts in later with a row, not a build. Seven
+`cloak ·` checks; pictures in `.shots/cloak/`.
+
 ### Popup menus drifting right — REPORTED, NOT REPRODUCED
 Seen while watching screenshot runs go past. I measured it and could not find
 it: the pause panel's left edge sits at exactly x=869 and the draft's at x=611,

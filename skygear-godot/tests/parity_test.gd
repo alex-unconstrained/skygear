@@ -1741,6 +1741,122 @@ func _view() -> void:
 	_check("trail", "and the trail dies with the swing instead of running its own clock",
 		view._trail.is_empty(), "%d stale samples" % view._trail.size())
 
+	## SG-23 — THE CAPTAIN'S CAPE IS A BONE CHAIN: DRIVEN, CLAMPED, AND STILL
+	## WHEN THE SCREEN MUST BE. Four bones on a mount at her chest carry a
+	## skinned banner (the standing rule: capes are their OWN layer, never
+	## baked into the character mesh — her model was generated bare-backed for
+	## exactly this). The sim's velocity swings the chain, the dash cracks it,
+	## the swing is clamped clear of her torso, and with the sway off it snaps
+	## to its rest constants bitwise — the framing-check rule: a still screen
+	## has to actually be still.
+	var cape: SkyGearCloak = cap_rig.cloak if cap_rig != null else null
+	var cape_bone := ""
+	if cape != null and cape.get_parent() is BoneAttachment3D:
+		cape_bone = str((cape.get_parent() as BoneAttachment3D).bone_name)
+	_check("cloak", "the captain wears a cape: a four-bone chain mounted at her shoulders",
+		cape != null and cape.bone_count() == SkyGearCloak.BONES
+			and cape_bone.ends_with("Spine2"),
+		"%d bones on '%s'" % [cape.bone_count() if cape != null else 0, cape_bone])
+	## Driven, and it comes home: a full-run velocity injected straight into
+	## the chain trails it visibly; taking the velocity away settles it back
+	## to the rest constants EXACTLY (the snap writes those very bits).
+	var run_swing := 0.0
+	var rest_exact := false
+	if cape != null:
+		cape.rest_now()
+		for _i in 40:
+			cape.drive(0.05, Vector2(0.0, 210.0), 0.0, false, false, 0.0)
+		run_swing = cape.pitch_total()
+		for _i in 200:
+			cape.drive(0.05, Vector2.ZERO, 0.0, false, false, 0.0)
+		rest_exact = cape.at_rest()
+	_check("cloak", "injected velocity swings the chain, and rest brings it back exactly",
+		run_swing > 0.6 and rest_exact,
+		"%.2f rad trailing at a full run, then bitwise rest" % run_swing)
+	## The dash is the signature move, so the cape CRACKS on it — an impulse
+	## the spring then swallows — measurably harder than the steady run trail.
+	var dash_peak := 0.0
+	if cape != null:
+		cape.rest_now()
+		for _i in 30:
+			cape.drive(0.02, Vector2(0.0, 300.0), 0.0, true, false, 0.0)
+			dash_peak = maxf(dash_peak, cape.pitch_total())
+	_check("cloak", "a dash cracks the cape harder than a run trails it",
+		dash_peak > run_swing + 0.3,
+		"dash peak %.2f rad against the run's %.2f" % [dash_peak, run_swing])
+	## The constraint: blow the cape forward as hard as the sim ever could and
+	## the chain stops inside its forward budget — it cannot cross her torso
+	## at the 41 degree camera, whatever gets injected.
+	var blown := 999.0
+	var forward_budget := 0.0
+	for k in SkyGearCloak.BONES:
+		forward_budget += float(SkyGearCloak.PITCH_MIN[k])
+	if cape != null:
+		for _i in 120:
+			cape.drive(0.05, Vector2(0.0, -400.0), 0.0, false, false, 0.0)
+		blown = cape.pitch_total()
+		cape.rest_now()
+	_check("cloak", "the forward swing is clamped so the cape never crosses her torso",
+		blown >= -0.05 and blown < run_swing and forward_budget >= -0.30,
+		"blown to %.2f rad against a %.2f budget" % [blown, forward_budget])
+	## The sway flag is the RENDERER'S own: on, the cape breathes at the
+	## ship's period; off, two still frames any distance apart are the same
+	## pose — the deterministic-rest mode the framing tools rely on.
+	var breathed := 0.0
+	var still_frames := true
+	if cape != null:
+		cape.rest_now()
+		var clock := 0.0
+		for _i in 120:
+			clock += 0.05
+			cape.drive(0.05, Vector2.ZERO, 0.0, false, true, clock)
+			breathed = maxf(breathed, absf(cape.pitch_total()))
+		for _i in 200:
+			cape.drive(0.05, Vector2.ZERO, 0.0, false, false, clock)
+		still_frames = cape.at_rest()
+		for _i in 60:
+			cape.drive(0.05, Vector2.ZERO, 0.0, false, false, clock)
+		still_frames = still_frames and cape.at_rest()
+	_check("cloak", "sway on the cape breathes; sway off it is bitwise still — the framing rule",
+		breathed > 0.26 and still_frames,
+		"breathed to %.3f rad off a 0.25 rest, then held rest across 60 more frames" % breathed)
+	## The pool law applies to allocations too: a thousand driven frames of
+	## flailing velocity, dashes and sway grow NOTHING — same nodes, same
+	## fixed-size state, same bone count.
+	var nodes_before := 0
+	var nodes_after := 0
+	var state_fixed := false
+	if cape != null:
+		nodes_before = cape.find_children("*", "", true, false).size()
+		var t := 0.0
+		for _i in 1000:
+			t += 0.016
+			cape.drive(0.016, Vector2(sin(t) * 300.0, cos(t * 1.7) * 300.0),
+				t, fmod(t, 1.0) < 0.1, true, t)
+		nodes_after = cape.find_children("*", "", true, false).size()
+		state_fixed = cape.bone_count() == SkyGearCloak.BONES \
+			and cape._pitch.size() == SkyGearCloak.BONES \
+			and cape._side.size() == SkyGearCloak.BONES
+		cape.rest_now()
+	_check("cloak", "a thousand driven frames grow nothing: fixed bones, pooled state",
+		nodes_before > 0 and nodes_before == nodes_after and state_fixed,
+		"%d nodes before and %d after" % [nodes_before, nodes_after])
+	## The class rule is one row per class, and the fallback is intact: a rig
+	## built WITHOUT its row carries nothing cape-shaped anywhere in its tree
+	## — she renders exactly as she did before capes existed — and the
+	## Boilerwright has no row, so his leathers stay bare until one is added.
+	var unworn := SkyGearRig3D.new()
+	root.add_child(unworn)
+	var unworn_up := unworn.setup("res://assets/models/captain/captain.tscn", 1.76, 2)
+	var unworn_clean: bool = unworn_up and unworn.cloak == null \
+		and unworn.find_children("CapeBones", "", true, false).is_empty() \
+		and unworn.find_children("*", "SkyGearCloak", true, false).is_empty()
+	_check("cloak", "without the class row nothing cape-shaped exists — the fallback is intact",
+		unworn_clean and SkyGearView3D.HERO_CLOAKS.has("captain")
+			and not SkyGearView3D.HERO_CLOAKS.has("boilerwright"),
+		"a bare rig carries no cape nodes; rows: captain only")
+	unworn.queue_free()
+
 	## SG-28 — THE RANGED AIM LINE TRAVELS. SG-3's solid band says "this lane is
 	## dangerous"; the browser additionally marches a dashed line down the shot
 	## path (setLineDash([14,12]), offset -rt*90), which says "something is about

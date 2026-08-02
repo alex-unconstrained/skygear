@@ -267,6 +267,105 @@ func mount_hand() -> bool:
 	return true
 
 
+## The bone the cape hangs from: the one that carries both shoulders. Same
+## shape as HAND_BONES — most specific first, then a suffix scan for whatever
+## the next exporter renames the prefix to, then the spine below it.
+const CHEST_BONES := ["mixamorig_Spine2", "mixamorig:Spine2", "Spine2"]
+
+
+## Hang a cape off the shoulders (board SG-23). The cape is its OWN layer —
+## the standing character rule — so this touches nothing in the shipped GLB:
+## a `BoneAttachment3D` on the chest bone carries a `SkyGearCloak`, which
+## brings its own four-bone chain, its own skinned banner, and its own
+## simulation. `config` is the per-class row from `view3d.HERO_CLOAKS`,
+## reserved for tint and cut overrides when a second class opts in.
+##
+## Returns false — and leaves the figure EXACTLY as it was — when there is no
+## skeleton or no recognisable chest bone, so a rig that cannot wear one
+## renders precisely as before.
+func wear(_config: Dictionary, layer: int) -> bool:
+	if cloak != null and is_instance_valid(cloak):
+		return true
+	if skeleton == null:
+		return false
+	var index := -1
+	for name in CHEST_BONES:
+		index = skeleton.find_bone(str(name))
+		if index >= 0:
+			break
+	if index < 0:
+		for i in skeleton.get_bone_count():
+			var bone_name := skeleton.get_bone_name(i)
+			if bone_name.ends_with("Spine2") or bone_name.ends_with("Spine1"):
+				index = i
+				break
+	if index < 0:
+		return false
+	var mount := BoneAttachment3D.new()
+	mount.bone_name = skeleton.get_bone_name(index)
+	mount.bone_idx = index
+	skeleton.add_child(mount)
+	cloak = SkyGearCloak.new()
+	mount.add_child(cloak)
+	cloak.build(fit_height, layer)
+	## Placed in WORLD terms — shoulder line, a hand's width behind the spine
+	## — then left to ride the chest bone. The rig is freshly set up when this
+	## runs (rest pose, unturned), so its own axes ARE the figure's: +Z is
+	## where she faces, -Z is her back. The orthonormal basis strips the
+	## skeleton's inherited FBX unit scale, so the cape's metres stay metres.
+	##
+	## The local offset is solved against the SKELETON's own bone pose, not
+	## the attachment node's transform — the SG-18 lesson: a BoneAttachment3D
+	## refreshes on the NEXT skeleton pass, so at this moment its transform is
+	## stale, and a cape placed through it hung a metre over her head, tilted.
+	## `get_bone_global_pose` is solved the moment it is asked, and the mount
+	## will land on exactly that transform when it does refresh.
+	##
+	## AND THE POSE HAS TO BE THE ONE SHE WILL ACTUALLY STAND IN. This model
+	## family carries a rest pose whose bones sit near the floor (the mixed-
+	## unit GLB story, SG-45's second fault) and the CLIPS carry the real hip
+	## height — measured: the chest joint is 0.75 m lower at rest than one
+	## frame into `idle`. A cape anchored against the rest pose therefore
+	## floated a metre over her head the moment the idle blend finished. So:
+	## stand her in idle frame zero NOW — the pose she spawns showing anyway —
+	## and anchor against that.
+	if anim != null and anim.has_animation("idle"):
+		anim.play("idle")
+		anim.seek(0.0, true)
+	var chest: Transform3D = skeleton.global_transform \
+		* skeleton.get_bone_global_pose(index)
+	var rig_rot := global_transform.basis.orthonormalized()
+	var anchor := Transform3D(rig_rot, global_transform.origin
+		+ rig_rot * Vector3(0.0, fit_height * 0.745, -fit_height * 0.062))
+	cloak.transform = chest.affine_inverse() * anchor
+	## What `_process` re-solves every frame: cloth POSITION rides the chest
+	## bone, cloth ORIENTATION belongs to gravity and the yaw — parenting the
+	## plane to the spine made the cape twist bodily with the idle clip's
+	## torso, a board glued to her back instead of a thing that hangs.
+	_cloak_bone = index
+	_cloak_offset = rig_rot.inverse() * (anchor.origin - chest.origin)
+	return true
+
+
+var cloak: SkyGearCloak = null
+var _cloak_bone := -1
+var _cloak_offset := Vector3.ZERO
+
+
+## Keep the cape hanging: anchored to the solved chest joint (so it rides the
+## run cycle's bob and the idle's breathing), oriented by yaw and gravity
+## alone (so the swing simulation, not the spine, owns its angles). Reads the
+## SKELETON, not the attachment node, for the same one-frame reason as
+## `blade_points`.
+func _follow_cloak() -> void:
+	if cloak == null or skeleton == null or _cloak_bone < 0:
+		return
+	var chest: Transform3D = skeleton.global_transform \
+		* skeleton.get_bone_global_pose(_cloak_bone)
+	var yaw := Basis(Vector3.UP, facing)
+	cloak.global_transform = Transform3D(yaw, chest.origin + yaw * _cloak_offset)
+
+
 ## Both ends of what the hand is swinging, in WORLD space (metres): [base, tip].
 ## The base is the hand itself; the tip is the measured blade point when a
 ## weapon is held, and a knuckle's reach along the hand bone when it is not —
@@ -511,6 +610,7 @@ func react_land() -> void:
 
 func _process(delta: float) -> void:
 	_clock += delta
+	_follow_cloak()
 	## Tweened by hand rather than with a Tween node: these fire several times a
 	## second in a fight, and a Tween allocation per hit is a Tween allocation
 	## per hit. Exponential decay is frame-rate independent and free.
