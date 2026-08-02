@@ -27,6 +27,20 @@ func _run() -> void:
 	root.add_child(world)
 	await process_frame
 	var game: SkyGearGame = world.get_node("SkyGear")
+	var view := world as SkyGearView3D
+
+	## SUPPRESS THE SHIPPED CUTSCENES (board SG-33). This tool photographs the
+	## browser's gameplay pose for a side-by-side, so the one camera it must never
+	## show is a cutscene's. `begin_run` owes an establishing `run_open` crane that
+	## `_watch_cues` spends the first PLAY frame — and a scene set on wave 4 or 8
+	## would additionally trip a `wave_start` flourish — so with cutscenes live the
+	## 60 hand-stepped ticks below were being shot straight through the crane (pitch
+	## ~32°/yaw ~14° instead of the locked 41.25°/0°). Off outright; the harness
+	## guard `sky · the shot tools suppress cutscenes` fails the build if this line
+	## is ever removed, so a future cue cannot re-contaminate the parity frames.
+	if view != null:
+		view.cutscenes_enabled = false
+		view.stop_cutscene()
 
 	## HAND-STEPPED, so the engine must not step it too.
 	##
