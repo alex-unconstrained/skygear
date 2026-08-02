@@ -1,13 +1,13 @@
 # Meta-progression — the Workshop and the Articles
 
 **Counts in this document describe the DESIGN, not the build.** The build has 23
-Workshop nodes (Second Breath was dropped and the doc was not updated), 7
-Articles, and 5 sigil sources. An audit found the doc claiming 24 and "eleven
-sigils" while the code said otherwise, which is the kind of drift that makes a
-coding agent build to the wrong number.
+Workshop nodes (Second Breath was dropped and the doc was not updated), **all 9
+Articles** (SG-26 built the last two, 2026-08-01), and 5 sigil sources. An audit
+found the doc claiming 24 and "eleven sigils" while the code said otherwise,
+which is the kind of drift that makes a coding agent build to the wrong number.
 
 Status: **BUILT**, both sides. The gate, both currencies, 24 Workshop nodes,
-7 Articles, respec, and the whole thing on one screen behind a first victory.
+9 Articles, respec, and the whole thing on one screen behind a first victory.
 Every field is wired — two harness checks fail the build if a node or an article
 is ever added without a reader.
 
@@ -19,10 +19,32 @@ Where the build departs from what is written below, and why:
   `spawn_queue`.
 - **Foresight is gone.** It needs the next draft pre-rolled without disturbing
   the seeded stream. Real work, not started.
-- **The Opening Bid and The Second Hand are not built.** The Second Hand is the
-  most expensive node on the board — `telemetry.gd` hardcodes four slots, and so
-  do the HUD plates, `hud_layout.json` and the slot loops in `cards.gd` — and the
-  design says so itself. The Opening Bid needs a matrix picker screen.
+- **The Opening Bid and The Second Hand are BUILT now (SG-26, 2026-08-01)**,
+  and each carries an in-run trade the table below only priced, because the
+  Articles' rule hardened to "a vow, not a bonus":
+  - **The Opening Bid (2 sigils)** opens the whole 32-cell matrix to every
+    weapon draft — you name the cell instead of taking the deal (the matrix
+    picker is the draft screen's grid mode, arrows + Enter or click) — **and
+    the bid is final: no rerolls, all run.** Deep Pockets' grant is refused at
+    `begin_run`, `reroll_draft` refuses a bought one, and SPARE PARTS leaves
+    the catalogue rather than dealing a card worse than a skip. Checks:
+    `shop · the bid opens the whole matrix, not a deal`,
+    `shop · and the bid is final — a bought reroll is still refused`,
+    `shop · and SPARE PARTS leaves the catalogue rather than dealing dead`.
+  - **The Second Hand (3 sigils)** is a fifth slot — `telemetry.gd` sizes five
+    buckets, the HUD raises a fifth well above the hand — **dealt where the
+    run's first upgrade cards would have been, and it holds only the shapes
+    that fight alone** (Field, Pulse), because no fifth key exists and the
+    keyed-Article rule against inventing a binding held. The displaced card is
+    the price. Checks:
+    `shop · the fifth is dealt where the first card would be, and fights alone`,
+    `shop · and without the article that same draft deals cards`,
+    `shop · the second hand raises the capacity and its telemetry together`.
+  - They exclude each other (`shop · and the signed bid bars the second hand
+    at any purse`), which brings the sigil side to 16 to own all nine.
+  - One deliberate composition note: Heat 3 · Cold Deck narrows DEALT drafts
+    and start rerolls; the Bid's matrix stays whole under it, because the Bid
+    replaces dealing entirely and its reroll cost is already absolute.
 - **The keyed Articles are captain-only.** `F` is the Boilerwright's Tap Main and
   `V` is his Blowdown; those are the class, not a binding. Rebinding his
   signature or inventing a third key nobody remembers were both worse than

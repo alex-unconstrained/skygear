@@ -244,6 +244,19 @@ var brace_left := 0.0
 
 func article(id: String) -> bool:
 	return bool(articles.get(id, false))
+
+
+## How many weapons this run may hold. Four, or five under THE SECOND HAND —
+## asked here, once, so the slot loops, the draft threshold and the HUD cannot
+## each carry their own copy of the number (failure mode two).
+func skill_capacity() -> int:
+	return 5 if article("second_hand") else 4
+
+
+## THE OPENING BID's picker keyboard: which cell of the matrix the arrows are
+## on. Lives on the game rather than the HUD because choosing is a simulation
+## act — the HUD only draws the ring.
+var draft_cursor := 0
 ## The one line of advice, if there is one worth giving. Read-only against the
 ## simulation, so a bad hint is a wrong sentence rather than a wrong game.
 var coach := SkyGearCoach.new()
@@ -327,12 +340,26 @@ func _unhandled_input(event: InputEvent) -> void:
 	if state == State.DRAFT and event is InputEventMouseButton and event.pressed \
 			and event.button_index == MOUSE_BUTTON_LEFT:
 		var where: Vector2 = hud.get_local_mouse_position()
-		var cards := SkyGearHUD.draft_cards(hud.size, mini(3, draft_options.size()))
-		for i in cards.size():
-			if cards[i].has_point(where):
-				choose_draft(i)
-				get_viewport().set_input_as_handled()
-				return
+		## THE OPENING BID's matrix: more than four options is the grid, and the
+		## grid's geometry is `bid_cells` — the same static the HUD draws from,
+		## so the click and the picture cannot disagree (the `hud_plates` rule).
+		if draft_options.size() > 4:
+			var cells := SkyGearHUD.bid_cells(hud.size, draft_options.size())
+			for i in cells.size():
+				if cells[i].has_point(where):
+					choose_draft(i)
+					get_viewport().set_input_as_handled()
+					return
+		else:
+			## `mini(4...)` — the FOURTH CARD fix's other half (SG-46): the hit
+			## test capped at three too, so even a drawn fourth card would have
+			## ignored its own click.
+			var cards := SkyGearHUD.draft_cards(hud.size, mini(4, draft_options.size()))
+			for i in cards.size():
+				if cards[i].has_point(where):
+					choose_draft(i)
+					get_viewport().set_input_as_handled()
+					return
 		if SkyGearHUD.reroll_button(hud.size).has_point(where):
 			reroll_draft()
 			get_viewport().set_input_as_handled()
@@ -522,6 +549,26 @@ func _unhandled_input(event: InputEvent) -> void:
 			reroll_draft()
 			get_viewport().set_input_as_handled()
 			return
+		## THE OPENING BID's matrix drives on arrows and Enter — thirty-two
+		## cells is past what number keys can name. Four columns, so vertical
+		## steps are ±4; the cursor clamps rather than wraps.
+		if draft_options.size() > 4:
+			var step := 0
+			match event.keycode:
+				KEY_LEFT: step = -1
+				KEY_RIGHT: step = 1
+				KEY_UP: step = -4
+				KEY_DOWN: step = 4
+			if step != 0:
+				draft_cursor = clampi(draft_cursor + step, 0,
+					draft_options.size() - 1)
+				hud.queue_redraw()
+				get_viewport().set_input_as_handled()
+				return
+			if event.keycode in [KEY_ENTER, KEY_KP_ENTER, KEY_SPACE]:
+				choose_draft(draft_cursor)
+				get_viewport().set_input_as_handled()
+				return
 		var choice := -1
 		if event.keycode in [KEY_1, KEY_KP_1]:
 			choice = 0
@@ -529,6 +576,10 @@ func _unhandled_input(event: InputEvent) -> void:
 			choice = 1
 		elif event.keycode in [KEY_3, KEY_KP_3]:
 			choice = 2
+		elif event.keycode in [KEY_4, KEY_KP_4]:
+			## FOURTH CARD's key (SG-46). The talent dealt a fourth option and
+			## the keyboard stopped at 3, so the bought card was unreachable.
+			choice = 3
 		if choice >= 0:
 			choose_draft(choice)
 			get_viewport().set_input_as_handled()
@@ -1241,7 +1292,9 @@ func begin_run() -> void:
 	hulk = {}
 	crew_timer = 2.5
 	mods = SkyGearCards.fresh_mods()
-	tel = SkyGearTelemetry.fresh()
+	## Five attribution buckets under THE SECOND HAND, or the fifth hand's work
+	## would be silently dropped from the report and the draft's slot targeting.
+	tel = SkyGearTelemetry.fresh(skill_capacity())
 	cards_taken.clear()
 	## HEAT 3 · COLD DECK cuts the starting rerolls to one. The base is capped
 	## here and the Deep Pockets talent adds onto it below, so the ladder sets the
@@ -1264,6 +1317,12 @@ func begin_run() -> void:
 	mods.vent_heal = float(mods.vent_heal) + float(talents.get("vent_heal", 0.0))
 	mods.vent_radius = float(mods.vent_radius) + float(talents.get("vent_radius", 0.0))
 	rerolls += int(talents.get("rerolls", 0.0))
+	## THE OPENING BID's cost, applied AFTER every grant so nothing lifts it back
+	## up: the bid is final, and a vow Deep Pockets could buy out of would be a
+	## discount rather than a vow. (`reroll_draft` refuses too, for the rerolls a
+	## CARD might add mid-run — SPARE PARTS also stops being dealt.)
+	if article("opening_bid"):
+		rerolls = 0
 	boiler_max_hp += float(talents.get("boiler_hp", 0.0))
 	boiler_hp = boiler_max_hp
 
@@ -1275,19 +1334,51 @@ func begin_run() -> void:
 	player.move_speed = float(kit.get("speed", SkyGearPlayer.SPEED)) 		* (1.0 + float(talents.get("move_speed", 0.0)))
 	player.max_dash_charges = int(kit.get("dashes", SkyGearPlayer.START_DASH_CHARGES))
 	player.dash_charges = player.max_dash_charges
-	for skill in SkyGearData.STARTING_SKILLS:
-		var instance := SkyGearData.make_skill(skill.shape, skill.element)
-		draft_options.append({
-			"kind": "skill",
-			"scope": SkyGearCards.SCOPE_NEW,
-			"class_label": SkyGearCards.SCOPE_LABEL[SkyGearCards.SCOPE_NEW],
-			"rarity": SkyGearCards.RARITY_DEFAULT,
-			"slot": draft_options.size(),
-			"title": SkyGearData.skill_name(instance).to_upper(),
-			"text": "%s · %s" % [SkyGearData.SHAPES[instance.shape].kind, SkyGearData.ELEMENTS[instance.element].blurb],
-			"skill": instance,
-		})
+	## THE OPENING BID: the opening hand is not dealt, it is named. The whole
+	## matrix, from the first draft of the run.
+	if article("opening_bid"):
+		draft_options = _bid_matrix()
+	else:
+		for skill in SkyGearData.STARTING_SKILLS:
+			var instance := SkyGearData.make_skill(skill.shape, skill.element)
+			draft_options.append(_weapon_option(instance))
+	draft_cursor = 0
 	_set_state(State.DRAFT)
+
+
+## One weapon as one draft option — the dict the card face, the click handler
+## and `choose_draft` all read. Built here once; it used to be written out
+## longhand in two places and The Opening Bid would have made it four.
+func _weapon_option(instance: Dictionary) -> Dictionary:
+	return {
+		"kind": "skill",
+		"scope": SkyGearCards.SCOPE_NEW,
+		"class_label": SkyGearCards.SCOPE_LABEL[SkyGearCards.SCOPE_NEW],
+		"rarity": SkyGearCards.RARITY_DEFAULT,
+		"slot": skills.size(),
+		"title": SkyGearData.skill_name(instance).to_upper(),
+		"text": "%s · %s" % [SkyGearData.SHAPES[instance.shape].kind,
+			SkyGearData.ELEMENTS[instance.element].blurb],
+		"skill": instance,
+	}
+
+
+## THE OPENING BID's whole matrix: every draftable shape you do not already
+## hold, in all four elements, shape-major so cell (row, col) is index
+## row * 4 + col — the same order `SkyGearHUD.bid_cells` lays the grid out in.
+## Deterministic and rng-free: naming a cell is the opposite of a deal.
+func _bid_matrix() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var used: Array[String] = []
+	for skill in skills:
+		used.append(skill.shape)
+	for shape in DRAFT_SHAPES:
+		if str(shape) in used:
+			continue
+		for element in ["EMBER", "FROST", "ARC", "STEAM"]:
+			out.append(_weapon_option(SkyGearData.make_skill(str(shape),
+				str(element))))
+	return out
 
 ## The run report. Same shape as the browser build's, because the point of it is
 ## that a tester pastes it into a message and the numbers mean the same thing on
@@ -1436,10 +1527,14 @@ func _close_share() -> int:
 func _slot_skill(skill: Dictionary) -> void:
 	var passive: bool = bool(SkyGearData.SHAPES[skill.shape].get("passive", false))
 	## Grow to the size we need, marking the gaps so they can be filled in
-	## whichever order the class of skill prefers.
-	while skills.size() < 4:
+	## whichever order the class of skill prefers. Capacity is 4, or 5 under THE
+	## SECOND HAND — and the fifth is passive by construction (`open_draft` deals
+	## it only the shapes that fight alone), so the far end it fills from is the
+	## keyless slot.
+	while skills.size() < skill_capacity():
 		skills.append({})
-	var order: Array = [3, 2, 1, 0] if passive else [0, 1, 2, 3]
+	var order: Array = range(skills.size() - 1, -1, -1) if passive \
+		else range(skills.size())
 	for slot in order:
 		if (skills[slot] as Dictionary).is_empty():
 			skills[slot] = skill
@@ -1471,7 +1566,7 @@ func choose_draft(index: int) -> void:
 			if option.has("apply"):
 				option.apply.call(self)
 		"skill":
-			if skills.size() < 4:
+			if skills.size() < skill_capacity():
 				_slot_skill(option.skill.duplicate(true))
 				if voice != null:
 					voice.say("slot", 1)
@@ -1726,6 +1821,11 @@ func roll_upgrade_cards(count: int) -> Array[Dictionary]:
 ## chosen, and it draws from the seeded stream so a replay that rerolls at the
 ## same moment sees the same second hand.
 func reroll_draft() -> bool:
+	## THE OPENING BID is final. Refused HERE as well as zeroed at `begin_run`,
+	## because a card (SPARE PARTS) can add rerolls mid-run and the vow outranks
+	## the card — this is the drawback path, and the harness executes it.
+	if article("opening_bid"):
+		return false
 	if state != State.DRAFT or rerolls <= 0:
 		return false
 	rerolls -= 1
@@ -1736,6 +1836,14 @@ func reroll_draft() -> bool:
 	return true
 
 
+## The eight draftable shapes — the rows of the 32-cell matrix. One list, used
+## by the weighted dealer AND by The Opening Bid's open matrix, so the two can
+## never disagree about what is draftable (failure mode two). CLOSEHIT is not
+## here because the Cleave is the auto attack, not a card.
+const DRAFT_SHAPES := ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY",
+	"AURA", "PULSE", "SENTRY"]
+
+
 ## The eight shapes, ordered by how much this class wants them. Deterministic
 ## given the seed: the bias multiplies a per-shape roll, so a starved shape can
 ## still come up and a favoured one is not guaranteed — the same run on the same
@@ -1743,8 +1851,7 @@ func reroll_draft() -> bool:
 func _weighted_shapes() -> Array[String]:
 	var bias: Dictionary = class_data().get("shape_bias", {})
 	var scored: Array = []
-	for shape in ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY", "AURA",
-			"PULSE", "SENTRY"]:
+	for shape in DRAFT_SHAPES:
 		scored.append({"shape": shape,
 			"score": rng.randf() * float(bias.get(shape, 1.0))})
 	scored.sort_custom(func(a, b): return float(a.score) > float(b.score))
@@ -1793,7 +1900,14 @@ func open_draft() -> void:
 	if voice != null:
 		voice.say("draft")
 	draft_options.clear()
-	if skills.size() < 4:
+	if skills.size() < skill_capacity() and article("opening_bid"):
+		## THE OPENING BID. The matrix is not dealt, it is opened: every shape
+		## you do not hold, in all four elements, and you name the cell. The
+		## weighted dealer, the element-match rule and Fourth Card all step
+		## aside — there is nothing to widen when everything is already offered.
+		## What the vow costs is downstream: `rerolls` is zero all run.
+		draft_options = _bid_matrix()
+	elif skills.size() < skill_capacity():
 		## THE ORDER IS WEIGHTED BY CLASS. Same eight shapes, same 36 cells — the
 		## draft simply reaches for his first. He wants ground he can hold and
 		## hazards he can plant; a Beam on a man who cannot chase is a weapon he
@@ -1804,6 +1918,17 @@ func open_draft() -> void:
 		## would mean two different matrices to balance, which is the thing the
 		## class design explicitly refused to do.
 		var shape_order: Array[String] = _weighted_shapes()
+		## THE SECOND HAND. The fifth draft — the one that would have been the
+		## run's first upgrade cards — deals only the shapes that fight on their
+		## own (Field, Pulse), because no fifth key exists and an active in the
+		## keyless slot would be a dead button. The card it displaced IS the
+		## price; the harness holds a check on exactly that draft.
+		if skills.size() >= 4:
+			var alone: Array[String] = []
+			for shape in DRAFT_SHAPES:
+				if bool(SkyGearData.SHAPES[shape].get("passive", false)):
+					alone.append(str(shape))
+			shape_order = alone
 		var element_order: Array[String] = ["EMBER", "FROST", "ARC", "STEAM"]
 		var used_shapes: Array[String] = []
 		for skill in skills:
@@ -1853,6 +1978,7 @@ func open_draft() -> void:
 			option["scope"] = SkyGearCards.SCOPE_NEW
 			option["class_label"] = SkyGearCards.SCOPE_LABEL[SkyGearCards.SCOPE_NEW]
 		option["affects"] = SkyGearCards.affects(self, option)
+	draft_cursor = 0
 	_set_state(State.DRAFT)
 	play_sfx("ui/card_deal.ogg", -5.0)
 

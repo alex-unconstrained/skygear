@@ -13,9 +13,15 @@ extends RefCounted
 ## Attribution is by SLOT, not by shape or element, because a slot is what the
 ## player presses and what an upgrade targets.
 
-static func fresh() -> Dictionary:
+## `slots` is how many attribution buckets the run needs — four, or five when
+## THE SECOND HAND is signed. Passed in rather than read from a game, because
+## this module is static and the harness builds fixtures without one; sized here
+## rather than grown on demand, because `note_cast` DROPS a slot it has no row
+## for, and a fifth slot whose damage silently vanished from the report is the
+## data-with-no-reader failure inverted (a reader with no data).
+static func fresh(slots: int = 4) -> Dictionary:
 	var per: Array = []
-	for _i in 4:
+	for _i in maxi(4, slots):
 		per.append({"casts": 0, "damage": 0.0, "kills": 0, "hits": 0,
 			"shape": "", "element": ""})
 	return {

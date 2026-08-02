@@ -5,7 +5,7 @@ screen — a label a few pixels off, a glyph off-centre in its slot, a button
 crowding its neighbour — press **F4** right there and move it. The screen you
 are ON is the screen you edit: there is no screen picker in the editor because
 the game is the screen picker. Close the editor, walk to the screen that is
-wrong, press F4 again. (The 84-shot batch page — `SkyGear Tools.bat screens` —
+wrong, press F4 again. (The 92-shot batch page — `SkyGear Tools.bat screens` —
 stays as the secondary, batch-evidence mode: for auditing everything at once,
 not for fixing anything.)
 

@@ -146,16 +146,33 @@ const NODES := {
 		"field": "fourth_card", "per": 1.0},
 }
 
-## THE ARTICLES. Nine were designed; seven are here.
+## THE ARTICLES. Nine were designed; all nine are here now — The Opening Bid and
+## The Second Hand arrived last (SG-26), and each carries its trade IN THE RUN
+## rather than only on the price tag, because an Article that is nothing but a
+## bonus is a stat node wearing a wax seal:
 ##
-## Sixteen sigils to own the seven against eleven in existence, so you can never
+##   * THE OPENING BID opens the whole 32-cell matrix to every weapon draft —
+##     you name the cell instead of taking the deal — and in exchange the bid is
+##     final: no rerolls, all run, not even bought ones (Deep Pockets and SPARE
+##     PARTS both defer to it). Certainty up front, zero flexibility after.
+##   * THE SECOND HAND grants a fifth slot, and pays for it where it hurts: the
+##     fifth weapon is dealt IN PLACE OF the draft that would have been your
+##     first upgrade card, so the compounding half of the run starts a wave
+##     late. And no fifth key exists — the keyed-Article rule against inventing
+##     a binding nobody remembers holds here too — so the fifth hand takes only
+##     the shapes that fight on their own (Field, Pulse).
+##
+## Sixteen sigils to own the nine against fewer in existence, so you can never
 ## have the whole side — which is the point. A meta layer you finish is a meta
 ## layer that stops being a decision.
 ##
-## TWO MUTUAL EXCLUSIONS, both on the same key. Brace and Recall answer the two
-## things the game has no answer for — the hit you saw coming, and the lane that
-## broke on the far side of the deck — and owning both would make `F` a
-## context-sensitive guess. Same key, different game.
+## THREE MUTUAL EXCLUSIONS. Brace and Recall answer the two things the game has
+## no answer for — the hit you saw coming, and the lane that broke on the far
+## side of the deck — and owning both would make `F` a context-sensitive guess.
+## Same key, different game. The Bid and the Second Hand exclude each other for
+## a different reason: one narrows the run to a plan and the other widens it to
+## a wave more of dealing, and a captain who owned both would have bought back
+## the flexibility the Bid is priced on.
 ##
 ## THE BOILERWRIGHT CANNOT TAKE THE KEYED ONES. His `F` is Tap Main and his `V`
 ## is Blowdown; they are the class, not a binding. Rather than rebind his
@@ -185,6 +202,14 @@ const ARTICLES := {
 	"deadmans_switch": {"name": "Deadman's Switch", "cost": 2,
 		"text": "below a quarter the Boiler vents itself, once a wave",
 		"field": "deadmans_switch"},
+	"opening_bid": {"name": "The Opening Bid", "cost": 2,
+		"excludes": "second_hand",
+		"text": "name your weapons from the open matrix — no rerolls, ever",
+		"field": "opening_bid"},
+	"second_hand": {"name": "The Second Hand", "cost": 3,
+		"excludes": "opening_bid",
+		"text": "a fifth hand that fights alone, dealt in place of your first card",
+		"field": "second_hand"},
 }
 
 

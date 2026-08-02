@@ -41,7 +41,17 @@ const SCREENS := [
 	{"name": "how to play mid-run", "state": "PAUSE", "skills": 4, "how": true},
 	{"name": "draft (weapons)", "state": "DRAFT", "skills": 0},
 	{"name": "draft (upgrades)", "state": "DRAFT", "skills": 4},
+	## THE OPENING BID's matrix (SG-26): thirty-two named cells where three
+	## cards would be, plus the vow strip. A grid of 12pt labels at 1280 is
+	## exactly the kind of screen that breaks first and gets looked at last.
+	{"name": "draft (the bid)", "state": "DRAFT", "skills": 0,
+		"article": "opening_bid"},
 	{"name": "playing", "state": "PLAY", "skills": 4},
+	## THE SECOND HAND's fifth well (SG-26): raised above the hand, keyless,
+	## EMPTY with its invitation up — the pose with the most novel strings on
+	## it. Armed it is just a fifth copy of a well the other poses measure.
+	{"name": "playing (the second hand)", "state": "PLAY", "skills": 4,
+		"article": "second_hand"},
 	## THE OTHER CLASS'S HUD, WHICH NOTHING HAS EVER LOOKED AT. Every screen in
 	## this list poses the captain, so the strip that carries the Boilerwright's
 	## three bindings and his Overpressure readout has never been measured — and
@@ -117,6 +127,19 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	## BEFORE `begin_run`, or the body, the dash ceiling and the starting weapon
 	## are all built for whoever was aboard last.
 	game.set_class(str(screen.get("class", "captain")))
+	## An Article pose (SG-26) signs its vow BEFORE `begin_run`, because that is
+	## the one moment a run resolves what the Workshop granted — set it later
+	## and the pose is a screenshot of the Article NOT working. And EVERY pose
+	## starts from a clean ephemeral bench: the game object is reused across the
+	## whole matrix, so without this a vow signed for one screen would still be
+	## live on every screen posed after it (and on a dev machine, whatever
+	## workshop.json the local save holds would leak into the measurements).
+	game.workshop = SkyGearWorkshop.fresh(true)
+	var vow := str(screen.get("article", ""))
+	if vow != "":
+		game.workshop.unlocked = true
+		game.workshop.sigils = 9
+		SkyGearWorkshop.take(game.workshop, vow)
 
 	var want := str(screen.state)
 	if want != "TITLE":

@@ -843,7 +843,11 @@ static func catalogue() -> Array:
 	cards.append({
 		"id": "spares", "rarity": "common", "scope": SCOPE_META,
 		"weight": func(_g): return 7.0,
-		"can": func(g): return g.rerolls < 6,
+		## THE OPENING BID outranks this card: the vow is no rerolls, ever, and
+		## `reroll_draft` refuses under it — so dealing +2 rerolls to a captain
+		## who signed the Bid would be dealing a card that does nothing, which is
+		## worse than a skip. It leaves the catalogue for that run instead.
+		"can": func(g): return g.rerolls < 6 and not g.article("opening_bid"),
 		"make": func(_g, _pick: Callable):
 			return {"title": "SPARE PARTS", "text": "+2 rerolls, for any future draft.",
 				"apply": func(gg): gg.rerolls += 2},

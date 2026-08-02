@@ -13,12 +13,18 @@ extends SceneTree
 ##   godot --path . --headless --script tools/balance.gd
 ##   godot --path . --headless --script tools/balance.gd -- 5     (runs)
 ##   godot --path . --headless --script tools/balance.gd -- 6 5   (runs, HEAT)
+##   godot --path . --headless --script tools/balance.gd -- 6 0 opening_bid
 ##
 ## The second argument is a HEAT level (SG-14). It opens the whole ladder on an
 ## ephemeral workshop and starts every run at that rung, so the difficulty claim
 ## — a Heat 5 run is clearly harder than a Heat 0 one — can be measured across
 ## seeds rather than felt. Read the wave-reached and held columns as the
 ## difficulty signal; per the caveats below, read them as a DISTRIBUTION.
+##
+## The third argument is an ARTICLE id (SG-26), signed on the same ephemeral
+## workshop before every run — so a vow's measured effect on a whole run can be
+## put beside the baseline instead of asserted. An Article that comes back
+## strictly better with no visible cost is a bonus wearing a vow's name.
 func _initialize() -> void: call_deferred("_run")
 
 const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6"]
@@ -27,15 +33,22 @@ func _run() -> void:
 	var args := OS.get_cmdline_user_args()
 	var count: int = int(args[0]) if args.size() > 0 else 3
 	var heat: int = int(args[1]) if args.size() > 1 else 0
-	print("  HEAT %d · %s" % [heat, str(SkyGearWorkshop.HEAT[
-		clampi(heat, 0, SkyGearWorkshop.HEAT.size() - 1)].name)])
+	var vow: String = str(args[2]) if args.size() > 2 else ""
+	if vow != "" and not SkyGearWorkshop.ARTICLES.has(vow):
+		print("  no such article: %s — the seals are %s" % [vow,
+			", ".join(SkyGearWorkshop.ARTICLES.keys())])
+		quit(1)
+		return
+	print("  HEAT %d · %s%s" % [heat, str(SkyGearWorkshop.HEAT[
+		clampi(heat, 0, SkyGearWorkshop.HEAT.size() - 1)].name),
+		"  ·  ARTICLE %s" % vow if vow != "" else ""])
 	var ally_share := 0.0
 	var player_share := 0.0
 	var waves_reached := 0.0
 	var wins := 0
 	var results: Array = []
 	for i in mini(count, SEEDS.size()):
-		var r := await _one(SEEDS[i], heat)
+		var r := await _one(SEEDS[i], heat, vow)
 		results.append(r)
 		ally_share += float(r.ally)
 		player_share += float(r.player)
@@ -103,7 +116,7 @@ func _run() -> void:
 	quit(0)
 
 
-func _one(seed_text: String, heat: int = 0) -> Dictionary:
+func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 	var game: SkyGearGame = (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(game)
 	## The whole ladder opened on a throwaway workshop, so the run can START at any
@@ -112,6 +125,10 @@ func _one(seed_text: String, heat: int = 0) -> Dictionary:
 	game.workshop = SkyGearWorkshop.fresh(true)
 	game.workshop.unlocked = true
 	game.workshop.best_heat = SkyGearWorkshop.HEAT.size() - 1
+	## The vow under measurement (SG-26), signed before `begin_run` resolves it.
+	if vow != "":
+		game.workshop.sigils = 9
+		SkyGearWorkshop.take(game.workshop, vow)
 	game.heat = heat
 	## HAND-STEPPED, so the engine must not step it too.
 	##
@@ -158,13 +175,18 @@ func _one(seed_text: String, heat: int = 0) -> Dictionary:
 			## question needs: if a player who deliberately drafts them still
 			## gets nothing back, they are not worth a slot.
 			var pick := 0
-			for card_index in game.draft_options.size():
-				var shape := str((game.draft_options[card_index] as Dictionary)
-					.get("skill", {}).get("shape", ""))
-				if shape != "" and bool(SkyGearData.SHAPES.get(shape, {}).get(
-						"passive", false)):
-					pick = card_index
-					break
+			## THE OPENING BID's matrix: more than four options is the grid, and
+			## "prefers a passive" there would open every run with a Field — a
+			## fact about this bot, not about the Article. Cell 0 is the first
+			## unheld shape in EMBER, which is the plain competent bid.
+			if game.draft_options.size() <= 4:
+				for card_index in game.draft_options.size():
+					var shape := str((game.draft_options[card_index] as Dictionary)
+						.get("skill", {}).get("shape", ""))
+					if shape != "" and bool(SkyGearData.SHAPES.get(shape, {}).get(
+							"passive", false)):
+						pick = card_index
+						break
 			game.choose_draft(pick)
 		game._process(0.05)
 		for e in game.get_tree().get_nodes_in_group("enemies"):

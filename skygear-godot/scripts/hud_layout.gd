@@ -86,6 +86,12 @@ const DEFAULT := {
 	"slot1": {"anchor": "bottom_centre", "offset": [-64, -24], "size": [120, 112]},
 	"slot2": {"anchor": "bottom_centre", "offset": [64, -24], "size": [120, 112]},
 	"slot3": {"anchor": "bottom_centre", "offset": [192, -24], "size": [120, 112]},
+	## THE SECOND HAND's well (SG-26). Raised above the hand rather than fifth in
+	## the row: extending the band rightward runs the shipped layout into the
+	## ship plate at 1366, and the fifth hand is the one with no key — off the
+	## row is what it IS. Drawn only when the Article grants a fifth slot; placed
+	## always, so the layout matrix and `problems()` check it like any plate.
+	"slot4": {"anchor": "bottom_centre", "offset": [128, -140], "size": [120, 112]},
 }
 
 ## Every skill slot shares one set of item positions — four slots that disagree
@@ -97,7 +103,8 @@ const SLOT_ITEMS := {
 	"name": {"anchor": "bottom_centre", "offset": [0, 1], "size": [74, 13]},
 }
 
-const ORDER := ["objective", "captain", "slot0", "slot1", "slot2", "slot3", "ship"]
+const ORDER := ["objective", "captain", "slot0", "slot1", "slot2", "slot3",
+	"slot4", "ship"]
 
 ## The one plate allowed above the halfway line, because it is the objective and
 ## it is deliberately slim. Everything else stays in the bottom band, which is

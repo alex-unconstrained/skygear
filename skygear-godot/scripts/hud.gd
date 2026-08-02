@@ -477,7 +477,9 @@ static func hud_plates(view: Vector2) -> Dictionary:
 		layout = SkyGearHudLayout.load_layout()
 	var out := layout.all_rects(view)
 	var slots := Rect2()
-	for i in 4:
+	## All five wells, including The Second Hand's raised one — the side plates
+	## give way to the whole hand, not to the first four fifths of it.
+	for i in 5:
 		slots = slots.merge(out["slot%d" % i]) if i > 0 else out["slot0"]
 	for name in ["captain", "ship"]:
 		var plate: Rect2 = out[name]
@@ -1561,8 +1563,11 @@ func _draw_game_hud() -> void:
 			HORIZONTAL_ALIGNMENT_RIGHT, _fits(readout, 38.0, 12, 9))
 
 	## --- the hand -----------------------------------------------------------
-	var labels := ["LMB", "RMB", "Q", "E"]
-	for i in 4:
+	## Four wells, or five under THE SECOND HAND. The fifth has no key — the
+	## Articles' own rule against a binding nobody remembers — so its tab says
+	## what is true: it fires itself.
+	var labels := ["LMB", "RMB", "Q", "E", "AUTO"]
+	for i in game.skill_capacity():
 		var slot := "slot%d" % i
 		var rect: Rect2 = plates[slot]
 		_panel(rect, true)
@@ -1598,9 +1603,14 @@ func _draw_game_hud() -> void:
 			## read by somebody who does not yet know what the slot is for.
 			var well := _stamp(Rect2(rect.position.x + 5.0,
 				icon_at.get_center().y - 9.0, rect.size.x - 10.0, 17.0), 0.5)
-			_label("draft a weapon", Vector2(well.position.x, well.end.y - 4.0),
+			## The fifth well is the Article's, and it is not filled by wanting
+			## to — it arrives when the hand of four is full, in place of that
+			## draft's cards. Saying "draft a weapon" there would be an
+			## instruction the player cannot follow yet.
+			var invite := "the second hand" if i == 4 else "draft a weapon"
+			_label(invite, Vector2(well.position.x, well.end.y - 4.0),
 				well.size.x, HORIZONTAL_ALIGNMENT_CENTER,
-				_fits("draft a weapon", well.size.x, 12), Color("#9a92a6"))
+				_fits(invite, well.size.x, 12), Color("#9a92a6"))
 			continue
 		var skill: Dictionary = game.skills[i]
 		var element: Color = SkyGearData.ELEMENTS[skill.element].color
@@ -2276,18 +2286,37 @@ static func card_face(rect: Rect2) -> Rect2:
 ## (`drawDraft` ~180) — where the port said the generic "CHOOSE ONE" for all
 ## three. Resolved here so the face and the harness read one answer.
 static func draft_heading(game) -> String:
+	## THE OPENING BID's matrix names itself first: more than four options is
+	## the grid, whichever draft it stands in for.
+	if game.draft_options.size() > 4:
+		return "NAME YOUR WEAPON"
 	if bool(game.opening_draft):
 		return "CHOOSE YOUR OPENING WEAPON"
 	if game.skills.size() < 4:
 		return "ARM A NEW SLOT"
+	## THE SECOND HAND's draft: the hand of four is full and the capacity is
+	## five, so this is the weapon dealt where the first card would have been.
+	if game.skills.size() < game.skill_capacity():
+		return "ARM THE SECOND HAND"
 	return "DRAFT AN UPGRADE"
 
 
 static func draft_subhead(game) -> String:
+	## The vow rides the subhead, not a strip of its own: the band below the
+	## grid belongs to the dimmed fight HUD's wells, and a strip there printed
+	## through "draft a weapon" at every width the audit poses.
+	if game.draft_options.size() > 4:
+		return "YOUR BID IS FINAL — NO REROLLS  ·  CLICK, OR ARROWS AND ENTER"
 	if bool(game.opening_draft):
 		return "EVERY SKILL IS A SHAPE AND AN ELEMENT  —  PRESS 1 / 2 / 3"
 	if game.skills.size() < 4:
+		## FOURTH CARD widens this hand to four (SG-46), and the instruction
+		## has to know it — a key hint that omits the bought card hides it.
+		if game.draft_options.size() >= 4:
+			return "WHICH WEAPON, NOT WHETHER  —  PRESS 1 / 2 / 3 / 4"
 		return "WHICH WEAPON, NOT WHETHER  —  PRESS 1 / 2 / 3"
+	if game.skills.size() < game.skill_capacity():
+		return "IT FIGHTS ON ITS OWN  —  IN PLACE OF THIS WAVE'S CARDS"
 	return "PICK ONE  —  CLICK OR PRESS 1 / 2 / 3"
 
 
@@ -2304,6 +2333,39 @@ static func draft_cards(view: Vector2, count: int) -> Array[Rect2]:
 ## mouse could do anything with.
 static func reroll_button(view: Vector2) -> Rect2:
 	return Rect2(view.x * 0.5 - 120.0, CARD_TOP + CARD_H + 22.0, 240.0, 38.0)
+
+
+## THE OPENING BID's matrix (SG-26): where every cell of the open grid sits.
+## Four columns — the elements — and a row per shape still unheld, shape-major
+## so cell index r*4+c matches the order `_bid_matrix` built the options in.
+## Static and shared with the click handler in `game.gd`, the same rule as
+## `draft_cards` and `hud_plates`: the thing that draws and the thing that
+## decides what was clicked must be one function.
+##
+## Sized to the card band's vertical run (CARD_TOP down to the reroll strip),
+## so the grid lives exactly where the cards it replaces would have been and
+## the vow strip below keeps its home at every width the audit poses.
+static func bid_cells(view: Vector2, count: int) -> Array[Rect2]:
+	var cols := 4
+	var rows: int = maxi(1, ceili(float(count) / float(cols)))
+	var gap_x := 14.0
+	var gap_y := 6.0
+	var width: float = minf(view.x - 80.0, 1040.0)
+	var cell_w: float = (width - gap_x * float(cols - 1)) / float(cols)
+	var top := CARD_TOP
+	var bottom: float = CARD_TOP + CARD_H + 6.0
+	var cell_h: float = minf(48.0,
+		((bottom - top) - gap_y * float(rows - 1)) / float(rows))
+	var start_x: float = (view.x - width) * 0.5
+	var used_h: float = cell_h * float(rows) + gap_y * float(rows - 1)
+	var start_y: float = top + ((bottom - top) - used_h) * 0.5
+	var out: Array[Rect2] = []
+	for i in count:
+		var r: int = floori(float(i) / float(cols))
+		var c: int = i % cols
+		out.append(Rect2(start_x + float(c) * (cell_w + gap_x),
+			start_y + float(r) * (cell_h + gap_y), cell_w, cell_h))
+	return out
 
 
 ## The slim card frame — the browser's, not the HUD's brass nine-slice. A dark
@@ -2486,6 +2548,13 @@ func _draw_draft() -> void:
 		if coming != "":
 			_label(coming, Vector2(0.0, 174.0), size.x, HORIZONTAL_ALIGNMENT_CENTER,
 				_fits(coming, size.x, 14, 10), Color("#8fa6c9"))
+	## THE OPENING BID (SG-26): more than four options is the open matrix, drawn
+	## as a grid of named cells rather than three tall cards. Everything above —
+	## the banner, the heading, the manifest — is shared; below this line the two
+	## drafts part company.
+	if game.draft_options.size() > 4:
+		_draw_bid_matrix()
+		return
 	# reroll: two per RUN, so spending one is a decision about which hand
 	var reroll := reroll_button(size)
 	var can_reroll: bool = game.rerolls > 0
@@ -2496,7 +2565,11 @@ func _draw_draft() -> void:
 		Rect2(reroll.position + Vector2(0, 6), reroll.size), 18,
 		BRASS_LIT if can_reroll else Color("#6a6478"))
 	var card_width := CARD_W
-	var cards := draft_cards(size, mini(3, game.draft_options.size()))
+	## `mini(4...)`, and it was `mini(3...)` — which silently hid FOURTH CARD's
+	## whole purchase: the talent dealt a fourth option and this cap kept it off
+	## the screen, unchoosable, a 160-scrip no-op (SG-46). Four portrait cards
+	## span 1222, inside the 1280 floor the audit poses.
+	var cards := draft_cards(size, mini(4, game.draft_options.size()))
 	for i in cards.size():
 		var card: Dictionary = game.draft_options[i]
 		var rect: Rect2 = cards[i]
@@ -2626,7 +2699,7 @@ func _draw_draft() -> void:
 		## a slot. Saying so beats four grey dots, which is what it was drawing.
 		if str(card.get("kind", "")) == "skill":
 			var slot_note := "ARMS SLOT %d" % (int(card.get("slot", game.skills.size())) + 1)
-			if game.skills.size() >= 4:
+			if game.skills.size() >= game.skill_capacity():
 				slot_note = "REPLACES A SLOT"
 			_stamp(Rect2(face.position.x, row_y, face.size.x, 20.0), 0.45)
 			_say(slot_note, Vector2(face.position.x, row_y + 15.0), face.size.x,
@@ -2657,6 +2730,54 @@ func _draw_draft() -> void:
 					draw_circle(centre, 14.0, Color(tint.r, tint.g, tint.b, 0.18))
 					draw_arc(centre, 14.0, 0.0, TAU, 20, tint, 2.0)
 				draw_circle(centre, 7.0, skill_color if lit else Color(0.42, 0.40, 0.46))
+
+## THE OPENING BID's picker (SG-26). A cell is a shape and an element, with the
+## element doing the talking — the same two channels a card face leads with,
+## folded down to grid scale: the slot band's glyph on the left, the skill's
+## name in the element's ink. The seeded dealer is not consulted; the grid IS
+## the offer, which is the whole Article. Geometry comes from `bid_cells`, the
+## same static the click handler in `game.gd` hit-tests, so the picture and the
+## click cannot disagree.
+func _draw_bid_matrix() -> void:
+	var cells := SkyGearHUD.bid_cells(size, game.draft_options.size())
+	var mouse := get_local_mouse_position()
+	for i in cells.size():
+		var option: Dictionary = game.draft_options[i]
+		var rect: Rect2 = cells[i]
+		var tint: Color = SkyGearCards.hue_of(option)
+		var hovered: bool = rect.has_point(mouse)
+		var chosen: bool = game.draft_cursor == i
+		var lit: bool = hovered or chosen
+		draw_rect(rect, Color(0.055, 0.048, 0.086, 0.94))
+		if lit:
+			draw_rect(rect, Color(tint.r, tint.g, tint.b, 0.16))
+		draw_rect(rect, tint if lit else Color(tint.r, tint.g, tint.b, 0.45),
+			false, 2.0 if lit else 1.2)
+		## The shape glyph on a dark recess, tinted the element's way — exactly
+		## how the slot band says the same two things.
+		var glyph_r: float = minf(12.0, rect.size.y * 0.30)
+		var glyph_c := Vector2(rect.position.x + 16.0, rect.get_center().y)
+		draw_circle(glyph_c, glyph_r + 3.0, Color(0.05, 0.04, 0.07, 0.82))
+		var icon := _tex(str(SLOT_ICONS.get(str(option.skill.shape), "")))
+		if icon != null:
+			draw_texture_rect_region(icon,
+				Rect2(glyph_c - Vector2(glyph_r, glyph_r),
+					Vector2(glyph_r, glyph_r) * 2.0),
+				Rect2(Vector2.ZERO, icon.get_size()), tint)
+		var name_w: float = rect.size.x - 42.0
+		_label(str(option.title), Vector2(rect.position.x + 34.0,
+			rect.get_center().y + 5.0), name_w, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(str(option.title), name_w, 13, 10),
+			Color("#eee5d5") if lit else tint)
+	## The keyboard's ring, over everything, so where Enter lands is never a
+	## guess. Drawn even when the mouse is elsewhere — arrows are first-class.
+	if game.draft_cursor >= 0 and game.draft_cursor < cells.size():
+		draw_rect(cells[game.draft_cursor].grow(2.0), Color("#efe2ff"), false, 2.0)
+	## No reroll button and no strip in its place: the vow is in the subhead.
+	## The band below the grid belongs to the dimmed fight HUD's wells, and a
+	## strip standing where the reroll button stands printed "YOUR BID IS
+	## FINAL" through "draft a weapon" — the audit caught it at every width.
+
 
 ## The controls screen.
 ##
