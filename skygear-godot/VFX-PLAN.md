@@ -113,6 +113,13 @@ canvas transform, so it is genuinely free.
 
 **Cost:** ~40 lines. **Risk:** none. **Do alongside §1.**
 
+**DECIDED 2026-08-01 — the chromatic hit and radial blur are DROPPED, by the
+owner.** Shake and hit-stop shipped; the other two halves of this section are
+not built and will not be: `VFX-RESEARCH-AUDIT.md` ("Screen effects") argues
+against both on readability grounds, and Alex made the call ("drop 5 for
+now"). If it is ever revisited, the audit's constraint stands — prewarmed,
+sub-150ms, boss transitions only. Board SG-19 records the decision.
+
 ## 6. The captain's weapon trail
 
 **Question answered: did my hit land, and which way was I facing.**

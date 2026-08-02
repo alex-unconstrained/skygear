@@ -13,20 +13,10 @@ itch itself now; build 32 was the first.)
 
 ## Decisions
 
-**2 · Boilerwright model route** (SG-12) — gates ~30+ Meshy credits
-He currently renders as the captain. Two routes; **recommendation: route 2** —
-generate the mesh, then retarget the existing axe-pack clips onto it via
-`tools/ingest_model.py`. It is the only route where both classes move on the
-same clock (his timings would match hers, which `anim_timing.gd` measures).
-Route 1 (Meshy's own rig + animation library) is cheaper but his clips would
-never match hers. Say "route 2 approved" and an agent runs it end to end.
-
-**3 · Boilerwright mobility gap** (SG-7) — *measurement now settled*
-The old 67% figure was one draw of a noisy check; SG-1 made it deterministic:
-**he covers 40% of a dashing captain's ground** (a 60% gap — direction and
-conclusion unchanged). Either he gets compensated somewhere feelable, or the
-class-comparison screen states the trade plainly. The ledger's rule: no tuning
-by feel. Ready for your call.
+**3 · Boilerwright mobility gap** (SG-7) — *you took this one* (2026-08-01:
+"I'll test boilerwright movement myself"). The deterministic number when you
+do: he covers 40% of a dashing captain's ground. Report back what it feels
+like and whether the comparison screen should say the trade louder.
 
 **4 · The captain is 30,634 triangles, 4–10× the project's own budget** (SG-13)
 She was rightly skipped by the prop remesh (it would destroy her skin
@@ -35,9 +25,8 @@ LOD, or accept the cost and record it. **Recommendation: accept for now** —
 she's one asset, the build runs at half frame budget, and both alternatives
 risk the one rigged character that works.
 
-**5 · Drop chromatic aberration / radial blur formally?** (SG-19)
-The research audit argues against them on readability grounds. Nobody has
-made the call. **Recommendation: drop.** One word from you closes it.
+*(Resolved 2026-08-01: #2 Boilerwright route — route 2 approved, agent
+running; #5 chromatic/radial — dropped, recorded in VFX-PLAN §5.)*
 
 ## Check when you next play
 
