@@ -136,6 +136,32 @@ TRI_PART_FLOOR = 220
 # here is 0.00002, so this is three orders of margin and not a fudge.
 AXIS_RATIO_TOLERANCE = 0.02
 
+# THE METALLIC CEILING FOR THIS DECK, and it is ONE number because it was
+# learned once and then missed once.
+#
+# THIS DECK IS LIT BY LAMPS. A high-metallic surface with almost no environment
+# to reflect has nothing to return: metal in a dark scene is dark. That is
+# physically correct and dramatically useless — it renders the machine as a hole
+# in the planking rather than as a machine. SG-90 learned this from a rendered
+# frame (.shots/clips/boss frame 30, first pass) and wrote the conclusion into
+# the PALETTE below, where it applied to the ONLY path that existed then.
+#
+# SG-94 then added the PAINTED path beside it, and the painted path handed
+# Meshy's material straight through. Meshy ships NO metallicFactor at all, which
+# in glTF means the default 1.0, over a metallic map measuring mean 0.4947 /
+# p95 0.7804 / max 0.9647 — twice the ceiling on average and near-chrome at the
+# top. The fact was known in one place and contradicted in another; the boss went
+# dark again and read as a texture bug.
+#
+# So the ceiling lives HERE, above both paths, and both are checked against it:
+# the flat path by the assertion under PALETTE, the painted path by
+# `clamp_metallic`. A THIRD path must not be able to miss it — that is the whole
+# point of this constant existing rather than two clamps that happen to agree.
+#
+# The value is the highest metallic SG-90's judged-by-eye palette actually uses
+# (the head, 0.34). It is a ceiling, not a target: parts are free to sit under it.
+LAMPLIT_METALLIC_MAX = 0.34
+
 # THE PALETTE, by role, out of DESIGN's own list — blackened steel, riveted warm
 # brass, oxblood leather, oxidised copper, and sampled against the colours the
 # PREVIOUS Colossus already wears on this deck (its albedo quantises to #211b1f
@@ -166,6 +192,65 @@ PALETTE = {
     "leg":      ("594d44", 0.22, 0.58),
     "foot":     ("342d29", 0.24, 0.64),
 }
+
+# The flat path's half of the ceiling, asserted at import so it cannot drift.
+# Editing a PALETTE row up past the ceiling is exactly the edit that would
+# reintroduce SG-90's black silhouette, and it now fails before anything renders.
+_over = {r: v[1] for r, v in PALETTE.items() if v[1] > LAMPLIT_METALLIC_MAX}
+assert not _over, ("PALETTE metallic above the lamplit ceiling %.2f: %s"
+                   % (LAMPLIT_METALLIC_MAX, _over))
+del _over
+
+
+def clamp_metallic(material) -> dict:
+    """The painted path's half of the ceiling. Returns what it did, for the log.
+
+    glTF's effective metallic is `metallicFactor * metallicRoughnessTexture.b`,
+    so a factor alone is not the knob — a factor of 1.0 over Meshy's map IS the
+    bug. With a map present the factor is set so the map's PEAK texel lands on
+    the ceiling, which makes the guarantee exact and easy to state: no texel on
+    this surface exceeds `LAMPLIT_METALLIC_MAX`. Scaling to the peak rather than
+    to the mean errs on the BRIGHT side, and bright is the side this deck's one
+    recorded failure was not on.
+
+    The pixels are not rewritten. The map keeps its own spatial variation — the
+    painted difference between plate and brass is the reason to have a map at
+    all — and only its overall level comes down.
+    """
+    import numpy as np
+    before = float(material.metallicFactor
+                   if material.metallicFactor is not None else 1.0)
+    pic = getattr(material, "metallicRoughnessTexture", None)
+    if pic is None:
+        after = min(before, LAMPLIT_METALLIC_MAX)
+        peak_in = before
+    else:
+        b = np.asarray(pic.convert("RGB"), dtype=np.float64)[..., 2] / 255.0
+        peak_in = before * float(b.max())
+        after = (before if peak_in <= LAMPLIT_METALLIC_MAX
+                 else LAMPLIT_METALLIC_MAX / float(b.max()))
+        stat = {k: float(np.percentile(b, k)) for k in (50, 95, 99)}
+        print("metallic: map mean %.4f p95 %.4f max %.4f" % (
+            b.mean(), stat[95], b.max()))
+        print("metallic: effective mean %.4f -> %.4f, p95 %.4f -> %.4f, "
+              "peak %.4f -> %.4f (ceiling %.2f)" % (
+                  before * b.mean(), after * b.mean(),
+                  before * stat[95], after * stat[95],
+                  peak_in, after * float(b.max()), LAMPLIT_METALLIC_MAX))
+    material.metallicFactor = after
+    print("metallic: metallicFactor %s -> %.4f" % (
+        "unset (glTF default 1.0)" if before == 1.0 else "%.4f" % before, after))
+    ## THE GUARD, not decoration. This function's whole reason to exist is that
+    ## the ceiling was applied on one path and silently missed on another, so it
+    ## asserts its own postcondition instead of trusting the arithmetic above.
+    ## A future map with a zero peak, or an early return added by someone in a
+    ## hurry, fails HERE rather than three days later on a dark boss.
+    if after * (1.0 if pic is None else float(b.max())) > LAMPLIT_METALLIC_MAX + 1e-6:
+        raise SystemExit("clamp_metallic failed its own ceiling: peak %.4f > %.2f"
+                         % (after * float(b.max()), LAMPLIT_METALLIC_MAX))
+    return {"factor_in": before, "factor_out": after,
+            "peak_in": peak_in, "peak_out": min(peak_in, LAMPLIT_METALLIC_MAX),
+            "ceiling": LAMPLIT_METALLIC_MAX}
 
 # What the figure is DRAWN at, and it is not a number this file invented:
 # scripts/view3d.gd's `boarder_height("BOSS")` is (120 + radius*3) with no
@@ -555,12 +640,16 @@ def main() -> int:
     # from here down. See the module docstring for why this direction and not
     # the other.
     painted = None
+    metallic_note: dict | None = None
     sides: dict = {}
     if textured is not None:
         sys.path.insert(0, str(Path(__file__).resolve().parent))
         import meshy
         sides = meshy.tex_budget({"screen": DRAWN_SCREEN_UNITS})
         parts, painted = marry(parts, textured)
+        # BEFORE the maps are resized, so the reported peak is the delivered
+        # one rather than one LANCZOS has already smoothed the top off.
+        metallic_note = clamp_metallic(painted)
         resize_maps(painted, sides)
         for p in parts:
             print("  %-8s %7d seg -> %7d textured tris (%.1f%%)" % (
@@ -737,6 +826,21 @@ def main() -> int:
                           "is what tools/rig_parts.gd reads to leave the kit's own "
                           "material alone."),
         "texture_sides": maps or None,
+        # What the lamplit ceiling did to the delivered material, recorded so a
+        # reader can tell a clamped kit from an unclamped one without re-running
+        # the tool — the unclamped kit is the one that shipped as a black
+        # silhouette, and nothing in the glb itself says which it is.
+        "lamplit_metallic_max": LAMPLIT_METALLIC_MAX,
+        "metallic_clamp": metallic_note,
+        "metallic_note": (None if metallic_note is None else
+                          "Meshy delivers no metallicFactor, which in glTF means "
+                          "1.0, over a metallic map peaking near chrome. This deck "
+                          "is lit by lamps and has no environment to reflect, so a "
+                          "metallic surface returns nothing and reads as a hole. "
+                          "`factor_out` is set so the map's PEAK texel lands on "
+                          "`lamplit_metallic_max`; the map's own pixels are "
+                          "untouched, only its level. Same ceiling the flat "
+                          "PALETTE obeys — see LAMPLIT_METALLIC_MAX."),
         "faces_in": total_in, "faces_out": total_out,
         "kept": round(total_out / total_in, 5),
         "tri_budget": TRI_CEIL, "tri_part_floor": TRI_PART_FLOOR,
