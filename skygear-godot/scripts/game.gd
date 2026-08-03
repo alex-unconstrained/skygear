@@ -4142,12 +4142,32 @@ func _update_crew(delta: float) -> void:
 			reach = float(hulk.radius) + 40.0
 		var to_goal: Vector2 = goal - Vector2(c.position)
 		var distance := to_goal.length()
+		## WHICH WAY THIS SAILOR IS POINTED, and it is the goal he is already
+		## walking at (board SG-103). Owner, build-44: *"Crew members walk
+		## backwards, they should face enemies when walking."* The renderer had
+		## no way to know — a crewman is the one figure on this deck that
+		## carried no direction at all, so `view3d.gd` handed the rig a literal
+		## `Vector2(0, -1)` and every sailor faced the bow forever, including
+		## the ones `_update_crew` had just turned round to chase a boarder back
+		## down the deck.
+		##
+		## These are the SAME TWO FIELDS every boarder already carries
+		## (`SkyGearEnemy.attack_direction` and `.velocity`) under the same two
+		## names, so one renderer function can answer for an ally and an enemy
+		## alike rather than the crew getting a second rule of their own. Both
+		## are derived from `to_goal`, which was computed three lines up for the
+		## simulation's own use: no RNG is touched, nothing here reads them
+		## back, and they die with the man.
+		if distance > 0.001:
+			c["attack_direction"] = to_goal / distance
+		c["velocity"] = Vector2.ZERO
 		match str(c.state):
 			"move":
 				if distance <= reach:
 					c.state = "windup"
 					c.state_time = SkyGearLanes.CREW.windup
 				else:
+					c["velocity"] = to_goal.normalized() * float(SkyGearLanes.CREW.speed)
 					c.position = Vector2(c.position) + to_goal.normalized() * float(SkyGearLanes.CREW.speed) * delta
 			"windup":
 				## CREW INSIDE A MAIN SWING FASTER. The last unread field, and the

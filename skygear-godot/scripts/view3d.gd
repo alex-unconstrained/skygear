@@ -433,6 +433,30 @@ var _no_model: Dictionary = {}        ## kinds we have already looked for and no
 ## next spawn builds its own figure.
 var _corpses: Dictionary = {}
 
+## …and the same courtesy for the tier that has no skeleton to lie down with
+## (board SG-103). A painted figure the renderer stopped claiming was hidden on
+## that same frame, which is the "just vanishing" the owner reported, in its
+## purest form: no death clip, no sink, no tail, one frame. These are the sprites
+## on the way out — {node, life} — aged beside the corpses and shelved into
+## `_free_billboards` exactly as `_recycle` would have shelved them, only later.
+##
+## Capped, because everything pooled here is. Past the cap a sprite is shelved
+## on the spot the way it always was: the fade is a courtesy and a courtesy that
+## can starve the pool is a leak with a nice name.
+var _fading: Array[Dictionary] = []
+const FADE_CAP := 24
+
+## And a cap on the BODIES, which never needed one until the fade arrived. Until
+## SG-103 a corpse could only be one of the four kinds that carry a `die` clip
+## and everything else was freed on the spot; now every unclaimed rig is held
+## for at least `DEATH_FADE`, so a wave that wipes twelve goblins at once holds
+## twelve rigs it used to have already let go of. Sixteen is over twice the
+## most a real flood has ever produced at once, and past it a body is freed the
+## instant it is unclaimed exactly as it always was — DESIGN §13m's rule is that
+## a rig is FREED rather than pooled, and this delays the freeing by two thirds
+## of a second rather than turning it into a reservation.
+const CORPSE_CAP := 16
+
 ## The renderer's own crew identity counter (SG-88). A crewman is a Dictionary
 ## in an Array the simulation calls `remove_at` on, so his INDEX is not a name;
 ## this is. See the crew block in `_sync_all` for why a death needed one and a
@@ -448,8 +472,25 @@ const DEATH_WINDOW := 1.60
 ## last thing a death should do is remind you it was a node.
 const DEATH_SINK := 0.40
 
+## AND IT GOES TRANSPARENT ON THE WAY DOWN (board SG-103). Owner, build-44:
+## *"Should enemies fade away after they die instead of just vanishing?"*
+##
+## Yes, and the sink was half an answer already — a body that drops through the
+## planking still CLIPS out of existence at the deck line, and the billboard tier
+## had no tail at all: a sprite the renderer stopped claiming was hidden on the
+## same frame, which is the pop he is describing.
+##
+## Longer than the sink on purpose, and that ordering is the whole design: the
+## body has visibly begun to leave BEFORE it starts through the floor, so the
+## deck line stops being the moment anything happens. It is also strictly INSIDE
+## `corpse_life` — this adds nothing to how long a corpse is held, which matters
+## because rigs are freed rather than pooled (DESIGN §13m) and a fade that
+## extended the window would be a rig budget change wearing a VFX one.
+const DEATH_FADE := 0.60
 
-## How long a corpse is kept, total.
+
+## How long a corpse is kept, total. UNCHANGED by the fade, which is the point:
+## the tail is carved out of the window the body already had.
 static func corpse_life() -> float:
 	return DEATH_WINDOW + DEATH_SINK
 
@@ -462,6 +503,21 @@ static func corpse_drop(life: float, height: float) -> float:
 	if life >= DEATH_SINK:
 		return 0.0
 	return height * (1.0 - maxf(0.0, life) / DEATH_SINK)
+
+
+## How SOLID a body still is, given the life it has left: one for the whole death
+## clip — nothing starts disappearing until it has finished dying — then linearly
+## to nothing across the last `DEATH_FADE` seconds. The `corpse_drop` idiom,
+## static and pure, so the harness pins the curve without standing a deck up.
+##
+## ONE function for both tiers. A rigged corpse spends it on every mesh's
+## `transparency`; a painted one spends it on the sprite's `modulate.a`. A body
+## and the sprite it falls back to disappearing at different rates would be the
+## same two-numbers fault `crew_height` exists to prevent, one layer down.
+static func corpse_fade(life: float) -> float:
+	if life >= DEATH_FADE:
+		return 1.0
+	return clampf(life / DEATH_FADE, 0.0, 1.0)
 
 
 ## Whether this figure has a death to show. The scrapper's borrowed library has
@@ -1258,7 +1314,31 @@ const ELEMENT_BOLT := {
 	## lane full of these has to stay legible, so they do not smear the air behind
 	## them the way a spell does. Oxblood danger comes from the colour the caller
 	## passes, the SG-3 hostile language.
-	"HOSTILE": {"stretch": 1.7, "girth": 16.0, "pulse": 0.0, "emit": 2.6,
+	##
+	## GIRTH 16 -> 7 (board SG-103). Owner, build-44: *"Projectiles from enemies
+	## are way larger than they should be, and dont look very cool."* He is right
+	## and the amount is measurable rather than a matter of taste, because the
+	## browser this port is parity with draws the same shot and RECORDS its size:
+	## `src/storm-dusk/_render_entities.js::drawBolts` puts the bolt's hard body
+	## at `ctx.arc(q.x, q.y, 7 * q.k)` — radius seven ground units, fourteen
+	## across. `girth` is a cross-section RADIUS too (see the key above), so 16
+	## was drawing a body 32 units wide: wider than a crewman's whole footprint,
+	## and 2.3x what the game it is a port of ever drew. At the shipped camera,
+	## a bolt crossing the captain's own ground subtends 50 screen pixels of an
+	## 860-pixel frame at 16 and 22 at 7 — a quarter of the hero's on-screen
+	## height, against a tenth.
+	##
+	## READABILITY IS NOT WHAT SHRANK. The browser's own note above `drawBolts`
+	## names the three things that make an inbound shot trackable — the oxblood
+	## colour, the GROUND SHADOW that says where it will cross you, and the nine
+	## samples of TAIL that turn a flicker into a direction. All three are
+	## untouched: `_shadow("b%d", ..., 40.0, 0.38)` still draws a 40-unit mark on
+	## the planking under a 14-unit body, and the ribbon still runs off the
+	## simulation's own trail. Pillar 6 asks that enemy fire be readable before
+	## it is dangerous; matching the size the browser reads at is the opposite of
+	## a regression against it. Stretch, pulse and shed are unchanged — this is
+	## the blunt orb it always was, at the size it always should have been.
+	"HOSTILE": {"stretch": 1.7, "girth": 7.0, "pulse": 0.0, "emit": 2.6,
 		"shed": "", "sheds": 0, "wake": 0.0},
 	## Our deck cannon. A tight brass slug — long and clean like Frost's shard but
 	## warm, so ours and theirs crossing the same lane cannot be confused.
@@ -3362,6 +3442,20 @@ const POOL_SLACK := 24
 ## corpse. A body converted at the end of frame N first ages on frame N+1, which
 ## costs it a frame of its window and keeps every shadow in one pass.
 func _age_corpses(delta: float) -> void:
+	## The painted tier first, and it is the whole of its own death: no clip, no
+	## sink, just the plate going out over `DEATH_FADE` and then going back on
+	## the shelf. Walked backwards so a shelved sprite can be removed in place.
+	for i in range(_fading.size() - 1, -1, -1):
+		var going: Dictionary = _fading[i]
+		going.life = float(going.life) - delta
+		var sprite: Sprite3D = going.node
+		if float(going.life) <= 0.0 or not is_instance_valid(sprite):
+			if is_instance_valid(sprite):
+				sprite.visible = false
+				_free_billboards.append(sprite)
+			_fading.remove_at(i)
+			continue
+		sprite.modulate.a = corpse_fade(float(going.life))
 	for key in _corpses.keys():
 		var body: Dictionary = _corpses[key]
 		body.life = float(body.life) - delta
@@ -3371,7 +3465,24 @@ func _age_corpses(delta: float) -> void:
 				rig.queue_free()
 			_corpses.erase(key)
 			continue
-		rig.position.y = -corpse_drop(float(body.life), float(body.height))
+		## The sink belongs to a body that has PLAYED a death. A figure with no
+		## death clip is fading out of the pose it was standing in, and dropping
+		## it through the planking as well would be a death animation invented by
+		## the renderer for a character that does not have one.
+		if bool(body.get("sink", true)):
+			rig.position.y = -corpse_drop(float(body.life), float(body.height))
+		## THE BODY GOES WITH IT (board SG-103). `transparency` is per
+		## GeometryInstance3D, not per material, so a fading corpse cannot make
+		## every other figure sharing that mesh see-through — which matters when
+		## one crew mesh serves the whole deck. The mesh list was found ONCE, at
+		## the moment the corpse was made: a `find_children` per part per frame
+		## for every body on the planking is a tree walk in the middle of a
+		## fight, and the corpse has left `_rigs` and cannot be asked twice.
+		var solid: float = corpse_fade(float(body.life))
+		if solid < 1.0:
+			for node in body.get("meshes", []):
+				if is_instance_valid(node):
+					(node as GeometryInstance3D).transparency = 1.0 - solid
 		var fade: float = clampf(float(body.life) / DEATH_SINK, 0.0, 1.0)
 		## A DISASSEMBLY HAS NO ONE PLACE TO PUT A SHADOW. The Colossus's death
 		## throws thirteen parts across two metres of deck, and the blob below —
@@ -3389,9 +3500,30 @@ func _recycle() -> void:
 	for key in _billboards.keys():
 		if not _used.has(key):
 			var node: Sprite3D = _billboards[key]
+			_billboards.erase(key)
+			## A FIGURE GETS A TAIL (board SG-103). Only a figure: a decal, a
+			## spark and a prop plate all go through this same pool, and a barrel
+			## that was destroyed or a spark that burnt out has its own effect
+			## already — fading everything would put a half-second ghost on every
+			## sentry ring and every collected pickup in the game.
+			if str(node.get_meta("billboard_kind", "")) == BILLBOARD_FIGURE \
+					and _fading.size() < FADE_CAP and game != null and game.is_playing():
+				## Two properties, and the second is the important one. Figures
+				## are drawn with an ALPHA SCISSOR (`_dress_billboard`), which
+				## has no opinion between 0.99 and 0.51 and then discards the
+				## whole plate — so a scissored sprite cannot fade at all. And
+				## CLEARING THE KIND STAMP is what guarantees the scissor comes
+				## back: `_claim_billboard` re-dresses any node whose stamp does
+				## not match what is being asked for, and no stamp matches
+				## nothing. That is the SG-66 pool-identity check doing exactly
+				## the job it was built for rather than a second reset path that
+				## could forget a property.
+				node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+				node.set_meta("billboard_kind", "")
+				_fading.append({"node": node, "life": DEATH_FADE})
+				continue
 			node.visible = false
 			_free_billboards.append(node)
-			_billboards.erase(key)
 	for key in _decals.keys():
 		if not _decals_used.has(key):
 			var node: Decal = _decals[key]
@@ -3426,10 +3558,32 @@ func _recycle() -> void:
 		if not _used.has(key):
 			var rig: SkyGearRig3D = _rigs[key]
 			_rigs.erase(key)
-			if dies_on_screen(rig) and game != null and game.is_playing():
+			if _corpses.size() >= CORPSE_CAP or game == null or not game.is_playing():
+				## The cap, and the not-in-a-fight case: freed on the spot, which
+				## is what every unclaimed rig did before there was a death.
+				rig.queue_free()
+			elif not dies_on_screen(rig):
+				## NO DEATH CLIP, AND STILL NOT A DISAPPEARANCE (board SG-103).
+				## This is the branch the owner was actually looking at. Four
+				## kinds play a real `die`; the scrapper's borrowed library has
+				## none and the gunner drone has no clips at all — and those two
+				## were `queue_free()`d the same frame the simulation finished
+				## with them, which is a figure ceasing to exist mid-stride. It
+				## gets the tail without the theatre: no clip to play, so no
+				## `DEATH_WINDOW`; no death to have finished, so no sink; it
+				## simply stops being there over `DEATH_FADE` in the pose it was
+				## last in. A tenth of the budget a real corpse holds.
+				_corpses[key] = {"rig": rig, "life": DEATH_FADE,
+					"height": rig.fit_height, "sink": false,
+					"meshes": rig.model.find_children("*", "MeshInstance3D",
+						true, false) if rig.model != null else []}
+			else:
 				rig.want("die", 0.0, DEATH_WINDOW)
 				_corpses[key] = {"rig": rig, "life": corpse_life(),
-					"height": rig.fit_height}
+					"height": rig.fit_height,
+					## Found once, here, for the fade — see `_age_corpses`.
+					"meshes": rig.model.find_children("*", "MeshInstance3D",
+						true, false) if rig.model != null else []}
 				## The deck remembers it. Nearly free evidence: this line already
 				## fires exactly once, at the kill location, for every figure
 				## that has a death to play. A drone leaks, everything else
@@ -3438,8 +3592,6 @@ func _recycle() -> void:
 				_mark(MarkKind.OIL if MARK_OIL_MODELS.has(slug) else MarkKind.BLOOD,
 					Vector2(rig.position.x, rig.position.z) / WORLD_SCALE,
 					clampf(rig.fit_height / (176.0 * WORLD_SCALE), 0.6, 1.5))
-			else:
-				rig.queue_free()
 	## Prop meshes go back on a shelf instead, one shelf per model. They are not
 	## rigs — there is no skeleton or AnimationPlayer to hold — and salvage is the
 	## case that decides it: a pickup appears and is collected several times a
@@ -5287,9 +5439,11 @@ func _sync_all(delta: float) -> void:
 		## Boarders come DOWN the deck, so most of the time you are looking at
 		## their backs — which is the view the port never drew. They face you when
 		## they turn to swing, and that turn is the tell.
-		var heading: Vector2 = enemy.attack_direction
-		if enemy.state == "move" and enemy.velocity.length_squared() > 1.0:
-			heading = enemy.velocity
+		## …through `figure_heading`, which is this rule hoisted so the CREW can
+		## ask it too (board SG-103). It answered here first and nothing about
+		## the boarders' read changes.
+		var heading: Vector2 = figure_heading(enemy.attack_direction,
+			enemy.velocity, enemy.state == "move")
 		var swinging: bool = enemy.state == "windup" or enemy.state == "recover"
 		# a phase offset per boarder, or a lane of them marches in lockstep
 		var phase: float = float(enemy.get_instance_id() % 97) * 0.113
@@ -5363,17 +5517,25 @@ func _sync_all(delta: float) -> void:
 		## Crew push UP the deck, into the boarders, so they are almost always
 		## showing you their backs. Drawing them front-on made a line of allies
 		## look like it was retreating.
+		##
+		## …but "up the deck" was written as the literal `Vector2(0, -1)` below,
+		## which is the whole of build-44's "crew walk backwards" (board SG-103).
+		## A crewman now carries the boarder's own two fields and answers the
+		## boarder's own question — see `figure_heading`.
 		var busy: bool = str(c.get("state", "move")) != "move"
+		var chead: Vector2 = figure_heading(
+			c.get("attack_direction", Vector2(0.0, -1.0)),
+			c.get("velocity", Vector2.ZERO), not busy)
 		## A MESH IF ONE HAS BEEN INGESTED, the painted billboard if not — the
 		## same fork every boarder has had since the scrapper, arriving on the
 		## ally side of the deck at last. The crew are the only figures the
 		## renderer draws that are not enemies, so this is the one call site
 		## where the height does not come from `boarder_height`.
 		var cheight: float = crew_height()
-		if not _sync_rig(ckey, "CREW", c.position, Vector2(0, -1), cheight,
+		if not _sync_rig(ckey, "CREW", c.position, chead, cheight,
 				busy, not busy, float(SkyGearLanes.CREW.speed) if not busy else 0.0,
 				float(c.get("state_time", 0.0)), delta):
-			_draw_figure(ckey, "CREW", c.position, Vector2(0, -1), cheight,
+			_draw_figure(ckey, "CREW", c.position, chead, cheight,
 				busy, not busy, game.run_time + float(i) * 0.21,
 				float(c.get("state_time", 0.0)))
 	## Deployed sentries. A short brass post with a live head on it, the range it
@@ -5912,10 +6074,36 @@ func _sync_captain(delta: float) -> bool:
 ## a manifest entry and an ingest run rather than a code change.
 ## What each boarder's drawn height is multiplied by. One entry per kind that
 ## is not full size; anything absent stands at what the radius says.
+## …and one row that is not a boarder: the CREW. `crew_height` reads the same
+## table for the same reason `boarder_height` does, so there is one place a
+## figure's drawn height is cut and one arithmetic that cuts it.
 const FIGURE_SCALE := {
 	"SCRAPPER": 0.5,   ## 186 -> 93, a little over half the captain
 	"GUNNER": 0.5,     ## 183 -> 92
 	"SWARM": 0.5,      ## 165 -> 83, the smallest thing on the deck
+	## THE OWNER'S OWN TEN-TO-FIFTEEN PER CENT (build-44 item 5, board SG-103):
+	## *"I think crew can maybe be 10-15% smaller to not be a similar size to
+	## the hero?"* 165 -> 144, which is 12.5% — the middle of the band he named
+	## rather than either edge of it, because both edges are him guessing too.
+	##
+	## The 165 was not wrong when it was written: SG-87 took it from the sim's
+	## own `120 + CREW.radius*3` and retired a hard-coded 110, and 165 against
+	## her 176 is exactly the "a touch under the captain" the handoff spec asked
+	## for. It turns out a touch under is too close to read as a DIFFERENT KIND
+	## of person, which is what the ask is really about — you are meant to know
+	## at a glance which figure on that deck is you. 144 against 176 is 82%: a
+	## sailor is now visibly shorter than his captain and still a head and a half
+	## over a goblin's 83, so the three tiers stay ordered.
+	##
+	## HERE rather than in the sim, in the manifest, or in the model: `radius` is
+	## the footprint a boarder swings at and moving it is a balance change
+	## wearing a visual one (the SG-87 note above says so about the goblins and
+	## it is no less true of allies), and the shipped mesh is baked against its
+	## own measured `model_height` — every figure in this table is full-size on
+	## disk and cut at draw time. Both crew paths, mesh and painted fallback,
+	## read `crew_height`, so they still cannot disagree about how tall a sailor
+	## is.
+	"CREW": 0.875,     ## 165 -> 144, 82% of the captain
 }
 
 
@@ -6026,22 +6214,66 @@ static func model_path(kind: String) -> String:
 
 ## HOW TALL A CREWMAN STANDS, in ground units — and it is the same arithmetic
 ## every boarder gets, `120 + radius*3`, applied to the radius the SIMULATION
-## already keeps for a crewman (`SkyGearLanes.CREW.radius` = 15). 165, which is
-## a head under the captain's 176: the handoff spec asked for "a touch under the
-## captain — call it ~1.7 m" and the sim's own answer turned out to be inside
-## that, so nothing had to be invented.
+## already keeps for a crewman (`SkyGearLanes.CREW.radius` = 15), through the
+## same `FIGURE_SCALE` row every shrunk boarder goes through. 165 raw, 144 drawn.
 ##
-## It REPLACES a hard-coded 110 that the painted crew were drawn at. 110 against
-## a captain of 176 is 62%, which is a deck of children holding the lanes; the
-## number was never measured, it was the browser's billboard height carried
-## across. Both paths read this one function, so the mesh and the sprite it
-## falls back to cannot disagree about how tall a sailor is.
+## The raw number is not a guess and never was: the handoff spec asked for "a
+## touch under the captain — call it ~1.7 m" and the sim's own answer landed
+## inside that, so nothing had to be invented. It REPLACES a hard-coded 110 the
+## painted crew were drawn at — 110 against a captain of 176 is 62%, a deck of
+## children holding the lanes. What the owner then reported (build-44 item 5) is
+## that a touch under is too CLOSE: at 94% of the hero a sailor reads as another
+## hero. The 12.5% cut lives in `FIGURE_SCALE["CREW"]` with its reasons; this
+## function stays the one place both crew paths — mesh and painted fallback —
+## ask how tall a sailor is, which is what stops them disagreeing.
 ##
-## The crew share the goblin's 15-unit footprint exactly, incidentally. The
-## goblin is halved by FIGURE_SCALE and the crewman is not, and that is the
+## The crew share the goblin's 15-unit footprint exactly, incidentally, and the
+## FOOTPRINT DOES NOT MOVE with the height: `radius` is what a boarder swings at.
+## The goblin is halved and the crewman is cut by an eighth, which is still the
 ## whole difference between something that scuttles and the man holding the line.
 static func crew_height() -> float:
-	return 120.0 + float(SkyGearLanes.CREW.radius) * 3.0
+	return (120.0 + float(SkyGearLanes.CREW.radius) * 3.0) \
+		* float(FIGURE_SCALE.get("CREW", 1.0))
+
+
+## WHICH WAY A FIGURE ON THIS DECK IS POINTED — one answer, for everybody who
+## has feet (board SG-103).
+##
+## Owner, build-44: *"Crew members walk backwards, they should face enemies when
+## walking."* He was reading a literal constant. The crew branch of `_sync_all`
+## passed `Vector2(0, -1)` — up-deck, forever — because the crew push up the
+## deck into the boarders and up-deck is true of the MARCH. It is not true of a
+## sailor whose lane's nearest boarder is behind him: `_update_crew` sends him
+## back down the deck at it and the renderer kept him aimed at the bow, so he
+## reversed into the fight. It was not true during his bayonet stab either — he
+## thrust at a boarder off his shoulder while facing the horizon.
+##
+## The boarders have never had this bug, because they were never handed a
+## constant: each carries `attack_direction` (where the thing it is fighting is)
+## and `velocity` (where it is going), and the renderer picks between them. So
+## the fix is not a second rule for allies — it is giving a crewman those same
+## two fields (`SkyGearLanes.make_crew`, written every tick by `_update_crew`)
+## and asking THIS function, which is the boarder rule hoisted out of the loop
+## it was inlined in. Two functions disagreeing about one number is this
+## project's second failure mode; two figures disagreeing about which way is
+## forward is the same fault wearing a hat.
+##
+##   travelling  ->  face where you are going
+##   engaged     ->  face what you are fighting
+##
+## which for a crewman IS "face the enemy when walking": `_update_crew` walks
+## him in a straight line at the boarder he has picked, so while he closes his
+## travel vector and his threat vector are THE SAME VECTOR. That identity is
+## also why the crew's four aboard-but-unwired `strafe` clips stay unwired — a
+## strafe sells advancing while facing somewhere ELSE, and this mover never
+## does. The captain is the one figure that keeps her own path (`_sync_captain`
+## hands `place` a separate `travel`), because she faces her cursor rather than
+## her feet and is the only thing here that can genuinely walk sideways.
+static func figure_heading(attack_direction: Vector2, velocity: Vector2,
+		travelling: bool) -> Vector2:
+	if travelling and velocity.length_squared() > 1.0:
+		return velocity
+	return attack_direction
 
 
 ## How tall a boarder of this kind is DRAWN, in ground units — the `_sync_all`

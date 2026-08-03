@@ -11,8 +11,9 @@ bow that is geometry rather than a painting, accumulating scorch-and-blood
 marks, the furnace knight rebuilt to be dodgeable, sentry autocast, and a
 choosable auto-attack element.
 
-**Pushed but not yet in a build:** your five-ship fleet. It rides in 48 with
-the last of the playtest batch (crew facing, crew size, bolt size, death fades).
+**Pushed but not yet in a build:** your five-ship fleet, and the last four of
+the playtest batch — crew facing, crew size, bolt size and death fades — which
+landed tonight and closes that list. Two of them want your eye; see below.
 
 **Two things I would put your eyes on first:**
 1. **The knight.** Its telegraph drew a 120-degree wedge and its hit test was a
@@ -76,6 +77,56 @@ Fixed (SG-104). It is the single biggest difference between the two frames.
   gets wrong.
 - **Does the direction feel right before it spreads?** If yes, the order is the
   hand, then the ship plate, then the objective (`HUD-DESIGN.md` §9).
+
+## The last four of the build-44 batch — and two numbers I want your eye on (SG-110..113)
+
+Crew facing, crew size, bolt size and death fades are all in. Three of the four
+had a number I could take from something other than my own taste, and I did.
+**Two of them are still judgement calls and I would rather you overruled me than
+found out later I had guessed.**
+
+- **THE CREW FACING RULE — is it the one you meant?** You said *"they should
+  face enemies when walking."* What they do now is the rule the BOARDERS have
+  always followed, given to your sailors: **travelling, they face where they are
+  going; engaged, they face what they are fighting.** For a crewman those turn
+  out to be the same vector nearly all the time, because he walks in a straight
+  line at the boarder he has picked — which is why the four `strafe` animations
+  that came with the crew pack are still unwired. There is nothing for them to
+  play. If what you actually pictured was a sailor **sidestepping while keeping
+  his bayonet pointed at the enemy**, that is a different rule, the strafes exist
+  for it, and it is an hour's work — say the word.
+  Open `skygear-godot/.shots/sg103/crew-facing-detail.png` (before | after, same
+  frame, same sailor).
+
+- **THE NEW BOLT SIZE — 2.3x smaller. Too far?** The enemy bolt's body was 32
+  ground units across. The browser draws the same shot at **14** (`drawBolts`
+  puts its hard core at radius 7), and I took the browser's number rather than
+  invent one, so this is a parity correction rather than a taste call. Measured
+  on the real camera it goes from **~40 screen pixels to ~16** — a quarter of
+  the captain's height down to a tenth. **What I deliberately did NOT shrink:**
+  the ground mark under each bolt (still 40 units — that is the thing telling
+  you where it will cross you) and the trail. But a lane of these at speed is
+  something only you can judge in motion:
+  `skygear-godot/.shots/sg103/bolt-before.png` and `-after.png`, and the two
+  `.gif`s beside them.
+
+- **"…and dont look very cool" — I fixed the size and stopped.** The shape is
+  still a blunt oxblood orb with a slight stretch down its flight line, which was
+  a deliberate SG-40 choice: enemy fire sheds nothing, so a lane of it stays
+  legible. Now that it is small, that choice may have outlived itself. **What I
+  would try, if you agree it still reads dull:** give it a hard dark RIM the way
+  the browser does (it strokes a 2.6-wide ink outline round the core before
+  filling it, so the bolt keeps its silhouette over fire and steam) and a short
+  hot spike at the leading tip so it reads as a *shot* rather than a *bead*.
+  I have not done either, because "cool" is your eye and not a measurement.
+
+- **The fades cost nothing and I want to name the one thing that changed.** A
+  body already had a two-second hold; the fade is carved out of it, not added to
+  it. But the boarders with **no death animation** — the scrapper and the
+  gunner drone — used to be deleted the instant they died, and now they hang
+  about for 0.6 s going transparent. That is a real half-second of extra rigs on
+  screen in a heavy wave, capped at sixteen. If a late wave ever feels like it
+  hitches where it did not before, that cap is the first knob to turn.
 
 ## The furnace knight is a different fight now — and only you can tell me if it worked (SG-97)
 

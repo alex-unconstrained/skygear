@@ -169,15 +169,48 @@ the figures himself.
 
 **Bugs**
 1. **Crew walk BACKWARDS** — "they should face enemies when walking."
+   **DONE 2026-08-02 (board SG-110)** — a crewman was the one figure on this
+   deck carrying no direction at all, so the renderer handed his rig the literal
+   `Vector2(0, -1)`. That is true of the march up-deck and of nothing else he
+   does: `_update_crew` sends him at the nearest boarder IN HIS LANE wherever
+   that boarder is, so one astern of him had him reversing into the fight, and
+   his bayonet stab was thrown at the horizon while the man was off his
+   shoulder. Fixed by giving him the boarder's own two fields
+   (`attack_direction`, `velocity`) and asking the boarder's own question,
+   hoisted into one `figure_heading()` both sides of the deck call — travelling,
+   face where you are going; engaged, face what you are fighting. The four aboard
+   `strafe` clips stay unwired and the row says why: he walks in a straight line
+   at his goal, so his travel vector and his threat vector are the same vector
+   and a strafe has nothing to play. `figure · a sailor sent back down the deck
+   after a boarder TURNS ROUND to walk at him, instead of reversing into the
+   fight`, plus three more.
 2. **The 2D hulk sprite still sits in the same place as the 3D model** — a
    duplicate, now that SG-76 wired three real states.
 3. **The sentry sometimes has no model** — already fixed (SG-66, the shared
    billboard pool handing a sentry a spark's additive material), but the fix
    landed AFTER build 44 was cut. Not a recurrence; ships in 45.
 4. **Enemy projectiles are far too large** "and dont look very cool."
+   **SIZE DONE 2026-08-02 (board SG-112); "not very cool" left for his eye.**
+   Not a matter of taste — the browser this is a port of records the number:
+   `drawBolts` draws the bolt's hard body at radius **7** ground units, and the
+   HOSTILE row's `girth` was **16**, a body 32 units across and wider than a
+   crewman's whole footprint. Measured at the real camera on the same
+   deterministic frame from two clean trees: **38-41 px tall -> 14-18 px**, a
+   quarter of the captain's on-screen height down to a tenth. The three things
+   the browser's own note says make an inbound shot trackable — the oxblood
+   colour, the ground mark, the nine samples of tail — are all untouched, so
+   pillar 6 is not what shrank. `core · the enemy's shot is the size the browser
+   draws it, and stays smaller than the mark it throws on the planking`.
 
 **Tuning / balance**
 5. **Crew 10–15% smaller** — too close to the hero's size.
+   **DONE 2026-08-02 (board SG-111)** — `FIGURE_SCALE["CREW"] = 0.875`, the
+   middle of the band he named rather than either edge: **165 -> 144**, 82% of
+   her 176 and still 1.75x a goblin's 83, so the three tiers stay ordered. The
+   cut lands in the one table every shrunk figure's cut already lands in, not in
+   the sim (a `radius` is the footprint a boarder swings at) and not in the mesh.
+   `figure · and he is the ten-to-fifteen per cent shorter the owner asked for —
+   under his captain, still well over a goblin`.
 6. **Furnace knights want slower, more telegraphed hits** — "hard hitting but
    designed to be dodged." A design change, not a number nudge: the fantasy is
    a wall you read and step around.
@@ -242,6 +275,19 @@ the figures himself.
    RNG, so seeds are unmoved: `auto · and naming another one costs the seeded
    stream nothing`, `auto · and the Cleave is still never dealt as a card`.
 10. **Enemies should FADE after death** rather than vanishing.
+    **DONE 2026-08-02 (board SG-113)** — three separate disappearances were
+    happening and only one had a tail. The four kinds with a real `die` clip
+    played it and sank, which still CLIPPED out at the deck line; **the kinds
+    with no death clip (the scrapper's borrowed library, the gunner drone) were
+    freed the same frame the simulation finished with them**, which is the one he
+    was looking at; and a figure BILLBOARD was hidden and shelved on that frame
+    too. One curve now — `corpse_fade`, solid through the death clip then to
+    nothing over 0.60 s — spent on `GeometryInstance3D.transparency` by a rigged
+    body and on `modulate.a` by a painted one. The fade STARTS BEFORE the sink so
+    the deck line stops being the moment anything happens, and `corpse_life()` is
+    unchanged at 2.00 s, so a body holds a rig no longer than it always did
+    (DESIGN §13m). `figure · a boarder with no death clip fades out where it
+    stood instead of ceasing to exist mid-stride`, plus four more.
 11. **3D weapons** — spears for the crew (who currently bayonet-stab with empty
     hands), plus a few steampunk weapons banked for later.
 

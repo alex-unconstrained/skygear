@@ -69,6 +69,12 @@ static func make_crew(lane: int, lane_centers: Array, base_y: float,
 		"hp": CREW.hp, "max_hp": CREW.hp,
 		"state": "move", "state_time": 0.0,
 		"radius": CREW.radius, "flash": 0.0, "dead": false,
+		## The two fields a boarder has always had, on the ally side of the deck
+		## at last (board SG-103) — where he is looking and where he is going.
+		## `_update_crew` rewrites both every tick off the goal he is walking at;
+		## these are only the values he musters holding, and up-deck is where a
+		## fresh hand comes aboard facing.
+		"attack_direction": Vector2(0.0, -1.0), "velocity": Vector2.ZERO,
 	}
 
 

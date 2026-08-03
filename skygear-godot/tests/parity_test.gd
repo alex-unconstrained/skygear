@@ -3410,6 +3410,28 @@ func _view() -> void:
 			and float(eb.FROST.wake) < 0.0 and float(eb.STEAM.wake) > 0.0,
 		"stretch %d / pulse %d / wake %d distinct of four" % [stretches.size(),
 			pulses.size(), wakes.size()])
+	## THE ENEMY'S SHOT IS THE SIZE THE BROWSER DRAWS IT (board SG-103). Owner,
+	## build-44: *"Projectiles from enemies are way larger than they should be."*
+	## Not a matter of taste — the game this is a port of records the number.
+	## `src/storm-dusk/_render_entities.js::drawBolts` puts the bolt's hard body
+	## at `ctx.arc(q.x, q.y, 7 * q.k)`: radius seven ground units. `girth` is a
+	## cross-section radius too, so 16 was drawing it 2.3x over — a body wider
+	## than a crewman's whole footprint.
+	##
+	## The second clause is the one that matters more. Pillar 6 says enemy fire
+	## must be readable before it is dangerous, and the browser's own note names
+	## what carries that: the ground mark saying where the shot will cross you,
+	## and the tail saying which way it is going. So the body is held SMALLER
+	## THAN THE MARK UNDER IT — shrink the shadow to match some day and this
+	## fails, which is exactly when it should.
+	const BROWSER_BOLT_R := 7.0        ## drawBolts, storm-dusk-v11 (LIVE)
+	var hostile_r: float = float((SkyGearView3D.ELEMENT_BOLT.HOSTILE as Dictionary).girth)
+	_check("core", "the enemy's shot is the size the browser draws it, and stays smaller than the mark it throws on the planking",
+		absf(hostile_r - BROWSER_BOLT_R) < 0.001
+			and hostile_r * 2.0 < 40.0
+			and float((SkyGearView3D.ELEMENT_BOLT.HOSTILE as Dictionary).stretch) > 1.0,
+		"%.0f units across against the browser's %.0f and a %.0f-unit ground mark"
+			% [hostile_r * 2.0, BROWSER_BOLT_R * 2.0, 40.0])
 	## Behavioural: a bolt actually in flight draws a core by the default path — the
 	## reader-with-no-data failure inverted, caught by firing one and looking.
 	game.projectiles.clear()
@@ -7255,15 +7277,34 @@ func _view() -> void:
 	_check("figure", "your own sailors build from the owner's own native rig",
 		cbuilt, cpath)
 	## THE HEIGHT IS THE SIM'S, not a guess. `120 + radius*3` on the crewman's
-	## own radius, which is the arithmetic every boarder is drawn by, and it
-	## lands a head under the captain exactly as the handoff spec asked. The
-	## hard-coded 110 it replaces was 62% of her, which is a deck of children.
-	_check("figure", "and a crewman stands a head UNDER the captain, on the sim's own radius rather than a guess",
-		cheight == 120.0 + float(SkyGearLanes.CREW.radius) * 3.0
-			and cheight < SkyGearView3D.CAPTAIN_HEIGHT and cheight > 150.0,
-		"%.0f ground units against her %.0f, from radius %.0f"
-			% [cheight, SkyGearView3D.CAPTAIN_HEIGHT,
-				float(SkyGearLanes.CREW.radius)])
+	## own radius, which is the arithmetic every boarder is drawn by — through
+	## the same `FIGURE_SCALE` row every shrunk boarder goes through, so there is
+	## one place a figure's drawn height is cut. The hard-coded 110 this replaced
+	## was 62% of her, which is a deck of children.
+	var craw: float = 120.0 + float(SkyGearLanes.CREW.radius) * 3.0
+	_check("figure", "and a crewman is drawn off the sim's own radius rather than a guess, through the one table that shrinks figures",
+		cheight == craw * float(SkyGearView3D.FIGURE_SCALE.CREW)
+			and cheight < SkyGearView3D.CAPTAIN_HEIGHT,
+		"%.0f ground units against her %.0f — %.0f raw from radius %.0f, at %.3f"
+			% [cheight, SkyGearView3D.CAPTAIN_HEIGHT, craw,
+				float(SkyGearLanes.CREW.radius),
+				float(SkyGearView3D.FIGURE_SCALE.CREW)])
+	## AND THE OWNER'S OWN BAND (build-44 item 5, board SG-103): *"I think crew
+	## can maybe be 10-15% smaller to not be a similar size to the hero?"* The
+	## cut is pinned as a RANGE because that is how he gave it — a check that
+	## asserted 0.875 exactly would be asserting my rounding, not his ask. What
+	## the range is FOR is the second clause: a sailor has to stay clearly over
+	## the goblin he is holding the line against, or the shrink has flattened the
+	## three tiers instead of separating them.
+	_check("figure", "and he is the ten-to-fifteen per cent shorter the owner asked for — under his captain, still well over a goblin",
+		cheight <= craw * 0.90 and cheight >= craw * 0.85
+			and cheight > SkyGearView3D.boarder_height("SWARM") * 1.5,
+		"%.0f from %.0f (%.1f%% off), %.0f%% of her %.0f, %.2fx a goblin's %.0f"
+			% [cheight, craw, (1.0 - cheight / craw) * 100.0,
+				cheight / SkyGearView3D.CAPTAIN_HEIGHT * 100.0,
+				SkyGearView3D.CAPTAIN_HEIGHT,
+				cheight / SkyGearView3D.boarder_height("SWARM"),
+				SkyGearView3D.boarder_height("SWARM")])
 	if cbuilt:
 		## The clip row in tools/models.json, read. `run` is aboard as the tier
 		## above the walk even though the crew move at 118 and will nearly
@@ -7329,6 +7370,182 @@ func _view() -> void:
 		SkyGearSprites.still("CREW", "front") != null
 			and SkyGearSprites.still("CREW", "back") != null,
 		"front and back stills both load")
+
+	## --- board SG-103: WHICH WAY A SAILOR IS POINTED -------------------------
+	## Owner, build-44: *"Crew members walk backwards, they should face enemies
+	## when walking."* The crew branch handed the rig a literal `Vector2(0, -1)`,
+	## which is true of the march up-deck and of nothing else a crewman does.
+	## Pinned in two halves: the rule as arithmetic, then the rule against the
+	## simulation that actually turns him round.
+	##
+	## THE RULE IS THE BOARDERS' OWN, hoisted rather than copied — travel while
+	## travelling, the threat while engaged — which is why this asserts on the
+	## same function for both. A second heading rule for allies is the two-
+	## functions-disagreeing-about-one-number failure STATUS names.
+	_check("figure", "one heading rule answers for an ally and a boarder alike — where you are going, or what you are fighting",
+		SkyGearView3D.figure_heading(Vector2(0.0, -1.0), Vector2(0.0, 118.0), true)
+				== Vector2(0.0, 118.0)
+			and SkyGearView3D.figure_heading(Vector2(1.0, 0.0), Vector2(0.0, 118.0), false)
+				== Vector2(1.0, 0.0)
+			and SkyGearView3D.figure_heading(Vector2(1.0, 0.0), Vector2.ZERO, true)
+				== Vector2(1.0, 0.0),
+		"travelling -> velocity, engaged -> threat, and a standing figure keeps its threat")
+	## THE BUG ITSELF, staged. A boarder STERNWARD of a crewman is the case the
+	## constant could not describe: `_update_crew` sends the sailor back DOWN the
+	## deck at it, and the old renderer kept him aimed at the bow — the reported
+	## moonwalk. `y > 0` is down-deck (BASE_Y 730 is the stern, BOW_Y -1000 the
+	## bow), so the assertion is literally "he has turned round".
+	game.crew_timer = 999.0            ## no muster mid-check; the roll is not the subject
+	game.crew.clear()
+	game.crew.append(SkyGearLanes.make_crew(1, SkyGearGame.LANE_CENTERS,
+		SkyGearGame.BASE_Y))
+	var sailor: Dictionary = game.crew[0]
+	sailor.position = Vector2(0.0, 200.0)
+	game.spawn_enemy("SWARM", 1)
+	var astern: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "SWARM" and not e.dead:
+			astern = e
+	if astern != null:
+		astern.global_position = Vector2(0.0, 560.0)
+		astern.lane = 1
+		astern.state = "move"
+	game._update_crew(1.0 / 60.0)
+	var chase: Vector2 = SkyGearView3D.figure_heading(sailor.attack_direction,
+		sailor.velocity, str(sailor.state) == "move")
+	_check("figure", "a sailor sent back down the deck after a boarder TURNS ROUND to walk at him, instead of reversing into the fight",
+		astern != null and chase.y > 0.0 and Vector2(sailor.velocity).y > 0.0
+			and Vector2(sailor.position).y > 200.0,
+		"heading (%.2f, %.2f) at a boarder %.0f astern of him"
+			% [chase.x, chase.y, 560.0 - 200.0])
+	## AND IN REACH HE FACES WHAT HE IS STABBING. The other half of his words:
+	## the bayonet stab used to be thrown at the horizon while the boarder stood
+	## off his shoulder. Placed abeam — dead to port — so a heading that still
+	## carried any of the old constant would fail on x alone.
+	if astern != null:
+		astern.global_position = sailor.position + Vector2(-40.0, 0.0)
+	sailor.state = "move"
+	game._update_crew(1.0 / 60.0)
+	var stab: Vector2 = SkyGearView3D.figure_heading(sailor.attack_direction,
+		sailor.velocity, str(sailor.state) == "move")
+	_check("figure", "and once a boarder is inside his reach he stops and faces it — the bayonet goes where the man is",
+		str(sailor.state) != "move" and Vector2(sailor.velocity) == Vector2.ZERO
+			and stab.x < -0.9,
+		"state '%s', facing (%.2f, %.2f)" % [str(sailor.state), stab.x, stab.y])
+	## …and with the lane clear he is back to the march, off the goal
+	## `_update_crew` gives him rather than off a constant that agrees with it.
+	if astern != null:
+		astern.dead = true
+	sailor.state = "move"
+	game._update_crew(1.0 / 60.0)
+	var upbound: Vector2 = SkyGearView3D.figure_heading(sailor.attack_direction,
+		sailor.velocity, true)
+	_check("figure", "and with the lane clear he faces the way he is marching, which is up the deck where it always was",
+		upbound.y < 0.0 and absf(upbound.normalized().x) < 0.2,
+		"heading (%.2f, %.2f) toward the bow" % [upbound.x, upbound.y])
+	if astern != null:
+		astern.queue_free()
+	game.crew.clear()
+
+	## --- board SG-103: NOTHING POPS OUT OF EXISTENCE -------------------------
+	## Owner, build-44: *"Should enemies fade away after they die instead of just
+	## vanishing?"* The sink (SG-85) was half an answer — a body still CLIPPED
+	## out at the deck line, and the painted tier had no tail at all.
+	##
+	## The curve, and the two orderings that are the design: solid for the whole
+	## death clip, and a fade that STARTS BEFORE THE SINK does, so the planking
+	## stops being the moment anything happens. Plus the budget: `corpse_life` is
+	## untouched, because rigs are freed rather than pooled (DESIGN §13m) and a
+	## fade that lengthened the hold would be a rig-budget change in disguise.
+	_check("figure", "a body has begun to fade BEFORE it starts through the planking, and the tail costs the corpse budget nothing",
+		SkyGearView3D.corpse_fade(SkyGearView3D.DEATH_FADE) == 1.0
+			and SkyGearView3D.corpse_fade(SkyGearView3D.corpse_life()) == 1.0
+			and SkyGearView3D.corpse_fade(0.0) == 0.0
+			and SkyGearView3D.DEATH_FADE > SkyGearView3D.DEATH_SINK
+			and SkyGearView3D.corpse_fade(SkyGearView3D.DEATH_SINK) < 1.0
+			and SkyGearView3D.corpse_life()
+				== SkyGearView3D.DEATH_WINDOW + SkyGearView3D.DEATH_SINK,
+		"fade over the last %.2fs of a %.2fs hold, sink over the last %.2fs"
+			% [SkyGearView3D.DEATH_FADE, SkyGearView3D.corpse_life(),
+				SkyGearView3D.DEATH_SINK])
+	## THE KINDS WITH NO DEATH CLIP, which is where the owner's word "vanishing"
+	## was most literally true: the scrapper's borrowed library carries no `die`
+	## and the gunner drone carries no clips at all, so `_recycle` freed their
+	## rigs the same frame the simulation finished with them. They now get the
+	## tail without the theatre — `DEATH_FADE` and no sink, because a body that
+	## has not played a death has no reason to be going through the floor, and a
+	## drop invented by the renderer is a death animation nobody authored.
+	var mute := SkyGearRig3D.new()
+	root.add_child(mute)
+	var mute_path := SkyGearView3D.model_path("SCRAPPER")
+	var mute_built: bool = ResourceLoader.exists(mute_path) and mute.setup(mute_path,
+		SkyGearView3D.boarder_height("SCRAPPER") * SkyGearView3D.WORLD_SCALE,
+		SkyGearView3D.LAYER_FIGURES)
+	view._rigs["sg103_mute"] = mute
+	view._used.erase("sg103_mute")
+	view._recycle()
+	var mute_body: Dictionary = view._corpses.get("sg103_mute", {})
+	_check("figure", "a boarder with no death clip fades out where it stood instead of ceasing to exist mid-stride",
+		mute_built and not SkyGearView3D.dies_on_screen(mute)
+			and not mute_body.is_empty()
+			and float(mute_body.get("life", 0.0)) == SkyGearView3D.DEATH_FADE
+			and not bool(mute_body.get("sink", true))
+			and not (mute_body.get("meshes", []) as Array).is_empty(),
+		"held %.2fs, %d mesh(es) to fade, no sink" % [
+			float(mute_body.get("life", 0.0)),
+			(mute_body.get("meshes", []) as Array).size()])
+	## …and the tail is capped, because until today an unclaimed rig was freed on
+	## the spot and nothing had to be. A wipe that kills a dozen at once must not
+	## turn the freeing rule (DESIGN §13m) into a reservation.
+	var over := 0
+	for i in 40:
+		var spare := SkyGearRig3D.new()
+		root.add_child(spare)
+		view._rigs["sg103_cap%d" % i] = spare
+	view._recycle()
+	over = view._corpses.size()
+	_check("figure", "and the bodies are capped — a wipe cannot turn a freed rig into a reserved one",
+		over == SkyGearView3D.CORPSE_CAP,
+		"%d bodies held against a cap of %d" % [over, SkyGearView3D.CORPSE_CAP])
+	for key in view._corpses.keys():
+		var held: SkyGearRig3D = (view._corpses[key] as Dictionary).rig
+		if is_instance_valid(held):
+			held.queue_free()
+	view._corpses.clear()
+
+	## THE PAINTED TIER, behaviourally — a figure sprite the renderer stops
+	## claiming, and what `_recycle` does with it. It must NOT go straight on the
+	## shelf (that is the blink), it must lose the ALPHA SCISSOR (a scissored
+	## sprite cannot fade — it is opaque and then it is gone), and it must come
+	## back to the pool when the tail runs out or the fade is a leak.
+	view._draw_figure("sg103_fade", "CREW", Vector2(0.0, 300.0),
+		Vector2(0.0, -1.0), SkyGearView3D.crew_height(), false, false, 0.0, 0.0)
+	var ghost: Sprite3D = view._billboards.get("sg103_fade")
+	var shelf_before: int = view._free_billboards.size()
+	view._used.erase("sg103_fade")
+	view._recycle()
+	var faded_in := false
+	for going in view._fading:
+		if going.node == ghost:
+			faded_in = true
+	_check("figure", "a painted figure the renderer has finished with fades out instead of blinking, and drops its alpha scissor to do it",
+		ghost != null and faded_in and not view._billboards.has("sg103_fade")
+			and ghost.alpha_cut == SpriteBase3D.ALPHA_CUT_DISABLED
+			and view._free_billboards.size() == shelf_before,
+		"%d sprite(s) on the way out, %d on the shelf" % [view._fading.size(),
+			view._free_billboards.size()])
+	view._age_corpses(SkyGearView3D.DEATH_FADE * 0.5)
+	var half: float = ghost.modulate.a if ghost != null else -1.0
+	view._age_corpses(SkyGearView3D.DEATH_FADE)
+	var still_out := false
+	for going in view._fading:
+		if going.node == ghost:
+			still_out = true
+	_check("figure", "…and the sprite is back on the shelf when its tail runs out — a courtesy, not a leak",
+		half > 0.3 and half < 0.7 and not still_out
+			and view._free_billboards.has(ghost)
+			and view._fading.size() < SkyGearView3D.FADE_CAP,
+		"half way out at alpha %.2f, then shelved" % half)
 
 	## --- board SG-89: THE GOBLIN, and the deck is all mesh -------------------
 	## The last handoff-3d figure. It REPLACES a static lump — a goblin that
@@ -10228,6 +10445,7 @@ func _light_signature(view: SkyGearView3D, raw: Dictionary) -> Dictionary:
 		sig["range"] = "%.6f" % omni.omni_range
 		sig["attenuation"] = "%.5f" % omni.omni_attenuation
 	return sig
+
 
 ## --- THE SHIP'S SHAPE, AND THE DECK'S MEMORY ---------------------------------
 ##
