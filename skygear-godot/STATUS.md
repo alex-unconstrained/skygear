@@ -10,6 +10,21 @@ is retired — *"we build the Godot version to be better than the web one ever
 was."* The browser is a reference and a regression yardstick now, not a
 ceiling. Judge visual work by "is it better and legible," not "does it match."
 
+**AND ON 2026-08-03 THAT WAS EXTENDED TO MECHANICS, BECAUSE A CHANGE SHIPPED
+THAT BROKE IT (SG-148, reverted as SG-159).** SG-148 found the browser's
+`noCrit` flag on six secondary damage sources, called the port's crit a
+divergence, and took crit away from the kill explosion, the vent, fire pools,
+the kegs, the lane cannon and the crew. The owner: *"Why are we getting rid of
+CRIT? That's an important mechanic... We've moved so far beyond the browser
+version of this game. I do not want you going back and trying to refer to the
+browser game. We've transcended that."* All six crit again. **The rule that
+follows, and it is now a standing one: "the browser does it this way" is not a
+reason to change how this game plays.** A behavioural change needs a Godot-side
+argument and a measurement. The browser is still a place to LOOK — it is where
+SG-147's real crash fix came from — but a diff against it is a question, never
+a verdict. Two live rows had browser fidelity as their whole rationale (SG-148,
+SG-154) and both are struck.
+
 Playable end to end: twelve waves, two classes, a draft, persistent progression,
 a difficulty ladder, a sky, a cutscene system with all five cues filled —
 a run-opening reveal, event-wave flourishes, the Colossus arrival, and victory

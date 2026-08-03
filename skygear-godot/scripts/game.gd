@@ -3116,9 +3116,24 @@ func _update_passives(delta: float) -> void:
 ## The single funnel for damage dealt to a boarder. Crit, brittle, lifesteal,
 ## pressure and telemetry all happen here, once, because every other version of
 ## this project put them in four places and one of them was always wrong.
-## `can_crit` is the browser's `noCrit` option, which this port dropped on the
-## way across, and dropping it is what made SG-147 a crash rather than a
-## flourish. AN EXPLOSION MAY NOT EXPLODE: the crit explosion below re-enters
+##
+## CRIT IS A BROAD MECHANIC IN THIS GAME AND EVERY DAMAGE SOURCE GETS IT
+## (SG-159, the owner, overruling SG-148: *"Why are we getting rid of CRIT?
+## That's an important mechanic. Please don't get rid of CRIT. We've moved so
+## far beyond the browser version of this game... We've transcended that."*).
+## The kill explosion, the vent, a fire pool's tick, the kegs, the lane cannon
+## and the crew ALL crit, `can_crit` defaults TRUE, and a new damage source
+## crits unless somebody writes down a reason here that it must not.
+##
+## AND "THE BROWSER DID IT THIS WAY" IS NOT SUCH A REASON — not in this file and
+## not in this game. SG-148 took crit off those six on browser-fidelity grounds
+## and was reverted whole; the rule and the argument are both gone. If a source
+## should ever stop critting, the case has to be made about how the GODOT game
+## plays and it has to be measured. There is exactly one such case today, and it
+## is not about taste at all:
+##
+## `can_crit` EXISTS FOR TERMINATION. AN EXPLOSION MAY NOT EXPLODE: the crit
+## explosion below re-enters
 ## this function through `_damage_circle`, and while every re-entry can roll its
 ## own crit there is no quantity that decreases, so the recursion terminates
 ## only when the rolls happen to stop. That is not a termination argument, it is
@@ -3137,43 +3152,10 @@ func _update_passives(delta: float) -> void:
 ## the difference between a terminating program and a lucky one, and it is the
 ## property to preserve if anyone edits this path.
 ##
-## (The browser passes `noCrit:true` on the kill explosion too, storm-dusk-v11
-## line 1863, and on the vent, the pools, the kegs, the cannon and the crew. This
-## port dropped the flag everywhere. Restoring the other six is a real balance
-## change and is filed separately rather than smuggled into a crash fix.)
-## RESTORED at all six, SG-148 — see `secondary_can_crit` directly below.
-##
-## A SECONDARY DAMAGE SOURCE MAY NOT CRIT, AND THAT IS AN AUTHORED RULE RATHER
-## THAN A NERF INVENTED HERE (SG-148).
-##
-## `noCrit:true` is a first-class option in the browser build and EVERY
-## secondary source passes it: the crit explosion (storm-dusk-v11.html:1734,
-## restored by SG-147), the kill explosion (1863), the vent (1798), a fire
-## pool's tick (3141), the kegs (923), the lane cannon (5247) and the crew's
-## swing (5342). This port dropped the flag on all seven on the way across, so
-## a crit-built captain in THIS build has been dealing more damage than the
-## design in six places at once — and every balance number ever measured on
-## this port carries that divergence.
-##
-## What the rule is FOR, once it is read across all seven together: crit is a
-## reward for the hit YOU aimed. A pool that ticks four times a second, a
-## cannon that fires on its own timer and a keg that goes off when something
-## walks past it are not aimed, and letting them double turns a crit build into
-## a multiplier on the whole deck rather than on the captain's own swing.
-##
-## FALSE IS THE SHIPPED VALUE AND IT IS THE RULE. A var rather than a `const`
-## for ONE reason: so the harness and `tools/nocrit_probe.gd` can drive BOTH
-## positions. SG-146 paid for that lesson — a gate whose checks could only ever
-## read the shipped default was vacuous, and deleting the line it guarded left
-## the run green. Per-instance, so a sandbox game cannot disturb a real one, and
-## NOTHING IN THE SHIPPED GAME EVER WRITES IT.
-##
-## This deliberately does NOT cover the player's own AURA and PULSE passives
-## (`_update_passives`) or a deployed SENTRY. They look secondary and they are
-## not: the browser routes passives through the same crit path on purpose
-## (1900) and its sentry call at 1964 passes `silent:true` WITHOUT `noCrit`.
-## Nor the dash, whose browser call at 2459 carries no `noCrit` either.
-var secondary_can_crit := false
+## SO THE ONLY `false` IN THIS FILE IS THE ONE RECURSIVE EDGE. Six other call
+## sites carried one between SG-148 and SG-159 and none of them do now; the
+## twelve `crit ·` checks in `tests/parity_test.gd` that name each source by its
+## own call site are what stop them coming back.
 
 
 func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float, origin: Vector2, grants_pressure: bool, can_crit: bool = true) -> float:
@@ -3182,8 +3164,9 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 	var scaled := amount
 	if enemy.slow_time > 0.0:
 		scaled *= 1.0 + float(mods.slow_damage)
-	## Short-circuited exactly as the browser writes it (`!o.noCrit && chance()`),
-	## so a no-crit hit consumes nothing from the seeded stream.
+	## Short-circuited on `can_crit`, so the one hit that may not crit consumes
+	## nothing from the seeded stream and every other roll in the run lands where
+	## it would have landed anyway.
 	var crit := can_crit and rng.randf() < float(mods.crit_chance)
 	if crit:
 		scaled *= 2.0
@@ -3216,10 +3199,10 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 				break
 	if crit and float(mods.crit_explode) > 0.0:
 		## THE ONE RECURSIVE EDGE IN THE DAMAGE PATH, and the `false` on the end
-		## is the whole of SG-147. Do not remove it and do not let a caller pass
-		## `true` here: the harness pins it as `crit · an explosion may not
-		## explode`. Browser original, storm-dusk-v11.html:1734, which has always
-		## passed `noCrit:true` on this call.
+		## is the whole of SG-147 — a TERMINATION argument, not a balance one, and
+		## the reason SG-159 left it standing while it put crit back everywhere
+		## else. Do not remove it and do not let a caller pass `true` here: the
+		## harness pins it as `crit · an explosion may not explode`.
 		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false, false)
 	if grants_pressure:
 		register_damage(dealt, enemy.global_position)
@@ -3377,8 +3360,12 @@ func on_enemy_killed(enemy: SkyGearEnemy) -> void:
 		_scrap({"position": enemy.global_position, "heal": 12.0, "time": 12.0})
 		tel.salvage += 1
 	if float(mods.kill_explode) > 0.0:
-		## SG-148: the browser's kill explosion is `noCrit:true` (v11:1863).
-		_damage_circle(enemy.global_position, 80.0, float(mods.kill_explode), "EMBER", 70.0, false, false, secondary_can_crit)
+		## IT CRITS (SG-159). This is also the one surviving re-entry into the
+		## crit-explode cycle `damage_enemy` describes: a kill explosion can crit,
+		## that crit can open its own explosion, and that explosion can kill again.
+		## Bounded, because every traversal costs a living boarder permanently —
+		## which is the property to check before adding anything to this line.
+		_damage_circle(enemy.global_position, 80.0, float(mods.kill_explode), "EMBER", 70.0, false, false)
 	if float(mods.kill_autofire) > 0.0 and rng.randf() < float(mods.kill_autofire) and skills.size() > 0:
 		var previous: float = float(skills[0].cooldown_left)
 		skills[0].cooldown_left = 0.0
@@ -3752,8 +3739,8 @@ func vent_pressure() -> void:
 	# `grants_pressure` is false on purpose: the vent refilling its own gauge
 	# from its own blast makes venting self-sustaining in a crowd, which is the
 	# healing failure this whole system was rebuilt to remove.
-	## SG-148: the browser vents `noCrit:true` (v11:1798).
-	_damage_circle(player.global_position, radius, float(SkyGearData.CLOSE.vent_damage) * float(mods.vent_damage), "STEAM", float(SkyGearData.CLOSE.vent_knock), false, false, secondary_can_crit)
+	## The vent CRITS (SG-159) — it is a blow the player spends a full gauge on.
+	_damage_circle(player.global_position, radius, float(SkyGearData.CLOSE.vent_damage) * float(mods.vent_damage), "STEAM", float(SkyGearData.CLOSE.vent_knock), false, false)
 	heal_player(float(SkyGearData.CLOSE.vent_heal) + float(mods.vent_heal), "vent")
 	tel.vents += 1
 	_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": radius, "element": "STEAM", "color": Color("#f2eaff"), "time": 0.0, "life": 0.5})
@@ -3881,8 +3868,8 @@ func _update_projectiles(delta: float) -> void:
 				if hit != null:
 					var was := src_slot
 					src_slot = -3             # allies: the ship's own guns
-					## SG-148: the browser's lane cannon is `noCrit:true` (v11:5247).
-					damage_enemy(hit, float(bolt.damage), "", 90.0, bolt.position, false, secondary_can_crit)
+					## The ship's own guns crit too (SG-159).
+					damage_enemy(hit, float(bolt.damage), "", 90.0, bolt.position, false)
 					src_slot = was
 					remove = true
 			if remove:
@@ -4074,8 +4061,9 @@ func explode_keg(prop: SkyGearProp) -> void:
 	if impact != null:
 		impact.note_explosion(11.0)
 	var center := prop.global_position
-	## SG-148: the browser's keg blast is `noCrit:true` (v11:923).
-	_damage_circle(center, 175.0, 78.0, "STEAM", 380.0, false, false, secondary_can_crit)
+	## A keg CRITS (SG-159). It is the loudest thing on the deck and it is
+	## allowed to be the biggest number on the deck.
+	_damage_circle(center, 175.0, 78.0, "STEAM", 380.0, false, false)
 	if center.distance_to(player.global_position) <= 192.0:
 		damage_player(26.0, "keg")
 	_damage_props_circle(center, 175.0, 78.0)
@@ -4120,8 +4108,8 @@ func _update_fire_fields(delta: float) -> void:
 		field.tick = float(field.tick) - delta
 		while float(field.tick) <= 0.0:
 			field.tick = float(field.tick) + FIRE_TICK
-			## SG-148: the browser's pool tick is `noCrit:true` (v11:3141).
-			_damage_circle(field.position, 78.0, 7.5, "EMBER", 0.0, false, false, secondary_can_crit)
+			## A pool tick CRITS (SG-159), per tick, four times a second.
+			_damage_circle(field.position, 78.0, 7.5, "EMBER", 0.0, false, false)
 			if field.position.distance_to(player.global_position) <= 78.0:
 				## NO I-FRAMES (SG-117). This tick fires four times a second, and
 				## granting the standard 0.55 s window made a fire pool the safest
@@ -4388,8 +4376,8 @@ func _update_crew(delta: float) -> void:
 					var previous := src_slot
 					src_slot = -3
 					if target != null and target.global_position.distance_to(c.position) <= reach + 20.0:
-						## SG-148: the browser's crew swing is `noCrit:true` (v11:5342).
-						damage_enemy(target, SkyGearLanes.CREW.damage, "", 60.0, c.position, false, secondary_can_crit)
+						## A crewman's swing crits as well (SG-159).
+						damage_enemy(target, SkyGearLanes.CREW.damage, "", 60.0, c.position, false)
 						play_sfx("lane/crew_attack_1.ogg", -14.0)
 					elif not hulk.is_empty() and not bool(hulk.dead) and bool(hulk.vulnerable) \
 							and Vector2(hulk.position).distance_to(c.position) <= reach + 30.0:
