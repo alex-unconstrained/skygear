@@ -186,6 +186,8 @@ func _run() -> void:
 	await process_frame
 	_rune()
 	await process_frame
+	_lit()
+	await process_frame
 	_owner_layout_untouched()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
@@ -480,6 +482,64 @@ func _rune() -> void:
 	_check("rune", "and every tool that decides on the gate takes its runes from that mask",
 		deciders.is_empty(), "decide on COST_GATE without mask_of:%s" % _joined(deciders)
 			if not deciders.is_empty() else "rig_probe.gd, marks_shot.gd")
+
+
+## THE THIRD LAMP, AND THE REASON IT IS AIMED WHERE IT IS (SG-86).
+##
+## WHY THESE ARE SOURCE CHECKS, same reason `_still()` and `_rune()` give: the
+## harness is headless, headless has no GPU, and the luminance half of this can
+## only be measured off a framebuffer. That half is `tests/lit_probe.gd` and it
+## prints its own five `lit ·` checks. What can be guarded here is that the
+## renderer still HAS a rim and that it is still aimed at the boarders rather
+## than at the deck — because the failure mode this row actually hit was not a
+## missing light, it was a light at the wrong pitch that measured like a fix.
+##
+## -16 degrees raised the knight 7.3 and the planking he stands on 8.0. Every
+## published SG-86 number improved and the picture did not, because a
+## directional light spends `sin(pitch)` of itself on the floor. The shipped -1
+## puts ten points on the boarder and under two on the deck. A later edit that
+## quietly pitches this back down would pass every luminance gate in the project
+## and undo the entire row, so the pitch itself is pinned.
+const RIM_MAX_PITCH := 6.0
+
+
+func _lit() -> void:
+	var src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+
+	_check("lit", "the deck still has the third lamp the paintings are lit with",
+		src.contains("const RIM_ANGLE :=") and src.contains("_rim = rim"),
+		"RIM_ANGLE, parented in _build_world")
+
+	## The pitch, read out of the source rather than trusted. `RIM_ANGLE.x` is the
+	## number that decides whether this is a rim or an exposure dial.
+	var pitch := absf(SkyGearView3D.RIM_ANGLE.x)
+	_check("lit", "and it still grazes the boarders instead of washing the planking",
+		pitch <= RIM_MAX_PITCH,
+		"pitch %.0f degrees, ceiling %.0f" % [pitch, RIM_MAX_PITCH])
+
+	## COOL, because the deck is warm. A warm rim on warm planking separates
+	## nothing, which is the whole reason the painting's edge is cyan — the hue
+	## contrast carries as much of it as the luminance does.
+	var rim := Color(SkyGearView3D.RIM_COLOUR)
+	_check("lit", "and it is still a COOL rim, which is what makes it read on a warm deck",
+		rim.b > rim.r, "#%s, blue %.2f over red %.2f" % [rim.to_html(false), rim.b, rim.r])
+
+	## AND THE RIM DIMS WITH THE MOON, NOT WITH THE LANTERN. In a hulk the rim is
+	## the last thing telling you the shape at the rail has a boarder's outline;
+	## dropping it on the lantern's steeper curve would make darkness hardest
+	## exactly where reading is already hardest.
+	_check("lit", "and darkness takes it on the moon's curve, not the lantern's",
+		src.contains("_rim.light_energy = _rim_energy * lerpf(1.0, 0.52, _darkness)"),
+		"_sync_darkness")
+
+	## THE FRAMEBUFFER HALF EXISTS AND IS FROZEN. SG-86's own numbers came off
+	## `clip.gd`, which declares itself exempt from the freeze — shooting the same
+	## build twice moved its hot-orange count 575 to 409. A probe that measures
+	## this must freeze first or it is measuring the frame pacing.
+	var probe := FileAccess.get_file_as_string("res://tests/lit_probe.gd")
+	_check("lit", "and the half of it that needs a GPU is frozen before it reads",
+		probe.contains("SkyGearStill.freeze(") and probe.contains("SkyGearStill.floor_pct("),
+		"tests/lit_probe.gd")
 
 
 func _joined(items: Array[String]) -> String:

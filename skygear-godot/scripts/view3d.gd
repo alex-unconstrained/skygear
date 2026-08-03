@@ -765,10 +765,43 @@ func _build_world() -> void:
 	lantern.light_energy = 0.38
 	lantern.rotation_degrees = Vector3(-28, -150, 0)
 	add_child(lantern)
+	## THE THIRD SOURCE, and the one the paintings always had (SG-86).
+	##
+	## Every enemy painting in `assets/art/enemies/` is lit as a three-point
+	## setup: a warm key, a fill, and a cool rim that traces the whole silhouette.
+	## The deck had the first two and not the third, so a mesh boarder arrived
+	## with no edge — measured on the furnace knight, mean luminance 34.4 against
+	## his painting's 45.4 over the same crop, and the failure is not brightness
+	## alone but SEPARATION: he is a warm brown figure standing on warm brown
+	## planking with nothing between the two. That is a Pillar 6 problem before it
+	## is an atmosphere one; the shape at the rail has to be identifiable.
+	##
+	## MEASURED, and this is why it is a light and not an emission tweak:
+	## `emission_energy` cannot fix it, because `armored_emission.png` peaks at
+	## 51/255 and covers 0.15% of its texels — there is no emissive area to
+	## amplify, which is the real reason 6 -> 18 -> 40 moved nothing (SG-86 read
+	## that as a saturated tonemapper; it is an empty map, and the grille is
+	## filed separately for Alex).
+	##
+	## It shines from the BOW toward the camera, which is the only direction that
+	## rims a figure the camera is looking at: yaw 200 puts it over the port bow
+	## so the edge lands on the same side the paintings light, and the shallow
+	## -16 pitch is deliberate — a rim wants grazing angles on VERTICAL surfaces,
+	## and every degree of pitch spent on the deck plane is a degree that washes
+	## the planking instead of the boarder standing on it. No shadows: a rim that
+	## casts is a second shadow from an impossible sun, and the cost is real.
+	var rim := DirectionalLight3D.new()
+	rim.light_color = Color(RIM_COLOUR)
+	rim.light_energy = RIM_ENERGY
+	rim.rotation_degrees = RIM_ANGLE
+	rim.shadow_enabled = false
+	add_child(rim)
 	_moon = moon
 	_lantern = lantern
+	_rim = rim
 	_moon_energy = moon.light_energy
 	_lantern_energy = lantern.light_energy
+	_rim_energy = rim.light_energy
 	_ambient_energy = e.ambient_light_energy
 	_environment = e
 
@@ -3808,11 +3841,47 @@ func _sync_airstream(delta: float) -> void:
 ##
 ## Eased rather than switched, over about a second and a half. A hard cut reads
 ## as a bug, and the slow failure of the lamps is most of the drama.
+
+
+## THE RIM (SG-86). Cool, because the deck is warm and a warm rim on warm
+## planking separates nothing — the hue contrast is doing as much work as the
+## luminance. Sampled from the paintings themselves: the cyan edge on
+## `furnace_knight_front_idle.png` sits around #9fc6e8, a touch cooler and
+## lighter than the moon's #8fa6c9, which is what tells the eye the two are
+## different sources rather than one smeared one.
+const RIM_COLOUR := "#9fc6e8"
+const RIM_ENERGY := 0.62
+## AND THE PITCH IS THE WHOLE FIX. This started at -16 and -16 DID NOT WORK, in
+## the specific way that is worth keeping written down: measured on the frozen
+## probe it took the knight from 40.81 to 48.12 and the planking he stands on
+## from 47.83 to 55.88. It lifted both by about the same eight points. That is
+## not a rim light, it is the exposure dial with a colour on it, and by eye the
+## picture was no easier to read — the boarder stayed a dark shape on a slightly
+## brighter deck.
+##
+## A directional light puts `sin(pitch)` of itself on a floor and roughly
+## `cos(pitch)` on the vertical surfaces of anything standing on it, so every
+## degree of pitch is spent on planking. Taken to -1 the same 0.62 gives:
+##
+##     figure 40.81 -> 51.19      deck 47.83 -> 49.53
+##
+## Ten points onto the boarder and under two onto the deck he stands on, which
+## flips the thing that actually decides whether he reads: he was 15% DARKER
+## than his own planking (0.853) and is now marginally brighter (1.034). Pinned
+## by `lit · the furnace knight reads brighter than the deck he stands on`.
+##
+## The energy is held low for the reason the pitch is held shallow. A boarder
+## who out-glows his own wind-up is a Pillar 6 REGRESSION however well he
+## measures, and at this pitch the deck is still 49.53 against the painting's
+## 55.03 — there is room left, and it is deliberately not being spent.
+const RIM_ANGLE := Vector3(-1, 200, 0)
 var _moon: DirectionalLight3D
 var _lantern: DirectionalLight3D
+var _rim: DirectionalLight3D
 var _environment: Environment
 var _moon_energy := 1.45
 var _lantern_energy := 0.38
+var _rim_energy := RIM_ENERGY
 var _ambient_energy := 0.62
 var _darkness := 0.0
 var _darkness_target := 0.0
@@ -3835,6 +3904,12 @@ func _sync_darkness(delta: float) -> void:
 		## The moon dims least. Losing the rim light entirely turns every figure
 		## into a silhouette you cannot identify, which is unfair rather than dark.
 		_moon.light_energy = _moon_energy * lerpf(1.0, 0.52, _darkness)
+	if _rim != null:
+		## And the rim dims WITH the moon, on the same curve, for the same reason
+		## the moon does: in a hulk the rim is the last thing telling you the
+		## shape at the rail has a boarder's outline. Losing it first would make
+		## darkness hardest exactly where it is already hardest to read (SG-86).
+		_rim.light_energy = _rim_energy * lerpf(1.0, 0.52, _darkness)
 	if _lantern != null:
 		_lantern.light_energy = _lantern_energy * keep
 	if _environment != null:

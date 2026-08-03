@@ -198,3 +198,48 @@ Every dying thing on this deck now has a death. As of tonight, nothing vanishes
 — it fades.
 
 ---
+
+## 7 · The furnace knight has an edge now — and two things about him are asset bugs (SG-86 / SG-131)
+
+**Look at this first: `.shots/sg86/full-before-after.png`** (your build on the
+left, the change on the right), and `.shots/sg86/knight-crop-before-after.png`
+for the close crop. Both are the same frozen frame, same seed, same pose.
+
+**What was actually wrong was not that he was dark, it was that he was darker
+than the floor.** Measured, he sat at **40.81 against the planking's 47.83** —
+15% darker than the boards he stands on, a warm brown figure on a warm brown
+deck. Your paintings all carry a cool rim the deck never gave the mesh, so the
+deck grew a third lamp: a cool `#9fc6e8` rim from the bow, energy 0.62, pitch
+**-1 degree**. He is now **51.19 against 49.53** — the light went onto him and
+not onto the planking. **I left headroom unspent on purpose**: the deck could
+go to 55 before it matched your painting, and a boarder who out-glows his own
+wind-up is a readability loss however well he measures.
+
+**The first version of that fix was fake and I nearly shipped it.** At pitch -16
+it improved every number this ticket was filed on — and the picture looked no
+better, because it brightened him and the deck by the same eight points. It is
+in the board row, and the harness now pins the pitch so it cannot drift back.
+
+**NOTHING NEEDED FROM YOU ON THAT.** What does need you is **SG-131**, because
+it costs asset work rather than code:
+
+1. **His furnace grille is not emissive at all.** `armored_emission.png` peaks
+   at 51/255 and 0.15% of it is non-black — there is no grille in the map. The
+   ticket said raising `emission_energy` did nothing because the tonemapper was
+   saturated; it did nothing because **there is nothing there to multiply**. The
+   orange on his chest today is painted into the colour map and lit by a lamp.
+2. **His armour is 70% metal with a black sky to reflect.** The metal map's
+   median is 178/255 and nothing sets the environment's reflection source, so
+   the plating shows a storm-dusk night sky — which is why big areas of him
+   render nearly black while your painting is mid-tone brass. This is the single
+   biggest reason the mesh reads darker than the sprite, and no light fixes it.
+
+Both are a re-ingest, not a regeneration — **I do not think either needs Meshy
+credits.** I did not touch them because they live in `tools/`, which another
+agent held all night, and because changing metalness or reflections moves every
+model on the deck at once and deserves its own measured row. **The instrument to
+judge it already exists** (`tests/lit_probe.gd`), so whoever takes SG-131 can
+show you a before/after the same way this one did.
+
+**His axe is still missing.** Untouched, as briefed — that is the SG-38 seam and
+it needs a weapon mesh, not a material.
