@@ -30,5 +30,5 @@ test('browser entry point is the published V1 runtime with parity layer',async()
   const classic=await readFile(new URL('../index.html',import.meta.url),'utf8');
   const layer=await readFile(new URL('../src/v1-parity.js',import.meta.url),'utf8');
   assert.match(html,/<canvas id="c"><\/canvas>/); assert.match(html,/src\/v1-parity\.js/);
-  assert.match(classic,/window\.SKYGEAR/); assert.match(classic,/nearestLiveEnemy/); assert.match(classic,/Slot 0 is the class basic attack/); assert.match(layer,/THE OPENING DRAFT/); assert.match(layer,/OPENING_SKILLS/); assert.match(layer,/v1-mobile-controls/); assert.match(layer,/AUTO-AIM/); assert.match(layer,/boilerwright/);
+  assert.match(classic,/window\.SKYGEAR/); assert.match(classic,/nearestLiveEnemy/); assert.match(classic,/Slot 0 is the class basic attack/); assert.match(classic,/function deploySentry/); assert.match(classic,/function updateSentries/); assert.match(classic,/function updatePassiveSkills/); assert.match(classic,/function updateCannons/); assert.match(classic,/function updateHulk/); assert.match(classic,/activeEvent/); assert.match(classic,/owner:'sentry'/); assert.match(layer,/THE OPENING DRAFT/); assert.match(layer,/OPENING_SKILLS/); assert.match(layer,/v1-mobile-controls/); assert.match(layer,/AUTO-AIM/); assert.match(layer,/boilerwright/);
 });
