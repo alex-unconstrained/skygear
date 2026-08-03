@@ -387,3 +387,119 @@ and that is now the rule rather than a lesson.
 
 Your `weapons.json` was never touched by any of this, and still isn't.
 
+
+---
+
+## 12 · Boarders arrive by ship now — two stages of three, and decision 5 is answered by a default you can overrule in one line (SG-134 / SG-135)
+
+**Your sentence unblocked the whole thing.** *"While they're jumping, they should
+be immune to all damage until they hit the deck and start moving."* That was the
+open question the design could not answer for itself, and it is built as a RULE
+rather than a carve-out: one predicate, `SkyGearEnemy.can_be_hit()`, asked by
+every path that can take health off a boarder — the funnel every skill goes
+through, the burn tick that never went through it, and the cannon and crew
+targeting loops, which used to be the only two things in the game that respected
+the arrival window. The string `"climb"` no longer appears anywhere outside
+`enemy.gd`. A damage source somebody writes next month inherits the rule without
+being told about it.
+
+**Two side effects you should know about, neither compensated.** A Colossus can
+no longer be BURNED through his half-health turn — the burn tick was bypassing
+the guard that everything else respected, so he was never as unburstable as the
+code said. And a cannon or a crewman no longer aims at something it could not
+hurt. Both make the game very slightly harder and both are one predicate away
+from being reverted.
+
+**WHAT IS BUILT:** a hull leaves the ambient wedge at the start of every wave but
+the boss's, comes forward and up to a hold off the port bow, holds through the
+fight, and rides the wave's own clear countdown home — **and its station is empty
+sky while it is away**, which is the "fleet is one short" reading for free. And
+the gold ring that `enemy.gd` has drawn around an arriving boarder since the port
+began — in the hidden 2D scene, where no player has ever seen it — is on the
+planking, closing from wide onto the boarder's own gameplay radius.
+
+**WHAT IS NOT BUILT:** the drop itself. Boarders still appear on the planking
+rather than falling onto it, so *"I still see enemies popping in"* is only
+half-answered. That is SG-142, and everything it needs is now in place.
+
+**DECISION 5 — WHICH SHIP IS THE ARRIVAL SHIP — IS NO LONGER BLOCKING.** I picked
+a default and it is one named constant, `ARRIVAL_HULL_ORDER` in `view3d.gd`:
+**one of the four hulls already flying comes forward per wave**, rotating
+tender, barge, skiff, cutter. Three reasons it can be a default rather than a
+question:
+
+  * it answers no OTHER open question by accident — `skyship_barge_heavy` stays
+    on the bench, so decision 3 is exactly where you left it;
+  * cutting the list to a single entry turns it into the other answer, a
+    dedicated arrival ship, with no other edit;
+  * and it claims no channel nobody has measured — making the hull MEAN what is
+    coming needs the hull to be legible, and it is not legible enough for that
+    yet. See below.
+
+The order is by how far each hull travels, longest first. That was a measurement,
+not a taste: I wrote it cutter-first at first and the frames said no, because the
+cutter's ambient station is already at the hold's own depth and height, so its
+whole "arrival" is a sideways slide.
+
+**AND THE THING YOU SHOULD BE TOLD RATHER THAN DISCOVER, because it is the part I
+cannot fix.** The arriving hull reads **from the bow**, at the edge of the frame,
+partly behind our own rail. **From mid-deck it is not visible at all** — SG-102
+measured the deck as 100% of the frame at zoom 1.0 from the middle, and no
+arrival ship can change that. `.shots/sg134/mid-z1.00-hold.png` is that fact
+photographed rather than described. It is why the ring matters more than the
+ship: the ring is the only channel that works where the fight actually happens.
+
+**The mark the design told me to park the ship on was in the one place you cannot
+see it,** and I found that by being the first thing ever to read it.
+`SKYSHIP_BOW_HOLD` has been a constant with no reader since SG-102. Its `y` is a
+KEEL and was reasoned about as a deck, which put the entire hull above the top of
+the picture; and its `x` is dead ahead, which is where our own bow is — true of
+the camera frustum and false of the photograph. Six candidate bearings are shot
+at `.shots/sg134/holds/` with every other hull hidden, which is the experiment
+that settled it.
+
+**To look at it:** `.shots/sg134/` — four poses at both zooms, the hull at its
+station and on the hold from ONE camera, so the pair is a real comparison; and
+`ring-fight.png` / `ring-mid.png`, three boarders held at 98%, 50% and 6% of one
+arrival window so the ring's CLOSE is visible in a still. Or run
+`godot --path . --script tools/arrival_shot.gd` yourself.
+
+---
+
+## 2026-08-03 — two answers only you can give, both about the boarding hulk (SG-139 / SG-140)
+
+Both came out of your three build-53 notes. Neither blocks anything shipped
+today; both decide how far the fix goes.
+
+**1. Should a DESTROYED hulk stop being solid?** — board SG-139
+
+You asked for wrecks to "fade away after being destroyed". They now fade, but
+only down to 28% rather than to nothing, and that is not a taste call: the
+simulation keeps a broken hulk's collision hull for the rest of the run on
+purpose (`hulk_hull()` answers for all three states, and `correct_player_position`
+pushes the captain out of it). A wreck faded to zero would be an **invisible wall
+across the bow** — a worse bug than the one you reported.
+
+*Recommendation:* let the wreck stop colliding when it dies, and fade it to
+nothing. It is one line in `game.gd` (`hulk_hull()` returning `{}` for the
+destroyed state) plus one constant here, and the wreck then reads as debris you
+walk through rather than a hulk you cannot see. The argument against is that a
+broken boarding craft bolted to your hull arguably *should* still be in the way —
+if you want that, say so and it stays at 28% and visible, which is also a
+defensible answer.
+
+**2. Do you want the hulk to be BIGGER than it now is?** — board SG-140
+
+The thing you asked about in the middle of the frame is the enemy's **boarding
+craft** — it grapples onto the bow on a push wave and unloads boarders until you
+break it. It was drawn **528 ground units wide against a 380-wide collision
+hull**, in a **440-wide lane**: wider than the lane it sits in, which is why it
+read as blocking. It is now drawn at 380 — the same number the crew march on, the
+splash measures against and you collide with — so it is 380 wide, 223 tall, 308
+deep, and the lane is open.
+
+That makes it noticeably smaller on screen than you have been seeing it. If that
+now under-sells it, **the lever is `SkyGearLanes.HULK.radius` (currently 190)**,
+which moves the picture and the collision together — raising it to 240 would put
+it back near 480 wide and still inside the lane. I have not touched it because it
+is a gameplay number, not a rendering one. Say a number, or say "leave it".
