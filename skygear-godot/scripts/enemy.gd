@@ -91,6 +91,54 @@ var turn_time := 0.0
 ## clip that accelerates as it plays. Same number, named once.
 const TURN_TIME := 1.6
 
+## --- MAY THIS BOARDER BE HURT? ONE FUNCTION, AND EVERY DAMAGE PATH ASKS IT ----
+##
+## THE OWNER'S RULE, 2026-08-03, over build 53: *"While they're jumping, they
+## should be immune to all damage until they hit the deck and start moving."*
+##
+## `state == "climb"` IS "has not hit the deck and has not started moving" — it
+## is the 0.8 s window a fresh boarder spends with its velocity zeroed before
+## `state` becomes `"move"`. So the owner's sentence needs no new channel in the
+## simulation; it needs the window that already exists to be believed by
+## everything instead of by two things.
+##
+## WHY THIS IS A PREDICATE AND NOT A BRANCH IN EACH CALLER. Before this, the
+## deck held two contradictory opinions about whether an arriving boarder was
+## real: `game.gd`'s cannon and crew targeting loops skipped one by typing the
+## string `"climb"` in two places, and every player skill, aura, fire pool, keg,
+## steam tap, dash impact and the auto-attack hit it. Nobody noticed because a
+## climbing boarder was drawn standing on the planking; the moment it is drawn
+## falling out of a transport, damage numbers popping under a figure in mid-air
+## is the bug report. Making it total rather than per-path is the whole point:
+## a damage source added next month cannot forget a rule it never has to
+## remember.
+##
+## `can_be_hit()` is therefore asked in exactly three places, and between them
+## they are every way a boarder's hp has ever gone down:
+##
+##   1. `take_damage` — the sim's only entry to hp reduction, and the sole
+##      production caller is `game.gd::damage_enemy`, the single funnel every
+##      skill shape, circle, cone, line, bolt, crew swing and sentry goes
+##      through.
+##   2. the BURN TICK in `_update_statuses` — which decrements `hp` directly and
+##      is the one path that has never gone through `take_damage`.
+##   3. the two targeting loops in `game.gd`, which now ask this instead of
+##      naming the state, so there is no longer a string literal outside this
+##      file that anything reasons about.
+##
+## IT ALSO SUBSUMES THE COLOSSUS'S TURN, deliberately, and that closes a real
+## hole rather than tidying one. `take_damage` refused damage during
+## `state == "turn"` and the burn tick did not, so a Colossus WAS burnable
+## through the beat that `scripts/rig3d.gd` says out loud "returns zero through
+## it". One predicate, both readers, and the two can no longer disagree.
+func airborne() -> bool:
+	return state == "climb"
+
+
+func can_be_hit() -> bool:
+	return not dead and not airborne() and state != "turn"
+
+
 func _windup_scale() -> float:
 	if game == null or not ("heat" in game):
 		return 1.0
@@ -395,11 +443,12 @@ func _went_over() -> bool:
 
 
 func take_damage(amount: float, origin: Vector2, element: String, knock: float) -> float:
-	# The Colossus cannot be burst through its turn. The second beat is the
-	# encounter's point and a phase you can skip is not one.
-	if state == "turn":
-		return 0.0
-	if dead or amount <= 0.0:
+	## ONE GATE, and it is `can_be_hit()` above. It carries the Colossus's turn
+	## (the second beat is the encounter's point and a phase you can skip is not
+	## one) AND the arriving boarder's flight, so this function has no opinion of
+	## its own about either and cannot drift from the one the burn tick and the
+	## targeting loops read.
+	if not can_be_hit() or amount <= 0.0:
 		return 0.0
 	var dealt := minf(hp, amount)
 	hp -= amount
@@ -453,16 +502,28 @@ func _update_statuses(delta: float) -> void:
 	if burn_time > 0.0:
 		burn_time -= delta
 		burn_tick -= delta
+		## THE ONE PATH THAT NEVER WENT THROUGH `take_damage`, and so the one
+		## path that has to ask the same question separately. It decrements `hp`
+		## in place — no crit, no funnel, no telemetry — which is why a rule
+		## written only inside `take_damage` would have a hole in it the size of
+		## every burning boarder.
 		if burn_tick <= 0.0:
+			## The SCHEDULE advances whatever happens, and only the DAMAGE is
+			## gated. Gating the whole branch would let the suppressed ticks pile
+			## up behind a negative `burn_tick` and all land on the frame the
+			## boarder became hittable again — an immunity window that pays
+			## itself back with interest is not an immunity window. Same reason
+			## SG-122 carries the overshoot rather than assigning it.
 			burn_tick += 0.25
-			var amount := 5.0 * burn_stacks * 0.25
-			var dealt := minf(hp, amount)
-			hp -= amount
-			game.register_damage(dealt, global_position)
-			if hp <= 0.0 and not dead:
-				dead = true
-				game.on_enemy_killed(self)
-				queue_free()
+			if can_be_hit():
+				var amount := 5.0 * burn_stacks * 0.25
+				var dealt := minf(hp, amount)
+				hp -= amount
+				game.register_damage(dealt, global_position)
+				if hp <= 0.0 and not dead:
+					dead = true
+					game.on_enemy_killed(self)
+					queue_free()
 	if burn_time <= 0.0:
 		burn_stacks = 0
 

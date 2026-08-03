@@ -4088,10 +4088,16 @@ func _update_turrets(delta: float) -> void:
 		t.cooldown = maxf(0.0, float(t.cooldown) - delta)
 		# the boarder nearest the Boiler in this lane, so a cannon covers the
 		# thing behind it rather than the thing in front of it
+		#
+		# …and it does not aim at something it could not hurt if it hit. This
+		# used to type the string `"climb"` here and again in the crew loop
+		# below — two of the game's own files holding an opinion about which
+		# boarders are real, while every player skill held the other one. The
+		# question belongs to the boarder: `SkyGearEnemy.can_be_hit()`.
 		var best: SkyGearEnemy = null
 		var best_y := -99999.0
 		for enemy in enemies():
-			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
+			if not is_instance_valid(enemy) or not enemy.can_be_hit():
 				continue
 			if enemy.lane != int(t.lane):
 				continue
@@ -4225,11 +4231,12 @@ func _update_crew(delta: float) -> void:
 		if bool(c.dead):
 			crew.remove_at(i)
 			continue
-		# nearest boarder in this crewman's lane, else march at the hulk
+		# nearest boarder in this crewman's lane, else march at the hulk —
+		# and, as with the cannon above, never one he could not hurt
 		var target: SkyGearEnemy = null
 		var best := 1e9
 		for enemy in enemies():
-			if not is_instance_valid(enemy) or enemy.dead or enemy.state == "climb":
+			if not is_instance_valid(enemy) or not enemy.can_be_hit():
 				continue
 			if enemy.lane != int(c.lane):
 				continue

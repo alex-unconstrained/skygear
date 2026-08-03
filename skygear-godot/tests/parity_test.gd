@@ -68,6 +68,30 @@ func _advance(game: SkyGearGame, seconds: float) -> void:
 				enemy._physics_process(0.05)
 
 
+## A FIXTURE BOARDER THAT HAS ALREADY GOT OFF THE SHIP.
+##
+## `spawn_enemy` puts a boarder in `state == "climb"` — the arrival window — and
+## since the owner's rule (board SG-134, *"while they're jumping, they should be
+## immune to all damage until they hit the deck and start moving"*) that window
+## is total immunity, enforced in one place for every damage path there is.
+##
+## A test that wants to HIT something therefore has to let it land first, which
+## is what a real fight does. That is not a concession the rule extracted from
+## the harness: TEN checks in this file were already relying on being able to
+## damage a boarder that had not landed yet, and eight of them went red the
+## moment the rule landed. Two did not, and those two are the interesting ones —
+## `class · landing a hit grants him NO Head` asserts that pressure stays at
+## zero, so an immune target would have kept it green for entirely the wrong
+## reason. Most fixtures in this file already wrote `state = "move"` by hand for
+## unrelated reasons; this is that line, named, so the next one does it on
+## purpose.
+func _landed(enemy: SkyGearEnemy) -> SkyGearEnemy:
+	if enemy != null and is_instance_valid(enemy):
+		enemy.state = "move"
+		enemy.state_time = 0.0
+	return enemy
+
+
 func _begin(game: SkyGearGame, seed_text: String = "PARITY") -> void:
 	game.set_seed_text(seed_text)
 	game.begin_run()
@@ -187,6 +211,8 @@ func _run() -> void:
 	_rune()
 	await process_frame
 	_lit()
+	await process_frame
+	_arrival()
 	await process_frame
 	_owner_layout_untouched()
 
@@ -1622,6 +1648,7 @@ func _lanes() -> void:
 			rail = e
 	_check("knockback", "there is an outer-lane boarder to push", rail != null)
 	if rail != null:
+		_landed(rail)
 		rail.global_position = Vector2(700.0, 0.0)
 		rail.stun_time = 0.0
 		## Shoved outward from inboard, which is the direction a captain standing
@@ -1642,6 +1669,7 @@ func _lanes() -> void:
 		if is_instance_valid(e) and not e.dead and e.lane == 2:
 			safe = e
 	if safe != null:
+		_landed(safe)
 		safe.global_position = Vector2(700.0, 0.0)
 		safe.take_damage(0.5, Vector2(300.0, 0.0), "", 150.0)
 		_advance(game, 1.2)
@@ -1944,6 +1972,7 @@ func _sg62() -> void:
 	for e in game.get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(e) and not e.dead:
 			mule3 = e
+	_landed(mule3)
 	mule3.hp = 1e9
 	mule3.max_hp = 1e9
 	mule3.knock_velocity = Vector2.ZERO
@@ -5819,6 +5848,7 @@ func _view() -> void:
 		if is_instance_valid(e) and not e.dead:
 			punchbag = e
 	if punchbag != null:
+		_landed(punchbag)
 		punchbag.global_position = game.player.global_position + Vector2(60.0, 0.0)
 		punchbag.hp = 1e9
 		punchbag.max_hp = 1e9
@@ -5848,6 +5878,7 @@ func _view() -> void:
 		if is_instance_valid(e) and not e.dead:
 			hers_target = e
 	if hers_target != null:
+		_landed(hers_target)
 		hers_target.global_position = her.player.global_position + Vector2(60.0, 0.0)
 		hers_target.hp = 1e9
 		hers_target.max_hp = 1e9
@@ -5988,6 +6019,7 @@ func _view() -> void:
 		if not e.dead:
 			scalded = e
 	if scalded != null:
+		_landed(scalded)
 		scalded.global_position = Vector2(0.0, -150.0)
 		scalded.hp = 1e9
 		scalded.max_hp = 1e9
@@ -6075,6 +6107,7 @@ func _view() -> void:
 		if is_instance_valid(e) and not e.dead:
 			doomed = e
 	if doomed != null:
+		_landed(doomed)
 		doomed.global_position = Vector2(20.0, 0.0)   ## inside the main
 		doomed.hp = 1.0
 		var before_life: float = float(game.taps[0].life)
@@ -6092,6 +6125,7 @@ func _view() -> void:
 		if is_instance_valid(e) and not e.dead:
 			second = e
 	if second != null:
+		_landed(second)
 		second.global_position = Vector2(20.0, 0.0)
 		second.hp = 1.0
 		game.damage_enemy(second, 999.0, "STEAM", 0.0, Vector2.ZERO, false)
@@ -6170,6 +6204,7 @@ func _view() -> void:
 		if not e.dead:
 			prey = e
 	if prey != null:
+		_landed(prey)
 		prey.global_position = Vector2(90.0, 0.0)
 		prey.hp = 1e9
 		prey.max_hp = 1e9
@@ -6812,6 +6847,7 @@ func _view() -> void:
 		if is_instance_valid(e) and not e.dead:
 			mark = e
 	if mark != null:
+		_landed(mark)
 		mark.global_position = Vector2(260, 0)
 		mark.hp = 1e9
 		mark.max_hp = 1e9
@@ -12265,3 +12301,227 @@ func _deck_shape() -> void:
 
 	world.queue_free()
 	await process_frame
+
+
+## --- THE ARRIVAL --------------------------------------------------------------
+##
+## Board SG-134 (a ship pulls up and the wave gets off it) and SG-135 (the climb
+## telegraph nobody has ever seen, and the half of the game that respected it).
+## `docs/BOARDING-ARRIVAL-DESIGN.md` is the specification.
+##
+## THE OWNER SETTLED THE OPEN QUESTION HIMSELF, over build 53: *"While they're
+## jumping, they should be immune to all damage until they hit the deck and start
+## moving."* That is `state == "climb"`, which the simulation has always had and
+## which exactly two files respected. The checks below are written against the
+## RULE rather than against the paths that happen to exist today, because the
+## whole value of making it total is that a damage source written next month
+## inherits it without being told.
+func _arrival() -> void:
+	_arrival_immunity()
+	_arrival_structure()
+
+
+## Get a live boarder that is still in its arrival window, out of a real run
+## rather than out of a hand-built node — a fixture that constructs its own
+## enemy is a fixture that can drift from what `spawn_enemy` actually makes.
+func _arriving_boarder(game: SkyGearGame) -> SkyGearEnemy:
+	for enemy in game.enemies():
+		if is_instance_valid(enemy) and not enemy.dead and enemy.state == "climb":
+			return enemy
+	return null
+
+
+func _arrival_immunity() -> void:
+	var game := _new_game()
+	_begin(game)
+	game._process(0.05)
+	var boarder := _arriving_boarder(game)
+	_check("immunity", "a wave puts a boarder in its arrival window at all",
+		boarder != null,
+		("%s, hp %.0f" % [boarder.kind, boarder.hp]) if boarder != null
+			else "nothing in state climb one frame into wave 1")
+	if boarder == null:
+		game.queue_free()
+		return
+
+	## (1) THE FUNNEL. `damage_enemy` is the single production entry every skill
+	## shape, aura, pulse, fire pool, steam tap, keg, dash impact, bolt, sentry,
+	## crew swing and the auto-attack goes through — so one boarder held in its
+	## window and pushed through it with every element is the whole player-facing
+	## damage surface at once. On the code this replaces, every one of these
+	## landed.
+	var before: float = boarder.hp
+	var dealt := 0.0
+	for element: String in ["", "EMBER", "FROST", "ARC", "STEAM"]:
+		dealt += game.damage_enemy(boarder, 40.0, element, 900.0,
+			Vector2(0.0, -900.0), true)
+	_check("immunity", "an arriving boarder takes nothing from the funnel every skill goes through",
+		dealt == 0.0 and is_equal_approx(boarder.hp, before) and boarder.state == "climb",
+		"dealt %.1f, hp %.1f -> %.1f, state %s" % [dealt, before, boarder.hp, boarder.state])
+
+	## (2) AND IS NOT SHOVED OUT OF ITS OWN ARC. Refusing the damage but keeping
+	## the knockback would still throw a figure sideways in mid-air, and the
+	## renderer reads the landing point off `global_position` every frame.
+	_check("immunity", "and is not knocked out of the air by a hit that dealt nothing",
+		boarder.knock_velocity == Vector2.ZERO and not boarder.knock_live,
+		"knock %s" % [boarder.knock_velocity])
+
+	## (3) THE PATH THAT NEVER WENT THROUGH `take_damage`. Burn decrements `hp`
+	## in place from `_update_statuses`, so a rule written only in `take_damage`
+	## has a hole in it exactly the size of every burning boarder.
+	boarder.burn_stacks = 3
+	boarder.burn_time = 3.0
+	boarder.burn_tick = 0.0
+	var burn_before: float = boarder.hp
+	for _i in 4:
+		boarder._update_statuses(0.05)
+	_check("immunity", "and cannot be burned while it is still arriving",
+		is_equal_approx(boarder.hp, burn_before),
+		"hp %.2f -> %.2f over four burn ticks" % [burn_before, boarder.hp])
+
+	## (4) AND THE WINDOW ENDS. An immunity that does not end is an invulnerable
+	## boarder, which is a worse bug than the one this fixes — and per the
+	## owner's sentence the frame it ends is the frame the boarder starts moving.
+	_advance(game, 1.2)
+	if is_instance_valid(boarder) and not boarder.dead:
+		var moving: bool = boarder.state != "climb"
+		var landed_before: float = boarder.hp
+		var landed_dealt: float = game.damage_enemy(boarder, 12.0, "", 0.0,
+			Vector2(0.0, -900.0), true)
+		_check("immunity", "a boarder becomes hittable on the frame it stops arriving",
+			moving and landed_dealt > 0.0 and boarder.hp < landed_before,
+			"state %s, dealt %.1f" % [boarder.state, landed_dealt])
+	else:
+		_check("immunity", "a boarder becomes hittable on the frame it stops arriving",
+			false, "the fixture boarder did not survive the wait")
+
+	## (5) THE SUPPRESSED TICKS ARE NOT BANKED. Gating the whole burn branch
+	## rather than only its damage would pile the skipped ticks up behind a
+	## negative `burn_tick` and land all of them on the frame the window closed —
+	## an immunity that pays itself back with interest is not one. Stated as a
+	## CEILING on the first step after the window reopens rather than as an
+	## equality across two windows: a burn tick is a 0.25 s schedule sampled at
+	## 0.05 s, so the number of ticks in any fixed span is a phase question and
+	## an equality there would be checking the float, not the rule.
+	var pay := _new_game()
+	_begin(pay)
+	pay._process(0.05)
+	var a := _arriving_boarder(pay)
+	if a != null:
+		var one_tick: float = 5.0 * 3.0 * 0.25
+		a.max_hp = 5000.0
+		a.hp = 5000.0
+		a.burn_stacks = 3
+		a.burn_time = 999.0
+		a.burn_tick = 0.25
+		## Two seconds held in the window: eight ticks' worth of schedule, and
+		## not one unit of health.
+		var held_start: float = a.hp
+		for _i in 40:
+			a._update_statuses(0.05)
+		var held_loss: float = held_start - a.hp
+		## And the frame it lands, at most ONE tick may fall due.
+		a.state = "move"
+		a._update_statuses(0.05)
+		var first_step: float = held_start - a.hp
+		_check("immunity", "the ticks an immunity swallows are never paid back afterwards",
+			is_equal_approx(held_loss, 0.0)
+				and first_step <= one_tick + 0.001,
+			"held %.2f over 2s, then %.2f on the landing frame against a %.2f tick"
+				% [held_loss, first_step, one_tick])
+	else:
+		_check("immunity", "the ticks an immunity swallows are never paid back afterwards",
+			false, "no arriving boarder for the fixture")
+	pay.queue_free()
+	game.queue_free()
+
+
+## THE RULE IS STRUCTURAL OR IT IS NOT A RULE.
+##
+## A per-path check would only ever say "the paths we thought of are covered".
+## These say something stronger and cheaper: there is exactly one predicate, and
+## there is nowhere else for the question to be asked or the answer written.
+func _arrival_structure() -> void:
+	## (a) NOBODY OUTSIDE `enemy.gd` NAMES THE STATE. Before this, `game.gd`
+	## typed the string `"climb"` in its cannon loop and again in its crew loop —
+	## two carve-outs that had to be remembered, and were not remembered by the
+	## other thirty-odd damage sites. The state is the boarder's business; the
+	## rest of the game asks `can_be_hit()`. This FAILS on the code it replaces.
+	var names: Array[String] = []
+	for path in _game_sources():
+		if path.ends_with("scripts/enemy.gd"):
+			continue
+		var src := FileAccess.get_file_as_string(path)
+		for line in src.split("\n"):
+			var code := str(line).strip_edges()
+			if code.begins_with("#"):
+				continue
+			if code.contains("\"climb\""):
+				names.append(path.get_file())
+				break
+	_check("immunity", "nothing outside enemy.gd names the arrival state by its string",
+		names.is_empty(), "named in:%s" % _joined(names))
+
+	## (b) EVERY FUNCTION THAT LOWERS A BOARDER'S HP ASKS THE PREDICATE. Read out
+	## of `enemy.gd`'s own source, function by function, so the day somebody adds
+	## a third place that takes health off a boarder the harness says so instead
+	## of the picture. This FAILS on the code it replaces: `take_damage` gated
+	## only on `state == "turn"`, and the burn tick gated on nothing at all.
+	var unguarded: Array[String] = []
+	var lowering := 0
+	var here := ""
+	var guarded := false
+	var lowers := false
+	var lines := FileAccess.get_file_as_string("res://scripts/enemy.gd").split("\n")
+	for i in lines.size() + 1:
+		var line: String = str(lines[i]) if i < lines.size() else "func _sentinel():"
+		if line.begins_with("func "):
+			if lowers:
+				lowering += 1
+				if not guarded:
+					unguarded.append(here)
+			here = line.substr(5).split("(")[0]
+			guarded = false
+			lowers = false
+			continue
+		var code := line.strip_edges()
+		if code.begins_with("#"):
+			continue
+		if code.contains("can_be_hit()"):
+			guarded = true
+		if code.contains("hp -="):
+			lowers = true
+	_check("immunity", "every function in enemy.gd that lowers a boarder's hp asks can_be_hit()",
+		unguarded.is_empty() and lowering >= 2,
+		"%d lowering functions, unguarded:%s" % [lowering, _joined(unguarded)])
+
+	## (c) AND NOTHING ANYWHERE ELSE LOWERS ONE. A REGRESSION GUARD — it is true
+	## on the code this replaces too, and it is here so (b)'s guarantee cannot be
+	## walked around by moving the arithmetic OUT of `enemy.gd` rather than by
+	## adding a function to it.
+	var outside: Array[String] = []
+	for path in _game_sources():
+		if path.ends_with("scripts/enemy.gd"):
+			continue
+		for line in FileAccess.get_file_as_string(path).split("\n"):
+			var code := str(line).strip_edges()
+			if code.begins_with("#") or not code.contains("hp -="):
+				continue
+			var receiver := code.split("hp -=")[0].strip_edges().to_lower()
+			if receiver.contains("enem") or receiver.contains("boarder") \
+					or receiver.contains("foe"):
+				outside.append("%s: %s" % [path.get_file(), code])
+	_check("immunity", "nothing outside enemy.gd lowers a boarder's hp — the regression guard on (b)",
+		outside.is_empty(), _joined(outside))
+
+
+## Every GDScript the GAME is built out of. Tools and tests are excluded on
+## purpose: a probe may legitimately pose a boarder into any state it likes, and
+## a harness that forbade the fixtures above from typing the state name would be
+## a harness forbidding itself.
+func _game_sources() -> Array[String]:
+	var out: Array[String] = []
+	for name in DirAccess.get_files_at("res://scripts"):
+		if name.ends_with(".gd"):
+			out.append("res://scripts/" + name)
+	return out
