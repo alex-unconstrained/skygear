@@ -4795,7 +4795,7 @@ S.phase = 'idle';
 requestAnimationFrame(frame);
 
 // A small hatch into the machine — handy for tinkering with the tables above.
-window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS,
+window.SKYGEAR = { S, Input, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS,
                    startRun, startWave, spawnEnemy, openDraft, newSkill,
                    castSlot, skillStats, step, rollCards, updateRay, endRay, render,
                    drawWorld, drawShip, drawHUD, drawFx, drawParticles, drawNums, Particles,
@@ -4805,6 +4805,6 @@ window.SKYGEAR = { S, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
 
 </script>
-<script type="module" src="src/v1-parity.js"></script>
+<script type="module" src="src/v1-parity.js?v=godot-draft-1"></script>
 </body>
 </html>
