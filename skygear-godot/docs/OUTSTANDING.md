@@ -673,6 +673,33 @@ viewport at 1920×1080, so the Godot half is captured at 1080p and the browser
 half at 900p. Both are 16:9 and the stitch matches height, so the framing
 comparison is unaffected — but the tool's `SIZE` is not the Godot render size.
 
+### ~~The telegraph edges are too soft~~ — DONE 2026-08-03 (board SG-162)
+Asked 2026-08-03, on the SG-158 work: *"I see what you're talking about for the
+wind-up and the strike indicators. I like them, but I feel like the edges are a
+little soft. I think when doing the sort of wind-up damage indicators, the edge
+of that should be very clear to the player. Having it lined with something a
+little harder, as opposed to that soft edge, could make it clearer for the
+player."*
+
+He was describing a measurable fact. The wedge peaked at **88% of its own reach**
+and had fallen through half its brightness by **93.5%**, so on the Colossus's 146
+the brightest part of the danger zone was at 128 and the picture was over by 137.
+It is a rim line now: brightest pixel at **99%**, half brightness still carried at
+**98.8%**, fill 0.21 against an edge of 1.00. The size did not move — it cannot,
+it is `enemy.swing_wedge_reach()` and SG-119 was paid for by a drawn shape and a
+hit shape disagreeing. `.shots/sg159/before` against `.shots/sg159/after`.
+
+### ~~The fire hitbox does not match the fire~~ — DONE 2026-08-03 (board SG-163)
+Asked 2026-08-03: *"For the fire hitbox, match the burn size. Fix the picture to
+match the damage."*
+
+A pool was drawn at 46 and burned at **78** — it cooked you from 88% outside its
+own picture, and the ring of deck around it looked clear. The picture moved and
+no balance number did; the burn is the same 78.0 it has always been. There is one
+derivation of the radius now (`fire_pool_radius()`), read by the tick, by the
+hidden 2D draw and by the renderer. `tools/pool_shot.gd` is the witness and it
+measures the burn from the damage path rather than drawing a ring at the constant.
+
 ### Enemy attack telegraphs are missing or much weaker
 The browser draws a large teal ellipse on the deck when a boarder winds up. In
 the same posed moment Godot draws nothing comparable. Pillar 6 of the design is

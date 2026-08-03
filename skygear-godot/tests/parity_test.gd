@@ -4002,6 +4002,139 @@ func _view() -> void:
 		absf(drawn_reach - float(tg_enemy.config.reach)) < 1.0,
 		"drew %.0f against a reach of %.0f" % [drawn_reach, float(tg_enemy.config.reach)])
 
+	## ---- THE EDGE OF THE DANGER ZONE IS A LINE (SG-162) ---------------------
+	##
+	## The owner on the SG-158 telegraphs: *"I like them, but I feel like the edges
+	## are a little soft... the edge of that should be very clear to the player.
+	## Having it lined with something a little harder, as opposed to that soft
+	## edge, could make it clearer."* He is describing the one binary question a
+	## telegraph has to answer — **am I in it?** — and a gradient cannot answer it.
+	##
+	## These read the WEDGE TEXTURE'S OWN PIXELS along its centreline, because the
+	## complaint is about pixels. `d` is the fraction of the drawn reach, so every
+	## number below converts to ground units by multiplying by the reach the check
+	## above just pinned. The old shape peaked at d 0.88 and had fallen through
+	## half its own brightness by d 0.935 — on the Colossus's 146, a boundary whose
+	## brightest part was at 128 and which was gone by 137, nine units short of the
+	## deck that actually kills you.
+	var fan_img: Image = view._fan_texture(2.094395, true).get_image()
+	var fan_n: int = fan_img.get_width()
+	var fan_c: float = float(fan_n) * 0.5
+	var fan_row: int = int(fan_c)
+	## Alpha along +X from the apex, and the `d` each sample sits at.
+	var fan_a: Array[float] = []
+	var fan_d: Array[float] = []
+	for x in range(int(fan_c), fan_n):
+		var fdx: float = float(x) + 0.5 - fan_c
+		var fdy: float = float(fan_row) + 0.5 - fan_c
+		fan_d.append(sqrt(fdx * fdx + fdy * fdy) / fan_c)
+		fan_a.append(fan_img.get_pixel(x, fan_row).a)
+	var fan_peak: float = fan_a.max()
+	var fan_peak_d := 0.0
+	for i in fan_a.size():
+		if fan_a[i] >= fan_peak - 0.0001:
+			fan_peak_d = fan_d[i]
+	## Where the shape last carries half its own brightness: the honest answer to
+	## "where does the player see this thing end".
+	var fan_half_d := 0.0
+	for i in fan_a.size():
+		if fan_a[i] >= fan_peak * 0.5:
+			fan_half_d = fan_d[i]
+
+	_check("telegraph", "the danger wedge's brightest pixel is its boundary, not its middle",
+		fan_peak_d >= 0.93,
+		"brightest at %.0f%% of the reach (%.0f units of the Colossus's 146)"
+			% [fan_peak_d * 100.0, fan_peak_d * 146.0])
+
+	_check("telegraph", "and it still carries half its brightness at the line the swing connects at",
+		fan_half_d >= 0.98,
+		"half-brightness ends at %.1f%% of the reach (%.0f of 146)"
+			% [fan_half_d * 100.0, fan_half_d * 146.0])
+
+	## AND IT IS AN EDGE RATHER THAN A RAMP. From full brightness to nothing inside
+	## a couple of texels is what "hard" means; the old outer `smoothstep(1.0, 0.86, d)`
+	## spent 14% of the reach — eighteen texels — getting there.
+	var fan_fall: float = fan_peak_d - fan_half_d
+	var fan_texel: float = 1.0 / fan_c
+	_check("telegraph", "the fall from full to half happens inside three texels, not across a seventh of the reach",
+		absf(fan_fall) <= fan_texel * 3.0,
+		"%.1f texels" % (absf(fan_fall) / fan_texel))
+
+	## THE RING'S RATIO, WHICH IS THE STATED TARGET: *a fill you can see through
+	## and an edge you cannot miss, and the ratio is what makes them readable.*
+	## The interior is sampled well inside the rim band so this measures the fill
+	## rather than the shoulder of the line.
+	var fan_fill: float = 0.0
+	for i in fan_a.size():
+		if fan_d[i] <= 0.80:
+			fan_fill = maxf(fan_fill, fan_a[i])
+	_check("telegraph", "and the ground inside it stays see-through, at the ring's own fill-to-edge ratio",
+		fan_fill <= 0.35 and fan_peak >= fan_fill * 3.0,
+		"fill %.2f against an edge of %.2f (%.1f:1)"
+			% [fan_fill, fan_peak, fan_peak / maxf(0.001, fan_fill)])
+
+	## THE CUT SIDES ARE THE SAME CRISPNESS ON EVERY ARC. They used to be feathered
+	## over 16% OF THE HALF-ARC, so the Colossus's 120° fan had a boundary three
+	## times softer than a gremlin's 80° one — nobody chose that, it fell out of
+	## quoting a feather as a fraction of the shape instead of in texels. Measured
+	## as the arc-length, in texels, over which a side climbs from a tenth to nine
+	## tenths of the local brightness, on the widest and narrowest arcs in the
+	## prewarm table.
+	var side_w: Array[float] = []
+	for a_arc in [2.094395, 1.396263]:
+		var im: Image = view._fan_texture(a_arc, true).get_image()
+		var n: int = im.get_width()
+		var cc: float = float(n) * 0.5
+		## A circle of samples at 70% of the reach, walking in from the cut side.
+		var rr2: float = cc * 0.70
+		var half_a: float = a_arc * 0.5
+		## THE THRESHOLDS ARE RELATIVE TO THE LOCAL FILL, and the first draft of
+		## this check got that wrong in a way worth keeping written down: it looked
+		## for an absolute 0.90 alpha at 70% of the reach and never found one,
+		## because the interior is 0.20 BY DESIGN — the see-through half of the
+		## ratio this whole row is about. A probe that demands the fill be opaque
+		## is a probe that fails the fix for succeeding.
+		var base: float = im.get_pixel(int(cc + rr2), int(cc)).a
+		var lo := -1.0
+		var hi := -1.0
+		var steps := 900
+		for s in steps:
+			## From just outside the cut, inward toward the centreline.
+			var ang2: float = half_a * (1.0 + 0.05) - half_a * 0.30 * (float(s) / float(steps))
+			var px: int = int(cc + cos(ang2) * rr2)
+			var py: int = int(cc + sin(ang2) * rr2)
+			if px < 0 or py < 0 or px >= n or py >= n:
+				continue
+			var av: float = im.get_pixel(px, py).a
+			if lo < 0.0 and av >= base * 0.10:
+				lo = ang2
+			if hi < 0.0 and av >= base * 0.90:
+				hi = ang2
+		## Angles times the radius is an arc length; divided by a texel it is a
+		## texel count, which is the only unit a "hardness" can honestly be in.
+		side_w.append(absf(lo - hi) * rr2 if lo > 0.0 and hi > 0.0 else 999.0)
+	_check("telegraph", "a cut side is a couple of texels wide on every arc, not a fraction of the arc",
+		side_w[0] <= 4.0 and side_w[1] <= 4.0,
+		"120° fan %.1f texels · 80° fan %.1f texels" % [side_w[0], side_w[1]])
+	_check("telegraph", "and the wide fan is no softer than the narrow one, which it used to be by 3x",
+		absf(side_w[0] - side_w[1]) <= 1.5,
+		"120° %.1f vs 80° %.1f texels" % [side_w[0], side_w[1]])
+
+	## AND NOTHING IS PAINTED OUTSIDE THE REACH. The whole point of SG-119 is that
+	## the drawn shape and the connecting shape are one shape; a rim line pushed
+	## outward to look bolder would be that bug wearing this fix's clothes. The
+	## corners of the texture square lie outside `d = 1.0` and must be empty.
+	var beyond := 0
+	for yy in [0, fan_n - 1, fan_row]:
+		for xx in fan_n:
+			var bdx: float = float(xx) + 0.5 - fan_c
+			var bdy: float = float(yy) + 0.5 - fan_c
+			if sqrt(bdx * bdx + bdy * bdy) / fan_c > 1.0 \
+					and fan_img.get_pixel(xx, yy).a > 0.0:
+				beyond += 1
+	_check("telegraph", "and the hard edge did not move the wedge — nothing is painted past the reach",
+		beyond == 0, "%d texels painted outside d=1.0" % beyond)
+
 	## ---- THE STRIKE AND THE OPENING (SG-158) --------------------------------
 	##
 	## The owner asked twice for clearer telegraphs, and what SG-156's beat frames
@@ -4079,6 +4212,73 @@ func _view() -> void:
 			<= int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.TELEGRAPH]),
 		"%d live against %d" % [view._decal_live[SkyGearView3D.DecalClass.TELEGRAPH],
 			int(SkyGearView3D.DECAL_BUDGET[SkyGearView3D.DecalClass.TELEGRAPH])])
+
+	## ---- THE FIRE POOL'S PICTURE IS ITS BURN (SG-163) -----------------------
+	##
+	## A pool burned you from OUTSIDE ITS OWN PICTURE, by up to 70%: the tick burns
+	## at a flat 78 and the renderer sized the decal off `field.radius`, which the
+	## Sear trail set to 46. The ring of deck between 46 and 78 looked clear and
+	## was not, and a player who had learned the edge of the picture had learned
+	## the wrong edge. The owner chose which side moves — *"For the fire hitbox,
+	## match the burn size. Fix the picture to match the damage"* — so this is the
+	## regression guard, and it is written as an EQUALITY between the two numbers
+	## rather than as a pair of literals, because a check that re-types the number
+	## it is guarding is a third copy of it (STATUS failure mode two, and the
+	## reason SG-119's check was asserting the bug).
+	game.fire_fields.clear()
+	## MADE THE WAY THE SEAR TRAIL MAKES ONE, radius 46 and all — the exact call
+	## that produced a pool drawn at 46 and burning at 78. `_field()` is what has
+	## to refuse it, so `_field()` is what is handed it.
+	game._field({"position": Vector2(0.0, 300.0), "radius": 46.0, "time": 3.0, "tick": 0.0})
+	view._process(0.05)
+	var pool_id: int = int(game.fire_fields[0].id)
+	var fire_key := "fire%d" % pool_id
+	var burn_r: float = game.fire_pool_radius()
+	## The bright band of `_ring_texture()` sits at `RING_RIM_D` of the decal's
+	## half-size, so the radius the PLAYER sees is the decal's half-size times that
+	## — not the half-size. Reading it any other way would pass a decal whose line
+	## is 8% inside the burn, which is the same bug one order smaller.
+	var drawn_r: float = -1.0
+	if view._decals.has(fire_key):
+		drawn_r = (view._decals[fire_key].size.x * 0.5 / SkyGearView3D.WORLD_SCALE) \
+			* SkyGearView3D.RING_RIM_D
+	_check("hazard", "a fire pool is drawn at exactly the radius it burns at",
+		drawn_r > 0.0 and absf(drawn_r - burn_r) < 1.0,
+		"drawn %.1f against a burn of %.1f" % [drawn_r, burn_r])
+
+	## A POOL CANNOT CARRY A SIZE THE SIMULATION DOES NOT HONOUR. `_field()` stamps
+	## the radius now, so the three sites that used to pass 46, 62 and 62+22·residue
+	## cannot put a number into the dictionary that the burn will ignore.
+	_check("hazard", "and the pool the simulation stores carries that one radius, not the caller's",
+		absf(float(game.fire_fields[0].radius) - burn_r) < 0.001,
+		"a `_field()` given radius 46 stored %.1f against a burn of %.1f"
+			% [float(game.fire_fields[0].radius), burn_r])
+
+	## AND THE RENDERER IS NOT READING THE DICTIONARY AT ALL, which is the part
+	## that keeps the two from drifting again. The equality above could be
+	## satisfied by two literals that happen to agree today. So the field is handed
+	## a LIE — 46, the exact number the Sear trail used to draw at — and the
+	## picture must refuse to follow it. Before SG-163 this decal read 46·2.2·0.82,
+	## and this check is the shape of the bug itself.
+	game.fire_fields[0].radius = 46.0
+	view._process(0.05)
+	var lied_r: float = -1.0
+	if view._decals.has(fire_key):
+		lied_r = (view._decals[fire_key].size.x * 0.5 / SkyGearView3D.WORLD_SCALE) \
+			* SkyGearView3D.RING_RIM_D
+	_check("hazard", "and a pool lying about its radius is still drawn at the one it burns at",
+		absf(lied_r - burn_r) < 1.0,
+		"field claimed 46, picture drew %.1f, burn is %.1f" % [lied_r, burn_r])
+
+	## THE OWNER SAID WHICH SIDE MOVES: *"Fix the picture to match the damage."*
+	## So the burn is pinned at the number it has had since it was written. If a
+	## later pass wants a different pool it changes this and the picture follows;
+	## what it cannot do is change one of them.
+	_check("hazard", "the burn radius did not move — the picture moved, not the damage",
+		absf(SkyGearGame.FIRE_RADIUS - 78.0) < 0.001,
+		"burn radius %.1f (78.0 before SG-163)" % SkyGearGame.FIRE_RADIUS)
+	game.fire_fields.clear()
+	view._process(0.05)
 
 	## Damage says a number. The whole v11 upgrade system asks the player to
 	## notice which skill is carrying the run.

@@ -32,12 +32,12 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1036 harness checks**; the text audit covers 25 screens at
-4 widths and **is clean as of 2026-08-03** — and it is worth remembering why
-that sentence is stated with a date: it said so for days while the audit
-reported a BERTHS overflow on every windowed run, filed under an ID (SG-68) that
-belongs to a different, finished row. Board SG-92 has the whole of it, and the
-reason it was one finding rather than four. Build 38 is on itch at
+board SG-56). **1047 harness checks**; the text audit covers 25 screens at
+4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
+sentence above it said so for days while the audit reported a BERTHS overflow on
+every windowed run, filed under an ID (SG-68) that belongs to a different,
+finished row. Board SG-92 has the whole of it, and the reason it was one finding
+rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
@@ -329,7 +329,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1036 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1047 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -435,7 +435,7 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1036 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1047 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -463,7 +463,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1036 checks. Green before anything ships |
+| `harness` | 1047 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

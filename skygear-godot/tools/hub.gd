@@ -96,6 +96,10 @@ const TOOLS := [
 		"what": "one posed frame per skill into .shots/vfx — arc, cone, line, aoe, chain, ray, pulse, aura, cannons",
 		"why": "the only way to judge an effect without three others on screen; run it before AND after"},
 
+	{"id": "pool", "kind": "make", "script": "tools/pool_shot.gd",
+		"what": "a fire pool photographed with its TRUE burn footprint marked — the captain is walked around it and the boundary is measured from the damage path, not read off a constant",
+		"why": "a hazard drawn smaller than it burns is invisible to every other tool in this list, and this one burned you from 70% outside its own picture until SG-163 — the shape of question it answers is 'does the picture agree with the hitbox', which no screenshot can answer alone"},
+
 	{"id": "lab", "kind": "window", "script": "tools/model_lab.gd",
 		"what": "every model: view it, RUN its animations, mount a weapon, run the effects, save",
 		"why": "the one place to answer \"is this the right size, does the grip hold through the swing, and what does that effect actually look like\" — and MOUNT/SAVE writes assets/models/weapons.json, which the game reads"},

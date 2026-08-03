@@ -7,7 +7,7 @@ directory order and encodes H.264. It is a file rather than a shell one-liner
 for the same reason `tools/clip_stitch.py` is: the flags that decide whether a
 dark deck bands are worth keeping somewhere a person can read and change them.
 
-    python tools/demo_encode.py [--fps 30] [--out <path.mp4>] [--crf 14]
+    python tools/demo_encode.py [--fps 30] [--out <path.mp4>] [--crf 18]
 
 WHY IT LOOKS FOR ffmpeg THE WAY IT DOES. There is no ffmpeg on PATH on this
 machine, but `imageio_ffmpeg` ships a full ffmpeg 7.1 binary inside its wheel
@@ -52,9 +52,16 @@ def find_ffmpeg() -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--crf", type=int, default=14,
-                        help="x264 quality; lower is better. 14 keeps the "
-                             "night deck's gradients from banding.")
+    parser.add_argument("--crf", type=int, default=18,
+                        help="x264 quality; lower is better. 18 was picked by "
+                             "looking, not by rule of thumb: the reel was cut "
+                             "at 14 (37 MB) and at 20 (15 MB) and the two "
+                             "darkest frames in it — the opening sky and the "
+                             "arrival's empty deck, which are where a night "
+                             "deck bands if it is going to — were "
+                             "indistinguishable. 18 sits between them at about "
+                             "20 MB, under the 25 MB attachment limit most "
+                             "places still enforce, with no banding.")
     parser.add_argument("--out", default=str(ROOT / "skygear_demo.mp4"))
     parser.add_argument("--shots", default=str(SHOTS))
     args = parser.parse_args()

@@ -2986,7 +2986,11 @@ func cast_skill(index: int, aim_at = null) -> void:
 	hulk_splash(land, damage * float(shots))
 	# RESIDUE: a burning field wherever the shape landed.
 	if float(mods.residue) > 0.0:
-		_field({"position": land, "radius": 62.0 + 22.0 * float(mods.residue),
+		## `radius` used to be `62.0 + 22.0 * mods.residue` here and nothing burned
+		## by it — the tick has always used one flat radius (SG-163). `dps` is in
+		## the same position and is deliberately LEFT, because it is a damage rate
+		## and the owner decides those: board SG-164.
+		_field({"position": land,
 			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
 	## How long the swing is allowed to last, from the SKILL. It was a flat 0.26
@@ -3512,7 +3516,10 @@ func bleed_jet(direction: Vector2) -> bool:
 	for i in steps:
 		var at: Vector2 = player.global_position \
 			+ heading * float(spec.distance) * (float(i) / float(steps))
-		_field({"position": at, "radius": float(spec.trail_radius),
+		## `spec.trail_radius` (46) was passed here and burned nothing — it sized
+		## only the picture, which is exactly the 46-drawn/78-burned gap SG-163
+		## closes. It is no longer read; `trail_dps` is left for board SG-164.
+		_field({"position": at,
 			"dps": float(spec.trail_dps), "time": float(spec.trail_life), "tick": 0.0})
 	player.jet(heading, float(spec.distance), float(spec.time))
 	play_sfx("player/dash.ogg", -4.0)
@@ -4129,6 +4136,37 @@ func _update_salvage(delta: float) -> void:
 ## number of iterations is bounded by the pool's own remaining `time`.
 const FIRE_TICK := 0.25
 
+## HOW FAR A FIRE POOL BURNS — AND, SINCE SG-163, HOW BIG IT IS DRAWN.
+##
+## A pool burned you from OUTSIDE ITS OWN PICTURE, by up to 70%. This literal was
+## written twice in this function and a THIRD number sized the picture: the
+## renderer took the pool's span from `field.radius`, which the three `_field()`
+## sites set to 46 (the Sear trail), 62 (a burning prop) and 62 + 22·residue.
+## The Sear trail is the worst of them — drawn at 46, burning at 78 — so the ring
+## of deck between them looked safe, was not, and a player who had learned the
+## edge of the picture had learned the wrong edge.
+##
+## This is STATUS's second failure mode, the one `SkyGearHUD.rail()` and
+## `scripts/ink.gd` both exist because of: two derivations of one number, drifting.
+## There is one derivation now. `fire_pool_radius()` is the only place the number
+## is written; the tick reads it, the hidden 2D `_draw` reads it, and
+## `view3d.gd` reads it through the accessor rather than off the field dictionary.
+##
+## THE OWNER CHOSE WHICH SIDE MOVES, verbatim: *"For the fire hitbox, match the
+## burn size. Fix the picture to match the damage."* So this value is exactly the
+## 78.0 the damage has always used and no balance number changed — the picture
+## grew to meet it. `hazard · a fire pool is drawn at exactly the radius it burns
+## at` is the regression guard this bug earns.
+const FIRE_RADIUS := 78.0
+
+
+## The pool's radius, for the burn AND for the drawing. A function rather than a
+## bare constant because the renderer is what has to be stopped from keeping its
+## own copy, and a call it can make is the thing that stops it.
+func fire_pool_radius() -> float:
+	return FIRE_RADIUS
+
+
 func _update_fire_fields(delta: float) -> void:
 	for i in range(fire_fields.size() - 1, -1, -1):
 		var field: Dictionary = fire_fields[i]
@@ -4137,8 +4175,10 @@ func _update_fire_fields(delta: float) -> void:
 		while float(field.tick) <= 0.0:
 			field.tick = float(field.tick) + FIRE_TICK
 			## A pool tick CRITS (SG-159), per tick, four times a second.
-			_damage_circle(field.position, 78.0, 7.5, "EMBER", 0.0, false, false)
-			if field.position.distance_to(player.global_position) <= 78.0:
+			## The radius is asked for, never restated (SG-163) — four numbers
+			## used to claim to be this one.
+			_damage_circle(field.position, fire_pool_radius(), 7.5, "EMBER", 0.0, false, false)
+			if field.position.distance_to(player.global_position) <= fire_pool_radius():
 				## NO I-FRAMES (SG-117). This tick fires four times a second, and
 				## granting the standard 0.55 s window made a fire pool the safest
 				## place on the deck: two ticks in three were swallowed by the
@@ -4865,6 +4905,17 @@ func _fx(d: Dictionary) -> void:
 func _field(d: Dictionary) -> void:
 	_fx_seq += 1
 	d["id"] = _fx_seq
+	## A POOL'S RADIUS IS THE POOL'S, NOT THE CALLER'S (board SG-163). The three
+	## sites that make pools each passed their own `radius` — 46, 62, and
+	## 62 + 22·residue — and the tick that burns has never read any of them: it
+	## burns at `FIRE_RADIUS` for every pool from every source. The renderer read
+	## the caller's number, which is how a pool came to be drawn at 46 and burn at
+	## 78. Stamped here so the dictionary cannot carry a size the simulation does
+	## not honour; the two `radius` arguments that used to be passed in are gone
+	## rather than silently overwritten. Whether a Sear trail's pool SHOULD be
+	## smaller than a residue pool is a live question and it is board SG-164 —
+	## the answer belongs in one place, and this is that place.
+	d["radius"] = FIRE_RADIUS
 	fire_fields.append(d)
 
 
@@ -5023,8 +5074,13 @@ func _draw() -> void:
 
 	for field in fire_fields:
 		var flicker := 0.82 + 0.12 * sin(Time.get_ticks_msec() * 0.012 + field.position.x)
-		draw_circle(field.position, 78.0, Color(0.82, 0.20, 0.05, 0.16))
-		draw_arc(field.position, 64.0 * flicker, 0.0, TAU, 28, Color(1.0, 0.42, 0.08, 0.66), 6.0)
+		## The hidden 2D scene, and it read 78.0 as a literal too (SG-163). The rim
+		## arc had its own third number — 64 — so even the debug view disagreed
+		## with itself about where the pool ends. Both come off `fire_pool_radius()`
+		## now; only the flicker is a fraction of it.
+		draw_circle(field.position, fire_pool_radius(), Color(0.82, 0.20, 0.05, 0.16))
+		draw_arc(field.position, fire_pool_radius() * flicker, 0.0, TAU, 28,
+			Color(1.0, 0.42, 0.08, 0.66), 6.0)
 	for item in salvage:
 		draw_circle(item.position, 18.0, Color("#6bbf72"))
 		draw_arc(item.position, 25.0, 0.0, TAU, 18, Color("#e8c376"), 3.0)
