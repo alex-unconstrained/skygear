@@ -17,6 +17,41 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### Boarders should ARRIVE, not appear — transports, and a jump across the gap
+Asked 2026-08-02, in two messages that are one idea:
+
+> *"Should we also make some 3D skyship assets to use as transports? They can
+> be flying beneath the ship and maybe even be the trigger that spawns waves."*
+> *"Perhaps we can have mobs jump across into the ship instead of pop-spawning
+> in."*
+
+Today a wave is a spawn queue writing figures onto the deck at a line. The ask
+replaces the moment with a chain a player can read: a transport rises
+alongside → it is the wave's telegraph, visible before anything lands → its
+boarders jump the gap → they are on your deck. The spawn stops being an event
+that happens TO the player and becomes one they watch coming.
+
+**Two things make this cheaper than it sounds.** The jump clips already exist
+and are sitting unwired: the goblin pack shipped `mutant jumping` and two jump
+attacks, and the crew locomotion pack has a jump. And the four transport
+prompts are written — `handoff-3d/skyship_transports/`, the owner is modelling
+them (skiff, barge, cutter, hulk-tender).
+
+**What it must not break:** the spawn queue is deterministic and seeded, and
+several pinned checks measure waves by it (`stow`, `tempo`, the wave schedule,
+push waves). The arrival is PRESENTATION over a queue that does not change —
+the same rule the deaths follow (renderer-side, `_recycle` seam, no sim
+surgery). If a boarder is in the air it is still the sim's boarder, on the
+sim's schedule; only where it is drawn changes. The tempo work (SURGE/LULL) is
+the natural partner: a lull is a transport climbing into position.
+
+**Open questions for whoever builds it:** where transports sit relative to the
+deck rect and the camera's 41° cone; whether a transport is destructible (it
+would be a target, which is a gameplay change and needs the owner); and what
+happens on a push wave, where a boarding hulk already grapples on — the hulk is
+the heavy version of this idea and should not be duplicated by it.
+
+
 ### The deck itself — irregularity over time, and a hull shape around a rectangle
 Asked 2026-08-02, alongside the deck-identity question:
 
@@ -49,22 +84,40 @@ going on with his texture."*
 
 Three separate faults, and only one is a surprise:
 
-1. **No texture — known, and it is an ASSET gap, not a bug.** The
-   part-segmentation GLB the owner delivered carries no UVs and no images
-   (measured at ingest: zero bytes of texture), so the boss renders as flat
-   untextured geometry with the furnace lamp glowing inside it. THE FIX NEEDS
-   HIS TEXTURED EXPORT — the `..._texture.glb` twin he supplied for the sentry
-   sphere but not for this one. `tools/split_rotors.py` already does the
-   marriage in the other direction (segmentation labels transferred onto a
-   textured mesh), so the pipeline exists.
-2. **Floating dark and gold blobs around it** — shadow decals sized and placed
-   for a figure, drawn against thirteen parts that no longer match them. Its own
-   bug, visible in the same frame.
-3. **"Way too easy — he needs to be scary."** The fight, not the picture. It has
-   two beats (a turn at half health, a vent of what it called) and neither
-   threatens a competent player. This is a design change and it belongs with
-   the furnace-knight ask from the same playtest — both are about enemies that
-   are READ and RESPECTED rather than out-damaged. Do not tune numbers alone.
+1. **No texture — FIXED (SG-94), and it was an ASSET gap, not a bug.** The
+   part-segmentation GLB carries no UVs and no images (measured: zero bytes of
+   texture), so the boss rendered as flat untextured geometry with the furnace
+   lamp glowing inside it. The owner then sent the TEXTURED TWIN of the same
+   sculpt, and `tools/segment_parts.py` now takes it as a third argument: the
+   thirteen parts are re-cut FROM the painted mesh with the segmentation
+   demoted to a label source, which is `tools/split_rotors.py`'s trick in the
+   same direction. Ruled out by measurement, not taste — the two exports are
+   not the same topology (1,318,962 triangles against 1,366,036), so nothing
+   could simply be assigned; and transferring UVs onto the already-decimated
+   parts would have smeared the map across the 5.4% of vertices that are seam
+   duplicates. Kept: 13 named parts, their joints (worst drift 9.78 mm on a
+   3,300 mm figure), the five beats, and the disassembly — `foot_l` still never
+   releases, moving 0.001 m across the whole death. Maps shrunk the hulk way,
+   34.66 MB → 0.454 MB. The furnace lamp stays at 1.28, re-measured rather than
+   re-guessed (see `assets/models/lights.json`).
+2. **Floating dark and gold blobs around it — FIXED (SG-94).** Two causes, and
+   the first was fault 1 wearing a different hat: with no continuous surface,
+   the dark-plate parts and the brass parts read as separate lumps rather than
+   as one machine. The second is real and its own bug — one contact shadow,
+   sized off the gameplay radius and dropped at the figure's origin, drawn
+   against a machine whose death throws thirteen parts across two metres of
+   deck. Every part now darkens the planking under its own measured footprint,
+   fading out with height off the deck, so a standing machine shows its
+   FOOTPRINT and a disassembling one grounds each part as it lands. The shared
+   shadow system is deliberately untouched: the owner's separate
+   "dynamic shadows, not one circle blob under everything" ask is board SG-95.
+3. **"Way too easy — he needs to be scary." STILL OPEN — board SG-96.** The
+   fight, not the picture. It has two beats (a turn at half health, a vent of
+   what it called) and neither threatens a competent player. This is a design
+   change and it belongs with the furnace-knight ask from the same playtest —
+   both are about enemies that are READ and RESPECTED rather than out-damaged.
+   Do not tune numbers alone. The machine now LOOKS the part, which sharpens
+   the mismatch rather than hiding it: `.shots/clips/boss_before_after.png`.
 
 
 ### The build-44 playtest — fifteen items, and the first praise of the port

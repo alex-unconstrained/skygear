@@ -320,5 +320,77 @@ CLOSED) is the OPEN one — it is the only one of the three with anything alight
 in its emission map. Verify by looking, not by reading the file name: that is
 the rule this folder should keep for anything delivered by hand.
 
+### skyship_transports/ — **FOUR PROMPTS, requested by the owner 2026-08-02**
+
+His ask: *"Should we also make some 3D skyship assets to use as transports?
+They can be flying beneath the ship and maybe even be the trigger that spawns
+waves. Give me the prompt in the handoff 3D folder and I'll make them manually
+in meshy - give me a variety (3-4)"* — and, minutes later: *"Perhaps we can
+have mobs jump across into the ship instead of pop-spawning in."*
+
+So these are not scenery. A transport is **where a wave comes from**: it rises
+alongside, holds station, and its boarders JUMP the gap onto the deck. That
+changes what the models need — a deck or a rail the eye can read boarders
+standing on, and a side that faces our hull.
+
+**Shared rules for all four** (the standing spec at the top of this file
+applies; these are the extras):
+- **Face toward +Z.** These are seen from our deck at a locked 41° camera, so
+  the side that matters is the one turned toward us. Detail the boarding side;
+  the far side is nearly never seen.
+- **Wider than deep, and LONG rather than tall.** The hulk lost three prompted
+  attempts to depth (a deep hull puts its mass off the top of the frame). A
+  transport reads best as a long low silhouette.
+- **A visible deck or gunwale where figures can stand**, and something a
+  grapple or a plank could plausibly reach from — the boarders jump FROM here.
+- **No crew, no figures modelled in** — the game supplies those.
+- Envelope/balloon or rotors are welcome; keep them as separate obvious masses
+  so the renderer can spin or bob one later (the gunner drone precedent, where
+  a welded single surface had to be split after the fact — save that trouble).
+- Scale target: **600–900 ground units long** (6–9 m) for the small ones, up
+  to ~1400 for the heavy. They are seen below and beside the ship, so bulk
+  reads more than height.
+
+**1 · THE SKIFF — fast, cheap, disposable.**
+> A small steampunk sky-skiff, a single-masted open boat hull of dark riveted
+> timber with brass strapping, a compact copper boiler amidships venting a
+> short stack, one small gas envelope above on iron struts, a low gunwale
+> running its length, grapple hooks coiled at the bow. Long and low, much wider
+> than deep, the working side turned to the viewer. Stylised chunky game asset,
+> blackened steel and warm brass and oxblood leather, broad flat colour areas,
+> flat albedo, no baked lighting, no crew, no ground, no base.
+
+**2 · THE BARGE — the heavy one that carries the armoured boarders.**
+> A heavy steampunk sky-barge, a broad flat-bottomed freight hull of dark
+> timber and iron plate, two squat boiler stacks venting, a wide railed cargo
+> deck with a hinged boarding ramp folded along one side, four heavy lifting
+> rotors in brass ring mounts on outriggers. Long, wide and low, the railed
+> deck and ramp turned to the viewer. Stylised chunky game asset, blackened
+> steel, riveted brass, oxidised copper, broad flat colour areas, flat albedo,
+> no baked lighting, no crew, no ground, no base.
+
+**3 · THE CUTTER — sleek, armed, the one that looks dangerous.**
+> A sleek steampunk sky-cutter, a narrow armoured hull of blackened plate with
+> brass ribbing, a long pointed ram prow, a single swept envelope tight to the
+> hull, twin exhaust nacelles aft, a small forward gun on a pintle, boarding
+> planks stowed along the rail. Long and low with a knife silhouette, the
+> gunwale side turned to the viewer. Stylised chunky game asset, blackened
+> steel and warm brass, broad flat colour areas, flat albedo, no baked
+> lighting, no crew, no ground, no base.
+
+**4 · THE HULK-TENDER — wrecked, mismatched, the scrap-goblins' ride.**
+> A ramshackle steampunk sky-tender built from salvage: mismatched timber and
+> plate patched with rivets and rope, a crooked patched gas bag lashed on with
+> netting, an exposed clattering engine with pipes going nowhere, a plank
+> gangway hanging off one side, hooks and chains dangling below. Long, low,
+> asymmetric and unbalanced, the gangway side turned to the viewer. Stylised
+> chunky game asset, rust, soot, weathered timber, tarnished brass, broad flat
+> colour areas, flat albedo, no baked lighting, no crew, no ground, no base.
+
+**When you deliver:** the plain textured export is what the pipeline wants
+(`..._texture.glb`). A part-segmentation twin is a bonus for anything with a
+rotor or an envelope that should move — the boss taught us the segmentation
+file alone carries no UVs, so **send both** if you segment.
+
 *(Agents append new entries below as two-strike rejects occur, copying the
 2D reference art in and writing the target spec in this format.)*
