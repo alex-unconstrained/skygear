@@ -541,6 +541,82 @@ func _lit() -> void:
 		probe.contains("SkyGearStill.freeze(") and probe.contains("SkyGearStill.floor_pct("),
 		"tests/lit_probe.gd")
 
+	## AND FROZEN IS NOT THE SAME AS REPEATABLE (SG-133). `speed_scale = 0` stops
+	## the clock and leaves the hands where they were, so two RUNS of that probe
+	## posed the boarders differently and its figure/deck ratio came out 0.993,
+	## 1.013 and 1.045 on one unmodified build — passing and failing its own gate
+	## on the same bytes. An A/B of a texture cannot be read off an instrument
+	## that moves that much between runs, so the pose is seeked to a constant.
+	_check("lit", "and the pose is pinned too, because a stopped clock is not a repeatable one",
+		probe.contains("ap.seek(POSE_T, true)"), "tests/lit_probe.gd, POSE_T")
+
+	_grille()
+
+
+## THE FURNACE (SG-131). Source and ASSET checks, and the asset half is the real
+## one: `Image.load_from_file` needs no GPU, so the harness can open the emission
+## map itself and say whether there is a furnace in it. Everything SG-86 tried to
+## do with `emission_energy` failed because there was not.
+##
+## Meshy's map peaks at 51/255 with 0.146% of its texels over 8 — no grille at
+## all, and `ingest_model.gd` composes emission as `texture * energy` off a black
+## base, so every multiple of it was still nothing. The authored map peaks at
+## 132/255 over 0.55% of the sheet.
+const GRILLE_PEAK_MIN := 100
+const GRILLE_LIT_MIN := 0.30
+const GRILLE_LIT_MAX := 2.00
+
+
+func _grille() -> void:
+	var img := Image.load_from_file(
+		"res://assets/models/armored/armored_emission.png")
+	var peak := 0
+	var lit := 0
+	var total := img.get_width() * img.get_height()
+	for y in img.get_height():
+		for x in img.get_width():
+			var c := img.get_pixel(x, y)
+			var top := int(maxf(c.r, maxf(c.g, c.b)) * 255.0)
+			peak = maxi(peak, top)
+			if top > 8:
+				lit += 1
+	var lit_pct := 100.0 * float(lit) / maxf(1.0, float(total))
+
+	## THIS ONE FAILS IF THE MAP IS REVERTED, re-ingested from the Meshy source,
+	## or replaced by a remesh — which is the whole point of writing it down. It
+	## is not a check on its own helper: it opens the shipped asset and reads it.
+	_check("lit", "the furnace knight's emission map has a furnace in it",
+		peak >= GRILLE_PEAK_MIN,
+		"peak %d/255, floor %d (Meshy's shipped 51)" % [peak, GRILLE_PEAK_MIN])
+
+	## AND THE OTHER DIRECTION, which is the one a careless re-author fails. The
+	## albedo's hot-orange threshold alone returns 1.0% of the sheet scattered
+	## over every rivet and trim edge, and a map built that way would freckle him
+	## with orange dots rather than light his grille. The shipped map is 0.55%,
+	## and it is 0.55% because it was seeded from Meshy's own specks rather than
+	## thresholded blind.
+	_check("lit", "and it lights his grille rather than freckling the whole of him",
+		lit_pct >= GRILLE_LIT_MIN and lit_pct <= GRILLE_LIT_MAX,
+		"%.2f%% of the sheet lit, window %.2f-%.2f%%"
+			% [lit_pct, GRILLE_LIT_MIN, GRILLE_LIT_MAX])
+
+	## AND IT CAN BE REDONE. A map nobody can regenerate is a binary blob that
+	## rots the first time the albedo changes; the script that made it, and the
+	## rule it made it by, are in the repo.
+	var maker := FileAccess.get_file_as_string("res://tests/grille_map.py")
+	_check("lit", "and the map is reproducible from the albedo rather than hand-daubed",
+		maker.contains("kept_ids") and maker.contains("--seed-from"),
+		"tests/grille_map.py")
+
+	## AND THE ENERGY IT IS MULTIPLIED BY IS STILL THE MANIFEST'S. The brightness
+	## was tuned in the MAP, not in `emission_energy`, precisely so that no
+	## re-ingest is needed; if someone later turns the energy up as well, the
+	## grille goes white and stops reading as molten at all — measured, at gain
+	## 1.00 the molten count FALLS from 1229 to 700.
+	var manifest := FileAccess.get_file_as_string("res://tools/models.json")
+	_check("lit", "and the energy the map is multiplied by is still the 6.0 it was tuned at",
+		manifest.contains("\"emission_energy\": 6.0"), "tools/models.json, armored")
+
 
 func _joined(items: Array[String]) -> String:
 	return " " + ", ".join(items)

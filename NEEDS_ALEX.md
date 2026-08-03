@@ -257,3 +257,37 @@ show you a before/after the same way this one did.
 
 **His axe is still missing.** Untouched, as briefed — that is the SG-38 seam and
 it needs a weapon mesh, not a material.
+
+---
+
+## SG-131 — the knight's furnace is lit. One decision left, and it is smaller than I told you.
+
+**Done, no credits spent, nothing for you to judge here:** his grille and visor now
+glow. The emission map Meshy shipped was empty (peak 51/255), so nothing SG-86 did
+with `emission_energy` could ever have worked. The new map is derived from his own
+albedo — see `.shots/sg131/grille-before-after.png`, before on the left. It is
+deliberately left **under** your painting's level rather than matched to it: he
+should not out-glow his own wind-up.
+
+**THE DECISION: his armour is 70% metallic and I did not change it. Last night's
+note told you that moves every model on the deck. That was wrong and I am correcting
+it — it moves exactly one.** Only three models in the repo have a metal map at all,
+and only he has any metalness in it: **armored 178/255, boilerwright 0/255, captain
+0/255.** He is the odd one out, not the convention.
+
+Two ways to fix the black-plating look, and they are not the same size:
+
+1. **Drop his metallic multiplier below 1.0 at ingest.** One model, one re-ingest,
+   no other asset touched. Low risk now that we know nothing else is metallic.
+2. **Set `Environment.reflected_light_source` to the ambient colour** — one line, but
+   it changes the specular response of *everything* on the deck. Right now it is
+   never set at all, so all metal reflects the near-black storm sky.
+
+**I did not measure either at render level** — I started (2) and abandoned it when
+the run hung — and I did not ship either, because you already have a deck-wide light
+change from SG-86 in this build and two of those tangled together is not a fair thing
+to ask you to judge. **My recommendation is (1) on its own row, after you have ruled
+on the rim light.** (2) should wait until someone can show you a before/after of the
+whole deck, not just of him.
+
+**His axe is still missing and still untouched**, as briefed.

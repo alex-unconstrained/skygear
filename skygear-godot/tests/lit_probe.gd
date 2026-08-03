@@ -61,12 +61,73 @@ const FRAME_BOX := Rect2i(0, 0, 1600, 900)
 ## photographed rather than a pose invented for the tool.
 const LANES := [Vector2(-280.0, 210.0), Vector2(-10.0, 60.0), Vector2(250.0, 170.0)]
 const SETTLE := 90
+## Where every clip is parked before the plates are taken. Any fixed time does;
+## 0.40s is inside the shortest walk cycle on this rig and is far enough from
+## zero that the pose is a stride rather than a bind.
+const POSE_T := 0.40
 
 ## THE PAINTING, over the same crop of the same frame of the pre-mesh build.
 ## Measured, not remembered: `.shots/clips/knight-before/frame_0020.png` gives
 ## 45.37 / 191.5 / 638 against the row's published 45.4 / 192 / 636.
 const PAINTING_MEAN := 45.37
 const PAINTING_DECK := 55.03
+
+## AND THE THIRD PUBLISHED NUMBER — WHICH SG-131 HAD TO THROW AWAY.
+##
+## SG-86's row is `149 hot-orange pixels against 636`, over a window of
+## saturation >= 0.50, value >= 0.58, hue within 0.15 of red. That window
+## reproduces the painting's 638 off `.shots/clips/knight-before/frame_0020.png`
+## exactly, so it is faithfully recorded. **It is still the wrong instrument for
+## a furnace grille, and painting the window onto the sprite shows it in one
+## look:** it lights up the chest furnace AND the visor AND every brass rivet,
+## every polished trim edge, and the haft of the axe. Roughly half of the 638 is
+## trim. It is a warm-saturated-highlight detector, not a grille detector, and
+## SG-116's lesson — a colour window cannot tell a figure from the fire near it
+## — applies to it in a second form: it cannot tell a furnace from the brass
+## around the furnace.
+##
+## **AND SG-86'S CROP CANNOT SEE THIS KNIGHT'S CHEST.** `Rect2i(690, 60, 210,
+## 280)` was chosen for the composition of frame 20 of `clip.gd -- knight`,
+## where it lands on one sprite knight facing the camera and filling the frame.
+## This tool poses its own three lanes, and in THAT composition the same rect
+## holds a mast, a barrel, a crate, and one knight's shoulder in the bottom
+## corner, seen from behind. The comment above already refuses to gate the crop
+## MEAN for this reason; the same refusal has to cover any grille count taken
+## there. Over that crop HEAD scores 1378 hot-orange pixels against the
+## painting's 638 — a number that says the mesh out-glows the painting twice
+## over, and it is an artefact of two crops containing different subjects.
+##
+##
+## THE WINDOW THIS TOOL GATES ON INSTEAD
+##
+## Molten metal, and nothing else: red at or above 0.90 with blue at or below
+## 0.30. Painted onto the sprite it takes the furnace slats and the visor slits
+## and leaves every piece of brass alone. It is a narrower claim than SG-86's
+## window and it is the claim SG-131 is actually about.
+const MOLTEN_R := 0.90
+const MOLTEN_B := 0.30
+
+## MEASURED AS A FRACTION OF THE FIGURE'S OWN PIXELS, over the WHOLE FRAME and
+## not over a crop, because that is the only form of this number that survives
+## the pose changing. The reference is the painting itself, read straight off
+## the sprite sheets with the alpha channel as the figure mask:
+##
+##     furnace_knight_front_idle     1325 molten of 118328   1.12%
+##     furnace_knight_front_attack    937 molten of  75227   1.25%
+##     furnace_knight_back_idle       463 molten of  96411   0.48%
+##
+## The deck poses three boarders in mixed facings, so the honest band is bounded
+## below by the back view and above by the most-lit front view.
+const PAINTING_MOLTEN_BACK := 0.48
+const PAINTING_MOLTEN_FRONT := 1.25
+
+## THE FLOOR IS NOT ZERO ONLY BECAUSE THE ALBEDO HAS ORANGE PAINTED INTO IT.
+## With Meshy's empty map in place this deck scores 0.15%, 0.15%, 0.13% over
+## three runs — that is paint catching SG-81's warm omni, and no emitter at all.
+## With the authored map it scores 0.22%, 0.24%, 0.24%. The floor is set between
+## the two bands and clear of both, so it fails if the emission map is ever
+## reverted, re-ingested from the Meshy source, or overwritten by a remesh.
+const MOLTEN_FLOOR := 0.18
 
 var _out_dir := "../.shots/sg86"
 var _failures := 0
@@ -141,6 +202,36 @@ func _init() -> void:
 	print("  stopped: %d AnimationPlayers · %d GPUParticles3D" % [
 		int(stopped.animation_players), int(stopped.particles)])
 
+	## AND THEN PINNED, WHICH THE FREEZE ALONE DOES NOT DO (board SG-133).
+	##
+	## `SkyGearStill.freeze` sets `speed_scale = 0`, which stops the clock but
+	## leaves the hands wherever they were. The 90 settle frames above advance
+	## `game._process` on a fixed 1/60 but they advance the TREE on `await
+	## process_frame`, which is the wall clock — so an `AnimationPlayer` lands on
+	## a different phase every run, and the boarders strike a different pose.
+	##
+	## That is not a theory. Three runs of this tool on one unmodified build gave
+	## the knight 14066, 14222 and 14384 pixels, figure/deck 0.993, 1.013 and
+	## 1.045 — straddling both this tool's own 0.95 gate and the 1.0 the check
+	## below asks for, so `lit · the furnace knight reads brighter than the deck`
+	## passed twice and failed once on the same bytes. SG-86's shipped 1.041 is
+	## one sample at the top of that spread.
+	##
+	## The freeze is what makes two plates in ONE run identical, and it does that
+	## perfectly — the 0.00% floor above is real. This is the other half: what
+	## makes two RUNS comparable, which is what an A/B of a texture change needs.
+	var posed := 0
+	for node in root.find_children("*", "AnimationPlayer", true, false):
+		var ap := node as AnimationPlayer
+		if ap.current_animation == "":
+			continue
+		ap.seek(POSE_T, true)
+		posed += 1
+	for _i in 3:
+		await process_frame
+	_say("lit · and the boarders' pose is pinned, so two runs are the same picture",
+		posed > 0, "%d AnimationPlayers seeked to %.2fs" % [posed, POSE_T])
+
 	## THE NOISE FLOOR FIRST, and it is the whole reason this tool exists rather
 	## than a crop of a clip frame. `clip.gd` cannot pass this line.
 	var noise := await SkyGearStill.floor_pct(self, FRAME_BOX)
@@ -164,6 +255,7 @@ func _init() -> void:
 	var figure := _figure_mean(lit, bare)
 	var deck := _deck_mean(lit, bare)
 	var whole := _crop_mean(lit)
+	var grille := _molten(lit, bare)
 
 	print("")
 	print("  OVER Rect2i(690, 60, 210, 280) — SG-86'S OWN CROP")
@@ -179,6 +271,12 @@ func _init() -> void:
 	print("    crop mean, figure and all    %8.2f          (clip pose, painting %.2f)"
 		% [whole, PAINTING_MEAN])
 	print("    figure over deck             %8.3f" % (figure.mean / maxf(deck, 0.01)))
+	print("")
+	print("  THE GRILLE, OVER THE WHOLE FRAME — SG-131")
+	print("    the three boarders' pixels   %8d" % grille.figure)
+	print("    molten of those              %8d" % grille.molten)
+	print("    molten as a fraction         %8.2f%%         (painting %.2f%% front, %.2f%% back)"
+		% [grille.pct, PAINTING_MOLTEN_FRONT, PAINTING_MOLTEN_BACK])
 	print("")
 
 	## THE ONE THAT MATTERS. Not "is he brighter" — brightness is free, the
@@ -205,6 +303,25 @@ func _init() -> void:
 	_say("lit · and the rim went onto the boarder and not onto the planking",
 		figure.mean / maxf(deck, 0.01) >= 0.95,
 		"figure/deck %.3f" % (figure.mean / maxf(deck, 0.01)))
+
+	## SG-131, THE GRILLE. Counted on the boarders' own pixels — separated by the
+	## same hide-and-diff the luminance uses — and NOT over a crop, because the
+	## crop contains braziers, embers and a lit mast, and a colour window cannot
+	## tell those from a furnace.
+	_say("lit · the furnace knight's grille is an emitter and not just paint",
+		grille.pct > MOLTEN_FLOOR,
+		"%.2f%% molten, floor %.2f%%" % [grille.pct, MOLTEN_FLOOR])
+
+	## AND THE CEILING, which is the half that a brightness dial fails and the
+	## half that matters more. Three boarders in mixed facings cannot average more
+	## molten than the painting's most-lit FRONT view without the emission having
+	## been turned up past what the art asks for, and a boarder who out-glows his
+	## own wind-up telegraph is a Pillar 6 loss. Pillar 6 outranks atmosphere —
+	## the same argument that left the rim's headroom unspent above.
+	_say("lit · and it does not out-glow the painting it is copied from",
+		grille.pct <= PAINTING_MOLTEN_FRONT,
+		"%.2f%% molten, painting's front view %.2f%%"
+			% [grille.pct, PAINTING_MOLTEN_FRONT])
 
 	print("")
 	if _failures == 0:
@@ -268,6 +385,30 @@ func _deck_mean(lit: Image, bare: Image) -> float:
 			sum += _lum(a)
 			n += 1
 	return sum / maxf(1.0, float(n))
+
+
+## THE GRILLE, over the WHOLE FRAME rather than SG-86's crop. Every pixel that
+## changed when the rigs were hidden is boarder; of those, the ones inside the
+## molten window are furnace. Reported as a fraction so it can be held against
+## the sprite sheets, which are read the same way with alpha as the figure mask.
+func _molten(lit: Image, bare: Image) -> Dictionary:
+	var figure := 0
+	var molten := 0
+	for y in range(FRAME_BOX.position.y, FRAME_BOX.end.y):
+		for x in range(FRAME_BOX.position.x, FRAME_BOX.end.x):
+			var a := lit.get_pixel(x, y)
+			var b := bare.get_pixel(x, y)
+			if maxf(absf(a.r - b.r), maxf(absf(a.g - b.g), absf(a.b - b.b))) \
+					< SkyGearStill.MOVED:
+				continue
+			figure += 1
+			if a.r >= MOLTEN_R and a.b <= MOLTEN_B:
+				molten += 1
+	return {
+		"figure": figure,
+		"molten": molten,
+		"pct": 100.0 * float(molten) / maxf(1.0, float(figure)),
+	}
 
 
 func _crop_mean(lit: Image) -> float:
