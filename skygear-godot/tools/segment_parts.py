@@ -118,11 +118,34 @@ import trimesh
 ROOT = Path(__file__).resolve().parent.parent
 
 # The project law, restated from tools/meshy.py rather than imported, because
-# that module reaches for an API key at import time. TRI_CEIL is what the
-# previous prompted Colossus shipped at (assets/models/boss/meshy.json:
-# "remeshed": {"tris": 8000}) and this kit is the same figure at the same
-# on-screen height, so it gets the same budget and not a bigger one.
-TRI_CEIL = 8000
+# that module reaches for an API key at import time.
+#
+# THIS WAS 8000 UNTIL SG-155, AND 8000 WAS A NUMBER ABOUT A DIFFERENT FILE.
+# It was what the previous prompted Colossus shipped at (assets/models/boss/
+# meshy.json: "remeshed": {"tris": 8000}), and it was the right budget for the
+# delivery it was written against: a 1,318,962-triangle textured twin, where
+# reaching 8000 meant 165:1 and the surfaces were dense enough to survive it.
+#
+# THE DELIVERY CHANGED AND THE RATIO INVERTED. The textured twin now shipping
+# is 30,606 triangles — already a game budget, already optimised. Holding it to
+# 8000 is no longer a 165:1 cut of a dense mesh, it is a 4:1 cut of a sparse
+# one, and on riveted plating built out of thin separate shells that does not
+# thin the surface, it TEARS it. Measured at the shipped camera, same inputs,
+# frames in `.shots/sg155/`:
+#
+#   ceiling  8000   25.7% kept   shattered — the silhouette is gone
+#   ceiling 16000   51.8% kept   still torn, holes through the plating
+#   ceiling 30000   93.2% kept   clean; the paint reads
+#
+# So the cut is not a dial to tune, it is a cliff, and the only side of it the
+# machine survives on is the one that barely cuts at all.
+#
+# WHY 30000 IS NOT AN INDULGENCE, which is the owner's call (2026-08-03) and
+# the argument he made it on: the kit lands at 28,512, and THE CAPTAIN IS
+# 30,634 (the harness prints both). She is on screen every second of every run;
+# the Colossus arrives once, at wave 12. A boss that costs less than the figure
+# standing next to him all game is not the thing to spend the budget law on.
+TRI_CEIL = 30000
 
 # No part may fall below this. Area alone would spend nearly everything on the
 # torso and leave the head — the part a player reads the machine's FACING from —
@@ -438,6 +461,71 @@ def label_agrees(parts: list[dict]) -> bool:
     return True
 
 
+## How far two parts' mirrored centroids and their sizes may disagree, as a
+## fraction of the model's half-span in x, and still be believed to be the two
+## halves of one pair. Measured on the owner's second delivery the five real
+## pairs agree to better than 0.02 and the nearest non-pair is 0.4 away, so this
+## sits in the empty middle of that gap rather than on either side of it.
+MIRROR_TOLERANCE = 0.08
+
+
+def _mirror_twin(p: dict, parts: list[dict], span_x: float):
+    """The part on the other side of the machine, or None if it stands alone.
+
+    A limb has one by construction and a spine part cannot have one, which is
+    what makes this — and not a distance from the midline — the honest test for
+    which of the two a part is. Compared in the model's own x half-span so the
+    tolerance means the same thing whatever units the export arrives in.
+    """
+    if span_x <= 0.0:
+        return None
+    best, best_err = None, MIRROR_TOLERANCE
+    for q in parts:
+        if q is p:
+            continue
+        ## Mirrored centroid: same y and z, opposite x. A part straddling the
+        ## midline would "pair" with itself, which is why `q is p` is excluded
+        ## and why a part whose own box contains x=0 is rejected below.
+        if p["min"][0] <= 0.0 <= p["max"][0]:
+            return None
+        if np.sign(p["centre"][0]) == np.sign(q["centre"][0]):
+            continue
+        err = float(np.abs(np.array([p["centre"][0] + q["centre"][0],
+                                     p["centre"][1] - q["centre"][1],
+                                     p["centre"][2] - q["centre"][2]])).max())
+        err = max(err, float(np.abs(p["size"] - q["size"]).max()))
+        if err / span_x < best_err:
+            best, best_err = q, err / span_x
+    return best
+
+
+def _pair_up(lateral: list[dict], span_x: float) -> list[list[dict]]:
+    """The lateral parts gathered into mirrored pairs, each pair once."""
+    seen: set[int] = set()
+    groups = []
+    for p in lateral:
+        if id(p) in seen:
+            continue
+        twin = _mirror_twin(p, lateral, span_x)
+        if twin is None or id(twin) in seen:
+            groups.append([p])
+            seen.add(id(p))
+            continue
+        groups.append([p, twin])
+        seen.update((id(p), id(twin)))
+    return groups
+
+
+def _cy(group: list[dict]) -> float:
+    """The pair's shared height, averaged over both halves."""
+    return float(np.mean([p["centre"][1] for p in group]))
+
+
+def _cx(group: list[dict]) -> float:
+    """The pair's shared distance outboard."""
+    return float(np.mean([abs(p["centre"][0]) for p in group]))
+
+
 def classify(parts: list[dict]) -> list[dict]:
     """Name every part from its position and size. The rules, in order:
 
@@ -454,33 +542,80 @@ def classify(parts: list[dict]) -> list[dict]:
       the one fact here that no measurement can tell you.
     """
     span_x = max(abs(p["centre"][0]) for p in parts)
-    centred = [p for p in parts if abs(p["centre"][0]) < 0.15 * span_x]
-    on_midline = {id(p) for p in centred}
-    lateral = [p for p in parts if id(p) not in on_midline]
-    if len(centred) != 3:
-        raise SystemExit("expected 3 midline parts, measured %d" % len(centred))
 
-    centred.sort(key=lambda p: -p["volume"])
-    torso = centred[0]
-    rest = sorted(centred[1:], key=lambda p: p["centre"][2])
-    back, head = rest[0], rest[1]
-    torso["role"], back["role"], head["role"] = "torso", "back", "head"
+    ## THE SPLIT IS THE PAIRING, NOT A FRACTION OF THE SPAN.
+    ##
+    ## This used to read `abs(centre[x]) < 0.15 * span_x` and demand exactly
+    ## three survivors. That held for the FIRST segmentation and broke on the
+    ## owner's second one, which decomposes the same sculpt differently: two
+    ## parts straddle the midline instead of three, the back stack comes back as
+    ## a mirrored PAIR sitting high and inboard, and one 78-triangle detail has
+    ## no twin at all. The 0.15 was a number fitted to one delivery, and a
+    ## re-export is exactly the thing this file's docstring promises to survive.
+    ##
+    ## So the question asked is the one that actually distinguishes a spine part
+    ## from a limb: DOES IT HAVE A MIRROR TWIN? A limb does by construction, a
+    ## spine part cannot. That is a fact about the machine rather than about how
+    ## far from zero this particular export happened to put a centroid.
+    lateral, spine = [], []
+    for p in parts:
+        twin = _mirror_twin(p, parts, span_x)
+        (lateral if twin is not None else spine).append(p)
+    if len(spine) < 2:
+        raise SystemExit("expected at least 2 unpaired spine parts, measured %d"
+                         % len(spine))
 
-    # The arm chain hangs outboard of the leg chain — measured, not assumed:
-    # the split falls in the empty band between the two clusters of |x|.
-    xs = sorted(abs(p["centre"][0]) for p in lateral)
+    ## Biggest by volume is the torso; of what is left the REARMOST is the back
+    ## stack and the other is the head. Unchanged, and it still lands correctly
+    ## on both deliveries.
+    spine.sort(key=lambda p: -p["volume"])
+    torso = spine[0]
+    torso["role"] = "torso"
+    rest = sorted(spine[1:], key=lambda p: p["centre"][2])
+    if len(rest) == 1:
+        rest[0]["role"] = "head"
+    else:
+        rest[0]["role"] = "back"
+        for q in rest[1:]:
+            q["role"] = "head"
+
+    ## THE SHOULDERS ARE FOUND BY HEIGHT, NOT BY BEING OUTBOARD.
+    ##
+    ## The old rule read the arm chain off the OUTBOARD cluster and took its top
+    ## member as the shoulder. On this sculpt the shoulder stacks sit INBOARD —
+    ## they are bolted to the torso and the arms swing out past them — so an
+    ## outboard-first rule names them arms and runs the whole chain one place
+    ## down. What is actually true of a shoulder on any figure is that it is the
+    ## only paired part sitting ABOVE the middle of the torso.
+    pairs = _pair_up(lateral, span_x)
+    above = [g for g in pairs if _cy(g) > torso["centre"][1]]
+    for g in above:
+        for p in g:
+            p["role"] = "shoulder"
+    hanging = [g for g in pairs if g not in above]
+
+    ## What hangs below the torso splits into two chains in |x| — the empty band
+    ## between the two clusters, measured, as before — and each chain is named
+    ## top down. The arms are the OUTBOARD chain and the legs the inboard one,
+    ## which is the reading that survives the shoulders having been taken out of
+    ## the contest above.
+    xs = sorted(abs(_cx(g)) for g in hanging)
     gaps = [(xs[i + 1] - xs[i], (xs[i + 1] + xs[i]) / 2) for i in range(len(xs) - 1)]
-    split = max(gaps)[1]
-    arms = [p for p in lateral if abs(p["centre"][0]) >= split]
-    legs = [p for p in lateral if abs(p["centre"][0]) < split]
+    split = max(gaps)[1] if gaps else 0.0
+    arms = [g for g in hanging if abs(_cx(g)) >= split]
+    legs = [g for g in hanging if abs(_cx(g)) < split]
 
-    for chain, names in ((arms, ["shoulder", "arm", "fist"]), (legs, ["leg", "foot"])):
+    for chain, names in ((arms, ["arm", "fist"]), (legs, ["leg", "foot"])):
         # Top down by where the part STARTS, not where its centre is: a foot and
         # a shin overlap through most of their height and only their floors
         # separate them.
-        ranked = sorted(chain, key=lambda p: -p["min"][1])
-        for i, p in enumerate(ranked):
-            p["role"] = names[i // 2]
+        ranked = sorted(chain, key=lambda g: -max(p["min"][1] for p in g))
+        if len(ranked) > len(names):
+            raise SystemExit("chain has %d pairs but only %s to name them"
+                             % (len(ranked), names))
+        for i, g in enumerate(ranked):
+            for p in g:
+                p["role"] = names[i]
     for p in parts:
         if p["role"] in ("torso", "back", "head"):
             p["name"] = p["role"]
@@ -503,7 +638,13 @@ def pivot(p: dict) -> np.ndarray:
     c, lo, hi, s = p["centre"], p["min"], p["max"], p["size"]
     role = p["role"]
     if role in ("torso", "back", "head"):
-        return np.array([0.0, lo[1], c[2]])
+        ## On the midline when the part actually STRADDLES it, and on its own
+        ## centre when it does not. The owner's second segmentation hands the
+        ## back role to a small unpaired detail sitting off to one side; forcing
+        ## its hinge to x=0 would put the joint outside the geometry it is
+        ## supposed to swing, and the death solve reads these joints.
+        x = 0.0 if lo[0] <= 0.0 <= hi[0] else c[0]
+        return np.array([x, lo[1], c[2]])
     if role == "shoulder":
         inboard = np.sign(c[0]) * (abs(c[0]) - s[0] * 0.5)
         return np.array([inboard, hi[1] - s[1] * 0.30, c[2]])

@@ -7,6 +7,6 @@
 ; rather than editing this file. `model_height` is measured off the built parts,
 ; not declared: scripts/rig3d.gd scales the figure by it.
 [node name="Boss" type="Node3D"]
-metadata/model_height = 3.2922
+metadata/model_height = 3.3000
 
 [node name="Colossus" parent="." instance=ExtResource("1_parts")]

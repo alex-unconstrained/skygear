@@ -1,9 +1,9 @@
 {
   "key": "boss",
   "note": "The PART MAP for the segmented Colossus. `tools/segment_parts.py` derived every name in it from the geometry's own bounds \u2014 nothing here is keyed to a GLTF_n index, because a re-export renumbers those and does not move the parts. The `source` field records which geometry each name WAS in the delivered file so a later reader can go back to it.",
-  "delivered_as": "Meshy_AI_Brassbound Juggernaut_1785712957_part-segmentation.glb",
+  "delivered_as": "Meshy_AI_Brassbound Juggernaut_1785767195_part-segmentation.glb",
   "delivered_note": "Meshy PART-SEGMENTATION export: 13 separate geometries, no UVs, no texture images, each part flat-filled with a categorical LABEL colour. `label_colour` records the label; `colour` is what the part actually wears when there is no painted twin, assigned by role out of the project palette.",
-  "textured_from": "Meshy_AI_Brassbound_Juggernaut_0803021335_texture.glb",
+  "textured_from": "Meshy_AI_Brassbound_Juggernaut_0803142938_texture.glb",
   "textured_note": "THE PARTS ARE CUT FROM THE TEXTURED TWIN, not from the segmentation \u2014 the segmentation supplies the labels and nothing else (tools/split_rotors.py plays the same trick on the gunner). Every part therefore carries real UVs and shares ONE painted material with four maps; `colour` is kept as the flat fallback it used to be, and `textured` is what tools/rig_parts.gd reads to leave the kit's own material alone.",
   "texture_sides": {
     "base_color": 1024,
@@ -14,464 +14,464 @@
   "lamplit_metallic_max": 0.34,
   "metallic_clamp": {
     "factor_in": 1.0,
-    "factor_out": 0.35243902439024394,
-    "peak_in": 0.9647058823529412,
+    "factor_out": 0.35101214574898787,
+    "peak_in": 0.9686274509803922,
     "peak_out": 0.34,
     "ceiling": 0.34,
     "changed": true
   },
   "metallic_note": "Meshy delivers no metallicFactor, which in glTF means 1.0, over a metallic map peaking near chrome. This deck is lit by lamps and has no environment to reflect, so a metallic surface returns nothing and reads as a hole. `factor_out` is set so the map's PEAK texel lands on `lamplit_metallic_max`; the map's own pixels are untouched, only its level. Same ceiling the flat PALETTE obeys \u2014 see LAMPLIT_METALLIC_MAX.",
-  "faces_in": 1318962,
-  "faces_out": 7996,
-  "kept": 0.00606,
-  "tri_budget": 8000,
+  "faces_in": 30606,
+  "faces_out": 28512,
+  "kept": 0.93158,
+  "tri_budget": 30000,
   "tri_part_floor": 220,
   "drawn_metres": 3.3,
-  "scene_height_in": 1.898407,
-  "to_metres": 1.7383,
+  "scene_height_in": 1.896958,
+  "to_metres": 1.7396,
   "symmetry_labels_agree": true,
   "parts": [
     {
       "name": "arm_l",
       "role": "arm",
       "source": "GLTF_11",
-      "faces_in": 55122,
-      "faces_out": 334,
-      "kept": 0.00606,
-      "label_colour": "9669bf",
+      "faces_in": 1418,
+      "faces_out": 1400,
+      "kept": 0.98731,
+      "label_colour": "2178b4",
       "joint_m": [
-        1.20965,
-        1.62895,
-        0.27869
+        1.15549,
+        1.62797,
+        0.28005
       ],
       "size_m": [
-        0.63616,
-        0.8381,
-        0.78929
+        0.74593,
+        0.83729,
+        0.78897
       ],
       "local_min_m": [
-        -0.31683,
-        -0.84178,
-        -0.36772
+        -0.37296,
+        -0.83729,
+        -0.39449
       ],
       "local_max_m": [
-        0.31406,
-        -0.00746,
-        0.38582
+        0.37296,
+        0.0,
+        0.39449
       ],
       "colour": "ad8034",
       "metallic": 0.3,
       "roughness": 0.47,
       "textured": true,
-      "seg_faces_in": 58808
+      "seg_faces_in": 67634
     },
     {
       "name": "arm_r",
       "role": "arm",
       "source": "GLTF_1",
-      "faces_in": 53876,
-      "faces_out": 334,
-      "kept": 0.0062,
-      "label_colour": "9569be",
+      "faces_in": 1334,
+      "faces_out": 1334,
+      "kept": 1.0,
+      "label_colour": "2178b3",
       "joint_m": [
-        -1.21238,
-        1.62903,
-        0.27888
+        -1.15495,
+        1.62669,
+        0.27762
       ],
       "size_m": [
-        0.63613,
-        0.8384,
-        0.78951
+        0.75059,
+        0.83693,
+        0.78836
       ],
       "local_min_m": [
-        -0.32431,
-        -0.84395,
-        -0.37856
+        -0.37529,
+        -0.83693,
+        -0.39418
       ],
       "local_max_m": [
-        0.3166,
-        -0.0075,
-        0.38862
+        0.37529,
+        0.0,
+        0.39418
       ],
       "colour": "ad8034",
       "metallic": 0.3,
       "roughness": 0.47,
       "textured": true,
-      "seg_faces_in": 56844
+      "seg_faces_in": 66858
     },
     {
       "name": "back",
       "role": "back",
-      "source": "GLTF_5",
-      "faces_in": 183821,
-      "faces_out": 1375,
-      "kept": 0.00748,
-      "label_colour": "e679c4",
+      "source": "GLTF_6",
+      "faces_in": 78,
+      "faces_out": 78,
+      "kept": 1.0,
+      "label_colour": "2ea02c",
       "joint_m": [
-        0.0,
-        1.4032,
-        -0.71666
+        -0.6555,
+        1.802,
+        -0.47323
       ],
       "size_m": [
-        1.62824,
-        1.8968,
-        0.69519
+        0.2204,
+        0.54281,
+        0.13556
       ],
       "local_min_m": [
-        -0.80313,
-        0.01116,
-        -0.35739
+        -0.1102,
+        0.0,
+        -0.06778
       ],
       "local_max_m": [
-        0.81495,
-        1.89729,
-        0.33851
+        0.1102,
+        0.54281,
+        0.06778
       ],
       "colour": "a8762f",
       "metallic": 0.3,
       "roughness": 0.45,
       "textured": true,
-      "seg_faces_in": 187950
+      "seg_faces_in": 2494
     },
     {
       "name": "fist_l",
       "role": "fist",
-      "source": "GLTF_10",
-      "faces_in": 47058,
-      "faces_out": 251,
-      "kept": 0.00533,
-      "label_colour": "bdbe22",
+      "source": "GLTF_12",
+      "faces_in": 1270,
+      "faces_out": 937,
+      "kept": 0.7378,
+      "label_colour": "2ea22d",
       "joint_m": [
-        1.22091,
-        1.08077,
-        0.62347
+        1.22025,
+        1.07432,
+        0.62301
       ],
       "size_m": [
-        0.66595,
-        0.68273,
-        0.59991
+        0.66743,
+        0.67758,
+        0.59929
       ],
       "local_min_m": [
-        -0.32033,
-        -0.62994,
-        -0.28518
+        -0.33371,
+        -0.67758,
+        -0.29964
       ],
       "local_max_m": [
-        0.31035,
-        -0.00703,
-        0.32005
+        0.33371,
+        0.0,
+        0.29964
       ],
       "colour": "453b34",
       "metallic": 0.26,
       "roughness": 0.52,
       "textured": true,
-      "seg_faces_in": 48978
+      "seg_faces_in": 48990
     },
     {
       "name": "fist_r",
       "role": "fist",
       "source": "GLTF",
-      "faces_in": 48012,
-      "faces_out": 251,
-      "kept": 0.00523,
-      "label_colour": "bdbd21",
+      "faces_in": 1243,
+      "faces_out": 937,
+      "kept": 0.75382,
+      "label_colour": "2ea22c",
       "joint_m": [
-        -1.22335,
-        1.08087,
-        0.62402
+        -1.22252,
+        1.07333,
+        0.62461
       ],
       "size_m": [
-        0.66514,
-        0.68264,
-        0.59859
+        0.66759,
+        0.67592,
+        0.59131
       ],
       "local_min_m": [
-        -0.33227,
-        -0.66592,
-        -0.28611
+        -0.33379,
+        -0.67592,
+        -0.29566
       ],
       "local_max_m": [
-        0.31765,
-        -0.00293,
-        0.30206
+        0.33379,
+        0.0,
+        0.29566
       ],
       "colour": "453b34",
       "metallic": 0.26,
       "roughness": 0.52,
       "textured": true,
-      "seg_faces_in": 49950
+      "seg_faces_in": 49920
     },
     {
       "name": "foot_l",
       "role": "foot",
-      "source": "GLTF_7",
-      "faces_in": 81226,
-      "faces_out": 446,
-      "kept": 0.00549,
-      "label_colour": "bebe22",
+      "source": "GLTF_8",
+      "faces_in": 1962,
+      "faces_out": 1695,
+      "kept": 0.86391,
+      "label_colour": "bcbe22",
       "joint_m": [
-        0.53565,
-        0.48947,
-        0.12032
+        0.53397,
+        0.49494,
+        0.12012
       ],
       "size_m": [
-        0.7958,
-        0.48936,
-        1.08552
+        0.79648,
+        0.49398,
+        1.0877
       ],
       "local_min_m": [
-        -0.38881,
-        -0.4794,
-        -0.54153
+        -0.39824,
+        -0.49398,
+        -0.54385
       ],
       "local_max_m": [
-        0.40185,
-        -0.01632,
-        0.53816
+        0.39824,
+        0.0,
+        0.54385
       ],
       "colour": "342d29",
       "metallic": 0.24,
       "roughness": 0.64,
       "textured": true,
-      "seg_faces_in": 84194
+      "seg_faces_in": 84998
     },
     {
       "name": "foot_r",
       "role": "foot",
       "source": "GLTF_3",
-      "faces_in": 76908,
-      "faces_out": 445,
-      "kept": 0.00579,
-      "label_colour": "bebe22",
+      "faces_in": 1889,
+      "faces_out": 1695,
+      "kept": 0.8973,
+      "label_colour": "bcbd22",
       "joint_m": [
-        -0.53834,
-        0.49119,
-        0.12001
+        -0.53875,
+        0.49178,
+        0.12219
       ],
       "size_m": [
-        0.79493,
-        0.49119,
-        1.08465
+        0.79491,
+        0.49178,
+        1.08297
       ],
       "local_min_m": [
-        -0.3891,
-        -0.48294,
-        -0.56566
+        -0.39745,
+        -0.49178,
+        -0.54148
       ],
       "local_max_m": [
-        0.39467,
-        -0.02017,
-        0.54253
+        0.39745,
+        0.0,
+        0.54148
       ],
       "colour": "342d29",
       "metallic": 0.24,
       "roughness": 0.64,
       "textured": true,
-      "seg_faces_in": 79880
+      "seg_faces_in": 83840
     },
     {
       "name": "head",
       "role": "head",
-      "source": "GLTF_6",
-      "faces_in": 19326,
-      "faces_out": 219,
-      "kept": 0.01133,
-      "label_colour": "d82929",
+      "source": "GLTF_7",
+      "faces_in": 393,
+      "faces_out": 393,
+      "kept": 1.0,
+      "label_colour": "d72929",
       "joint_m": [
         0.0,
-        2.35761,
-        0.06941
+        2.36869,
+        0.06947
       ],
       "size_m": [
-        0.49106,
-        0.59818,
-        0.52444
+        0.47213,
+        0.587,
+        0.49134
       ],
       "local_min_m": [
-        -0.23752,
-        0.01242,
-        -0.25482
+        -0.22615,
+        0.0,
+        -0.24567
       ],
       "local_max_m": [
-        0.22632,
-        0.58772,
-        0.24594
+        0.24598,
+        0.587,
+        0.24567
       ],
       "colour": "d19a3c",
       "metallic": 0.34,
       "roughness": 0.36,
       "textured": true,
-      "seg_faces_in": 21844
+      "seg_faces_in": 17804
     },
     {
       "name": "leg_l",
       "role": "leg",
-      "source": "GLTF_8",
-      "faces_in": 71988,
-      "faces_out": 478,
-      "kept": 0.00664,
-      "label_colour": "2278b3",
+      "source": "GLTF_10",
+      "faces_in": 1494,
+      "faces_out": 1494,
+      "kept": 1.0,
+      "label_colour": "2178b3",
       "joint_m": [
-        0.51822,
-        1.39974,
-        0.10282
+        0.51799,
+        1.40028,
+        0.1043
       ],
       "size_m": [
-        0.6282,
-        1.25005,
-        0.74862
+        0.62869,
+        1.25584,
+        0.74823
       ],
       "local_min_m": [
-        -0.30786,
-        -1.23974,
-        -0.37231
+        -0.31435,
+        -1.25584,
+        -0.37411
       ],
       "local_max_m": [
-        0.31276,
-        0.00279,
-        0.36818
+        0.31435,
+        0.0,
+        0.37411
       ],
       "colour": "594d44",
       "metallic": 0.22,
       "roughness": 0.58,
       "textured": true,
-      "seg_faces_in": 75800
+      "seg_faces_in": 73834
     },
     {
       "name": "leg_r",
       "role": "leg",
       "source": "GLTF_4",
-      "faces_in": 75627,
-      "faces_out": 478,
-      "kept": 0.00632,
-      "label_colour": "2278b3",
+      "faces_in": 1474,
+      "faces_out": 1474,
+      "kept": 1.0,
+      "label_colour": "2177b3",
       "joint_m": [
-        -0.53144,
-        1.39983,
-        0.10273
+        -0.52109,
+        1.40004,
+        0.10231
       ],
       "size_m": [
-        0.64791,
-        1.29509,
-        0.74844
+        0.62867,
+        1.25712,
+        0.75084
       ],
       "local_min_m": [
-        -0.32047,
-        -1.29381,
-        -0.37867
+        -0.31434,
+        -1.25712,
+        -0.37542
       ],
       "local_max_m": [
-        0.32375,
-        -0.01311,
-        0.36071
+        0.31434,
+        0.0,
+        0.37542
       ],
       "colour": "594d44",
       "metallic": 0.22,
       "roughness": 0.58,
       "textured": true,
-      "seg_faces_in": 79278
+      "seg_faces_in": 74300
     },
     {
       "name": "shoulder_l",
       "role": "shoulder",
       "source": "GLTF_9",
-      "faces_in": 103512,
-      "faces_out": 603,
-      "kept": 0.00583,
-      "label_colour": "2ea22c",
+      "faces_in": 1648,
+      "faces_out": 1648,
+      "kept": 1.0,
+      "label_colour": "9569bf",
       "joint_m": [
-        0.66299,
-        2.4859,
-        0.46561
+        0.16049,
+        2.84891,
+        -0.72093
       ],
       "size_m": [
-        0.85809,
-        0.9033,
-        1.19078
+        0.65401,
+        1.49872,
+        0.68523
       ],
       "local_min_m": [
-        0.00631,
-        -0.62416,
-        -0.57527
+        0.0,
+        -1.0491,
+        -0.34261
       ],
       "local_max_m": [
-        0.84657,
-        0.26376,
-        0.59068
+        0.65401,
+        0.44962,
+        0.34261
       ],
       "colour": "60554c",
       "metallic": 0.24,
       "roughness": 0.55,
       "textured": true,
-      "seg_faces_in": 104966
+      "seg_faces_in": 64650
     },
     {
       "name": "shoulder_r",
       "role": "shoulder",
-      "source": "GLTF_2",
-      "faces_in": 106342,
-      "faces_out": 603,
-      "kept": 0.00567,
-      "label_colour": "2ea22c",
+      "source": "GLTF_5",
+      "faces_in": 1835,
+      "faces_out": 1835,
+      "kept": 1.0,
+      "label_colour": "9569bf",
       "joint_m": [
-        -0.66439,
-        2.48586,
-        0.46748
+        -0.19971,
+        2.83427,
+        -0.72165
       ],
       "size_m": [
-        0.85912,
-        0.90255,
-        1.18705
+        0.6141,
+        1.55245,
+        0.68311
       ],
       "local_min_m": [
-        -0.8461,
-        -0.61647,
-        -0.56477
+        -0.6141,
+        -1.08671,
+        -0.34155
       ],
       "local_max_m": [
-        -0.01063,
-        0.25671,
-        0.5776
+        0.0,
+        0.46573,
+        0.34155
       ],
       "colour": "60554c",
       "metallic": 0.24,
       "roughness": 0.55,
       "textured": true,
-      "seg_faces_in": 107658
+      "seg_faces_in": 74014
     },
     {
       "name": "torso",
       "role": "torso",
-      "source": "GLTF_12",
-      "faces_in": 396144,
-      "faces_out": 2179,
-      "kept": 0.0055,
-      "label_colour": "9ae08b",
+      "source": "GLTF_2",
+      "faces_in": 14568,
+      "faces_out": 13592,
+      "kept": 0.933,
+      "label_colour": "2ea22c",
       "joint_m": [
         0.0,
-        0.93685,
-        -0.07661
+        0.93546,
+        0.05282
       ],
       "size_m": [
-        2.15318,
-        1.7473,
-        1.35
+        3.04322,
+        1.82186,
+        2.0167
       ],
       "local_min_m": [
-        -1.05598,
-        -0.00035,
-        -0.66971
+        -1.52255,
+        0.0,
+        -1.00835
       ],
       "local_max_m": [
-        1.07131,
-        1.74399,
-        0.66085
+        1.52067,
+        1.82186,
+        1.00835
       ],
       "colour": "4e443d",
       "metallic": 0.22,
       "roughness": 0.62,
       "textured": true,
-      "seg_faces_in": 409886
+      "seg_faces_in": 649378
     }
   ]
 }

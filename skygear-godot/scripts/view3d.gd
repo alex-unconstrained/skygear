@@ -1237,17 +1237,14 @@ func _build_world() -> void:
 	rail_mat.albedo_color = Color("#b0813f")
 	rail_mat.roughness = 0.6
 	rail_mat.metallic = 0.4
-	for side in [-1.0, 1.0]:
-		var rail := MeshInstance3D.new()
-		var rm := BoxMesh.new()
-		rm.size = Vector3(14.0, 40.0, SkyGearGame.DECK_RECT.size.y) * WORLD_SCALE
-		rail.mesh = rm
-		rail.material_override = rail_mat
-		rail.position = Vector3(
-			(SkyGearGame.DECK_RECT.position.x + (0.0 if side < 0.0 else SkyGearGame.DECK_RECT.size.x)) * WORLD_SCALE,
-			20.0 * WORLD_SCALE,
-			(SkyGearGame.DECK_RECT.position.y + SkyGearGame.DECK_RECT.size.y * 0.5) * WORLD_SCALE)
-		add_child(rail)
+	## THE TWO SOLID SIDE BARS ARE GONE (SG-157). DECK-IDENTITY item 4 asked for
+	## exactly this and said why in one sentence: *a rail reads as a rail because
+	## you see past it*, and a solid 14 x 40 x 2320 bar cannot produce the
+	## periodic gap at any camera. `_build_edge_kit()` puts the owner's own
+	## hand-modelled module there instead. The END CAPS below stay — they are a
+	## different object doing a different job (DECK-IDENTITY 6: the breast rail
+	## that draws the play boundary in brass) and nothing asked for them to go.
+	_build_edge_kit()
 	for end_z in [SkyGearGame.DECK_RECT.position.y, SkyGearGame.DECK_RECT.end.y]:
 		var cap := MeshInstance3D.new()
 		var cm := BoxMesh.new()
@@ -5784,10 +5781,20 @@ const RIG_YARD_AT := 0.74            ## of mast height
 const RIG_SHROUD_HEAD := 0.82        ## of mast height
 
 
+## TRIAL ONLY, default OFF. `tools/edge_place.gd -- mast` swaps the procedural
+## casters for `mast_crowned` to answer whether the owner's mast should REPLACE
+## them, FEED them, or stand beside them. The verdict is recorded below.
+var rig_model_masts := false
+
+
 func _build_rigging() -> void:
 	_rigging = Node3D.new()
 	_rigging.name = "Rigging"
 	add_child(_rigging)
+
+	if rig_model_masts:
+		_build_rigging_from_model()
+		return
 
 	var timber := StandardMaterial3D.new()
 	timber.albedo_color = Color("#41301d")
@@ -5851,6 +5858,29 @@ func _build_rigging() -> void:
 				line.look_at_from_position(mid, head, Vector3.RIGHT)
 				line.rotate_object_local(Vector3.RIGHT, PI * 0.5)
 				_rig_piece(line)
+
+
+## `mast_crowned` in the caster's place, at the same three stations and the same
+## 1500-unit height, every mesh in it forced SHADOWS_ONLY through `_rig_piece`.
+func _build_rigging_from_model() -> void:
+	var scene: PackedScene = load("res://assets/models/mast_crowned/mast_crowned.tscn")
+	if scene == null:
+		return
+	for m in RIG_MASTS:
+		var h: float = float(m.h)
+		## The model is 189.9 ground units tall; scale it to the station height.
+		var k: float = h / 189.9
+		var node: Node3D = scene.instantiate()
+		node.transform = Transform3D(Basis().scaled(Vector3(k, k, k)),
+			Vector3(float(m.x), 0.0, float(m.z)) * WORLD_SCALE)
+		_rigging.add_child(node)
+		var stack: Array = [node]
+		while not stack.is_empty():
+			var n = stack.pop_back()
+			for c in n.get_children(): stack.append(c)
+			if n is MeshInstance3D:
+				n.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+				n.layers = LAYER_WORLD
 
 
 ## ONE PLACE SETS THE ENUM. A piece of rig that arrived with the default
@@ -6016,6 +6046,300 @@ func _hull_apron(z_edge: float, span: float, segments: int,
 	skin.cull_mode = BaseMaterial3D.CULL_DISABLED
 	apron.material_override = skin
 	_hull_shape.add_child(apron)
+
+
+## --- THE SHIP'S EDGE KIT — the owner's own four pieces, on the deck ------------
+##
+## SG-157, and the complaint it answers is a measured one rather than a mood:
+## the deck read as *"a floating plane — not the deck of a ship"*, and
+## DECK-DESIGN §1 found that 94% of the default frame is planking with the near
+## two thirds carrying no ship's edge at all. `handoff-3d/ship_edge_kit/` is the
+## answer, hand-modelled: a tiling rail module, a bow, a stern and a mast.
+##
+## WHAT IS HERE AND WHAT IS NOT. **The rail is placed. The bow, the stern and
+## the mast are not**, and all three are refusals with frames behind them rather
+## than omissions — the verdicts are written out below, each naming the shots it
+## rests on. A piece that reads badly at this camera is worth more as a written
+## finding than as geometry nobody wants to be the one to defend, and the rail is
+## the piece DECK-IDENTITY ranked first anyway: it is the only one of the four
+## that reaches the part of the frame the player actually stares at all run.
+##
+## EVERY NUMBER BELOW IS MEASURED OFF THE MESH, not read off a filename or a
+## board row. `tools/edge_place.gd -- measure` prints them and is the only place
+## they come from — the module is 189.83 x 90.17 x 22.44 ground units with three
+## stanchions on an 83.45-unit pitch, and its rail overhangs 11.45 units past
+## each end stanchion.
+const EDGE_RAIL_SCENE := "res://assets/models/rail_stanchion/rail_stanchion.tscn"
+
+## Ground units, at model scale 1. Measured, `tools/edge_place.gd -- measure`.
+const RAIL_PITCH_NATIVE := 83.45     ## stanchion to stanchion
+const RAIL_TOP_NATIVE := 90.17       ## overall height of the module
+const RAIL_DEPTH_NATIVE := 22.44     ## across the rail, athwartships
+
+## THE SCALE DECISION, AS ONE INTEGER — and it is the owner's, not this file's.
+##
+## The tiling is arithmetic. Modules are placed every TWO stanchion pitches so
+## the end stanchions of neighbours COINCIDE and the pitch stays uniform through
+## every seam; butt-joining at the natural pitch bunches stanchions in pairs.
+## That makes the tile count the only free variable: `N` tiles across the 2320
+## rectangle means a spacing of `2320/N`, a pitch of half that, and a uniform
+## scale of `spacing / (2 x 83.45)`. Only whole `N` divides the deck evenly, so
+## the candidates are discrete and there are three worth looking at:
+##
+##   N =  8   spacing 290.0   pitch 145.0   rail top 156.7   89% of a captain
+##   N = 10   spacing 232.0   pitch 116.0   rail top 125.3   71% of a captain
+##   N = 12   spacing 193.3   pitch  96.7   rail top 104.5   59% of a captain
+##
+## N = 8 is the 290-unit tiling already established. **N = 10 is what ships
+## pending the owner's eye**, and the reason is that it is the SPEC arrived at
+## from the other end. Item 4 asks for two rails at y = 66 and 118. The module's
+## four solid bands measure 0-10, 12-28, 40-60 and 68-88 at scale 1, and at
+## N = 10 the upper two land at **69.6** (against the spec's 66) and span
+## **94.7 to 122.6**, so the spec's 118 falls INSIDE the top band. SG-145
+## reported the spec unreachable "at ANY uniform scale"; that is right about the
+## BAR COUNT — this is a three-bar rail with a cap where the spec describes two
+## bars — and wrong about the HEIGHTS, which N = 10 hits. Recorded rather than
+## quietly worked around, because a fact contradicted in one place and believed
+## in another is this repo's sixth failure mode.
+##
+## Settable rather than `const` so `tools/edge_place.gd` can photograph the
+## candidates through the SHIPPED renderer instead of mocking up a second rail
+## that could disagree with this one.
+var edge_rail_tiles := 10
+
+var _edge_kit: Node3D
+
+## TRIAL ONLY, default OFF. `tools/edge_place.gd -- stern <scale> <z>` turns this
+## on to photograph `stern_counter` in place. It is not shipped geometry and the
+## verdict below says why.
+var edge_stern_trial := 0.0
+var edge_stern_z := 1380.0
+
+## THE RETIRED GUNWALE, and it is here for exactly one reason: so the before and
+## the after can be photographed IN ONE PROCESS. Two runs of a shot tool never
+## land their flicker, particles and cloud drift at the same point twice, which
+## is the whole of SG-108 — an A/B across two invocations is partly an A/B of the
+## weather. `tools/edge_place.gd -- before` sets this, and nothing else ever
+## should.
+var edge_rail_legacy := false
+
+
+## The uniform scale that makes `edge_rail_tiles` modules tile the deck exactly.
+func edge_rail_scale() -> float:
+	var spacing: float = SkyGearGame.DECK_RECT.size.y / float(edge_rail_tiles)
+	return spacing / (2.0 * RAIL_PITCH_NATIVE)
+
+
+func _build_edge_kit() -> void:
+	_edge_kit = Node3D.new()
+	_edge_kit.name = "EdgeKit"
+	add_child(_edge_kit)
+	_build_edge_rail()
+	if edge_stern_trial > 0.0:
+		_build_edge_stern_trial()
+	## THE BOW IS NOT BUILT — see the verdict below.
+
+
+## Rebuild at a different tile count, for the scale comparison. The probe drives
+## this rather than carrying its own copy of the placement — two functions
+## disagreeing about one number is failure mode two, and the whole point of the
+## comparison is that what Alex judges is what ships.
+func rebuild_edge_kit(tiles: int) -> void:
+	edge_rail_tiles = tiles
+	if _edge_kit != null:
+		_edge_kit.queue_free()
+		remove_child(_edge_kit)
+	_build_edge_kit()
+
+
+## THE RAIL, ALONG BOTH SIDES, RIDING THE SHEER.
+##
+## It seats on `sheer_lift()` — the one function the hull curve lives in — so the
+## rail rises toward the bow and the stern the way the strake under it does. Each
+## tile is TILTED to the slope between its own two ends rather than stood flat at
+## its centre height: neighbours therefore meet at exactly the same y, because
+## both read the same function at the same z, and the run has no staircase in it.
+##
+## OUTBOARD BY CONSTRUCTION, which is the superset property §6.1 pins. The
+## module is symmetric about its long axis, so seating its CENTRE at
+## `840 + depth/2` puts its inner face exactly on |x| = 840 and every millimetre
+## of its depth outboard of the rectangle. Nothing here is walked on and nothing
+## here collides — MeshInstance3D and no body, the same rule the hull keeps.
+##
+## IT CANNOT HIDE ANYBODY, and that is geometry rather than a hope. Camera x is
+## clamped to +/-369.6 (`slack` in `_track_camera`), figures never pass +/-750,
+## and the rail centres land at +/-856. The rail is always OUTBOARD of the figure
+## and the camera is always INBOARD of it, so the rail is never between the two
+## at any zoom. Pinned by `edge · no rail module stands between the camera and a
+## figure at any zoom`, which measures it through `unproject_position` rather
+## than repeating this paragraph.
+func _build_edge_rail() -> void:
+	if edge_rail_legacy:
+		_build_legacy_gunwale()
+		return
+	var scene: PackedScene = load(EDGE_RAIL_SCENE)
+	if scene == null:
+		push_warning("edge kit: no rail module at %s" % EDGE_RAIL_SCENE)
+		return
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var s := edge_rail_scale()
+	var spacing: float = rect.size.y / float(edge_rail_tiles)
+	var x_off: float = rect.size.x * 0.5 + RAIL_DEPTH_NATIVE * s * 0.5
+	for side in [-1.0, 1.0]:
+		for i in edge_rail_tiles:
+			var z0: float = rect.position.y + spacing * float(i)
+			var z1: float = z0 + spacing
+			## The strake's top edge sits at `lift - 8`; the rail stands on it.
+			var y0: float = sheer_lift(z0) - 8.0
+			var y1: float = sheer_lift(z1) - 8.0
+			var run := Vector2(y1 - y0, z1 - z0)
+			var tilt: float = -asin(run.x / maxf(1.0, run.length()))
+			## Model +X runs along the deck (+Z); the tilt is applied in the
+			## WORLD frame afterwards, so it follows the sheer rather than
+			## rolling the rail over on its side.
+			var basis := Basis(Vector3.RIGHT, tilt) * Basis(Vector3.UP, -PI * 0.5)
+			var node: Node3D = scene.instantiate()
+			node.transform = Transform3D(basis.scaled(Vector3(s, s, s)),
+				Vector3(side * x_off, (y0 + y1) * 0.5, (z0 + z1) * 0.5) * WORLD_SCALE)
+			_edge_kit.add_child(node)
+			## NAMED, and not decoratively. An instanced scene keeps its own root
+			## name for the FIRST copy and Godot renames every one after that to
+			## `@Node3D@246` — so a harness check that counts rail modules by name
+			## counted ONE of twenty until this line existed.
+			node.name = "RailModule%s%d" % ["P" if side < 0.0 else "S", i]
+
+
+func _build_edge_stern_trial() -> void:
+	var scene: PackedScene = load("res://assets/models/stern_counter/stern_counter.tscn")
+	if scene == null:
+		return
+	var node: Node3D = scene.instantiate()
+	var k := edge_stern_trial
+	node.transform = Transform3D(Basis().scaled(Vector3(k, k, k)),
+		Vector3(0.0, 0.0, edge_stern_z) * WORLD_SCALE)
+	_edge_kit.add_child(node)
+
+
+## The two solid 14 x 40 x 2320 bars this replaced, verbatim, for the A/B only.
+func _build_legacy_gunwale() -> void:
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color("#b0813f")
+	mat.roughness = 0.6
+	mat.metallic = 0.4
+	for side in [-1.0, 1.0]:
+		var bar := MeshInstance3D.new()
+		var bm := BoxMesh.new()
+		bm.size = Vector3(14.0, 40.0, rect.size.y) * WORLD_SCALE
+		bar.mesh = bm
+		bar.material_override = mat
+		bar.position = Vector3(
+			(rect.position.x + (0.0 if side < 0.0 else rect.size.x)) * WORLD_SCALE,
+			20.0 * WORLD_SCALE,
+			(rect.position.y + rect.size.y * 0.5) * WORLD_SCALE)
+		_edge_kit.add_child(bar)
+
+
+## THE STERN IS CUT TOO, AND THE REASON IS THE CAMERA RATHER THAN THE MODEL.
+##
+## `stern_counter` is not on the deck. Two placements, both photographed:
+##
+##   * `.shots/sg157/stern-trial-s2.5/transom-z1.00.png` — scale 2.5, sized
+##     toward the 874-unit transom. It fills the bottom half of the frame, its
+##     texture goes to mush (8,000 triangles over a huge projected area, which is
+##     SG-151's finding pointing the other way), and the captain is not visible
+##     at all.
+##   * `.shots/sg157/stern-trial-s1.0/transom-z1.00.png` — scale 1.0, its own
+##     authored size. THE CAPTAIN IS HIDDEN BEHIND IT: only her hair shows above
+##     its rail. Measured, not eyeballed — `edge_place.gd -- where transom` puts
+##     her foot at (960, 745) inside the piece's screen box of x 752..1168,
+##     y 595..1046.
+##
+## THE BAND IT WOULD HAVE TO LIVE IN IS 209 UNITS WIDE AND IT IS THE WRONG SIDE
+## OF HER. The frame's bottom edge meets the deck at `focus - 102` and the camera
+## focus clamps at `DECK_RECT.end.y + 200` = 1360, so nothing aft of z ~ 1258 is
+## ever on screen. Anything inside that band is BETWEEN the lens and a captain
+## standing at the transom, because the camera sits 460 units astern of its focus
+## and she cannot go past z = 1160. A stern that is visible is a stern that
+## occludes her; a stern that does not occlude her is off the bottom of the
+## frame. That is the whole of it, and no scale escapes it.
+##
+## DECK-IDENTITY item 3 called the stern "cheapest of the three edges, since the
+## aft half is off screen unless the captain walks into it". That was right, and
+## the part it did not say is that WALKING INTO IT is exactly when the piece is
+## in front of her. `edge_place.gd -- where` prints the bottom-edge number now;
+## nothing had ever printed it, so "the aft half is off screen" had been an
+## assertion since the day it was written.
+
+
+## THE MAST STAYS AS IT IS — the owner's model neither replaces the casters nor
+## joins them, and this is the measurement rather than a preference.
+##
+## The question was whether `mast_crowned` should REPLACE the 24 procedural
+## SHADOWS_ONLY pieces, FEED them, or stand beside them. It was tried as the
+## caster (`rig_model_masts`, and `tools/edge_place.gd -- mast` reproduces it) at
+## the same three stations and the same 1500-unit height, every mesh in it forced
+## SHADOWS_ONLY. `.shots/sg157/MAST-trial-vs-shipped.png` is the pair.
+##
+## IT LOSES THE LATTICE. The shipped rig prints crisp diagonal shroud lines
+## across the middle of the deck; the model prints broad soft shading with the
+## lines gone. The deck gets DARKER — mean luminance over the planking band falls
+## 45.13 to 41.66, 7.7% — while carrying less information, which is precisely
+## DECK-DESIGN P2's trap 2: a shadow that reads as LIGHTING rather than as rope.
+## `RIG_SHROUD_RADIUS` is 9.0 for that exact reason and the model's rigging is
+## thinner than the 2.2 blur can hold. SG-116 measured the lattice as HELPING
+## telegraph contrast, so trading it for a darker deck is a regression, and the
+## brief for this work named it as one in advance.
+##
+## AND IT CANNOT BE VISIBLE EITHER. `RIG_MASTS` stands at x = +/-280 on the lane
+## dividers, two of the three inside the play rectangle, so a drawn pole there is
+## a bar standing where somebody fights — the failure that killed visible rigging
+## twice already, with pictures at `.shots/deck/rig-mid-z1.00.png` and
+## `rig2-mid-z1.55.png`. The camera never looks up; there is no pose from which a
+## mast is scenery rather than an obstacle.
+##
+## So the mast is the one piece of the four with no defect at all and no place to
+## go. Filed for the owner rather than forced onto the deck.
+
+
+## THE BOW IS CUT, AND THIS IS THE REASON RATHER THAN AN OMISSION.
+##
+## `bow_ram` is not on the deck. It was placed three times, photographed each
+## time at the shipped camera, and it reads badly at every one of them. The
+## frames are kept on purpose because they are the argument:
+##
+##   1. `.shots/sg157/bow-cut/1-at-apron-tip-z*.png` — seated at the apron's tip
+##      (z = -1655, scale 1.75), sized to the 344-unit stem it would cap. It is
+##      INVISIBLE. Forward of the breast rail the apron carries no lamp and falls
+##      away from the moon, so the stem is a dark wedge at the top of the frame
+##      and 8,000 triangles of hand-modelled ram land in it unseen.
+##   2. `.shots/sg157/bow-cut/2-at-bow-line-crop-z1.55.png` — brought in to
+##      z = -1350 at scale 2.0, into the last of the lit deck. It reads as a dark
+##      DRUM directly behind the captain's head.
+##   3. `.shots/sg157/bow-cut/3-enlarged-crop-z1.55.png` — z = -1560 at scale 3.0,
+##      big enough that it cannot be missed. It is a dark mass hanging OVER her
+##      head, cropped by the top of the frame. This is `bow_prow.png`'s exact
+##      failure rebuilt in geometry, which is what that sprite was retired for.
+##
+## THE CAUSE IS PROPORTION AND IT IS NOT FIXABLE BY TUNING. The piece measures
+## 189.9 x 75.7 x 52.2 — a NARROW prow, 3.6 times longer than it is wide, which
+## is what its original export name (`Brassbound_Torpedo_Sh...`) describes. This
+## ship's bow is the opposite shape: 1680 units of beam tapering over 620 of
+## length, wider than it is long. Scaled small enough to match the stem it is
+## invisible; scaled large enough to be seen it is a tall mass ON THE CENTRELINE
+## at the one depth where the vertical budget is 65 units — and the centreline at
+## the bow is exactly where the captain stands, so every placement puts it behind
+## her head. `tools/edge_place.gd -- where stem` measures that overlap rather
+## than leaving it to the eye: her head projects at (796, 188) and the piece's
+## box is x 704..828, y 64..260.
+##
+## WHAT THE BOW SHOULD DO INSTEAD, AND ALREADY DOES. `_hull_apron()` carries real
+## planking 620 units forward of the bow line, narrowing on `hull_beam()` with the
+## strake following it in, and in these same frames it reads as a bow — two
+## bulwarks converging on a stem, looked ALONG, in the deck plane. The deck does
+## not need this model to have a bow. It needs a bow-shaped model, and this is a
+## torpedo boat. Filed for the owner: a prow re-modelled at roughly 3:1 WIDE
+## rather than 3.6:1 LONG would drop straight into `_build_edge_kit()`.
 
 
 ## --- THE DECK REMEMBERS THE FIGHT ---------------------------------------------

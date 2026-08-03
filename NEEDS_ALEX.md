@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 58 live · harness 997/997.** Everything else is in
+**Build 58 live · harness 1017/1017.** Everything else is in
 `skygear-godot/docs/NIGHT-LOG-2026-08-03.md`. This file is only your decisions.
 
 ---
@@ -27,10 +27,26 @@ to it, 60 of 60 swings land. It is purely health. **My recommendation: roughly
 double it, 180 → 360**, which buys it ~6 seconds and three swings instead of
 one. That is a balance change and it is yours, so I did not make it.
 
-**2 · The rail's size.** Your rail sits with its cap at **83% of the captain's
-height**. The spec wanted lower. It cannot hide her either way (the camera
-tracks her, the rails are outside where figures walk), so this is purely how you
-want it to look. Renders are coming to you — pick one.
+**2 · The rail's size — the renders are here now, pick one.**
+`skygear-godot/.shots/sg157/scale-8`, `scale-10`, `scale-12`. Your rail is on
+the deck and the two solid side bars it replaces are gone. The tiling is
+arithmetic, so only whole tile counts divide the deck evenly and there are just
+three worth looking at:
+
+- **N = 8** — rail top at **89% of the captain**. The 290-unit tiling already established.
+- **N = 10** — **71%. THIS IS WHAT SHIPS pending your eye**, because it is your own spec arrived at from the other end: DECK-IDENTITY item 4 asks for two rails at y = 66 and 118.
+- **N = 12** — **59%.** Lowest, and it starts reading as a fence rather than a ship's rail.
+
+It cannot hide her at any of them (the camera tracks her, the rails are outside
+where figures walk), so this is purely how you want it to look.
+
+**The bow, the stern and the mast are NOT placed**, and all three are refusals
+with frames behind them rather than omissions — `bow-cut`, `stern-trial-s1.0`,
+`stern-trial-s2.5`, `mast-trial` and `MAST-trial-vs-shipped.png` in the same
+folder. Each reads badly at this camera. The mast is wired up behind a switch
+that is **default OFF**, and the open question is whether yours should REPLACE
+the procedural shadow casters, FEED them, or stand beside them — say which and
+it is one line.
 
 **3 · Fire's hitbox.** A fire pool **burns you from outside its own picture, by
 up to 70%** — drawn at 46, burns at 78. Fix the damage to match the picture, or
@@ -61,8 +77,8 @@ Frames are in `skygear-godot/.shots/sg156/`; put `3-wind-095.png` next to
 
 **What I would do:** keep the wind-up wedge, add a bright fast flash along the
 wedge on the strike frame, and leave a dim mark on the deck through the recovery
-so "now hit him" is visible. That is a change to `view3d.gd`, which another
-agent is holding right now, so I have not made it. **Say go and it is quick.**
+so "now hit him" is visible. `view3d.gd` is free now — the edge-kit work that
+was holding it has landed — so nothing is in the way. **Say go and it is quick.**
 
 ---
 

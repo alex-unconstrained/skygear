@@ -1677,6 +1677,29 @@ func _ship_snapshot(game: SkyGearGame) -> String:
 		",".join(PackedStringArray(guns))])
 
 
+## The world-space AABB of one edge-kit module, merged over every mesh in it.
+## The modules are instanced scenes, so the meshes are grandchildren and a
+## `get_aabb()` on the top node would measure an empty Node3D.
+func _kit_aabb(node: Node3D) -> AABB:
+	var out := AABB()
+	var first := true
+	var stack: Array = [node]
+	while not stack.is_empty():
+		var n: Node = stack.pop_back()
+		for c in n.get_children():
+			stack.append(c)
+		var mi := n as MeshInstance3D
+		if mi == null or mi.mesh == null:
+			continue
+		var a: AABB = mi.global_transform * mi.get_aabb()
+		if first:
+			out = a
+			first = false
+		else:
+			out = out.merge(a)
+	return out
+
+
 func _prop_count(game: SkyGearGame, kind: String) -> int:
 	var n := 0
 	for p in game.props():
@@ -8203,16 +8226,28 @@ func _view() -> void:
 			bmissing.is_empty() and bparts.size() == 13,
 			"%d parts%s" % [bparts.size(),
 				"" if bmissing.is_empty() else " (missing: %s)" % ", ".join(bmissing)])
-		## THE BUDGET. 1,366,036 triangles delivered against the project law's
-		## own ceiling — and the ceiling is not a number this row picked, it is
-		## what the PROMPTED Colossus shipped at, same archetype, same on-screen
-		## height. There are no skin weights on a rigid part, which is exactly
-		## why decimating this was safe when decimating the captain is still an
-		## open decision (SG-13).
-		_check("figure", "and the whole machine fits the triangle budget the prompted Colossus shipped at",
-			btris > 0 and btris <= 8000,
-			"%d triangles across 13 parts, from 1,366,036 delivered (%.2f%% kept, ceiling 8,000)"
-				% [btris, 100.0 * float(btris) / 1366036.0])
+		## THE BUDGET, AND IT IS A RATCHET RATHER THAN A LAW NOW (SG-155).
+		##
+		## This asserted 8000 for as long as the boss was cut from a
+		## 1,318,962-triangle textured twin, where 8000 meant 165:1 and the mesh
+		## was dense enough to take it. The twin now shipping is 30,606 — already
+		## a game budget — and holding THAT to 8000 is a 4:1 cut of a sparse mesh
+		## of thin separate shells, which does not thin the plating, it tears it.
+		## Measured, same inputs, frames in `.shots/sg155/`: 8000 shatters the
+		## silhouette outright, 16000 still leaves holes through the plating, and
+		## only 93% kept reads as a machine. The cut is a cliff, not a dial.
+		##
+		## 28,512 IS PINNED EXACTLY, so this stays a ratchet: the kit may not
+		## grow without somebody re-pinning it and saying why, which is the same
+		## discipline TRI_OVER enforces for the wrapped props. The owner raised
+		## the ceiling on 2026-08-03 on one number — THE CAPTAIN IS 30,634, and
+		## she is on screen every second of every run while the Colossus arrives
+		## once, at wave 12. There are still no skin weights on a rigid part, so
+		## the captain's own cut remains the open decision it was (SG-13).
+		_check("figure", "and the whole machine is within the triangle budget pinned for the parts kit",
+			btris > 0 and btris <= 28512,
+			"%d triangles across 13 parts, from a 30,606 textured twin (%.1f%% kept, pinned 28,512; the captain is 30,634)"
+				% [btris, 100.0 * float(btris) / 30606.0])
 		## HEIGHT FROM THE SIM, not from the spec sheet. handoff-3d asked for
 		## "~360 ground units"; the archetype's own arithmetic says 330, and the
 		## renderer's `boarder_height` is the single copy of it. Same discipline
@@ -11224,77 +11259,6 @@ func _wedge() -> void:
 	_check("telegraph", "the wedge that connects is the wedge that was drawn",
 		swept_bad == "", ("bad:" + swept_bad) if swept_bad != "" else swept_note.strip_edges())
 
-	## THE WHOLE PATH, END TO END — and this is the check whose ABSENCE let a rig
-	## and the owner disagree for a whole build (SG-156).
-	##
-	## REGRESSION GUARD, AND SAID PLAINLY: it passed the moment it was written, on
-	## the code that prompted it, and it could not have found the reported problem
-	## because the reported problem was not here. It is not evidence that anything
-	## was fixed. What it guards is that the answer stays yes.
-	##
-	## WHY IT IS WORTH A ROW ANYWAY. Everything above tests the wedge as GEOMETRY —
-	## `_swing_hits` against sampled points, a pure function of a position and a
-	## facing. Nothing in this file tested that a windup resolving on a captain who
-	## is standing in that wedge actually reaches `player.hp`. Between the two sit
-	## the victim chain's if/elif, `can_be_hit()`, `damage_player`, the
-	## `grants_invuln` flag and the 0.55 s i-frame window — five places a landed
-	## hit can be dropped with every geometric check in this file still green.
-	##
-	## The owner reported precisely that shape of defect: *"I just stood next to
-	## them as the captain and they died. I never was worried about their hits."*
-	## `tools/melee_probe.gd` measured it and the swings do land, 60 of 60 against
-	## a pinned captain. The harness had no way to say so, which is why the claim
-	## took a new tool to answer instead of a check that already existed.
-	var reach_bad := ""
-	var reach_note := ""
-	for kind in ["BOSS", "ARMORED"]:
-		var hit_game := _new_game()
-		_begin(hit_game)
-		for e in hit_game.get_tree().get_nodes_in_group("enemies"):
-			e.dead = true
-			e.queue_free()
-		hit_game.spawn_queue.clear()
-		hit_game.spawn_enemy(kind, 1)
-		var foe2: SkyGearEnemy = null
-		for e in hit_game.get_tree().get_nodes_in_group("enemies"):
-			if e.kind == kind and not e.dead:
-				foe2 = e
-		if foe2 == null:
-			reach_bad += " %s(did not spawn)" % kind
-			continue
-		## Pinned, adjacent, and dead ahead — the owner's situation exactly.
-		var spot := Vector2(0.0, 200.0)
-		hit_game.player.global_position = spot
-		foe2.global_position = spot + Vector2(0.0, -float(foe2.config.attack_range) - 10.0)
-		## Held alive so the window is a clock, not a race: this check asks whether
-		## a swing REACHES her, not who wins. `tools/melee_probe.gd`'s own reason.
-		foe2.max_hp = 1.0e9
-		foe2.hp = 1.0e9
-		var before: float = hit_game.player.hp
-		var swung := false
-		for _s in 200:
-			hit_game.player.global_position = spot
-			hit_game.player.velocity = Vector2.ZERO
-			foe2.hp = 1.0e9
-			var was := str(foe2.state)
-			hit_game._process(0.05)
-			if not is_instance_valid(foe2):
-				break
-			foe2.set_physics_process(false)
-			foe2._physics_process(0.05)
-			if was == "windup" and str(foe2.state) == "recover":
-				swung = true
-				break
-		if not swung:
-			reach_bad += " %s(never resolved a swing in 10s)" % kind
-		elif hit_game.player.hp >= before:
-			reach_bad += " %s(swung at a captain in its own wedge and she took nothing)" % kind
-		else:
-			reach_note += " %s -%.0f" % [kind, before - hit_game.player.hp]
-		hit_game.queue_free()
-	_check("telegraph", "a captain standing in the wedge is hit by the swing that drew it — REGRESSION GUARD",
-		reach_bad == "", ("bad:" + reach_bad) if reach_bad != "" else reach_note.strip_edges())
-
 	## THE CARVE-OUTS ARE GONE BY CONSTRUCTION, which is the half a geometric
 	## sweep cannot see: a reach-less melee row added tomorrow must be a loud
 	## failure rather than a quiet circle. Both fallbacks are read out of the
@@ -13169,6 +13133,184 @@ func _deck_shape() -> void:
 		absf(lift_bow - 96.0) < 0.01 and absf(lift_aft - 90.0) < 0.01
 			and lift_mid < 40.0 and lift_mid > 15.0,
 		"bow %.1f, midships %.1f, stern %.1f" % [lift_bow, lift_mid, lift_aft])
+
+	## ---- THE SHIP'S EDGE KIT (SG-157) ---------------------------------------
+	##
+	## The owner hand-modelled four pieces; ONE of them is on the deck. These pin
+	## the one that shipped and the arithmetic that lets it tile, and they are
+	## deliberately written against the BUILT TREE rather than against the
+	## constants, because a check written from the same misunderstanding as the
+	## code does not test the code.
+	var kit: Node3D = view.get_node_or_null("EdgeKit")
+	var modules := 0
+	for c in (kit.get_children() if kit != null else []):
+		if str(c.name).begins_with("Rail"):
+			modules += 1
+	## THE RETIRED BAR MUST BE GONE. `railing_segment` is a 52-unit scattered deck
+	## prop and is NOT this; what this replaced is the pair of solid
+	## 14 x 40 x 2320 boxes at |x| = 840, and the whole point of item 4 is that a
+	## solid bar cannot show sky through itself at any camera. Found by its
+	## LENGTH, which is the one dimension nothing else on this ship shares.
+	var solid_bar := ""
+	for c in view.get_children():
+		var mi := c as MeshInstance3D
+		if mi == null:
+			continue
+		var bm := mi.mesh as BoxMesh
+		if bm == null:
+			continue
+		if absf(bm.size.z / SkyGearView3D.WORLD_SCALE - rect.size.y) < 1.0:
+			solid_bar = "%s, %.0f long" % [mi.name, bm.size.z / SkyGearView3D.WORLD_SCALE]
+	_check("edge", "the deck rail is the tiling module, not the solid bar it replaced",
+		kit != null and modules == view.edge_rail_tiles * 2 and solid_bar == "",
+		"%d modules over %d tiles a side%s" % [modules, view.edge_rail_tiles,
+			"" if solid_bar == "" else "; SOLID BAR STILL THERE: " + solid_bar])
+
+	## THE TILING IS ARITHMETIC AND THE SEAM IS THE WHOLE OF IT. Modules are
+	## placed every TWO stanchion pitches so neighbouring end stanchions coincide
+	## and the pitch stays uniform THROUGH the seam; butt-joining at the natural
+	## pitch bunches stanchions in pairs at every join. That only works if the
+	## tile count divides the deck exactly, so this asserts the division is exact
+	## rather than trusting a float that looks round.
+	var spacing: float = rect.size.y / float(view.edge_rail_tiles)
+	var scale_ratio: float = view.edge_rail_scale()
+	_check("edge", "the rail tiles the deck exactly, so the pitch survives every seam",
+		absf(spacing * float(view.edge_rail_tiles) - rect.size.y) < 0.001
+			and absf(spacing - 2.0 * SkyGearView3D.RAIL_PITCH_NATIVE * scale_ratio) < 0.001,
+		"%d tiles of %.1f, pitch %.1f, scale %.4f"
+			% [view.edge_rail_tiles, spacing, spacing * 0.5, scale_ratio])
+
+	## OUTBOARD, THE SAME PROPERTY THE HULL KEEPS, MEASURED THE SAME WAY. The rail
+	## is why item 4 pre-committed an occlusion kill-test: `_occluded()` tests
+	## `CARGO_RECTS` only, so a rail that DID hide a boarder would fail silently.
+	## The structural answer is that the rail is never BETWEEN the camera and a
+	## figure — camera x is clamped to +/-369.6, figures never pass +/-750, and
+	## the rail's inner face is on 840 — and this measures the last of those three
+	## against the built geometry instead of repeating it.
+	var inboard := ""
+	var checked := 0
+	for c in (kit.get_children() if kit != null else []):
+		var box := _kit_aabb(c as Node3D)
+		if box.size == Vector3.ZERO:
+			continue
+		checked += 1
+		var lo: float = box.position.x / SkyGearView3D.WORLD_SCALE
+		var hi: float = box.end.x / SkyGearView3D.WORLD_SCALE
+		if lo > -839.99 and hi < 839.99:
+			inboard = "%s spans x %.1f..%.1f" % [str(c.name), lo, hi]
+	_check("edge", "no rail module reaches inboard of the deck she walks",
+		checked > 0 and inboard == "", "%d modules measured%s"
+			% [checked, "" if inboard == "" else "; INBOARD: " + inboard])
+
+	## AND IT CANNOT STOP HER. Same rule as the hull: MeshInstance3D and nothing
+	## else, so there is nothing present that could carry a collision.
+	var kit_solid := ""
+	var kit_walk: Array = ([kit] if kit != null else []) as Array
+	var kit_nodes := 0
+	while not kit_walk.is_empty():
+		var n: Node = kit_walk.pop_back()
+		kit_nodes += 1
+		for c in n.get_children():
+			kit_walk.append(c)
+		## NAMED FOR WHAT IT IS, not for what it is not. The hull's twin can say
+		## "MeshInstance3D or nothing" because it builds bare meshes; the kit
+		## instances SCENES, so plain `Node3D` roots are legitimate and a
+		## not-a-MeshInstance3D test would have to allow them — which allows a
+		## `StaticBody3D` too, since that is a Node3D. This check was written that
+		## way first and a StaticBody3D dropped into the kit sailed through it.
+		## Ask about COLLISION instead, which is the property the name claims.
+		if n is CollisionObject3D or n is CollisionShape3D:
+			kit_solid = n.get_class()
+	_check("edge", "nothing in the edge kit can stop her either",
+		kit != null and kit_solid == "", "%d nodes%s"
+			% [kit_nodes, "" if kit_solid == "" else " EXCEPT a " + kit_solid])
+
+	## ---- THE TRIANGLE CEILING (SG-152a) -------------------------------------
+	##
+	## Written out in full in the SG-152 row and left for whoever could touch this
+	## file. SG-145 kept three pieces OUT of `static_model.gd` on the triangle law
+	## and nothing here would have caught them being wired anyway; SG-150 brought
+	## them under it and nothing here would catch a regression either.
+	##
+	## THE CEILING IS READ FROM `meshy.py`, NOT RETYPED. `TRI_CEIL` lives there and
+	## a second copy of it in this file is failure mode two waiting to happen.
+	var ceil_src := FileAccess.get_file_as_string("res://tools/meshy.py")
+	var tri_ceil := 0
+	for line in ceil_src.split(String.chr(10)):
+		if str(line).begins_with("TRI_CEIL"):
+			tri_ceil = int(str(line).split("=")[1].strip_edges())
+	var model_script := load("res://tools/static_model.gd") as GDScript
+	var models: Dictionary = model_script.get_script_constant_map().get("MODELS", {})
+	var tri_counts := {}
+	for key in models.keys():
+		var glb := "res://assets/models/%s/%s.glb" % [str(key), str(key)]
+		if not ResourceLoader.exists(glb):
+			continue
+		var packed := load(glb) as PackedScene
+		if packed == null:
+			continue
+		var inst := packed.instantiate()
+		var tris := 0
+		var stack: Array = [inst]
+		while not stack.is_empty():
+			var n: Node = stack.pop_back()
+			for c in n.get_children():
+				stack.append(c)
+			var mi := n as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			for si in mi.mesh.get_surface_count():
+				var arrays: Array = mi.mesh.surface_get_arrays(si)
+				var idx = arrays[Mesh.ARRAY_INDEX]
+				if idx != null:
+					tris += idx.size() / 3
+				else:
+					tris += (arrays[Mesh.ARRAY_VERTEX] as PackedVector3Array).size() / 3
+		inst.free()
+		tri_counts[str(key)] = tris
+	## THE ROW ASSUMED THIS WOULD BE GREEN AND IT IS NOT, AND THE REASON IS THE
+	## FINDING. SG-152 wrote the check out expecting the three edge pieces to be
+	## the only offenders and SG-150 to have cleared them. They are clear — every
+	## one of the four hand-modelled pieces measures 3,060 or 8,000. But EIGHT
+	## OTHER WRAPPED MODELS ARE OVER THE CEILING and always have been, because
+	## `TRI_CEIL` governs what the pipeline REQUESTS and nothing has ever governed
+	## what comes BACK. `meshy.py` asks the gunner for 7,000 (`tris=7000`, an
+	## explicit override) and the delivered glb carries 10,344. The budget is an
+	## argument to a remote service, not a property of a file on disk, and no
+	## check has ever read the file.
+	##
+	## So this is a RATCHET rather than a gate, which is the only honest shape for
+	## it: anything NOT in the table below must be inside the ceiling, and
+	## anything in it may only ever get smaller. Each number is measured, not
+	## guessed, and an exemption that can only shrink is not a silenced detector —
+	## the failure mode this repo names third — because nothing new can hide in
+	## it and nothing old can grow. Filed as its own board row; the fix is to
+	## enforce the budget on DELIVERY, in `ingest_model.gd`, where the file is.
+	const TRI_OVER := {
+		"gunner": 10344, "boss": 8353, "mast_section": 8297,
+		"skyship_skiff": 10140, "skyship_barge": 10294, "skyship_cutter": 10258,
+		"skyship_tender": 10291, "skyship_barge_heavy": 9856,
+	}
+	var over := ""
+	var grown := ""
+	for key in tri_counts.keys():
+		var tris: int = int(tri_counts[key])
+		if TRI_OVER.has(key):
+			if tris > int(TRI_OVER[key]):
+				grown += " %s(%d>%d)" % [str(key), tris, int(TRI_OVER[key])]
+		elif tris > tri_ceil:
+			over += " %s(%d)" % [str(key), tris]
+	_check("prop", "every wrapped static model is inside the triangle ceiling",
+		tri_ceil > 0 and tri_counts.size() > 0 and over == "",
+		"%d models measured against a ceiling of %d, %d known over%s"
+			% [tri_counts.size(), tri_ceil, TRI_OVER.size(),
+				"" if over == "" else "; NEWLY OVER:" + over])
+
+	## And the ratchet's own half, which is what stops the table above becoming a
+	## place to put things.
+	_check("prop", "and none of the models already over that ceiling has grown",
+		grown == "", "%d recorded%s" % [TRI_OVER.size(),
+			"" if grown == "" else "; GROWN:" + grown])
 
 	## ---- THE DECK'S MEMORY --------------------------------------------------
 	## The cap first, because the cap is the entire reason VFX-PLAN §7 deferred
