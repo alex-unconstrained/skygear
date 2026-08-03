@@ -1,6 +1,10 @@
 # COLOSSUS-DESIGN — making the wave-12 boss a fight
 
-Status: **DESIGN, part-built. READ §1a BEFORE §1 — §1's central claim was measured and is half wrong, and §2's root fix was built, measured, and failed its own kill-test (SG-146).** Written 2026-08-03 against the owner's build report,
+Status: **DESIGN, part-built. READ §1a AND §1b BEFORE §1 — §1's central claim was
+measured and is half wrong (SG-146), §2's root fix failed its own kill-test and
+shipped OFF (SG-146), and then the OWNER designed the missing half himself and it
+is SHIPPED (SG-160): the chase gate is ON and the Colossus has a telegraphed area
+STOMP. §1b is what that measured. None of the three options in §4–§6 was built.** Written 2026-08-03 against the owner's build report,
 verbatim: *"Collosus is way too easy - he needs to be scary the player."* This is
 about the fight, not the picture — his texture bug is fixed and tracked
 separately. Three designs were written independently and judged twice; both
@@ -150,6 +154,89 @@ here.
 
 ---
 
+## 1b. What the OWNER designed, and what it measured (SG-160, 2026-08-03)
+
+**This section exists because the person this document was written for read §1a's
+outcome and produced the missing half of the design in two sentences.** Verbatim,
+2026-08-03:
+
+> *"The Colossus health is fine as it is. I think 2,800 is good... he's just a
+> meat shield, just soaks and takes time, so we need to make him a little more
+> dangerous. Maybe even just have him ignore the player and keep heading towards
+> the middle, destroying the cannon and then attacking the main objective. Have
+> the damage that he does just be damage around him so that it can hurt the
+> player when the players try to kill him."*
+
+Sentence one is §2 graft 1 — the chase gate both independent judges converged on
+unprompted, which §7 recorded as "the real finding". Sentence two is the repair
+for the exact reason it was cut. §1a FINDING 3 says the gate takes his damage to
+the captain to a **structural zero**, because the victim chain is if/elif and a
+boss who is not targeting her is never tested against her. **An attack that does
+not go through the victim chain does not have that problem.** So the gate is
+`true` now and he carries a STOMP.
+
+**THE STOMP.** He plants, latches an anchor, holds an **0.80 s** telegraph and
+resolves one circular hit at **240** (**320** in beat 2) for his own
+`config.damage`, then pays the same **1.00 s** stationary recovery a whiffed
+swing costs. Full cadence **4.2 s** in beat 1, **3.2 s** in beat 2. Drawn as two
+hollow rings in SG-158's oxblood/orange — an outline held at the full radius for
+the whole telegraph, and a brighter ring closing outward as the clock runs —
+because §5 was right that the standing-place has to be answerable on the FIRST
+frame and not only the last. The hue argument in §5 is dropped: gold is the turn
+ring's, and the SHAPE is what separates the circle from the fan.
+
+**THE NUMBERS.** `tools/boss_probe.gd`, wave-12 segment, Heat 0, four arms of
+**n = 480 runs each** off one base, 404–418 reaching wave 12:
+
+| | chase build (shipped) | cadence 5.0/4.0 | **4.2/3.2 (SHIPPED)** | 3.6/2.8 |
+|---|---|---|---|---|
+| damage taken in wave 12 | 132.13 | 118.23 | **161.81** | 197.75 |
+| **...of that, BY HIM** | **123.97** | **104.70** | **150.21** | **188.95** |
+| sd of damage taken | 70.34 | 31.99 | **36.89** | 44.07 |
+| Boiler HP lost in wave 12 | 11.08 | 9.16 | **6.00** | 7.38 |
+| boss time-to-kill | 24.18 s | 23.93 s | **23.53 s** | 22.93 s |
+| runs held | 65.8% [61.5–69.9] | 82.9% [79.3–86.0] | **78.5% [74.6–82.0]** | 48.5% [44.1–53.0] |
+
+**FINDING A — THE FIRST ARM MEASURED AS A SOFTENING, AND THE CAUSE IS VARIANCE
+RATHER THAN DAMAGE.** At the 5.0 s cadence his damage FELL 15.5% (Welch t =
+−4.94) and the hold-rate ROSE 17 points. The chase build's mean was carried by a
+heavy tail — the runs where he cornered a kiting captain — and an anchored,
+telegraphed, escapable circle has no tail at all: **sd 70.3 → 32.0**. A 10% drop
+in the mean moved the hold-rate 17 points because the deaths were all in the
+tail. That is the honest shape of what making a threat READABLE does to a
+distribution, and every future telegraph design in this repository should expect
+it: legibility does not merely convert damage into fairness, it deletes the
+outlier runs that were doing the killing.
+
+**FINDING B — THE SHIPPED ARM IS 21% MORE DANGEROUS AND THE RUN IS 12.7 POINTS
+EASIER, AND BOTH SENTENCES ARE TRUE.** 123.97 → **150.21** (95% CI of the
+difference **+18.3..+34.2**) against held 65.8% → **78.5%**, on non-overlapping
+Wilson intervals. If the hold-rate is wanted back at ~66% the lever is one line
+and the table above is three measured points to choose from — but that is a
+difficulty decision and ENEMY-VARIETY §1 says difficulty is Heat's job.
+
+**FINDING C — THERE IS A CLIFF AT THE 3.6 s CADENCE AND IT IS ARITHMETIC.** With
+`STOMP_PERIOD_BEAT2 = 1.00` the gap between beat-2 stomps is 1.00 s of free
+movement against a 320-unit circle that needs 337 units of travel to leave —
+**1.30 s at her walk speed** — so the beat-2 stomp becomes inescapable without a
+dash, and the hold-rate falls 30 points for a 26% damage rise. The shipped 1.40
+leaves 364 units against 337. That margin is the design.
+
+**FINDING D — §2's AMENDED STATISTIC FAILS FOR THE THIRD TIME, AND BY MORE.**
+"Median Boiler HP lost during wave 12 must rise by ≥ 40 of 500" was written when
+the chase gate's whole danger budget was the ship's health bar. Measured with the
+gate ON and the stomp shipped, Boiler HP lost went **11.08 → 6.00 (t = −2.38)** —
+DOWN. He needs 20.7 s to walk 1,965 units, he lives 23.5 s, and he now spends
+**43% of that planted** in a stomp cycle. The targeting order the owner asked for
+is real (lane cannon → crew in the way → Boiler) and the threat to the ship is
+not. **The danger in this build is entirely the circle.** Anyone reaching for
+§4's SLAG MARCH or §6's FURNACE MARCH on the strength of a Boiler clock should
+read this line first: three independent attempts have now failed to make that
+clock bite, and the reason is always the same arithmetic — the walk barely fits
+inside the fight, and never fits once he stops to attack.
+
+---
+
 ## 2. Recommendation
 
 **Build OPTION B — STOKE · WASH · COOL, with three grafts.** It is the only one
@@ -232,6 +319,14 @@ them are bugs, not features.
   attack is a STEAM cone on a 0.6 s period. Whatever the boss's attack becomes,
   STEAM must not be able to delete it — the rule must be written down and
   harness-checked, not discovered in a playtest.
+
+  > **DONE 2026-08-03 (SG-160), and it was live the moment the boss had an attack
+  > worth deleting.** A 0.60 s cone against the stomp's 0.80 s telegraph deletes
+  > it every time, so without the rule ONE of the two classes removed the
+  > Colossus's only means of touching a captain, for free. The rule is an
+  > ASYMMETRY and it is written that way: **STEAM still cancels his swing and can
+  > never cancel his stomp.** Both halves are asserted at `boss · STEAM still
+  > cancels his swing and never his stomp — the COLOSSUS-DESIGN §3 rule`.
 
 ---
 

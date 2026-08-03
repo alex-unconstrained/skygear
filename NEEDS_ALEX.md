@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 58 live · harness 1023/1023.** Everything else is in
+**Build 58 live · harness 1037/1037.** Everything else is in
 `skygear-godot/docs/NIGHT-LOG-2026-08-03.md`. This file is only your decisions.
 
 ---
@@ -18,14 +18,41 @@ once, when the wind starts, and never re-aims, so a captain who walks is hit by
 **1 in 3**. That is deliberate (it is what makes him dodgeable) and I did not
 touch it. So 2900 vs 1800 is a real question again — my read is KEEP 2900.*
 
-**1b · The furnace knight — you were exactly right, and it is not the hitbox.**
-It has **342 health at wave 11 and lives 3.1 seconds**. Its attack cycle is 1.9
-seconds. So in its entire life it gets **one swing**, for 34 damage, once. SG-97
-gave it a slow 0.9s tell and called it *"a wall you read"* — **but nothing
-survives long enough to read.** Nothing is wrong with its swing: standing next
-to it, 60 of 60 swings land. It is purely health. **My recommendation: roughly
-double it, 180 → 360**, which buys it ~6 seconds and three swings instead of
-one. That is a balance change and it is yours, so I did not make it.
+**1b · The furnace knight — DONE, you approved it, and here is what it bought.**
+`hp` 180 → 360, nothing else on his row touched. Measured before and after with
+a captain standing next to him at his last wave: he **lives 2.7s → 5.8s**, gets
+**0.8 → 2.4 landed swings**, and deals **27 → 85 damage — from a quarter of your
+health bar to nearly all of it.** (My "three swings" estimate was slightly off:
+it is 2.4, because a 5.8s life against a 1.9s cycle starts and ends mid-cycle.)
+He also now catches a captain who RUNS, occasionally — before this he managed
+that zero times in 24 minutes of measurement. Nothing about his tell, his speed
+or his damage changed, so against the Boiler and the cannons he is exactly the
+machine he was.
+
+**1c · The Colossus — I built your design, and you need to see one number.**
+He ignores the captain and marches on the lane cannon and then the Boiler, and
+his damage is a **stomp**: he plants, a red circle 240 wide is drawn on the
+planking for 0.8s, then it lands. You can walk out of it from anywhere inside
+it without dashing. Health untouched at 2900. Frames:
+`skygear-godot/.shots/sg160/boss-6-stomp-000.png` through `9-stomp-strike`.
+
+**He is 21% MORE dangerous than before and the run got 12.7 points EASIER.**
+Both are true. His damage to you went 124 → 150 per wave-12 fight, but the
+hold-rate went 66% → 78%, because the old version's kills were all in a *tail* —
+the runs where he happened to corner you. A circle you can see and step out of
+has no tail. **If you want the difficulty back, it is one line and I have three
+measured points**: cadence 5.0s → he deals 105, you hold 83%; **4.2s (shipped)
+→ 150, hold 78%**; 3.6s → 189, hold 48% — but that last one is unfair, the
+beat-2 circle is mathematically inescapable at that speed.
+
+**What I could not deliver is "he takes the ship if you ignore him."** He walks
+at the cannon and the Boiler now, but Boiler damage in wave 12 went DOWN
+(11 → 6), because he stops to stomp and never arrives. That clock has now failed
+three times for the same reason and I would stop trying to make it work.
+
+**Judge by hand:** does *"he ignores you"* read as indifference rather than
+menace? And can you actually step out of the circle at speed? Those are eyes
+questions, not bot questions.
 
 **2 · The rail's size — the renders are here now, pick one.**
 `skygear-godot/.shots/sg157/scale-8`, `scale-10`, `scale-12`. Your rail is on
@@ -116,8 +143,9 @@ mark nobody can see is the failure mode this whole item is about.
 - **Enemy bolts** — size is fixed; the style proposal is a hard ink rim plus a
   hot leading spike. Yes?
 - **COLD DECK deals a draft with no weapon in it in ~31% of runs.** Intended?
-- **The Colossus's lane-walk** — built, measured, and shipped OFF because it
-  failed its own test. One word turns it on.
+- ~~**The Colossus's lane-walk** — shipped OFF because it failed its own test.~~
+  **ON since 2026-08-03** — your stomp is what fixed the reason it failed. See
+  1c above.
 
 ---
 

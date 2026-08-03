@@ -114,7 +114,7 @@ func _run() -> void:
 func _summarise(kind: String, mode: String, rows: Array) -> void:
 	var mine: Array = []
 	for r in rows:
-		if str(r.kind) == kind and str(r.mode) == mode:
+		if str(r.get("kind", "")) == kind and str(r.get("mode", "")) == mode:
 			mine.append(r)
 	var started := 0
 	var resolved := 0
@@ -125,22 +125,26 @@ func _summarise(kind: String, mode: String, rows: Array) -> void:
 	var taken := 0.0
 	var dists := 0.0
 	var offaxis := 0.0
+	## READ THROUGH `.get()`, EVERY FIELD. A row that is missing a key must cost
+	## this reader that row's contribution and nothing more; reading it as a
+	## property raises, and a raise here aborts the whole summary — see the SG-160
+	## note in `_one`.
 	for r in mine:
-		started += int(r.started)
-		resolved += int(r.resolved)
-		aimed += int(r.aimed)
-		landed += int(r.landed)
-		swallowed += int(r.swallowed)
-		elsewhere += int(r.elsewhere)
-		taken += float(r.taken)
-		dists += float(r.dist_sum)
-		offaxis += float(r.offaxis_sum)
+		started += int(r.get("started", 0))
+		resolved += int(r.get("resolved", 0))
+		aimed += int(r.get("aimed", 0))
+		landed += int(r.get("landed", 0))
+		swallowed += int(r.get("swallowed", 0))
+		elsewhere += int(r.get("elsewhere", 0))
+		taken += float(r.get("taken", 0.0))
+		dists += float(r.get("dist_sum", 0.0))
+		offaxis += float(r.get("offaxis_sum", 0.0))
 	var n := maxf(1.0, float(resolved))
 	print("  %-8s %-6s  resolved %3d  aimed %3d  LANDED %3d  swallowed %3d  elsewhere %3d   taken %6.1f   dist %5.1f  off-axis %5.1f deg"
 		% [kind, mode, resolved, aimed, landed, swallowed, elsewhere, taken, dists / n, offaxis / n])
 	for r in mine:
-		if not str(r.note).is_empty():
-			print("        %s" % str(r.note))
+		if not str(r.get("note", "")).is_empty():
+			print("        %s" % str(r.get("note", "")))
 
 
 ## THE LINE THE WHOLE PROBE IS FOR. Not "how much damage" — how many swings the
@@ -154,30 +158,73 @@ func _lethal_report(rows: Array) -> void:
 		var secs := 0.0
 		var res := 0
 		var land := 0
+		var hurt := 0.0
 		var pool := 0.0
 		var subj := 0.0
 		var wave := 0
+		var secs_all := PackedFloat32Array()
+		var hurt_all := PackedFloat32Array()
 		for r in rows:
-			if str(r.kind) != kind or str(r.mode) != "lethal" or float(r.subject_hp) <= 0.0:
+			if str(r.get("kind", "")) != kind or str(r.get("mode", "")) != "lethal" \
+					or float(r.get("subject_hp", 0.0)) <= 0.0:
 				continue
 			lives += 1
-			secs += float(r.seconds)
-			res += int(r.resolved)
-			land += int(r.landed)
-			pool = float(r.pool)
-			subj = float(r.subject_hp)
-			wave = int(r.wave)
+			secs += float(r.get("seconds", 0.0))
+			res += int(r.get("resolved", 0))
+			land += int(r.get("landed", 0))
+			## MEASURED, NOT DERIVED (SG-160). This line used to multiply the landed
+			## swing count by a HARDCODED 26 or 34 — the two rows' `damage` fields,
+			## typed here. That was the project's second failure mode in miniature:
+			## two places holding one number, and the moment the Colossus gained a
+			## damage source that is not a swing (the stomp), the derived total
+			## silently reported only the half it knew the arithmetic for. It reads
+			## `taken` now, which IS `tel.taken_by_source[wave][kind]` — every point
+			## of damage credited to this boarder's hand by whatever means, summed by
+			## the simulation itself.
+			hurt += float(r.get("taken", 0.0))
+			secs_all.append(float(r.get("seconds", 0.0)))
+			hurt_all.append(float(r.get("taken", 0.0)))
+			pool = float(r.get("pool", 0.0))
+			subj = float(r.get("subject_hp", 0.0))
+			wave = int(r.get("wave", 0))
 		if lives == 0:
 			print("  %-8s  no life measured" % kind)
 			continue
 		print("  %-8s  wave %2d · %.0f effective HP · against a captain with %.0f HP"
 			% [kind, wave, subj, pool])
-		print("  %-8s  LIVED %5.2fs on average, and in that whole life it resolved"
-			% ["", secs / float(lives)])
-		print("  %-8s  %.1f swings and LANDED %.1f — for %.0f damage, %.0f%% of that captain."
+		print("  %-8s  LIVED %5.2fs (sd %4.2f, n=%d) on average, and in that whole life"
+			% ["", secs / float(lives), _sd(secs_all), lives])
+		print("  %-8s  it resolved %.1f swings and LANDED %.1f — and dealt %.0f damage"
 			% ["", float(res) / float(lives), float(land) / float(lives),
-				float(land) / float(lives) * 26.0 if kind == "BOSS" else float(land) / float(lives) * 34.0,
-				(float(land) / float(lives) * (26.0 if kind == "BOSS" else 34.0)) / maxf(1.0, pool) * 100.0])
+				hurt / float(lives)])
+		print("  %-8s  (sd %5.1f) BY ITS OWN HAND, %.0f%% of that captain's pool."
+			% ["", _sd(hurt_all), hurt / float(lives) / maxf(1.0, pool) * 100.0])
+		print("LETHAL kind=%s n=%d wave=%d subject_hp=%.0f pool=%.0f secs=%s taken=%s"
+			% [kind, lives, wave, subj, pool,
+				",".join(_fmt(secs_all)), ",".join(_fmt(hurt_all))])
+
+
+func _sd(v: PackedFloat32Array) -> float:
+	if v.size() < 2:
+		return 0.0
+	var m := 0.0
+	for x in v:
+		m += x
+	m /= float(v.size())
+	var s := 0.0
+	for x in v:
+		s += pow(x - m, 2.0)
+	return sqrt(s / float(v.size() - 1))
+
+
+## One machine-readable list per arm, for the same reason `boss_probe.gd` prints
+## `SAMPLES`: a pooled analysis across parallel processes must never have to
+## retype a number off the prose.
+func _fmt(v: PackedFloat32Array) -> PackedStringArray:
+	var out := PackedStringArray()
+	for x in v:
+		out.append("%.2f" % x)
+	return out
 
 
 func _verdict(rows: Array) -> void:
@@ -192,12 +239,12 @@ func _verdict(rows: Array) -> void:
 			var land := 0
 			var res := 0
 			for r in rows:
-				if str(r.kind) != kind or str(r.mode) != mode:
+				if str(r.get("kind", "")) != kind or str(r.get("mode", "")) != mode:
 					continue
-				taken += float(r.taken)
-				secs += float(r.seconds)
-				land += int(r.landed)
-				res += int(r.resolved)
+				taken += float(r.get("taken", 0.0))
+				secs += float(r.get("seconds", 0.0))
+				land += int(r.get("landed", 0))
+				res += int(r.get("resolved", 0))
 			var dps: float = taken / maxf(0.001, secs)
 			print("  %-8s %-6s  took %6.1f in %5.1fs = %5.2f dps  ->  a full captain falls in %5.1fs   (%d of %d resolved swings landed)"
 				% [kind, mode, taken, secs, dps,
@@ -308,10 +355,23 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 			if guard % 200 == 0:
 				await process_frame
 		if game.state_name != "PLAY" and game.state_name != "DRAFT":
+			## READ BEFORE THE FREE (SG-160). This line used to format `game.wave`
+			## AFTER `queue_free()` and an awaited frame, so the run that failed to
+			## reach the subject's wave — which is ~13% of them at Heat 0 — raised
+			## `Invalid access to property or key 'wave' on a base object of type
+			## 'previously freed'`, `_blank()` was never constructed, and the row
+			## appended to `rows` was malformed. **One such row silenced three whole
+			## reports**: `_summarise`, `_lethal_report` and `_verdict` all iterate
+			## every row, a raise aborts the function it is in, and the LETHAL report
+			## — the one this probe exists for — printed nothing at all for EITHER
+			## subject. That is STATUS's "a check that RAISES instead of failing takes
+			## the rest of its function's checks with it", in a measuring tool rather
+			## than in the harness, and it is why the readers below use `.get()`.
+			var died_on := int(game.wave)
 			bot.release()
 			game.queue_free()
 			await process_frame
-			return _blank("died on wave %d before reaching wave %d" % [game.wave, target_wave])
+			return _blank("died on wave %d before reaching wave %d" % [died_on, target_wave])
 
 	## THE CAPTAIN'S SPOT: lane 1's centre line, mid-deck, well clear of the rail
 	## and of the Boiler, so nothing about the position is special.

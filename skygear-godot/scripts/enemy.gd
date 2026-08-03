@@ -298,7 +298,29 @@ const BOSS_SECOND_BEAT_REACH := 90.0
 ##
 ## FLIP IT TO `true` TO SEE IT. Nothing else needs editing; the harness pins the
 ## constant to the behaviour in both positions.
-const COLOSSUS_WALKS_THE_LANE := false
+##
+## ---------------------------------------------------------------------------
+## IT IS `true` NOW, AND THE THING THAT EARNED IT IS THE STOMP BELOW (SG-160).
+##
+## The owner, 2026-08-03, unprompted and in his own words: *"The Colossus health
+## is fine as it is... he's just a meat shield, just soaks and takes time, so we
+## need to make him a little more dangerous. Maybe even just have him ignore the
+## player and keep heading towards the middle, destroying the cannon and then
+## attacking the main objective. Have the damage that he does just be damage
+## around him so that it can hurt the player when the players try to kill him."*
+##
+## That is graft 1 above plus the exact repair for the reason it was cut. Reason
+## 1 for shipping it OFF was that he could no longer touch her AT ALL — a
+## structural zero, because the victim chain below is if/elif and a boss who is
+## not targeting her is never tested against her. **The stomp does not go through
+## the victim chain.** It is a circle centred on him that asks one question of
+## the captain directly, so "he ignores you" and "standing next to him hurts" are
+## no longer the same sentence. Reason 2 — the Boiler clock failing its
+## pre-committed +40 — was a statistic written for a design whose whole danger
+## budget was the ship's health bar; the owner has now put the danger somewhere
+## else, and SG-160 pre-committed and measured a new one against the thing he
+## actually asked for. Both are recorded on that row, including the honest cost.
+const COLOSSUS_WALKS_THE_LANE := true
 
 
 ## THE SHIPPED DEFAULT, PER INSTANCE — and it is a `var` for a reason that cost
@@ -318,6 +340,143 @@ var walks_the_lane := COLOSSUS_WALKS_THE_LANE
 ## ask the question directly instead of inferring it from a velocity.
 func chases_captain() -> bool:
 	return not (walks_the_lane and kind == "BOSS")
+
+
+## --- THE STOMP: HIS DAMAGE BECOMES GROUND RATHER THAN AIM (board SG-160) -----
+##
+## THE OWNER'S DESIGN, VERBATIM: *"Have the damage that he does just be damage
+## around him so that it can hurt the player when the players try to kill him."*
+##
+## WHY IT IS A PLANTED, ANCHORED, TELEGRAPHED BEAT AND NOT AN AURA. An aura that
+## chips you for standing near him is the cheapest way to write this and it is
+## the wrong one twice over. It is UNREADABLE — there is no frame at which the
+## player is told anything, so damage arrives as a mystery and the counterplay
+## has to be learnt from a health bar. And it is UNFAIR by this game's own
+## pillar 6, which says every attack is readable before it is dangerous. This
+## deck's whole visual language is marks on the planking with a clock running in
+## them; a stomp is that language applied to a circle instead of a wedge, and the
+## renderer draws it in the same oxblood/orange family as every other hostile
+## mark (board SG-158's vocabulary, not a third one).
+##
+## THE SHAPE IS A CIRCLE AND THE SWING IS A FAN, WHICH IS THE WHOLE READ. Both
+## say DANGER in the same colours, and which one is on the deck tells you whether
+## the answer is "step around him" or "get out". One frame, two shapes, no new
+## palette — this is COLOSSUS-DESIGN §5's telegraph craft ("gold ring versus red
+## fan is one-frame distinguishable") with the hue argument dropped, because gold
+## is already the turn ring's and a mark that hurts you must be in the hostile
+## family or the language stops meaning anything.
+##
+## ANCHORED AT THE FOOT HE PLANTS. `stomp_origin` is latched when the beat
+## begins, drawn there and resolved there, so a Colossus shoved mid-telegraph
+## leaves the mark where the blow lands rather than dragging it after him. The
+## sim and the renderer read ONE radius from `stomp_radius()` for the same reason
+## the wedge is `swing_wedge_reach()`: board SG-119 was two files deriving one
+## shape and drifting, and this adds no second derivation.
+##
+## THE NUMBERS, AND EACH IS A DODGE BUDGET RATHER THAN A FEELING:
+##
+##   STOMP_RADIUS 240        His body is 70 and his swing wedge reaches 146. Her
+##       free Ember Cleave reaches his CENTRE at 260 (every player damage test
+##       adds the target's radius), so 240 + her body 17 = 257 leaves the
+##       standoff she already knows about SAFE and prices only closing in. That
+##       is exactly the owner's sentence: it hurts the player who comes to kill
+##       him, and it does not tax the player who keeps her distance.
+##   +80 IN BEAT 2 (320)     The escalation TAKES the safe standoff away — 320 +
+##       17 = 337 against her 260 — which is what a second beat should do, and it
+##       mirrors the swing's own +90 rather than inventing a second rule.
+##   STOMP_WINDUP 0.80 s     At 260 u/s that is 208 units of walk. From the bot's
+##       210-unit band she needs 47 units to clear 257; from POINT BLANK against
+##       his 70-unit body she needs 187, which is 234 u/s — inside her walk, and
+##       trivially inside one 265-unit dash. Escapable from anywhere in the
+##       circle without a dash, and comfortably with one.
+##   STOMP_PERIOD 2.40 / 1.40  Measured from the end of the last stomp, so the
+##       true cadence is period + windup + recover: 4.2 s in beat 1, 3.2 s in
+##       beat 2. **THIS IS THE ONLY NUMBER THAT WAS TUNED, IT TOOK THREE ARMS OF
+##       n=480 EACH, AND THE BAR WAS WRITTEN BEFORE ANY OF THEM WERE RUN.**
+##
+##       ARM 1, cadence 5.0/4.0 s: the whole change measured as a SOFTENING —
+##       his damage to the captain 123.97 -> 104.70 (Welch t = -4.94) and the
+##       Heat 0 hold-rate 65.8% -> 82.9%. The diagnosis is the interesting half
+##       and it is not "not enough damage", it is VARIANCE: the chase build's
+##       mean was carried by a heavy tail (sd 70.3) of runs where he cornered a
+##       kiting captain, and an anchored, telegraphed, escapable circle has no
+##       tail at all (sd 32.0). That is why a 10% drop in the mean moved the
+##       hold-rate 17 points, and it is the honest shape of what a READABLE
+##       threat does to a distribution.
+##       ARM 2, cadence 3.6/2.8 s: overshot in the other direction — damage
+##       188.95 (+52%) and hold-rate 48.5%, below the pre-committed floor of the
+##       chase build's own 95% interval. Dangerous, but that is a Heat rung
+##       wearing a design's clothes.
+##       ARM 3, THIS ONE, was interpolated in 1/cadence between those two points
+##       rather than guessed, and it was the single retune the pre-commitment
+##       allowed itself. The measured result is on board SG-160.
+##   DAMAGE                  `config.damage`, his swing's own 26. One number for
+##       what a Colossus blow costs, not two.
+##
+## IT RESOLVES INTO `recover`, ON PURPOSE. The stomp costs him the same 1.00 s of
+## stationary punish window a whiffed swing does, and it inherits SG-158's teal
+## opening ring for free — so the beat the player is invited to attack into is
+## marked identically whichever attack he just spent.
+##
+## AND IT HITS THE CAPTAIN ONLY, WHICH IS A SCOPE DECISION AND NOT AN OVERSIGHT.
+## His structural damage — the lane cannon, a crewman, the Boiler — is what the
+## lane walk above is FOR, and it goes through his swing exactly as it always
+## has. Giving the stomp a second victim set would have moved two things at once
+## and made the Boiler statistic on SG-160 unreadable.
+const COLOSSUS_STOMPS := true
+
+const STOMP_WINDUP := 0.80
+const STOMP_PERIOD := 2.40
+const STOMP_PERIOD_BEAT2 := 1.40
+const STOMP_RADIUS := 240.0
+const STOMP_SECOND_BEAT_RADIUS := 80.0
+
+## Settable per instance for the reason `walks_the_lane` is (SG-146's hardest
+## lesson): a check that can only read a shipped default is vacuous, and the
+## harness has to be able to drive BOTH positions or deleting the gate leaves the
+## run green.
+var stomps := COLOSSUS_STOMPS
+var stomp_cooldown := STOMP_PERIOD
+## Where the foot came down. Latched at the plant, read by the sim's resolve and
+## by the renderer's mark — one point, so the mark cannot promise ground the blow
+## does not take.
+var stomp_origin := Vector2.ZERO
+## The full length of the telegraph this stomp was given, kept because
+## `_windup_scale()` shortens it at Heat 2 and a renderer dividing by the
+## constant would run a clock that does not match the one the sim is counting.
+var stomp_wind := STOMP_WINDUP
+## WHICH SHAPE THE RECOVERY IS RECOVERING FROM. `state == "recover"` is shared by
+## the swing and the stomp, and SG-158's strike flash is drawn on the wedge's
+## rim; flashing a fan after a circular blow would draw a mark in a place nothing
+## happened. Set true on a stomp resolve, false on a swing resolve, so the flag
+## can never be stale.
+var stomp_struck := false
+
+
+## Whether this boarder stomps at all. A function rather than an inline
+## `kind == "BOSS"` for the same reason `chases_captain()` is one: the harness
+## asks the question instead of inferring it.
+func stomps_the_deck() -> bool:
+	return stomps and kind == "BOSS"
+
+
+## ONE RADIUS, ASKED HERE BY BOTH THE SIM AND THE RENDERER (the SG-119 rule).
+func stomp_radius() -> float:
+	var r := STOMP_RADIUS
+	if beat == 1:
+		r += STOMP_SECOND_BEAT_RADIUS
+	return r
+
+
+func stomp_period() -> float:
+	return STOMP_PERIOD_BEAT2 if beat == 1 else STOMP_PERIOD
+
+
+## Does the stomp reach this point? Measured from the ANCHOR to the target's near
+## edge, the same convention `_swing_hits` uses, so a body clipped by the rim
+## takes it and only getting clear does not.
+func stomp_hits(point: Vector2, body: float) -> bool:
+	return stomp_origin.distance_to(point) <= stomp_radius() + body
 
 func swing_wedge_reach() -> float:
 	var wedge: float = float(config.reach)
@@ -426,8 +585,26 @@ func _physics_process(delta: float) -> void:
 	if kind == "BOSS" and beat == 1:
 		attack_range += BOSS_SECOND_BEAT_REACH   # the second beat reaches the whole deck
 
+	## THE STOMP CLOCK (SG-160). It runs in every state except the stomp itself,
+	## so being mid-swing delays the next stomp rather than banking one — an
+	## attack that queues up behind another attack arrives with no telegraph of
+	## its own, which is the failure this whole beat is built to avoid.
+	if stomps_the_deck() and state != "stomp":
+		stomp_cooldown -= delta
+
 	if state == "move":
-		if distance <= attack_range:
+		## THE STOMP PREEMPTS THE SWING WHEN BOTH ARE READY, and that is the point
+		## of it under the lane walk: with `chases_captain()` false he is walking at
+		## the cannon or the ship, so his swing is committed to structure and the
+		## stomp is the only thing that ever asks about the captain at all.
+		if stomps_the_deck() and stomp_cooldown <= 0.0:
+			state = "stomp"
+			stomp_wind = STOMP_WINDUP * _windup_scale()
+			state_time = stomp_wind
+			stomp_origin = global_position
+			velocity = Vector2.ZERO
+			game.play_sfx("enemy/telegraph.ogg", -6.0)
+		elif distance <= attack_range:
 			state = "windup"
 			## HEAT 2 · SHORT FUSE. Faster to swing, not harder — the telegraph is
 			## still there and still readable, which is the pillar this ladder is
@@ -473,6 +650,25 @@ func _physics_process(delta: float) -> void:
 					game.hurt_crew(target_crew, float(config.damage))
 				elif not targets_player and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
 					game.damage_boiler(float(config.damage))
+			stomp_struck = false
+			state = "recover"
+			state_time = float(config.recover)
+	elif state == "stomp":
+		## THE STOMP RESOLVE (SG-160). One question, asked of the captain directly
+		## and NOT through the victim chain above — which is the whole repair to the
+		## structural zero that kept `COLOSSUS_WALKS_THE_LANE` off. A boss walking at
+		## the ship is never `targets_player`, so his swing can never test her; this
+		## does not care what he is walking at.
+		state_time -= delta
+		velocity = Vector2.ZERO
+		if state_time <= 0.0:
+			if stomp_hits(game.player.global_position, 17.0):
+				game.damage_player(float(config.damage), kind)
+			stomp_struck = true
+			stomp_cooldown = stomp_period()
+			## The same stationary punish window a whiffed swing leaves, so the beat
+			## the player is invited to attack into costs him the same second
+			## whichever attack he just spent.
 			state = "recover"
 			state_time = float(config.recover)
 	elif state == "recover":
@@ -603,7 +799,22 @@ func _apply_element(element: String) -> void:
 			if game.rng.randf() < 0.20:
 				stun_time = maxf(stun_time, 0.45)
 		"STEAM":
-			state = "move"
+			## A STOMP ONCE BEGUN CANNOT BE CANCELLED BY STEAM — the named rule
+			## COLOSSUS-DESIGN §3 said had to be written down rather than discovered
+			## in a playtest, now that the boss has an attack worth deleting
+			## (SG-160). The Boilerwright's basic attack is a STEAM cone on a 0.60 s
+			## period and the stomp's telegraph is 0.80 s, so without this line ONE
+			## of the two classes deletes the Colossus's only means of touching a
+			## captain, every time, for free — a class-specific hole in a boss
+			## mechanic, arriving exactly the way §3 predicted.
+			##
+			## STEAM STILL CANCELS A SWING, unchanged and deliberately so: that is
+			## the interrupt the element has always bought and every other boarder
+			## still pays it. The asymmetry is the point — you can steam a Colossus
+			## out of a swing, and you cannot steam your way out of standing in a
+			## circle he has already put his weight behind.
+			if state != "stomp":
+				state = "move"
 
 func _update_statuses(delta: float) -> void:
 	slow_time = maxf(0.0, slow_time - delta)
