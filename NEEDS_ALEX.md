@@ -112,7 +112,16 @@ knight both came from your own Meshy sessions after prompted attempts failed;
    wants your feel-check before I pick a fix.
 4. **The Muster** (ENEMY-VARIETY §2.1) is the biggest remaining gameplay item
    and still waits on your noise-floor threshold from the tempo work.
-5. **Codex is running in your repo.** A branch `codex/browser-2d-godot-parity`
+5. **SG-24 — WHICH menu drifts right?** The sentries-turned-orbs bug is found
+   and fixed (it was the billboard pool handing a shelved spark's additive
+   material to the next thing that claimed the node — see SG-66). The drifting
+   menus are the one of the four I still cannot reproduce, and I looked again
+   today after a day of heavy renderer changes: all 24 posed screens, all four
+   widths, sixty redraws each, every widget rectangle compared — nothing moved,
+   at any width. The row stays OPEN, not closed, because not reproducing it is
+   not the same as it not happening. Name the screen (pause? draft? the
+   settings sheet?) and roughly how fast it walks, and I have somewhere to look.
+6. **Codex is running in your repo.** A branch `codex/browser-2d-godot-parity`
    appeared mid-session building a new browser 2D project. Not mine, and not
    yours as far as I know. It left its branch checked out over my working tree,
    which cost some untangling. Worth knowing it is there; it cuts against the

@@ -5447,24 +5447,7 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 	if texture == null:
 		return
 	_used[key] = true
-	var node: Sprite3D = _billboards.get(key)
-	if node == null:
-		## From the free list when there is one. Every property below is set
-		## unconditionally, which is what makes a reused node safe to hand out:
-		## nothing carries over from whoever had it last.
-		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
-		node.visible = true
-		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		node.shaded = false
-		node.double_sided = true
-		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.layers = LAYER_FIGURES
-		if node.get_parent() == null:
-			add_child(node)
-		_billboards[key] = node
-		_peak_billboards = maxi(_peak_billboards, _billboards.size())
+	var node: Sprite3D = _claim_billboard(key, BILLBOARD_FIGURE)
 	node.texture = texture
 	node.modulate = Color.WHITE
 	node.flip_h = bool(v.mirror)
@@ -5481,38 +5464,119 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 		ground.y * WORLD_SCALE)
 
 
-## One billboard per entity, pooled. `BILLBOARD_ENABLED` is what makes a flat
-## sprite stand up and face the camera — which is exactly what the browser's
-## renderer does by hand, and what the art is painted for.
+## THE BILLBOARD POOL'S IDENTITY, WRITTEN ONCE (board SG-66).
+##
+## `_place`, `_spark` and `_draw_figure` all draw out of `_billboards` and all
+## shelve into `_free_billboards`, and each of the three used to carry its own
+## copy of the claim block under the same comment: *"Every property below is set
+## unconditionally, which is what makes a reused node safe to hand out: nothing
+## carries over from whoever had it last."* That sentence was not true. Between
+## them the three kinds disagree about FOUR properties, and only some of them
+## were being written:
+##
+##   * `material_override` — `_spark` installs an ADDITIVE, unshaded material
+##     whose `albedo_texture` is the round spark blob. Neither `_place` nor
+##     `_draw_figure` ever cleared it, and an override BEATS `node.texture`. So
+##     a node that had been a spark and came back through the free list rendered
+##     its next owner as a glowing blob in the last spark's colour: the owner's
+##     "sentry models seem to vanish and are replaced by just floating colored
+##     orbs instead of sprites", exactly. Nothing about the sentry was wrong —
+##     `_place("sy%d")` claimed a shelved spark. Sparks churn every frame
+##     (`fire%d`, `keg%d`, `lob%d`, the turret glows, and `syh%d`, the sentry's
+##     OWN head), the free list is LIFO, and a Sentry build appends a new `sy`
+##     key every nine seconds, which is why it read as occasional.
+##   * `region_enabled` / `region_rect` — `_draw_figure` crops to one animation
+##     frame. `_place` never cleared the crop, so a prop could inherit a cell of
+##     somebody's run cycle.
+##   * `flip_h` — a mirrored figure's node handed to `_place` drew the prop
+##     backwards.
+##   * `alpha_cut` / `texture_filter` / `transparent` — set by one kind, not the
+##     others.
+##
+## The fix is to stop having three claim blocks. One dresser writes every
+## property the three kinds disagree about, unconditionally, and stamps the kind
+## it dressed the node as; one claimer re-dresses whenever the stamp does not
+## match what is being asked for. That stamp IS the pool-identity check the
+## board asked for: a node cannot be issued as one kind while wearing another.
+const BILLBOARD_ART := "art"        ## a painted plate: `_place`
+const BILLBOARD_SPARK := "spark"    ## an additive hot point: `_spark`
+const BILLBOARD_FIGURE := "figure"  ## a cycling character: `_draw_figure`
+const BILLBOARD_GHOST := "ghost"    ## the see-through-cargo silhouette: `_xray`
+
+
+func _dress_billboard(node: Sprite3D, kind: String) -> void:
+	node.visible = true
+	node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	## NOT shaded. Every character sprite in `assets/` was generated with the
+	## scene's lighting already painted into it — steel-blue rim from the upper
+	## left, warm bounce from below right — which is what the browser composites
+	## and what the level-kit brief specifies. Re-lighting them with the same two
+	## lamps applies the treatment twice and the result is a deck of silhouettes.
+	node.shaded = false
+	node.double_sided = true
+	node.transparent = true
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	node.layers = LAYER_FIGURES
+	## The three that used to carry over. A fresh `Sprite3D` has none of them, so
+	## these lines only ever matter to a REUSED node — which is the whole bug.
+	node.region_enabled = false
+	node.region_rect = Rect2()
+	node.flip_h = false
+	node.modulate = Color.WHITE
+	## And the ghost's two, which NO other site ever wrote: a shelved silhouette
+	## handed to a prop drew that prop through the cargo at priority 8.
+	node.no_depth_test = kind == BILLBOARD_GHOST
+	node.render_priority = 8 if kind == BILLBOARD_GHOST else 0
+	if kind == BILLBOARD_SPARK:
+		node.texture = _spark_texture()
+		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISABLED
+		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+		var mat := StandardMaterial3D.new()
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+		mat.albedo_texture = _spark_texture()
+		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		node.material_override = mat
+	else:
+		## A painted plate lights itself through its own texture, so it wants NO
+		## override at all — and clearing it is the line that puts the sentry back.
+		node.material_override = null
+		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
+		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
+	node.set_meta("billboard_kind", kind)
+
+
+## One pooled `Sprite3D` for `key`, dressed as `kind`. `BILLBOARD_ENABLED` is
+## what makes a flat sprite stand up and face the camera — which is exactly what
+## the browser's renderer does by hand, and what the art is painted for.
+func _claim_billboard(key: String, kind: String) -> Sprite3D:
+	var node: Sprite3D = _billboards.get(key)
+	if node != null:
+		## The identity check, on the live node as well as the freshly claimed
+		## one. A key that changes representation mid-run (the turrets do it with
+		## separate keys on purpose) is re-dressed rather than left mixed.
+		if str(node.get_meta("billboard_kind", "")) != kind:
+			_dress_billboard(node, kind)
+		return node
+	node = _free_billboards.pop_back() if not _free_billboards.is_empty() \
+		else Sprite3D.new()
+	_dress_billboard(node, kind)
+	if node.get_parent() == null:
+		add_child(node)
+	_billboards[key] = node
+	_peak_billboards = maxi(_peak_billboards, _billboards.size())
+	return node
+
+
+## One billboard per entity, pooled — the painted plate kind.
 func _place(key: String, texture: Texture2D, ground: Vector2, height_units: float,
 		lift: float = 0.0, tint: Color = Color.WHITE) -> void:
 	if texture == null:
 		return
 	_used[key] = true
-	var node: Sprite3D = _billboards.get(key)
-	if node == null:
-		## From the free list when there is one. Every property below is set
-		## unconditionally, which is what makes a reused node safe to hand out:
-		## nothing carries over from whoever had it last.
-		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
-		node.visible = true
-		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		## NOT shaded. Every character sprite in `assets/` was generated with the
-		## scene's lighting already painted into it — steel-blue rim from the
-		## upper left, warm bounce from below right — which is what the browser
-		## composites and what the level-kit brief specifies. Re-lighting them
-		## with the same two lamps applies the treatment twice and the result is
-		## a deck of silhouettes.
-		node.shaded = false
-		node.double_sided = true
-		node.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-		node.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS
-		node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		node.layers = LAYER_FIGURES
-		if node.get_parent() == null:
-			add_child(node)
-		_billboards[key] = node
-		_peak_billboards = maxi(_peak_billboards, _billboards.size())
+	var node: Sprite3D = _claim_billboard(key, BILLBOARD_ART)
 	node.texture = texture
 	node.modulate = tint
 	# scale so the sprite stands `height_units` tall in ground units, and lift it
@@ -5527,31 +5591,7 @@ func _place(key: String, texture: Texture2D, ground: Vector2, height_units: floa
 ## catches it.
 func _spark(key: String, ground: Vector2, height: float, size: float, colour: Color) -> void:
 	_used[key] = true
-	var node: Sprite3D = _billboards.get(key)
-	if node == null:
-		## From the free list when there is one. Every property below is set
-		## unconditionally, which is what makes a reused node safe to hand out:
-		## nothing carries over from whoever had it last.
-		node = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
-		node.visible = true
-		node.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		node.shaded = false
-		node.double_sided = true
-		node.transparent = true
-		node.texture = _spark_texture()
-		var mat := StandardMaterial3D.new()
-		mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
-		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
-		mat.albedo_texture = _spark_texture()
-		mat.billboard_mode = BaseMaterial3D.BILLBOARD_ENABLED
-		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
-		node.material_override = mat
-		node.layers = LAYER_FIGURES
-		if node.get_parent() == null:
-			add_child(node)
-		_billboards[key] = node
-		_peak_billboards = maxi(_peak_billboards, _billboards.size())
+	var node: Sprite3D = _claim_billboard(key, BILLBOARD_SPARK)
 	if node.material_override is StandardMaterial3D:
 		(node.material_override as StandardMaterial3D).albedo_color = colour
 	node.pixel_size = size * WORLD_SCALE / 64.0
@@ -5637,21 +5677,7 @@ func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> vo
 		return
 	var ghost_key := "xr_" + key
 	_used[ghost_key] = true
-	var ghost: Sprite3D = _billboards.get(ghost_key)
-	if ghost == null:
-		ghost = _free_billboards.pop_back() if not _free_billboards.is_empty() 			else Sprite3D.new()
-		ghost.visible = true
-		ghost.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-		ghost.shaded = false
-		ghost.double_sided = true
-		ghost.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-		ghost.layers = LAYER_FIGURES
-		ghost.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		ghost.no_depth_test = true
-		ghost.render_priority = 8
-		if ghost.get_parent() == null:
-			add_child(ghost)
-		_billboards[ghost_key] = ghost
+	var ghost: Sprite3D = _claim_billboard(ghost_key, BILLBOARD_GHOST)
 	ghost.texture = source.texture
 	ghost.pixel_size = source.pixel_size
 	ghost.position = source.position

@@ -2000,6 +2000,17 @@ func _set_state(next_state: State) -> void:
 	## A finished run goes on disk. One run is an anecdote; the reason v11 tracks
 	## damage per skill and time at each range is so ten of them can be read as a
 	## shape, and a report that dies when you press Enter cannot be.
+	## SG-67: the third ending had no sentence. Both defeats have always named
+	## themselves — "The captain fell on wave %d.", "The Boiler was destroyed on
+	## wave %d." — and a win arrived with `end_reason` still empty, so the run
+	## report's second line read `DECK HELD — ` and the results screen printed
+	## nothing under the verdict. The browser's own line, verbatim. Written HERE
+	## rather than at the two `_set_state(State.VICTORY)` call sites (the last
+	## wave clearing, and a wave started past the end of the table) because a
+	## reason kept in two places is a reason that drifts; and only when nothing
+	## has already been said, so a posed VICTORY keeps the line the poser set.
+	if next_state == State.VICTORY and end_reason == "":
+		end_reason = "Twelve waves repelled. The deck is yours."
 	if was != next_state and (next_state == State.VICTORY or next_state == State.GAMEOVER):
 		## `log_runs` is off for POSED endings (board SG-49): the audit, the
 		## batch camera and the F4 picker all walk a game through GAMEOVER and
@@ -3180,7 +3191,7 @@ func _fill_head(delta: float) -> void:
 	for prop in props():
 		if not is_instance_valid(prop) or str(prop.prop_type) != "vent":
 			continue
-		if player.global_position.distance_to(prop.global_position) <= 150.0:
+		if player.global_position.distance_to(prop.global_position) <= SkyGearData.VENT_STAND:
 			rate = maxf(rate, float(kit.get("vent_rate", 0.0)))
 	for tap in taps:
 		if player.global_position.distance_to(Vector2(tap.position)) <= float(tap.radius):

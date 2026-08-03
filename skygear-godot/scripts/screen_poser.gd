@@ -194,7 +194,12 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 			game.end_reason = "the Boiler went cold on wave 7"
 			game._set_state(SkyGearGame.State.GAMEOVER)
 		"VICTORY":
-			game.end_reason = "twelve waves repelled"
+			## SG-67: no reason written here. A win names ITSELF now, in
+			## `_set_state`, and a pose that typed its own copy of that sentence
+			## would be the second place it lives — which is how it came to be
+			## missing from the first. Cleared rather than left, so a sandbox
+			## reused after a posed defeat cannot lend this screen its reason.
+			game.end_reason = ""
 			game._set_state(SkyGearGame.State.VICTORY)
 	if bool(screen.get("banners", false)):
 		## Fired the way the game fires them, not drawn by hand — a hand-drawn

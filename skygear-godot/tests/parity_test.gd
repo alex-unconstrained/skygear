@@ -1530,6 +1530,33 @@ func _report() -> void:
 		text.split("
 ")[2] if text.split("
 ").size() > 2 else text)
+
+	## SG-67 — BOTH endings name themselves. The verdict line is
+	## `<verdict> — <reason>`, and a win used to arrive with `end_reason` still
+	## empty, so the report read `DECK HELD — ` and the results screen printed a
+	## blank line under the verdict. Asserted on both endings, because a suffix
+	## that only one of them carries is the bug filed again from the other side.
+	var won := _new_game()
+	_begin(won, "ENDING-WON")
+	won.log_runs = false
+	won._set_state(SkyGearGame.State.VICTORY)
+	## The report joins with a bare LF, so the delimiter is spelled rather than
+	## typed — this file is CRLF, and a literal newline here would be two
+	## characters that never match.
+	var nl := String.chr(10)
+	var won_line: String = won.run_report().split(nl)[1]
+	won.queue_free()
+	var lost := _new_game()
+	_begin(lost, "ENDING-LOST")
+	lost.log_runs = false
+	lost.damage_boiler(1e9)
+	var lost_line: String = lost.run_report().split(nl)[1]
+	lost.queue_free()
+	_check("report", "both endings carry their reason — neither verdict trails an empty dash",
+		won_line.begins_with("DECK HELD — ") and won_line.length() > 12
+			and lost_line.begins_with("BOARDED — ") and lost_line.length() > 10
+			and won_line.contains("waves repelled"),
+		"won: %s / lost: %s" % [won_line, lost_line])
 	game.queue_free()
 
 
@@ -2178,6 +2205,94 @@ func _view() -> void:
 			bodies += 1
 	_check("view", "every boarder gets a body, mesh or billboard",
 		bodies == game.enemy_count(), "%d bodies / %d boarders" % [bodies, game.enemy_count()])
+
+	## SG-66 — THE POOL-IDENTITY CHECK. `_place`, `_spark`, `_draw_figure` and
+	## `_xray` all eat out of one `Sprite3D` free list, and each used to claim
+	## with its own copy of the dressing under a comment promising that "nothing
+	## carries over from whoever had it last". Four properties did carry over,
+	## and the loudest was `material_override`: a spark's ADDITIVE blob material
+	## beats `node.texture`, so a shelved spark re-issued to `_place` drew its
+	## next owner as a floating coloured orb — the owner's vanishing sentries.
+	##
+	## Shelved by hand exactly the way `_recycle` shelves (hide, append, erase),
+	## and dirtied first with every property that used to survive, so this fails
+	## the moment any claim site stops going through `_dress_billboard`.
+	view._spark("sg66_probe", Vector2(0, 0), 100.0, 40.0, Color(0.98, 0.42, 0.12))
+	var shelved: Sprite3D = view._billboards["sg66_probe"]
+	shelved.region_enabled = true
+	shelved.region_rect = Rect2(0, 0, 12, 12)
+	shelved.flip_h = true
+	shelved.no_depth_test = true
+	shelved.render_priority = 8
+	view._billboards.erase("sg66_probe")
+	view._used.erase("sg66_probe")
+	shelved.visible = false
+	view._free_billboards.append(shelved)
+	view._place("sg66_plate", view._texture(
+		"res://assets/art/props/harpoon_ballista.png"), Vector2(0, 0), 104.0)
+	var reissued: Sprite3D = view._billboards.get("sg66_plate")
+	_check("view", "a shelved spark comes back as a plate, not as a floating orb",
+		reissued == shelved and reissued.material_override == null
+			and not reissued.region_enabled and not reissued.flip_h
+			and not reissued.no_depth_test and reissued.render_priority == 0
+			and str(reissued.get_meta("billboard_kind", "")) == "art",
+		"override %s, region %s, flip %s, depth %s, kind %s" % [
+			reissued.material_override, reissued.region_enabled, reissued.flip_h,
+			reissued.no_depth_test, reissued.get_meta("billboard_kind", "")])
+	view._billboards.erase("sg66_plate")
+	view._used.erase("sg66_plate")
+	reissued.visible = false
+	view._free_billboards.append(reissued)
+
+	## And end to end, on the shape that reported it. A Sentry build hands the
+	## renderer a fresh `sy%d` every deployment, and the free list it claims from
+	## is fed by that same sentry's own `syh%d` head — which is why a deck of
+	## turrets was where this surfaced.
+	game.skills.append(SkyGearData.make_skill("SENTRY", "EMBER"))
+	var sentry_skill: Dictionary = game.skills[game.skills.size() - 1]
+	## The free list is stocked so that the TOP of it — the end `pop_back` takes
+	## — is spark-dressed, the way a deck full of muzzle flashes and burning
+	## props stocks it. Whatever was already free is pushed underneath rather
+	## than dropped, so nothing leaks; without this the deployment can claim a
+	## plate that was already a plate and the check proves nothing.
+	var shelf: Array = []
+	while not view._free_billboards.is_empty():
+		shelf.append(view._free_billboards.pop_back())
+	for spare in 6:
+		var hot_key := "sg66_hot%d" % spare
+		view._spark(hot_key, Vector2(0, 0), 100.0, 40.0, Color(0.2, 0.9, 0.7))
+		var hot: Sprite3D = view._billboards[hot_key]
+		view._billboards.erase(hot_key)
+		view._used.erase(hot_key)
+		hot.visible = false
+		shelf.append(hot)
+	view._free_billboards.assign(shelf)
+	## Every sentry placed BEFORE the frame that draws them, so all of them
+	## claim out of the stocked list rather than out of the previous frame's
+	## leftovers. The slot retires its own oldest, so three placements leave
+	## `max_live` standing — which is the number this then insists on drawing.
+	for step in 3:
+		game.deploy_sentry(sentry_skill,
+			game.player.global_position + Vector2(140.0 * float(step) - 140.0, -60.0), true)
+	view._process(0.05)
+	var posts := 0
+	var orbs := 0
+	for s in game.sentries:
+		var post: Sprite3D = view._billboards.get("sy%d" % int(s.id))
+		var head: Sprite3D = view._billboards.get("syh%d" % int(s.id))
+		if post == null or head == null:
+			continue
+		posts += 1
+		if post.material_override != null \
+			or str(post.get_meta("billboard_kind", "")) != "art" \
+			or str(head.get_meta("billboard_kind", "")) != "spark":
+			orbs += 1
+	_check("view", "every deployed sentry is a ballista wearing its own head, never an orb",
+		posts == game.sentries.size() and posts >= 2 and orbs == 0,
+		"%d posts of %d sentries, %d wearing a spark" % [posts, game.sentries.size(), orbs])
+	game.sentries.clear()
+	game.skills.remove_at(game.skills.size() - 1)
+	view._process(0.05)
 
 	## Dressing is dressing. Braziers and rope were added to fill the deck out,
 	## and if they joined the target list they would change the fight.
