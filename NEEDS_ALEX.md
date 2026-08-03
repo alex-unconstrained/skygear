@@ -62,13 +62,20 @@ my table.
 
 ## What you decided today, and what it turned into
 
-**CRIT STAYS. SG-148 is being reverted.** You were right to stop it. It had taken
+**CRIT STAYS. SG-148 is reverted — done, measured, landed.** You were right to stop it. It had taken
 crit away from six secondary damage sources — the kill explosion, the vent, fire
 pools, kegs, the lane cannon and the crew — and the *only* argument for it was
 that the browser build did it that way. That is not a good enough reason, and I
 have written the rule down so it does not come back: **browser fidelity is no
 longer a rationale for anything, mechanics included.** SG-147's real fix (a crit
-explosion could crit its own explosion, forever) survives the revert.
+explosion could crit its own explosion, forever) survives it.
+
+  Measured over 1,224 runs: a crit-built captain now kills the Colossus **7.8%
+  faster** and takes **13.9% less** damage in wave 12. The hold-rate half of
+  SG-148's original claim **did not replicate** and no one is claiming those
+  seven points back — the two arms overlap across five points, so the honest
+  answer is that the sample cannot tell them apart. The gate is *deleted*
+  rather than switched off, so the rejected rule is not sitting on a shelf.
 
 **The Colossus keeps his health and stops being a meat shield.** Your design:
 he ignores the captain, walks for the middle, kills the cannon, then goes for the

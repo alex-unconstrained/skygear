@@ -213,7 +213,7 @@ func _run() -> void:
 	await process_frame
 	_crit_explode()
 	await process_frame
-	_nocrit()
+	_crit_sources()
 	await process_frame
 	## AWAITED — it builds a real world and waits a frame across a kill. An
 	## un-awaited coroutine here reports a clean pass for checks that never ran.
@@ -2506,71 +2506,75 @@ func _crit_explode() -> void:
 ## and it would rot the moment a cargo rect moves — the roster-of-three-names
 ## mistake STATUS.md's last failure mode describes. The check searches the deck
 ## for a spot the renderer itself calls occluded and uses that.
-## SG-148: A SECONDARY DAMAGE SOURCE MAY NOT CRIT, AT ALL SIX OF THEM.
+## SG-159: EVERY ONE OF THE SIX SECONDARY DAMAGE SOURCES CAN CRIT.
 ##
-## The browser passes `noCrit:true` from every secondary source and the port
-## dropped the flag; SG-147 restored it on the one call site that crashed. These
-## are the other six, each driven through ITS OWN CALL SITE rather than through
-## `_damage_circle` directly — a check that called the shared helper would pass
-## on a build where all six call sites still asked for a roll, which is exactly
-## the bug that was shipped.
+## THE REGRESSION THESE EXIST TO CATCH, AND IT HAS ALREADY HAPPENED ONCE.
+## SG-148 took crit away from the kill explosion, the vent, a fire pool's tick,
+## the kegs, the lane cannon and the crew, on the grounds that the browser build
+## did it that way. The owner rejected the change AND the reasoning - *"Why are
+## we getting rid of CRIT? That's an important mechanic... We've transcended
+## that."* - so these twelve checks assert the exact opposite of the twelve they
+## replace: put a `false` back on any one of those six call sites and that
+## source's check goes red, naming the source.
 ##
-## DETERMINISTIC, NOT DISTRIBUTIONAL. `crit_chance` is forced to 1.0, so the
-## crit is CERTAIN and the assertion is arithmetic: a source that can crit deals
-## exactly double (`scaled *= 2.0`), a source that cannot deals exactly its
-## authored damage. There is no seed for which this is flaky and no frame rate
-## that changes it.
+## EACH IS DRIVEN THROUGH ITS OWN CALL SITE - `on_enemy_killed`, `vent_pressure`,
+## `_update_fire_fields`, `explode_keg`, `_update_projectiles`, `_update_crew` -
+## rather than through the shared `_damage_circle`. A check that called the
+## helper would have passed on the build SG-148 shipped, where the helper still
+## crit happily and all six CALLERS had been told not to ask.
 ##
-## AND EACH IS ASSERTED IN BOTH POSITIONS OF THE GATE, which is the SG-146
-## lesson: a mechanism tested only in the position it ships in is not tested.
-## The `still doubles` half is NOT a witness for the fix — it is the proof that
-## the check is wired to the source it names. Delete `secondary_can_crit` from
-## any one call site and that source's first half goes red while its second
-## stays green, which is what tells you which of the six was edited.
-func _nocrit() -> void:
-	for arm in [false, true]:
-		var results := _nocrit_arm(arm)
+## DETERMINISTIC, NOT DISTRIBUTIONAL. `crit_chance` is the arm: at 1.0 the crit
+## is CERTAIN and the assertion is arithmetic (`scaled *= 2.0`), at 0.0 it cannot
+## happen at all. No seed makes this flaky and no frame rate changes it.
+##
+## AND THE ZERO ARM IS THE ANTI-VACUITY HALF (the SG-146 lesson: a mechanism
+## tested only in the position it ships in is not tested). "It dealt 60" on its
+## own does not establish that the 60 came from a crit - a fixture that applied
+## the source twice would read the same. The PAIR does: this source deals
+## `authored` when no crit is rolled and exactly `2 x authored` when one is, so
+## the doubling belongs to the crit roll at THAT call site and to nothing else.
+func _crit_sources() -> void:
+	for arm in [1.0, 0.0]:
+		var results := _crit_source_arm(arm)
 		if results.size() != 6:
-			_check("nocrit", "all six secondary sources could be posed",
-				false, "only %d of 6 fixtures built, arm secondary_can_crit=%s"
+			_check("crit", "all six secondary sources could be posed",
+				false, "only %d of 6 fixtures built, arm crit_chance=%.1f"
 					% [results.size(), arm])
 			return
 		for row in results:
 			var label: String = str(row.name)
 			var dealt: float = float(row.dealt)
 			var authored: float = float(row.authored)
-			var want: float = authored * (2.0 if arm else 1.0)
-			if arm:
-				_check("nocrit", "and with the rule off %s doubles, so the check is reading that source" % label,
+			var want: float = authored * (2.0 if arm > 0.0 else 1.0)
+			if arm > 0.0:
+				_check("crit", "%s can crit" % label,
 					absf(dealt - want) < 0.51,
-					"%s dealt %.1f, expected the crit-doubled %.1f" % [label, dealt, want])
+					"%s dealt %.1f, expected the crit-doubled %.1f - SG-148 is back at that call site"
+						% [label, dealt, want])
 			else:
-				_check("nocrit", "%s may not crit" % label,
+				_check("crit", "and with no crit rolled %s deals its authored damage, so the check is reading that source" % label,
 					absf(dealt - want) < 0.51,
-					"%s dealt %.1f, expected the authored %.1f (a crit deals %.1f)"
-						% [label, dealt, want, authored * 2.0])
+					"%s dealt %.1f, expected the authored %.1f" % [label, dealt, want])
 
 
 ## Poses each of the six sources against a lone boarder and reports what each
-## actually took off him. `can_crit` drives `game.secondary_can_crit`, whose
-## shipped position is FALSE.
-func _nocrit_arm(can_crit: bool) -> Array:
+## actually took off him, with `crit_chance` at whatever the arm asks for.
+func _crit_source_arm(crit_chance: float) -> Array:
 	var out: Array = []
 
-	## 1. THE KILL EXPLOSION — browser v11:1863. Driven through
-	## `on_enemy_killed`, so this covers the call site and not the circle.
-	var rig1 := _nocrit_rig(can_crit)
+	## 1. THE KILL EXPLOSION. Driven through `on_enemy_killed`, so this covers the
+	## call site and not the circle.
+	var rig1 := _crit_source_rig(crit_chance)
 	var t1: SkyGearEnemy = rig1[1]
 	if t1 == null:
 		return out
 	var game1: SkyGearGame = rig1[0]
 	game1.mods.kill_explode = 30.0
-	var victim := _nocrit_extra(game1, t1.global_position)
+	var victim := _crit_source_extra(game1, t1.global_position)
 	if victim != null:
-		## Dead BEFORE the call, exactly as `enemy.gd` leaves him — which is also
-		## the reason this circle needs no `skip`: `_damage_circle` filters the
-		## dead, so the browser's `skip:e` on THIS explosion is reproduced by
-		## accident. (It is not reproduced on the crit explosion. See SG-154.)
+		## Dead BEFORE the call, exactly as `enemy.gd` leaves him - which is also
+		## why this circle needs no exclusion parameter: `_damage_circle` filters
+		## the dead, so the boarder who produced it is already out of the loop.
 		victim.dead = true
 		var before1 := t1.hp
 		game1.on_enemy_killed(victim)
@@ -2578,9 +2582,9 @@ func _nocrit_arm(can_crit: bool) -> Array:
 			"authored": 30.0})
 	game1.queue_free()
 
-	## 2. THE VENT — browser v11:1798. Damage read off the table rather than
-	## typed, so a tuning pass cannot leave this asserting a number nobody ships.
-	var rig2 := _nocrit_rig(can_crit)
+	## 2. THE VENT. Damage read off the table rather than typed, so a tuning pass
+	## cannot leave this asserting a number nobody ships.
+	var rig2 := _crit_source_rig(crit_chance)
 	var t2: SkyGearEnemy = rig2[1]
 	if t2 == null:
 		return out
@@ -2594,9 +2598,9 @@ func _nocrit_arm(can_crit: bool) -> Array:
 		"authored": vent_authored})
 	game2.queue_free()
 
-	## 3. A FIRE POOL'S TICK — browser v11:3141. `tick` at 0.0 stepped by a zero
-	## delta is exactly one tick: the `while` adds FIRE_TICK and leaves at once.
-	var rig3 := _nocrit_rig(can_crit)
+	## 3. A FIRE POOL'S TICK. `tick` at 0.0 stepped by a zero delta is exactly one
+	## tick: the `while` adds FIRE_TICK and leaves at once.
+	var rig3 := _crit_source_rig(crit_chance)
 	var t3: SkyGearEnemy = rig3[1]
 	if t3 == null:
 		return out
@@ -2609,9 +2613,9 @@ func _nocrit_arm(can_crit: bool) -> Array:
 		"authored": 7.5})
 	game3.queue_free()
 
-	## 4. THE KEGS — browser v11:923. A real prop off the real deck, so this goes
-	## through `explode_keg` rather than reconstructing what it does.
-	var rig4 := _nocrit_rig(can_crit)
+	## 4. THE KEGS. A real prop off the real deck, so this goes through
+	## `explode_keg` rather than reconstructing what it does.
+	var rig4 := _crit_source_rig(crit_chance)
 	var t4: SkyGearEnemy = rig4[1]
 	if t4 == null:
 		return out
@@ -2631,9 +2635,9 @@ func _nocrit_arm(can_crit: bool) -> Array:
 		out.append({"name": "a keg", "dealt": before4 - t4.hp, "authored": 78.0})
 	game4.queue_free()
 
-	## 5. THE LANE CANNON — browser v11:5247. A friendly bolt already on top of
-	## the boarder, stepped by zero so it resolves where it was put.
-	var rig5 := _nocrit_rig(can_crit)
+	## 5. THE LANE CANNON. A friendly bolt already on top of the boarder, stepped
+	## by zero so it resolves where it was put.
+	var rig5 := _crit_source_rig(crit_chance)
 	var t5: SkyGearEnemy = rig5[1]
 	if t5 == null:
 		return out
@@ -2647,9 +2651,9 @@ func _nocrit_arm(can_crit: bool) -> Array:
 		"authored": 44.0})
 	game5.queue_free()
 
-	## 6. THE CREW'S SWING — browser v11:5342. A crewman parked on the boarder
-	## with his windup already spent, so the next step is the blow itself.
-	var rig6 := _nocrit_rig(can_crit)
+	## 6. THE CREW'S SWING. A crewman parked on the boarder with his windup
+	## already spent, so the next step is the blow itself.
+	var rig6 := _crit_source_rig(crit_chance)
 	var t6: SkyGearEnemy = rig6[1]
 	if t6 == null:
 		return out
@@ -2670,13 +2674,12 @@ func _nocrit_arm(can_crit: bool) -> Array:
 	return out
 
 
-## One landed boarder with more health than any of the six can take off him, a
-## certain crit, and every OTHER damage event on the deck switched off so the
-## number measured belongs to the source under test.
-func _nocrit_rig(can_crit: bool) -> Array:
+## One landed boarder with more health than any of the six can take off him, the
+## arm's crit chance, and every OTHER damage event on the deck switched off so
+## the number measured belongs to the source under test.
+func _crit_source_rig(crit_chance: float) -> Array:
 	var game := _new_game()
 	_begin(game)
-	game.secondary_can_crit = can_crit
 	for e in game.get_tree().get_nodes_in_group("enemies"):
 		e.dead = true
 		e.queue_free()
@@ -2691,10 +2694,13 @@ func _nocrit_rig(can_crit: bool) -> Array:
 	target.global_position = Vector2.ZERO
 	target.max_hp = 4000.0
 	target.hp = 4000.0
-	## Certain, so the assertion is arithmetic rather than a distribution.
-	game.mods.crit_chance = 1.0
-	## Everything else that could add a second damage event on the same frame,
-	## or move the boarder out of a radius mid-check, is off.
+	## Certain or impossible, so the assertion is arithmetic rather than a
+	## distribution.
+	game.mods.crit_chance = crit_chance
+	## Everything else that could add a second damage event on the same frame, or
+	## move the boarder out of a radius mid-check, is off. `crit_explode` above
+	## all: at crit_chance 1.0 a crit would open a second circle on top of the
+	## source under test and the arithmetic would stop being one source's.
 	game.mods.crit_explode = 0.0
 	game.mods.kill_explode = 0.0
 	game.mods.knock_multiplier = 0.0
@@ -2702,7 +2708,7 @@ func _nocrit_rig(can_crit: bool) -> Array:
 
 
 ## A second landed boarder, for the one source that needs something to die.
-func _nocrit_extra(game: SkyGearGame, at: Vector2) -> SkyGearEnemy:
+func _crit_source_extra(game: SkyGearGame, at: Vector2) -> SkyGearEnemy:
 	var known: Dictionary = {}
 	for e in game.get_tree().get_nodes_in_group("enemies"):
 		known[e.get_instance_id()] = true
