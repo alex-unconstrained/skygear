@@ -6015,10 +6015,26 @@ const RIG_YARD_AT := 0.74            ## of mast height
 const RIG_SHROUD_HEAD := 0.82        ## of mast height
 
 
-## TRIAL ONLY, default OFF. `tools/edge_place.gd -- mast` swaps the procedural
-## casters for `mast_crowned` to answer whether the owner's mast should REPLACE
-## them, FEED them, or stand beside them. The verdict is recorded below.
-var rig_model_masts := false
+## ON, BY THE OWNER'S EYE, 2026-08-03 — and against this file's own advice.
+##
+## `tools/edge_place.gd -- mast` swapped the procedural casters for
+## `mast_crowned` to answer whether the owner's mast should REPLACE them, FEED
+## them, or stand beside them. The measured read was to keep the procedural
+## ones: side by side at the shipped camera
+## (`.shots/owner-review/1-bow-stern-mast/mast-mid__*.png`) the procedural
+## shrouds throw CRISP DIAGONAL LINES across the planking and `mast_crowned`
+## throws soft broad blobs, so the lattice is lost and the deck reads darker.
+##
+## The owner looked at exactly that pair and said **"Model shadows look cooler
+## in my opinion."** That is the whole argument and it beats the analysis: this
+## is a look, the look is his, and "the lines are crisper" is a measurement of
+## a thing nobody asked to maximise. REPLACE, then — the procedural casters are
+## off when this is on, they do not stack.
+##
+## What this does NOT do is put the mast on screen. The three stations sit at
+## x +/-280, inside the lane figures fight in, so the mesh stays SHADOWS_ONLY
+## through `_rig_piece`; what changed is only what shape the moon throws.
+var rig_model_masts := true
 
 
 func _build_rigging() -> void:

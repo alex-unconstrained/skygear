@@ -240,13 +240,28 @@ def audit(show_all: bool = False) -> int:
     for name, factor, mean, p95, peak in sorted(rows, key=lambda r: -r[2]):
         if not show_all and mean <= LAMPLIT_METALLIC_MAX:
             continue
-        print("%-26s %-7s %8.4f %8.4f %8.4f  OVER" % (
+        ## The verdict is per row, not printed on every line. `--all` shows the
+        ## models already UNDER the ceiling, and stamping OVER on those too made
+        ## a clamped kit read as an unclamped one — which it did, on the day the
+        ## seventeen were clamped and the audit still looked full of failures.
+        print("%-26s %-7s %8.4f %8.4f %8.4f  %s" % (
             name, "unset" if factor == 1.0 else "%.3f" % factor,
-            mean, p95, peak))
+            mean, p95, peak, "OVER" if mean > LAMPLIT_METALLIC_MAX else "ok"))
     print("\n%d of %d shipped models are above the %.2f lamplit ceiling on "
           "MEAN effective metallic." % (len(over), len(rows),
                                         LAMPLIT_METALLIC_MAX))
-    print("Every one of them has metallicFactor UNSET, which glTF reads as 1.0.")
+    ## Only true while there ARE any. It was printed unconditionally, so the
+    ## run that cleared the last one still ended on a sentence about how they
+    ## all have it unset.
+    if over:
+        print("Every one of them has metallicFactor UNSET, which glTF reads "
+              "as 1.0.")
+    else:
+        still_unset = [r[0] for r in rows if r[1] == 1.0]
+        if still_unset:
+            print("%d carry an UNSET metallicFactor and pass anyway, because "
+                  "their map is dark enough that 1.0 x map stays under the "
+                  "ceiling: %s." % (len(still_unset), ", ".join(still_unset)))
     print("This reports and does not rewrite — see the module docstring for why.")
     return 0
 
