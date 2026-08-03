@@ -1,2 +1,7 @@
 Pillow==12.3.0
 soundfile==0.14.0
+# skygear-godot/tools/split_rotors.py: cutting a welded mesh apart along the
+# labels of a second one is a nearest-neighbour query over a quarter of a
+# million points, and a hand-rolled voxel grid would be a slower cKDTree.
+numpy==2.4.6
+scipy==1.18.0

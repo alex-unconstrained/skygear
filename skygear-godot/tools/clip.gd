@@ -293,6 +293,78 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 			colossus.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
 			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
+		"crew":
+			## YOUR OWN SAILORS (SG-88). The crew are not spawned by anything a
+			## tool can call directly — they MUSTER, on `crew_timer`, two per
+			## lane per bell — so this rings the bell instead of building them:
+			## `crew_timer = 0` and one `_update_crew` tick is the simulation's
+			## own muster, twice, which is six sailors in three lanes. Then a
+			## rank of scrappers walks into them and the crew do what the crew
+			## do, which is stab whatever is nearest in their lane.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			for _bell in 2:
+				game.crew_timer = 0.0
+				game._update_crew(0.05)
+			for stand in [
+					{"lane": 0, "at": Vector2(-280.0, 60.0)},
+					{"lane": 1, "at": Vector2(-10.0, 20.0)},
+					{"lane": 2, "at": Vector2(250.0, 60.0)}]:
+				game.spawn_enemy("SCRAPPER", int(stand.lane))
+				var rank := game.get_tree().get_nodes_in_group("enemies")
+				var walker = rank[rank.size() - 1]
+				walker.global_position = stand.at
+				walker.lane = int(stand.lane)
+				walker.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
+		"swarm":
+			## THE GOBLIN, SIX AT ONCE (SG-89) — which is the number the late
+			## waves actually send and the only number worth filming, because
+			## the whole question about this figure is what a scuttling crowd
+			## of them looks like. Crew mustered for them to swing AT, so the
+			## clip carries the attack variants rather than six run cycles.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			game.crew_timer = 0.0
+			game._update_crew(0.05)
+			var spread := [-330.0, -210.0, -40.0, 60.0, 230.0, 340.0]
+			for n in spread.size():
+				var lane: int = n % 3
+				game.spawn_enemy("SWARM", lane)
+				var mob := game.get_tree().get_nodes_in_group("enemies")
+				var goblin = mob[mob.size() - 1]
+				goblin.global_position = Vector2(float(spread[n]), 150.0 + float(n % 3) * 40.0)
+				goblin.lane = lane
+				goblin.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
+		"drone":
+			## THE GUNNER FLIES (SG-87). Four of them, because a flock is the
+			## thing the per-drone phase exists for — a shared clock would make
+			## them one object drawn four times, and a still cannot show that.
+			## They are RANGED (340 units), so they are stood back and left to
+			## hover and shoot rather than walked into anything; what the strip
+			## has to carry is the rotor spin, the bob, and four drones not
+			## bobbing in unison.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("RANGED_AOE", "FROST"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			for stand in [
+					{"lane": 0, "at": Vector2(-300.0, -60.0)},
+					{"lane": 1, "at": Vector2(-70.0, -140.0)},
+					{"lane": 1, "at": Vector2(90.0, -20.0)},
+					{"lane": 2, "at": Vector2(300.0, -110.0)}]:
+				game.spawn_enemy("GUNNER", int(stand.lane))
+				var flight := game.get_tree().get_nodes_in_group("enemies")
+				var drone = flight[flight.size() - 1]
+				drone.global_position = stand.at
+				drone.lane = int(stand.lane)
+				drone.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
 		"boilerwright":
 			## His class row's witness (SG-74): the walk, the slash and the
 			## plant on one strip of film. A seated Cleave so the casts swing
@@ -412,6 +484,46 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 							else:
 								foe.kill()
 							break
+				"crew":
+					## Three seconds of the crew working up the lane and closing
+					## on the scrappers, then the first ALLY death this game has
+					## shown — and a second a hundred ticks later, so the strip
+					## carries a body still sinking while the next one goes down.
+					## Killed by taking a crewman's hp to nothing and letting
+					## `_update_crew` find him, which is the simulation's own
+					## door; the renderer is never touched.
+					if tick == 180 or tick == 280:
+						for c in game.crew:
+							if not bool(c.dead):
+								c.hp = 0.0
+								c.dead = true
+								break
+				"swarm":
+					## The mob closes on its own — at 230 units a second there is
+					## nothing to stage. Two die a second and a half apart, which
+					## at half the captain's height is the read the SG-85 seam
+					## was built for and has never been asked to carry in
+					## numbers.
+					if tick == 210 or tick == 300:
+						var mob := game.get_tree().get_nodes_in_group("enemies")
+						for foe in mob:
+							if is_instance_valid(foe) and not foe.dead \
+									and str(foe.kind) == "SWARM":
+								foe.kill()
+								break
+				"drone":
+					## Nothing is staged. The drones hover, bob and shoot on the
+					## simulation's own clock — the point of the strip is that
+					## its motion is not a clip and does not need a cue. One cast
+					## at the flock near the end, so the film also answers "does
+					## a hovering target read as hittable".
+					if tick == 270:
+						var flight := game.get_tree().get_nodes_in_group("enemies")
+						for foe in flight:
+							if is_instance_valid(foe) and not foe.dead \
+									and str(foe.kind) == "GUNNER":
+								game.cast_skill(0, foe.global_position)
+								break
 				"boilerwright":
 					## Two seconds of march, two cuts sixty-five ticks apart
 					## (the variant rotation shows two DIFFERENT slashes), then

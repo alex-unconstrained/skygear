@@ -29,7 +29,7 @@ everything is waiting on a human with a modeling tool.
   static props wire via `PROP_MODEL`/`static_model.gd`, figures via the rig
   path.
 
-## The queue — **FOUR FIGURES, requested by the owner 2026-08-02**
+## The queue — **EMPTY. All four figures landed on 2026-08-02.**
 
 The rule that filled this folder was "two Meshy strikes and it escalates".
 These four did not wait for the strikes: after making the hulk and the knight
@@ -45,10 +45,23 @@ map an existing skeleton and refuse) → place the auto-rig markers → download
 one clip **with skin**, the rest **without skin** → hand the loop the folder.
 Ingestion is one `models.json` entry and one pipeline run, zero credits.
 
-**Priority order** (biggest visual return first): SWARM, then the COLOSSUS,
-then CREW; the GUNNER last and probably never — read its entry.
+**ALL FOUR ARE DONE, and the fourth was the one this file said would never
+happen.** The owner delivered the whole queue in a single day: the COLOSSUS
+(board SG-90), the CREW (SG-88), the SWARM goblin (SG-89) and the GUNNER
+(SG-87). Every figure on this deck is now a mesh. The four specs stay below as
+history — they are the format an entry gets written in, and the notes under
+each are what the specs failed to say.
 
-### swarm_gremlin/ — the fastest and most numerous boarder
+**The priority order this file argued for was SWARM, COLOSSUS, CREW, and the
+GUNNER "last and probably never". It is worth recording that the order did not
+matter and the "never" was wrong** — once the route worked, four figures cost
+one afternoon between them, and the drone was the *cheapest* of the four
+because this file had already worked out what shape it needed (a static mesh
+with the rotor as a separate child) two weeks before there was a file to look
+at. A spec that names the SHAPE of the answer is worth more than a spec that
+ranks the queue.
+
+### swarm_gremlin/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: the fastest and most numerous boarder
 **Height 83 ground units (0.83 m)** — the smallest thing on the deck, and it
 comes six at a time in later waves, so it is the figure a player sees most
 after the captain. 20 hp, 230 speed: a scuttling scrap-goblin. Small, low,
@@ -59,6 +72,30 @@ proportion, not pose). Hands EMPTY; if it should carry a shiv, that is a
 separate bone-mounted asset. Clips wanted: walk/run, one swing, a flinch,
 and a **death** — the knight's pack gave the game its first death animation
 and the swarm dying in numbers is where it will read most.
+
+**DELIVERED, and the spec above stays as history.** The owner modelled it as the
+**Clockwork Goblin Warrior** and ran the OBJ through Mixamo's auto-rigger — the
+SG-74 shape a third time: one rigged character FBX plus 19 animation-only clips
+on that same rig. Wired under board **SG-89** (`assets/models/swarm/`, 82.5
+ground units, 9 clips wired of 19 aboard, `.shots/clips/swarm.gif`), **and with
+it every figure on this deck is a mesh.**
+
+Three things worth carrying forward:
+
+* **The spec asked for a flinch and the pack has none.** Everything else on the
+  list arrived — walk, run, three different swings, a death — but there is no
+  impact clip in a creature pack, so a stunned goblin degrades through
+  `rig3d`'s fallback chain instead of reacting. Recorded, pinned, not faked.
+  A figure spec should say which clips are LOAD-BEARING, because "a flinch"
+  reads as a nice-to-have and it is the only feedback a 20-hp boarder gives.
+* **"It comes six at a time" is a spec line with a performance consequence, and
+  it should have been written as one.** Six of them are six skeletons and ONE
+  mesh — that is true because `load()` is cached, not because anyone designed
+  it — and the albedo is 512 rather than 1024 for the same reason the height
+  is halved. The entry said "six at a time" as flavour; it is a budget.
+* **It replaced a MESH, not a sprite.** There was already a generated goblin in
+  `assets/models/swarm/` — a lump that could not move. That is the honest
+  measure of what a rig buys: the silhouette was never the problem.
 
 ### colossus_boss/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: the wave-12 boss, the one figure with a fight of its own
 **Height ~360 ground units (3.6 m), the biggest thing that walks.** It has two
@@ -120,7 +157,7 @@ Three things a future spec should say that this one did not:
   `boarder_height` is the single copy of it. Same discipline as the knight's 216:
   a spec should cite the simulation's number rather than estimate one beside it.
 
-### crew/ — your own sailors, the last friendly 2D figures
+### crew/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: your own sailors, the last friendly 2D figures
 Three painted states (front idle, front attack, back idle) and they stand
 beside the cannons all run. They are the only ALLY figures left flat, so once
 the boarders are meshes they will be the thing that looks wrong. Height should
@@ -129,7 +166,31 @@ walk, a work/attack swing, a death. One mesh serves every crew member (they
 are identical by design); a second variant would be a bonus, never a
 requirement.
 
-### gunner_drone/ — **probably never; read before spending an hour**
+**DELIVERED, and the spec above stays as history.** The owner modelled them as
+the **Little Adventurer** and rigged them through Mixamo, then sent the clips in
+three deliveries — a ten-clip locomotion pack plus `Bayonet Stab.fbx` and
+`Dying Backwards.fbx` as two loose files. Wired under board **SG-88**
+(`assets/models/crew/`, 165 ground units, 5 clips wired of 12 aboard,
+`.shots/clips/crew.gif`), and they bring the game its **first ALLY death**.
+
+Three things worth carrying forward:
+
+* **"~1.7 m" was a guess and the SIMULATION already knew.** `120 + CREW.radius
+  * 3` on the radius `scripts/lanes.gd` has always kept for a crewman is
+  **165** — inside what this entry asked for, and nobody had to pick a number.
+  It also caught that the painted crew were being drawn at a hard-coded **110**
+  against a captain of 176, which is 62% and reads as a deck of children. When
+  a spec asks for a height, look for the sim's own row first.
+* **A pack may arrive in PIECES, and the pipeline was already fine with it.**
+  Three deliveries went side by side into `.model_originals/crew/` and the
+  manifest points at the FOLDER; `ingest_model.py`'s `unpack` returns a
+  directory unchanged, so nothing had to be re-zipped and no code changed.
+* **"Identical by design" is the cheapest line in this file.** One mesh serves
+  every crewman on the deck — but it is also what made the DEATH a bug: the
+  renderer keyed crew by array index, and identical sprites hid the fact that
+  the index names a different man the frame after anyone dies. See SG-88.
+
+### gunner_drone/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: **probably never; read before spending an hour**
 **Height 92 ground units (0.92 m)**, a hovering propeller drone that shoots
 from 340 units. The scrapper pilot's verdict was explicit: *"the GUNNER is a
 propeller drone that will never pass a humanoid rig — prop-spin/bob
@@ -140,9 +201,41 @@ spin it) — no rig, no clips, and the loop animates the spin and bob in code.
 Deliver it that way and it is a twenty-minute wiring job; deliver it rigged and
 the rig is wasted.
 
+**DELIVERED — AND THIS ENTRY IS THE REASON IT WAS CHEAP.** The owner sent a
+textured GLB and a part-segmentation GLB of the same object, no rig and no
+clips, which is exactly the shape the paragraph above asked for two weeks
+early. Wired under board **SG-87** (`assets/models/gunner/`, 91.5 ground units,
+10,344 triangles, `.shots/clips/drone.gif`): four nodes — `Body` and three
+`Rotor*` children pivoted on their own hubs — with the spin and the bob coming
+out of a four-number table in the renderer. It took the twenty minutes this
+entry predicted, plus the ten below.
+
+Three things worth carrying forward:
+
+* **THE FILE WAS CALLED "Clockwork Sentry Sphere", AND THAT NAMES TWO DIFFERENT
+  THINGS IN THIS GAME** — this drone, and the player's SENTRY skill, which
+  draws a tinted ballista. The hulk rule was applied (*verify by looking*): it
+  matches `drone_front_idle.png` item for item and shares nothing at all with
+  the ballista. That check has now been run twice on owner-delivered assets and
+  found a problem once; ten minutes, every time, forever.
+* **A spec that names the SHAPE of the answer beats a spec that ranks the
+  queue.** This entry was written to talk somebody OUT of an hour's work and it
+  ended up being the build instructions. "Rotor as a separate child" is the
+  whole design.
+* **What the entry did NOT say, and should have: how the rotor gets to be a
+  child.** The textured delivery is one welded surface — a
+  connected-component pass over it returns exactly one piece — so there was
+  nothing to spin until the part-segmentation file was used as DATA to cut it
+  (`tools/split_rotors.py`). A spec that asks for separate parts should say
+  "export them as separate objects, or send the part-segmentation file too".
+
 ---
 
-## Resolved — the two you already did
+## Resolved — the first two, which set the format
+
+*(The four entries above are resolved too, as of the same day. They stay in the
+queue section because their specs are what the pipeline reads back when the
+next figure needs one.)*
 
 Both resolved by the owner's own hand in one day: the boarding hulk (three
 models, one per painted state, SG-76) and the furnace knight (SG-85). The two

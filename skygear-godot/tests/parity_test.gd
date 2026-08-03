@@ -6542,6 +6542,279 @@ func _view() -> void:
 				% bsprite.get_file())
 	brig.queue_free()
 
+	## --- board SG-88: THE CREW, the last flat ALLY figures -------------------
+	## Same native-rig contract as the knight, on the other side of the deck —
+	## and the crew are the only figures the renderer draws that the simulation
+	## does not keep in `ENEMIES`, so the self-enumerating boarder loop above
+	## never reaches them. Everything the SG-45 bargain asserts for a boarder is
+	## asserted for them here, by hand, because nothing else will.
+	var crig := SkyGearRig3D.new()
+	root.add_child(crig)
+	var cpath := SkyGearView3D.model_path("CREW")
+	var cheight: float = SkyGearView3D.crew_height()
+	var cbuilt: bool = ResourceLoader.exists(cpath) and crig.setup(cpath,
+		cheight * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES)
+	_check("figure", "your own sailors build from the owner's own native rig",
+		cbuilt, cpath)
+	## THE HEIGHT IS THE SIM'S, not a guess. `120 + radius*3` on the crewman's
+	## own radius, which is the arithmetic every boarder is drawn by, and it
+	## lands a head under the captain exactly as the handoff spec asked. The
+	## hard-coded 110 it replaces was 62% of her, which is a deck of children.
+	_check("figure", "and a crewman stands a head UNDER the captain, on the sim's own radius rather than a guess",
+		cheight == 120.0 + float(SkyGearLanes.CREW.radius) * 3.0
+			and cheight < SkyGearView3D.CAPTAIN_HEIGHT and cheight > 150.0,
+		"%.0f ground units against her %.0f, from radius %.0f"
+			% [cheight, SkyGearView3D.CAPTAIN_HEIGHT,
+				float(SkyGearLanes.CREW.radius)])
+	if cbuilt:
+		## The clip row in tools/models.json, read. `run` is aboard as the tier
+		## above the walk even though the crew move at 118 and will nearly
+		## always be walking — `gait` is the thing that decides, and it must
+		## have both to decide between.
+		var cwired := ["idle", "walk", "run", "swing", "die"]
+		var cmissing := PackedStringArray()
+		for c in cwired:
+			if not crig.has_clip(str(c)):
+				cmissing.append(str(c))
+		_check("figure", "the crew carry their clip set — an idle, a walk up the deck, a bayonet stab and a DEATH",
+			cmissing.is_empty(),
+			"%d of %d (missing: %s)" % [cwired.size() - cmissing.size(),
+				cwired.size(), ", ".join(cmissing)] if not cmissing.is_empty()
+				else "%d of %d, out of %d aboard" % [cwired.size(), cwired.size(),
+					crig.anim.get_animation_list().size()])
+		## THE SG-45 BARGAIN, by hand: every named bind resolving, and the built
+		## rig standing its hips at sailor height rather than off the frame.
+		var cbad := PackedStringArray()
+		var cskinned := 0
+		for mi_node in crig.model.find_children("*", "MeshInstance3D", true, false):
+			var cskin: Skin = (mi_node as MeshInstance3D).skin
+			if cskin == null:
+				continue
+			cskinned += 1
+			for bi in cskin.get_bind_count():
+				var bname := String(cskin.get_bind_name(bi))
+				if bname != "" and (crig.skeleton == null
+						or crig.skeleton.find_bone(bname) < 0):
+					if not cbad.has(bname):
+						cbad.append(bname)
+		var chip := -1.0
+		if crig.skeleton != null:
+			if crig.has_clip("idle"):
+				crig.anim.play("idle")
+				crig.anim.seek(0.05, true)
+			var chip_bone: int = crig.skeleton.find_bone("mixamorig_Hips")
+			if chip_bone >= 0:
+				chip = (crig.skeleton.global_transform
+					* crig.skeleton.get_bone_global_pose(chip_bone)).origin.y
+		_check("figure", "a crewman's binds resolve against his own skeleton, and the built rig stands its hips at sailor height",
+			cskinned > 0 and cbad.is_empty() and chip > 0.3 and chip < 1.5,
+			"%d skinned surface(s), %d unresolved, hips %.2f m above the deck"
+				% [cskinned, cbad.size(), chip])
+		## THE FIRST ALLY THAT DIES ON SCREEN, through exactly the seam the
+		## knight opened: `_recycle` shelves an unclaimed rig that HAS a death,
+		## the clip is stretched to the window, and the body does not begin to
+		## sink until it has been played. Renderer-side; the simulation still
+		## drops a dead crewman out of its array the tick he dies.
+		_check("figure", "and the renderer knows a crewman can die — the SG-85 seam, on the ally side of the deck",
+			SkyGearView3D.dies_on_screen(crig)
+				and SkyGearView3D.corpse_life() > SkyGearView3D.DEATH_WINDOW
+				and is_zero_approx(SkyGearView3D.corpse_drop(
+					SkyGearView3D.DEATH_SINK + 0.01,
+					cheight * SkyGearView3D.WORLD_SCALE)),
+			"held %.2fs, and drops nothing until the last %.2fs"
+				% [SkyGearView3D.corpse_life(), SkyGearView3D.DEATH_SINK])
+	crig.queue_free()
+	## AND THE PAINTED CREW ARE STILL THERE. The always-both-paths rule: delete
+	## `assets/models/crew/` and the deck goes back to sprites rather than to
+	## nothing, which is the only reason a mesh is ever safe to adopt.
+	_check("figure", "the painted crew survive the mesh — the fallback the model-or-billboard fork exists for",
+		SkyGearSprites.still("CREW", "front") != null
+			and SkyGearSprites.still("CREW", "back") != null,
+		"front and back stills both load")
+
+	## --- board SG-89: THE GOBLIN, and the deck is all mesh -------------------
+	## The last handoff-3d figure. It REPLACES a static lump — a goblin that
+	## could not move — so the interesting assertions are the ones about MOTION,
+	## and about six of them arriving at once.
+	var grig := SkyGearRig3D.new()
+	root.add_child(grig)
+	var gpath := SkyGearView3D.model_path("SWARM")
+	var gheight: float = SkyGearView3D.boarder_height("SWARM")
+	var gbuilt: bool = ResourceLoader.exists(gpath) and grig.setup(gpath,
+		gheight * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES)
+	_check("figure", "the goblin builds from the owner's own native rig, where a lump used to stand",
+		gbuilt and grig.anim != null, gpath)
+	if gbuilt and grig.anim != null:
+		var gwired := ["idle", "walk", "run", "swing", "swing2", "swing3", "die"]
+		var gmissing := PackedStringArray()
+		for c in gwired:
+			if not grig.has_clip(str(c)):
+				gmissing.append(str(c))
+		_check("figure", "the goblin carries its clip set — three different attacks, because six of them swinging one animation is one goblin drawn six times",
+			gmissing.is_empty(),
+			"%d of %d (missing: %s)" % [gwired.size() - gmissing.size(),
+				gwired.size(), ", ".join(gmissing)] if not gmissing.is_empty()
+				else "%d of %d, out of %d aboard" % [gwired.size(), gwired.size(),
+					grig.anim.get_animation_list().size()])
+		## NO FLINCH IN THIS PACK, and that is recorded rather than hidden: a
+		## stunned goblin falls back through rig3d's own chain to something it
+		## does have, which is the behaviour a missing clip is supposed to get.
+		grig.state = "idle"
+		grig.want("hurt", 0.0, 0.3)
+		_check("rig", "the goblin has no flinch, and a missing clip degrades instead of freezing",
+			not grig.has_clip("hurt") and grig._clip != "" and grig.anim.is_playing(),
+			"asked for 'hurt', got '%s'" % grig._clip)
+		## THE STRIDE LAW, the small case (SG-65's direction). It is the fastest
+		## thing on the deck AND the shortest, and both push the same way: the
+		## cycle has to run faster than the captain's copy of it.
+		var gcap := SkyGearRig3D.new()
+		root.add_child(gcap)
+		var gcap_ok: bool = gcap.setup(gpath,
+			SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		var swarm_speed: float = float(SkyGearData.ENEMIES.SWARM.speed)
+		grig.state = "idle"
+		grig.want(SkyGearRig3D.gait(swarm_speed), swarm_speed)
+		var gshort_rate: float = grig.anim.speed_scale
+		var gtall_rate := 0.0
+		if gcap_ok:
+			gcap.state = "idle"
+			gcap.want(SkyGearRig3D.gait(swarm_speed), swarm_speed)
+			gtall_rate = gcap.anim.speed_scale
+		_check("rig", "the same ground speed drives the SHORTER figure's cycle faster — the stride law, at half the captain's height",
+			grig._clip == "run" and gshort_rate > gtall_rate,
+			"%.0f-unit goblin %.3fx against a captain-height copy at %.3fx, same %.0f units a second"
+				% [gheight, gshort_rate, gtall_rate, swarm_speed])
+		gcap.queue_free()
+		## SIX AT ONCE. The goblin is the one boarder that arrives in numbers,
+		## so the thing worth pinning is that six of them are six TRANSFORMS and
+		## one mesh: `load()` is cached, so every rig built from the same scene
+		## shares the surface and its material rather than paying for a copy.
+		var gsix: Array[SkyGearRig3D] = []
+		var gmesh: Mesh = null
+		var gshared := true
+		for _n in 6:
+			var one := SkyGearRig3D.new()
+			root.add_child(one)
+			one.setup(gpath, gheight * SkyGearView3D.WORLD_SCALE,
+				SkyGearView3D.LAYER_FIGURES)
+			gsix.append(one)
+			for mi in one.model.find_children("*", "MeshInstance3D", true, false):
+				var mm: Mesh = (mi as MeshInstance3D).mesh
+				if mm == null:
+					continue
+				if gmesh == null:
+					gmesh = mm
+				elif mm != gmesh:
+					gshared = false
+		_check("figure", "six goblins on the deck are six skeletons and ONE mesh — the figure that arrives in numbers pays for its surface once",
+			gshared and gmesh != null,
+			"6 rigs, %d surface(s), shared: %s" % [
+				gmesh.get_surface_count() if gmesh != null else 0,
+				"yes" if gshared else "NO"])
+		for one in gsix:
+			one.queue_free()
+	grig.queue_free()
+
+	## --- board SG-87: THE DRONE FLIES ---------------------------------------
+	## The gunner is the one boarder that stays a static lump BY DESIGN — no
+	## legs, no spine, no arms to put auto-rig markers on — so its animation is
+	## arithmetic, and this is the reader for it. The clipless-lump fixture
+	## further down still pins the lump half; these pin the motion.
+	var dpath := SkyGearView3D.model_path("GUNNER")
+	var drotors := PackedStringArray()
+	var dbody := 0
+	var dpivots := true
+	var danim: AnimationPlayer = null
+	if ResourceLoader.exists(dpath):
+		var dnode: Node = (load(dpath) as PackedScene).instantiate()
+		danim = dnode.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		for n in dnode.find_children("Rotor*", "Node3D", true, false):
+			drotors.append(n.name)
+			## THE PIVOT IS ON THE HUB. `tools/split_rotors.py` writes each
+			## rotor's vertices relative to its own centre and puts that centre
+			## on the node — a rotor whose origin is the model origin does not
+			## spin, it ORBITS, and at this camera that reads as the drone
+			## coming apart.
+			if (n as Node3D).position.is_zero_approx():
+				dpivots = false
+		dbody = dnode.find_children("Body", "Node3D", true, false).size()
+		dnode.free()
+	_check("figure", "the drone arrives in four pieces — a body and three rotors, each pivoted on its own hub",
+		drotors.size() == 3 and dbody == 1 and dpivots and danim == null,
+		"body %d, rotors [%s], pivots %s, animation player %s"
+			% [dbody, ", ".join(drotors), "on their hubs" if dpivots else "AT THE ORIGIN",
+				"none, as designed" if danim == null else "PRESENT"])
+	## The motion table, and the caps that make it safe to run on a flock. The
+	## blade angle is WRAPPED, so ninety minutes of spinning is the same
+	## arithmetic as the first second; the hover never reaches down through the
+	## planking; and the whole lift is a fraction of the drone's own height, so
+	## a bobbing drone stays in the frame the shadow under it is drawn in.
+	var dmotion: Dictionary = SkyGearView3D.ROTOR_MOTION.get("GUNNER", {})
+	var dangle := 0.0
+	for _n in 9000:
+		dangle = SkyGearView3D.rotor_angle(dangle, float(dmotion.spin), 1.0 / 60.0)
+	var dlow := 1e9
+	var dhigh := -1e9
+	for n in 400:
+		var h: float = SkyGearView3D.hover_height(dmotion, float(n) * 0.05, 0.0)
+		dlow = minf(dlow, h)
+		dhigh = maxf(dhigh, h)
+	_check("figure", "its spin is bounded for a whole run and its bob never reaches the planking",
+		absf(dangle) <= PI and dlow > 0.0
+			and dhigh < SkyGearView3D.boarder_height("GUNNER") * 0.5,
+		"blade at %.2f rad after 150 seconds; hovers between %.1f and %.1f ground units under a %.0f-unit drone"
+			% [dangle, dlow, dhigh, SkyGearView3D.boarder_height("GUNNER")])
+	## ONE ROW, and the kinds without one are untouched. `_fly` returns on an
+	## empty dictionary, so wiring a second flying figure is a row here rather
+	## than a branch in the frame loop — and the walkers never look.
+	var dothers := PackedStringArray()
+	for k in SkyGearData.ENEMIES.keys():
+		if str(k) != "GUNNER" and SkyGearView3D.ROTOR_MOTION.has(str(k)):
+			dothers.append(str(k))
+	_check("figure", "and only the drone flies — every other boarder walks, and never looks at the table",
+		SkyGearView3D.ROTOR_MOTION.size() == 1 and dothers.is_empty(),
+		"%d row(s): %s" % [SkyGearView3D.ROTOR_MOTION.size(),
+			", ".join(SkyGearView3D.ROTOR_MOTION.keys())])
+	## THE BUDGET, PINNED. These arrived as raw Meshy exports — the drone at
+	## 14.65 MB, of which 14.1 was four 2048 maps — and the shrink is the hulk
+	## bargain (SG-76): the maps come down to the sides `tools/meshy.py`'s own
+	## screen-height law asks for and the GEOMETRY IS NOT TOUCHED. The drone's
+	## 10,344 triangles are over the 7,000 that file's thin-plate override sets,
+	## and deliberately: the override exists because a decimator welds the front
+	## of a propeller blade to its back, and this model has three propellers and
+	## was never decimated.
+	var dbytes: int = 0
+	var dfile := FileAccess.open("res://assets/models/gunner/gunner.glb",
+		FileAccess.READ)
+	if dfile != null:
+		dbytes = dfile.get_length()
+		dfile.close()
+	var dtris := 0
+	if ResourceLoader.exists(dpath):
+		var dcount: Node = (load(dpath) as PackedScene).instantiate()
+		for mi in dcount.find_children("*", "MeshInstance3D", true, false):
+			var mm: Mesh = (mi as MeshInstance3D).mesh
+			if mm != null:
+				for s in mm.get_surface_count():
+					dtris += mm.surface_get_arrays(s)[Mesh.ARRAY_INDEX].size() / 3
+		dcount.free()
+	_check("figure", "the drone is shrunk the hulk way — a tenth of the delivered file, and every triangle of it still there",
+		dbytes > 0 and dbytes < 1_500_000 and dtris == 10344,
+		"%.2f MB against 14.65 delivered, %d triangles" % [dbytes / 1e6, dtris])
+	## And the two figures' albedo sheets are sized by the same screen-height
+	## law rather than by which one felt important: 165 ground units is 309
+	## pixels at the shipped camera and clears meshy.py's 260-pixel line, 82.5
+	## is 154 and does not.
+	var calb := Image.load_from_file("res://assets/models/crew/crew_albedo.png")
+	var galb := Image.load_from_file("res://assets/models/swarm/swarm_albedo.png")
+	_check("figure", "and the sailor's sheet is twice the goblin's side, because the sailor is twice his height on screen",
+		calb != null and galb != null and calb.get_width() == 1024
+			and galb.get_width() == 512,
+		"crew %d px for %.0f ground units, swarm %d px for %.0f"
+			% [calb.get_width() if calb != null else 0, cheight,
+				galb.get_width() if galb != null else 0, gheight])
+
 	## --- board SG-64: the same bargain for the DECK's own meshes -------------
 	## The boarder loop above only reaches kinds the simulation can spawn; the
 	## props reach the renderer through `PROP_MODEL`/`_sync_prop_model`, whose
@@ -8723,14 +8996,19 @@ func _clip() -> void:
 	## listed and does not resolve is a tool that fails at the exact moment
 	## somebody reaches for evidence.
 	var kinds := ["fight", "dash", "projectiles", "scrapper", "boilerwright",
-		"knight", "boss", "cutscene"]
-	var unresolved := ""
+		"knight", "boss", "crew", "swarm", "drone", "cutscene"]
+	## EVERY failure, not the last one. This accumulated into a single `String`
+	## until 2026-08-02, so three unstageable scenarios landed in the table and
+	## the check named only the one that sorted last — which is a check that
+	## hides exactly what it exists to find.
+	var unresolved := PackedStringArray()
 	for id in ClipMath.ids():
 		var spec := ClipMath.find(str(id))
 		if spec.is_empty() or not kinds.has(str(spec.get("kind", ""))) \
 				or float(spec.get("seconds", 0.0)) <= 0.0:
-			unresolved = str(id)
-	_check("clip", "every named scenario resolves", unresolved == "", unresolved)
+			unresolved.append(str(id))
+	_check("clip", "every named scenario resolves", unresolved.is_empty(),
+		", ".join(unresolved))
 
 	## SG-32'S CLOSURE: every shipped cutscene is a clip scenario, derived from
 	## the same `list_ids()` the game plays from — a scene authored tomorrow has

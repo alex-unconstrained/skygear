@@ -3,9 +3,9 @@
 [ext_resource type="PackedScene" path="res://assets/models/gunner/gunner.glb" id="1_a31am"]
 
 [node name="Gunner" type="Node3D" unique_id=1073276286]
-metadata/model_height = 1.468595
+metadata/model_height = 1.683918
 
 [node name="Holder" type="Node3D" parent="." unique_id=841337400]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.0013585091, 0.7366431, 0.0010985136)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0011385083, 0.84306502, 0.0019215047)
 
 [node name="Model" type="Node3D" parent="Holder" unique_id=1007874848 instance=ExtResource("1_a31am")]

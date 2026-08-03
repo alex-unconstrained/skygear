@@ -1,35 +1,79 @@
 {
   "key": "swarm",
-  "ai_model": "meshy-6",
-  "prompt": "A small scrawny green goblin sky-pirate: huge pointed ears, a worn leather flight cap with brass goggles pushed up on it, a torn crimson hood and short cape, one riveted brass shoulder plate, a little brass pressure tank strapped to its back, bare clawed feet, and an oversized brass pipe wrench gripped in both hands. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
-  "texture_prompt": "Mottled green skin, worn oxblood leather cap and straps, faded crimson cloth hood, warm polished brass goggles and wrench, verdigris on the brass. Hand-painted stylised game texture: mottled green skin, worn oxblood leather, warm polished brass, faded crimson cloth, dull oxidised-copper patina in the recesses. Any furnace, grate, vent or ember is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
-  "target_polycount": 15000,
-  "texture_resolution": "2k",
-  "preview_task": "019fb6cb-1d48-708e-996f-a36d8e691b23",
-  "refine_task": "019fb6cc-7aa7-70cb-8456-f087dbc82382",
-  "credits": 30,
-  "files": [
-    "swarm.glb",
-    "swarm.fbx",
-    "swarm_base_color.png",
-    "swarm_metallic.png",
-    "swarm_roughness.png",
-    "swarm_normal.png",
-    "swarm_emission.png",
-    "swarm_thumb.png"
+  "source": "THE OWNER'S OWN MESHY SESSION plus a Mixamo auto-rig, 2026-08-02 (board SG-89) - the SG-74/SG-85 route a third time: model the mesh, export OBJ, auto-rig, download one clip WITH skin and the rest without. Ingested by tools/models.json + tools/ingest_model.py, zero credits. It REPLACES this pipeline's own generated lump - a goblin that could not move - whose record is kept below under `superseded`.",
+  "delivered_as": [
+    "Meshy_AI_Clockwork_Goblin_Warr_0802232821_texture_obj.fbx (the rigged character, with skin)",
+    "Creature Pack.zip - 19 animation-only clips on that same rig",
+    "Meshy_AI_Clockwork_Goblin_Warr_0802232821_texture_obj.zip - the textures, because the Mixamo FBX is grey"
   ],
-  "screen_units": 165.0,
-  "remesh_task": "019fb8b3-ed02-713c-9941-329198b93b0e",
-  "remesh_credits": 5,
-  "remeshed": {
-    "tris": 3000,
-    "tex": {
-      "base_color": 1024,
-      "normal": 512,
-      "metallic_roughness": 256,
-      "emission": 256
-    },
-    "bytes": 701032,
-    "original_bytes": 10593644
+  "meshy_title": "Clockwork Goblin Warrior",
+  "role": "swarm",
+  "role_verified_by": "The painted gremlin (assets/art/enemies/gremlin_front_idle.png) is a steampunk goblin in goggles, a brass shoulder plate and a tattered red hood, with clawed feet. So is this. Filmed at the real camera in .shots/clips/swarm.gif, six at once, which is the number the late waves send.",
+  "facing": 0.0,
+  "screen_units": 82.5,
+  "clips": 19,
+  "clips_wired": [
+    "idle",
+    "idle_alt",
+    "idle3",
+    "walk",
+    "run",
+    "swing",
+    "swing2",
+    "swing3",
+    "die"
+  ],
+  "clips_aboard_unwired": [
+    "taunt (the roar)",
+    "flex",
+    "jump",
+    "jump2",
+    "jump_attack",
+    "turn90",
+    "turn45",
+    "turn45_2",
+    "turn_left",
+    "turn_left2"
+  ],
+  "no_flinch": "This pack has no impact clip, so `hurt` is absent and a stunned goblin degrades through rig3d's own fallback chain. Recorded rather than faked - the knight has five impacts and this one has none.",
+  "tex": {
+    "base_color": 512
+  },
+  "tex_note": "512, not the 1024 every other figure gets: 82.5 ground units is 154 pixels at the shipped camera, under tools/meshy.py's TEX_FULL_ABOVE_PX of 260. It is also the figure that arrives six at a time, and six of them share one sheet.",
+  "sources_archived": ".model_originals/swarm/",
+  "superseded": {
+    "key": "swarm",
+    "ai_model": "meshy-6",
+    "prompt": "A small scrawny green goblin sky-pirate: huge pointed ears, a worn leather flight cap with brass goggles pushed up on it, a torn crimson hood and short cape, one riveted brass shoulder plate, a little brass pressure tank strapped to its back, bare clawed feet, and an oversized brass pipe wrench gripped in both hands. One character alone, standing upright, facing forward, feet flat on the ground, arms clear of the body. No base, no plinth, no ground plane, no scenery, no duplicate, no text. Stylised game-ready steampunk airship character: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+    "texture_prompt": "Mottled green skin, worn oxblood leather cap and straps, faded crimson cloth hood, warm polished brass goggles and wrench, verdigris on the brass. Hand-painted stylised game texture: mottled green skin, worn oxblood leather, warm polished brass, faded crimson cloth, dull oxidised-copper patina in the recesses. Any furnace, grate, vent or ember is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+    "target_polycount": 15000,
+    "texture_resolution": "2k",
+    "preview_task": "019fb6cb-1d48-708e-996f-a36d8e691b23",
+    "refine_task": "019fb6cc-7aa7-70cb-8456-f087dbc82382",
+    "credits": 30,
+    "files": [
+      "swarm.glb",
+      "swarm.fbx",
+      "swarm_base_color.png",
+      "swarm_metallic.png",
+      "swarm_roughness.png",
+      "swarm_normal.png",
+      "swarm_emission.png",
+      "swarm_thumb.png"
+    ],
+    "screen_units": 165.0,
+    "remesh_task": "019fb8b3-ed02-713c-9941-329198b93b0e",
+    "remesh_credits": 5,
+    "remeshed": {
+      "tris": 3000,
+      "tex": {
+        "base_color": 1024,
+        "normal": 512,
+        "metallic_roughness": 256,
+        "emission": 256
+      },
+      "bytes": 701032,
+      "original_bytes": 10593644
+    }
   }
 }

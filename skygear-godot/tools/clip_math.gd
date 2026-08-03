@@ -64,6 +64,12 @@ const SCENARIOS := [
 		"what": "the furnace knight (SG-85): three walls walk the deck at seventy-five, close and cut — and then two of them DIE, which no figure in this game had ever done on screen"},
 	{"id": "boss", "kind": "boss", "seconds": 10.0, "still": false,
 		"what": "the segmented Colossus (SG-90): the walk at ninety-five, a two-fisted slam, the half-health TURN it cannot be burst through — and then it COMES APART, thirteen parts breaking at the joints they hinged on and landing on the planking"},
+	{"id": "crew", "kind": "crew", "seconds": 8.0, "still": false,
+		"what": "your own sailors, on a rig at last (SG-88): a lane of crew working up the deck beside a gun, the bayonet stab they close a boarder with — and then one of them DIES, which is the first time an ALLY has gone down on screen rather than blinking out"},
+	{"id": "swarm", "kind": "swarm", "seconds": 8.0, "still": false,
+		"what": "the goblin (SG-89), and the deck is all mesh: SIX of them at two hundred and thirty units a second, three different swings on the same crew, and two dying — the figure a player sees most after the captain, moving for the first time"},
+	{"id": "drone", "kind": "drone", "seconds": 6.0, "still": false,
+		"what": "the gunner flies (SG-87): four propeller drones hovering and bobbing over a real fight, rotors turning, shooting from three hundred and forty units — the one boarder whose whole animation is arithmetic"},
 ]
 
 

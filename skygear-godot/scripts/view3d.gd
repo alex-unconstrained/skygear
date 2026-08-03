@@ -329,6 +329,12 @@ var _no_model: Dictionary = {}        ## kinds we have already looked for and no
 ## next spawn builds its own figure.
 var _corpses: Dictionary = {}
 
+## The renderer's own crew identity counter (SG-88). A crewman is a Dictionary
+## in an Array the simulation calls `remove_at` on, so his INDEX is not a name;
+## this is. See the crew block in `_sync_all` for why a death needed one and a
+## billboard never did.
+var _crew_seq := 0
+
 ## How long the death clip gets. The knight's `die` is 2.40 s and a fight cannot
 ## stop for that, so it rides the same clip-stretched-to-window machinery every
 ## swing does (1.5x, which reads as going down HARD rather than sagging).
@@ -4439,13 +4445,44 @@ func _sync_all(delta: float) -> void:
 		var c: Dictionary = game.crew[i]
 		if bool(c.dead):
 			continue
-		_shadow("c%d" % i, c.position, 74.0, 0.45)
+		## A STABLE KEY, and it is the thing wiring the crew as a MESH forced
+		## (board SG-88). Every other figure the renderer draws is a Node with
+		## an instance id; a crewman is a plain Dictionary in an Array that
+		## `_update_crew` calls `remove_at` on, so `"c%d" % i` names a
+		## DIFFERENT man the frame after anyone dies. Billboards did not care —
+		## the crew are identical by design and a sprite that jumps one lane
+		## slot is a sprite. A DEATH cares: `_recycle` would have shelved
+		## whichever rig fell off the end of the array, played the death clip at
+		## the wrong sailor's feet, and handed the dead man's body to a live
+		## one.
+		##
+		## So the renderer stamps its own identity onto the crewman the first
+		## time it draws him. Written INTO the simulation's dictionary because a
+		## GDScript Dictionary is a reference and that is where the identity has
+		## to live to survive a `remove_at` — but it is renderer-owned data, the
+		## simulation neither sets it nor reads it, and it dies with the man. No
+		## sim change, which is the SG-85 death-seam rule.
+		if not c.has("rig_key"):
+			_crew_seq += 1
+			c["rig_key"] = "c%d" % _crew_seq
+		var ckey: String = str(c.rig_key)
+		_shadow(ckey, c.position, 74.0, 0.45)
 		## Crew push UP the deck, into the boarders, so they are almost always
 		## showing you their backs. Drawing them front-on made a line of allies
 		## look like it was retreating.
 		var busy: bool = str(c.get("state", "move")) != "move"
-		_draw_figure("c%d" % i, "CREW", c.position, Vector2(0, -1), 110.0,
-			busy, not busy, game.run_time + float(i) * 0.21, float(c.get("state_time", 0.0)))
+		## A MESH IF ONE HAS BEEN INGESTED, the painted billboard if not — the
+		## same fork every boarder has had since the scrapper, arriving on the
+		## ally side of the deck at last. The crew are the only figures the
+		## renderer draws that are not enemies, so this is the one call site
+		## where the height does not come from `boarder_height`.
+		var cheight: float = crew_height()
+		if not _sync_rig(ckey, "CREW", c.position, Vector2(0, -1), cheight,
+				busy, not busy, float(SkyGearLanes.CREW.speed) if not busy else 0.0,
+				float(c.get("state_time", 0.0)), delta):
+			_draw_figure(ckey, "CREW", c.position, Vector2(0, -1), cheight,
+				busy, not busy, game.run_time + float(i) * 0.21,
+				float(c.get("state_time", 0.0)))
 	## Deployed sentries. A short brass post with a live head on it, the range it
 	## covers written on the planking, and a wick that burns down — you should be
 	## able to tell at a glance, from across the deck, which of yours is about to
@@ -4989,9 +5026,57 @@ const FIGURE_SCALE := {
 }
 
 
+## FIGURES WITH NO CLIPS, AND WHAT MOVES THEM INSTEAD (board SG-87).
+##
+## The gunner is the one boarder that was never going to be rigged, and the
+## handoff spec said so before there was a file to look at: *"a propeller drone
+## that will never pass a humanoid rig — prop-spin/bob procedurally instead"*,
+## *"the right shape is a static mesh (rotor as a separate child so the renderer
+## can spin it) — no rig, no clips, and the loop animates the spin and bob in
+## code."* It has no legs, no spine and no arms to put markers on. The owner
+## delivered exactly that shape, and this table is the other half of it.
+##
+##   spin   radians a second the `Rotor*` children turn about their own +Y
+##   bob    ground units of hover, peak to trough
+##   beat   radians a second the bob runs at
+##   lift   ground units the whole drone floats above the planking
+##
+## THE COST IS CAPPED BY CONSTRUCTION, which matters because the gunner arrives
+## in numbers: the rotor children are found ONCE, when the rig is built, and
+## kept on the rig — which is pooled — so a frame with six drones on it is
+## eighteen `rotation.y +=` and six `position.y =`, and no tree walk at all. A
+## kind with no row here is a static lump exactly as it shipped.
+const ROTOR_MOTION := {
+	"GUNNER": {"spin": 16.0, "bob": 9.0, "beat": 2.1, "lift": 22.0},
+}
+## Where a rig keeps the rotor children `ROTOR_MOTION` turns, so the search is
+## paid once per figure rather than once per frame.
+const ROTOR_META := "rotors"
+
+
 static func model_path(kind: String) -> String:
 	var slug := kind.to_lower()
 	return "res://assets/models/%s/%s.tscn" % [slug, slug]
+
+
+## HOW TALL A CREWMAN STANDS, in ground units — and it is the same arithmetic
+## every boarder gets, `120 + radius*3`, applied to the radius the SIMULATION
+## already keeps for a crewman (`SkyGearLanes.CREW.radius` = 15). 165, which is
+## a head under the captain's 176: the handoff spec asked for "a touch under the
+## captain — call it ~1.7 m" and the sim's own answer turned out to be inside
+## that, so nothing had to be invented.
+##
+## It REPLACES a hard-coded 110 that the painted crew were drawn at. 110 against
+## a captain of 176 is 62%, which is a deck of children holding the lanes; the
+## number was never measured, it was the browser's billboard height carried
+## across. Both paths read this one function, so the mesh and the sprite it
+## falls back to cannot disagree about how tall a sailor is.
+##
+## The crew share the goblin's 15-unit footprint exactly, incidentally. The
+## goblin is halved by FIGURE_SCALE and the crewman is not, and that is the
+## whole difference between something that scuttles and the man holding the line.
+static func crew_height() -> float:
+	return 120.0 + float(SkyGearLanes.CREW.radius) * 3.0
 
 
 ## How tall a boarder of this kind is DRAWN, in ground units — the `_sync_all`
@@ -5032,6 +5117,12 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## place for it to disagree — and a corpse still playing `die` has left
 		## `_rigs` and no longer knows its kind at all.
 		rig.set_meta("model_key", model_path(kind).get_file().get_basename())
+		## SG-87: the rotor children, found once. `Rotor*` is the contract
+		## `tools/split_rotors.py` writes and nothing else in the tree answers
+		## to it; a kind with no ROTOR_MOTION row never looks.
+		if ROTOR_MOTION.has(kind) and rig.model != null:
+			rig.set_meta(ROTOR_META, rig.model.find_children("Rotor*", "Node3D",
+				true, false))
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"
@@ -5074,7 +5165,62 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		window = maxf(0.12, stun)
 	rig.want(doing, speed, window)
 	rig.place(ground, heading, WORLD_SCALE, delta)
+	_fly(rig, kind, delta)
 	return true
+
+
+## THE DRONE FLIES (board SG-87), and this is the whole of its animation.
+##
+## Everything else on this deck moves because a clip moves it. The gunner has no
+## clips and never will — `_sync_rig` has already asked it to walk, run and
+## swing and `SkyGearRig3D.want` returned early on a null AnimationPlayer every
+## time, which is the shape the harness's clipless-lump fixture pins. So its
+## motion is arithmetic instead: three rotors turning about their own hubs, and
+## a hover that carries the whole machine off the planking and breathes.
+##
+## The rotors are the reason the model was delivered TWICE. The textured export
+## is one welded surface with nothing to turn; the part-segmentation export says
+## which triangles are blades, and `tools/split_rotors.py` uses the second to cut
+## the first into `Body` and three `Rotor*` children with their pivots on their
+## own hubs. Turning a node is then the cheapest animation in the renderer.
+##
+## THE PHASE IS PER DRONE. A wave sends four of these at once and a shared clock
+## makes them one object drawn four times — the same lockstep the billboards got
+## a `phase` offset for. The rig's instance id is a free, stable, per-drone
+## number, and the bob and the spin take different multiples of it so two drones
+## that happen to bob together are not also spinning together.
+## Where a blade sits after another `delta` of turning. `wrapf`, not an
+## unbounded accumulation: a run is ninety minutes and a float that has been
+## adding sixteen radians a second for all of it has lost the precision to
+## describe a blade angle. Static and pure, the `corpse_drop` idiom — the
+## harness pins the cap without standing a deck up.
+static func rotor_angle(angle: float, spin: float, delta: float) -> float:
+	return wrapf(angle + spin * delta, -PI, PI)
+
+
+## How far off the planking a hovering figure is, in GROUND units. Never
+## negative: `lift` is the floor and the bob is half its peak-to-trough either
+## side of it, so a drone cannot bob down through the deck it is flying over.
+static func hover_height(motion: Dictionary, clock: float, phase: float) -> float:
+	return float(motion.get("lift", 0.0)) \
+		+ sin(clock * float(motion.get("beat", 0.0)) + phase) \
+			* float(motion.get("bob", 0.0)) * 0.5
+
+
+func _fly(rig: SkyGearRig3D, kind: String, delta: float) -> void:
+	var motion: Dictionary = ROTOR_MOTION.get(kind, {})
+	if motion.is_empty():
+		return
+	var phase: float = float(rig.get_instance_id() % 359) * 0.0175
+	for node in rig.get_meta(ROTOR_META, []):
+		if is_instance_valid(node):
+			var blade := node as Node3D
+			blade.rotation.y = rotor_angle(blade.rotation.y,
+				float(motion.spin), delta)
+	## After `place`, which writes the whole transform and puts y at zero. The
+	## shadow stays on the planking under it — a hovering thing with no shadow
+	## reads as a decal, and the gap is what says it is in the air.
+	rig.position.y = hover_height(motion, _flicker, phase * 2.7) * WORLD_SCALE
 
 
 ## Stand a static generated mesh where a billboard would have gone. Returns false

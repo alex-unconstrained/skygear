@@ -8,6 +8,17 @@ _Last updated: 2026-08-02, build 43._
 knight both came from your own Meshy sessions after prompted attempts failed;
 `handoff-3d/` is now an empty queue.
 
+- **THE DECK IS ALL MESH NOW — feel-check the crowd, not the figures.** Your
+  crew, your goblin and your drone are all in and each looks right on its own;
+  what nobody can tell you from a still is whether a **late wave still reads**
+  with six goblins scuttling at 230 units a second, four drones bobbing over
+  them and your own sailors dying in the lanes. Watch `.shots/clips/swarm.gif`,
+  `crew.gif` and `drone.gif` in that order and say whether the deck got busier
+  or noisier. (Two specifics if you want them: your crew now stand **165**
+  ground units instead of the 110 the sprites were drawn at, which is a head
+  under the captain rather than two thirds of her — and the goblin has **no
+  flinch clip** in its pack, so a stunned one does not react. Both are cheap to
+  change.)
 - **THE BOSS COMES APART WHEN IT DIES — feel-check it.** Your segmented
   Juggernaut is wired and your call on the approach was the right one; the
   Colossus now walks, slams, plays the half-health turn, and its thirteen parts

@@ -54,8 +54,22 @@ func _initialize() -> void: call_deferred("_run")
 ## reads worse than the art it is replacing.
 const MODELS := {
 	"scrapper": 0.0,
+	## The GUNNER, and it is the only boarder that BELONGS in this table.
+	## Everything else here was a lump waiting for a rig; the drone is a lump on
+	## purpose — no legs, no spine, no arms to put auto-rig markers on, and the
+	## handoff spec called it before a file existed. Its `.glb` is not a Meshy
+	## download any more: `tools/split_rotors.py` writes it, cutting the owner's
+	## textured export into `Body` plus three `Rotor*` children so
+	## `SkyGearView3D.ROTOR_MOTION` can turn them. This wrapper is unchanged by
+	## that — it measures a union and stands it on the deck, and a model in four
+	## pieces is exactly what its own `_measure` docstring was written for.
 	"gunner": 0.0,
-	"swarm": 0.0,
+	## "swarm" is RIGGED now and its lump is deleted. The goblin was the last
+	## handoff-3d figure; the owner modelled and auto-rigged it (board SG-89,
+	## `tools/models.json`), so it is an ingest entry rather than a wrap, and
+	## `assets/models/swarm/swarm.glb` is gone rather than shadowed — a wrapper
+	## row pointing at a file that is not there is a `push_error` on every run
+	## of this tool.
 	"boss": 0.0,
 	## "armored" is generated and on disk and is deliberately NOT here.
 	##
