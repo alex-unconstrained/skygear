@@ -1,55 +1,27 @@
 # NEEDS ALEX — the morning list
 
-_Written 2026-08-02 as you went to sleep; rewritten 2026-08-03 as the night's
-detail outgrew it. **Build 51 is live**, harness **910/910**. The evidence for
+_Written 2026-08-02 as you went to sleep; rewritten through the night as the
+detail outgrew it. **Build 53 is live**, harness **926/926**. Evidence for
 everything below is in `skygear-godot/docs/NIGHT-LOG-2026-08-03.md` — this file
 is only what needs you._
 
-> **What changed between 49 and 50 that you will actually feel:** fire is no
-> longer a shield. Standing in a fire pool used to make you immune to
-> *everything* — a swing included — 73% of the time. Measured directly: a
-> captain swung at every 1.5 s for a minute took **700 damage inside the fire
-> and 1014 outside it**. It costs **1440** now. If wave 8 suddenly feels
-> heavier, that is why, and it is the game working rather than the game
-> changing.
-
-> **Standing in fire made you immune to almost everything. It is FIXED** —
-> SG-117, found and verified last night, fixed 2026-08-03; a hazard tick bought
-> 0.55 s of *global* i-frames every 0.75 s, so a fire pool was the safest square
-> on the deck. If a fight ever felt oddly survivable, that is why. **Standing in
-> a pool used to be 31% SAFER than standing beside it; it now costs 42% more.**
-> The measured before/after — including the part where the run-level rig
-> **cannot** resolve the change and I am not pretending it can — is in
-> **§SG-117 / SG-118** near the bottom. No tuning value was changed.
+> **The one thing to know before you play: fire is no longer a shield.** A
+> hazard tick used to buy 0.55 s of *global* i-frames every 0.75 s, so standing
+> in a fire pool made you immune to **everything**, a boarder's swing included,
+> about 73% of the time. Measured directly: a captain swung at every 1.5 s for a
+> minute took **700 damage standing in the fire and 1014 standing clear** — the
+> pool was a 31% damage *shield*. It costs **1440** now. If a fight suddenly
+> feels heavier, that is the game working rather than the game changing, and no
+> tuning value was touched to get there.
 >
-> **And read §SG-118 in the same section before you trust any balance number in
-> this repo**, including ones I have shown you before: `tools/balance.gd` never
-> moved its bot, while a comment in it said it did. Every simulated-run verdict
-> here was measured against a captain standing on her spawn point. **One number
-> from SG-57 that was waiting on your threshold has flipped sign** and no longer
-> asks you anything.
->
-> **Every measurement in this file was re-taken overnight on repaired tools** — the night log records which ones changed.
-> The screenshot tools were photographing a moving scene and calling it still —
-> every rigged figure's `AnimationPlayer` ignores both `set_process(false)`
-> calls, so the noise floor was **53%**. It is now **0.00%**, and the three
-> answers taken against it were re-measured. **Two of them did not survive**,
-> including one I reported to you as settled: the rigging does NOT improve
-> telegraph contrast, and the evidence behind the shadow-layer verdict is gone.
-> **No tuning value was changed on the strength of a re-measurement** — the
-> corrections are written down and the two live questions are yours. The marks
-> finding is the one to read: the halving that shipped was decided on noise.
->
-> **And §SG-116 at the very bottom supersedes the rigging number in §SG-108,
-> which I gave you as settled twice.** The tool that decides what a telegraph is
-> worth was picking its pixels by COLOUR, so it was measuring the brazier fire
-> and an ARMORED boarder's lit plating as telegraph — **85% of what it called
-> "rune" was not rune.** Corrected, the rigging costs a rune about **1.5%**
-> rather than 0.88%. **The gate is 3%, so it still passes, nothing was cut and
-> nothing was tuned** — this is the boring answer and you can act on it. The
-> part worth two minutes is that the ABSOLUTE contrast figure fell to **1.24**,
-> below anything previously written down, and that the deck-marks pass is a
-> coincidence by its own printed criterion (SG-124).
+> **Second thing, and it reaches backwards: do not trust any balance number in
+> this repository that predates last night** — including ones I have shown you.
+> `tools/balance.gd` never moved its bot while a comment in it claimed it did,
+> so every simulated-run verdict was measured against a captain standing on her
+> spawn point. The instruments have been repaired and the affected verdicts
+> re-measured; two did not survive, one of which I had reported to you as
+> settled. **One question that was waiting on your threshold has evaporated
+> entirely.** The night log has all of it.
 
 Everything here is either **a decision only you can make** or **a verdict only
 your eyes can give**. Nothing in it blocks the loop — there is plenty to do
@@ -276,7 +248,7 @@ it needs a weapon mesh, not a material.
 
 ---
 
-## SG-131 — the knight's furnace is lit. One decision left, and it is smaller than I told you.
+## 8 · SG-131 — the knight's furnace is lit. One decision left, and it is smaller than I told you.
 
 **Done, no credits spent, nothing for you to judge here:** his grille and visor now
 glow. The emission map Meshy shipped was empty (peak 51/255), so nothing SG-86 did
@@ -310,7 +282,7 @@ whole deck, not just of him.
 
 ---
 
-## Fire: the circle you can see is not the circle that burns you (SG-121)
+## 9 · Fire: the circle you can see is not the circle that burns you (SG-121)
 
 **One question: which radius is the real one?** Three fire creators write a
 `radius`. The RENDERER reads it (`view3d.gd:4470`) to size the flames, the scorch
@@ -342,7 +314,7 @@ until fire has been played after those two changes.**
 
 ---
 
-## `lit_probe.gd` photographs however many boarders the clock spawned (SG-136)
+## 10 · `lit_probe.gd` photographs however many boarders the clock spawned (SG-136)
 
 **One question: may I re-baseline the furnace-knight numbers?** `--fixed-fps 60`
 makes that tool repeatable — its molten reading goes from 0.24 / 0.23 / 0.25 over
