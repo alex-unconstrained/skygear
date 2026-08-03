@@ -152,13 +152,21 @@ Three separate faults, and only one is a surprise:
    FOOTPRINT and a disassembling one grounds each part as it lands. The shared
    shadow system is deliberately untouched: the owner's separate
    "dynamic shadows, not one circle blob under everything" ask is board SG-95.
-3. **"Way too easy — he needs to be scary." STILL OPEN — board SG-96.** The
-   fight, not the picture. It has two beats (a turn at half health, a vent of
-   what it called) and neither threatens a competent player. This is a design
-   change and it belongs with the furnace-knight ask from the same playtest —
-   both are about enemies that are READ and RESPECTED rather than out-damaged.
-   Do not tune numbers alone. The machine now LOOKS the part, which sharpens
-   the mismatch rather than hiding it: `.shots/clips/boss_before_after.png`.
+3. **"Way too easy — he needs to be scary." ANSWERED 2026-08-03 BY THE OWNER'S
+   OWN DESIGN — boards SG-146 and SG-166.** The fight, not the picture. Health
+   went 900 → 2900 (SG-146) and then, on 2026-08-03, he supplied the behavioural
+   half himself: *"he's just a meat shield, just soaks and takes time... Maybe
+   even just have him ignore the player and keep heading towards the middle,
+   destroying the cannon and then attacking the main objective. Have the damage
+   that he does just be damage around him so that it can hurt the player when
+   the players try to kill him."* Both halves shipped — the lane walk is ON and
+   his damage is a telegraphed area STOMP. **He deals 21% more than the chase
+   build he replaced (123.97 → 150.21 by his own hand, n=480 a side) and the
+   Heat 0 hold-rate ROSE 12.7 points**, because a readable threat has no tail;
+   `docs/COLOSSUS-DESIGN.md` §1b is the whole measurement with a three-point
+   curve if he wants the hold-rate back. **What he should judge by hand** is
+   whether "he ignores you" reads as indifference — §4's own recorded risk — and
+   whether the circle is escapable at speed. Left open only for that.
 
 
 ### The build-44 playtest — fifteen items, and the first praise of the port

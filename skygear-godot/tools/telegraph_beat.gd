@@ -52,6 +52,21 @@ const BEATS := [
 	{"tag": "5-recover", "wind": 0.50, "state": "recover"},
 ]
 
+## AND THE OTHER BEAT THE COLOSSUS HAS NOW (board SG-166). His stomp is a
+## different SHAPE in the same palette — a circle where the swing is a fan — and
+## the whole legibility claim is that one frame tells you which of the two you
+## are looking at, and therefore whether the answer is "step around him" or "get
+## out". A tool that only ever photographed the fan could not test that claim.
+##
+## BOSS ONLY, off `stomps_the_deck()` rather than a name typed here, so the day
+## another boarder is given the beat these frames arrive with it.
+const STOMP_BEATS := [
+	{"tag": "6-stomp-000", "wind": 0.00, "state": "stomp"},
+	{"tag": "7-stomp-050", "wind": 0.50, "state": "stomp"},
+	{"tag": "8-stomp-095", "wind": 0.95, "state": "stomp"},
+	{"tag": "9-stomp-strike", "wind": 0.00, "state": "recover", "struck": true},
+]
+
 
 func _initialize() -> void: call_deferred("_run")
 
@@ -61,7 +76,16 @@ func _run() -> void:
 	var out_dir: String = str(argv[0]) if argv.size() > 0 else ".shots/sg156"
 	DirAccess.make_dir_recursive_absolute(out_dir)
 	for kind in SUBJECTS:
-		for beat in BEATS:
+		var beats: Array = BEATS.duplicate()
+		## Asked of a real boarder rather than of a typed roster — the SG-119
+		## lesson about hand-written lists exempting the one row that matters.
+		var ask := SkyGearEnemy.new()
+		ask.kind = kind
+		ask.config = SkyGearData.ENEMIES[kind]
+		if ask.stomps_the_deck():
+			beats.append_array(STOMP_BEATS)
+		ask.free()
+		for beat in beats:
 			var path: String = "%s/%s-%s.png" % [out_dir, kind.to_lower(), str(beat.tag)]
 			await _shoot(path, kind, beat)
 			print("  %s" % path)
@@ -134,8 +158,23 @@ func _shoot(path: String, kind: String, beat: Dictionary) -> void:
 	## the mirror of the moment it shows.
 	if str(beat.state) == "windup":
 		subject.state_time = float(subject.config.windup) * (1.0 - float(beat.wind))
+	elif str(beat.state) == "stomp":
+		## The anchor is where he is standing, which is what the simulation latches
+		## at the plant; `stomp_wind` is the full telegraph the renderer divides by,
+		## and posing it by hand here is the same discipline as posing `state_time`.
+		subject.stomps = true
+		subject.stomp_origin = subject.global_position
+		subject.stomp_wind = SkyGearEnemy.STOMP_WINDUP
+		subject.state_time = SkyGearEnemy.STOMP_WINDUP * (1.0 - float(beat.wind))
 	else:
 		subject.state_time = float(subject.config.recover) * (1.0 - float(beat.wind))
+	## WHICH SHAPE THE RECOVERY IS RECOVERING FROM. `recover` is shared by the
+	## swing and the stomp and the renderer flashes a different mark for each, so
+	## the frame has to say which blow it is the aftermath of.
+	subject.stomp_struck = bool(beat.get("struck", false))
+	if subject.stomp_struck:
+		subject.stomps = true
+		subject.stomp_origin = subject.global_position
 
 	for _i in 3:
 		await process_frame

@@ -5274,7 +5274,50 @@ func _sync_effects() -> void:
 	for enemy in game.enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
-		if enemy.state == "windup":
+		if enemy.state == "stomp":
+			## THE STOMP, DRAWN (board SG-166). The owner asked for "damage around
+			## him"; this is the picture that makes it fair.
+			##
+			## TWO RINGS, AND THEY ANSWER THE TWO DIFFERENT QUESTIONS a telegraph has
+			## to answer. A thin outline held at the FULL radius for the whole
+			## telegraph says WHERE — where the edge is, so "am I out?" is readable
+			## the instant the mark appears rather than only at the end. A second,
+			## brighter ring growing from his own body out to that edge says WHEN —
+			## it is the countdown, run off the sim's own `state_time` exactly the way
+			## the windup wedge's inner fill is. COLOSSUS-DESIGN §5 asked for this
+			## pair by name; what it wanted from the shape is the standing-place, and
+			## a static ring is the only mark that gives you one.
+			##
+			## HOLLOW, BOTH OF THEM. A filled 240-unit disc under the biggest figure
+			## on the deck is the flooded-plate trap SG-78 and SG-63 paid for twice,
+			## and `_ring_texture()` is the generated rim every ring in this game
+			## draws through now. It is also the only reason the mark survives him
+			## standing in it: at 41 degrees his body covers the middle, and the rim
+			## is the part he cannot hide (SG-158's finding, one shape over).
+			##
+			## OXBLOOD AND ORANGE, the hostile family — not the turn's gold and never
+			## the player's teal. The SHAPE carries the difference from a swing: a
+			## circle means "leave", a fan means "step around". Same palette, two
+			## verbs, one frame to tell them apart.
+			##
+			## CENTRED ON `stomp_origin`, NOT ON HIM. The sim resolves at the anchor,
+			## so the mark is drawn at the anchor; a Colossus shoved mid-telegraph
+			## must not drag the promise of where the blow lands after him.
+			## The RADIUS is `enemy.stomp_radius()` — his function, the one the hit
+			## test calls. This file does not own a second opinion about it.
+			var sr: float = float(enemy.stomp_radius())
+			var sk: float = 1.0 - clampf(enemy.state_time
+				/ maxf(0.05, float(enemy.stomp_wind)), 0.0, 1.0)
+			_decal("ts%d" % enemy.get_instance_id(), enemy.stomp_origin, 0.0,
+				sr * 2.0, sr * 2.0, _ring_texture(),
+				Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, 0.30 + 0.26 * sk))
+			## From his own footprint outward, so the growth reads as the weight
+			## coming down rather than as a second, smaller circle appearing.
+			var closing: float = lerpf(float(enemy.radius), sr, sk) * 2.0
+			_decal("tsc%d" % enemy.get_instance_id(), enemy.stomp_origin, 0.0,
+				closing, closing, _ring_texture(),
+				Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.35 + 0.55 * sk))
+		elif enemy.state == "windup":
 			## 0 at the start of the wind, 1 the instant it connects: the clock.
 			var kk: float = 1.0 - clampf(enemy.state_time / maxf(0.05,
 				float(enemy.config.windup)), 0.0, 1.0)
@@ -5383,9 +5426,23 @@ func _sync_effects() -> void:
 				## without turning the band into a lamp.
 				var hot: Color = Color(TG_DANGER_IN.r, TG_DANGER_IN.g,
 					TG_DANGER_IN.b).lerp(Color(1, 1, 1), 0.20 * flash)
-				_decal("tf%d" % enemy.get_instance_id(), enemy.global_position,
-					rang, rreach * 2.0, rreach * 2.0, _fan_texture(rarc, false),
-					Color(hot.r, hot.g, hot.b, 0.22 + 0.56 * flash))
+				## AND IT FLASHES THE SHAPE THAT ACTUALLY LANDED (SG-166). `recover`
+				## is shared by the swing and the Colossus's stomp, and the two are
+				## different shapes in different places: flashing a fan after a
+				## circular blow would light ground where nothing happened, which is
+				## the same class of lie SG-119 fixed in the other direction. The
+				## boarder itself says which — `stomp_struck` is written on the frame
+				## the blow resolves — and the stomp's flash is drawn at its ANCHOR
+				## and its own radius, both read from the simulation.
+				if enemy.stomp_struck:
+					var sfr: float = float(enemy.stomp_radius()) * 2.0
+					_decal("tsf%d" % enemy.get_instance_id(), enemy.stomp_origin,
+						0.0, sfr, sfr, _ring_texture(),
+						Color(hot.r, hot.g, hot.b, 0.22 + 0.56 * flash))
+				else:
+					_decal("tf%d" % enemy.get_instance_id(), enemy.global_position,
+						rang, rreach * 2.0, rreach * 2.0, _fan_texture(rarc, false),
+						Color(hot.r, hot.g, hot.b, 0.22 + 0.56 * flash))
 			##
 			## 2. THE OPENING — A RING ON HIS OWN FOOTPRINT, AND IT IS TEAL.
 			##
@@ -5552,9 +5609,14 @@ static func _decal_class(key: String) -> DecalClass:
 	## ring does: they are the two beats of a melee exchange the deck used to
 	## leave unlit, and being evicted by scorch marks at the busiest moment is
 	## exactly when they are the only thing saying he is open.
+	## `ts` joined them with SG-166 — the Colossus's stomp: the held outline, the
+	## closing ring and the flash that lands on it. It is a TELEGRAPH for the same
+	## reason the rest are: it is the only thing on the deck saying that a circle
+	## 240 units wide is about to hurt, and being evicted by scorch marks at the
+	## busiest moment of the busiest wave is precisely when it must not be.
 	if key.begins_with("tg") or key.begins_with("tr") or key.begins_with("tn") \
 			or key.begins_with("tar") or key.begins_with("tf") \
-			or key.begins_with("tp"):
+			or key.begins_with("tp") or key.begins_with("ts"):
 		return DecalClass.TELEGRAPH
 	if key.begins_with("fx") or key.begins_with("aura") or key.begins_with("boiler"):
 		return DecalClass.PLAYER
@@ -7154,7 +7216,13 @@ func _sync_all(delta: float) -> void:
 		## the boarders' read changes.
 		var heading: Vector2 = figure_heading(enemy.attack_direction,
 			enemy.velocity, enemy.state == "move")
-		var swinging: bool = enemy.state == "windup" or enemy.state == "recover"
+		## The stomp is an ATTACK and the figure has to be seen committing to it
+		## (SG-166) — a Colossus who plants a 240-unit circle while playing his idle
+		## is a mark with no author. It maps onto the same `swing` clip the wind and
+		## the recovery use, which is the right one: his kit's five clips are idle,
+		## walk, swing, turn and die, and a stomp is a swing that goes down.
+		var swinging: bool = enemy.state == "windup" or enemy.state == "recover" \
+			or enemy.state == "stomp"
 		# a phase offset per boarder, or a lane of them marches in lockstep
 		var phase: float = float(enemy.get_instance_id() % 97) * 0.113
 		## ═══ THE DROP (SG-142) ═══════════════════════════════════════════════

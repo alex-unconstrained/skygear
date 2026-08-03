@@ -32,7 +32,8 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1047 harness checks**; the text audit covers 25 screens at
+board SG-56). **1061 harness checks**; the text audit covers 25 screens at
+board SG-56). **1061 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -66,6 +67,47 @@ nothing at all`. **And it found a fixture asserting the right answer for the
 wrong reason:** the summit check banked a Heat 5 win onto a save with
 `best_heat` 0 — a bypassed clear — and got its "no sigil" from that rather than
 from §5's rule.
+**THE TWO MELEE HEAVIES WERE MEAT SHIELDS AND ARE NOT ANY MORE — AND THE HONEST
+HALF IS THAT MAKING THE COLOSSUS 21% MORE DANGEROUS MADE THE RUN 12.7 POINTS
+EASIER (SG-165 + SG-166, 2026-08-03).** The furnace knight's `hp` is **360** — the
+owner approved the doubling SG-156 measured the case for, and the cause was never
+the hit path: 353 of 353 resolved swings land on a pinned captain. It was
+LIFETIME. Measured before and after on `melee_probe`'s LETHAL arm, Heat 0, n=23
+then n=47: he **lives 2.70 s → 5.79 s**, resolves **0.83 → 2.49 swings**, and
+deals **26.6 → 84.6 damage — 27% → 85% of a captain's whole pool**, on
+non-overlapping intervals. **The brief's "three swings" arithmetic did NOT hold
+and it is 2.4**, because a 5.79 s life against a 1.90 s cycle starts and ends
+mid-cycle; nothing else on his row moved, so his throughput against everything
+that cannot dodge is 17.9 dps before and after. **And the COLOSSUS got the
+owner's own design rather than a stat nudge:** `COLOSSUS_WALKS_THE_LANE` is **ON**
+— *"have him ignore the player and keep heading towards the middle"* — and his
+damage is a **STOMP**: an anchored 0.80 s telegraph resolving one circular hit at
+240 (320 in beat 2) on a 4.2 s cadence, drawn as two hollow rings in SG-158's
+oxblood/orange, hollow because a rim is the only part of a mark the body standing
+in it cannot hide. That gate had shipped OFF because it took his damage to the
+captain to a **structural zero**; the stomp does not go through the if/elif victim
+chain, so **0.00 → 150.21**, and the zero is a harness check now, asserted from
+both sides in one fixture. **THE FINDING THAT GENERALISES IS ABOUT VARIANCE.**
+Four arms of n=480 runs each: at the first cadence tried his damage FELL 15.5%
+while the hold-rate ROSE 17 points, because the chase build's mean was carried by
+a heavy tail of runs where he cornered a kiting captain, and **an anchored,
+escapable circle has no tail at all — sd 70.3 → 36.9.** The shipped arm deals
+**+21.2%** (95% CI of the difference +18.3..+34.2) and holds **78.5% [74.6–82.0]
+against 65.8% [61.5–69.9]**: both sentences are true at once, and every future
+telegraph design should expect it — **legibility does not only convert damage
+into fairness, it deletes the outlier runs that were doing the killing.** Putting
+the hold-rate back is one line and `docs/COLOSSUS-DESIGN.md` §1b has three
+measured points to choose from. **What is still NOT true is the Boiler clock**:
+with the gate on, Boiler HP lost in wave 12 went 11.08 → **6.00**, DOWN, because
+he now spends 43% of his life planted — §2's amended statistic has failed three
+times and §1b says to stop reaching for it. **And two measuring tools were broken
+(SG-167, SG-168):** `melee_probe` read `game.wave` after `queue_free()`, and ONE
+malformed row silenced THREE whole reports — the LETHAL arm, the only thing that
+tool exists for, printed nothing at all in a run that exited 0; and
+`_function_body()` splits on `"\n"` while every `.gd` here is CRLF, so **it has
+been stopping at the first blank line of any function it reads**, with one
+standing check auditing 38 lines of a 40-line function while printing a number
+that made it look thorough.
 
 **THE COLOSSUS DIED IN 9.7 SECONDS, AND THE DESIGN DOC'S EXPLANATION OF WHY HE
 IS EASY WAS HALF WRONG (SG-146, 2026-08-03, owner: "still super easy... he also
@@ -329,8 +371,10 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1047 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1061 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
+`harness` (1061 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
 the step that makes a hand-alignment pass real).
@@ -435,7 +479,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1047 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1061 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1061 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -463,8 +508,10 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1047 checks. Green before anything ships |
+| `harness` | 1061 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
+| `harness` | 1061 checks. Green before anything ships |
+| `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |

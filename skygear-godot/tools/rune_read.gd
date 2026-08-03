@@ -111,7 +111,9 @@ extends RefCounted
 ## Since SG-158, `tf` is the strike flash on the rim of the wedge that just
 ## landed and `tp` the teal window held through the recovery — the two beats of
 ## a melee exchange the deck used to leave unlit.
-const TELEGRAPH_PREFIXES := ["tg", "tr", "tn", "tar", "tf", "tp"]
+## And since SG-166, `ts` is the Colossus's stomp — the outline held at the full
+## radius, the ring closing onto it, and the flash on the rim when it lands.
+const TELEGRAPH_PREFIXES := ["tg", "tr", "tn", "tar", "tf", "tp", "ts"]
 
 ## The planking a rune is read against: the ring just outside it. 12 px at
 ## 1600x900 is about the width of the band itself, which is the distance an eye

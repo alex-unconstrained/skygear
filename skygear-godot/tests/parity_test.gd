@@ -3034,6 +3034,384 @@ func _boss_walks_the_lane() -> void:
 			"lane walk %s · scrapper velocity %.1f,%.1f"
 				% [str(walk), grunt.velocity.x, grunt.velocity.y])
 	game.queue_free()
+	await process_frame
+	await _boss_stomps()
+	await _knight_lifetime()
+
+
+## Damage credited to ONE boarder kind's hand, summed over every wave the window
+## touched — `tel.taken_by_source` keyed by wave and by the string `enemy.gd`
+## passes, read back the same way `tools/melee_probe.gd` reads it. Summed rather
+## than read at one key because a fixture that runs for seconds can clear a wave
+## under itself, and a total that silently changed key would report a zero that
+## means "look somewhere else".
+func _by_hand(game: SkyGearGame, kind: String) -> float:
+	var total := 0.0
+	for wave_key in game.tel.taken_by_source:
+		total += float((game.tel.taken_by_source[wave_key] as Dictionary).get(kind, 0.0))
+	return total
+
+
+## THE STOMP — THE OWNER'S OWN DESIGN, AND THE REPAIR TO THE ONE THING THAT KEPT
+## THE LANE WALK OFF (board SG-166).
+##
+## SG-146 shipped `COLOSSUS_WALKS_THE_LANE` false for two reasons and the first
+## was fatal on its own: with the gate on he dealt the captain **0.00 mean with
+## 0.00 spread over 214 runs** — a STRUCTURAL zero, because the victim chain in
+## `enemy.gd` is if/elif and `target_turret`/`target_crew` are populated only in
+## the `else` branch, so a boss who is not targeting her is never tested against
+## her at all. The owner's answer — *"have the damage that he does just be damage
+## around him"* — is a beat that does not go through that chain.
+##
+## SO THE CENTRAL ROW HERE IS THE ZERO ITSELF, ASSERTED FROM BOTH SIDES IN ONE
+## FIXTURE. With the stomp off and the lane walk on, a captain standing on his
+## toes takes EXACTLY NOTHING from him — SG-146's finding, pinned in place so it
+## can never be quietly forgotten — and with the stomp on, from the same spot in
+## the same fixture, she takes his weight. A check that asserted only the second
+## half would pass on a build where he simply chased her again, which is the
+## thing the owner asked us to stop doing.
+func _boss_stomps() -> void:
+	## ---- (1) THE WIRING, IN BOTH POSITIONS OF ITS OWN CONSTANT ---------------
+	## Driven per instance, not read off the shipped default. SG-146 paid a
+	## rewrite for that lesson: with a gate shipped in one position, a check that
+	## can only read that position is VACUOUS — deleting the call it guarded left
+	## the harness green at 946/946.
+	var probe := SkyGearEnemy.new()
+	probe.kind = "BOSS"
+	probe.config = SkyGearData.ENEMIES.BOSS
+	var shipped: bool = probe.stomps
+	probe.stomps = true
+	var boss_stomps: bool = probe.stomps_the_deck()
+	probe.stomps = false
+	var boss_quiet: bool = probe.stomps_the_deck()
+	_check("boss", "the stomp is decided by its own named constant, in both positions",
+		boss_stomps and not boss_quiet and shipped == SkyGearEnemy.COLOSSUS_STOMPS,
+		"on=%s off=%s, a fresh boarder ships %s against COLOSSUS_STOMPS %s"
+			% [str(boss_stomps), str(boss_quiet), str(shipped),
+				str(SkyGearEnemy.COLOSSUS_STOMPS)])
+	## THE REGRESSION GUARD, named as one: this is the Colossus's beat and nobody
+	## else's. A gremlin that stomped would be a 240-unit circle hung off a
+	## 15-unit body, and the lane would stop being defensible.
+	var grunt := SkyGearEnemy.new()
+	grunt.kind = "SCRAPPER"
+	grunt.config = SkyGearData.ENEMIES.SCRAPPER
+	grunt.stomps = true
+	_check("boss", "and no other boarder stomps even when told to — the regression guard",
+		not grunt.stomps_the_deck(),
+		"a scrapper with stomps=true returns %s" % str(grunt.stomps_the_deck()))
+	grunt.free()
+
+	## ---- (2) THE CIRCLE IS ONE CIRCLE ----------------------------------------
+	## `stomp_hits` measures from the ANCHOR to the target's near edge, exactly as
+	## `_swing_hits` does, so a body clipped by the rim takes it and only getting
+	## clear does not. BOTH sides of the rim are asserted, because a test of one
+	## side passes on a predicate that always says yes.
+	probe.stomps = true
+	probe.beat = 0
+	probe.stomp_origin = Vector2.ZERO
+	var rim: float = probe.stomp_radius() + 17.0
+	var inside: bool = probe.stomp_hits(Vector2(rim - 2.0, 0.0), 17.0)
+	var outside: bool = probe.stomp_hits(Vector2(rim + 2.0, 0.0), 17.0)
+	_check("boss", "the stomp reaches to its own rim and stops there",
+		inside and not outside,
+		"rim at %.0f: inside=%s outside=%s" % [rim, str(inside), str(outside)])
+	## AND THE SECOND BEAT TAKES THE FREE STANDOFF AWAY. Her Ember Cleave reaches
+	## his CENTRE at 260 — every player damage test adds the target's radius — so
+	## beat 1's circle deliberately leaves that spot safe and beat 2's deliberately
+	## does not. That is the whole escalation, and it is two numbers rather than a
+	## feeling: the sign of the comparison is asserted on each side.
+	var beat1_rim: float = probe.stomp_radius() + 17.0
+	probe.beat = 1
+	var beat2_rim: float = probe.stomp_radius() + 17.0
+	_check("boss", "beat one leaves her Cleave standoff safe and beat two takes it away",
+		beat1_rim < 260.0 and beat2_rim > 260.0,
+		"beat 1 reaches %.0f, beat 2 reaches %.0f, her Cleave reaches him at 260"
+			% [beat1_rim, beat2_rim])
+	probe.free()
+
+	## ---- (3) THE RENDERER ASKS THE SIMULATION FOR THE SHAPE -------------------
+	## Board SG-119 was two files deriving one shape from one table and drifting
+	## apart, and its fix was that the wedge is ONE function the renderer CALLS.
+	## The stomp adds no second derivation, and this is what says so: the branch
+	## that draws it must reach `stomp_radius()` and `stomp_origin`, and must not
+	## carry the number itself.
+	## CODE ONLY. The comment above that branch explains the 240 in prose, and a
+	## reader that counted prose would be satisfied by a paragraph — which is
+	## SG-152's finding ("a check that can be satisfied by a COMMENT") arriving one
+	## file over. Comment lines are dropped before anything is looked for.
+	var draw := _function_body("res://scripts/view3d.gd", "_sync_effects")
+	var code := ""
+	for line in draw.split("\n"):
+		if not str(line).strip_edges().begins_with("#"):
+			code += str(line) + "\n"
+	var stomp_branch := ""
+	var at: int = code.find("enemy.state == \"stomp\"")
+	if at >= 0:
+		stomp_branch = code.substr(at, 700)
+	var asks_radius: bool = stomp_branch.contains("enemy.stomp_radius()")
+	var asks_origin: bool = stomp_branch.contains("enemy.stomp_origin")
+	var literal: bool = stomp_branch.contains("%.0f" % SkyGearEnemy.STOMP_RADIUS)
+	_check("boss", "the circle the renderer draws is the one the simulation resolves — asked, not re-derived",
+		at >= 0 and asks_radius and asks_origin and not literal,
+		"branch found %s · asks radius %s · asks origin %s · carries the literal %s"
+			% [str(at >= 0), str(asks_radius), str(asks_origin), str(literal)])
+	## And it spends the TELEGRAPH budget. A mark evictable by scorch on the
+	## busiest frame of the busiest wave is a mark that is missing exactly when it
+	## is the only thing saying a 240-unit circle is about to hurt.
+	var ts: int = SkyGearView3D._decal_class("ts9")
+	var tsc: int = SkyGearView3D._decal_class("tsc9")
+	var tsf: int = SkyGearView3D._decal_class("tsf9")
+	_check("boss", "and the stomp's marks are telegraphs, not decor",
+		ts == SkyGearView3D.DecalClass.TELEGRAPH
+			and tsc == SkyGearView3D.DecalClass.TELEGRAPH
+			and tsf == SkyGearView3D.DecalClass.TELEGRAPH
+			and SkyGearRune.TELEGRAPH_PREFIXES.has("ts"),
+		"ts/tsc/tsf -> %d/%d/%d, rune_read knows it: %s"
+			% [ts, tsc, tsf, str(SkyGearRune.TELEGRAPH_PREFIXES.has("ts"))])
+
+	## ---- (4) THE ZERO, AND ITS REPAIR, IN ONE FIXTURE ------------------------
+	## The captain is pinned on his toes and he is set walking at the ship. This is
+	## SG-146's measurement reproduced as an assertion: with the stomp OFF she
+	## takes nothing from him however long she stands there, and with it ON she
+	## takes his weight from the same spot.
+	##
+	## HE IS PINNED TOO, and that is not a cheat — with the lane walk on he leaves
+	## at 95 u/s, so an unpinned fixture would measure "did he walk out of range"
+	## rather than "can he touch her", and the two arms would differ in geometry as
+	## well as in the flag under test.
+	var taken := {}
+	for stomping in [false, true]:
+		var game := _new_game()
+		_begin(game)
+		for e in game.get_tree().get_nodes_in_group("enemies"):
+			e.dead = true
+			e.queue_free()
+		game.spawn_queue.clear()
+		## The cannon and the crew are cleared for the reason the lane-walk fixture
+		## above clears them: with either standing he swings at THAT, and the zero
+		## would be reported for the wrong reason.
+		for t in game.turrets:
+			t.dead = true
+		for c in game.crew:
+			c.dead = true
+		game.spawn_enemy("BOSS", 1)
+		var boss: SkyGearEnemy = null
+		for e in game.get_tree().get_nodes_in_group("enemies"):
+			if e.kind == "BOSS":
+				boss = e
+		if boss == null:
+			_check("boss", "a Colossus is on the deck for the stomp fixture", false)
+			game.queue_free()
+			return
+		_landed(boss)
+		boss.walks_the_lane = true
+		boss.stomps = stomping
+		## Bottomless, so the window is a clock rather than a race — the same
+		## discipline `tools/melee_probe.gd` uses, and for the same reason.
+		boss.max_hp = 1.0e9
+		boss.hp = 1.0e9
+		for _i in 240:
+			game.spawn_queue.clear()
+			## Her pool is topped up and ONLY her pool is: `invulnerability_left` is
+			## never touched, so the i-frame economy is the shipped one.
+			game.player.hp = game.player.max_hp
+			game.player.global_position = Vector2(0.0, -120.0)
+			boss.global_position = Vector2.ZERO
+			game._process(0.05)
+			if not is_instance_valid(boss) or boss.dead:
+				break
+			boss._physics_process(0.05)
+		taken[stomping] = _by_hand(game, "BOSS")
+		game.queue_free()
+		await process_frame
+	## THE SG-146 ZERO, PINNED IN PLACE. Not a historical note in a comment — the
+	## harness re-derives it every run, so the day somebody claims the lane walk is
+	## harmless on its own, this row is the answer.
+	_check("boss", "a Colossus walking at the ship cannot touch her with his swing — the SG-146 zero",
+		is_equal_approx(float(taken[false]), 0.0),
+		"she took %.1f from him in 12 seconds on his toes, with the stomp off"
+			% float(taken[false]))
+	## AND THE REPAIR. This is the row the whole change exists for.
+	_check("boss", "and the stomp is what puts his weight back on a captain who comes to kill him",
+		float(taken[true]) > 0.0,
+		"she took %.1f from him from the same spot, with the stomp on"
+			% float(taken[true]))
+
+	## ---- (5) THE MARK IS WHERE THE BLOW IS, AND THE DODGE EXISTS -------------
+	## Resolved by hand rather than by waiting, so the geometry is asserted at the
+	## frame it resolves instead of inferred from a total.
+	var game2 := _new_game()
+	_begin(game2)
+	for e in game2.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game2.spawn_queue.clear()
+	game2.spawn_enemy("BOSS", 1)
+	var solo: SkyGearEnemy = null
+	for e in game2.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "BOSS":
+			solo = e
+	if solo == null:
+		_check("boss", "a Colossus is on the deck for the anchor fixture", false)
+		game2.queue_free()
+		return
+	_landed(solo)
+	solo.stomps = true
+	solo.max_hp = 1.0e9
+	solo.hp = 1.0e9
+	## THE ANCHOR. He plants at the origin, the mark is promised there, and then he
+	## is SHOVED 300 units before it lands. The blow must resolve where the picture
+	## is and not where his feet ended up — a Colossus knocked out of his own
+	## circle must not drag it after him.
+	solo.state = "stomp"
+	solo.state_time = 0.01
+	solo.stomp_wind = SkyGearEnemy.STOMP_WINDUP
+	solo.stomp_origin = Vector2.ZERO
+	solo.global_position = Vector2(300.0, 0.0)
+	game2.player.global_position = Vector2(0.0, 100.0)
+	game2.player.hp = game2.player.max_hp
+	game2.player.invulnerability_left = 0.0
+	var before: float = game2.player.hp
+	solo._physics_process(0.05)
+	_check("boss", "the stomp lands where he planted, not where he was shoved to",
+		game2.player.hp < before,
+		"she stood 100 from the anchor and 316 from his body, and took %.0f"
+			% (before - game2.player.hp))
+	## And the other side of it: outside the rim is genuinely outside. 0.80 s of
+	## telegraph against her 260 u/s is 208 units of walk, so this is a step she
+	## can always make — the mark is a warning rather than a bill.
+	solo.state = "stomp"
+	solo.state_time = 0.01
+	solo.stomp_origin = Vector2.ZERO
+	solo.global_position = Vector2.ZERO
+	game2.player.global_position = Vector2(0.0, solo.stomp_radius() + 60.0)
+	game2.player.hp = game2.player.max_hp
+	game2.player.invulnerability_left = 0.0
+	var clear_before: float = game2.player.hp
+	solo._physics_process(0.05)
+	_check("boss", "and a captain who stepped out of the circle takes nothing",
+		is_equal_approx(game2.player.hp, clear_before),
+		"she stood %.0f out and took %.0f"
+			% [solo.stomp_radius() + 60.0, clear_before - game2.player.hp])
+
+	## ---- (6) THE NAMED STEAM RULE -------------------------------------------
+	## COLOSSUS-DESIGN §3 asked for this to be written down and harness-checked
+	## rather than discovered in a playtest, and the moment the boss gained an
+	## attack worth deleting it went live: `_apply_element("STEAM")` writes
+	## `state = "move"`, and the Boilerwright's basic attack is a STEAM cone on a
+	## 0.60 s period against an 0.80 s telegraph. Without the rule, one of the two
+	## classes deletes the Colossus's only means of touching a captain, for free.
+	## BOTH HALVES ARE ASSERTED, because the rule is an ASYMMETRY: the swing stays
+	## interruptible and only the stomp is not.
+	solo.state = "stomp"
+	solo.state_time = 0.5
+	solo._apply_element("STEAM")
+	var stomp_survived: bool = solo.state == "stomp"
+	solo.state = "windup"
+	solo.state_time = 0.5
+	solo._apply_element("STEAM")
+	var swing_cancelled: bool = solo.state == "move"
+	_check("boss", "STEAM still cancels his swing and never his stomp — the COLOSSUS-DESIGN §3 rule",
+		stomp_survived and swing_cancelled,
+		"stomp survived: %s, swing cancelled: %s"
+			% [str(stomp_survived), str(swing_cancelled)])
+	game2.queue_free()
+	await process_frame
+
+
+## THE FURNACE KNIGHT LIVES LONG ENOUGH TO BE THE THING HE WAS DESIGNED AS
+## (board SG-165, the owner's ask).
+##
+## SG-97 authored him as *"a wall you read, not a DPS check"* — windup 0.90,
+## recover 1.00, damage 34 — and SG-156 then measured that at his last wave he
+## LIVES 2.70 s against a cycle of 1.90 s. One cycle. A tell nobody survives to
+## complete is not a tell, so every number in that design was unreachable.
+##
+## THIS CHECK RUNS THE FIGHT RATHER THAN ASSERTING THE NUMBER. A row reading
+## `hp == 360` is a tautology — it restates the table it read. What the buff was
+## bought for is SWINGS, so the harness counts swings: a knight at his last
+## wave's scaling, a captain pinned on her starting kit, and the number of
+## windups that reach their strike before he falls.
+##
+## AND IT RUNS TWICE, AT HALF HIS HEALTH AND AT ALL OF IT, IN ONE FIXTURE. The
+## second arm is what makes the first non-vacuous: half his shipped pool is the
+## build SG-156 measured, and it must come back with strictly fewer swings, or
+## this fixture is not sensitive to the thing it claims to measure.
+func _knight_lifetime() -> void:
+	## The wave read off the table rather than typed, for `melee_probe`'s reason:
+	## a hardcoded 11 is a second copy of the schedule and the first to rot.
+	var last_wave := 1
+	for i in SkyGearData.WAVES.size():
+		for batch in SkyGearData.WAVES[i].batches:
+			if str(batch[1]) == "ARMORED":
+				last_wave = i + 1
+	var scaling: float = 1.0 + SkyGearWorkshop.BASE_HP_SCALING * float(last_wave - 1)
+	var full: float = float(SkyGearData.ENEMIES.ARMORED.hp) * scaling
+	var swings := {}
+	var lives := {}
+	for share in [0.5, 1.0]:
+		var game := _new_game()
+		_begin(game)
+		for e in game.get_tree().get_nodes_in_group("enemies"):
+			e.dead = true
+			e.queue_free()
+		game.spawn_queue.clear()
+		game.spawn_enemy("ARMORED", 1)
+		var knight: SkyGearEnemy = null
+		for e in game.get_tree().get_nodes_in_group("enemies"):
+			if e.kind == "ARMORED":
+				knight = e
+		if knight == null:
+			_check("telegraph", "a furnace knight is on the deck for the lifetime fixture", false)
+			game.queue_free()
+			return
+		_landed(knight)
+		knight.max_hp = full
+		knight.hp = full * share
+		knight.global_position = Vector2.ZERO
+		var resolved := 0
+		var steps := 0
+		for _i in 600:
+			if not is_instance_valid(knight) or knight.dead:
+				break
+			game.spawn_queue.clear()
+			game.player.hp = game.player.max_hp
+			game.player.global_position = Vector2(0.0, -100.0)
+			var was: String = knight.state
+			game._process(0.05)
+			steps += 1
+			if not is_instance_valid(knight) or knight.dead:
+				break
+			knight._physics_process(0.05)
+			if is_instance_valid(knight) and was == "windup" and knight.state == "recover":
+				resolved += 1
+		swings[share] = resolved
+		lives[share] = float(steps) * 0.05
+		game.queue_free()
+		await process_frame
+	var cycle: float = float(SkyGearData.ENEMIES.ARMORED.windup) + float(SkyGearData.ENEMIES.ARMORED.recover)
+	## THE DESIGN BAR. More than one cycle, so the read-and-punish loop happens
+	## more than once — which is the whole content of "a wall you read".
+	_check("telegraph", "the furnace knight now lives long enough to swing more than once",
+		int(swings[1.0]) >= 2,
+		"wave %d, %.0f effective HP: lived %.2fs and resolved %d swings against a %.2fs cycle"
+			% [last_wave, full, float(lives[1.0]), int(swings[1.0]), cycle])
+	## AND THE FIXTURE IS SENSITIVE TO THE THING IT MEASURES. At half the pool —
+	## the build SG-156 measured — he gets strictly fewer. Without this row the one
+	## above could be passing on a captain who cannot kill him at all.
+	_check("telegraph", "and at half that health he gets strictly fewer — the fixture bites",
+		int(swings[0.5]) < int(swings[1.0]),
+		"half %d swings in %.2fs against full %d in %.2fs"
+			% [int(swings[0.5]), float(lives[0.5]), int(swings[1.0]), float(lives[1.0])])
+	## AND THE BUFF BOUGHT TIME, NOT THROUGHPUT. Against everything on this deck
+	## that cannot dodge — the Boiler, a cannon, a crewman — he must still be
+	## exactly the machine SG-97 authored. This is the row that goes red the day a
+	## later hand "compensates" a health change with a damage one.
+	var dps: float = float(SkyGearData.ENEMIES.ARMORED.damage) / cycle
+	_check("telegraph", "and his throughput against things that cannot dodge is SG-97's, untouched",
+		absf(dps - 17.9) < 0.1,
+		"%.1f dps (%.0f damage / %.2fs cycle) against SG-97's 17.9"
+			% [dps, float(SkyGearData.ENEMIES.ARMORED.damage), cycle])
 
 
 ## Sound the player can control, and that survives the session. A build people
@@ -14375,10 +14753,26 @@ const ARRIVAL_HULL_NAMES := {"skyship_cutter": true, "skyship_tender": true,
 ## One function's body, out of a source file, for the structural checks. Ends at
 ## the next line that starts in column zero, which in GDScript is the next
 ## top-level declaration.
+## THE SOURCE READER, AND IT WAS READING A FRACTION OF WHAT IT CLAIMED (SG-166).
+##
+## Every `.gd` file in this repository is CRLF. This function split on `"\n"`, so
+## every line it handed back ended in a stray `\r` — and a BLANK line inside a
+## function therefore arrived as `"\r"`, which is not `""`, does not begin with a
+## tab, and tripped the "we have left the function" break. **So it stopped at the
+## first blank line of any function it was pointed at.** `arrival · the arrival
+## tier holds no clock of its own` has been reporting "38 lines read" of a
+## function that is far longer than 38 lines, and passing on the part it happened
+## to reach: a detector answering about a fraction of its subject and printing a
+## number that made it look thorough. Found by a new check that wanted a branch
+## 226 lines into `_sync_effects` and got `-1` for it.
+##
+## The `\r` is stripped before the split, so the break condition means what it
+## says. Nothing else about the function changed, and the checks that use it now
+## read the whole body — which is the point of them.
 func _function_body(path: String, name: String) -> String:
 	var out: Array[String] = []
 	var inside := false
-	for line in FileAccess.get_file_as_string(path).split("\n"):
+	for line in FileAccess.get_file_as_string(path).replace("\r", "").split("\n"):
 		var text := str(line)
 		if text.begins_with("func %s(" % name) or text.begins_with("static func %s(" % name):
 			inside = true

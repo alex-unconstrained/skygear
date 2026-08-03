@@ -71,7 +71,40 @@ const ENEMIES := {
 	## 17.4 dps before and 17.9 after: the wave's pressure is intact and only the
 	## player's half of the exchange changed. That is deliberate, and it is why
 	## `tools/balance.gd` (whose bot never moves) reports this change as noise.
-	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
+	##
+	## ---------------------------------------------------------------------------
+	## AND THEN SG-97's WHOLE DESIGN TURNED OUT TO BE UNREACHABLE, BECAUSE HE DIED
+	## INSIDE ONE CYCLE OF IT (board SG-165, owner-approved 2026-08-03).
+	##
+	## `hp` 180 -> 360. The owner, over a full twelve-wave run: *"we definitely need
+	## to buff up his health... due to the slow speed, he needs to be doing damage.
+	## That's kind of the mechanic behind it."*
+	##
+	## SG-156 measured exactly why, and the finding is LIFETIME rather than
+	## anything in the hit path. `tools/melee_probe.gd`'s LETHAL arm plays the real
+	## run to the knight's last wave with the bot drafting, then pins the captain
+	## and lets him die: at wave 11 and 288 effective HP he **LIVED 2.70 s** (sd
+	## 0.23, n=23) and in that entire life resolved **0.83 swings and landed 0.78**,
+	## for a mean of **26.6 damage** — a quarter of one captain, once. Against a
+	## PINNED captain 353 of 353 resolved swings land, 0 swallowed, 0 elsewhere, at
+	## 0.3 degrees off-axis: nothing about his hitbox, his arc gate or his damage
+	## was ever broken. He simply never got a second swing.
+	##
+	## THE ARITHMETIC THAT PICKED 360, AND IT IS THE CYCLE. His own cycle is
+	## `windup 0.90 + recover 1.00 = 1.90 s`. A life of 2.70 s is ONE cycle plus
+	## change, so the 0.90 s tell SG-97 bought is a tell nobody survives to
+	## complete — the four numbers above describe a fight the player never has.
+	## Doubling the pool buys ~5.4 s, which is two to three cycles: enough for the
+	## read-and-punish loop the design is built on to happen more than once.
+	##
+	## WHAT IT DOES NOT DO IS CHANGE WHAT HE IS. Speed 75, windup 0.90, recover
+	## 1.00, damage 34, reach 118, swing 120 degrees are ALL untouched and all
+	## harness-pinned. The trade stays exactly the one SG-97 authored — slow,
+	## telegraphed, hard-hitting, dodgeable by stepping out of a wedge you can see
+	## — and against everything that does not dodge (the Boiler, a cannon, a
+	## crewman) his throughput is 17.9 dps before and 17.9 after. This buys him
+	## TIME to be that thing, and nothing else. The measured result is at SG-165.
+	"ARMORED": {"hp": 360.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
 	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "reach": 64.0, "swing": 1.396263, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
 	## THE COLOSSUS'S HITBOX WAS BIGGER THAN HIS TELEGRAPH IN BOTH DIMENSIONS
 	## (board SG-119). He was the only melee row carrying no `reach` and no
