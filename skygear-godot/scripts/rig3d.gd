@@ -35,12 +35,18 @@ extends Node3D
 ## `plant` is the Boilerwright kneeling to crack a main open (Tap Main, CLASS-2
 ## §7's named gap): it beats locomotion — a man bolting a tap to the deck is
 ## not also running — but never a hit, a swing or the Bleed Jet.
-const PRIORITY := ["die", "hurt", "swing", "dash", "plant", "run", "walk", "idle"]
+## `turn` is the Colossus's half-health beat (board SG-90) and it sits ABOVE the
+## attack deliberately: `enemy.gd` returns early for the whole of `state ==
+## "turn"` and `take_damage` returns zero through it, so for 1.6 seconds the
+## simulation is doing nothing else and neither should the figure. It stays
+## under `hurt` and `die` because a thing that has been killed mid-turn is dead.
+const PRIORITY := ["die", "hurt", "turn", "swing", "dash", "plant", "run", "walk",
+	"idle"]
 
 ## Clips that play once and hold rather than looping. A looping swing is a
 ## character having a fit — and a looping plant is a man doing calisthenics.
 const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true,
-	"plant": true}
+	"plant": true, "turn": true}
 
 ## How long the renderer shows the kneel after a Tap Main lands. The sim's own
 ## signal is `tap_cooldown` (6 s — a cooldown, not an action), so the action
@@ -70,7 +76,7 @@ var _variant := 0
 ## of the player not knowing they pressed the button.
 const BLEND := {
 	"swing": 0.06, "dash": 0.05, "hurt": 0.05, "die": 0.10, "plant": 0.08,
-	"run": 0.14, "walk": 0.16, "idle": 0.22,
+	"turn": 0.12, "run": 0.14, "walk": 0.16, "idle": 0.22,
 }
 
 ## Ground units per second the run cycle was authored at. Playback rate scales

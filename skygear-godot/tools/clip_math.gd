@@ -62,6 +62,8 @@ const SCENARIOS := [
 		"what": "the second class on his own rig (SG-74): a march up-deck, two heavy wrench cuts off the variant rotation, then Tap Main's kneel — the plant, on film"},
 	{"id": "knight", "kind": "knight", "seconds": 7.0, "still": false,
 		"what": "the furnace knight (SG-85): three walls walk the deck at seventy-five, close and cut — and then two of them DIE, which no figure in this game had ever done on screen"},
+	{"id": "boss", "kind": "boss", "seconds": 10.0, "still": false,
+		"what": "the segmented Colossus (SG-90): the walk at ninety-five, a two-fisted slam, the half-health TURN it cannot be burst through — and then it COMES APART, thirteen parts breaking at the joints they hinged on and landing on the planking"},
 ]
 
 

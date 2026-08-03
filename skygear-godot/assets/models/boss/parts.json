@@ -1,0 +1,433 @@
+{
+  "key": "boss",
+  "note": "The PART MAP for the segmented Colossus. `tools/segment_parts.py` derived every name in it from the geometry's own bounds \u2014 nothing here is keyed to a GLTF_n index, because a re-export renumbers those and does not move the parts. The `source` field records which geometry each name WAS in the delivered file so a later reader can go back to it.",
+  "delivered_as": "Meshy_AI_Brassbound Juggernaut_1785712957_part-segmentation.glb",
+  "delivered_note": "Meshy PART-SEGMENTATION export: 13 separate geometries, no UVs, no texture images, each part flat-filled with a categorical LABEL colour. `label_colour` records the label; `colour` is what the part actually wears, assigned by role out of the project palette.",
+  "faces_in": 1366036,
+  "faces_out": 7994,
+  "kept": 0.00585,
+  "tri_budget": 8000,
+  "tri_part_floor": 220,
+  "drawn_metres": 3.3,
+  "scene_height_in": 0.12,
+  "to_metres": 27.5,
+  "symmetry_labels_agree": true,
+  "parts": [
+    {
+      "name": "arm_l",
+      "role": "arm",
+      "source": "GLTF_11",
+      "faces_in": 58808,
+      "faces_out": 332,
+      "kept": 0.00565,
+      "label_colour": "9669bf",
+      "joint_m": [
+        1.21071,
+        1.62895,
+        0.28029
+      ],
+      "size_m": [
+        0.63611,
+        0.83814,
+        0.7892
+      ],
+      "local_min_m": [
+        -0.29,
+        -0.83878,
+        -0.37451
+      ],
+      "local_max_m": [
+        0.32671,
+        -0.00031,
+        0.3825
+      ],
+      "colour": "ad8034",
+      "metallic": 0.3,
+      "roughness": 0.47
+    },
+    {
+      "name": "arm_r",
+      "role": "arm",
+      "source": "GLTF_1",
+      "faces_in": 56844,
+      "faces_out": 332,
+      "kept": 0.00584,
+      "label_colour": "9569be",
+      "joint_m": [
+        -1.21126,
+        1.62895,
+        0.28049
+      ],
+      "size_m": [
+        0.63611,
+        0.83834,
+        0.7896
+      ],
+      "local_min_m": [
+        -0.31554,
+        -0.83562,
+        -0.36926
+      ],
+      "local_max_m": [
+        0.30782,
+        -0.0007,
+        0.40177
+      ],
+      "colour": "ad8034",
+      "metallic": 0.3,
+      "roughness": 0.47
+    },
+    {
+      "name": "back",
+      "role": "back",
+      "source": "GLTF_5",
+      "faces_in": 187950,
+      "faces_out": 1366,
+      "kept": 0.00727,
+      "label_colour": "e679c4",
+      "joint_m": [
+        0.0,
+        1.40315,
+        -0.71829
+      ],
+      "size_m": [
+        1.62815,
+        1.89685,
+        0.68868
+      ],
+      "local_min_m": [
+        -0.80438,
+        -0.0135,
+        -0.35155
+      ],
+      "local_max_m": [
+        0.81095,
+        1.89806,
+        0.3386
+      ],
+      "colour": "a8762f",
+      "metallic": 0.3,
+      "roughness": 0.45
+    },
+    {
+      "name": "fist_l",
+      "role": "fist",
+      "source": "GLTF_10",
+      "faces_in": 48978,
+      "faces_out": 248,
+      "kept": 0.00506,
+      "label_colour": "bdbe22",
+      "joint_m": [
+        1.22199,
+        1.07825,
+        0.62705
+      ],
+      "size_m": [
+        0.66592,
+        0.68022,
+        0.59603
+      ],
+      "local_min_m": [
+        -0.31489,
+        -0.67946,
+        -0.29369
+      ],
+      "local_max_m": [
+        0.32827,
+        -0.00845,
+        0.25819
+      ],
+      "colour": "453b34",
+      "metallic": 0.26,
+      "roughness": 0.52
+    },
+    {
+      "name": "fist_r",
+      "role": "fist",
+      "source": "GLTF",
+      "faces_in": 49950,
+      "faces_out": 248,
+      "kept": 0.00496,
+      "label_colour": "bdbd21",
+      "joint_m": [
+        -1.22234,
+        1.07704,
+        0.62765
+      ],
+      "size_m": [
+        0.66512,
+        0.67881,
+        0.59441
+      ],
+      "local_min_m": [
+        -0.30559,
+        -0.68978,
+        -0.28173
+      ],
+      "local_max_m": [
+        0.33456,
+        -0.0016,
+        0.27891
+      ],
+      "colour": "453b34",
+      "metallic": 0.26,
+      "roughness": 0.52
+    },
+    {
+      "name": "foot_l",
+      "role": "foot",
+      "source": "GLTF_7",
+      "faces_in": 84194,
+      "faces_out": 468,
+      "kept": 0.00556,
+      "label_colour": "bebe22",
+      "joint_m": [
+        0.53663,
+        0.48021,
+        0.12187
+      ],
+      "size_m": [
+        0.79584,
+        0.48,
+        1.0855
+      ],
+      "local_min_m": [
+        -0.40532,
+        -0.49001,
+        -0.53235
+      ],
+      "local_max_m": [
+        0.3975,
+        -0.01542,
+        0.54334
+      ],
+      "colour": "342d29",
+      "metallic": 0.24,
+      "roughness": 0.64
+    },
+    {
+      "name": "foot_r",
+      "role": "foot",
+      "source": "GLTF_3",
+      "faces_in": 79880,
+      "faces_out": 468,
+      "kept": 0.00586,
+      "label_colour": "bebe22",
+      "joint_m": [
+        -0.53728,
+        0.48141,
+        0.12167
+      ],
+      "size_m": [
+        0.79484,
+        0.48141,
+        1.08469
+      ],
+      "local_min_m": [
+        -0.39008,
+        -0.48037,
+        -0.53853
+      ],
+      "local_max_m": [
+        0.39197,
+        -0.02328,
+        0.53896
+      ],
+      "colour": "342d29",
+      "metallic": 0.24,
+      "roughness": 0.64
+    },
+    {
+      "name": "head",
+      "role": "head",
+      "source": "GLTF_6",
+      "faces_in": 21844,
+      "faces_out": 220,
+      "kept": 0.01007,
+      "label_colour": "d82929",
+      "joint_m": [
+        0.0,
+        2.36054,
+        0.07131
+      ],
+      "size_m": [
+        0.48303,
+        0.59522,
+        0.51384
+      ],
+      "local_min_m": [
+        -0.24046,
+        0.01383,
+        -0.25735
+      ],
+      "local_max_m": [
+        0.23099,
+        0.589,
+        0.25106
+      ],
+      "colour": "d19a3c",
+      "metallic": 0.34,
+      "roughness": 0.36
+    },
+    {
+      "name": "leg_l",
+      "role": "leg",
+      "source": "GLTF_8",
+      "faces_in": 75800,
+      "faces_out": 504,
+      "kept": 0.00665,
+      "label_colour": "2278b3",
+      "joint_m": [
+        0.51921,
+        1.39973,
+        0.10444
+      ],
+      "size_m": [
+        0.62805,
+        1.24845,
+        0.74851
+      ],
+      "local_min_m": [
+        -0.29367,
+        -1.24188,
+        -0.37489
+      ],
+      "local_max_m": [
+        0.32424,
+        -0.00512,
+        0.36252
+      ],
+      "colour": "594d44",
+      "metallic": 0.22,
+      "roughness": 0.58
+    },
+    {
+      "name": "leg_r",
+      "role": "leg",
+      "source": "GLTF_4",
+      "faces_in": 79278,
+      "faces_out": 504,
+      "kept": 0.00636,
+      "label_colour": "2278b3",
+      "joint_m": [
+        -0.53044,
+        1.39993,
+        0.10434
+      ],
+      "size_m": [
+        0.64779,
+        1.28854,
+        0.74831
+      ],
+      "local_min_m": [
+        -0.30851,
+        -1.2854,
+        -0.37387
+      ],
+      "local_max_m": [
+        0.3221,
+        0.00613,
+        0.36449
+      ],
+      "colour": "594d44",
+      "metallic": 0.22,
+      "roughness": 0.58
+    },
+    {
+      "name": "shoulder_l",
+      "role": "shoulder",
+      "source": "GLTF_9",
+      "faces_in": 104966,
+      "faces_out": 554,
+      "kept": 0.00528,
+      "label_colour": "2ea22c",
+      "joint_m": [
+        0.66605,
+        2.48593,
+        0.47014
+      ],
+      "size_m": [
+        0.85607,
+        0.90341,
+        1.185
+      ],
+      "local_min_m": [
+        0.01047,
+        -0.62118,
+        -0.5663
+      ],
+      "local_max_m": [
+        0.85205,
+        0.26608,
+        0.56899
+      ],
+      "colour": "60554c",
+      "metallic": 0.24,
+      "roughness": 0.55
+    },
+    {
+      "name": "shoulder_r",
+      "role": "shoulder",
+      "source": "GLTF_2",
+      "faces_in": 107658,
+      "faces_out": 554,
+      "kept": 0.00515,
+      "label_colour": "2ea22c",
+      "joint_m": [
+        -0.66479,
+        2.48583,
+        0.47054
+      ],
+      "size_m": [
+        0.85768,
+        0.9024,
+        1.1842
+      ],
+      "local_min_m": [
+        -0.85815,
+        -0.6448,
+        -0.58748
+      ],
+      "local_max_m": [
+        -0.00802,
+        0.26139,
+        0.57208
+      ],
+      "colour": "60554c",
+      "metallic": 0.24,
+      "roughness": 0.55
+    },
+    {
+      "name": "torso",
+      "role": "torso",
+      "source": "GLTF_12",
+      "faces_in": 409886,
+      "faces_out": 2196,
+      "kept": 0.00536,
+      "label_colour": "9ae08b",
+      "joint_m": [
+        0.0,
+        0.93684,
+        -0.07503
+      ],
+      "size_m": [
+        2.14964,
+        1.74739,
+        1.34997
+      ],
+      "local_min_m": [
+        -1.0616,
+        0.00507,
+        -0.67516
+      ],
+      "local_max_m": [
+        1.07204,
+        1.74197,
+        0.66661
+      ],
+      "colour": "4e443d",
+      "metallic": 0.22,
+      "roughness": 0.62
+    }
+  ]
+}

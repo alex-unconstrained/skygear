@@ -269,6 +269,30 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 				knight.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
 			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
+		"boss":
+			## THE SEGMENTED COLOSSUS (SG-90), and the four beats it has, in the
+			## order the fight plays them: the walk down the deck at ninety-five,
+			## a two-fisted slam when it closes, the half-health TURN — and the
+			## death, which is the shot this scenario exists for. One boss,
+			## spawned through the real `spawn_enemy`, so it is the simulation's
+			## own wave-12 arrival, lane, AI and all.
+			##
+			## Nothing here reaches into the renderer. The turn is triggered by
+			## taking its health to half, which is the condition a player's damage
+			## meets; the death is `kill()`, the sim's own one-way door. What
+			## films is what a run does.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			game.spawn_enemy("BOSS", 1)
+			var arrivals := game.get_tree().get_nodes_in_group("enemies")
+			var colossus = arrivals[arrivals.size() - 1]
+			colossus.global_position = Vector2(-10.0, 215.0)
+			colossus.lane = 1
+			colossus.state = "move"
+			await _settle(game, world, SETTLE_TICKS)
+			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
 		"boilerwright":
 			## His class row's witness (SG-74): the walk, the slash and the
 			## plant on one strip of film. A seated Cleave so the casts swing
@@ -360,6 +384,34 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 									and str(foe.kind) == "ARMORED":
 								foe.kill()
 								break
+				"boss":
+					## SHE HOLDS HER GROUND, and that is a framing decision as
+					## much as a tactical one. Two other stagings were filmed and
+					## both were worse: walking up-deck to meet it ran her to the
+					## bow and left the machine behind the camera, and giving
+					## ground pinned the camera against its own deck clamp and
+					## pushed the Colossus further up the frame rather than down
+					## it. A 330-unit figure standing at melee reach of the
+					## subject the camera rides IS going to loom — that is what
+					## the archetype is for — so the clip films it looming.
+					## Four seconds of the walk and whatever swing it closes
+					## into, then the half-health TURN — fired by taking its hp
+					## to half, the same condition a player's damage meets, so
+					## the beat that plays is the sim's own. Its 1.6 s hold ends
+					## near tick 340; the kill goes in at 420 with four seconds
+					## of strip left, which is 1.6 s of coming apart, 0.4 s of
+					## the wreckage sinking, and time to look at it.
+					if tick == 240 or tick == 420:
+						var siege := game.get_tree().get_nodes_in_group("enemies")
+						for foe in siege:
+							if not is_instance_valid(foe) or foe.dead \
+									or str(foe.kind) != "BOSS":
+								continue
+							if tick == 240:
+								foe.hp = minf(foe.hp, foe.max_hp * 0.5)
+							else:
+								foe.kill()
+							break
 				"boilerwright":
 					## Two seconds of march, two cuts sixty-five ticks apart
 					## (the variant rotation shows two DIFFERENT slashes), then
@@ -379,8 +431,11 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 			await process_frame
 		var img := root.get_texture().get_image()
 		img.save_png("%s/frame_%04d.png" % [frames_dir.replace("\\", "/"), frame])
-	if kind == "dash" or kind == "boilerwright":
+	## Never leave an action held: `Input` is global and a stuck key outlives the
+	## scenario that pressed it.
+	if kind == "dash" or kind == "boilerwright" or kind == "boss":
 		Input.action_release("move_up")
+		Input.action_release("move_down")
 		Input.action_release("dash")
 
 	world.queue_free()

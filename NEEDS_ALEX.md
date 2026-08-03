@@ -8,6 +8,11 @@ _Last updated: 2026-08-02, build 43._
 knight both came from your own Meshy sessions after prompted attempts failed;
 `handoff-3d/` is now an empty queue.
 
+- **THE BOSS COMES APART WHEN IT DIES — feel-check it.** Your segmented
+  Juggernaut is wired and your call on the approach was the right one; the
+  Colossus now walks, slams, plays the half-health turn, and its thirteen parts
+  break at the joints they hinged on and land on the planking.
+  `.shots/clips/boss.gif`.
 - **The furnace knight walks, swings and DIES** — the game's first death
   animation; a 180-hp wall that falls on the planking instead of vanishing.
   `.shots/clips/knight.gif` against `knight-before.gif`.

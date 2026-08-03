@@ -82,6 +82,15 @@ var spawn_serial := 0
 var beat := 0
 var turn_time := 0.0
 
+## How long that turn holds. It was a literal at the one place it is assigned,
+## which is fine until something outside the simulation needs to know how long
+## the beat lasts — and something does now: the segmented Colossus plays a
+## `turn` clip through it (board SG-90), and a one-shot in `scripts/rig3d.gd` is
+## fitted to the WINDOW it is given. Reading `turn_time` itself would not do, on
+## the SG-85 lesson: it counts DOWN, and a window that shrinks every frame is a
+## clip that accelerates as it plays. Same number, named once.
+const TURN_TIME := 1.6
+
 func _windup_scale() -> float:
 	if game == null or not ("heat" in game):
 		return 1.0
@@ -121,7 +130,7 @@ func _physics_process(delta: float) -> void:
 	if kind == "BOSS" and beat == 0 and hp <= max_hp * 0.5:
 		beat = 1
 		state = "turn"
-		turn_time = 1.6
+		turn_time = TURN_TIME
 		velocity = Vector2.ZERO
 		game.on_boss_turn(self)
 	if state == "turn":

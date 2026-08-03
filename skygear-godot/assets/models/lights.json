@@ -61,6 +61,22 @@
         }
       ]
     },
+    "boss": {
+      "_note": "SG-90. The segmented Colossus has no UVs and no texture maps at all - the part-segmentation export Meshy delivers is a VISUALISATION, not a painted asset - so the furnace grate that the prompted Colossus carried in an emission map cannot be mapped onto this one. It is a LIGHT instead: the same read from the same place, at the torso's own front centre (measured off assets/models/boss/parts.json, not guessed), on the furnace knight's flicker. Bigger and slower than his, because it is a bigger furnace.",
+      "lights": [
+        {
+          "type": "omni",
+          "color": "ff7a2a",
+          "energy": 1.28,
+          "range": 300.0,
+          "attenuation": 1.3,
+          "offset": [0.0, 181.0, 59.0],
+          "hz": 3.4,
+          "depth": 0.18,
+          "shape": "flicker"
+        }
+      ]
+    },
     "armored": {
       "lights": [
         {

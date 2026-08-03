@@ -6356,6 +6356,192 @@ func _view() -> void:
 				kmat.emission_energy_multiplier if kmat != null else 0.0])
 	krig.queue_free()
 
+	## --- board SG-90: THE SEGMENTED COLOSSUS, and the death that comes apart --
+	## The owner chose the approach as well as the model: "if we just do simple
+	## segmented movement it might work well for the boss ... its death animation
+	## could be the parts just falling apart." So this is not a rig — there is no
+	## skeleton and no skin — it is thirteen rigid parts on hinges, and the whole
+	## contract is that `SkyGearRig3D` cannot tell the difference.
+	var bpath := SkyGearView3D.model_path("BOSS")
+	var bheight: float = SkyGearView3D.boarder_height("BOSS")
+	var brig := SkyGearRig3D.new()
+	root.add_child(brig)
+	var bbuilt: bool = ResourceLoader.exists(bpath) and brig.setup(bpath,
+		bheight * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES)
+	_check("figure", "the Colossus builds as a scene of separate parts, not as a skinned rig",
+		bbuilt and brig.skeleton == null, "%s, skeleton %s" % [bpath,
+			"none — it is parts" if bbuilt and brig.skeleton == null else "PRESENT"])
+	if bbuilt:
+		## ALL THIRTEEN, AND NAMED. The delivered file calls them GLTF..GLTF_12;
+		## `tools/segment_parts.py` names them off their own bounds, so a
+		## re-export that renumbers the geometries does not silently swap a leg
+		## for an arm. The names are the contract everything below addresses.
+		var bwanted := ["torso", "back", "head", "shoulder_l", "shoulder_r",
+			"arm_l", "arm_r", "fist_l", "fist_r", "leg_l", "leg_r",
+			"foot_l", "foot_r"]
+		var bparts := {}
+		var btris := 0
+		for mi in brig.model.find_children("*", "MeshInstance3D", true, false):
+			bparts[(mi as MeshInstance3D).name] = mi
+			var bm: Mesh = (mi as MeshInstance3D).mesh
+			if bm != null:
+				btris += bm.get_faces().size() / 3
+		var bmissing := PackedStringArray()
+		for want in bwanted:
+			if not bparts.has(str(want)):
+				bmissing.append(str(want))
+		_check("figure", "all thirteen parts are present and named by measurement, not by GLTF index",
+			bmissing.is_empty() and bparts.size() == 13,
+			"%d parts%s" % [bparts.size(),
+				"" if bmissing.is_empty() else " (missing: %s)" % ", ".join(bmissing)])
+		## THE BUDGET. 1,366,036 triangles delivered against the project law's
+		## own ceiling — and the ceiling is not a number this row picked, it is
+		## what the PROMPTED Colossus shipped at, same archetype, same on-screen
+		## height. There are no skin weights on a rigid part, which is exactly
+		## why decimating this was safe when decimating the captain is still an
+		## open decision (SG-13).
+		_check("figure", "and the whole machine fits the triangle budget the prompted Colossus shipped at",
+			btris > 0 and btris <= 8000,
+			"%d triangles across 13 parts, from 1,366,036 delivered (%.2f%% kept, ceiling 8,000)"
+				% [btris, 100.0 * float(btris) / 1366036.0])
+		## HEIGHT FROM THE SIM, not from the spec sheet. handoff-3d asked for
+		## "~360 ground units"; the archetype's own arithmetic says 330, and the
+		## renderer's `boarder_height` is the single copy of it. Same discipline
+		## as the knight's 216.
+		_check("figure", "it stands at the SIM's own number for the archetype, not the spec's guess",
+			bheight == 330.0 and absf(brig.fit_height - 3.3) < 0.001,
+			"%.0f ground units = 120 + radius*3, drawn at %.2f m (handoff-3d guessed ~360)"
+				% [bheight, brig.fit_height])
+		## THE BEATS. Four clips plus the idle, and `turn` is the one the state
+		## machine did not have a name for until this asset arrived.
+		var bclips := ["idle", "walk", "swing", "turn", "die"]
+		var bgone := PackedStringArray()
+		for c in bclips:
+			if not brig.has_clip(str(c)):
+				bgone.append(str(c))
+		_check("figure", "it carries the beats the fight actually plays — idle, walk, an attack, the TURN and a death",
+			bgone.is_empty(), "%d of %d%s" % [bclips.size() - bgone.size(),
+				bclips.size(), "" if bgone.is_empty() else " (missing: %s)" % ", ".join(bgone)])
+		## A DRIVEN POSE DIFFERS FROM REST. The cheapest way for a hand-built
+		## clip to be worthless is to key nothing that moves, and a clip list is
+		## not evidence that a clip does anything.
+		var brest := {}
+		for pname in bparts:
+			brest[pname] = (bparts[pname] as MeshInstance3D).transform
+		var bstirred := {}
+		for c in bclips:
+			brig.anim.play(str(c))
+			brig.anim.seek(brig.anim.get_animation(str(c)).length * 0.6, true)
+			var moved := 0
+			for pname in bparts:
+				var bnow: Transform3D = (bparts[pname] as MeshInstance3D).transform
+				var bwas: Transform3D = brest[pname]
+				if bnow.origin.distance_to(bwas.origin) > 0.0005 \
+						or bnow.basis.get_rotation_quaternion().angle_to(
+							bwas.basis.get_rotation_quaternion()) > 0.002:
+					moved += 1
+			bstirred[c] = moved
+		_check("figure", "and every beat MOVES the parts — a driven pose differs from the rest pose",
+			int(bstirred.idle) >= 8 and int(bstirred.walk) >= 12
+				and int(bstirred.swing) >= 12 and int(bstirred.turn) >= 10
+				and int(bstirred.die) == 13,
+			"parts moved: idle %d, walk %d, swing %d, turn %d, die %d (of 13)"
+				% [bstirred.idle, bstirred.walk, bstirred.swing, bstirred.turn,
+					bstirred.die])
+		## THE STRIDE LAW, AND THE CLAMP IT RUNS INTO. A 3.30 m figure moving at
+		## 95 asks `rig3d` for a playback rate of 0.512, which is UNDER the 0.55
+		## floor — so unlike every other figure here its rate is not a variable,
+		## and the cycle had to be AUTHORED to be correct at the rate it will
+		## always get. This pins the arithmetic that made that true: stride over
+		## the period actually played is the simulation's own ground speed.
+		var bspeed: float = float(SkyGearData.ENEMIES.BOSS.speed)
+		brig.state = "idle"
+		brig.want(SkyGearRig3D.gait(bspeed), bspeed)
+		var brate: float = brig.anim.speed_scale
+		var bstride: float = float(brig.model.get_node("Colossus")
+			.get_meta("walk_stride_m", 0.0))
+		var bperiod: float = float(brig.model.get_node("Colossus")
+			.get_meta("walk_period", 0.0))
+		var bground: float = 0.0
+		if bperiod > 0.0:
+			bground = (bstride / SkyGearView3D.WORLD_SCALE) / (bperiod / brate)
+		_check("rig", "the Colossus WALKS, and its cycle covers exactly the ground the simulation moves it over",
+			brig._clip == "walk" and absf(bground - bspeed) < 1.0,
+			"%.3f m of stride per %.3f s cycle at %.2fx = %.1f ground units a second, against the sim's %.0f"
+				% [bstride, bperiod, brate, bground, bspeed])
+		## THE HALF-HEALTH TURN. The sim has held this beat since long before
+		## there was a model for it — `enemy.gd` returns early for the whole of
+		## `state == "turn"` and `take_damage` returns zero through it — and the
+		## renderer showed 1.6 seconds of a figure standing still. It is a
+		## one-shot fitted to the beat's OWN length, not to the countdown.
+		brig.state = "idle"
+		brig.want("turn", 0.0, SkyGearEnemy.TURN_TIME)
+		var bturn_rate: float = brig.anim.speed_scale
+		var bturn_shown: float = 0.0
+		if brig._clip == "turn":
+			bturn_shown = SkyGearEnemy.TURN_TIME * bturn_rate \
+				/ brig.anim.get_animation("turn").length
+		_check("rig", "the half-health turn is a beat the figure PLAYS, and the whole of it fits the 1.6 s it cannot be burst through",
+			brig._clip == "turn" and bturn_shown >= 0.99
+				and SkyGearRig3D.ONE_SHOT.get("turn", false)
+				and SkyGearRig3D.PRIORITY.find("turn") < SkyGearRig3D.PRIORITY.find("swing")
+				and SkyGearRig3D.PRIORITY.find("turn") > SkyGearRig3D.PRIORITY.find("die"),
+			"clip '%s' at %.2fx shows %.0f%% of it; beats the attack, loses to a death"
+				% [brig._clip, bturn_rate, bturn_shown * 100.0])
+		## DEATH BY DISASSEMBLY — the owner's own idea and the centre of the
+		## asset. Three claims, and all three are measured off the played clip
+		## rather than asserted about it:
+		##
+		##   * the parts SEPARATE — they end up spread across the deck rather
+		##     than in the shape of a machine;
+		##   * every one of them is ACCOUNTED FOR — thirteen went in, thirteen
+		##     are still nodes of this rig, none leaked and none pooled anywhere
+		##     new, because the disassembly moves the parts it already had;
+		##   * they LAND — nothing is left hanging in the air and nothing has
+		##     sunk through the planking, which is the failure the first
+		##     integrator actually had (it rested parts on a fixed height and
+		##     put the torso 0.65 m under the deck).
+		brig.state = "idle"
+		brig.want("die", 0.0, SkyGearView3D.DEATH_WINDOW)
+		var bdie_rate: float = brig.anim.speed_scale
+		brig.anim.seek(SkyGearView3D.DEATH_WINDOW, true)
+		var bspread := 0.0
+		var blowest := 1000.0
+		var bhighest := -1000.0
+		var bstill := 13
+		for pname in bparts:
+			var mi := bparts[pname] as MeshInstance3D
+			var box: AABB = mi.global_transform * mi.get_aabb()
+			blowest = minf(blowest, box.position.y)
+			bhighest = maxf(bhighest, box.position.y)
+			for other in bparts:
+				bspread = maxf(bspread, (mi.global_position
+					- (bparts[other] as MeshInstance3D).global_position).length())
+		_check("figure", "DEATH DISASSEMBLES IT — the parts separate and spread across the planking",
+			bdie_rate >= 0.99 and bdie_rate <= 1.01 and bspread > brig.fit_height,
+			"%.2f m between the two furthest parts of a %.2f m machine, death played at %.2fx"
+				% [bspread, brig.fit_height, bdie_rate])
+		_check("figure", "and every part is accounted for — thirteen in, thirteen still on the rig, none leaked",
+			brig.model.find_children("*", "MeshInstance3D", true, false).size() == 13
+				and bparts.size() == 13,
+			"13 nodes, moved not spawned — the disassembly allocates nothing, so the pool is the rig and the cap is one boss")
+		_check("figure", "and they come to REST on the deck rather than hanging in the air or sinking through it",
+			blowest > -0.08 and bhighest < 0.35,
+			"lowest part sits %.3f m and the highest %.3f m above the planking (deck is y = 0)"
+				% [blowest, bhighest])
+		## THE FALLBACK IS INTACT. Deleting the model file is the whole of the
+		## revert: `_sync_rig` refuses a path that is not there and `_draw_figure`
+		## puts the painted Colossus back. Checked by asking the renderer's own
+		## resolver about a kind with no model on disk, so the claim is about the
+		## code path and not about a file nobody moved.
+		var bsprite: String = str(SkyGearData.ENEMIES.BOSS.texture)
+		_check("figure", "and the painted billboard is still the fallback — delete the model and today's sprite comes back",
+			not ResourceLoader.exists(SkyGearView3D.model_path("NOSUCHKIND"))
+				and ResourceLoader.exists(bsprite),
+			"a kind with no scene at its slug path resolves to nothing and falls through to %s"
+				% bsprite.get_file())
+	brig.queue_free()
+
 	## --- board SG-64: the same bargain for the DECK's own meshes -------------
 	## The boarder loop above only reaches kinds the simulation can spawn; the
 	## props reach the renderer through `PROP_MODEL`/`_sync_prop_model`, whose
@@ -8537,7 +8723,7 @@ func _clip() -> void:
 	## listed and does not resolve is a tool that fails at the exact moment
 	## somebody reaches for evidence.
 	var kinds := ["fight", "dash", "projectiles", "scrapper", "boilerwright",
-		"knight", "cutscene"]
+		"knight", "boss", "cutscene"]
 	var unresolved := ""
 	for id in ClipMath.ids():
 		var spec := ClipMath.find(str(id))

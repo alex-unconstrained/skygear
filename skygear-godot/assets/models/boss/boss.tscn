@@ -1,11 +1,12 @@
-[gd_scene format=3]
+[gd_scene load_steps=2 format=3]
 
-[ext_resource type="PackedScene" path="res://assets/models/boss/boss.glb" id="1_rsb1p"]
+[ext_resource type="PackedScene" path="res://assets/models/boss/boss_parts.scn" id="1_parts"]
 
-[node name="Boss" type="Node3D" unique_id=145978490]
-metadata/model_height = 1.896045
+; The SEGMENTED Colossus (board SG-87) — thirteen rigid parts on hinges, built
+; by tools/rig_parts.gd from the kit tools/segment_parts.py cuts. Rebuild both
+; rather than editing this file. `model_height` is measured off the built parts,
+; not declared: scripts/rig3d.gd scales the figure by it.
+[node name="Boss" type="Node3D"]
+metadata/model_height = 3.3110
 
-[node name="Holder" type="Node3D" parent="." unique_id=264466438]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0012940168, 0.9498159, 4.7564507e-05)
-
-[node name="Model" type="Node3D" parent="Holder" unique_id=432266382 instance=ExtResource("1_rsb1p")]
+[node name="Colossus" parent="." instance=ExtResource("1_parts")]

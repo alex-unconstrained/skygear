@@ -60,7 +60,7 @@ separate bone-mounted asset. Clips wanted: walk/run, one swing, a flinch,
 and a **death** — the knight's pack gave the game its first death animation
 and the swarm dying in numbers is where it will read most.
 
-### colossus_boss/ — the wave-12 boss, the one figure with a fight of its own
+### colossus_boss/ — **RESOLVED BY THE OWNER (2026-08-02)** — was: the wave-12 boss, the one figure with a fight of its own
 **Height ~360 ground units (3.6 m), the biggest thing that walks.** It has two
 beats the sim already plays: it TURNS at half health (cannot be burst through
 the turn) and it vents what it called. Clips wanted beyond the usual: an
@@ -68,6 +68,57 @@ the turn) and it vents what it called. Clips wanted beyond the usual: an
 for the half-health moment, and a **death** — its death is the end of a run and
 currently it just stops existing. Massive, slow, armoured; the painted one is
 a hunched brass giant. Same A-pose/neck/empty-hands rules.
+
+**DELIVERED, and the spec above stays as history — but read what follows before
+writing another entry like it, because this spec asked for the wrong thing and
+got something better.** The owner modelled the Brassbound Juggernaut and
+delivered it as a Meshy **part-segmentation** export: not one mesh, but THIRTEEN
+separate geometries. And he chose the approach with it — *"I feel like if we just
+do simple segmented movement it might work well for the boss. It's not exactly a
+humanoid model, and it doesnt move that much, and its death animation could be
+the parts just falling apart."* Wired under board **SG-90**
+(`assets/models/boss/`, 330 ground units, 7,994 triangles from 1,366,036, five
+clips, `.shots/clips/boss.gif`).
+
+**THE SEGMENTED ROUTE IS WHY IT WORKED, and it is the thing this folder should
+carry forward.** Every rule at the top of this file — A-pose, arms clear, a neck
+present, hands empty — exists to satisfy **Mixamo's auto-rigger**, and this asset
+never went near it. It did not need to:
+
+* **A machine delivered in pieces needs no rig at all.** `tools/rig_local.gd`
+  argued that a rigid bind is "the honest material on a riveted machine", and
+  paid for it with candy-wrapper elbows it did not want — it pays that because
+  the scrapper arrives as ONE SURFACE and a surface has to be cut somehow. This
+  arrived already cut, so a part is a node, its joint is that node's origin, and
+  a hinge is a rotation. No skeleton, no skin weights, no seam to stretch, and
+  `scripts/rig3d.gd` drives it without knowing it is not a rig.
+* **The death fell out of the format.** "The parts just falling apart" is not an
+  effect that had to be invented for this model; it is the articulation running
+  backwards, and every part breaks at the joint it hinged on because those are
+  the same point. It plays through the furnace knight's existing death seam with
+  no simulation change and no new pool.
+* **And it made the decimation free.** 1.37 MILLION triangles arrived against a
+  budget of 8,000. Decimating the CAPTAIN is still an open decision (board SG-13)
+  purely because her skin weights ride her vertices — a rigid part carries
+  nothing but its own surface, so this was local, safe and cost zero credits.
+
+Three things a future spec should say that this one did not:
+
+* **Say whether the asset may arrive SEGMENTED.** This entry asked for a rigged
+  humanoid because that was the only shape the pipeline had. For anything that is
+  a machine rather than a body — and `gunner_drone/` below is the other one —
+  segmented parts are the better ask, and there is a route for it now:
+  `tools/segment_parts.py` then `tools/rig_parts.gd`, both zero-credit.
+* **A part-segmentation export is a VISUALISATION, and its colours are labels.**
+  It carries no UVs and no texture images; every part arrives flat-filled from a
+  plotting palette. Ship it as delivered and the deck gets a harlequin. Budget a
+  palette pass — and expect any emission the painted version had, here the
+  furnace grate, to become a LIGHT instead, because there are no UVs to map one
+  onto.
+* **The height in this entry was wrong, and was not used.** It asked for ~360
+  ground units; the archetype's own arithmetic says **330**, and the renderer's
+  `boarder_height` is the single copy of it. Same discipline as the knight's 216:
+  a spec should cite the simulation's number rather than estimate one beside it.
 
 ### crew/ — your own sailors, the last friendly 2D figures
 Three painted states (front idle, front attack, back idle) and they stand

@@ -4406,7 +4406,8 @@ func _sync_all(delta: float) -> void:
 		## one at a time, and the renderer should not need editing for each.
 		if not _sync_rig(key, enemy.kind, enemy.global_position, heading, height,
 				swinging, enemy.state == "move", enemy.velocity.length(),
-				maxf(0.0, enemy.state_time), delta, enemy.stun_time):
+				maxf(0.0, enemy.state_time), delta, enemy.stun_time,
+				enemy.state == "turn"):
 			_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
 				enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
 		# burning boarders glow; frozen ones go blue. The status is the read.
@@ -5009,7 +5010,8 @@ static func boarder_height(kind: String) -> float:
 ## so the caller falls back to the painted billboard.
 func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		height: float, attacking: bool, moving: bool, speed: float,
-		attack_clock: float, delta: float, stun: float = 0.0) -> bool:
+		attack_clock: float, delta: float, stun: float = 0.0,
+		turning: bool = false) -> bool:
 	if _no_model.has(kind):
 		return false
 	var rig: SkyGearRig3D = _rigs.get(key)
@@ -5041,6 +5043,15 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## does not stun stays what it always was, a number and a tint; a
 		## flinch on every tick of damage would freeze a 180-hp wall solid.
 		doing = "hurt"
+	elif turning:
+		## THE HALF-HEALTH TURN (SG-90). The Colossus's own beat, and the sim
+		## already makes it a real one — `enemy.gd` holds `state == "turn"` for
+		## `SkyGearEnemy.TURN_TIME` and refuses all damage through it, so it
+		## cannot be burst. Until the segmented model landed, 1.6 seconds of
+		## invulnerability looked exactly like 1.6 seconds of a figure standing
+		## still. A rig with no `turn` clip degrades to idle and is no worse off
+		## than it was.
+		doing = "turn"
 	elif attacking:
 		doing = "swing"
 	elif moving and speed > 12.0:
@@ -5052,7 +5063,12 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## be stretched less; the crossover leaves the scrapper on his run.
 		doing = SkyGearRig3D.gait(speed)
 	var window := 0.0
-	if attacking:
+	if doing == "turn":
+		## The beat's OWN length, not the countdown the enemy is running. See
+		## `SkyGearEnemy.TURN_TIME` — a window that shrinks every frame is a
+		## one-shot that accelerates as it plays.
+		window = SkyGearEnemy.TURN_TIME
+	elif attacking:
 		window = attack_clock
 	elif doing == "hurt":
 		window = maxf(0.12, stun)
