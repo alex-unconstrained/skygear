@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **867 harness checks**; the text audit covers 24 screens at
+board SG-56). **875 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -26,6 +26,54 @@ rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE SAFEST PLACE ON THE DECK WAS INSIDE THE FIRE, AND THE RIG THAT SHOULD
+HAVE CAUGHT IT WAS MEASURING A CAPTAIN WHO NEVER MOVED (SG-117 + SG-118,
+2026-08-03).** `invulnerability_left` is ONE global variable and a fire tick set
+it to 0.55 s four times a second, so a captain standing in a pool was immune to
+*everything* — a boarder's 26-damage swing included — while the pool itself
+landed one tick in three. Measured directly, a captain being swung at every
+1.5 s for a minute took **700 damage standing IN the fire against 1014 standing
+CLEAR of it**: the hazard was a 31% damage shield. It is a `grants_invuln` flag
+threaded `damage_player` → `take_damage`, default TRUE so every discrete hit is
+byte-for-byte unchanged, FALSE from the tick — and the sweep for other periodic
+sources was RUN rather than assumed: there is exactly one, because enemy burn
+stacks drain the enemy and the steam taps' half-second accumulator calls
+`_damage_circle`, which never iterates the captain. In fire now costs 1440.
+Five `hazard ·` checks, the pre-committed one being `hazard · a fire tick never
+buys immunity to a swing`.
+
+**And the second half is the fifth failure mode again, one level deeper than it
+has been found before.** `tools/balance.gd` — the source of every simulated-run
+verdict in these docs — carried a comment saying its bot *"keeps moving"* beside
+a loop that issued **no movement input at all**. It moves now, and its policy is
+a file of its own (`tools/bot.gd`) that the harness drives directly, because a
+policy buried in a loop is a policy nobody can test: it holds the captain's own
+210-unit gauge band, strafes inside it, leaves a fire pool it is standing in
+(but does not route around one it is clear of — a bot that dodged fire perfectly
+would have made SG-117 look free), and dashes only to break contact, because
+dash grants i-frames and a bot dashing on cooldown carries a background immunity
+that flatters exactly what SG-117 measures. Two more things were ticking behind
+the rig's back and are fixed: the engine was stepping the **captain** on real
+frames (`set_process(false)` on the game never reached her — she is her own
+node), and nothing had ever disabled the **props**, so a lit keg's 0.45 s fuse
+burned on wall-clock time and a keg is 26 damage. **A moving captain is a
+different game**: Heat 0, n=120 — damage taken **34.6 → 241**, runs held
+**38% → 92%**, close-range time **3–5% → ~22%**. Every balance number in these
+docs predating this is a number about a stationary captain, and **SG-57's
+held-rate observation — the one waiting on the owner's threshold — has flipped
+sign and is no longer significant**; its own row had wondered aloud whether it
+was "a bot fact", and it was.
+
+**The rig is STILL not deterministic, and it now says so where it used to claim
+otherwise.** The residual is below the scene tree — `move_and_slide()` queries a
+physics space the server syncs on its own tick — so the header states plainly
+that this tool reports a DISTRIBUTION and that **its floor is not zero: 8% on
+damage-taken between two n=120 batches of identical code.** That floor is why
+SG-117's run-level result (−10%) was reported to the owner as *below the rig's
+resolution* rather than as a finding, and why the fix's real evidence is the
+direct probe instead. Three `bot ·` checks; the one that matters is `bot · the
+bot actually moves the captain — the SG-118 regression`.
 
 **THE MODELS CAN BE LIT NOW, AND THE LIGHTS ARE DATA (SG-81, owner ask:
 "the models don't have baked lighting").** `assets/models/lights.json` is a
@@ -169,7 +217,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (867 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (875 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -238,7 +286,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 867 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 875 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -266,7 +314,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 867 checks. Green before anything ships |
+| `harness` | 875 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

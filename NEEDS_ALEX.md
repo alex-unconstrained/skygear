@@ -3,12 +3,21 @@
 _Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live**
 — it carries everything below plus the overnight work._
 
-> **One thing to know before you play: standing in fire currently makes you
-> immune to almost everything** (SG-117, found tonight, verified, being fixed) —
-> a hazard tick buys 0.55 s of *global* i-frames every 0.75 s, so a fire pool is
-> the safest square on the deck. If a fight has ever felt oddly survivable, that
-> is why. The fix changes felt difficulty in both directions and you will get
-> the before/after numbers rather than just the fix.
+> **Standing in fire made you immune to almost everything. It is FIXED** —
+> SG-117, found and verified last night, fixed 2026-08-03; a hazard tick bought
+> 0.55 s of *global* i-frames every 0.75 s, so a fire pool was the safest square
+> on the deck. If a fight ever felt oddly survivable, that is why. **Standing in
+> a pool used to be 31% SAFER than standing beside it; it now costs 42% more.**
+> The measured before/after — including the part where the run-level rig
+> **cannot** resolve the change and I am not pretending it can — is in
+> **§SG-117 / SG-118** near the bottom. No tuning value was changed.
+>
+> **And read §SG-118 in the same section before you trust any balance number in
+> this repo**, including ones I have shown you before: `tools/balance.gd` never
+> moved its bot, while a comment in it said it did. Every simulated-run verdict
+> here was measured against a captain standing on her spawn point. **One number
+> from SG-57 that was waiting on your threshold has flipped sign** and no longer
+> asks you anything.
 >
 > **Read §SG-108 at the bottom before you trust any measurement in this file.**
 > The screenshot tools were photographing a moving scene and calling it still —
@@ -231,6 +240,152 @@ The shadow A/B plates (`shadow-today` / `-corrected` / `-off`) caught the
 captain mid-swing, so a fire arc dominates the frame and they are poor pictures
 even though the numbers behind them are sound. Worth re-shooting at a quieter
 tick before you judge the look of the contact cores by eye.
+
+---
+
+## SG-117 / SG-118 — the fire immunity is fixed, and the rig that was supposed to judge it was measuring a captain who never moved
+
+**Both are done. Neither changed a tuning value.** The short version: the fire
+bug was real and large, the fix does *not* make the game harder for a competent
+player, and one number you were shown for SG-57 has flipped direction because
+the rig that produced it was broken.
+
+### 1 · SG-118 first, because it is the instrument the rest of this rests on
+
+`tools/balance.gd` — the source of every simulated-run verdict this project has
+ever recorded — carried a comment saying its bot *"keeps moving"*. **The loop
+issued no movement input at all.** The bot cast skills at whatever was nearest,
+from the spawn point it started on, for twelve waves, every time.
+
+It moves now: it holds the captain's own 210-unit gauge band, circle-strafes
+inside it, walks out of a fire pool it is standing in, and dashes only to break
+contact. The policy is its own file (`tools/bot.gd`) with the whole behaviour
+written at the top, because things get measured against it, and the harness
+drives that same object — `bot · the bot actually moves the captain — the
+SG-118 regression` fails if it ever stops.
+
+Two other things were ticking behind the rig's back and are fixed: the engine
+was stepping the **captain** on real frames (`set_process(false)` on the game
+never reached her — she is her own node), and nothing had ever disabled the
+**props**, so a lit powder keg's 0.45 s fuse burned on wall-clock time. A keg is
+26 damage — comparable to a whole run's damage total under the old stationary
+bot.
+
+**What a moving captain does to the baseline, at Heat 0 (n=120 runs):**
+
+| | stationary bot (what every past verdict used) | moving bot |
+|---|---|---|
+| damage taken, mean | 34.6 | **241** |
+| runs held | 38% | **92%** |
+| time at close range | 3-5% | **~22%** |
+| vents per run | ~30 | **~60** |
+
+Those are not small corrections. **Every balance number in the docs taken with
+this rig is a number about a stationary captain.**
+
+### 2 · SG-57's tempo half: the observation you were asked to rule on has flipped
+
+The SG-57 row flagged one thing for you: SURGE tempo looked like it might be a
+difficulty shift, held **23/60 live vs 34/60 flat (z~2.0)** — surge *harder* —
+and the row honestly wondered whether it was "a bot fact". **It was a bot fact.**
+
+Re-run with the moving bot, n=120 per arm, same seeds, same lever:
+
+| | live tempo | flat (pinned STEADY) | verdict |
+|---|---|---|---|
+| runs held | **92%** | 86% | z=1.43 — *not* significant, and the sign is now **reversed** |
+| damage taken | 241.2 | 248.1 | t=-0.64 — not significant (unchanged conclusion) |
+| average wave | 11.88 | 11.68 | — |
+
+So: the damage-taken conclusion is unchanged (indistinguishable, as before), and
+**the hold-rate worry goes away.** A stationary captain was punished by SURGE's
+simultaneity because she could not walk away from it; one who moves is not.
+**I have not closed SG-57** — the row stays open and the numbers are recorded
+there. If your threshold question was only ever about that hold-rate
+observation, it no longer has anything to answer.
+
+### 3 · SG-117: standing in fire was a defensive move
+
+`invulnerability_left` is **one global variable**. A fire tick set it to 0.55 s,
+four times a second. So a captain in a pool was immune to *everything* — a
+boarder's 26-damage swing included — and the pool itself landed one tick in
+three.
+
+Measured directly and deterministically (one captain, one pool, a boarder
+swinging every 1.5 s for 60 s, stepped at the game's own 1/60):
+
+| standing... | before | after |
+|---|---|---|
+| **in the fire** | **700 damage** | **1440 damage** |
+| clear of the fire | 1014 damage | 1014 damage |
+| share of swings that landed, in fire | **51%** | **100%** |
+| fire's own contribution | 180 | 426 |
+
+Read the first two rows together, because that is the whole bug: **before the
+fix, standing in the fire was 31% SAFER than standing next to it.** After, it
+costs 42% more, which is what a hazard is supposed to do. Fire's own damage went
+up 2.4x rather than the predicted 3x — the difference is ticks correctly
+absorbed by i-frames a *swing* granted, which is the behaviour we kept.
+
+The fix is a `grants_invuln` flag threaded through `damage_player` ->
+`take_damage`, defaulting **true** so every discrete hit behaves exactly as it
+always has, and passed **false** from periodic sources. I swept for those rather
+than assuming: **there is exactly one** — the fire fields. Enemy burn stacks are
+a DoT on the *enemy*; the steam taps' half-second tick calls `_damage_circle`,
+which iterates enemies and props and never the captain. Four checks pin it,
+including the pre-committed `hazard · a fire tick never buys immunity to a
+swing` and its converse, `hazard · but a dash still dodges one — the flag
+grants, it does not ignore`.
+
+### 4 · Does the fix make the game harder? No — and the run-level number cannot tell you, which is the honest part
+
+You asked for before/after over enough seeds to mean something, and told me not
+to compensate by tuning fire down. **I have not touched a tuning value.** But the
+run-level answer has to come with its own noise floor, per the rule in STATUS:
+
+| n=120 runs per arm | damage taken | runs held |
+|---|---|---|
+| before -> after | 241.2 -> 216.7 (**-10%**, t=2.43) | 92% -> 90% (z=-0.45) |
+| **two runs of IDENTICAL code** | 241.2 -> 260.1 (**+8%**, t=1.75) | 92% -> 90% (z=-0.45) |
+
+**The floor is the same size as the effect.** Two batches of the same build, same
+seeds, differ by 8%; the fix "moves" damage-taken by 10%. So the -10% is *not* a
+finding, and I am not going to report it as "the fix made the game easier" — it
+is below what this rig can resolve. The hold rate does not move at all, in either
+comparison.
+
+The reason the rig cannot see a bug this large is itself worth knowing: **the bot
+walks out of fire**, so it barely uses the exploit. The exploit was always
+available to a *player who chose to stand in a pool*, and §3's direct probe is the
+measurement that actually addresses it. A whole-run bot average was the wrong
+instrument for this question, and the floor is what proves that rather than a
+feeling.
+
+**What this means for you:** the fix removes a large exploit and does not
+measurably change a normal run's difficulty. Nothing needs compensating on the
+evidence I have. If it *feels* different when you play it, that is a real signal
+and I would rather have your verdict than tune toward my own number.
+
+### 5 · Three new bugs found on the way, filed and NOT fixed
+
+Filed on the board rather than smuggled into these commits, because each changes
+balance and each deserves its own before/after:
+
+- **SG-120 (P2) — a run's keg layout is not reproducible from its seed.**
+  `set_seed_text` promises, in its own comment, that a seed is "a seed a player
+  can hand to someone else". `visual_rng` is never seeded anywhere in the repo,
+  and it places the `extra_kegs` talent's kegs — 26 damage each, and a
+  lane-clearing bomb when detonated. Same seed, different deck.
+- **SG-121 (P3) — three fire-field creators write a `radius` and a `dps` that
+  nothing reads.** This is the "data with no reader" failure mode for the
+  **sixth** time. The Boilerwright's bleed-jet scald trail specifies
+  `trail_dps 9` and `trail_radius 46`; RESIDUE scales its `dps` with the card.
+  `_update_fire_fields` hardcodes 78 units and 3.0 damage and ignores all of it,
+  so a scald trail and a broken lantern are the same pool.
+- **SG-122 (P3) — a fire field's tick period is frame-rate dependent**, because
+  the reset assigns `0.25` instead of subtracting it and throws the remainder
+  away. Harmless at 60 fps; it cost an hour here when a rate check read 10 dps at
+  a hand-stepped 0.05 and looked like the fix underdelivering.
 
 ---
 

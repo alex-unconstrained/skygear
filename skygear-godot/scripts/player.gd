@@ -190,11 +190,26 @@ func refund_dash(seconds: float) -> void:
 	if dash_charges < max_dash_charges:
 		dash_recharge_left = maxf(0.0, dash_recharge_left - seconds)
 
-func take_damage(amount: float) -> bool:
+## `grants_invuln` defaults TRUE, so every discrete hit — a swing, a bolt, a keg
+## — keeps exactly the behaviour it has always had. Periodic sources pass FALSE
+## (SG-117).
+##
+## The i-frames are still CHECKED whatever the source: a hazard tick cannot land
+## on a captain who is mid-dash or who just ate a swing. What changes is that a
+## hazard tick no longer *grants* them. That asymmetry is the whole fix, and it
+## is the right way round: the 0.55 s window exists so a single swing cannot be
+## double-counted and so a hit reads as one hit, and a fire pool ticking four
+## times a second was minting that window continuously. A captain standing in
+## fire was therefore immune to EVERYTHING — `invulnerability_left` is one
+## global variable, not a per-source one — for 0.55 of every 0.75 s, about 73%
+## of the time, a boarder's 26-damage swing included. The safest place on the
+## deck was inside the fire.
+func take_damage(amount: float, grants_invuln: bool = true) -> bool:
 	if amount <= 0.0 or invulnerability_left > 0.0 or hp <= 0.0:
 		return false
 	hp = maxf(0.0, hp - amount)
-	invulnerability_left = 0.55
+	if grants_invuln:
+		invulnerability_left = 0.55
 	queue_redraw()
 	return true
 

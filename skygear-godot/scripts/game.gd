@@ -3613,7 +3613,15 @@ func vent_pressure() -> void:
 	if voice != null:
 		voice.say("vent")
 
-func damage_player(amount: float, _source: String = "") -> void:
+## `grants_invuln` defaults TRUE so every existing caller keeps today's
+## behaviour; every PERIODIC / damage-over-time source passes FALSE (SG-117).
+## As of 2026-08-03 there is exactly one such source in the game — the fire
+## fields — and the sweep that established that is on the board: enemy burn
+## stacks are a DoT on the ENEMY, and the steam taps' half-second tick calls
+## `_damage_circle`, which iterates enemies and props and never the captain.
+## The flag is threaded rather than special-cased on `_source` so the next
+## hazard is a parameter rather than a rediscovery.
+func damage_player(amount: float, _source: String = "", grants_invuln: bool = true) -> void:
 	if state != State.PLAY:
 		return
 	## ANCHORED. Declared in `SkyGearData.TAP.anchor_resist` and read by
@@ -3642,7 +3650,7 @@ func damage_player(amount: float, _source: String = "") -> void:
 			impact.add_shake(16.0)
 		play_sfx("player/ready.ogg", -2.0)
 		return
-	if player.take_damage(amount):
+	if player.take_damage(amount, grants_invuln):
 		tel.taken += amount
 		tel.taken_by_wave[wave] = float(tel.taken_by_wave.get(wave, 0.0)) + amount
 		play_sfx("player/hurt.ogg", -3.0)
@@ -3929,7 +3937,14 @@ func _update_fire_fields(delta: float) -> void:
 			field.tick = 0.25
 			_damage_circle(field.position, 78.0, 7.5, "EMBER", 0.0, false, false)
 			if field.position.distance_to(player.global_position) <= 78.0:
-				damage_player(3.0, "fire")
+				## NO I-FRAMES (SG-117). This tick fires four times a second, and
+				## granting the standard 0.55 s window made a fire pool the safest
+				## place on the deck: two ticks in three were swallowed by the
+				## window the previous tick opened — so the pool dealt about a
+				## third of its authored rate — and, far worse, that window is one
+				## global variable, so it blocked boarders' swings and gunners'
+				## bolts too. Standing in fire was a defensive move.
+				damage_player(3.0, "fire", false)
 		if float(field.time) <= 0.0:
 			fire_fields.remove_at(i)
 

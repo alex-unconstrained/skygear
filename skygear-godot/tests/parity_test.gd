@@ -20,6 +20,9 @@ func _initialize() -> void:
 	call_deferred("_run")
 
 
+const BOT_SCRIPT := preload("res://tools/bot.gd")
+
+
 func _check(group: String, name: String, condition: bool, detail: String = "") -> void:
 	checks += 1
 	if condition:
@@ -157,6 +160,10 @@ func _run() -> void:
 	await _screen_poser()
 	await process_frame
 	_dash()
+	await process_frame
+	await _hazard()
+	await process_frame
+	await _bot()
 	await process_frame
 	_mobility()
 	await process_frame
@@ -10077,6 +10084,162 @@ func _cutscene() -> void:
 ## and made sixty-one checks quietly stop existing. This block did it again —
 ## 435 became 342, green, no error — which is the third time. `_view` is over
 ## three thousand lines and is now closed to new work.
+## HAZARD TICKS AND I-FRAMES (SG-117).
+##
+## `invulnerability_left` is ONE global variable. A fire field ticks the captain
+## every 0.25 s and every tick used to set that variable to 0.55 — so a captain
+## standing in a pool was untouchable by everything else for roughly 73% of the
+## time, and the fire itself landed one tick in three. The safest place on the
+## deck was inside the fire.
+func _hazard() -> void:
+	var game := _new_game()
+	_begin(game)
+	game.spawn_queue.clear()
+	game.player.global_position = Vector2(0.0, 600.0)
+	game.player.invulnerability_left = 0.0
+	game.fire_fields.clear()
+	game._field({"position": Vector2(0.0, 600.0), "time": 30.0, "tick": 0.0})
+
+	## THE PRE-COMMITTED CHECK. Land a fire tick, then immediately swing a
+	## boarder's 26 at her. Before the fix the swing was refused outright,
+	## because the tick had just minted 0.55 s of global immunity.
+	game._update_fire_fields(0.05)
+	var burned: float = game.player.hp
+	_check("hazard", "a fire tick lands", burned < game.player.max_hp,
+		"hp %.1f of %.1f" % [burned, game.player.max_hp])
+	game.damage_player(26.0, "swing")
+	_check("hazard", "a fire tick never buys immunity to a swing",
+		game.player.hp < burned - 0.01,
+		"hp %.1f after the swing, was %.1f" % [game.player.hp, burned])
+
+	## AND THE CONVERSE, so the fix cannot be mistaken for "hazards ignore
+	## i-frames". A dash is still a dodge: a tick that arrives while she is
+	## already invulnerable is still refused. The flag governs whether a tick
+	## GRANTS the window, never whether it RESPECTS it.
+	game.player.invulnerability_left = 0.5
+	var before: float = game.player.hp
+	game.fire_fields[0].tick = 0.0
+	game._update_fire_fields(0.05)
+	_check("hazard", "but a dash still dodges one — the flag grants, it does not ignore",
+		is_equal_approx(game.player.hp, before),
+		"hp %.1f vs %.1f" % [game.player.hp, before])
+
+	## AND A SWING STILL GRANTS ITS OWN. The default is unchanged, which is what
+	## keeps every discrete source behaving exactly as it did.
+	game.player.invulnerability_left = 0.0
+	game.damage_player(10.0, "swing")
+	_check("hazard", "a swing still opens the 0.55 s window it always did",
+		is_equal_approx(game.player.invulnerability_left, 0.55),
+		"%.2f s" % game.player.invulnerability_left)
+
+	## THE RATE, which is the owner-visible half. Thirty seconds of standing in a
+	## pool: 0.25 s ticks of 3.0 is 12.0 dps if none are swallowed. Under the old
+	## behaviour the 0.55 s window ate two ticks in three and the pool delivered
+	## about 5.5.
+	var pool := _new_game()
+	_begin(pool)
+	pool.spawn_queue.clear()
+	pool.player.global_position = Vector2(0.0, 600.0)
+	pool.player.invulnerability_left = 0.0
+	pool.player.max_hp = 100000.0
+	pool.player.hp = 100000.0
+	pool.fire_fields.clear()
+	pool._field({"position": Vector2(0.0, 600.0), "time": 999.0, "tick": 0.0})
+	## STEPPED AT THE GAME'S OWN FRAME DELTA, not this file's usual 0.05. The tick
+	## is reset by ASSIGNMENT (`field.tick = 0.25`) rather than by subtracting the
+	## interval, so the remainder is thrown away every time and the true period is
+	## `ceil(0.25 / delta) * delta`. At 0.05 that rounds to 0.30 and the pool
+	## reads 10 dps; at the 1/60 the game actually runs it is 0.25 and the pool
+	## reads its authored 12. Measuring the fix at a delta the game never uses
+	## would have been this harness testing itself.
+	var frame := 1.0 / 60.0
+	for _tick in 600:
+		## PINNED. `damage_player` returns early outside PLAY, and an emptied
+		## spawn queue completes the wave and flips to DRAFT partway through.
+		## Same trap as the mobility pass's `controls_enabled`.
+		pool.state = SkyGearGame.State.PLAY
+		pool._update_fire_fields(frame)
+		pool.player.invulnerability_left = maxf(0.0, pool.player.invulnerability_left - frame)
+	var dps: float = (100000.0 - pool.player.hp) / 10.0
+	_check("hazard", "and a fire pool now deals its authored 12 dps, not a third of it",
+		dps > 11.0 and dps < 12.5, "%.1f dps over 10 s" % dps)
+	pool.queue_free()
+	game.queue_free()
+	await process_frame
+
+
+## THE BALANCE BOT (SG-118), and the reason these checks exist at all.
+##
+## `tools/balance.gd` carried a comment saying its bot "keeps moving" beside a
+## loop that issued no movement input whatsoever. Every balance verdict this
+## project ever recorded — SG-57's tempo half included — was measured against a
+## captain standing on her spawn point, and nothing caught it because the rig
+## was the only thing that knew what the rig did.
+##
+## So the policy is an object now, `tools/bot.gd`, and the harness drives THAT
+## object: the thing under test and the thing that produces the published
+## numbers are the same code. A bot that stops moving fails here first.
+func _bot() -> void:
+	var bot: RefCounted = BOT_SCRIPT.new()
+
+	## The band is the captain's own gauge radius. `bot.gd` names the number
+	## rather than reading the table, deliberately — a recorded measurement must
+	## not change meaning because a tuning pass moved a constant — so something
+	## has to notice when the two drift apart, and this is it.
+	_check("bot", "the bot's band is the captain's own gauge range",
+		is_equal_approx(BOT_SCRIPT.BAND, float(SkyGearData.CLOSE.range)),
+		"bot %.0f vs CLOSE.range %.0f" % [BOT_SCRIPT.BAND, float(SkyGearData.CLOSE.range)])
+
+	## THE ONE THAT WOULD HAVE CAUGHT SG-118. Put a boarder on the deck, let the
+	## bot play, and measure the ground the captain covers.
+	##
+	## GROUND IS INTEGRATED FROM VELOCITY, not read off `global_position`, for
+	## the reason the mobility check below records at length: the body is
+	## committed by `move_and_slide()`, which steps on the engine's physics delta
+	## rather than the 0.05 this loop hands out, so position is wall-clock noise
+	## and speed is not.
+	var runner := _new_game()
+	_begin(runner)
+	runner.spawn_queue.clear()
+	runner.spawn_enemy("SCRAPPER", 1)
+	var ground := 0.0
+	for _tick in 60:
+		## Forced on each tick for the same reason as the mobility pass: an empty
+		## spawn queue completes the wave and flips to DRAFT, which sets the flag
+		## false and would stop the measurement partway through.
+		runner.player.controls_enabled = true
+		bot.steer(runner)
+		runner.player.controls_enabled = true
+		runner.player._physics_process(0.05)
+		ground += runner.player.velocity.length() * 0.05
+	bot.release()
+	## Three seconds of a competent captain is hundreds of units, not zero. The
+	## threshold is deliberately far below what she actually covers (~700) and
+	## far above the nothing the old rig produced — this check is here to catch a
+	## bot that has stopped playing, not to pin a speed.
+	_check("bot", "the bot actually moves the captain — the SG-118 regression",
+		ground > 200.0, "%.0f units in 3.0 s" % ground)
+	runner.queue_free()
+	await process_frame
+
+	## AND SHE LEAVES A FIRE POOL SHE IS STANDING IN. Tested on `desired()`,
+	## which is the policy as pure arithmetic, so the assertion is about the
+	## decision rather than about where a physics step happened to land her.
+	var burner := _new_game()
+	_begin(burner)
+	burner.spawn_queue.clear()
+	burner.player.global_position = Vector2(0.0, 600.0)
+	burner.fire_fields.clear()
+	burner._field({"position": Vector2(0.0, 640.0), "time": 4.0, "tick": 0.25})
+	var out: Vector2 = bot.desired(burner)
+	## The pool is BELOW her, so leaving it means travelling up the deck. With no
+	## enemy on the board the fire term is the only thing steering.
+	_check("bot", "and she walks out of a fire pool she is standing in",
+		out.y < -0.5, "steer %.2f,%.2f" % [out.x, out.y])
+	burner.queue_free()
+	await process_frame
+
+
 func _mobility() -> void:
 	var travel := {}
 	for who in ["captain", "boilerwright"]:
