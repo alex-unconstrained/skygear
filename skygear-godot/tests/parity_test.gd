@@ -2481,6 +2481,217 @@ func _crit_explode() -> void:
 ## and it would rot the moment a cargo rect moves — the roster-of-three-names
 ## mistake STATUS.md's last failure mode describes. The check searches the deck
 ## for a spot the renderer itself calls occluded and uses that.
+## SG-148: A SECONDARY DAMAGE SOURCE MAY NOT CRIT, AT ALL SIX OF THEM.
+##
+## The browser passes `noCrit:true` from every secondary source and the port
+## dropped the flag; SG-147 restored it on the one call site that crashed. These
+## are the other six, each driven through ITS OWN CALL SITE rather than through
+## `_damage_circle` directly — a check that called the shared helper would pass
+## on a build where all six call sites still asked for a roll, which is exactly
+## the bug that was shipped.
+##
+## DETERMINISTIC, NOT DISTRIBUTIONAL. `crit_chance` is forced to 1.0, so the
+## crit is CERTAIN and the assertion is arithmetic: a source that can crit deals
+## exactly double (`scaled *= 2.0`), a source that cannot deals exactly its
+## authored damage. There is no seed for which this is flaky and no frame rate
+## that changes it.
+##
+## AND EACH IS ASSERTED IN BOTH POSITIONS OF THE GATE, which is the SG-146
+## lesson: a mechanism tested only in the position it ships in is not tested.
+## The `still doubles` half is NOT a witness for the fix — it is the proof that
+## the check is wired to the source it names. Delete `secondary_can_crit` from
+## any one call site and that source's first half goes red while its second
+## stays green, which is what tells you which of the six was edited.
+func _nocrit() -> void:
+	for arm in [false, true]:
+		var results := _nocrit_arm(arm)
+		if results.size() != 6:
+			_check("nocrit", "all six secondary sources could be posed",
+				false, "only %d of 6 fixtures built, arm secondary_can_crit=%s"
+					% [results.size(), arm])
+			return
+		for row in results:
+			var label: String = str(row.name)
+			var dealt: float = float(row.dealt)
+			var authored: float = float(row.authored)
+			var want: float = authored * (2.0 if arm else 1.0)
+			if arm:
+				_check("nocrit", "and with the rule off %s doubles, so the check is reading that source" % label,
+					absf(dealt - want) < 0.51,
+					"%s dealt %.1f, expected the crit-doubled %.1f" % [label, dealt, want])
+			else:
+				_check("nocrit", "%s may not crit" % label,
+					absf(dealt - want) < 0.51,
+					"%s dealt %.1f, expected the authored %.1f (a crit deals %.1f)"
+						% [label, dealt, want, authored * 2.0])
+
+
+## Poses each of the six sources against a lone boarder and reports what each
+## actually took off him. `can_crit` drives `game.secondary_can_crit`, whose
+## shipped position is FALSE.
+func _nocrit_arm(can_crit: bool) -> Array:
+	var out: Array = []
+
+	## 1. THE KILL EXPLOSION — browser v11:1863. Driven through
+	## `on_enemy_killed`, so this covers the call site and not the circle.
+	var rig1 := _nocrit_rig(can_crit)
+	var t1: SkyGearEnemy = rig1[1]
+	if t1 == null:
+		return out
+	var game1: SkyGearGame = rig1[0]
+	game1.mods.kill_explode = 30.0
+	var victim := _nocrit_extra(game1, t1.global_position)
+	if victim != null:
+		## Dead BEFORE the call, exactly as `enemy.gd` leaves him — which is also
+		## the reason this circle needs no `skip`: `_damage_circle` filters the
+		## dead, so the browser's `skip:e` on THIS explosion is reproduced by
+		## accident. (It is not reproduced on the crit explosion. See SG-154.)
+		victim.dead = true
+		var before1 := t1.hp
+		game1.on_enemy_killed(victim)
+		out.append({"name": "the kill explosion", "dealt": before1 - t1.hp,
+			"authored": 30.0})
+	game1.queue_free()
+
+	## 2. THE VENT — browser v11:1798. Damage read off the table rather than
+	## typed, so a tuning pass cannot leave this asserting a number nobody ships.
+	var rig2 := _nocrit_rig(can_crit)
+	var t2: SkyGearEnemy = rig2[1]
+	if t2 == null:
+		return out
+	var game2: SkyGearGame = rig2[0]
+	game2.player.global_position = t2.global_position
+	var vent_authored: float = float(SkyGearData.CLOSE.vent_damage) \
+		* float(game2.mods.vent_damage)
+	var before2 := t2.hp
+	game2.vent_pressure()
+	out.append({"name": "the vent", "dealt": before2 - t2.hp,
+		"authored": vent_authored})
+	game2.queue_free()
+
+	## 3. A FIRE POOL'S TICK — browser v11:3141. `tick` at 0.0 stepped by a zero
+	## delta is exactly one tick: the `while` adds FIRE_TICK and leaves at once.
+	var rig3 := _nocrit_rig(can_crit)
+	var t3: SkyGearEnemy = rig3[1]
+	if t3 == null:
+		return out
+	var game3: SkyGearGame = rig3[0]
+	game3.fire_fields.clear()
+	game3._field({"position": t3.global_position, "time": 999.0, "tick": 0.0})
+	var before3 := t3.hp
+	game3._update_fire_fields(0.0)
+	out.append({"name": "a fire pool's tick", "dealt": before3 - t3.hp,
+		"authored": 7.5})
+	game3.queue_free()
+
+	## 4. THE KEGS — browser v11:923. A real prop off the real deck, so this goes
+	## through `explode_keg` rather than reconstructing what it does.
+	var rig4 := _nocrit_rig(can_crit)
+	var t4: SkyGearEnemy = rig4[1]
+	if t4 == null:
+		return out
+	var game4: SkyGearGame = rig4[0]
+	var keg: SkyGearProp = null
+	for node in game4.get_tree().get_nodes_in_group("props"):
+		if node is SkyGearProp and str(node.prop_type) == "keg":
+			keg = node
+			break
+	if keg != null:
+		keg.global_position = t4.global_position
+		## The captain stands well clear, or she takes the blast's own 26 and the
+		## run can end in the middle of the measurement.
+		game4.player.global_position = t4.global_position + Vector2(4000.0, 0.0)
+		var before4 := t4.hp
+		game4.explode_keg(keg)
+		out.append({"name": "a keg", "dealt": before4 - t4.hp, "authored": 78.0})
+	game4.queue_free()
+
+	## 5. THE LANE CANNON — browser v11:5247. A friendly bolt already on top of
+	## the boarder, stepped by zero so it resolves where it was put.
+	var rig5 := _nocrit_rig(can_crit)
+	var t5: SkyGearEnemy = rig5[1]
+	if t5 == null:
+		return out
+	var game5: SkyGearGame = rig5[0]
+	game5.projectiles.clear()
+	game5._bolt({"position": t5.global_position, "velocity": Vector2.ZERO,
+		"trail": [], "life": 9.0, "friendly": true, "damage": 44.0})
+	var before5 := t5.hp
+	game5._update_projectiles(0.0)
+	out.append({"name": "the lane cannon", "dealt": before5 - t5.hp,
+		"authored": 44.0})
+	game5.queue_free()
+
+	## 6. THE CREW'S SWING — browser v11:5342. A crewman parked on the boarder
+	## with his windup already spent, so the next step is the blow itself.
+	var rig6 := _nocrit_rig(can_crit)
+	var t6: SkyGearEnemy = rig6[1]
+	if t6 == null:
+		return out
+	var game6: SkyGearGame = rig6[0]
+	game6.crew.clear()
+	var hand: Dictionary = SkyGearLanes.make_crew(1, SkyGearGame.LANE_CENTERS,
+		SkyGearGame.BASE_Y, null)
+	hand.position = t6.global_position
+	hand.state = "windup"
+	hand.state_time = 0.0
+	game6.crew.append(hand)
+	var before6 := t6.hp
+	game6._update_crew(0.0)
+	out.append({"name": "the crew's swing", "dealt": before6 - t6.hp,
+		"authored": float(SkyGearLanes.CREW.damage)})
+	game6.queue_free()
+
+	return out
+
+
+## One landed boarder with more health than any of the six can take off him, a
+## certain crit, and every OTHER damage event on the deck switched off so the
+## number measured belongs to the source under test.
+func _nocrit_rig(can_crit: bool) -> Array:
+	var game := _new_game()
+	_begin(game)
+	game.secondary_can_crit = can_crit
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	game.spawn_enemy("SWARM", 1)
+	var target: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			target = _landed(e)
+	if target == null:
+		return [game, null]
+	target.global_position = Vector2.ZERO
+	target.max_hp = 4000.0
+	target.hp = 4000.0
+	## Certain, so the assertion is arithmetic rather than a distribution.
+	game.mods.crit_chance = 1.0
+	## Everything else that could add a second damage event on the same frame,
+	## or move the boarder out of a radius mid-check, is off.
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	return [game, target]
+
+
+## A second landed boarder, for the one source that needs something to die.
+func _nocrit_extra(game: SkyGearGame, at: Vector2) -> SkyGearEnemy:
+	var known: Dictionary = {}
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		known[e.get_instance_id()] = true
+	game.spawn_enemy("SWARM", 1)
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if not known.has(e.get_instance_id()) and is_instance_valid(e):
+			var fresh: SkyGearEnemy = _landed(e)
+			fresh.global_position = at
+			fresh.max_hp = 4000.0
+			fresh.hp = 4000.0
+			return fresh
+	return null
+
+
 func _xray_silhouette() -> void:
 	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
 	root.add_child(world)

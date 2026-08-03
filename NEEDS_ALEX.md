@@ -34,6 +34,16 @@ Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. Is that intended?
 
 ## Smaller calls, whenever
 
+- **Restoring the browser's `noCrit` rule made crit builds harder, and I did
+  not compensate (SG-148).** Six secondary damage sources — the kill
+  explosion, the vent, fire pools, kegs, the lane cannon and the crew — have
+  been able to crit in this port and cannot in the build these numbers were
+  tuned against. All six now obey the original. Measured, 612 runs an arm:
+  for a **crit-built** captain the Colossus takes **12.6% longer** and the
+  Heat 0 hold rate falls **83.5% -> 76.3%**. For everyone else the difference
+  is too small to measure at that sample. **Keep the fidelity, or buy the
+  seven points back somewhere?** Numbers in `docs/NIGHT-LOG-2026-08-03.md` §15.
+
 - **Menus** — the title is rebuilt; Settings / How to Play / Controls / Pause
   are untouched pending your verdict on the direction.
 - **Crew strafing** — four clips are wired up and unused on purpose. Want them?
