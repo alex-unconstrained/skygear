@@ -1692,8 +1692,7 @@ func _draw_profiler() -> void:
 	if game.profiler == null:
 		return
 	var text: String = game.profiler.report(view, game)
-	var lines: PackedStringArray = text.split("
-")
+	var lines: PackedStringArray = text.split("\n")
 	var box := Rect2(10, 10, 560, 10.0 + lines.size() * 17.0)
 	draw_rect(box, Color(0.02, 0.015, 0.028, 0.86))
 	draw_rect(box, Color("#37f0c8"), false, 1.0)
@@ -5299,8 +5298,7 @@ func _draw_results(title: String, tint: Color) -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
 	var report: String = game.run_report()
-	var body := report.split("
-")
+	var body := report.split("\n")
 	var tall := 0.0
 	for line in body:
 		tall += 20.0 if str(line).begins_with("  ") else 23.0

@@ -2012,8 +2012,7 @@ func run_report() -> String:
 			roundi(float(rt.far) / span * 100.0), roundi(float(rt.none) / span * 100.0)])
 	lines.append("vents %d · healed %d · salvage %d · rerolls %d" % [
 		int(tel.vents), roundi(float(tel.healed)), int(tel.salvage), int(tel.rerolls)])
-	return "
-".join(lines)
+	return "\n".join(lines)
 
 
 func _report_row(name: String, damage: float, total: float, casts: int, kills: int) -> String:

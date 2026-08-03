@@ -1733,9 +1733,38 @@ func _report() -> void:
 	_check("report", "the run report names the build, the seed and the work",
 		text.contains("REPORT") and text.contains("Ember Cleave")
 		and text.contains("skills —") and text.contains("range:"),
-		text.split("
-")[2] if text.split("
-").size() > 2 else text)
+		text.split("\n")[2] if text.split("\n").size() > 2 else text)
+
+	## SG-106 — THE REPORT ARRIVES AS LINES, and that is checked as a NUMBER
+	## rather than as a substring. `run_report()` joins with a newline and
+	## `hud.gd::_draw_results` splits on one; when the two spelled that newline
+	## differently the split silently matched nothing, the whole twelve-line
+	## report became ONE string 1277px wide in a 692px column, and the text audit
+	## reported it as an OVERFLOW of the head line at all four widths. A
+	## `contains()` check cannot see that — the characters are all still there.
+	_check("report", "and it arrives as separate lines, not as one long string",
+		text.split("\n").size() >= 6 and not text.split("\n")[0].contains("BOARDED"),
+		"%d lines, head %s" % [text.split("\n").size(), text.split("\n")[0]])
+
+	## AND THE REASON IT BROKE, pinned repo-wide so it cannot come back from any
+	## file. Six string literals in four scripts held a RAW SOURCE LINE BREAK as
+	## their value — `"` , end of line, `"` — which means the literal is CRLF in a
+	## CRLF file and LF in an LF file. `game.gd` was rewritten LF while `hud.gd`
+	## stayed CRLF and the producer and the consumer stopped agreeing about one
+	## character. `parity_test.gd` already knew this trap (`String.chr(10)`, with
+	## the comment, a few lines below) and the knowledge never reached the two
+	## files that needed it. A delimiter is SPELLED, never typed.
+	var typed_breaks := ""
+	for dir_path in ["res://scripts", "res://tools", "res://tests"]:
+		for name in DirAccess.get_files_at(dir_path):
+			if not str(name).ends_with(".gd"):
+				continue
+			var src := FileAccess.get_file_as_string("%s/%s" % [dir_path, name])
+			if src.contains('"' + String.chr(10) + '"') \
+					or src.contains('"' + String.chr(13) + String.chr(10) + '"'):
+				typed_breaks += " %s/%s" % [dir_path.get_file(), name]
+	_check("report", "and no script spells a newline by pressing Enter inside a string",
+		typed_breaks == "", "raw line breaks in:" + typed_breaks)
 
 	## SG-67 — BOTH endings name themselves. The verdict line is
 	## `<verdict> — <reason>`, and a win used to arrive with `end_reason` still

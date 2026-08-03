@@ -7183,8 +7183,7 @@ static func save_model_lights(model_key: String, rows: Array,
 	var file := FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return "could not open %s for writing" % path
-	file.store_string(JSON.stringify(doc, "  ") + "
-")
+	file.store_string(JSON.stringify(doc, "  ") + "\n")
 	file.close()
 	return ""
 
