@@ -281,7 +281,7 @@ guessed at and finally built.
 tool, and several were things a confident commit message had already declared
 fine.
 
-**3. The five recurring failure modes.** Each has happened more than once.
+**3. The seven recurring failure modes.** Each has happened more than once.
 Assume you are about to commit one:
 
 - **Data with no reader.** A table field nothing consumes, so a feature reads as
@@ -310,6 +310,27 @@ Assume you are about to commit one:
   not small, zero. A floor allowed to be 3% is a floor that can hide a 3%
   feature. `SkyGear Tools.bat still` is that assertion; the five `still ·` checks
   in the harness are what stop the next tool from skipping it.
+
+- **A fact known in one place and contradicted in another — the newest, and the
+  one that made the fifth so expensive.** On 2026-08-02 the SG-97 row wrote down
+  *"balance.gd's bot never moves the captain"* and reasoned correctly from it,
+  refusing to let its own numbers stand as a verdict. It did everything right.
+  The fact then reached nothing else: the rig's own comment went on claiming the
+  bot "keeps moving"; SG-57 wondered aloud whether its result was "a bot fact"
+  without checking; SG-48 CUT a feature on a statistic the fact invalidates;
+  SG-70 filed as an open mystery the very gap the fact explains; and a day later
+  SG-118 rediscovered it from scratch. **The repository knew.** When you learn
+  something that invalidates a measurement, the row you are working on is the
+  LAST place it belongs — fix the tool's comment, and name the rows that
+  depended on it. SG-125 is the audit that should not have been necessary.
+- **A harness check that asserts the bug.** Distinct from silencing a detector:
+  here the detector is loud, green, and wrong. `telegraph · a boarder that draws
+  no wedge keeps its circle` passed every run for weeks while pinning the exact
+  defect SG-119 fixed, under a comment describing a phase ring this renderer has
+  never drawn. Beside it, a roster check looped a hand-typed list of three names
+  — and the one melee row missing from that list was the only row that could
+  have failed it. A check written from the same misunderstanding as the code
+  does not test the code. Prefer checks that read the table.
 
 ---
 
