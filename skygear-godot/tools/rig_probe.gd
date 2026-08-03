@@ -51,11 +51,22 @@ extends SceneTree
 ##      rig IMPROVING legibility by 60%.
 ##
 ## All three are §7.5's lesson arriving again: on this deck the measuring rig is
-## reliably the least trustworthy thing in the experiment. What survives is the
-## version that needs no second exposure at all — the rune is found by its own
-## colour, and the planking it is read against is the ring of pixels immediately
-## around it in the SAME plate. That is what "edge contrast against planking"
-## means, and both plates are measured over the identical two pixel sets.
+## reliably the least trustworthy thing in the experiment.
+##
+## What survives finds the rune by asking the RENDERER which pixels are
+## telegraph: the telegraph decals are hidden, the same frozen frame is
+## photographed again, and the pixels that changed are the rune. The planking it
+## is read against is the ring of pixels immediately around that in the SAME
+## plate. Both plates are then measured over the identical two pixel sets. That
+## is what "edge contrast against planking" means.
+##
+## THAT MASK WAS A COLOUR WINDOW UNTIL SG-116 AND THE NUMBER BELOW MOVED WHEN IT
+## STOPPED BEING ONE. `s >= 0.55, v >= 0.42, hue within 0.11 of red` selected
+## 26,095 pixels on this pose, and the brazier bowls and an ARMORED boarder's lit
+## plating were a large share of them. Those pixels sat in BOTH plates unchanged,
+## so they diluted the cost toward zero: the figure this tool published was an
+## understatement, not an invention. `tools/rune_read.gd` carries the full
+## account and `tools/rune_probe.gd` is the check the old mask fails.
 const TELEGRAPHS := [
 	{"kind": "SCRAPPER", "at": Vector2(-150.0, 470.0)},
 	{"kind": "ARMORED", "at": Vector2(150.0, 470.0)},
@@ -158,6 +169,7 @@ func _init() -> void:
 		var without: float = float(rows.without)
 		var cost: float = 0.0 if without <= 0.0 else (without - with_rig) / without * 100.0
 		print("  %s  (darkness %.2f)" % [str(light.name), float(light.darkness)])
+		print("    telegraph decals hidden to find them %d" % int(rows.decals))
 		print("    rune pixels found                %d" % int(rows.pixels))
 		print("    planking ring around them        %d px" % int(rows.ring))
 		print("    edge contrast, rig overhead      %.3f" % with_rig)
@@ -237,20 +249,39 @@ func _measure(view: SkyGearView3D, game: SkyGearGame, live: Array,
 	if noise != 0.0:
 		push_error("the scene is not still (%.2f%%) — nothing here to measure" % noise)
 		return {"with_rig": 0.0, "without": 0.0, "pixels": 0, "ring": 0,
-			"crossed": 0.0}
+			"decals": 0, "crossed": 0.0}
 
 	var slug := tag.replace(" ", "-").replace("wave-8", "w8")
-	var plate_rig := await _plate("%s/rig-tele-%s.png" % [out_dir, slug])
+
+	## THE RUNE PIXELS FIRST, AND THEY ARE ASKED OF THE RENDERER (SG-116). This
+	## used to be `SkyGearRune.mask(plate_rig)` — a colour window that selected
+	## any saturated red-amber pixel, which on this exact pose meant the brazier
+	## bowls and an ARMORED boarder's lit plating as much as it meant a rune.
+	## `mask_of` takes its own pair (telegraph decals shown, then hidden) and
+	## keeps the shown one, which is the plate this tool wanted anyway. The rig is
+	## overhead for both, so the mask is derived under the shipped condition
+	## exactly as before.
+	var got := await SkyGearRune.mask_of(view,
+		func(which: String) -> Image:
+			return await _plate("%s/rig-%s-%s.png" % [out_dir, which, slug]))
+	var plate_rig: Image = got.plate
+	var rune: PackedInt32Array = got.mask
+	## The pixel set the figure below is a median over, as a picture. SG-116 was
+	## only ever findable by looking at a plate and asking what the mask had
+	## actually selected; that should not need re-discovering.
+	SkyGearRune.save_mask(rune, plate_rig.get_width(), plate_rig.get_height(),
+		"%s/rig-mask-%s.png" % [out_dir, slug])
+
 	view._rigging.visible = false
 	var plate_off := await _plate("%s/norig-tele-%s.png" % [out_dir, slug])
 	view._rigging.visible = true
 	await process_frame
 
-	var rune := SkyGearRune.mask(plate_rig)
 	var ring := SkyGearRune.ring(rune, plate_rig.get_width(), plate_rig.get_height())
 	return {"with_rig": SkyGearRune.edge(plate_rig, rune, ring),
 		"without": SkyGearRune.edge(plate_off, rune, ring),
 		"pixels": rune.size() / 2, "ring": ring.size() / 2,
+		"decals": int(got.decals),
 		"crossed": SkyGearRune.darkened(plate_rig, plate_off, ring)}
 
 

@@ -29,6 +29,17 @@ _Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live*
 > **No tuning value was changed on the strength of a re-measurement** — the
 > corrections are written down and the two live questions are yours. The marks
 > finding is the one to read: the halving that shipped was decided on noise.
+>
+> **And §SG-116 at the very bottom supersedes the rigging number in §SG-108,
+> which I gave you as settled twice.** The tool that decides what a telegraph is
+> worth was picking its pixels by COLOUR, so it was measuring the brazier fire
+> and an ARMORED boarder's lit plating as telegraph — **85% of what it called
+> "rune" was not rune.** Corrected, the rigging costs a rune about **1.5%**
+> rather than 0.88%. **The gate is 3%, so it still passes, nothing was cut and
+> nothing was tuned** — this is the boring answer and you can act on it. The
+> part worth two minutes is that the ABSOLUTE contrast figure fell to **1.24**,
+> below anything previously written down, and that the deck-marks pass is a
+> coincidence by its own printed criterion (SG-124).
 
 Everything here is either **a decision only you can make** or **a verdict only
 your eyes can give**. Nothing in it blocks the loop — there is plenty to do
@@ -488,3 +499,142 @@ middle of the frame; these have no effect in them at all, so the contact cores
 under the figures are actually judgeable. `shadow-ord-*.png` is the same three
 with ordnance in flight, for §13c's half.
 
+
+---
+
+## SG-116 — the rune mask was measuring fire, and the rigging's cost nearly doubled when it stopped
+
+**Nothing here needs a decision from you tonight. The rig passes its gate and I
+changed no tuning value.** This section exists because a number I gave you as
+settled has moved a long way inside its gate, and because the reason it moved
+says something about how the last three re-measurements were taken.
+
+### What was wrong
+
+Every telegraph-legibility figure in this repo — what the shadow rigging costs a
+rune, what the deck marks cost it, the absolute contrast quoted in
+DECK-IDENTITY §7.5 — is a median over a set of pixels that a tool called "the
+rune". That set was chosen by **colour**: any pixel more than 55% saturated,
+42% bright, with a hue within 0.11 of red.
+
+That is not a description of a telegraph. It is a description of *warm things*,
+and this deck is full of them. On the wave-6 pose it selected **26,095 pixels**,
+and the brazier bowls, the vent glow and an ARMORED boarder's lit plating were
+most of them.
+
+**How most is now measured rather than estimated.** Hide every telegraph decal,
+re-run the old colour test on the same frame, and see what it still finds:
+**16,246 of the 19,108 pixels it called "rune" are still there with every
+telegraph gone. 85% of it was never a telegraph.** `.shots/rune/windup-tele.png`
+and `windup-notele.png` are that pair — the same frame with and without the
+telegraphs. Everything still glowing in the second one is what was being
+measured.
+
+The mask now asks the renderer instead. A telegraph is a `Decal`; the decals are
+hidden on an already-frozen scene, the frame is re-photographed, and the pixels
+that **changed** are the rune. By construction, not by resemblance.
+
+### The thing the ticket did not ask, which is why I did it tonight
+
+SG-116 reasoned that a contaminated mask *dilutes* a relative cost toward zero
+rather than inventing one, and that no verdict was therefore at risk. **That
+reasoning is correct, and it has a consequence the ticket did not draw: every
+published rune-contrast cost is an UNDERSTATEMENT.** The contaminating pixels
+sit unchanged in both plates of every A/B pair, so they drag the difference down.
+The direction of the error was known. The size was not, and nobody had asked.
+
+So I re-measured. **The rigging's cost roughly doubled:**
+
+| | old mask | corrected mask |
+|---|---|---|
+| rune pixels found | 26,095 | 4,544 |
+| cost at full light | **+0.88%** (SG-108) · +0.96% (reproduced here) | **+1.21%, +1.46%, +1.60%, +1.61%** (4 runs) |
+| cost at the wave-8 floor | +0.29–0.57% (SG-108) · +0.71% (here) | +0.90%, −0.54%, −0.66%, −0.72% |
+| of the planking ring, darkened | 9.4–9.7% | 12.4–13.1% |
+| absolute edge contrast | 1.458 | **1.243** |
+
+### Does the kill-test fire? No.
+
+**The gate is 3%. The worst corrected reading is 1.61%. The rig SURVIVES its own
+kill-test and I have cut nothing and tuned nothing.** I want to be plain that
+this is the boring answer, because the boring answer is the one you can act on:
+*corrected mask, cost moves 0.88% → about 1.5%, still passes.*
+
+Three things worth having anyway:
+
+1. **It is a wider pass than before, not a narrower one.** The lattice darkens
+   12.4–13.1% of the true planking ring, up from 9.4–9.7% of the contaminated
+   one. `rig_probe.gd` prints that figure precisely because a gate that passes
+   because the thing under test never touched the thing it threatened is a
+   coincidence. This is not that.
+2. **"The rig helps in the dark" half-survives.** SG-107 claimed the lattice
+   *improved* rune contrast at both light levels (−0.47% / −2.67%); SG-108
+   corrected both to costs. On the corrected mask the wave-8 floor straddles
+   zero and is mildly negative in three runs out of four. So the original claim
+   was right about the dark and wrong about full light.
+3. **The absolute numbers moved DOWN, and those are the ones §7.5 quotes.**
+   The honest rune-against-planking contrast on this pose is about **1.24**, not
+   the **1.91** DECK-IDENTITY §7.5 records or the 1.41–1.49 SG-108 measured.
+   Both of those were medians over fire. Nothing decides on the absolute figure
+   today — `ink.gd`'s 4.5 is a TEXT floor and §7.5 already established it cannot
+   — but if you ever want a real legibility floor for telegraphs, **1.24 is the
+   number to start from and it is worse than anything previously written down.**
+
+### The deck marks: genuinely unchanged, and still a coincidence
+
+**+0.02% before, +0.02% after.** The marks sit in both plates of the pair, so
+the corrected mask cancels them out exactly as the old one did. That number is
+real.
+
+What is not real is the confidence behind it. Both passes — the wave-12
+distribution AND the "worst honest case" built specifically to force an overlap
+by stamping the deepest mark this system can make under each rune — report
+**`of that ring, the marks darken 0.0%`**, and the tool's own next line says *if
+this is ~0 the figure above is a coincidence*. It is. The marks do render and
+the stamp does work (the plates differ); they simply never land in the 12 px
+band around a rune that this measurement looks at. **Filed as SG-124, not
+fixed.** It matters because `MARK_CAP` 48→24 and `MARK_ALPHA_MAX` 0.30→0.12 were
+already retuned once on a number out of this tool.
+
+### What I built so this cannot come back
+
+The old mask's real defect was not the constants. It was that **it had no frame
+on which it was required to select nothing, so nothing about it could ever
+fail** — the fifth recurring failure mode, a measuring rig nobody measured, in a
+form that has nothing to do with the scene moving.
+
+So the new one has that frame. `SkyGear Tools.bat rune` poses the deck with the
+braziers lit, the vents glowing and four boarders standing on it, and **nothing
+in windup**. There is no telegraph in that frame:
+
+    rune · a lit brazier with no telegraph up selects zero pixels
+
+**The old mask finds 16,594 pixels on that frame. The new one finds zero.** The
+probe runs the retired colour window itself and prints that number, because a
+check that passes both before and after a fix is not evidence of a fix.
+
+Six more checks live in the harness, including one that parses `view3d.gd`'s own
+`_decal_class()` and fails if a fifth telegraph type is ever added there without
+the mask learning about it. Both tools now also write the mask out as a PNG —
+the exact pixel set each published figure is a median over — because SG-116 was
+only ever findable by looking at a plate and asking what had actually been
+selected.
+
+### One limitation, filed as SG-123
+
+The ranged windup's **aim dashes** are drawn into one `MeshInstance3D` shared
+with blade trails and bolt ribbons, so hiding them would hide things that are
+not telegraph. They are outside the mask. You can see them in
+`.shots/rune/windup-notele.png` — the pale dashes still crossing the deck after
+every telegraph decal is gone. Splitting that batch is a renderer change, so I
+filed it rather than doing it inside a tools-only ticket. It means even the
+corrected rigging figure is very slightly **understated** — in the same
+direction, for the same reason, just much smaller.
+
+### The pictures
+
+`.shots/rune/windup-tele.png` and `windup-notele.png` — the same frozen frame
+with and without the telegraphs. This is the whole bug in one pair.
+`.shots/rune/windup-mask.png` is the pixel set itself, white on black.
+`.shots/sg116/rig-mask-*.png` is the set the rigging figures above are medians
+over.

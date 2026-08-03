@@ -62,6 +62,14 @@ const TOOLS := [
 		"what": "two plates of a frozen wave-8 deck, and the fraction of pixels that moved between them",
 		"why": "`set_process(false)` does not stop an AnimationPlayer, and four tools each believed it did — one of them measured its own noise floor at 53% and published three A/B answers against it. This number must be exactly zero"},
 
+	## The runtime half of SG-116, windowed for the same reason `still` is: the
+	## whole assertion is a framebuffer readback and headless has no GPU (SG-29).
+	## The harness guards the SOURCE of the mask; this is the half that can
+	## actually fail, and the mask it replaced fails it.
+	{"id": "rune", "kind": "check", "script": "tools/rune_probe.gd", "window": true,
+		"what": "a deck with its braziers lit and nothing in windup, and how many pixels the rune mask calls telegraph",
+		"why": "the mask that decides what the shadow rigging and the deck marks cost a telegraph's legibility used to select any saturated red-amber pixel — brazier fire and an ARMORED boarder's lit plating included, 26,095 of them on the wave-6 pose. It had no frame on which it was required to select nothing, so nothing about it could ever fail. This is that frame: the answer must be zero"},
+
 	## Not a "check": it has no pass/fail on purpose — it records a baseline and
 	## takes no opinion (SG-25). Needs a real window; headless has no GPU (SG-29).
 	{"id": "profile", "kind": "window", "script": "tools/profile_fight.gd",

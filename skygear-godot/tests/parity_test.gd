@@ -175,6 +175,8 @@ func _run() -> void:
 	await process_frame
 	_still()
 	await process_frame
+	_rune()
+	await process_frame
 	_owner_layout_untouched()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
@@ -328,6 +330,147 @@ func _still() -> void:
 	_check("still", "and the runtime half of it is in the hub where somebody will run it",
 		registered, "tools/still_probe.gd" if registered
 			else "tools/still_probe.gd is not registered in the hub")
+
+
+## SG-116: THE RUNE MASK MUST READ THE TELEGRAPH DECAL'S OWN PIXELS, NOT "RED
+## THINGS".
+##
+## The bug: `rune_read.gd`'s mask selected any pixel with `s >= 0.55, v >= 0.42`
+## and hue within 0.11 of red. On the wave-6 pose that is 26,095 pixels and a
+## large share of them are brazier bowls and an ARMORED boarder's lit plating.
+## Two shipped verdicts are decided over that pixel set — what the shadow rigging
+## costs a telegraph (SG-107 item 1) and what the deck marks cost it (SG-101) —
+## both against the same 3% relative gate.
+##
+## WHY THESE ARE SOURCE CHECKS, same as `_still()`: the harness is headless and
+## headless has no GPU (SG-29), so it cannot photograph a brazier. The runtime
+## half — *a lit brazier with no telegraph up selects zero pixels* — lives in
+## `tools/rune_probe.gd`, which the hub runs windowed. Between the two halves:
+## the mask cannot quietly go back to being a colour window, and the mask that
+## ships is proved against a frame whose answer is known. Either half alone is a
+## check that cannot fail, which is the whole complaint SG-116 makes about the
+## thing it replaced.
+const RUNE_UNDER_TEST := "RUNE: COLOUR WINDOW IS THE THING UNDER TEST"
+
+
+func _rune() -> void:
+	var rune_src := FileAccess.get_file_as_string("res://tools/rune_read.gd")
+
+	## Strip the comments first. This file EXPLAINS the retired colour window at
+	## length — it has to, or the next agent reinvents it — and a check that read
+	## the prose would fail on the explanation. `_still()` records the same trap.
+	var code := ""
+	for line in rune_src.split("\n"):
+		if not str(line).strip_edges().begins_with("#"):
+			code += str(line) + "\n"
+
+	## 1. THE MASK IS A DIFF, NOT A COLOUR. The three thresholds are named
+	## individually rather than by one grep for "0.55", because the failure this
+	## guards is somebody re-adding a hue window under a new name — and a hue
+	## window needs a hue test, whatever the constants are called.
+	var colour: Array[String] = []
+	for hue_test in [".h <=", ".h >=", ".s >=", ".v >="]:
+		if code.contains(hue_test):
+			colour.append(hue_test)
+	_check("rune", "the rune mask is a diff of two plates, not a window onto a colour wheel",
+		colour.is_empty(), "hue/saturation tests still in rune_read.gd:%s" % _joined(colour)
+			if not colour.is_empty() else "no colour test in the mask")
+
+	## 2. AND IT REUSES THE PROJECT'S ONE DEFINITION OF "THIS PIXEL CHANGED". A
+	## second threshold here would be failure mode 2 with a number attached: the
+	## mask and `still_probe.gd`'s noise floor would disagree about what a moved
+	## pixel is, and the floor is what licenses the mask in the first place.
+	_check("rune", "and what counts as a changed pixel is still the one the freeze uses",
+		code.contains("SkyGearStill.MOVED"),
+		"SkyGearStill.MOVED" if code.contains("SkyGearStill.MOVED")
+			else "rune_read.gd has its own idea of a changed pixel")
+
+	## 3. THE PREFIXES ARE THE ONES `view3d.gd` ACTUALLY DRAWS. `rune_read.gd`
+	## cannot call `_decal_class()` — it is a private static on the view — so it
+	## restates the predicate, and a restated predicate is a copy that can drift.
+	## This is the thread holding the two spellings together: `_decal_class` is
+	## the authority, and if a fifth telegraph prefix is ever added there, this
+	## fails until the mask learns about it. Without this the mask would silently
+	## stop seeing a whole class of telegraph and report a smaller cost, which is
+	## the exact shape of the bug being fixed.
+	var view_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var claimed := SkyGearRune.TELEGRAPH_PREFIXES
+	var drawn: Array[String] = []
+	var seen_class := false
+	for line in view_src.split("\n"):
+		var l := str(line)
+		if l.contains("func _decal_class("):
+			seen_class = true
+			continue
+		if seen_class:
+			## The body of that function is one `if` over the telegraph prefixes;
+			## stop at the next `return` that is not the telegraph one.
+			if l.contains("DecalClass.TELEGRAPH"):
+				continue
+			if l.contains("begins_with("):
+				for part in l.split("begins_with(\""):
+					if part.begins_with("t") and part.contains("\""):
+						drawn.append(part.substr(0, part.find("\"")))
+				continue
+			if l.strip_edges().begins_with("return") or l.strip_edges() == "":
+				break
+	drawn.sort()
+	var want := Array(claimed).duplicate()
+	want.sort()
+	_check("rune", "the telegraph prefixes the mask hides are the ones view3d actually draws",
+		not drawn.is_empty() and drawn == want,
+		"%s" % str(drawn) if drawn == want
+			else "view3d draws %s, rune_read.gd hides %s" % [str(drawn), str(want)])
+
+	## 4. NOBODY ELSE KEEPS A COPY OF THE RETIRED WINDOW. `rune_probe.gd` does,
+	## on purpose and with its reason on the line above it, because a check that
+	## passes both before and after a fix is not evidence of a fix — it has to run
+	## the old mask to show the new check discriminates. Any OTHER tool holding
+	## that formula is the fix being quietly undone, which is how `marks_shot`,
+	## `rig_probe` and `shadow_probe` each ended up with a different definition of
+	## "frozen" (SG-108).
+	var copies: Array[String] = []
+	for name in DirAccess.get_files_at("res://tools"):
+		if not str(name).ends_with(".gd"):
+			continue
+		var src := FileAccess.get_file_as_string("res://tools/%s" % str(name))
+		if src.contains(RUNE_UNDER_TEST):
+			continue
+		var body := ""
+		for line in src.split("\n"):
+			if not str(line).strip_edges().begins_with("#"):
+				body += str(line) + "\n"
+		if body.contains(".s >=") and body.contains(".h <="):
+			copies.append(str(name))
+	_check("rune", "nothing derives a rune from a colour window but the probe that exists to fail it",
+		copies.is_empty(), "colour windows in:%s" % _joined(copies)
+			if not copies.is_empty() else "one, declared, in rune_probe.gd")
+
+	## 5. AND THE RUNTIME HALF IS REACHABLE. A check whose other half nobody can
+	## run is half a check; the hub is where anybody looks for a tool. Same
+	## reasoning as `still · and the runtime half of it is in the hub`.
+	var hub := FileAccess.get_file_as_string("res://tools/hub.gd")
+	var registered := hub.contains("rune_probe.gd")
+	_check("rune", "and the runtime half of it is in the hub where somebody will run it",
+		registered, "tools/rune_probe.gd" if registered
+			else "tools/rune_probe.gd is not registered in the hub")
+
+	## 6. EVERY TOOL THAT PUBLISHES A RUNE COST GOES THROUGH THE ONE MASK. Two
+	## numbers are measured against `COST_GATE` and they are only comparable to
+	## each other if they are measured over pixel sets derived the same way. This
+	## is the check that stops the next tool from writing its own.
+	var deciders: Array[String] = []
+	for name in DirAccess.get_files_at("res://tools"):
+		if not str(name).ends_with(".gd") or str(name) == "rune_read.gd":
+			continue
+		var src := FileAccess.get_file_as_string("res://tools/%s" % str(name))
+		if not src.contains("SkyGearRune.COST_GATE"):
+			continue
+		if not src.contains("SkyGearRune.mask_of("):
+			deciders.append(str(name))
+	_check("rune", "and every tool that decides on the gate takes its runes from that mask",
+		deciders.is_empty(), "decide on COST_GATE without mask_of:%s" % _joined(deciders)
+			if not deciders.is_empty() else "rig_probe.gd, marks_shot.gd")
 
 
 func _joined(items: Array[String]) -> String:

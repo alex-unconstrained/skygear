@@ -313,17 +313,29 @@ func _shot(path: String) -> Image:
 ## cost the first time.
 func _cost(view: SkyGearView3D, out_dir: String, slug: String,
 		why: String) -> float:
-	var marked := await _shot("%s/marked-%s.png" % [out_dir, slug])
+	## THE RUNE PIXELS FIRST, ASKED OF THE RENDERER (SG-116): the telegraph decals
+	## are hidden and the frame re-shot, and the pixels that changed are the rune.
+	## This was `SkyGearRune.mask(marked)` — a colour window that also selected the
+	## brazier bowls and an ARMORED boarder's lit plating, both of which sit
+	## unchanged in the marked and clean plates alike and so pulled the cost below
+	## toward zero. The marks batch is up for both exposures of the pair, so the
+	## mask is derived under the marked condition exactly as before.
+	var got := await SkyGearRune.mask_of(view,
+		func(which: String) -> Image:
+			return await _shot("%s/marked-%s-%s.png" % [out_dir, slug, which]))
+	var marked: Image = got.plate
+	var rune: PackedInt32Array = got.mask
+
 	view._mark_batch.visible = false
 	var bare := await _shot("%s/clean-%s.png" % [out_dir, slug])
 	view._mark_batch.visible = true
-	var rune := SkyGearRune.mask(marked)
 	var ring := SkyGearRune.ring(rune, marked.get_width(), marked.get_height())
 	var with_marks := SkyGearRune.edge(marked, rune, ring)
 	var without := SkyGearRune.edge(bare, rune, ring)
 	var cost: float = 0.0 if without <= 0.0 else (without - with_marks) / without * 100.0
 	print("")
 	print("    %s" % why)
+	print("      telegraph decals hidden      %d" % int(got.decals))
 	print("      rune pixels                  %d" % (rune.size() / 2))
 	print("      planking ring                %d px" % (ring.size() / 2))
 	print("      edge contrast, marked deck   %.3f" % with_marks)
