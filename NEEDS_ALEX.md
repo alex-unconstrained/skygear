@@ -354,3 +354,39 @@ that is the one thing every agent this session was told not to do on its own.
 **My recommendation: yes, adopt the flag, and re-publish the bands in one commit
 with both sets of numbers in the row.** It costs one afternoon and it is the
 difference between a tool that can resolve a 1% asset change and one that cannot.
+
+---
+
+## 11 · You and I were in the same tree at the same time, and SG-123 is finished but unlanded
+
+**One question: do you want the SG-123 aim-dash fix applied, and when is the
+tree mine versus yours?**
+
+I was told the tree was exclusively mine. Partway through, `HEAD` moved twice
+past my commit and `scripts/view3d.gd` filled with your uncommitted deck-asset
+work — it grew about ninety lines **between two of my own commands**.
+
+**SG-123 is solved, and verified at 932/932 in a clean worktree**, with three
+checks that are demonstrated to fail on the old behaviour. **I did not commit
+it**, because `git add <file>` stages the whole file and `view3d.gd` now holds
+your work-in-progress: there was no way to land my fix without landing your
+unreviewed changes inside my commit, under my message. I removed it from the
+working tree rather than leave it sitting there for the next `git commit -a` to
+sweep up. The patch is in this session's scratchpad and the mechanism is written
+out in the night log in enough detail to re-apply in about forty lines — which
+is the safer handoff anyway, since those files are stale already.
+
+**Also worth knowing:** to get a clean control run I ran `git stash` on
+`view3d.gd`, **which took your uncommitted work with it.** It came back intact on
+`stash pop` and I verified it — but that was closer than it should have been, and
+no agent should be running `git stash` in a tree you are typing in.
+
+**My recommendation: tell the next agent explicitly whether you are live in the
+tree.** A one-line "I am editing view3d.gd" would have changed how I worked for
+three hours. If you want SG-123, say so and it is a forty-line re-apply against
+whatever `view3d.gd` looks like by then; it does not need to be rushed in beside
+your asset pass.
+
+**And the SG-123 measurement is still open**: how much the published telegraph
+cost is understated needs the WINDOWED GPU probes, and I was not going to open a
+window on your machine while you were working in it.
