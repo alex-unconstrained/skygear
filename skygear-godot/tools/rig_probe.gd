@@ -67,22 +67,11 @@ const TELEGRAPH_FRAC := 0.55
 ## is the worst light a telegraph is ever read in.
 const LIGHTS := [{"name": "full light", "darkness": 0.0},
 	{"name": "wave-8 floor", "darkness": 0.22}]
-## THE RUNE, BY ITS OWN COLOUR. Every telegraph on this deck is a saturated
-## red-to-amber warning drawn over grey-brown planking — the oxblood melee wedge
-## and the ranged aim band both. Hue is taken in Godot's 0-1 turn, so the window
-## below is roughly 0-40 degrees plus the wrap above 340.
-const RUNE_SAT := 0.55
-const RUNE_VAL := 0.42
-const RUNE_HUE := 0.11
-## The planking a rune is read against: the ring just outside it. 12 px at
-## 1600x900 is about the width of the band itself, which is the distance an eye
-## actually uses to find an edge.
-const RING_PX := 12
-## Every other pixel. A band is tens of thousands of pixels and the median of
-## half of them is the same median.
-const STEP := 2
-## §7.5's relative gate.
-const COST_GATE := 3.0
+## THE RUNE MASK, THE PLANKING RING AND THE CONTRAST FORMULA all live in
+## `tools/rune_read.gd` now (SG-108), because `marks_shot.gd` needs the identical
+## measurement and two separately-written rune masks would not be comparable to
+## each other — STATUS.md's second recurring failure mode, exactly.
+const COST_GATE := SkyGearRune.COST_GATE
 
 var _out_dir := "../.shots/sg107"
 
@@ -205,8 +194,7 @@ func _init() -> void:
 ## One light level. Two plates, one toggle, nothing else.
 func _measure(view: SkyGearView3D, game: SkyGearGame, live: Array,
 		darkness: float, tag: String, out_dir: String) -> Dictionary:
-	game.set_process(true)
-	view.set_process(true)
+	await SkyGearStill.thaw(self, view, game)
 	view.set_darkness(darkness)
 	## `_sync_darkness` eases on a time constant, so a tool that took the shot
 	## straight after the call would photograph the tail of a lerp — the same
@@ -229,18 +217,27 @@ func _measure(view: SkyGearView3D, game: SkyGearGame, live: Array,
 	for _i in 2:
 		game._process(1.0 / 60.0)
 		await process_frame
-	game.set_process(false)
-	## PIN THE FLICKER, then STOP THE RENDERER, then HIDE THE PARTICLES — all
-	## three of SG-101's fixes, all three of which were real.
-	view._flicker = 12.0
-	for _i in 3:
-		view._process(0.0)
-		await process_frame
-	view.set_process(false)
-	for node in view.find_children("*", "GPUParticles3D", true, false):
-		(node as GPUParticles3D).emitting = false
-		(node as GPUParticles3D).visible = false
-	await process_frame
+	## FREEZE THROUGH THE ONE HELPER (SG-108). This block used to be a hand-copy
+	## of three of SG-101's four fixes and it was MISSING the fourth and largest:
+	## `Engine.time_scale` and every `AnimationPlayer.speed_scale`. Four rigged
+	## boarders were breathing through their windups between the two plates below,
+	## which is exactly the motion this tool then attributed to the lattice.
+	var stopped := await SkyGearStill.freeze(self, view, game)
+
+	## AND THE PRE-COMMITTED CHECK BEFORE ANY ANSWER IS BELIEVED: two plates with
+	## nothing changed between them, over the whole frame, through the same
+	## re-flush the real pair goes through. Exactly zero, or this tool is
+	## measuring the boarders' walk cycles and calling it the rig.
+	var noise := await SkyGearStill.floor_pct(self, FRAME_BOX,
+		func() -> void: view._process(0.0))
+	print("    still · two plates of a frozen scene differ by exactly zero   %.2f%%"
+		% noise)
+	print("    (%d rigs and %d particle systems stopped)"
+		% [int(stopped.animation_players), int(stopped.particles)])
+	if noise != 0.0:
+		push_error("the scene is not still (%.2f%%) — nothing here to measure" % noise)
+		return {"with_rig": 0.0, "without": 0.0, "pixels": 0, "ring": 0,
+			"crossed": 0.0}
 
 	var slug := tag.replace(" ", "-").replace("wave-8", "w8")
 	var plate_rig := await _plate("%s/rig-tele-%s.png" % [out_dir, slug])
@@ -249,119 +246,24 @@ func _measure(view: SkyGearView3D, game: SkyGearGame, live: Array,
 	view._rigging.visible = true
 	await process_frame
 
-	var rune := _rune_mask(plate_rig)
-	var ring := _ring_mask(rune, plate_rig.get_width(), plate_rig.get_height())
-	return {"with_rig": _edge(plate_rig, rune, ring),
-		"without": _edge(plate_off, rune, ring),
+	var rune := SkyGearRune.mask(plate_rig)
+	var ring := SkyGearRune.ring(rune, plate_rig.get_width(), plate_rig.get_height())
+	return {"with_rig": SkyGearRune.edge(plate_rig, rune, ring),
+		"without": SkyGearRune.edge(plate_off, rune, ring),
 		"pixels": rune.size() / 2, "ring": ring.size() / 2,
-		"crossed": _darkened(plate_rig, plate_off, ring)}
+		"crossed": SkyGearRune.darkened(plate_rig, plate_off, ring)}
 
 
+## The whole frame, for the stillness control. A rune mask is scattered across
+## the frame rather than confined to a rectangle, so the control has to be too.
+const FRAME_BOX := Rect2i(0, 0, 1600, 900)
+
+
+## `frame_post_draw`, not `process_frame` — SG-29's idiom, and SG-108's reason:
+## `process_frame` fires when the TREE finished its frame, not when the RENDERER
+## finished drawing it, and the resulting bad readback is INTERMITTENT.
 func _plate(path: String) -> Image:
-	await process_frame
-	await process_frame
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path)
 	return img
-
-
-## The rune: saturated warning colour, found by hue rather than by a diff.
-func _rune_mask(img: Image) -> PackedInt32Array:
-	var out := PackedInt32Array()
-	var w := img.get_width()
-	var h := img.get_height()
-	var y := 0
-	while y < h:
-		var x := 0
-		while x < w:
-			var c := img.get_pixel(x, y)
-			if c.s >= RUNE_SAT and c.v >= RUNE_VAL \
-					and (c.h <= RUNE_HUE or c.h >= 1.0 - RUNE_HUE):
-				out.append(x)
-				out.append(y)
-			x += STEP
-		y += STEP
-	return out
-
-
-## The planking a rune is read against: a ring `RING_PX` out from it that is not
-## itself rune. Built on a coarse occupancy grid so the dilation is a lookup
-## rather than a search.
-func _ring_mask(rune: PackedInt32Array, w: int, h: int) -> PackedInt32Array:
-	var gw := w / STEP + 2
-	var gh := h / STEP + 2
-	var grid := PackedByteArray()
-	grid.resize(gw * gh)
-	var i := 0
-	while i < rune.size():
-		grid[(rune[i + 1] / STEP) * gw + rune[i] / STEP] = 1
-		i += 2
-	var reach := RING_PX / STEP
-	var out := PackedInt32Array()
-	var gy := 0
-	while gy < gh:
-		var gx := 0
-		while gx < gw:
-			if grid[gy * gw + gx] == 0:
-				var near := false
-				var dy := -reach
-				while dy <= reach and not near:
-					var dx := -reach
-					while dx <= reach:
-						var ax := gx + dx
-						var ay := gy + dy
-						if ax >= 0 and ay >= 0 and ax < gw and ay < gh \
-								and grid[ay * gw + ax] == 1:
-							near = true
-							break
-						dx += 1
-					dy += 1
-				## The grid is padded by two cells so the dilation never has to
-				## test a bound; those pad cells are not pixels, so they are
-				## dropped here rather than sampled off the end of the image.
-				if near and gx * STEP < w and gy * STEP < h:
-					out.append(gx * STEP)
-					out.append(gy * STEP)
-			gx += 1
-		gy += 1
-	return out
-
-
-## `ink.gd`'s own contrast formula, so this number means what every other
-## contrast number in the project means. Medians, not means — §7.5's yardstick,
-## and a mean is hostage to the few pixels at a rune's antialiased rim.
-func _edge(img: Image, rune: PackedInt32Array, ring: PackedInt32Array) -> float:
-	if rune.is_empty() or ring.is_empty():
-		return 0.0
-	return SkyGearInk.contrast(_median(img, rune), _median(img, ring))
-
-
-func _median(img: Image, pts: PackedInt32Array) -> Color:
-	var ls: Array[float] = []
-	var i := 0
-	while i < pts.size():
-		ls.append(SkyGearInk.luminance(img.get_pixel(pts[i], pts[i + 1])))
-		i += 2
-	ls.sort()
-	var m: float = ls[ls.size() / 2]
-	## A grey of the same relative luminance: `contrast()` only reads luminance,
-	## and a median COLOUR is not a thing that exists.
-	var v: float = pow((m + 0.055) / 1.055, 1.0 / 2.4) if m > 0.0031308 \
-		else m * 12.92
-	return Color(v, v, v)
-
-
-## How much of the planking ring the lattice actually darkens. Reported because a
-## gate that passes because the thing under test never touched the thing it
-## threatened is a coincidence, not a gate.
-func _darkened(with_rig: Image, without: Image, ring: PackedInt32Array) -> float:
-	if ring.is_empty():
-		return 0.0
-	var hit := 0
-	var i := 0
-	while i < ring.size():
-		if SkyGearInk.luminance(without.get_pixel(ring[i], ring[i + 1])) \
-				- SkyGearInk.luminance(with_rig.get_pixel(ring[i], ring[i + 1])) >= 0.004:
-			hit += 1
-		i += 2
-	return 200.0 * float(hit) / float(ring.size())

@@ -182,6 +182,15 @@ func _shoot(scene: Dictionary, path: String) -> void:
 	await process_frame
 	await process_frame
 
+	## FROZEN (SG-108) — safely, for a tool whose whole point is photographing
+	## motion. `SkyGearStill.freeze` stops every `GPUParticles3D` with
+	## `speed_scale = 0`, which pins the burst IN PLACE at the exact tick chosen
+	## above rather than hiding it, so the effect under judgement stays in the
+	## frame. What it also stops is every boarder's own AnimationPlayer, which
+	## is not the VFX and was moving between the settle above and the readback.
+	await SkyGearStill.freeze(self, world, game)
+
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path.replace("\\", "/"))
 	world.queue_free()

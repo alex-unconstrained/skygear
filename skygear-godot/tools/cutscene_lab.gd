@@ -1,4 +1,8 @@
 extends SceneTree
+## STILL: NOT APPLICABLE — an interactive authoring window (SG-108). The scene
+## is meant to be running: the thing being authored is a camera MOVE, and its
+## timeline is scrubbed by hand. Its captures are working references for whoever
+## is sitting at it, not plates any measurement is taken from.
 ## Author a cutscene against the REAL renderer, and save something the game plays.
 ##
 ##   godot --path . --resolution 1600x900 --script tools/cutscene_lab.gd

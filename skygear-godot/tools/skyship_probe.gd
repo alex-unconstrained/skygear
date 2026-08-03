@@ -163,10 +163,17 @@ func _run() -> void:
 	for pose in POSES:
 		for zoom in ZOOMS:
 			await _pose(game, view, deck, POSES[pose], zoom)
-			await process_frame
+			## FROZEN (SG-108). skyship_probe had NO freeze at all — every
+			## boarder's own AnimationPlayer, the ambient flicker phase and the
+			## debanding dither were all still live going into a readback whose
+			## whole purpose is judging whether a hull is occluded by the deck,
+			## a judgement a moving frame does not make more honest.
+			await SkyGearStill.freeze(self, view, game)
+			await RenderingServer.frame_post_draw
 			var img := get_root().get_texture().get_image()
 			img.save_png("%s/%s-z%.2f.png"
 				% [ProjectSettings.globalize_path(out_dir), pose, zoom])
+			await SkyGearStill.thaw(self, view, game)
 			var here: Array[String] = []
 			for key in shortlist:
 				if _on_screen(camera, shortlist[key]):
@@ -189,10 +196,17 @@ func _run() -> void:
 		for j in built.size():
 			(built[j].node as Node3D).visible = (i == j)
 		await _pose(game, view, deck, POSES["bow"], 1.0)
-		await process_frame
+		## FROZEN (SG-108). This toggles `visible` between plates of ONE pose
+		## with nothing else frozen — the same hole `_pose` above had, and the
+		## same reason: an unfrozen rig or particle system moving between two
+		## "identical but for one ship" frames is a second variable in a
+		## comparison the header claims has exactly one.
+		await SkyGearStill.freeze(self, view, game)
+		await RenderingServer.frame_post_draw
 		var key := str((SkyGearView3D.SKYSHIPS[i] as Dictionary).model)
 		get_root().get_texture().get_image().save_png(
 			"%s/%s-at-camera.png" % [solo_dir, key])
+		await SkyGearStill.thaw(self, view, game)
 		print("  solo %s" % key)
 	for j in built.size():
 		(built[j].node as Node3D).visible = true

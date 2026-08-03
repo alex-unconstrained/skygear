@@ -153,8 +153,18 @@ func _run() -> void:
 			if not _assert_locked(view, spot, zoom):
 				quit(1)
 				return
+			## FROZEN (SG-108). sky_shot had NO freeze at all — every boarder's
+			## AnimationPlayer, the deck's own flicker phase and the debanding
+			## dither were all still live at the shutter, on a tool whose entire
+			## claim is that these frames are the locked gameplay solve and
+			## nothing else. The sky itself is unaffected either way, but a
+			## frame that moves under repeat runs is not the reproducible
+			## picture this tool's header promises.
+			await SkyGearStill.freeze(self, view, game)
 			var path := "%s/%s-z%.2f.png" % [out_dir, spot, zoom]
+			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png(path)
+			await SkyGearStill.thaw(self, view, game)
 			print("  %-10s zoom %.2f  ->  %s" % [spot, zoom, path.replace("res://../", "")])
 			print("             %s" % str(at.what))
 			made += 1

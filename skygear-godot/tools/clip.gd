@@ -1,4 +1,11 @@
 extends SceneTree
+## STILL: NOT APPLICABLE — this tool photographs MOTION on purpose (SG-108).
+## Every other readback in `tools/` freezes the scene through `SkyGearStill`
+## because `set_process(false)` does not stop an `AnimationPlayer`. Here the
+## walk cycle IS the evidence: a still cannot witness a walk, a dash crack or a
+## cutscene's hand-back, which is the whole reason this tool exists. What it
+## does instead is hand-drive both clocks at a fixed `DT` so the sequence is
+## reproducible frame for frame, which is the guarantee a film needs.
 ## Motion evidence (board SG-47, POST-PARITY-PLAN item 1): pose a scenario the
 ## way `scripts/screen_poser.gd` and `tools/vfx_shot.gd` pose theirs, run N
 ## seconds of REAL sim+render, save the frames to `.shots/clips/`, and stitch

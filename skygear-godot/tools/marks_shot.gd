@@ -156,7 +156,13 @@ func _init() -> void:
 		var tag := "clean" if clean else "marked"
 		var path := "%s/%s-%s-z%.2f.png" % [out_dir, tag, str(pose.spot),
 			float(pose.zoom)]
-		root.get_texture().get_image().save_png(path)
+		## FROZEN (SG-108). These four poses had NO freeze at all — the marked run
+		## and the clean run are separate processes, so seventeen rigged figures
+		## arrived at the shutter in different places and the two sets were not
+		## the pixel-for-pixel pair the header claims they are.
+		await SkyGearStill.freeze(self, view, game)
+		await SkyGearStill.plate(self, FRAME_BOX, path)
+		await SkyGearStill.thaw(self, view, game)
 		print("  %-22s %s" % [str(pose.spot) + " z" + str(pose.zoom), str(pose.why)])
 
 	## AND THE ONE THAT DECIDES IT. DECK-IDENTITY §7.5 kill-test 1: four boarders
@@ -186,52 +192,148 @@ func _init() -> void:
 		e.state = "windup"
 		e.attack_direction = to_cap.normalized() if to_cap.length() > 0.001 			else Vector2.DOWN
 		e.state_time = float(e.config.windup) * TELEGRAPH_FRAC
-	game.set_process(false)
-	## PIN THE FLICKER. `_flicker` advances on real frames, so the marked run and
-	## the clean run reach the shutter with the braziers, the lantern and the vent
-	## at different points in their cycles — and the first attempt at this
-	## measurement reported the contrast getting WORSE when the marks got
-	## fainter, which is the lighting phase talking and not the marks. Pinned, the
-	## two plates differ in exactly one thing.
-	view._flicker = 12.0
-	for _i in 3:
-		view._process(0.0)
-		await process_frame
-	## AND THEN STOP THE RENDERER TOO. `game.set_process(false)` above holds the
-	## simulation, but `view._process` keeps advancing `_flicker`, and the two
-	## plates below are two frames apart: the brass gunwale measurably brightened
-	## between them and turned up in the contrast figures as if the marks had done
-	## it. From here nothing moves and the mark layer is the only difference.
-	view.set_process(false)
-	## AND THE PARTICLES. `GPUParticles3D` runs on the GPU's own clock and does
-	## not care that the tree stopped processing — embers and steam kept moving
-	## between the two plates and turned up in the contrast figures as marks. They
-	## are hidden for the measurement only; the poses above still have them.
-	for node in view.find_children("*", "GPUParticles3D", true, false):
-		(node as GPUParticles3D).emitting = false
-		(node as GPUParticles3D).visible = false
-	await process_frame
-	await process_frame
-	## BOTH PLATES FROM ONE RUN, one frame apart, with the simulation stopped and
-	## the lighting phase pinned — the marks batch simply hidden between them.
+	## FREEZE THROUGH THE ONE HELPER (SG-108). What used to be here was three of
+	## the four fixes, hand-written, and the missing fourth is the largest: every
+	## rigged figure owns an `AnimationPlayer` that advances on the ENGINE's clock
+	## and ignores both `set_process(false)` calls. Four boarders breathing
+	## through their windups moved their limbs, their weapons and their cast
+	## shadows between the two plates below. This tool only escaped the worst of
+	## it by shooting the pair one frame apart, which shrinks the effect without
+	## removing it — and DECK-IDENTITY §7.5's "residual that is not the marks and
+	## has not been found" is very likely exactly that.
+	var stopped := await SkyGearStill.freeze(self, view, game)
+	print("")
+	print("  THE TELEGRAPH COST, RE-MEASURED ON A SCENE THAT IS ACTUALLY STILL")
+	print("    stopped               %d rigs · %d particle systems"
+		% [int(stopped.animation_players), int(stopped.particles)])
+
+	## AND THE PRE-COMMITTED CHECK BEFORE ANY NUMBER IS BELIEVED. Two plates,
+	## nothing changed between them, over the whole frame. Exactly zero.
+	var noise := await SkyGearStill.floor_pct(self, FRAME_BOX)
+	print("    still · two plates of a frozen scene differ by exactly zero   %.2f%%"
+		% noise)
+	if noise != 0.0:
+		print("")
+		print("    REFUSED. §7.5 has five published figures measured against a")
+		print("    floor nobody had measured; this tool does not add a sixth.")
+		quit(6)
+		return
+
+	## BOTH PLATES FROM ONE RUN with nothing moving between them but the mark
+	## batch's `visible` flag.
 	##
 	## Two separate processes could not do this: sparks, embers and the vent
 	## plumes are GPU particle systems with their own clocks, and across two runs
 	## they land differently. Measured that way the same build reported the
 	## contrast cost as 0.7% and as 6.6% on consecutive attempts, which is a
-	## measurement of the weather. One process, one frame apart, and the mark
-	## layer is the only thing that differs.
-	root.get_texture().get_image().save_png("%s/marked-telegraphs.png" % out_dir)
-	view._mark_batch.visible = false
-	await process_frame
-	await process_frame
-	root.get_texture().get_image().save_png("%s/clean-telegraphs.png" % out_dir)
-	view._mark_batch.visible = true
-	print("  telegraphs            four windups, marked and clean, one frame apart")
+	## measurement of the weather.
+	print("    MARK_CAP %d · MARK_ALPHA_MAX %.2f · live marks %d"
+		% [SkyGearView3D.MARK_CAP, SkyGearView3D.MARK_ALPHA_MAX,
+			view.mark_count()])
 
+	## 1. THE WAVE-12 DISTRIBUTION, which is where the marks actually land.
+	var spread := await _cost(view, out_dir, "telegraphs",
+		"a wave-12 deck, marks where the fighting was")
+
+	## 2. AND THE WORST HONEST CASE, because the first one passes for a reason
+	## that is not a pass. `rig_probe.gd`'s own header says it: *a gate that
+	## passes because the thing under test never touched the thing it threatened
+	## is a coincidence, not a gate.* The marks are laid down the lanes and the
+	## four telegraph poses are not in them, so the first figure below is mostly a
+	## measurement of two things not overlapping — the printed ring-darkened
+	## percentage is how you can tell. This pass stamps the deepest mark this
+	## system can make DIRECTLY UNDER each rune and asks the question again.
+	##
+	## Stamped while frozen: `_mark` and `_age_marks` are direct calls that take
+	## their own delta, so the fade-in ramp can be advanced by hand without
+	## letting one tick of anything else through.
+	## ON THE WEDGE, NOT AT THE BOARDER'S FEET. The first attempt at this stamped
+	## at `t.at` — the enemy's own position — and moved not one pixel, because a
+	## mark under a boarder is under the BOARDER'S MESH and never reaches the
+	## camera. The rune is drawn AHEAD of the figure, between it and the captain,
+	## and that strip of planking is the planking a rune is actually read against.
+	var cap: Vector2 = game.player.global_position
+	for t in TELEGRAPHS:
+		for f in [0.3, 0.5, 0.7]:
+			var at: Vector2 = Vector2(t.at).lerp(cap, float(f))
+			for _r in 4:
+				view._mark(SkyGearView3D.MarkKind.BLOOD, at, 1.3)
+				view._age_marks(0.9)
+			view._mark(SkyGearView3D.MarkKind.SCORCH, at, 1.3)
+			view._age_marks(0.9)
+	view._flush_marks()
+	view._process(0.0)
+	print("")
+	print("    stamped under the runes — live marks now %d, loudest %.3f"
+		% [view.mark_count(), _loudest(view)])
+	var worst := await _cost(view, out_dir, "worst",
+		"the worst honest case, the deepest mark directly under each rune")
+
+	print("")
+	var cost: float = maxf(spread, worst)
+	if cost > SkyGearRune.COST_GATE:
+		print("    OVER THE GATE. The marks cost a rune more than %.2f%% of the"
+			% SkyGearRune.COST_GATE)
+		print("    contrast it has on clean boards. The density must come down.")
+	else:
+		print("    UNDER THE GATE by %.2f points, worst case." % (SkyGearRune.COST_GATE - cost))
 	print("")
 	print("  %d shot(s) in .shots/marks/. Look at them." % (POSES.size() + 1))
 	quit(0)
+
+
+## The whole frame: a rune mask is scattered across it rather than confined to a
+## rectangle, so the stillness control has to cover all of it.
+const FRAME_BOX := Rect2i(0, 0, 1600, 900)
+
+
+## `frame_post_draw`, not `process_frame` — SG-29's idiom, and SG-108's reason:
+## `process_frame` fires when the TREE finished its frame, not when the RENDERER
+## finished drawing it, and the resulting bad readback is INTERMITTENT.
+func _shot(path: String) -> Image:
+	await RenderingServer.frame_post_draw
+	var img := root.get_texture().get_image()
+	img.save_png(path)
+	return img
+
+
+## ONE COST FIGURE: two plates, the mark batch's `visible` flag the only thing
+## that differs, measured over ONE rune mask taken from the marked plate.
+##
+## §7.5 quotes 11.5% and 9.1% for this and NEITHER is reproducible from this
+## repository: `marks_shot` has never computed a contrast in its life — it saved
+## two PNGs and the figures were arrived at somewhere that was not committed,
+## and a shipped tuning decision (cap 48 → 24, alpha 0.30 → 0.12) rests on them.
+## The measurement is in the tool now, through `tools/rune_read.gd`, which is the
+## SAME rune mask and the same `ink.gd` formula `rig_probe.gd` decides on — so
+## the two answers are comparable to each other and to the 3% gate they share.
+##
+## Deriving the mask from each plate separately compares two different pixel sets
+## and calls the difference a result; `rune_read.gd`'s header records what that
+## cost the first time.
+func _cost(view: SkyGearView3D, out_dir: String, slug: String,
+		why: String) -> float:
+	var marked := await _shot("%s/marked-%s.png" % [out_dir, slug])
+	view._mark_batch.visible = false
+	var bare := await _shot("%s/clean-%s.png" % [out_dir, slug])
+	view._mark_batch.visible = true
+	var rune := SkyGearRune.mask(marked)
+	var ring := SkyGearRune.ring(rune, marked.get_width(), marked.get_height())
+	var with_marks := SkyGearRune.edge(marked, rune, ring)
+	var without := SkyGearRune.edge(bare, rune, ring)
+	var cost: float = 0.0 if without <= 0.0 else (without - with_marks) / without * 100.0
+	print("")
+	print("    %s" % why)
+	print("      rune pixels                  %d" % (rune.size() / 2))
+	print("      planking ring                %d px" % (ring.size() / 2))
+	print("      edge contrast, marked deck   %.3f" % with_marks)
+	print("      edge contrast, clean deck    %.3f" % without)
+	print("      what the marks cost the rune %+.2f%%   (gate: %.2f%%)"
+		% [cost, SkyGearRune.COST_GATE])
+	print("      of that ring, the marks darken %.1f%%   <- if this is ~0 the"
+		% SkyGearRune.darkened(marked, bare, ring))
+	print("                                          figure above is a coincidence")
+	return cost
 
 
 ## A twelve-wave deck's worth of evidence, laid where the fighting is rather than

@@ -39,6 +39,13 @@ func _pose(class_id: String, seed_text: String) -> Array:
 	root.add_child(world)
 	await process_frame
 	var game: SkyGearGame = world.get_node("SkyGear")
+	## HAND-STEPPED, so the engine must not step it too (SG-108). `_settle`
+	## below calls `game._process` itself and the game node is in the tree, so
+	## without this the engine called `_process` on it AGAIN every frame —
+	## `parity_shot.gd` lines ~56-65 record the identical bug and the identical
+	## fix: every posed frame this tool has ever produced carried roughly twice
+	## the ticks its own settle loop claimed.
+	game.set_process(false)
 	world.sway = false
 	game.workshop = SkyGearWorkshop.fresh(true)
 	game.refresh_berthed()
@@ -67,7 +74,14 @@ func _settle(game: SkyGearGame, frames: int) -> void:
 	await process_frame
 
 
-func _save(world, path: String) -> void:
+func _save(world, game: SkyGearGame, path: String) -> void:
+	## FROZEN (SG-108). readability_shot never froze anything — the settle loop
+	## above hand-stepped `game._process` (now that it is no longer ALSO being
+	## double-stepped by the engine) but every rigged figure's AnimationPlayer,
+	## the deck's flicker phase and the debanding dither kept advancing on the
+	## engine's own clock regardless, right up to this readback.
+	await SkyGearStill.freeze(self, world, game)
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path.replace("\\", "/"))
 	print("  %s" % path)
@@ -84,7 +98,7 @@ func _vent_shot(path: String) -> void:
 	game.player.global_position = Vector2(150, 120)
 	## Long enough for the metered plume to stand a full column.
 	await _settle(game, 80)
-	await _save(world, path)
+	await _save(world, game, path)
 
 
 func _aim_shot(path: String) -> void:
@@ -99,7 +113,7 @@ func _aim_shot(path: String) -> void:
 	## the reticle at the reach, dimmed, and no second shape anywhere (SG-78).
 	world.pose_aim(slot, game.player.global_position + Vector2(60.0, -reach * 1.45))
 	await _settle(game, 12)
-	await _save(world, path)
+	await _save(world, game, path)
 	## And the same weapon aimed WITHIN its reach, because "subtle" is a claim
 	## about the common case: the reticle sits under the cursor, small and lit,
 	## and the deck behind it is deck.
@@ -113,7 +127,7 @@ func _aim_shot(path: String) -> void:
 	near_world.pose_aim(near_slot,
 		near_game.player.global_position + Vector2(40.0, -near_reach * 0.55))
 	await _settle(near_game, 12)
-	await _save(near_world, path.replace("aim.png", "aim-in-range.png"))
+	await _save(near_world, near_game, path.replace("aim.png", "aim-in-range.png"))
 
 
 func _hulk_shot(path: String) -> void:
@@ -126,4 +140,4 @@ func _hulk_shot(path: String) -> void:
 	game.hulk.vulnerable = true
 	game.hulk.hp = float(game.hulk.max_hp) * 0.55
 	await _settle(game, 14)
-	await _save(world, path)
+	await _save(world, game, path)

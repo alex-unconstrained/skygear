@@ -1,4 +1,8 @@
 extends SceneTree
+## STILL: NOT APPLICABLE — this photographs a 2D HUD SCREEN, not the deck
+## (SG-108). There is no rig, no particle system and no brazier phase in a posed
+## menu; what it does need is for the renderer to have finished drawing, and it
+## already waits on `RenderingServer.frame_post_draw` for exactly that reason.
 ## PHOTOGRAPH A MENU. The half of the verification loop no checker can do.
 ##
 ## WHY THIS EXISTS. `tools/text_audit.gd` poses seventeen screens at four

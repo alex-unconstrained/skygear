@@ -1,4 +1,8 @@
 extends SceneTree
+## STILL: NOT APPLICABLE — this measures a 2D HUD SCREEN, not the deck (SG-108).
+## Its two exposures differ only by `hud.hide_text`, both are of a posed static
+## menu with no rig and no particle system in it, and it already waits on
+## `RenderingServer.frame_post_draw` so the readback is of a finished frame.
 ## Does any text fall outside the frame it belongs to — and can you read it?
 ##
 ## Reported: "the text spacing on a lot of cards is off and the text begins

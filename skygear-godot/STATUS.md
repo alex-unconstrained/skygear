@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **788 harness checks**; the text audit covers 24 screens at
+board SG-56). **867 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -169,7 +169,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (788 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (867 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -191,7 +191,7 @@ guessed at and finally built.
 tool, and several were things a confident commit message had already declared
 fine.
 
-**3. The four recurring failure modes.** Each has happened more than once.
+**3. The five recurring failure modes.** Each has happened more than once.
 Assume you are about to commit one:
 
 - **Data with no reader.** A table field nothing consumes, so a feature reads as
@@ -205,6 +205,21 @@ Assume you are about to commit one:
   widget label and called 16 screens clean while 30 were broken.
 - **Claims asserted from memory rather than measured.** "The camera was ported
   exactly" was said repeatedly and is false.
+- **A measuring rig nobody measured — the newest one, and it cost the most.**
+  FOUR times a tool has taken two photographs of "the same frozen scene", called
+  the difference a result, and been wrong, because something in the scene was
+  still moving: the brazier phase, then the renderer's own tick, then the GPU's
+  particle clock, then — the largest — **every rigged figure's `AnimationPlayer`,
+  which runs on the engine's clock and ignores both `set_process(false)` calls
+  (SG-108).** Each was found by a different tool, fixed inside that tool alone,
+  and rediscovered by the next one. Eight A/B answers were published against
+  those floors and **three of them turned out to be the floor**, including the
+  one that drove a shipped tuning change. There is one freeze now, `tools/still.gd`,
+  and the rule that follows from all four: **a tool that reports a difference
+  must first report its own noise floor, and that floor must be exactly zero** —
+  not small, zero. A floor allowed to be 3% is a floor that can hide a 3%
+  feature. `SkyGear Tools.bat still` is that assertion; the five `still ·` checks
+  in the harness are what stop the next tool from skipping it.
 
 ---
 
@@ -223,7 +238,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 788 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 867 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -251,7 +266,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 788 checks. Green before anything ships |
+| `harness` | 867 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

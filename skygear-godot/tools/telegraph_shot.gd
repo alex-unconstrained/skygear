@@ -83,6 +83,13 @@ func _shoot(path: String) -> void:
 	for _i in 3:
 		await process_frame
 
+	## FROZEN (SG-108). Four boarders are frozen "mid-windup" by hand above, but
+	## that only pins `state_time` — each still owns an AnimationPlayer that
+	## keeps advancing on the ENGINE's clock, so the wedge and the aim band this
+	## tool exists to photograph were drawn under limbs still mid-stride.
+	await SkyGearStill.freeze(self, world, game)
+
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path.replace("\\", "/"))
 	world.queue_free()

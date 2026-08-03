@@ -1,4 +1,8 @@
 extends SceneTree
+## STILL: NOT APPLICABLE — an interactive authoring window (SG-108). The point
+## of this window is RUNNING a model's animations, and `Engine.time_scale` here
+## is a slow-motion dial rather than a freeze. Its `--shot` capture is a working
+## reference, not a plate any measurement is taken from.
 ## Look at every model in the project, RUN it, hang things off it, and write the
 ## result back into the game.
 ##

@@ -79,21 +79,30 @@ func _run() -> void:
 ## walk the camera in behind her shoulder, so the forty-pixel cape gets one
 ## picture at a size a cloth call can be made from.
 func _snap(world, out_dir: String, id: String, eye_off: Vector3) -> void:
-	await process_frame
+	var game: SkyGearGame = world.game
+
+	## FROZEN (SG-108). This waited one bare `process_frame` — not even the
+	## SG-29 `frame_post_draw` idiom — and read the framebuffer straight after.
+	## The captain's own AnimationPlayer, the one thing the cape hangs off of,
+	## advances on the ENGINE's clock and does not care that a frame elapsed;
+	## the cape is the thing under judgement and both shots below need it held.
+	await SkyGearStill.freeze(self, world, game)
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(("%s/%s.png" % [out_dir, id]).replace("\\", "/"))
 
-	world.set_process(false)
 	var cam: Camera3D = world.camera
 	var kept := cam.global_transform
 	var at: Vector2 = world.game.player.global_position
 	var eye := Vector3(at.x * 0.01, 0.0, at.y * 0.01) + eye_off
 	var aim := Vector3(at.x * 0.01, 1.05, at.y * 0.01)
 	cam.look_at_from_position(eye, aim, Vector3.UP)
-	await process_frame
-	await process_frame
+	await RenderingServer.frame_post_draw
 	var close := root.get_texture().get_image()
 	close.save_png(("%s/%s-close.png" % [out_dir, id]).replace("\\", "/"))
 	cam.global_transform = kept
-	world.set_process(true)
-	await process_frame
+	## `game` stays frozen — `_run` hand-steps it and a re-enabled `set_process`
+	## here would double-step it on the very next tick, the parity_shot.gd
+	## bug. Only the view's own clock (the camera follow the next pose needs)
+	## and the rigs/particles the freeze stopped come back.
+	await SkyGearStill.thaw(self, world, null)

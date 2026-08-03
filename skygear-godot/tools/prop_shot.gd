@@ -120,6 +120,13 @@ func _run() -> void:
 		print("no output path")
 		quit(1)
 		return
+	## FROZEN (SG-108). The prop and its painted twin are judged AT the distance
+	## the player gets, and the four frames above only sync the renderer's own
+	## mirrors — every rigged boarder still on this deck keeps breathing through
+	## its AnimationPlayer regardless, moving the exact plates this comparison
+	## depends on being pixel-identical up to the prop alone.
+	await SkyGearStill.freeze(self, view, game)
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(out.replace("\\", "/"))
 	print("shot ok")

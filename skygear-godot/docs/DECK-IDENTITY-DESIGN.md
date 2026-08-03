@@ -669,7 +669,47 @@ structural and each one is pinned by a check rather than by care:
    median cannot move 8% when 5.7% of the deck is covered at alpha 0.12. Whatever
    that residual is, it is not the marks, and it has not been found.
 
-   **A LEAD ON IT, found 2026-08-03 by SG-107 while building the same kind of
+   **RESOLVED 2026-08-03 BY SG-108, AND THE RESIDUAL WAS NOT REAL.** The lead
+   below was right. Re-measured with the scene genuinely still — every tool that
+   produced a number here now prints `still · two plates of a frozen scene
+   differ by exactly zero` and **refuses to report anything if it is not** —
+   **the marks cost a telegraph rune `+0.02%` of its contrast, and they darken
+   `0.0%` of the planking ring it is read against.** That second figure is the
+   one that matters: it holds even with the deepest mark this system can make
+   stamped directly onto the strip of planking between each boarder and the
+   captain, which is the planking the rune is actually read against. At
+   `MARK_ALPHA_MAX 0.12` a mark does not move a planking pixel by the 0.004 of
+   luminance the measurement counts as a change.
+   `.shots/marks/marked-worst.png` is that frame; there is not a stain visible
+   in it.
+
+   **So the paragraph below this one is the record of a measurement, not of the
+   feature, and the tuning it drove was decided on noise.** Cap 48 → 24 and
+   alpha 0.30 → 0.12 were the pre-committed *"the density drops"* branch, taken
+   because the marks appeared to be costing 11.5% of a rune's legibility. They
+   were costing nothing measurable, before or after. **`MARK_CAP` to 12 now
+   points the wrong way** — it would halve a feature that is already invisible.
+   Nothing has been retuned on the strength of a re-measurement: the sentence
+   below is still right that the deciding evidence is one playtest and not
+   another rig. What has changed is what the rig can tell you. It can no longer
+   tell you the marks are costing legibility, because they are not; it never
+   could tell you whether they are worth seeing.
+
+   **And two things about the numbers below that should be known before they are
+   quoted again.** First, **11.5% and 9.1% are not reproducible from this
+   repository** (SG-115): `marks_shot.gd` saved two PNGs and printed a coverage
+   figure — it never computed a contrast, and no version of it in `git log` ever
+   did. The measurement is in the tool now, through `tools/rune_read.gd`, which
+   is the same rune mask and the same `ink.gd` formula `rig_probe.gd` decides
+   on. Second, **that rune mask is a colour window** and on this deck it also
+   selects the brazier bowls and an ARMORED boarder's lit plating (SG-116). Every
+   answer above is a RELATIVE one measured over the identical pixel set in both
+   plates, so contamination dilutes a cost toward zero rather than inventing one
+   — but the ABSOLUTE figure **1.91** quoted throughout this section is a median
+   over red things rather than over runes, and nothing should be decided on it
+   until that is fixed.
+
+   **THE LEAD, found 2026-08-03 by SG-107 while building the same kind of
    rig for item 2.** There is a fourth confound in this family and it is larger
    than the three above: **every rigged figure owns an `AnimationPlayer` that
    advances on the engine's own clock and answers to neither

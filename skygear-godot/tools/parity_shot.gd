@@ -149,6 +149,18 @@ func _run() -> void:
 		print("no output path")
 		quit(1)
 		return
+	## AND FREEZE BEFORE THE SHUTTER (SG-108). This tool stopped the simulation and
+	## believed that was enough; every rigged figure in the frame owns an
+	## `AnimationPlayer` that advances on the ENGINE's clock and ignores
+	## `set_process(false)` entirely. A parity plate is compared against a browser
+	## plate shot by a different process at the same TICK COUNT, so a figure
+	## caught a few frames further through its walk cycle than the tick count says
+	## is exactly the difference this tool exists to detect — and it was
+	## manufacturing it.
+	await SkyGearStill.freeze(self, view, game)
+	## `frame_post_draw`, not `process_frame`: the tree finishing its frame is not
+	## the renderer finishing drawing it, and the bad grab is intermittent.
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(out.replace("\\", "/"))
 	print("shot ok")

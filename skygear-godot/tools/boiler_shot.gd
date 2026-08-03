@@ -60,9 +60,15 @@ func _run() -> void:
 		game._process(1.0 / 60.0)
 		await process_frame
 	game.effects.clear()
-	await process_frame
-	await process_frame
 
+	## FROZEN (SG-108). This settled on two bare `await process_frame`s and read
+	## the framebuffer straight after them — but `_boiler_fire`'s glow and the
+	## lighting phase both advance on the ENGINE's clock, which neither of those
+	## waits touches, so the "settled" frame was still mid-flicker under its own
+	## fallback dome.
+	await SkyGearStill.freeze(self, world, game)
+
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path.replace("\\", "/"))
 	print("  fallback %s" % path)

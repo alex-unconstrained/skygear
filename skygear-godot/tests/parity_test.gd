@@ -166,6 +166,8 @@ func _run() -> void:
 	await process_frame
 	_clip()
 	await process_frame
+	_still()
+	await process_frame
 	_owner_layout_untouched()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
@@ -186,6 +188,143 @@ func _run() -> void:
 		print("%d/%d checks passed  —  %s" % [checks - failures.size(), checks,
 			", ".join(failures)])
 	quit(failures.size())
+
+
+## SG-108: EVERY TOOL THAT PHOTOGRAPHS THIS DECK MUST FREEZE IT THROUGH THE ONE
+## HELPER, AND THE HELPER MUST STILL STOP EVERY CLOCK.
+##
+## The bug: `game.set_process(false)` and `view.set_process(false)` do not stop
+## an `AnimationPlayer`, which advances on the ENGINE's clock and answers to
+## neither. Seventeen boarders kept breathing between two exposures of what four
+## separate tools each believed was one frozen scene. `shadow_probe.gd` measured
+## its own noise floor at 53% before the cause was found; frozen properly it is
+## 0.00%, and three already-published A/B answers had been measured against that
+## floor.
+##
+## WHY THESE ARE SOURCE CHECKS. The harness is headless and headless has no GPU
+## (SG-29), so it cannot photograph anything — the runtime half of the assertion,
+## *two plates of a frozen scene differ by exactly zero*, lives in
+## `tools/still_probe.gd`, which the hub runs windowed like the text audit.
+## Between the two halves: no tool can omit the freeze, and the freeze is proved
+## to actually freeze. Either half alone is a check that cannot fail.
+##
+## AND THE OPT-OUT IS A DECLARATION, NOT A LIST HERE. A hand-written exemption
+## list in this file is the "detector silenced to make a screen pass" failure
+## mode with extra steps — it lives where nobody adding a tool will read it. A
+## tool that photographs motion on purpose says so IN ITSELF, on one line, with
+## its reason. Then a NEW tool cannot inherit this silently: it either freezes,
+## or it writes down why it does not.
+const STILL_MARKER := "STILL: NOT APPLICABLE"
+
+
+func _still() -> void:
+	var readers: Array[String] = []
+	var unfrozen: Array[String] = []
+	var undeclared: Array[String] = []
+	for name in DirAccess.get_files_at("res://tools"):
+		if not str(name).ends_with(".gd"):
+			continue
+		var path := "res://tools/%s" % str(name)
+		var src := FileAccess.get_file_as_string(path)
+		## What counts as photographing: a viewport readback. `rig_local.gd` calls
+		## `get_image()` on a MATERIAL texture and is correctly not caught by this.
+		if not src.contains("get_texture().get_image()"):
+			continue
+		if str(name) == "still.gd":
+			continue
+		readers.append(str(name))
+		var frozen := src.contains("SkyGearStill.freeze(")
+		var declared := src.contains(STILL_MARKER)
+		if not frozen and not declared:
+			undeclared.append(str(name))
+		if frozen and declared:
+			## Both is not a third state, it is a tool that half-converted.
+			undeclared.append("%s (says both)" % str(name))
+
+	_check("still", "every tool that photographs this deck says whether it freezes it",
+		undeclared.is_empty(),
+		"neither frozen nor declared:%s" % _joined(undeclared) if not undeclared.is_empty()
+			else "%d readback tools, all accounted for" % readers.size())
+
+	## THE HELPER ITSELF, AGAINST BEING HOLLOWED OUT. Four of these were each
+	## discovered by a different tool and written into that tool alone, which is
+	## why the next tool had to rediscover them. They are one list now and a
+	## deletion from it must be a deliberate act rather than a tidy-up.
+	var helper := FileAccess.get_file_as_string("res://tools/still.gd")
+	var clocks := {
+		"the simulation": "game.set_process(false)",
+		"the engine's own clock": "Engine.time_scale = 0.0",
+		"every rig's AnimationPlayer": "ap.speed_scale = 0.0",
+		"the GPU's particle clock": "GPUParticles3D).speed_scale = 0.0",
+		"the per-frame debanding dither": "use_debanding = false",
+		"volumetric fog's temporal reprojection":
+			"volumetric_fog_temporal_reprojection_enabled = false",
+		"the brazier flicker phase": "FLICKER",
+	}
+	var missing: Array[String] = []
+	for what in clocks:
+		if not helper.contains(str(clocks[what])):
+			missing.append(str(what))
+	_check("still", "and the one freeze still stops every clock that ignores set_process",
+		missing.is_empty(), "no longer stopped:%s" % _joined(missing) if not missing.is_empty()
+			else "%d clocks" % clocks.size())
+
+	## AND THE OTHER DIRECTION: no tool may keep a private copy of the fix. This
+	## is the check that stops the chain starting again — `marks_shot` found three
+	## of these and wrote them into itself, `rig_probe` copied those three and
+	## missed the fourth, `shadow_probe` found the fourth and wrote it into
+	## itself. Four tools, four different definitions of "frozen".
+	var private: Array[String] = []
+	for name in DirAccess.get_files_at("res://tools"):
+		if not str(name).ends_with(".gd") or str(name) == "still.gd":
+			continue
+		var src := FileAccess.get_file_as_string("res://tools/%s" % str(name))
+		if not src.contains("get_texture().get_image()"):
+			continue
+		## Stripped of comments first: these tools EXPLAIN the freeze at length
+		## and a check that read the prose would fail on the explanation.
+		var code := ""
+		for line in src.split("\n"):
+			if not str(line).strip_edges().begins_with("#"):
+				code += str(line) + "\n"
+		for hand in ["Engine.time_scale = 0.0", "speed_scale = 0.0",
+				"use_debanding = false",
+				"volumetric_fog_temporal_reprojection_enabled = false"]:
+			if code.contains(hand):
+				private.append("%s: %s" % [str(name), hand])
+	_check("still", "and no photographing tool keeps a private copy of it",
+		private.is_empty(), "hand-rolled:%s" % _joined(private) if not private.is_empty()
+			else "one helper, %d tools" % readers.size())
+
+	## THE READBACK ITSELF. `process_frame` fires when the TREE finished its
+	## frame, not when the RENDERER finished drawing it, and the resulting bad
+	## grab is INTERMITTENT — `shadow_probe.gd` read a 0.97% noise floor on two
+	## runs out of three with a genuinely frozen scene, which is worse than a
+	## constant error because it passes often enough to be believed. Every
+	## readback waits on `frame_post_draw` (SG-29's idiom, SG-108's reason).
+	var early: Array[String] = []
+	for name in readers:
+		var src := FileAccess.get_file_as_string("res://tools/%s" % str(name))
+		if src.contains(STILL_MARKER):
+			continue
+		if not src.contains("RenderingServer.frame_post_draw") \
+				and not src.contains("SkyGearStill.plate("):
+			early.append(str(name))
+	_check("still", "and every frozen readback waits for the renderer, not for the tree",
+		early.is_empty(), "grabs too early:%s" % _joined(early) if not early.is_empty()
+			else "%d tools" % (readers.size() - early.size()))
+
+	## AND THE RUNTIME HALF IS REACHABLE. A check whose other half nobody can run
+	## is half a check; the hub is where anybody looks for a tool.
+	var hub := FileAccess.get_file_as_string("res://tools/hub.gd")
+	var registered := hub.contains("still_probe.gd")
+	_check("still", "and the runtime half of it is in the hub where somebody will run it",
+		registered, "tools/still_probe.gd" if registered
+			else "tools/still_probe.gd is not registered in the hub")
+
+
+func _joined(items: Array[String]) -> String:
+	return " " + ", ".join(items)
 
 
 ## THE LAST CHECK OF THE RUN, and the one that would have caught SG-83 the day

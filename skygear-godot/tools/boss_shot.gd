@@ -166,7 +166,15 @@ func _shoot(out_dir: String, tag: String, energy: float,
 		world._process(DT)
 		await process_frame
 
+	## FROZEN (SG-108). `world.set_process(false)` above stops the SIMULATION,
+	## not the Colossus's own AnimationPlayer — a rigged figure advances on the
+	## ENGINE's clock and answers to neither `set_process(false)` call, so the
+	## machine was still mid-stride and its furnace lamp still mid-flicker at
+	## every one of the WINDUP_HOLD ticks. Freeze pins both before the shutter.
+	await SkyGearStill.freeze(self, world, game)
+
 	var path := "%s/%s.png" % [out_dir, tag]
+	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(path.replace("\\", "/"))
 	print("  %-8s %s   gap %.0f   %s" % [tag, path, gap, _blown(img)])

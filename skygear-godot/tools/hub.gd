@@ -26,7 +26,7 @@ func _initialize() -> void: call_deferred("_run")
 ##   make    changes files or spends money; never in `all`
 const TOOLS := [
 	{"id": "harness", "kind": "check", "script": "tests/parity_test.gd",
-		"what": "the whole simulation, 532 checks",
+		"what": "the whole simulation, 867 checks",
 		"why": "the one thing that must be green before anything ships"},
 	{"id": "text", "kind": "check", "script": "tools/text_audit.gd", "window": true,
 		"what": "every string on 21 screens at 4 resolutions — fit, size, contrast, overlap and drift",
@@ -52,6 +52,15 @@ const TOOLS := [
 	{"id": "clip", "kind": "check", "script": "tools/clip.gd", "window": true,
 		"what": "MOTION evidence: pose a scenario, run real seconds of sim+render, stitch to .shots/clips/<name>.gif",
 		"why": "every figure claim ahead is a claim about motion, and a still cannot witness a walk, a dash crack, or a cutscene's hand-back"},
+
+	## A check that needs a window for the same reason `text` does: the whole
+	## assertion is a framebuffer readback and headless has no GPU (SG-29). It is
+	## the runtime half of SG-108 — the harness guards the SOURCE of every
+	## photographing tool, and this proves the freeze those tools call actually
+	## freezes. Either half alone is a check that cannot fail.
+	{"id": "still", "kind": "check", "script": "tools/still_probe.gd", "window": true,
+		"what": "two plates of a frozen wave-8 deck, and the fraction of pixels that moved between them",
+		"why": "`set_process(false)` does not stop an AnimationPlayer, and four tools each believed it did — one of them measured its own noise floor at 53% and published three A/B answers against it. This number must be exactly zero"},
 
 	## Not a "check": it has no pass/fail on purpose — it records a baseline and
 	## takes no opinion (SG-25). Needs a real window; headless has no GPU (SG-29).

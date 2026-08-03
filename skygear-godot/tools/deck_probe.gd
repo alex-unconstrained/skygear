@@ -136,8 +136,16 @@ func _run() -> void:
 			for _i in 4:
 				game._process(1.0 / 60.0)
 				await process_frame
+			## FROZEN (SG-108). deck_probe had NO freeze at all, and this is the
+			## tool DECK-DESIGN.md's pictures come out of — each variant is a
+			## SEPARATE PROCESS invocation, so two runs never land their rigs,
+			## particles or flicker phase at the same point twice and a variant
+			## comparison was partly comparing the weather.
+			await SkyGearStill.freeze(self, view, game)
 			var path := "%s/%s-%s-z%.2f.png" % [out_dir, variant, spot, zoom]
+			await RenderingServer.frame_post_draw
 			root.get_texture().get_image().save_png(path)
+			await SkyGearStill.thaw(self, view, game)
 			print("  %s" % path.replace("res://", ""))
 	quit(0)
 

@@ -206,3 +206,105 @@ The shadow A/B plates (`shadow-today` / `-corrected` / `-off`) caught the
 captain mid-swing, so a fire arc dominates the frame and they are poor pictures
 even though the numbers behind them are sound. Worth re-shooting at a quieter
 tick before you judge the look of the contact cores by eye.
+
+---
+
+## SG-108 — the freeze is fixed, and three published numbers did not survive it
+
+*opus/SG-108, 2026-08-03. Every figure below was measured with the scene
+genuinely still: `still · two plates of a frozen scene differ by exactly zero`
+prints **0.00%** on every run of every tool that produced them, and each tool
+now REFUSES to report anything if it does not.*
+
+**The short version: the freeze was real, the fix was real, and two of the three
+answers that rode on the old noise floor came back different. One of them
+contradicts a decision that has already shipped. None of the tuning has been
+touched — that is yours to call.**
+
+### 1. SG-101's "residual that is not the marks and has not been found" — FOUND
+
+It was the AnimationPlayers. SG-107's guess was right.
+
+| | old (unfrozen) | now (floor 0.00%) |
+|---|---|---|
+| what the marks cost a telegraph rune | **9.1%** (11.5% before the halving) | **+0.02%** |
+| of the planking ring, how much the marks darken | not measured | **0.0%** |
+
+It is not a small correction, it is the whole number. And it has a consequence
+you should know about: **the halving was decided on noise.** SG-101 took the
+pre-committed "the density drops" branch — `MARK_CAP` 48 → 24 and
+`MARK_ALPHA_MAX` 0.30 → 0.12 — because the marks appeared to be costing 11.5%
+of a rune's legibility. They were costing roughly nothing, then and now.
+
+At the shipped tuning I cannot see a single mark in a real frame. Look at
+`.shots/marks/marked-worst.png`: that is a wave-12 deck with the cap full AND
+with the deepest mark this system can make stamped directly onto the planking
+each rune is read against, and the deck reads clean. The marks ARE being drawn —
+24 of them, the cap full, and `marked-worst.png` and `clean-worst.png` are
+genuinely different files — they are simply too faint at alpha 0.12 to move a
+planking pixel by the 0.004 of luminance the measurement counts as a change.
+
+**So the open lever points the other way now.** `MARK_CAP` to 12 was on the
+table; on this evidence it would take a feature that is already invisible and
+halve it again. If anything the question is whether 24 / 0.12 is worth having at
+all, or whether the alpha should go back up. **I changed nothing** — the row
+said the deciding evidence is one playtest and not another rig, and that is
+still true. The rig can now only tell you the marks are not costing you
+legibility; whether they are worth seeing is a look judgement.
+
+### 2. SG-107's rig kill-test — same verdict, but "the rig HELPS" was wrong
+
+| | old | now |
+|---|---|---|
+| what the lattice costs a rune, full light | **−0.47%** (an improvement) | **+0.88%** (a cost) |
+| … at the wave-8 darkness floor 0.22 | **−2.67%** (an improvement) | **+0.29–0.57%** (a cost) |
+| of the planking ring, how much the lattice darkens | **18–22%** | **9.2–9.9%** |
+
+**The rig still passes its gate comfortably** — nothing here is near 3%, so the
+decision to ship it stands and nothing needs undoing. But the claim on the board
+that the lattice *improves* rune contrast, and that it darkens a fifth of the
+planking ring, are both artifacts of the boarders moving. It costs a little, as
+you would expect a shadow to.
+
+### 3. SG-107's shadow kill-test — THIS ONE CONTRADICTS WHAT SHIPPED
+
+| | old (floor 3.07%) | now (floor 0.00%) |
+|---|---|---|
+| batch OFF vs today, no ordnance | 1.91% | **1.70–2.09%** |
+| batch OFF vs today, ordnance in flight | **4.88%** | **1.85–2.16%** |
+| corrected vs today, ordnance in flight | **11.76%** | **2.18–2.28%** |
+| corrected vs OFF, ordnance in flight | **9.62%** | **2.00–2.30%** |
+
+The no-ordnance figure reproduces almost exactly. **The ordnance figures do
+not** — and those were the evidence for keeping the shadow layer whole. SG-107's
+row reads *"VERDICT: THE AUTHORITY SHIPS WHOLE"* on the strength of 11.76% and
+9.62%. On a still scene every one of those numbers is under the item's own 3%
+gate, in both passes, on four consecutive runs.
+
+By DECK-IDENTITY item 2's pre-committed rules, that means two branches fire that
+were reported as not firing: the **delete gate** (OFF is not measurably worse
+than today) and **"only the height falloff ships"** (corrected differs from
+today by under 3%).
+
+**I did not delete the layer and I did not change the code.** SG-107's actual
+argument for keeping it was never the 11.76% — it was §13c: a projectile's mark
+must sit under the bolt because that is what tells you where it will cross you,
+and a painted billboard casts nothing at all so its blob is the only thing
+holding it to the planking. Neither of those is a claim a pixel count over
+FIGURES can settle, and neither is weakened by the numbers above. But the row's
+stated evidence is gone, so the question genuinely returns to you:
+
+> **Does the contact-shadow layer stay, on the §13c argument alone, now that the
+> pixel measurement no longer supports it?**
+
+My recommendation is that it stays, for §13c's two cases, and that the row stops
+citing the 11.76%.
+
+### The pictures you asked for
+
+`.shots/sg107/shadow-today.png`, `-corrected.png`, `-off.png` — re-shot at a
+quiet tick. The old set caught the captain mid-swing and a fire arc filled the
+middle of the frame; these have no effect in them at all, so the contact cores
+under the figures are actually judgeable. `shadow-ord-*.png` is the same three
+with ordnance in flight, for §13c's half.
+
