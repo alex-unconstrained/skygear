@@ -68,8 +68,12 @@ Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. Is that intended?
   running; it is the only critical path (tax interview alone is 2–7 business
   days). Full plan in `docs/STEAM-LAUNCH.md`. **Send friends the itch link, not
   a Steam key** — keys need a three-week wait for a first-time dev.
-- **The ally-share mystery** — your real run read 58%, the fixed rig reads 13%.
-  **What was your crew count and draft in that run?**
+- ~~The ally-share mystery~~ — **closed by your own run report, nothing needed.**
+  It reads `crew and cannons 11%`; the repaired rig reads 13%. They agree, so
+  the old 58% was stale rather than a balance finding. Bonus: your range split
+  reads **23% close** against the bot's **22%** — the bot now plays like you do,
+  which means the numbers we have been quoting all day rest on an instrument
+  that has finally been checked against a human.
 
 ---
 
