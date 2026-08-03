@@ -1,7 +1,7 @@
 # NEEDS ALEX — the morning list
 
-_Written 2026-08-02 as you went to sleep; updated through the night. **Build 50
-is live**, harness **881/881**._
+_Written 2026-08-02 as you went to sleep; updated through the night. **Build 51
+is live**, harness **902/902**._
 
 > **What changed between 49 and 50 that you will actually feel:** fire is no
 > longer a shield. Standing in a fire pool used to make you immune to
@@ -55,7 +55,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 50 and judge five things
+## 1 · Play build 51 and judge five things
 
 All shipped tonight; none can be settled by a checker.
 
@@ -165,7 +165,7 @@ numbers here rather than a feature nobody measured.
 
 ## 6 · Where the day got to
 
-**Builds 32 → 50. Harness 499 → 881.** The deck went from half-painted to
+**Builds 32 → 51. Harness 499 → 902.** The deck went from half-painted to
 all-mesh, and **every figure you modelled yourself was wired the same day you
 made it** — the hulk's three states, the furnace knight, the crew, the goblins,
 the drone, the Colossus, and a five-ship fleet.
@@ -861,3 +861,38 @@ is the cleanest proof available that n=6 was never a measurement on this rig.
 
 Harness **902/902** (897 before; the 5 new checks all verified to fail on the
 old code first).
+
+---
+
+## SG-70 · The one question I thought I had taken off your list, and did not
+
+I told you last night that the ally-share mystery — your real run reads **58%**,
+the rig read **25%** — was probably the stationary bot, and that re-measuring
+would likely close it without costing you a playtest.
+
+**I was wrong, and the agent proved it rather than accepting it.** On the
+repaired rig the share reads **13%** (n=30, CI 11.0–14.8) — not 58%, and not
+25% either. It moved *away* from your number. Then, instead of assuming, it
+stubbed the bot's movement back out on today's code: **15%**. So the captain's
+movement is worth about two points of ally share. **It was never the
+explanation.** The row's stated mechanism doesn't reproduce either — the bot
+spends 31% of the fight at long range moving, 39% standing still, against a
+recorded "55–60%".
+
+So the question survives, but it is a sharper question now, and it needs the one
+thing only you have: **what was your crew count and your draft in the run that
+read 58%?** Something about human play produces a share four and a half times
+the bot's, and nobody has invented an explanation for it — deliberately.
+`ALLY_CAP := 32` is the first thing to check, and explicitly *not* being called
+the answer, since the bot read 25% both before and after that cap landed.
+
+One consequence worth knowing: **SG-62's 58%-share contract cannot be discharged
+by this rig at all.** Its recorded "25% before → 25% after" was two readings of
+an instrument never pointed at the phenomenon. Its knockback half stands
+untouched and is fine.
+
+### And one contradiction that was sitting in the ledger
+
+**SG-14 records Heat 0 as 5 of 6 runs held. SG-26 records it as 3 of 6.** Same
+tool, same Heat, same seeds. Both have been in the board since 08-02. Neither
+needed a re-run to notice — only someone reading both rows at once.
