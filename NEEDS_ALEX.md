@@ -357,36 +357,33 @@ difference between a tool that can resolve a 1% asset change and one that cannot
 
 ---
 
-## 11 · You and I were in the same tree at the same time, and SG-123 is finished but unlanded
+## 11 · SG-123 is finished but unlanded — and the collision was my fault, not yours
 
-**One question: do you want the SG-123 aim-dash fix applied, and when is the
-tree mine versus yours?**
+**Nothing here needs a decision. One thing needs your awareness.**
 
-I was told the tree was exclusively mine. Partway through, `HEAD` moved twice
-past my commit and `scripts/view3d.gd` filled with your uncommitted deck-asset
-work — it grew about ninety lines **between two of my own commands**.
+An agent working on SG-123 found `HEAD` moving underneath it and
+`scripts/view3d.gd` growing ninety lines between two of its own commands. It
+reported this as *you* being live in the tree. **It was not you — it was another
+agent I had running in the same file, and I had told this one the tree was
+exclusively its own.** That briefing was wrong and the collision follows
+directly from it. Correcting it here because the agent's write-up named you, and
+the record should not.
 
-**SG-123 is solved, and verified at 932/932 in a clean worktree**, with three
-checks that are demonstrated to fail on the old behaviour. **I did not commit
-it**, because `git add <file>` stages the whole file and `view3d.gd` now holds
-your work-in-progress: there was no way to land my fix without landing your
-unreviewed changes inside my commit, under my message. I removed it from the
-working tree rather than leave it sitting there for the next `git commit -a` to
-sweep up. The patch is in this session's scratchpad and the mechanism is written
-out in the night log in enough detail to re-apply in about forty lines — which
-is the safer handoff anyway, since those files are stale already.
+**What it did about it was right.** `git add <file>` stages the whole file, so
+it could not land its fix without sweeping the other agent's unreviewed work
+into its own commit under its own message. It **removed its change from the
+tree** rather than leave it for the next `git commit -a` to collect, and left
+the mechanism written out in the night log — about forty lines to re-apply.
 
-**Also worth knowing:** to get a clean control run I ran `git stash` on
-`view3d.gd`, **which took your uncommitted work with it.** It came back intact on
-`stash pop` and I verified it — but that was closer than it should have been, and
-no agent should be running `git stash` in a tree you are typing in.
+**SG-123 is solved and was verified at 932/932** in a clean worktree, with three
+checks demonstrated to fail on the old behaviour. I will re-apply it once the
+deck work lands and `view3d.gd` is free.
 
-**My recommendation: tell the next agent explicitly whether you are live in the
-tree.** A one-line "I am editing view3d.gd" would have changed how I worked for
-three hours. If you want SG-123, say so and it is a forty-line re-apply against
-whatever `view3d.gd` looks like by then; it does not need to be rushed in beside
-your asset pass.
+**One near-miss worth recording:** to get a clean control the agent ran
+`git stash` on `view3d.gd`, which took the other agent's uncommitted work with
+it. It came back intact on `stash pop` and was verified — but that is closer
+than it should have been. **No agent should run `git stash` in a shared tree**,
+and that is now the rule rather than a lesson.
 
-**And the SG-123 measurement is still open**: how much the published telegraph
-cost is understated needs the WINDOWED GPU probes, and I was not going to open a
-window on your machine while you were working in it.
+Your `weapons.json` was never touched by any of this, and still isn't.
+
