@@ -633,6 +633,12 @@ func _build_world() -> void:
 
 	_build_cargo()
 
+	## The ship's SHAPE, which is not the ship's RECTANGLE. Built here, before the
+	## gunwale, so whoever replaces the two solid bars with stanchions
+	## (DECK-IDENTITY item 4) can seat them on `sheer_lift()` rather than on a
+	## second copy of the curve.
+	_build_hull_shape()
+
 	## The gunwale. Without it the deck is a rectangle that stops, and at
 	## altitude the thing you most need to read is where the edge is.
 	var rail_mat := StandardMaterial3D.new()
@@ -679,19 +685,24 @@ func _build_world() -> void:
 
 	_build_clouds()
 
-	var bow_tex := _texture("res://assets/art/env/bow_prow.png")
-	if bow_tex != null:
-		var bow := Sprite3D.new()
-		bow.texture = bow_tex
-		bow.billboard = BaseMaterial3D.BILLBOARD_DISABLED
-		bow.shaded = true
-		bow.alpha_cut = SpriteBase3D.ALPHA_CUT_DISCARD
-		bow.pixel_size = 900.0 * WORLD_SCALE / float(bow_tex.get_height())
-		bow.rotation_degrees = Vector3(-90.0 + rad_to_deg(PITCH) * 0.35, 0.0, 0.0)
-		bow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
-		bow.position = Vector3(0.0, 120.0 * WORLD_SCALE,
-			(SkyGearGame.DECK_RECT.position.y - 150.0) * WORLD_SCALE)
-		add_child(bow)
+	## THE PAINTED PROW IS RETIRED, 2026-08-02, on the owner's word: *"Get rid of
+	## this 2D sprite — it's not needed anymore."*
+	##
+	## `bow_prow.png` was a 900-unit Sprite3D at z = -1310 leaning back 14°, and
+	## it never had a chance. DECK-DESIGN §1 measured why: the vertical headroom
+	## at the bow is **65 units at zoom 1.0**, and 900 is fourteen times that, so
+	## the painting could only ever be a wall across the top of the frame. It was
+	## the right answer to "the deck ends in nothing" while the deck was a
+	## rectangle. It is the wrong answer now that there is a bow.
+	##
+	## `_build_hull_shape` replaces it with the thing it was standing in for: an
+	## apron of the deck's own planking narrowing to a stem, in the deck PLANE
+	## where the budget actually is, with the sheer strake following it in. The
+	## two must never be on screen together — a painted prow standing on a drawn
+	## one is two bows.
+	##
+	## THE PNG STAYS ON DISK. The row that draws it is what went. Restoring it is
+	## this comment plus twelve lines, which is the cost of being wrong.
 
 	## THE COLOSSUS WRECK (SG-15). An upright billboard adrift off the bow, built
 	## once here beside the prow — it is a fitting, not a `props`-group prop, so it
@@ -789,6 +800,7 @@ func _build_world() -> void:
 	_shadow_depth.resize(SHADOW_CAP)
 	_shadow_alpha.resize(SHADOW_CAP)
 	_build_shadows()
+	_build_marks()
 	## A4. Build every generated texture NOW rather than the first time it is
 	## drawn. `_glow_map` runs a per-pixel GDScript loop and `_fan_texture` runs
 	## atan2 and exp per pixel — the first cone cast was paying for a 128x128
@@ -3144,6 +3156,10 @@ func _process(delta: float) -> void:
 	_emit_blade_trail()
 	_ribbons_end()
 	_sync_darkness(delta)
+	## The deck's memory, aged and drawn BEFORE the shadows so a figure's contact
+	## shadow lands on top of its own blood rather than under it.
+	_age_marks(delta)
+	_flush_marks()
 	_flush_shadows()
 	## After every core this frame is placed, hand the nearest few a light. See
 	## `_flush_core_lights` — this is the cap that keeps a lane of bolts from
@@ -3250,6 +3266,14 @@ func _recycle() -> void:
 				rig.want("die", 0.0, DEATH_WINDOW)
 				_corpses[key] = {"rig": rig, "life": corpse_life(),
 					"height": rig.fit_height}
+				## The deck remembers it. Nearly free evidence: this line already
+				## fires exactly once, at the kill location, for every figure
+				## that has a death to play. A drone leaks, everything else
+				## bleeds. DECK-IDENTITY-DESIGN §7.3.
+				var slug: String = str(rig.get_meta("model_key", ""))
+				_mark(MarkKind.OIL if MARK_OIL_MODELS.has(slug) else MarkKind.BLOOD,
+					Vector2(rig.position.x, rig.position.z) / WORLD_SCALE,
+					clampf(rig.fit_height / (176.0 * WORLD_SCALE), 0.6, 1.5))
 			else:
 				rig.queue_free()
 	## Prop meshes go back on a shelf instead, one shelf per model. They are not
@@ -3951,6 +3975,13 @@ func _sync_effects() -> void:
 				## whole load fifteen times over.
 				if _burst_new(fid):
 					_burst_debris(centre, rb2, element, colour)
+					## And the boards are scorched, if the blast was big enough
+					## to have scorched them. 150 separates the keg (175) and the
+					## hulk coming apart (260) from a kill's own little burst
+					## (radius*2.5, 60-100) — which leaves a body's mark instead
+					## and does not get a scorch as well. DECK-IDENTITY §7.3.
+					if rb2 >= MARK_BURST_MIN:
+						_mark(MarkKind.SCORCH, centre, rb2 / 175.0)
 			"line", "beam":
 				var from: Vector2 = fx.get("from", Vector2.ZERO)
 				var to: Vector2 = fx.get("to", Vector2.ZERO)
@@ -3997,6 +4028,12 @@ func _sync_effects() -> void:
 		_decal("fire%d" % fid2, f.position, 0.0, fr * 0.82, fr * 0.82,
 			_ring_texture(),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
+		## Fire burns the boards, and the burn outlasts the fire. Once per field
+		## id — a field is a LEVEL the renderer sees every frame, and a mark that
+		## restamped would be a clock wearing an event's clothes. The id space is
+		## offset off the fx sequence so two unrelated counters cannot collide.
+		if _mark_new(0x20000000 + fid2):
+			_mark(MarkKind.SCORCH, f.position, fr / 190.0)
 
 	## CRACKED MAINS. The Boilerwright's ground, and the only thing on the deck a
 	## player put there on purpose — so it has to read as a place rather than as
@@ -4016,6 +4053,16 @@ func _sync_effects() -> void:
 			Color(steam.r, steam.g, steam.b, 0.16 * beat), false)
 		_decal("tapr%d" % i, tap.position, 0.0, span, span, _ring_texture(),
 			Color(steam.r, steam.g, steam.b, 0.72 * beat))
+		## A cracked main bleaches the boards around it, and THAT is where the
+		## scald goes — not under a vent. A vent has no event: `_fill_head` polls
+		## a distance every frame and emits nothing, so a vent scald could only
+		## ever be driven by a clock, which is item 6's named failure. A tap is a
+		## place a player chose. `taps` carry no id, so the key is the place
+		## itself, quantised to 40 units — two taps in one cell are one scald.
+		var tkey: int = 0x40000000 + int(floor(tap.position.x / 40.0)) * 4096 \
+			+ int(floor(tap.position.y / 40.0))
+		if _mark_new(tkey):
+			_mark(MarkKind.SCALD, tap.position, float(tap.radius) / 110.0)
 		## And it is venting, visibly — three plumes off the rim rather than one
 		## in the middle, because a main is a crack in the deck, not a fountain.
 		for plume in 3:
@@ -4274,6 +4321,635 @@ func _flush_shadows() -> void:
 		mm.set_instance_color(i, Color(0.02, 0.015, 0.03, _shadow_alpha[i]))
 	mm.visible_instance_count = _shadow_count
 	_shadow_count = 0
+
+
+## --- A HULL SHAPE AROUND A RECTANGLE ------------------------------------------
+##
+## DECK-IDENTITY-DESIGN §6. The whole item rests on one decoupling: the shape the
+## player COLLIDES with and the shape the player SEES have never been required to
+## agree. `DECK_RECT` is a number in game.gd; the ship is a pile of meshes here.
+##
+## So the sim keeps its measured 1680 x 2320 rectangle — the lanes at +/-560, the
+## eight cargo rects, the crossings, the spawn line at y = -1115, every pinned
+## check — and the DRAWN deck gets a sheer that curves, a bow that narrows to a
+## stem and a stern nobody walks on.
+##
+## TWO PROPERTIES, and they are properties of the construction rather than
+## promises about it:
+##
+##   1. **The drawn deck is a strict SUPERSET.** Every piece below is outboard:
+##      |x| >= 840, or z <= -1160, or z >= 1160. The bow taper BEGINS at the bow
+##      line at full beam and narrows only forward of it. There is nowhere she
+##      can stand that is not drawn. `hull · ...` pins it with an AABB assert.
+##   2. **None of it carries collision.** MeshInstance3D and nothing else — no
+##      body, no `CARGO_RECTS` entry, no `fitting_walls` entry, no `hulk_hull`.
+##      Drawn geometry cannot stop her because there is nothing to stop her with.
+##
+## We err toward *drawn where she cannot stand*, never *standable where nothing
+## is drawn*. A player who finds a foot of bulwark she cannot step onto has
+## learned something true about a ship; a player who stops in empty air has found
+## a bug.
+##
+## THE ONE THING THAT MOVED IN MEANING, not in geometry: the gunwale's two end
+## caps at z = +/-1160 are untouched, and now read as a breast rail dividing the
+## working deck from the head and the counter beyond. That is a real ship
+## feature, and it happens to draw the play boundary in brass.
+## 96, not the 150 DECK-DESIGN P3 proposed, and the reason is a picture. At 150
+## the two bulwarks converging on the bow line filled the top of the frame with a
+## dark wall from the captain's own eye-line — which is the SAME fault the
+## painted `bow_prow.png` was retired for on the same afternoon, rebuilt in
+## timber. `.shots/marks/clean-bow-z1.00.png` is the shot that said so.
+##
+## The measurement behind the number was already written down: DECK-DESIGN §1
+## puts the vertical budget at the bow line at 65 units at zoom 1.0. 96 is over
+## that and deliberately so, because the bulwark is at the frame's EDGES rather
+## than at the captain's depth — but 150 was over it by more than a captain, and
+## a bow you look along should read as depth, not as a fence. P3's own written
+## fallback was to cap the forward lift; this is that, taken.
+##
+## It also clears P3's other trap for free: boarders spawn at y = -1115, 45 units
+## inside the bow line, and 96 is well under the 110 P3 named as the safe cap.
+const SHEER_BOW := 96.0         ## peak lift forward, at the bow line
+const SHEER_STERN := 90.0       ## and aft
+const SHEER_BASE := 30.0        ## the strake's own depth below the lift
+const SHEER_WIDTH := 58.0       ## outboard of the deck edge, never inboard
+const SHEER_SEGMENTS := 20
+const BOW_LENGTH := 620.0       ## how far forward of the bow line the stem is
+const BOW_SEGMENTS := 10
+const STERN_LENGTH := 380.0
+const STERN_SEGMENTS := 6
+## The transom keeps half its beam rather than coming to a point: a ship with two
+## bows is a canoe.
+const STERN_BEAM := 0.52
+
+var _hull_shape: Node3D
+
+
+## The sheer line, as one function of depth, because a curve retyped in two
+## places is two curves. `z` in ground units; returns lift above the deck.
+##
+## Zero amidships, 150 at the bow, 90 at the stern, and the exponents are what
+## make it a sheer rather than a parabola — steeper forward, which is how a hull
+## is actually drawn. DECK-DESIGN P3 measured these.
+static func sheer_lift(z: float) -> float:
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var t: float = clampf((z - rect.position.y) / rect.size.y, 0.0, 1.0)
+	return SHEER_BOW * pow(1.0 - t, 2.2) + SHEER_STERN * pow(t, 2.6)
+
+
+## How wide the drawn deck is, as a fraction of full beam, at a depth `z`.
+##
+## **1.0 everywhere inside the rectangle.** That is the superset property written
+## as a function: the taper cannot start early because the argument is clamped
+## against the rectangle's own ends before it is used.
+static func hull_beam(z: float) -> float:
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	if z >= rect.position.y and z <= rect.end.y:
+		return 1.0
+	if z < rect.position.y:
+		var t: float = clampf((rect.position.y - z) / BOW_LENGTH, 0.0, 1.0)
+		## A fine entry: it leaves the bow line gently and sharpens to the stem.
+		## Exponent > 1 on purpose — a taper that starts fast puts a hard corner
+		## exactly at the seam, which is the one place it must not be visible.
+		return 1.0 - pow(t, 1.6)
+	var s: float = clampf((z - rect.end.y) / STERN_LENGTH, 0.0, 1.0)
+	return 1.0 - (1.0 - STERN_BEAM) * pow(s, 1.35)
+
+
+func _build_hull_shape() -> void:
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var half: float = rect.size.x * 0.5
+	_hull_shape = Node3D.new()
+	_hull_shape.name = "HullShape"
+	add_child(_hull_shape)
+
+	var timber := StandardMaterial3D.new()
+	timber.albedo_color = Color("#3a2b22")
+	timber.roughness = 0.88
+	## The capping along the top of the strake, in the gunwale's own brass so the
+	## new edge and the old one are visibly the same ship.
+	var brass := StandardMaterial3D.new()
+	brass.albedo_color = Color("#8f6a34")
+	brass.roughness = 0.62
+	brass.metallic = 0.4
+
+	## a · THE SHEER STRAKE. Twenty boxes a side straddling the deck edge, inner
+	## face exactly on |x| = 840 and every millimetre of the rest of it OUTBOARD.
+	## The top edge rides `sheer_lift`, so amidships it hides under the existing
+	## gunwale and it grows fore and aft. That growth IS the curve.
+	for side in [-1.0, 1.0]:
+		for i in SHEER_SEGMENTS:
+			var z0: float = rect.position.y + rect.size.y * (float(i) / SHEER_SEGMENTS)
+			var z1: float = rect.position.y + rect.size.y * (float(i + 1) / SHEER_SEGMENTS)
+			var lift := sheer_lift((z0 + z1) * 0.5)
+			_strake_box(timber, brass, side * (half + SHEER_WIDTH * 0.5),
+				(z0 + z1) * 0.5, SHEER_WIDTH, z1 - z0, lift, 0.0)
+
+	## b · THE BOW. An apron of real planking carrying the deck forward of the bow
+	## line and narrowing to a stem, with the strake following it in. The taper is
+	## in the deck PLANE, which is the only place there is any budget for it: the
+	## vertical headroom at the bow is 65 units at zoom 1.0 (DECK-DESIGN §1), and
+	## that is exactly why `bow_prow.png` reads as a wall instead of a prow.
+	_hull_apron(rect.position.y, -BOW_LENGTH, BOW_SEGMENTS, timber, brass)
+	## c · THE STERN. Cheapest of the three — the aft half is off screen unless
+	## the captain walks into it — and it is here because a ship with a bow and no
+	## stern is a wedge.
+	_hull_apron(rect.end.y, STERN_LENGTH, STERN_SEGMENTS, timber, brass)
+
+
+## One box of sheer strake, plus its brass capping. `yaw` swings it to follow the
+## bow taper; zero along the straight sides.
+func _strake_box(timber: StandardMaterial3D, brass: StandardMaterial3D,
+		x: float, z: float, width: float, length: float, lift: float,
+		yaw: float) -> void:
+	var height: float = SHEER_BASE + lift
+	var strip := MeshInstance3D.new()
+	var bm := BoxMesh.new()
+	bm.size = Vector3(width, height, length) * WORLD_SCALE
+	strip.mesh = bm
+	strip.material_override = timber
+	## Hung so the top edge sits at `lift - 8`: flush under the existing 40-unit
+	## gunwale amidships, rising clear of it toward both ends.
+	strip.position = Vector3(x * WORLD_SCALE,
+		(lift - 8.0 - height * 0.5) * WORLD_SCALE, z * WORLD_SCALE)
+	strip.rotation.y = yaw
+	_hull_shape.add_child(strip)
+	if lift < 12.0:
+		return
+	var cap := MeshInstance3D.new()
+	var cm := BoxMesh.new()
+	cm.size = Vector3(width * 1.12, 11.0, length) * WORLD_SCALE
+	cap.mesh = cm
+	cap.material_override = brass
+	## The capping is wider than the timber it sits on, and every millimetre of
+	## that extra width goes OUTBOARD. Centring it cost 3.6 units of overhang
+	## across the deck line, which the lattice caught at (839, 1159) — a rail cap
+	## proud of the deck is the exact class of thing that occludes a boarder's
+	## feet at the rail and is never noticed until somebody dies to it.
+	var out := Vector2(cos(yaw), -sin(yaw)) * (width * 0.06) * signf(x)
+	cap.position = Vector3((x + out.x) * WORLD_SCALE, (lift - 2.5) * WORLD_SCALE,
+		(z + out.y) * WORLD_SCALE)
+	cap.rotation.y = yaw
+	_hull_shape.add_child(cap)
+
+
+## An apron of planking from `z_edge` running `span` units beyond the rectangle
+## (negative forward), narrowing on `hull_beam`, with the strake following it.
+##
+## The planking material is the DECK's own instance, read off the node rather
+## than rebuilt, so the boards run unbroken across the bow line and there is no
+## second place for a plank width to disagree.
+func _hull_apron(z_edge: float, span: float, segments: int,
+		timber: StandardMaterial3D, brass: StandardMaterial3D) -> void:
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var half: float = rect.size.x * 0.5
+	var verts := PackedVector3Array()
+	var uvs := PackedVector2Array()
+	var normals := PackedVector3Array()
+	for i in segments:
+		var z0: float = z_edge + span * (float(i) / segments)
+		var z1: float = z_edge + span * (float(i + 1) / segments)
+		var h0: float = half * hull_beam(z0)
+		var h1: float = half * hull_beam(z1)
+		## Wound so the face points UP whichever way the apron runs.
+		var quad: Array = [
+			Vector3(-h0, 0.0, z0), Vector3(h0, 0.0, z0),
+			Vector3(h1, 0.0, z1), Vector3(-h1, 0.0, z1)]
+		## The winding is not guessed at — the apron material below is drawn
+		## two-sided, because the bow runs one way in z and the stern the other
+		## and exactly one of the two orders is right for each. The first attempt
+		## picked per-direction orders and the bow came back as a black wedge
+		## between the two bulwarks in `.shots/marks/clean-bow-z1.00.png`.
+		var order: Array = [0, 2, 1, 0, 3, 2]
+		for k in order:
+			var p: Vector3 = quad[k]
+			verts.append(p * WORLD_SCALE)
+			## The deck's own UV frame, continued: same tiling, same plank width,
+			## joints that line up across the seam.
+			uvs.append(Vector2((p.x - rect.position.x) / rect.size.x,
+				(p.z - rect.position.y) / rect.size.y))
+			normals.append(Vector3.UP)
+		## And the strake, following the taper in. One box per segment, and it is
+		## seated on the tapering EDGE LINE rather than on the mean beam.
+		##
+		## That distinction is the whole superset property at the seam, and the
+		## harness caught the naive version: a box centred on the segment's mean
+		## half-beam and then yawed swings its inboard corner back across the bow
+		## line — measured at (799, 1159) against a rectangle that ends at 840.
+		## Seated on the edge with its inner face ON the line and its body pushed
+		## out along the line's own normal, every corner is outboard by
+		## construction, whatever the taper does.
+		for side in [-1.0, 1.0]:
+			var mid_z: float = (z0 + z1) * 0.5
+			var run := Vector2(side * (h1 - h0), z1 - z0)
+			var length := maxf(1.0, run.length())
+			var dir := run / length
+			var normal := Vector2(dir.y, -dir.x)
+			if signf(normal.x) != side:
+				normal = -normal
+			var seat := Vector2(side * (h0 + h1) * 0.5, mid_z) \
+				+ normal * (SHEER_WIDTH * 0.5)
+			var lift: float = sheer_lift(z_edge) * (0.42 + 0.58 * hull_beam(mid_z))
+			_strake_box(timber, brass, seat.x, seat.y,
+				SHEER_WIDTH, length, lift, atan2(dir.x, dir.y))
+	var arrays := []
+	arrays.resize(Mesh.ARRAY_MAX)
+	arrays[Mesh.ARRAY_VERTEX] = verts
+	arrays[Mesh.ARRAY_TEX_UV] = uvs
+	arrays[Mesh.ARRAY_NORMAL] = normals
+	var mesh := ArrayMesh.new()
+	mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, arrays)
+	var apron := MeshInstance3D.new()
+	apron.mesh = mesh
+	## The DECK's own material, duplicated rather than rebuilt, so the planking
+	## runs unbroken across the bow line and a plank width has one owner — with
+	## culling off, which is the whole reason it is a copy and not the original.
+	var skin: StandardMaterial3D = (deck.material_override as StandardMaterial3D).duplicate()
+	skin.cull_mode = BaseMaterial3D.CULL_DISABLED
+	apron.material_override = skin
+	_hull_shape.add_child(apron)
+
+
+## --- THE DECK REMEMBERS THE FIGHT ---------------------------------------------
+##
+## Accumulating marks: blood and oil where a figure died, scorch where something
+## detonated or burned, scald where the Boilerwright cracked a main. The design
+## and every number below is DECK-IDENTITY-DESIGN §7.
+##
+## VFX-PLAN §7 deferred this once, and the sentence it used is the whole
+## specification: *"a persistent accumulating set needs a cap and an eviction
+## policy, which is a system rather than an effect."* That was right. Every
+## performance problem this project has had was an unbounded collection — the
+## decals before `DECAL_BUDGET`, the seventy clustered shadow `Decal`s before
+## `SHADOW_CAP`, the ribbon pools before `_trim` — so the cap and the eviction
+## come first here and the prettiness comes after.
+##
+## Why a MultiMesh and not `_decal()`: forty-eight persistent decals would eat
+## the whole `DECOR` budget and starve the glow pools, and each would be a node
+## with a projection box. These are flat quads on flat planking. That is what a
+## MultiMesh is for, and it is one draw, one material, no node per mark.
+enum MarkKind { BLOOD, OIL, SCORCH, SCALD }
+
+## THE CAP. Never exceeded. 24 live plus at most 8 waiting for a retiring slot,
+## so the batch is sized 32 and there is no path here that allocates a 33rd.
+##
+## 24, NOT the 48 DECK-IDENTITY §7.1 first argued for on coverage grounds, and
+## the halving is the kill-test being taken rather than talked around. At 48 the
+## set paints 12.5% of the planking; at 24 it paints 5.7%, measured by
+## `tools/marks_shot.gd` rather than computed. The draw cost was never the
+## question — the shadow batch carries 256 of the same quad in one call for
+## nothing — the question was always how much of a telegraph this is allowed to
+## cost, and the answer that could be defended was the smaller number.
+const MARK_CAP := 24
+const MARK_PENDING_CAP := 8
+## Full strength, then a long fade. 150 s total is two or three waves: enough
+## that wave 9 looks like something happened on it, not so much that wave 12 is
+## uniformly brown and the memory stops meaning anything.
+const MARK_HOLD := 90.0
+const MARK_FADE := 60.0
+const MARK_IN := 0.35
+## An evicted mark FADES. It is never erased between two frames — a pop in the
+## corner of the eye mid-fight is worse than no mark at all, and "it popped" is
+## the failure this whole state machine exists to prevent.
+const MARK_EVICT := 0.60
+## A same-kind mark this close DEEPENS the one already there instead of taking a
+## slot. The single most important line in the system: it is why a lane where six
+## boarders died is one dark pool rather than six discs, and why a bleed-jet
+## trail of fire fields collapses into a scorched run instead of eating the cap.
+const MARK_MIN_SEP := 70.0
+## The ceiling: 0.12, down from the 0.30 DECK-IDENTITY §7.1 first wrote.
+##
+## AND THE HONEST STATE OF THE MEASUREMENT, because this is the number the
+## kill-test was supposed to decide and it did not decide it cleanly.
+##
+## `tools/marks_shot.gd` renders the four `telegraph_shot` windups over marked
+## and unmarked planking and reports what the marks cost a rune's contrast. Three
+## confounds were found and fixed in it, each of which had been silently changing
+## the answer: two separate processes reach the shutter with different lighting
+## phase (fixed: one process, `_flicker` pinned); `view._process` keeps advancing
+## between the two plates (fixed: the renderer is stopped); and `GPUParticles3D`
+## runs on the GPU's own clock and does not care (fixed: hidden).
+##
+## After all three, the rig STILL answers non-proportionally: halving the cap and
+## nearly halving the alpha moved the reported cost from 11.5% to 9.1%, when the
+## covered fraction of the frame fell by more than half. A rune median cannot
+## move 8% when 5.7% of the deck is covered at alpha 0.12 — so something in that
+## measurement is not the marks, and it has not been found.
+##
+## THEREFORE THIS SHIPS AT THE CONSERVATIVE END AND SAYS SO. Not at the number
+## that flatters it. What IS established: the set is hard-capped, evicted without
+## popping, never emissive, never a ring, one draw, and gentler than the
+## contact-shadow batch above it (0.02, 0.015, 0.03 at up to alpha 0.5) which has
+## shipped for weeks. What is NOT established is a trustworthy figure for the
+## telegraph cost, and the board row says that rather than quoting 0.7%.
+##
+## The remaining lever, if a playtest says these still read: `MARK_CAP` to 12.
+const MARK_ALPHA_MAX := 0.12
+## Below the shadows (2.0), above the planking. A figure's contact shadow draws
+## over its own blood, which is the right way round.
+const MARK_LIFT := 1.0
+## A burst this big scorched the boards; anything smaller was something dying,
+## and that already leaves a body's mark. The keg is 175 and the hulk coming
+## apart is 260; a kill's own burst is radius*2.5 ~= 60-100 and the boiler's 90.
+## A threshold rather than `radius == 175.0`, which would go stale silently.
+const MARK_BURST_MIN := 150.0
+
+## Colour and footprint per kind.
+##
+## THESE ARE UNSHADED COLOURS WRITTEN STRAIGHT INTO THE HDR BUFFER, and that is
+## the whole reason they look so nearly black written down. The calibration point
+## is the contact-shadow batch, which draws Color(0.02, 0.015, 0.03) on the same
+## kind of quad in the same pass — an order of magnitude darker than any colour
+## anybody would name if asked what blood looks like.
+##
+## The first pass at this table used honest paint values (blood 0.17 red, scald a
+## bleached-timber 0.40) and every one of them was BRIGHTER than the planking's
+## own radiance in shadow, so the marks lightened the deck instead of staining
+## it, and cost 11.8% of a telegraph rune's contrast. Measured, in one process,
+## with the renderer frozen between the two plates — see `tools/marks_shot.gd`.
+## Against this table the same measurement is the number in the board row.
+##
+## So: a mark darkens. All four of them, including the scald — scalded boards go
+## grey and dead, not white, and a lighter-than-deck mark on this deck is a lamp.
+const MARK_LOOK := {
+	MarkKind.BLOOD:  {"tint": Color(0.055, 0.009, 0.013), "width": 118.0},
+	MarkKind.OIL:    {"tint": Color(0.016, 0.014, 0.022), "width": 104.0},
+	MarkKind.SCORCH: {"tint": Color(0.020, 0.015, 0.016), "width": 190.0},
+	MarkKind.SCALD:  {"tint": Color(0.042, 0.042, 0.037), "width": 132.0},
+}
+## Which figures bleed and which leak. Default is BLOOD; only the gunner is a
+## drone. Keyed off `model_key`, which `_sync_rig` already stamps on every rig
+## from `model_path()` — the one place a kind's slug lives.
+const MARK_OIL_MODELS := ["gunner"]
+
+var _mark_batch: MultiMeshInstance3D
+var _mark_at: PackedVector2Array = PackedVector2Array()
+var _mark_width: PackedFloat32Array = PackedFloat32Array()
+var _mark_yaw: PackedFloat32Array = PackedFloat32Array()
+var _mark_age: PackedFloat32Array = PackedFloat32Array()
+var _mark_depth: PackedFloat32Array = PackedFloat32Array()
+var _mark_kind: PackedInt32Array = PackedInt32Array()
+## > 0 means the slot is RETIRING: it was chosen for eviction and is fading out.
+## When it reaches zero the slot is free and the pending queue may claim it.
+var _mark_retire: PackedFloat32Array = PackedFloat32Array()
+var _mark_pending: Array = []
+## Idempotence ledgers, the `_burst_new` idiom: an fx, a fire field and a tap are
+## all levels the renderer sees every frame, and a mark must be stamped on the
+## frame the thing STARTED and never again.
+var _mark_seen_fx: PackedInt32Array = PackedInt32Array()
+var _mark_seen_head := 0
+## Wave watcher for "a new run starts on clean boards". `begin_run` puts the wave
+## back to 0, so a wave number that goes BACKWARDS is a new run, in every path
+## into the deck, without the renderer needing a hook the game does not offer.
+var _mark_wave := -1
+var _mark_rng := RandomNumberGenerator.new()
+
+
+func _build_marks() -> void:
+	_mark_at.resize(MARK_CAP)
+	_mark_width.resize(MARK_CAP)
+	_mark_yaw.resize(MARK_CAP)
+	_mark_age.resize(MARK_CAP)
+	_mark_depth.resize(MARK_CAP)
+	_mark_retire.resize(MARK_CAP)
+	_mark_kind.resize(MARK_CAP)
+	for i in MARK_CAP:
+		_mark_kind[i] = -1
+	_mark_seen_fx.resize(64)
+	for i in 64:
+		_mark_seen_fx[i] = -1
+	_mark_rng.seed = 20260802
+	var mesh := QuadMesh.new()
+	mesh.size = Vector2.ONE
+	mesh.orientation = PlaneMesh.FACE_Y
+	var mat := StandardMaterial3D.new()
+	## UNSHADED and MIX, and NO EMISSION — not dimly, not at all. The planking's
+	## own light is telegraphs, ground rings and glow pools; a stain that glows
+	## has joined that vocabulary and started lying about being a mechanic. This
+	## is pinned by `marks · no mark ever glows`.
+	mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.blend_mode = BaseMaterial3D.BLEND_MODE_MIX
+	mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+	## `_blob_texture()`, never a ring and never the painted burst plate. Rings
+	## mean gameplay on this deck (SG-59's teal stand-here, a turn ring, a
+	## telegraph) and the plate is retired under SG-78 for measuring opaque.
+	mat.albedo_texture = _blob_texture()
+	mat.vertex_color_use_as_albedo = true
+	mat.depth_draw_mode = BaseMaterial3D.DEPTH_DRAW_DISABLED
+	mat.no_depth_test = false
+	_mark_batch = MultiMeshInstance3D.new()
+	var mm := MultiMesh.new()
+	mm.transform_format = MultiMesh.TRANSFORM_3D
+	mm.use_colors = true
+	mm.mesh = mesh
+	mm.instance_count = MARK_CAP
+	mm.visible_instance_count = 0
+	_mark_batch.multimesh = mm
+	_mark_batch.material_override = mat
+	_mark_batch.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	## LAYER_SHADOWS, which every Decal's `cull_mask` already excludes, so a
+	## telegraph never paints itself onto a bloodstain.
+	_mark_batch.layers = LAYER_SHADOWS
+	## The same trap the shadow batch documents: without an explicit box the whole
+	## batch is culled the moment its origin leaves the frustum and every mark on
+	## the deck blinks out on a camera sway.
+	_mark_batch.custom_aabb = AABB(Vector3(-12, -1, -14), Vector3(24, 2, 28))
+	add_child(_mark_batch)
+
+
+## Has this id already been marked? The `_burst_new` idiom, its own ring, because
+## a fire field and a burst can share an id space with nothing in common.
+func _mark_new(id: int) -> bool:
+	for i in _mark_seen_fx.size():
+		if _mark_seen_fx[i] == id:
+			return false
+	_mark_seen_fx[_mark_seen_head] = id
+	_mark_seen_head = (_mark_seen_head + 1) % _mark_seen_fx.size()
+	return true
+
+
+## Stamp a mark. THE one entry point, and every refusal lives here so no caller
+## can forget one.
+func _mark(kind: int, centre: Vector2, scale: float = 1.0) -> void:
+	## Only during a real run. A cutscene pose, a model-lab frame or the screen
+	## poser must never stain the live deck.
+	if game == null or not game.is_playing():
+		return
+	## Off the walkable rectangle, or under a lane wall it could never climb.
+	if not SkyGearGame.DECK_RECT.grow(-20.0).has_point(centre):
+		return
+	for rect in SkyGearGame.CARGO_RECTS:
+		if (rect as Rect2).has_point(centre):
+			return
+	var look: Dictionary = MARK_LOOK[kind]
+	var width: float = float(look.width) * clampf(scale, 0.55, 1.9)
+	## DEEPEN, don't multiply. A same-kind mark inside MARK_MIN_SEP is the same
+	## event happening again in the same place, and the deck should get darker
+	## there rather than acquire a second disc.
+	for i in MARK_CAP:
+		if _mark_kind[i] != kind or _mark_retire[i] > 0.0:
+			continue
+		if _mark_at[i].distance_to(centre) > MARK_MIN_SEP:
+			continue
+		_mark_depth[i] = minf(1.0, _mark_depth[i] + 0.34)
+		_mark_width[i] = minf(_mark_width[i] * 1.06, float(look.width) * 1.9)
+		_mark_age[i] = 0.0
+		return
+	## A free slot, if there is one.
+	for i in MARK_CAP:
+		if _mark_kind[i] < 0:
+			_mark_set(i, kind, centre, width)
+			return
+	## EVICTION. Full, so the faintest live mark is chosen — ties to the oldest —
+	## and set retiring. The newcomer waits in the queue rather than replacing it
+	## outright, because replacing it outright is the pop.
+	var worst := -1
+	var worst_alpha := INF
+	var worst_age := -1.0
+	for i in MARK_CAP:
+		if _mark_retire[i] > 0.0:
+			continue
+		var a: float = _mark_strength(i)
+		if a < worst_alpha - 0.0001 or (absf(a - worst_alpha) <= 0.0001 \
+				and _mark_age[i] > worst_age):
+			worst = i
+			worst_alpha = a
+			worst_age = _mark_age[i]
+	if worst < 0:
+		## Everything is already retiring; the queue will catch this one.
+		pass
+	else:
+		_mark_retire[worst] = MARK_EVICT
+	if _mark_pending.size() >= MARK_PENDING_CAP:
+		_mark_pending.pop_front()
+	_mark_pending.append({"kind": kind, "at": centre, "width": width})
+
+
+func _mark_set(slot: int, kind: int, centre: Vector2, width: float) -> void:
+	_mark_kind[slot] = kind
+	_mark_at[slot] = centre
+	_mark_width[slot] = width
+	_mark_yaw[slot] = _mark_rng.randf_range(0.0, TAU)
+	_mark_age[slot] = 0.0
+	_mark_depth[slot] = 0.62
+	_mark_retire[slot] = 0.0
+
+
+## How much MARK there is in a slot — depth times its age fade, and deliberately
+## NOT its fade-in ramp.
+##
+## This is what "faintest" means to the eviction search, and the distinction is
+## not pedantry: ranking on drawn alpha meant a mark stamped this frame ranked as
+## the faintest thing on the deck and was evicted immediately by the next one. A
+## deck under heavy fire would have evicted every mark it had just made and kept
+## nothing. The newest evidence is the most relevant evidence; only age may make
+## a mark expendable.
+func _mark_strength(i: int) -> float:
+	if _mark_kind[i] < 0:
+		return 0.0
+	var a: float = _mark_depth[i]
+	if _mark_age[i] > MARK_HOLD:
+		a *= clampf(1.0 - (_mark_age[i] - MARK_HOLD) / MARK_FADE, 0.0, 1.0)
+	if _mark_retire[i] > 0.0:
+		a *= clampf(_mark_retire[i] / MARK_EVICT, 0.0, 1.0)
+	return a
+
+
+## What a slot DRAWS at right now.
+func _mark_alpha(i: int) -> float:
+	if _mark_kind[i] < 0:
+		return 0.0
+	var a: float = MARK_ALPHA_MAX * _mark_depth[i]
+	## Fading IN.
+	a *= clampf(_mark_age[i] / MARK_IN, 0.0, 1.0)
+	## The long fade at the end of life.
+	if _mark_age[i] > MARK_HOLD:
+		a *= clampf(1.0 - (_mark_age[i] - MARK_HOLD) / MARK_FADE, 0.0, 1.0)
+	## And the eviction ramp, which multiplies everything else to zero.
+	if _mark_retire[i] > 0.0:
+		a *= clampf(_mark_retire[i] / MARK_EVICT, 0.0, 1.0)
+	return a
+
+
+func _age_marks(delta: float) -> void:
+	## A new run starts on clean boards. `begin_run` puts the wave back to 0, so
+	## a wave number that goes backwards is the only signal needed and it works
+	## on every path into the deck.
+	var wave := int(game.wave) if game != null else 0
+	if wave < _mark_wave:
+		_clear_marks()
+	_mark_wave = wave
+	for i in MARK_CAP:
+		if _mark_kind[i] < 0:
+			continue
+		_mark_age[i] += delta
+		if _mark_retire[i] > 0.0:
+			_mark_retire[i] -= delta
+			if _mark_retire[i] <= 0.0:
+				_mark_kind[i] = -1
+			continue
+		## Died of old age.
+		if _mark_age[i] >= MARK_HOLD + MARK_FADE:
+			_mark_kind[i] = -1
+	## Pending marks claim whatever the eviction freed.
+	while not _mark_pending.is_empty():
+		var slot := -1
+		for i in MARK_CAP:
+			if _mark_kind[i] < 0:
+				slot = i
+				break
+		if slot < 0:
+			break
+		var want: Dictionary = _mark_pending.pop_front()
+		_mark_set(slot, int(want.kind), Vector2(want.at), float(want.width))
+
+
+func _clear_marks() -> void:
+	for i in MARK_CAP:
+		_mark_kind[i] = -1
+		_mark_retire[i] = 0.0
+		_mark_depth[i] = 0.0
+	_mark_pending.clear()
+	for i in _mark_seen_fx.size():
+		_mark_seen_fx[i] = -1
+	_mark_seen_head = 0
+
+
+## How many marks are on the boards right now. The harness's window on the cap,
+## and the only reason it is a function is so nothing has to reach into arrays.
+func mark_count() -> int:
+	var n := 0
+	for i in MARK_CAP:
+		if _mark_kind[i] >= 0:
+			n += 1
+	return n
+
+
+func _flush_marks() -> void:
+	if _mark_batch == null:
+		return
+	var mm: MultiMesh = _mark_batch.multimesh
+	var n := 0
+	for i in MARK_CAP:
+		if _mark_kind[i] < 0:
+			continue
+		var alpha := _mark_alpha(i)
+		if alpha <= 0.002:
+			continue
+		var w: float = _mark_width[i] * WORLD_SCALE
+		## A yaw per mark, unlike the shadow batch — forty-eight identical discs
+		## read as a pattern, and the whole ask was irregularity.
+		var basis := Basis().rotated(Vector3.UP, _mark_yaw[i]) \
+			.scaled(Vector3(w, 1.0, w * 0.78))
+		mm.set_instance_transform(n, Transform3D(basis,
+			Vector3(_mark_at[i].x * WORLD_SCALE, MARK_LIFT * WORLD_SCALE,
+				_mark_at[i].y * WORLD_SCALE)))
+		var look: Dictionary = MARK_LOOK[_mark_kind[i]]
+		var tint: Color = look.tint
+		mm.set_instance_color(n, Color(tint.r, tint.g, tint.b, alpha))
+		n += 1
+	mm.visible_instance_count = n
 
 
 ## The aura, as a volume.

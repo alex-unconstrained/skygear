@@ -304,6 +304,9 @@ circle for all objects" and is free.
   and cut it; ENEMY-VARIETY §3 carries the written rejection of sky-as-variety.
 * **Unbounded scorch or soot accumulation.** Refused in VFX-PLAN §7 for the right
   reason: it needs a cap and an eviction policy, which makes it a system.
+  **Superseded by §7 below** — the owner asked for it, so the system was built
+  WITH the cap and the eviction policy. The rejection stands for the unbounded
+  version and is the reason §7 leads with its numbers.
 * **Raising the model-light budget.** Every item above rides lights already inside
   `MODEL_LIGHT_CAP = 8` and `MODEL_LIGHT_ENERGY_BUDGET = 7.5`.
 * **New generated machinery — pistons, walking beams, animated gauges.** Credits,
@@ -331,3 +334,353 @@ transforms every frame and no camera can ever see.
 The deciding reason is the owner's own pattern: he praises what he can see. This
 is the item where an A/B picture can be put in front of him this afternoon rather
 than after a week of work.
+
+---
+
+# 6. A HULL SHAPE AROUND A RECTANGLE
+
+> *"can we address the deck shape and consider how to keep the playable area a
+> rectangle, but make the visual deck look more shiplike"* — 2026-08-02
+
+The ask contains its own answer, and it is worth saying plainly because it is the
+part that makes everything below cheap: **the shape the player collides with and
+the shape the player sees do not have to be the same object.** `DECK_RECT` is a
+number in `game.gd:14`. The ship is a pile of `MeshInstance3D`s in
+`view3d.gd:_build_world`. Nothing has ever required them to agree, and the only
+reason the ship is a slab is that nobody ever drew anything the rectangle did not
+already imply.
+
+## 6.1 What does not move, and how that is guaranteed
+
+`Rect2(-840, -1160, 1680, 2320)` — 1680 × 2320 — and everything measured against
+it: `LANE_CENTERS = [-560, 0, 560]` (game.gd:16), the eight `CARGO_RECTS`
+(game.gd:17–26), `cargo_rects()` (game.gd:3609), the crossings, the spawn line at
+`y = -1115` (game.gd:2651), `correct_player_position` (game.gd:4135) and
+`correct_enemy_position`. None of them is read by the hull and none of them is
+written by it.
+
+That is not a promise, it is a property of the construction, and there are two
+halves to it:
+
+* **The drawn deck is a strict SUPERSET of the collision rectangle.** Every piece
+  of hull is outboard: `|x| >= 840`, or `y <= -1160`, or `y >= 1160`. The bow
+  taper therefore *begins* at the bow line at full beam and narrows only forward
+  of it; the stern likewise. Inside the rectangle the drawn deck is the same full
+  1680-wide planking it is today.
+* **The hull carries no collision of any kind.** It is `MeshInstance3D` and
+  nothing else — no `StaticBody3D`, no entry in `CARGO_RECTS`, none in
+  `fitting_walls`, no `hulk_hull()`. A `MeshInstance3D` has never stopped anybody
+  in this game and cannot start now.
+
+**Which way we err, and why.** Toward *drawn where she cannot stand*, never
+*standable where nothing is drawn*. Superset, in one direction, always. A player
+who walks to the rail and finds a foot of bulwark she cannot step onto has
+learned the correct thing about a ship; a player who walks into empty space and
+stops has found a bug. The superset direction also happens to be the one the
+renderer can prove with a geometric assert rather than a playtest.
+
+**The proof, and it is a pattern this repo already owns.** SG-56's bare-deck
+baseline — `fittings · a ship with nothing berthed sails today's deck exactly —
+byte for byte` (parity_test.gd:852) and `fittings · placing the whole berth set
+consumes nothing from the seeded stream` (:869) — runs a seeded run and compares
+`_ship_snapshot()` (:1085) and `rng.state` against a bare one. The hull gets the
+same treatment plus the thing a fitting never needed: a lattice of
+`correct_player_position` probes across and beyond the rectangle, asserting the
+walkable set is identical to the shipped one to the unit.
+
+## 6.2 What gets drawn
+
+Three pieces, all outboard, all in `_build_world` beside the gunwale.
+
+**a · The sheer strake.** DECK-DESIGN P3, mocked at
+`.shots/deck/sheer-mid-z1.55.png` and prototyped in `deck_probe.gd:448`. Twenty
+segments a side, a box 58 wide straddling the deck edge, top edge lifting on
+`lift = 150·(1−t)^2.2 + 90·t^2.6`, `t` running 0 at the bow to 1 at the stern.
+Peak 150 forward, 90 aft, zero amidships. **This is the curve.** A hull is read
+almost entirely off its sheer line and there is not one curve anywhere in the
+shipped outline.
+
+*The trap P3 already wrote down and it is real:* boarders spawn at `y = -1115`,
+45 units inside the bow edge, and a 150-unit bulwark is 0.85 captains. The
+forward peak is therefore placed by measurement, not by taste — the lift at the
+spawn band must leave a spawning boarder's silhouette unclipped from the shipped
+camera, or the forward peak caps at 110.
+
+**b · A bow that narrows.** Forward of `y = -1160`, a deck-level apron carrying
+the planking from the full 1680 beam at the bow line to a stem 620 units ahead of
+it. Not a wall — the vertical budget at the bow is **65 units of headroom at zoom
+1.0** (DECK-DESIGN §1, and it is why `bow_prow.png` reads as a wall rather than a
+prow). The taper lives in the deck PLANE, where there is no budget problem at
+all, and the only thing that rises is the strake following it in.
+
+**c · A stern.** Aft of `y = +1160`, a short counter, the strake sweeping up to
+its 90 and closing across. The aft half of the ship is off screen unless the
+captain walks into it (DECK-DESIGN §1: the visible band at zoom 1.0 is `focus+9`
+to `focus−1312`), so this is the cheapest of the three and it is here because a
+ship with a bow and no stern is a wedge.
+
+## 6.3 Does it reach the frame? The honest measurement
+
+DECK-DESIGN §1 is unambiguous and it is the constraint that has killed three
+previous ideas: at zoom 1.0 with the captain **amidships**, the deck's half-width
+at her own depth is 490 ground units against the deck's 840. The edge is off
+screen for the near two thirds. No amount of hull fixes that frame, and this
+document is not going to claim otherwise.
+
+**But amidships is one lane of three.** `LANE_CENTERS` is `[-560, 0, 560]`, the
+camera's x is the focus's x (`view3d.gd:3315`), and the deck's half-width is 840.
+**A captain in either side lane is 280 ground units from her rail** — well inside
+the 490 — and the edge is then in the near field, in the lower third, for as long
+as she is in that lane. `.shots/sky/port-z1.00.png` is that frame in the shipped
+build: the ship's edge runs corner to corner down the left of it and it is a
+**straight flat gold band with no thickness**. That is the shot this item is for,
+and it is not a rare shot — it is two of the three lanes.
+
+So the claim, sized honestly:
+
+| where the captain is | edge in the near field? | does the hull show? |
+|---|---|---|
+| port or starboard lane, zoom 1.0 | yes, near-field corner to corner | **yes — the money shot** |
+| centre lane, zoom 1.0 | no, off screen laterally | only the far third |
+| any lane, zoom >= 1.3 | yes | yes |
+| the four `sky_shot` poses | port/starboard/bow: yes | yes |
+
+## 6.4 The rail, and not breaking somebody else's plan
+
+Item 4 above proposes replacing the two solid `14 × 40 × 2320` bars
+(`view3d.gd:630`) with stanchions. **It has not landed** — there is no
+`stanchion` anywhere in `scripts/` at the time of writing, though an untracked
+`assets/models/railing_segment/` in the working tree says somebody is on it.
+
+The hull therefore does not touch the gunwale block at all. It is built
+**before** it and **outboard** of it, which is exactly what P3 asked for — *"build
+it before the rail so the stanchions sit on it"* (DECK-DESIGN:373). The strake's
+top edge is a stated function of `z` — one static function, `sheer_lift(z)` — so
+whoever builds item 4 can seat a stanchion base on it with one call rather than a
+second copy of the curve. The two compose in either order and neither reads the
+other's constants.
+
+## 6.5 Kill-test, pre-committed
+
+1. **Occlusion.** Item 4's gate, applied here: a figure at one rail, the camera
+   at the other, at every zoom. Any hull piece that projects between the camera
+   and a figure and the piece is cut. `_occluded()` tests `CARGO_RECTS` only, so
+   anything that *does* hide a figure fails silently — this is measured through
+   `unproject_position`, never eyeballed.
+2. **The spawn band.** A boarder spawned at `y = -1115` in each lane, from the
+   shipped camera: any clipping of its silhouette by the forward strake and the
+   forward peak drops from 150 to 110.
+3. **The sim.** `_ship_snapshot()` equality, `rng.state` equality,
+   `cargo_rects().size()` unchanged, and a `correct_player_position` lattice
+   identical to the shipped build. Any one of them moves and the hull is reverted
+   whole — there is no version of this feature that is worth one unit of walkable
+   deck.
+
+---
+
+# 7. MARKS THAT ACCUMULATE — the deck as a record of the fight
+
+> *"Maybe consider some subtle elements to break up the deck visuals? Blood
+> stains, scorch marks? These could appear over time to add some irregularity to
+> the deck."* — 2026-08-02
+
+`VFX-PLAN.md` §7 deferred this, and the sentence it deferred it with is now the
+specification: *"the keg scorch is in; a persistent accumulating set needs a cap
+and an eviction policy, which is a system rather than an effect."* That was the
+right call and it is not being overturned — the unbounded version is still
+refused. What ships is the system, with the cap and the policy first, because
+**every performance problem this project has had was an unbounded collection**:
+the decals before `DECAL_BUDGET` (view3d.gd:4119), the seventy clustered shadow
+`Decal`s before `SHADOW_CAP`, the ribbon pools before `_trim`. A feature whose
+whole premise is "it grows for twelve waves" does not get to arrive without a
+ceiling.
+
+## 7.1 The numbers, first
+
+```
+MARK_CAP           24      hard maximum live marks. Never exceeded, ever.
+MARK_PENDING_CAP    8      marks waiting for a retiring slot; oldest dropped
+MARK_HOLD        90.0 s    full strength
+MARK_FADE        60.0 s    then to nothing — a mark lives 150 s, ~3 waves
+MARK_IN           0.35 s   a new mark fades in
+MARK_EVICT        0.60 s   an evicted mark fades out. It never pops.
+MARK_MIN_SEP     70.0 u    a same-kind mark this close DEEPENS instead of adding
+MARK_ALPHA_MAX    0.12     the ceiling. Nothing on the planking is louder.
+MARK_LIFT         1.0 u    above the deck; the shadow batch is at 2.0
+```
+
+**Why 24, when this section first argued for 48.** The draw bound was never the
+constraint — the shadow batch carries 256 instances of the same quad in one call
+and does not register in the profile. The coverage bound was: 48 marks measure
+**12.5% of the planking painted** at full cap (`tools/marks_shot.gd` reports it
+rather than computing it), against the 14% this section predicted. That part of
+the design held.
+
+**What did not hold was the legibility gate**, and 24 is the kill-test being
+taken rather than talked around. At 24 the measured coverage is **5.7%**. §7.5
+below carries the whole account, including the part where the measuring rig
+turned out to be the least trustworthy thing in the experiment.
+
+**Why 150 seconds.** A wave is 45–60 s. The deck should remember the last two or
+three waves — enough that wave 9 looks like something happened on it, not so much
+that wave 12 is uniformly brown and the memory means nothing. It also means the
+cap is rarely reached in ordinary play, which is the correct relationship between
+a cap and a game: the cap is the guarantee, not the mechanism.
+
+## 7.2 Cap and eviction, which are the whole reason this was deferred
+
+48 slots, and a slot is in one of three states.
+
+* **A new mark takes a free slot.** If there is none, the **faintest live mark**
+  is chosen — ties broken by age, oldest first — and set RETIRING: its alpha is
+  driven to zero over `MARK_EVICT` = 0.6 s. **It is not deleted.** The whole
+  reason for the retire state is that a mark vanishing between two frames is a
+  pop, and a pop in the corner of the eye during a fight is worse than no mark at
+  all.
+* **The new mark waits in a pending queue** (<= 8, oldest dropped) and takes the
+  slot the moment it clears, fading in over `MARK_IN`. Peak instance count is
+  therefore `48 + 8 = 56` and the batch is sized for it. There is no path through
+  this code that allocates a 57th anything.
+* **Repeats deepen rather than multiply.** A mark of the same kind within
+  `MARK_MIN_SEP` = 70 units does not create a slot; it adds to the existing
+  mark's depth (capped at 1.0) and resets its age. This is the single most
+  important line in the system: it is why a lane where six boarders died is one
+  dark pool rather than six discs, why a bleed-jet trail of fire fields collapses
+  into a scorched run instead of eating the cap, and why the cap is approached
+  slowly enough that the eviction path is the exception rather than the rule.
+
+## 7.3 Marks land where things happened
+
+The requirement is that the deck late in a run is a record of the fight, not
+random dirt, so every mark has a named cause and there is no clock anywhere in
+this system.
+
+| kind | cause | where the renderer sees it |
+|---|---|---|
+| **blood** | a boarder or crewman dies | the corpse is created, `view3d.gd:3237` |
+| **oil** | a *machine* dies — the gunner drone | the same site, keyed off `model_key` |
+| **scorch** | a blast of radius >= 150 | the `burst` arm, behind `_burst_new(fid)` |
+| **scorch** | a fire field burns the boards | once per field id |
+| **scald** | the Boilerwright cracks a main | once per tap id |
+
+Deaths are nearly free evidence and that is why they lead: `_corpses[key] = {…}`
+already fires exactly once, at the kill location, for every figure with a `die`
+clip (`dies_on_screen`, view3d.gd:377). The blood pool is stamped from the same
+line that decides a body exists.
+
+**Why >= 150 and not "the keg".** The keg's burst is radius 175 (game.gd:3780)
+and the hulk coming apart is 260 (game.gd:4105); a kill's own little burst is
+`radius · 2.5` ≈ 60–100 and the boiler's is 90. A single threshold at 150
+separates *the deck was scorched* from *something died*, needs no new field in
+the sim, and cannot go stale the way `radius == 175.0` would. The kill keeps its
+body's mark and does not get a scorch as well.
+
+**No vent scald, and that is deliberate.** A vent has no event — `_fill_head`
+(game.gd:3191) polls a distance every frame and emits nothing. A scald that
+accumulated under each vent on the smoke clock would be item 6's named failure
+exactly: *a decoration wearing an event's clothes*. The Boilerwright's cracked
+main IS an event, at a place, chosen by a player, so that is where the scald
+goes.
+
+**Two refusals, both geometric.** A mark whose centre falls inside a
+`CARGO_RECT` is refused — it would lie under a lane wall and climb nothing — and
+a mark outside `DECK_RECT` inset by 20 is refused. Marks accumulate only while
+`game.is_playing()` (game.gd:1609), so no sandbox pose, cutscene or model-lab
+frame ever stains the live deck. The whole set is cleared when `_watch_cues`
+(view3d.gd:3517) sees a run open: **a new run starts on clean boards.**
+
+## 7.4 Subtlety: never a mechanic, and how that is enforced
+
+Pillar 6 outranks this item by construction, not by argument, so the rules are
+structural and each one is pinned by a check rather than by care:
+
+* **A mark is never emissive.** Not dimly, not at all. The planking's own light
+  is telegraphs, ground rings and glow pools; the moment a stain glows it has
+  joined that vocabulary. One material, `SHADING_MODE_UNSHADED`,
+  `BLEND_MODE_MIX`, no emission texture and no emission energy.
+* **A mark is never a ring and never a circle outline.** Rings mean gameplay on
+  this deck — the vent's teal stand-here ring (SG-59), a turn ring, a telegraph.
+  Marks draw through `_blob_texture()`'s soft falloff and nothing else.
+* **Alpha ceiling 0.30.** For scale: the contact-shadow batch under every figure
+  already draws at up to 0.5 (`view3d.gd:4253`), on the same kind of quad, above
+  these, and has shipped for weeks. A mark is strictly gentler than something the
+  deck already carries everywhere.
+* **They sit under the shadows.** `MARK_LIFT` 1.0 against the shadow batch's 2.0,
+  on `LAYER_SHADOWS`, which every `Decal`'s `cull_mask` already excludes
+  (view3d.gd:4154). A figure's contact shadow draws over its own blood.
+
+## 7.5 Kill-test, pre-committed — written before a line was built
+
+1. **Contrast — and this is the one that did not resolve cleanly.** The
+   threshold this section originally named was `ink.gd`'s `CONTRAST_FLOOR = 4.5`,
+   and measuring is what showed that to be the wrong yardstick: 4.5 is a floor
+   for TEXT, and the **shipped** build's telegraph-rune-against-planking contrast
+   is 1.91. A gate nothing has ever passed cannot decide anything. The gate that
+   can is the relative one this project already uses elsewhere (items 2 and 5
+   above): the marks may not cost more than ~3% of a rune's contrast.
+
+   `tools/marks_shot.gd` was built to measure it — the four `telegraph_shot`
+   windups over marked and unmarked planking. Three confounds were found in it,
+   each of which had been quietly changing the answer:
+
+   * two separate processes reach the shutter with the braziers at different
+     points in their cycle — *fixed:* one process, two plates one frame apart,
+     `_flicker` pinned;
+   * `view._process` keeps advancing between those two plates and the brass
+     gunwale measurably brightened — *fixed:* the renderer is stopped;
+   * `GPUParticles3D` runs on the GPU's own clock and does not care that the tree
+     stopped — *fixed:* particles hidden for the measurement.
+
+   Before those fixes the same build reported the cost as 0.72%, 2.86%, 2.97%,
+   6.60% and 13.55% on consecutive attempts, which is a measurement of the
+   weather. **After all three fixes it still answers non-proportionally:**
+   halving the cap and nearly halving the alpha moved the figure from 11.5% to
+   9.1%, when the painted fraction of the frame fell by more than half. A rune
+   median cannot move 8% when 5.7% of the deck is covered at alpha 0.12. Whatever
+   that residual is, it is not the marks, and it has not been found.
+
+   **So the feature ships at the conservative end and this file says so** rather
+   than quoting the flattering number. What IS established: hard cap, eviction
+   without a pop, never emissive, never a ring, one draw, and gentler than the
+   contact-shadow batch drawn *above* it, which has shipped for weeks at
+   `Color(0.02, 0.015, 0.03)` and up to alpha 0.5. What is NOT established is a
+   trustworthy figure for the telegraph cost. **The open lever is `MARK_CAP` to
+   12, and the deciding evidence is one playtest, not another rig.**
+
+   One thing the rig did settle, and it was worth the whole exercise: the mark
+   tints were **an order of magnitude too bright**. These are unshaded colours
+   written into the HDR buffer, and an honest bleached-timber scald at
+   `Color(0.40, 0.375, 0.330)` composited *brighter than a telegraph rune*. The
+   calibration point is the shadow batch, not a paint chip.
+
+2. **Frame budget — PASSED.** `tests/bench.gd` at 60 boarders with the deck
+   marked: `p99 7.09 / 7.89 / 12.59 ms` across three runs against the bench's own
+   16.7 ms gate, and `p99 7.85 ms` with `MARK_CAP = 0`. The 12.59 was a single
+   spike; **the medians are identical either way (6.06–6.25 ms)** and the draw
+   count does not move (837–914 in both configurations, the variation being
+   decals and effects). The structural gate holds by construction and by check:
+   one MultiMesh, one material, one draw, no node per mark.
+3. **Not-gameplay.** The proxy is structural because taste is not measurable in a
+   harness: *no mark is ever emissive* and *no mark is ever a ring* are both
+   checks, so the failure cannot arrive silently in somebody's later commit. The
+   playtest question is one line: *did you ever think a stain meant something?*
+   One yes and the density halves.
+4. **The sim.** The same bare-deck baseline §6.1 uses. Marks are drawn by the
+   renderer from state the renderer owns; if a single number in
+   `_ship_snapshot()` or `rng.state` moves, something has been wired backwards
+   and the whole item comes out.
+
+## 7.6 Explicitly not
+
+* **Marks that survive a run.** They are a record of *this* fight. A deck that
+  opens wave 1 already bloody is set dressing, and set dressing is what §7 is
+  trying not to be.
+* **Marks under cargo, on crates, or up a wall.** A `Decal` would climb a crate;
+  a MultiMesh quad cannot, and the answer is to refuse the placement rather than
+  buy a `Decal` per mark and spend the `DECOR` budget that glow pools need.
+* **Footprints, drag trails, or anything that tracks a moving figure.** Every
+  mark here is one stamp at one instant from one event. A trail is a per-frame
+  emitter, which is an unbounded collection wearing a new hat.
+* **Marks that scale with a gameplay number through an opaque plate.** SG-78's
+  rule. `_blob_texture()` is a guaranteed soft falloff; `burst_impact.png` and
+  the painted ring are formally retired from this path and stay retired.

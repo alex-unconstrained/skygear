@@ -135,6 +135,10 @@ func _run() -> void:
 	## than a harness that fails.
 	await _view()
 	await process_frame
+	## AWAITED for the same reason as `_view` — it builds the real world and
+	## reads the drawn hull and the deck's marks off it.
+	await _deck_shape()
+	await process_frame
 	_readability()
 	await process_frame
 	await _cutscene()
@@ -10224,3 +10228,293 @@ func _light_signature(view: SkyGearView3D, raw: Dictionary) -> Dictionary:
 		sig["range"] = "%.6f" % omni.omni_range
 		sig["attenuation"] = "%.5f" % omni.omni_attenuation
 	return sig
+
+## --- THE SHIP'S SHAPE, AND THE DECK'S MEMORY ---------------------------------
+##
+## Two features that both rest on the same claim — that the renderer can draw
+## things the simulation has never heard of — so they are proved together and the
+## proof is the SG-56 bare-deck baseline applied twice.
+##
+## DECK-IDENTITY-DESIGN §6 (a hull shape around a rectangle) and §7 (marks that
+## accumulate). The checks below are the ones those sections pre-committed to.
+func _deck_shape() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	## Held to the same bench `_new_game` holds a bare one to, and held there
+	## BEFORE the first `begin_run` rather than after it: normalising a game that
+	## has already opened a run leaves state the second `begin_run` does not
+	## clear, and the bare-deck comparison at the end of this pass then measures
+	## the fixture instead of the feature.
+	if game.impact != null:
+		game.impact.enabled = false
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	_begin(game, "HULL")
+	view.sway = false
+	await process_frame
+
+	## ---- THE HULL -----------------------------------------------------------
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var shape: Node3D = view.get_node_or_null("HullShape")
+	_check("hull", "the ship has a drawn shape, and it is one node the harness can find",
+		shape != null and shape.get_child_count() > 0,
+		"%d pieces" % (0 if shape == null else shape.get_child_count()))
+
+	## THE SUPERSET PROPERTY, as a function rather than as a promise: the drawn
+	## beam is full everywhere inside the rectangle, so the taper cannot start
+	## early. There is nowhere she can stand that is not drawn.
+	var beam_ok := true
+	var narrow_z := 0.0
+	for i in 233:
+		var z: float = rect.position.y + rect.size.y * (float(i) / 232.0)
+		if absf(SkyGearView3D.hull_beam(z) - 1.0) > 0.000001:
+			beam_ok = false
+			narrow_z = z
+	_check("hull", "the drawn deck is a superset — she is never asked to stand where nothing is drawn",
+		beam_ok and SkyGearView3D.hull_beam(rect.position.y - 620.0) < 0.02
+			and SkyGearView3D.hull_beam(rect.end.y + 380.0) < 0.6,
+		"full beam through the rect%s; bow tip %.3f, transom %.3f"
+			% ["" if beam_ok else " FAILED at z %.0f" % narrow_z,
+				SkyGearView3D.hull_beam(rect.position.y - 620.0),
+				SkyGearView3D.hull_beam(rect.end.y + 380.0)])
+
+	## AND THE OTHER DIRECTION, measured against the real geometry rather than
+	## against the formula: a lattice over the whole walkable rectangle, every
+	## point tested against every drawn piece in that piece's OWN frame. An
+	## axis-aligned box test would have been wrong here — the bow strake is yawed
+	## to follow the taper, and its bounding box overhangs the rectangle while the
+	## timber itself does not.
+	var intruder := ""
+	var probes := 0
+	for piece in (shape.get_children() if shape != null else []):
+		var mi := piece as MeshInstance3D
+		if mi == null:
+			continue
+		var box := mi.mesh as BoxMesh
+		if box != null:
+			var inv := mi.transform.affine_inverse()
+			for gx in 43:
+				for gz in 59:
+					var p := Vector3(
+						(rect.position.x + 1.0 + (rect.size.x - 2.0) * gx / 42.0)
+							* SkyGearView3D.WORLD_SCALE, 0.0,
+						(rect.position.y + 1.0 + (rect.size.y - 2.0) * gz / 58.0)
+							* SkyGearView3D.WORLD_SCALE)
+					probes += 1
+					var l := inv * p
+					if absf(l.x) < box.size.x * 0.5 and absf(l.z) < box.size.z * 0.5:
+						intruder = "%s at (%.0f, %.0f)" % [mi.name,
+							p.x / SkyGearView3D.WORLD_SCALE,
+							p.z / SkyGearView3D.WORLD_SCALE]
+			continue
+		## The aprons are ArrayMeshes. Every vertex must lie beyond an end of the
+		## rectangle; the bow line itself is the seam and is allowed.
+		var am := mi.mesh as ArrayMesh
+		if am == null:
+			continue
+		for s in am.get_surface_count():
+			for v in (am.surface_get_arrays(s)[Mesh.ARRAY_VERTEX] as PackedVector3Array):
+				var gz2: float = v.z / SkyGearView3D.WORLD_SCALE
+				if gz2 > rect.position.y + 0.01 and gz2 < rect.end.y - 0.01:
+					intruder = "apron vertex at z %.1f" % gz2
+	_check("hull", "every drawn piece of her is outboard — nothing overhangs the deck she walks",
+		intruder == "", "%d lattice probes%s"
+			% [probes, "" if intruder == "" else "; INTRUDER " + intruder])
+
+	## NO COLLISION, ANYWHERE IN IT. This is the half that answers "she must never
+	## be stopped by drawn geometry that is not the rectangle", and it is answered
+	## by there being nothing present that could stop her.
+	var solid := ""
+	var walk: Array = ([shape] if shape != null else []) as Array
+	var seen := 0
+	while not walk.is_empty():
+		var n: Node = walk.pop_back()
+		seen += 1
+		for c in n.get_children():
+			walk.append(c)
+		if n == shape:
+			continue
+		if not (n is MeshInstance3D):
+			solid = n.get_class()
+	_check("hull", "nothing outboard can stop her — the drawn hull carries no collision at all",
+		solid == "" and game.cargo_rects().size() == SkyGearGame.CARGO_RECTS.size()
+			and game.fitting_walls.is_empty(),
+		"%d nodes, all MeshInstance3D%s; %d cargo rects, %d fitting walls"
+			% [seen, "" if solid == "" else " EXCEPT a " + solid,
+				game.cargo_rects().size(), game.fitting_walls.size()])
+
+	## And the clamp proves it from the player's side: a lattice of positions
+	## spanning well beyond the drawn hull, every one of them pulled back inside
+	## the same rectangle it was pulled back to before there was a bow.
+	var escaped := ""
+	var pulls := 0
+	for gx in 25:
+		for gz in 31:
+			var want := Vector2(-1400.0 + 2800.0 * gx / 24.0,
+				-1900.0 + 3800.0 * gz / 30.0)
+			var got: Vector2 = game.correct_player_position(want, 26.0)
+			pulls += 1
+			if not rect.grow(-25.0).has_point(got):
+				escaped = "(%.0f, %.0f) -> (%.0f, %.0f)" % [want.x, want.y, got.x, got.y]
+	_check("hull", "the clamp never learned the ship has a bow — every point she can reach is inside the rectangle",
+		escaped == "", "%d probes%s" % [pulls, "" if escaped == "" else "; ESCAPED " + escaped])
+
+	## One curve, read from one function, so a stanchion rail built on top of this
+	## later (DECK-IDENTITY item 4) rides the sheer instead of retyping it.
+	var lift_bow: float = SkyGearView3D.sheer_lift(rect.position.y)
+	var lift_mid: float = SkyGearView3D.sheer_lift(0.0)
+	var lift_aft: float = SkyGearView3D.sheer_lift(rect.end.y)
+	_check("hull", "the sheer is one curve — peaked forward, lower aft, and flat where the fight is",
+		absf(lift_bow - 96.0) < 0.01 and absf(lift_aft - 90.0) < 0.01
+			and lift_mid < 40.0 and lift_mid > 15.0,
+		"bow %.1f, midships %.1f, stern %.1f" % [lift_bow, lift_mid, lift_aft])
+
+	## ---- THE DECK'S MEMORY --------------------------------------------------
+	## The cap first, because the cap is the entire reason VFX-PLAN §7 deferred
+	## this. Five hundred events, scattered so the deepen rule cannot absorb them.
+	view._clear_marks()
+	for i in 500:
+		var ang: float = float(i) * 2.399963
+		view._mark(i % 4, Vector2(cos(ang) * 700.0, sin(ang * 1.7) * 1000.0), 1.0)
+		## Aged between stamps, because a fight is not one frame. Stamping five
+		## hundred marks inside a single frame gave every one of them age zero,
+		## which meant every one was still fading IN, which meant the eviction
+		## search saw a deck where nothing had any strength at all and retired
+		## all forty-eight. That was a real fault and `_mark_strength` is the fix.
+		view._age_marks(0.4)
+	view._flush_marks()
+	var live: int = view.mark_count()
+	var drawn: int = view._mark_batch.multimesh.visible_instance_count
+	_check("marks", "the cap is a number, not a hope — five hundred events leave two dozen marks",
+		live <= SkyGearView3D.MARK_CAP and drawn <= SkyGearView3D.MARK_CAP
+			and view._mark_pending.size() <= SkyGearView3D.MARK_PENDING_CAP,
+		"%d live, %d drawn, %d pending, cap %d"
+			% [live, drawn, view._mark_pending.size(), SkyGearView3D.MARK_CAP])
+
+	## EVICTION, and that it fades rather than pops. At the cap a new mark sets
+	## the faintest one retiring; that mark must still be DRAWN on the next frame,
+	## and must be gone — with its slot taken by the newcomer — after the ramp.
+	var retiring := 0
+	var retiring_alpha := 0.0
+	for i in SkyGearView3D.MARK_CAP:
+		if view._mark_retire[i] > 0.0:
+			retiring += 1
+			retiring_alpha = maxf(retiring_alpha, view._mark_alpha(i))
+	view._age_marks(SkyGearView3D.MARK_EVICT + 0.02)
+	var after: int = view.mark_count()
+	_check("marks", "at the cap the faintest is retired and fades out — nothing ever pops",
+		retiring > 0 and retiring < SkyGearView3D.MARK_CAP and retiring_alpha > 0.0
+			and after <= SkyGearView3D.MARK_CAP
+			and after > SkyGearView3D.MARK_CAP / 2,
+		"%d of %d retiring, the loudest still drawn at alpha %.3f, %d live after the ramp"
+			% [retiring, SkyGearView3D.MARK_CAP, retiring_alpha, after])
+
+	## SUBTLETY, enforced structurally rather than by care. These two are the
+	## whole answer to "must not read as gameplay information", and they are
+	## checks so that the failure cannot arrive silently in a later commit.
+	var mm: MultiMesh = view._mark_batch.multimesh
+	var mat := view._mark_batch.material_override as StandardMaterial3D
+	_check("marks", "no mark ever glows — the light on the planking is telegraphs only",
+		mat != null and not mat.emission_enabled and mat.emission_texture == null
+			and mat.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED
+			and mat.blend_mode == BaseMaterial3D.BLEND_MODE_MIX,
+		"emission %s, shading %d, blend %d" % [str(mat.emission_enabled),
+			mat.shading_mode, mat.blend_mode])
+	_check("marks", "a mark is never a ring — a ring on this deck means gameplay",
+		mat.albedo_texture == view._blob_texture()
+			and mat.albedo_texture != view._ring_texture(),
+		"draws through the blob's soft falloff")
+
+	## The alpha ceiling, measured off the value `_flush_marks` feeds the batch.
+	## NOT off `MultiMesh.get_instance_color`, which reads back (0,0,0,1) here
+	## whatever was written — the colours render correctly, the getter does not
+	## round-trip, and a check that trusted it would be asserting on a constant
+	## the engine invented.
+	var loudest := 0.0
+	for i in SkyGearView3D.MARK_CAP:
+		loudest = maxf(loudest, view._mark_alpha(i))
+	_check("marks", "and no mark is louder than the ceiling the design named",
+		loudest <= SkyGearView3D.MARK_ALPHA_MAX + 0.0001,
+		"loudest %.3f against a ceiling of %.2f" % [loudest, SkyGearView3D.MARK_ALPHA_MAX])
+
+	## ONE DRAW. The structural gate from the kill-test: a second material and the
+	## shape half is cut whatever the milliseconds say.
+	_check("marks", "one batch, one material, one draw — and no node per mark",
+		view._mark_batch.get_child_count() == 0
+			and mm.instance_count == SkyGearView3D.MARK_CAP
+			and view._mark_batch.cast_shadow
+				== GeometryInstance3D.SHADOW_CASTING_SETTING_OFF,
+		"%d instances, %d children" % [mm.instance_count,
+			view._mark_batch.get_child_count()])
+
+	## REFUSALS. A mark under a lane wall would lie beneath geometry it cannot
+	## climb; a mark over the side would hang in the air.
+	view._clear_marks()
+	var wall: Rect2 = SkyGearGame.CARGO_RECTS[0]
+	view._mark(0, wall.position + wall.size * 0.5, 1.0)
+	var on_wall: int = view.mark_count()
+	view._mark(0, Vector2(1200.0, 0.0), 1.0)
+	view._mark(0, Vector2(0.0, -2000.0), 1.0)
+	var overboard: int = view.mark_count()
+	_check("marks", "nothing is stamped under a cargo run or over the side",
+		on_wall == 0 and overboard == 0, "%d under cargo, %d overboard"
+			% [on_wall, overboard])
+
+	## DEEPENING, which is why the cap is approached slowly rather than eaten by
+	## one busy lane.
+	view._clear_marks()
+	for i in 12:
+		view._mark(0, Vector2(120.0 + float(i) * 4.0, 300.0), 1.0)
+	_check("marks", "the same death in the same place deepens one pool instead of stacking twelve discs",
+		view.mark_count() == 1, "%d marks from twelve kills inside %.0f units"
+			% [view.mark_count(), SkyGearView3D.MARK_MIN_SEP])
+
+	## NO CLOCK. Thirty seconds of a live, running deck with nothing dying on it.
+	## A mark that can appear without an event is a decoration wearing an event's
+	## clothes, and the item would be cut.
+	view._clear_marks()
+	game.spawn_queue.clear()
+	for i in 600:
+		view._age_marks(0.05)
+	_check("marks", "marks land on events and never on a clock — thirty seconds of nothing leaves nothing",
+		view.mark_count() == 0, "%d marks after 30 s" % view.mark_count())
+
+	## A NEW RUN STARTS ON CLEAN BOARDS. The wave going backwards is the signal,
+	## because `begin_run` puts it back to zero on every path into the deck.
+	view._mark(0, Vector2(0.0, 300.0), 1.0)
+	var before_run: int = view.mark_count()
+	game.begin_run()
+	view._age_marks(0.016)
+	_check("marks", "a new run starts on clean boards — the deck remembers this fight, not the last one",
+		before_run == 1 and view.mark_count() == 0,
+		"%d before, %d after begin_run" % [before_run, view.mark_count()])
+
+	## ---- AND NEITHER OF THEM TOLD THE SIMULATION ----------------------------
+	## The SG-56 bare-deck baseline, applied to both features at once: a run under
+	## the full renderer — hull drawn, deck marked — must start from the same
+	## numbers, and consume the same amount of the seeded stream, as a run with no
+	## renderer attached at all.
+	var bare := _new_game()
+	bare.set_seed_text("HULL")
+	bare.begin_run()
+	var bare_rng: int = bare.rng.state
+	bare.choose_draft(0)
+	var bare_snap := _ship_snapshot(bare)
+
+	var drawn_game: SkyGearGame = game
+	drawn_game.set_seed_text("HULL")
+	drawn_game.begin_run()
+	var drawn_rng: int = drawn_game.rng.state
+	drawn_game.choose_draft(0)
+	for i in 40:
+		view._mark(i % 4, Vector2(-600.0 + float(i) * 30.0, -400.0 + float(i) * 20.0), 1.0)
+	var drawn_snap := _ship_snapshot(drawn_game)
+	_check("hull", "a bow, a stern and a bloody deck, and the sim sails today's numbers exactly",
+		drawn_snap == bare_snap and drawn_rng == bare_rng
+			and view.mark_count() > 0,
+		"%d marks on the boards; rng %d vs %d" % [view.mark_count(), drawn_rng, bare_rng])
+
+	world.queue_free()
+	await process_frame

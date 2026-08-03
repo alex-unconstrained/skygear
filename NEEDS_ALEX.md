@@ -55,6 +55,43 @@ you would rather this were a decision inside a run that you have to earn.
 
 
 
+## The ship has a bow now, and the painted prow is gone (SG-100)
+
+**Look at:** `.shots/marks/clean-port-z1.00.png` beside `.shots/sky/port-z1.00.png`
+— the same frame, in your port lane, before and after. The edge was a flat gold
+band; it is a bulwark with a brass cap rail that rises toward the bow.
+
+**And:** `.shots/marks/clean-bow-z1.00.png` — this is where `bow_prow.png` used to
+be a wall. It is real planking narrowing to a stem now, and you can see sky over
+it. The sprite's draw is deleted; the PNG is still on disk and it is twelve lines
+to put back if you prefer the painting.
+
+**What did NOT move:** the rectangle you walk on. Same 1680 x 2320, same lanes,
+same cargo, same spawn line — 775 clamp probes on a lattice spanning well outside
+the drawn hull all land back inside it, and a bare run reproduces today's numbers
+exactly. The hull carries no collision at all, so nothing outboard can stop you.
+
+## The deck remembers the fight — and I want your eye on how much (SG-101)
+
+**Look at:** `.shots/marks/marked-mid-z1.00.png` beside `clean-mid-z1.00.png`, and
+`marked-telegraphs.png` beside `clean-telegraphs.png`.
+
+Blood, oil, scorch and scald accumulate where things actually happened — a
+boarder dies here, a keg goes off there — capped at 24, evicted oldest-and-
+faintest by fading rather than popping, cleared at the start of every run.
+
+**The one question I could not answer with a rig, and it is a judgement call:**
+whether they are too faint to be worth it, or still enough to compete with a
+telegraph. I built a measurement for it and caught three separate faults inside
+the measurement itself; after fixing all three it still gives answers that do not
+scale with the thing being changed, so **I shipped it at half the density and a
+third of the opacity I designed rather than quote the number that flattered it.**
+That is written up in `docs/DECK-IDENTITY-DESIGN.md` §7.5.
+
+If they read as invisible, `MARK_CAP` goes back up. If you ever catch yourself
+looking at a stain to see whether it means something, it goes to 12 or comes out.
+One playtest decides it; another rig will not.
+
 ## The Colossus is textured — here is the frame. "Too easy" is still open. (SG-94)
 
 Your ask: *"Collosus is way too easy - he needs to be scary the player. Not sure
