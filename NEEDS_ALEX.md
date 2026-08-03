@@ -80,8 +80,12 @@ All shipped tonight; none can be settled by a checker.
    sidestepping with the bayonet held on target, that's a different rule** — and
    the clips are ready for it.
 3. **The Muster** (`docs/ENEMY-VARIETY-DESIGN.md` §2.1) — seeded wave mutations,
-   the biggest remaining gameplay feature. Waits on **your noise-floor
-   threshold** from the tempo measurements.
+   the biggest remaining gameplay feature. **This no longer waits on you.** The
+   held-rate observation I asked you to set a threshold for has evaporated: it
+   was measured with a bot that never moved, and on the repaired rig it flips
+   sign and loses significance (92% vs 86%, z=1.43, against the recorded 23/60
+   vs 34/60, z≈2.0). Its own row had wondered whether it was "a bot fact". It
+   was. One fewer decision for you; the Muster is now just unbuilt work.
 4. **The menu direction.** The title is rebuilt; Settings / How to Play /
    Controls / Pause are deliberately untouched pending your verdict, because
    they are a different structure (label-left, value-right) wanting one more
@@ -638,3 +642,27 @@ with and without the telegraphs. This is the whole bug in one pair.
 `.shots/rune/windup-mask.png` is the pixel set itself, white on black.
 `.shots/sg116/rig-mask-*.png` is the set the rigging figures above are medians
 over.
+
+---
+
+## SG-125 · One thing the repository was claiming that it should not
+
+Not a decision — a correction you should know about, because it touches a
+feature you and I both agreed to cut.
+
+The **stowage variety spine** was cut on a kill-test: close-share 5.38% vs
+5.25% over 120 runs, "combat statistically identical". SG-118 has since shown
+that the rig producing that number **never moved its bot**, and that a moving
+captain spends ~22% of a run at close range against the stationary bot's 3–5%.
+The statistic was measured almost entirely outside the range where the effect
+it was testing for could occur.
+
+**Nothing should be resurrected.** You reframed variety yourself — enemies
+within a run, ship modification between runs — and that reframing is a better
+reason to have cut it than the measurement ever was. The only thing wrong is
+the sentence in the board claiming an evidential basis. It is filed as SG-125
+and annotated rather than quietly edited.
+
+The general form is the uncomfortable one, and it is now the fifth failure mode
+reaching backwards: **every verdict that rig produced is in this position.**
+SG-125 is the audit of which ones.
