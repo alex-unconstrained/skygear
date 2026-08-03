@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/bow_ram/bow_ram.glb" id="1_a0u1u"]
+
+[node name="Bow Ram" type="Node3D" unique_id=1164815566]
+metadata/model_height = 0.75748193
+
+[node name="Holder" type="Node3D" parent="." unique_id=1540008562]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00051033497, 0.38055882, 0.00042507052)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=786282522 instance=ExtResource("1_a0u1u")]

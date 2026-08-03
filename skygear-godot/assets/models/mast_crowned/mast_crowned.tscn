@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/mast_crowned/mast_crowned.glb" id="1_8xmfb"]
+
+[node name="Mast Crowned" type="Node3D" unique_id=149235445]
+metadata/model_height = 1.8990129
+
+[node name="Holder" type="Node3D" parent="." unique_id=1585213212]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00035619736, 0.9506269, 0.001105547)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1235771776 instance=ExtResource("1_8xmfb")]

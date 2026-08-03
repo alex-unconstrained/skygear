@@ -280,6 +280,32 @@ const MODELS := {
 	## Facing 0.0 is the measured default for this batch and the module is
 	## symmetric about its long axis, so a half turn is the same rail.
 	"rail_stanchion": 0.0,
+	## THE OTHER THREE EDGE PIECES, registered here by SG-148 — they were left
+	## out by SG-145 on the triangle law alone (mast 10,312, bow 30,666, stern
+	## 30,410 against an 8,000 ceiling) and they are all three at 8,000 now.
+	## `tools/deck_trim.py` did it locally, zero credits, geometry only: the
+	## four embedded JPEGs are copied byte-for-byte into the rebuilt glb, so
+	## every megabyte saved is a megabyte of vertex data and the maps are the
+	## owner's own pixels.
+	##
+	## THE TARGET IS THE CEILING AND THAT WAS DECIDED BY LOOKING, WHICH IS THE
+	## PART WORTH READING. `meshy.py`'s `tri_budget` asks for 3,000 for every
+	## one of these — they are 141 to 355 px at the real camera, all below the
+	## ~380 px where the area curve starts to bite, so all three land on its
+	## FLOOR. Rendered at 3,000 the bow and the mast survive and THE STERN DOES
+	## NOT: its planking goes blotchy and its hatch ring turns to mush
+	## (.shots/sg148/compare/stern_counter_t3000-y035.png against
+	## stern_counter_t8000-y035.png). The reason is a gap in the law rather than
+	## a bad model — the budget is derived from an asset's HEIGHT, and the stern
+	## is a 190 x 151 x 178 box whose entire interior deck faces a camera
+	## looking DOWN at 41 degrees. Its visible area is nothing like its height
+	## implies. Filed on the board; the number here is the evidence, not a
+	## preference.
+	##
+	## Facing 0.0: measured, same as the rest of this batch.
+	"mast_crowned": 0.0,
+	"bow_ram": 0.0,
+	"stern_counter": 0.0,
 	## "hatch_cargo" is absent because it was GENERATED THREE TIMES AND
 	## REJECTED — the first entry here that lost on its own merits rather than
 	## on budget, and the reason is geometric rather than a prompt that can be

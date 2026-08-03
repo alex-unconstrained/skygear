@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/stern_counter/stern_counter.glb" id="1_ohlyl"]
+
+[node name="Stern Counter" type="Node3D" unique_id=1272940474]
+metadata/model_height = 1.5140939
+
+[node name="Holder" type="Node3D" parent="." unique_id=1784639863]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.000803411, 0.755427, 0.0020543933)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1424061137 instance=ExtResource("1_ohlyl")]
