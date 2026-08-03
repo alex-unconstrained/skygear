@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 58 live · harness 1023/1023.** Everything else is in
+**Build 58 live · harness 1034/1034.** Everything else is in
 `skygear-godot/docs/NIGHT-LOG-2026-08-03.md`. This file is only your decisions.
 
 ---
@@ -48,9 +48,18 @@ that is **default OFF**, and the open question is whether yours should REPLACE
 the procedural shadow casters, FEED them, or stand beside them — say which and
 it is one line.
 
-**3 · Fire's hitbox.** A fire pool **burns you from outside its own picture, by
-up to 70%** — drawn at 46, burns at 78. Fix the damage to match the picture, or
-the picture to match the damage? Both change balance.
+**3 · Fire's hitbox — ✅ ANSWERED BY YOU AND BUILT (SG-160).** You said: *"For the
+fire hitbox, match the burn size. Fix the picture to match the damage."* Done —
+the picture moved, the burn is the same 78.0 it has always been, and no balance
+number changed. The gap was worse than the 70% in the original question: after
+the renderer's own multipliers the Sear trail's pool drew a line at about **41**
+against a burn of 78, an **88%** gap. There is one radius now and three things
+read it. **Look at `skygear-godot/.shots/sg160/gap-the-old-picture-left.png`** —
+the ring of posts standing on the orange line is the burn *measured* by walking
+the captain around the pool and running real ticks, and the white ring inside it
+is where the picture used to stop. **A follow-up is in Smaller calls below**: the
+same dictionary carries a `dps` nothing has ever read, and it makes the RESIDUE
+card worth nothing. That one is a damage rate, so I left it for you.
 
 **4 · Fourteen models are shinier than this deck's light allows.** All 27 ship
 with metalness unset, which the format reads as *fully metallic* — that was the
@@ -75,7 +84,27 @@ for either enemy. A melee exchange is three beats now instead of one:
   recovery and fading as the window closes. Teal because it is the only mark in
   the game that says "now hit HIM", and red has to keep meaning danger.
 
-Six new checks hold it. **What it looked like before is below**, kept because it
+Six new checks hold it.
+
+**6b · And the soft edges you flagged next are fixed too — ✅ BUILT (SG-159).**
+*"the edge of that should be very clear to the player. Having it lined with
+something a little harder."* You were describing something measurable. The wedge
+was a gradient in every direction at once: its **brightest part was at 88% of the
+danger zone** and the picture had faded through half its brightness by **93.5%**,
+so on the Colossus the shape you were reading ended about **nine units short of
+the deck that actually hits you**. It has a hard rim line now, and the line sits
+on the boundary: brightest pixel at **99%**, still at half brightness at
+**98.8%**, and the inside is a see-through fill at a **4.7:1** ratio to the edge —
+which is the ratio the game's rings have always used and the wedge never did. The
+cut sides were also softened by *a percentage of the arc*, so the Colossus's wide
+fan was three times blurrier than a gremlin's for no reason anyone chose; they
+are a fixed couple of texels on every enemy now. **The wedge is exactly the same
+SIZE — it cannot change, it is the same number the swing connects with, and a
+check reports 0 pixels painted outside it.** Seven new checks.
+**`skygear-godot/.shots/sg159/before` against `.../after`** — put the
+`3-wind-095` frames side by side for either enemy.
+
+**What the telegraphs looked like before all this is below**, kept because it
 is the reason the shapes are what they are:
 
 - **There is no "hit" visual at all.** The warning wedge is drawn only while the
@@ -99,6 +128,18 @@ mark nobody can see is the failure mode this whole item is about.
 ---
 
 ## Smaller calls, whenever
+
+- **Should fire pools differ from each other at all? (SG-161)** Fixing the
+  hitbox/picture mismatch you asked about turned up the other half of the same
+  problem: a pool's **damage rate** is authored per source and read by nothing.
+  Every pool burns at a flat 7.5 a tick no matter what made it, while the Sear
+  trail asks for 9.0 and the RESIDUE talent asks for 13.0 × its stack. So the
+  epic **RESIDUE** card currently buys nothing measurable — its size term was
+  the drawn radius, which the fix has just retired, and its damage term has
+  never been read by anything. I did **not** wire the rates up: that is three
+  live balance changes, and you were explicit on the neighbouring bug that the
+  picture moves and the damage does not. **One flat hazard, or pools that
+  differ?** If they differ, RESIDUE needs a new effect either way.
 
 - **Restoring the browser's `noCrit` rule made crit builds harder, and I did
   not compensate (SG-148).** Six secondary damage sources — the kill

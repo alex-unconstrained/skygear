@@ -1442,8 +1442,15 @@ func _build_world() -> void:
 	## SCRAPPER 95°=1.658, ARMORED/BOSS 120°=2.094) — a windup wedge built mid-swing
 	## is a hitch at the exact moment the player is reading a telegraph.
 	for arc in [0.9, 1.134, 1.396263, 1.658, 1.7, 2.094395, 2.443]:
-		_fan_texture(arc, true)
-		_fan_texture(arc, false)
+		## AND THEIR EMISSION MAPS, which this loop did not build and should
+		## always have (board SG-159). `_decal` calls `_glow_map` on whatever
+		## texture it is handed, so the first windup in a run was paying for a
+		## per-pixel GDScript pass over the fan as well as the fan itself — the
+		## exact hitch the paragraph above exists to prevent, half-prevented.
+		## SG-159 took the fan to 256² for the sake of a one-texel rim, which
+		## makes that unbuilt pass four times the cost it was.
+		_glow_map(_fan_texture(arc, true))
+		_glow_map(_fan_texture(arc, false))
 	for key in PAINTED.keys():
 		var painted := _texture(str(PAINTED[key]))
 		if painted != null:
@@ -3867,6 +3874,21 @@ func _crate_texture() -> ImageTexture:
 
 ## A soft ring, bright at the rim and hollow in the middle — the shape every
 ## radial ground effect in this game actually is.
+##
+## WHERE THE RIM IS, AS A NUMBER RATHER THAN AS A MAGIC 0.92 (board SG-160). This
+## texture's bright band does NOT sit at the edge of its own square: it peaks at
+## 92% of the half-size. So a caller that wants the visible line to land on a
+## gameplay radius has to divide, and until SG-160 every caller multiplied a
+## literal instead and none of them agreed. `ring_span_for(r)` is that division,
+## written once — hand it the radius you want the player to SEE and it gives you
+## the decal size that puts the line there.
+const RING_RIM_D := 0.92
+
+## The decal width/height that puts this ring's bright band on `radius`.
+static func ring_span_for(radius: float) -> float:
+	return radius * 2.0 / RING_RIM_D
+
+
 func _ring_texture() -> ImageTexture:
 	if _made.has("ring"):
 		return _made.ring
@@ -3884,7 +3906,7 @@ func _ring_texture() -> ImageTexture:
 				## rings are a fill you can see through and an edge you cannot
 				## miss, and the ratio is what makes them readable.
 				a = 0.05 * (1.0 - d * 0.55)
-				a += 1.0 * exp(-pow((d - 0.92) / 0.06, 2.0))
+				a += 1.0 * exp(-pow((d - RING_RIM_D) / 0.06, 2.0))
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
 	_made.ring = _with_mips(img)
 	return _made.ring
@@ -3910,17 +3932,68 @@ func _streak_texture() -> ImageTexture:
 	return _made.streak
 
 
-## A fan, for cleaves and cones. `filled` is the difference between the two: a
-## cone is a wedge of ground you are about to cook, a cleave is the rim of one.
+## THE DANGER WEDGE'S EDGE IS THE MOST IMPORTANT LINE IN THIS GAME (board SG-159,
+## owner: *"the edge of that should be very clear to the player. Having it lined
+## with something a little harder, as opposed to that soft edge, could make it
+## clearer."*)
+##
+## WHAT WAS WRONG. The filled wedge was a gradient in all three directions at
+## once: `(0.30 + 0.55*d)` brightening outward, an outer `smoothstep(1.0, 0.86, d)`
+## fading the last 14% of the reach to nothing, and cut sides feathered over 16%
+## OF THE HALF-ARC — which on the Colossus's 120° fan is a 9.6° smear down each
+## side. Every one of those is a ramp, so the shape had a bright middle and no
+## boundary anywhere. In `.shots/sg159/before` it reads as spilled orange light,
+## and against the furnace knight's own emissive chest it reads as *his glow*.
+## The player's question at a telegraph is binary — **am I in it?** — and a shape
+## whose brightest part is its interior and whose edge is a 20-pixel fade cannot
+## answer a binary question.
+##
+## THE TARGET IS `_ring_texture()`'S OWN STATED PRINCIPLE, twenty lines up this
+## file and never applied here: *the browser's rings are a fill you can see
+## through and an EDGE YOU CANNOT MISS, and the ratio is what makes them
+## readable.* The ring gets it by spending 0.05 alpha on its interior and 1.0 on
+## a band at its rim — a 20:1 ratio. The wedge spent 0.85 on its interior and
+## nothing on its boundary. It is the same ratio now: a see-through fill, a rim
+## line that peaks AT the boundary, and cut sides one texel wide.
+##
+## THE SIZE DOES NOT MOVE, and that is a hard constraint rather than a courtesy.
+## The decal is drawn at `enemy.swing_wedge_reach() * 2.0` — the same function the
+## simulation connects with — and board SG-119 was paid for by a drawn shape and
+## a hit shape disagreeing about a number. `d == 1.0` is the true reach, so that
+## is exactly where the rim's peak is put and exactly where the alpha is cut to
+## zero. Nothing outside `d = 1.0` or `off = half` is painted at all, which was
+## also true before; what changed is that you can now SEE where that is.
+##
+## THE FEATHERS ARE IN TEXELS, NOT IN FRACTIONS OF THE SHAPE. A feather quoted as
+## a fraction of the half-arc is wide on a wide fan and narrow on a narrow one, so
+## the Colossus's boundary was three times softer than a gremlin's for no reason
+## anyone chose. `FAN_AA` texels of antialiasing is the same crispness on every
+## arc in the table, and it is antialiasing rather than styling: one and a quarter
+## texels is what it takes to keep a hard step from stair-casing under the
+## bilinear magnification a 128-texture gets at a 146-unit reach.
+##
+## `filled` is still the difference between a cone and a cleave: a cone is a wedge
+## of ground you are about to cook, a cleave is the rim of one. Both are hard at
+## the boundary now — the unfilled variant is SG-158's strike flash, which is the
+## frame the blow lands and has even less business being vague.
 ## Cached per arc, because there are only ever a handful of distinct arcs.
+const FAN_RIM_W := 0.085       ## the rim line's width, as a fraction of the reach
+const FAN_RIM_A := 0.95        ## and its alpha at the boundary itself
+const FAN_FILL_NEAR := 0.12    ## the see-through fill, at the apex
+const FAN_FILL_FAR := 0.24     ## and where it meets the rim — still see-through
+const FAN_AA := 1.25           ## the feather on every hard edge, in TEXELS
+const FAN_SIZE := 256          ## a rim one texel wide wants texels worth having
+
 func _fan_texture(arc: float, filled: bool) -> ImageTexture:
 	var key := "fan%s_%d" % ["f" if filled else "r", int(arc * 24.0)]
 	if _made.has(key):
 		return _made[key]
-	var size := 128
+	var size := FAN_SIZE
 	var img := Image.create(size, size, false, Image.FORMAT_RGBA8)
 	var c := float(size) * 0.5
 	var half: float = clampf(arc, 0.15, TAU) * 0.5
+	## One texel, expressed in the same 0..1 `d` the loop works in.
+	var texel: float = 1.0 / c
 	for y in size:
 		for x in size:
 			var dx := float(x) + 0.5 - c
@@ -3930,12 +4003,31 @@ func _fan_texture(arc: float, filled: bool) -> ImageTexture:
 			# the fan opens along +X of the decal, which the transform aims
 			var off: float = absf(atan2(dy, dx))
 			if d <= 1.0 and off <= half:
-				# soften the two cut edges and the outer rim
-				var edge: float = smoothstep(0.0, 0.16, (half - off) / maxf(0.001, half))
+				## THE TWO CUT SIDES. `(half - off)` is an ANGLE; multiplied by the
+				## radius it is the arc-length distance to the cut, which is what a
+				## texel count has to be measured against. Near the apex that
+				## distance genuinely is under a texel, so the point of the wedge
+				## fades — correctly: a wedge's apex is a point, and the old
+				## angle-only feather painted a full-alpha blob at the boarder's
+				## feet where the shape has no area.
+				var side: float = clampf((half - off) * maxf(d, texel) / (FAN_AA * texel),
+					0.0, 1.0)
+				## THE OUTER BOUNDARY, cut hard at the true reach and feathered
+				## over the same texel count — the whole difference from the old
+				## `smoothstep(1.0, 0.86, d)`, which spent 14% of the reach fading.
+				var outer: float = clampf((1.0 - d) / (FAN_AA * texel), 0.0, 1.0)
+				## THE RIM LINE. It ramps to full over the last `FAN_RIM_W` of the
+				## reach and peaks at `d = 1.0`, so the brightest pixel of the whole
+				## shape sits on the boundary the simulation swings to.
+				var rim: float = smoothstep(1.0 - FAN_RIM_W, 1.0, d)
 				if filled:
-					a = (0.30 + 0.55 * d) * edge * smoothstep(1.0, 0.86, d)
+					a = (FAN_FILL_NEAR + (FAN_FILL_FAR - FAN_FILL_NEAR) * d
+						+ FAN_RIM_A * rim) * side * outer
 				else:
-					a = exp(-pow((d - 0.88) / 0.10, 2.0)) * edge
+					## The cleave/strike variant: the rim line and nothing under
+					## it. Twice the band width, because with no fill beneath it
+					## this line is the entire shape and has to carry it alone.
+					a = smoothstep(1.0 - FAN_RIM_W * 2.0, 1.0, d) * side * outer
 			img.set_pixel(x, y, Color(1, 1, 1, clampf(a, 0.0, 1.0)))
 	_made[key] = _with_mips(img)
 	return _made[key]
@@ -5083,18 +5175,39 @@ func _sync_effects() -> void:
 
 	## Lingering fire. It is a hazard you have to read the floor for, so it gets
 	## a decal that breathes rather than a static disc.
+	## THE PICTURE IS THE BURN NOW (board SG-160, owner: *"For the fire hitbox,
+	## match the burn size. Fix the picture to match the damage."*)
+	##
+	## THIS LINE USED TO READ `float(f.get("radius", 62.0)) * 2.2`, and every part
+	## of that was a second opinion. `field.radius` is set by the three `_field()`
+	## sites to 46, 62 and 62 + 22·residue; the burn is `game.fire_pool_radius()`
+	## and has been a flat 78 since it was written. So the Sear trail's pool was
+	## DRAWN at a rim of about 46 and BURNED at 78 — it cooked you from 70% outside
+	## its own picture, and the safe-looking ring of deck around it was the part
+	## that hurt. `radius` is not consulted here any more; the renderer asks the
+	## simulation how big the pool is, which is the only arrangement in which the
+	## two cannot drift (STATUS failure mode two).
+	##
+	## `ring_span_for()` rather than a multiplier, because the ring texture's bright
+	## band peaks at 92% of its own half-size: sizing the decal to `burn * 2` would
+	## have put the visible line 8% INSIDE the burn and shipped a smaller version of
+	## the same bug while claiming to have fixed it.
+	var burn: float = game.fire_pool_radius()
 	for i in game.fire_fields.size():
 		var f: Dictionary = game.fire_fields[i]
 		var pulse: float = 0.72 + sin(_flicker * 7.0 + float(i)) * 0.14
-		var fr: float = float(f.get("radius", 62.0)) * 2.2
 		var fid2: int = int(f.get("id", i))
-		# the scorch on the planking, and the fire standing on top of it
+		## The scorch on the planking, and the fire standing on top of it. The
+		## scorch is a soft dark disc ending exactly where the bright line is, so
+		## the two halves of the mark agree about the boundary instead of the soot
+		## trailing past it.
+		var fr: float = burn * 2.0
 		_decal("scorch%d" % fid2, f.position, 0.0, fr, fr, _art("scorch", _blob_texture()),
 			Color(0.10, 0.07, 0.08, 0.75), false)
-		## `_ring_texture()`: `fr` is the field's own radius times 2.2, so
-		## this is a gameplay-scaled decal and the painted plate is opaque
-		## across its whole disc (SG-63, the SG-78 rule).
-		_decal("fire%d" % fid2, f.position, 0.0, fr * 0.82, fr * 0.82,
+		## `_ring_texture()`: this is a gameplay-scaled decal and the painted plate
+		## is opaque across its whole disc (SG-63, the SG-78 rule).
+		var span: float = ring_span_for(burn)
+		_decal("fire%d" % fid2, f.position, 0.0, span, span,
 			_ring_texture(),
 			Color(1.0, 0.52, 0.18, clampf(float(f.time) / 3.0, 0.0, 1.0) * pulse))
 		## Fire burns the boards, and the burn outlasts the fire. Once per field
@@ -5194,14 +5307,27 @@ func _sync_effects() -> void:
 				## instead of being re-derived on this side.
 				var reach: float = enemy.swing_wedge_reach()
 				var arc: float = enemy.swing_wedge_arc()
+				## THE DECAL ALPHA WENT UP AND THE SHAPE GOT DIMMER (board SG-159).
+				## `_fan_texture` now spends its alpha on a rim line rather than on
+				## its interior, so the same 0.5 multiplier that used to produce a
+				## bright orange puddle would produce a rim you could not see. The
+				## multiplier is gone: the TEXTURE owns the fill-to-edge ratio now,
+				## and this number is just how loud the whole mark is. At full wind
+				## the boundary peaks near 0.66 alpha over a fill of 0.08–0.17,
+				## which is the 4:1-to-8:1 the ring has always had.
 				_decal("tg%d" % enemy.get_instance_id(), enemy.global_position, ang,
 					reach * 2.0, reach * 2.0, _fan_texture(arc, true),
-					Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, flick * 0.5))
+					Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, clampf(flick, 0.0, 1.0)))
 				## The inner wedge fills outward as the wind completes: the clock.
+				## It carries a hard rim of its own now, so the clock is a LINE
+				## travelling out to meet the boundary rather than a puddle
+				## growing — and it is deliberately dimmer than the boundary it is
+				## travelling toward. Two hard lines of equal weight would be two
+				## boundaries, and only one of them is the one you must not cross.
 				var fill: float = maxf(0.10, kk)
 				_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, ang,
 					reach * 2.0 * fill, reach * 2.0 * fill, _fan_texture(arc, true),
-					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.85))
+					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.55))
 		elif enemy.state == "recover" and enemy.config.ai != "ranged":
 			## THE STRIKE AND THE OPENING — the two frames this deck never drew
 			## (SG-158, and the owner asked for it twice).
