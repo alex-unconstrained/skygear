@@ -16,7 +16,56 @@ var failures: Array[String] = []
 var checks := 0
 
 
+## THE RUN, WATCHING ITS OWN ERROR LOG (SG-149).
+##
+## A freshly extracted worktree of HEAD printed
+## `SCRIPT ERROR: Invalid access to property or key 'cooldown_left' ...`
+## FIFTEEN TIMES and reported `997/997 checks passed` with an exit code of zero.
+## Nothing here could see them, and nothing here had ever been able to: the
+## harness's only notion of "wrong" was a `_check` returning false, so every
+## error the ENGINE raised went to stderr and past every gate we have. That is
+## the third failure mode — a detector that cannot fire — except nobody silenced
+## this one, it was never built.
+##
+## It matters more than a tidy log, because a GDScript runtime error is NOT an
+## exception. It prints, it ABANDONS THE REST OF THE FUNCTION IT WAS RAISED IN,
+## and control returns to the caller as if the call had completed normally
+## (verified directly: a `d.missing` on line N stops the function and the caller
+## resumes on the next line). So a fixture that raises inside `_process` gives
+## you a simulation that stopped stepping halfway through the frame, and a check
+## that then asserts the number it expected passes for the wrong reason. It is
+## the same shape as SG-146's lesson about a check that raises instead of
+## failing, one level out.
+##
+## Godot exposes `Logger` and `OS.add_logger`, so a run CAN read its own errors
+## from the inside — no wrapper, no log scrape, and it works when the harness is
+## invoked directly rather than through the hub. `tools/hub.gd` carries the
+## second, outer half for every OTHER checker, which has no `_check` at all.
+class ErrorWatch extends Logger:
+	## Every GDScript runtime raise. Gated to zero.
+	var script_errors: Array[String] = []
+	## Engine-side `ERROR:` — a failed resource load, an illegal draw call. NOT
+	## gated to zero, because 56 of them are pre-existing and filed (SG-153);
+	## ratcheted instead, and said out loud rather than scoped away quietly.
+	var engine_errors: Array[String] = []
+
+	func _log_error(function: String, file: String, line: int, code: String,
+			rationale: String, _editor_notify: bool, error_type: int,
+			_backtraces: Array[ScriptBacktrace]) -> void:
+		var what := code if code != "" else rationale
+		var where := "%s:%d in %s() — %s" % [file, line, function, what]
+		if error_type == Logger.ERROR_TYPE_SCRIPT:
+			script_errors.append(where)
+		elif error_type == Logger.ERROR_TYPE_ERROR:
+			engine_errors.append(where)
+
+var _errors := ErrorWatch.new()
+
+
 func _initialize() -> void:
+	## Installed BEFORE the first deferred call, so the window it watches is the
+	## whole run rather than the part after the first check.
+	OS.add_logger(_errors)
 	call_deferred("_run")
 
 
@@ -96,6 +145,24 @@ func _begin(game: SkyGearGame, seed_text: String = "PARITY") -> void:
 	game.set_seed_text(seed_text)
 	game.begin_run()
 	game.choose_draft(0)
+
+
+## A SKILL FIXTURE THAT IS SHAPED LIKE A SKILL.
+##
+## `SkyGearData.make_skill` is the one place the game builds a skill, so it is
+## the one place a fixture may build one either. Anything typed out here by hand
+## is a second copy of the schema that stops matching the moment the real one
+## grows a field — which is exactly what SG-149 was: three fixtures carrying
+## `shape`/`element`/`mods`/`passive_timer` and no `cooldown_left`, handed to a
+## rig whose real `_process` was running, raising fifteen times into a green log.
+##
+## Element is EMBER because these checks are about a TICK PERIOD and no element
+## changes one; the caller picks the shape and the timer, which are the two
+## things a passive-tick check is actually asserting about.
+func _passive_fixture(shape: String, passive_timer: float) -> Dictionary:
+	var skill := SkyGearData.make_skill(shape, "EMBER")
+	skill["passive_timer"] = passive_timer
+	return skill
 
 
 ## The player's own alignment file, as it stood before a single check ran —
@@ -223,6 +290,39 @@ func _run() -> void:
 	_deck_solids()
 	await process_frame
 	_owner_layout_untouched()
+
+	## THE TWO CHECKS THAT MAKE A GREEN RUN MEAN SOMETHING (SG-149).
+	##
+	## Last, on purpose: they are a verdict on every check above them, so they
+	## have to run after all of them. They read counts rather than a flag, and
+	## neither can raise — an index into `script_errors` is guarded by the same
+	## `is_empty()` that decides the verdict, because a check that raises takes
+	## the rest of its function with it and this one is at the end of the file.
+	_check("harness", "the run raised no script errors",
+		_errors.script_errors.is_empty(),
+		"0 raised" if _errors.script_errors.is_empty()
+			else "%d raised — first: %s" % [_errors.script_errors.size(),
+				_errors.script_errors[0]])
+
+	## A RATCHET, NOT A ZERO, AND THE DIFFERENCE IS DELIBERATE.
+	##
+	## The engine raises 56 `ERROR:` of its own on a clean run — all of them
+	## `Drawing is only allowed inside this node's _draw()`, from checks that
+	## call HUD paint functions outside a draw pass. They are pre-existing, they
+	## are not this row's work, and gating them to zero today would ship a red
+	## harness. Filed as SG-153 rather than left as a number nobody is counting.
+	##
+	## Scoping a new detector down to what happens to pass is failure mode three,
+	## so the count is PINNED: it may fall, it may not rise. The next agent who
+	## adds a 57th has to look at it, and whoever fixes SG-153 lowers this number
+	## and the check tightens itself.
+	const ENGINE_ERROR_BUDGET := 56
+	_check("harness", "and no more engine errors than the ones already written down",
+		_errors.engine_errors.size() <= ENGINE_ERROR_BUDGET,
+		"%d engine errors against a pinned %d (SG-153)%s"
+			% [_errors.engine_errors.size(), ENGINE_ERROR_BUDGET,
+				"" if _errors.engine_errors.size() <= ENGINE_ERROR_BUDGET
+					else " — newest: " + _errors.engine_errors[-1]])
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
 	## checks passed" while skipping a quarter of itself, because a coroutine pass
@@ -11347,6 +11447,19 @@ func _hazard() -> void:
 	## which divides neither 1/60 nor 0.05, so it is exactly the value the reset
 	## was rounding up. Driven through `_update_passives` itself rather than a
 	## reimplementation of it.
+	##
+	## THE FIXTURE IS BUILT BY `make_skill` AND NOT BY HAND (SG-149). These three
+	## rigs used to write their own skill dictionary — `{"shape", "element",
+	## "mods", "passive_timer"}` — which is every field `_update_passives` reads
+	## and none of the ones it does not. But `_begin` leaves the rig in
+	## `State.PLAY` and IN THE TREE, so its real `_process` runs beside the
+	## check: `_update_cooldowns` walked those skills and raised
+	## `Invalid access to property or key 'cooldown_left'`, fifteen times across
+	## this file, and the harness reported 997/997 over it. A hand-written
+	## fixture is a second, silent copy of the skill schema that nobody updates
+	## when the real one grows a field; `make_skill` IS the schema, so it cannot
+	## drift from it. Only `passive_timer` is set on top, because that is the
+	## one field this check is actually about.
 	var aura_rates: Array[float] = [1.0 / 60.0, 0.05, 0.1]
 	var aura_ticks: Array[float] = []
 	for step in aura_rates:
@@ -11355,8 +11468,7 @@ func _hazard() -> void:
 		rig.spawn_queue.clear()
 		rig.state = SkyGearGame.State.PLAY
 		rig.player.global_position = Vector2(9000.0, 9000.0)
-		rig.skills = [{"shape": "AURA", "element": "EMBER", "mods": {},
-			"passive_timer": 0.0}]
+		rig.skills = [_passive_fixture("AURA", 0.0)]
 		var fired := 0
 		var elapsed := 0.0
 		while elapsed < 20.0 - 0.0001:
@@ -11386,8 +11498,7 @@ func _hazard() -> void:
 	pulse_carry.spawn_queue.clear()
 	pulse_carry.state = SkyGearGame.State.PLAY
 	pulse_carry.player.global_position = Vector2(9000.0, 9000.0)
-	pulse_carry.skills = [{"shape": "PULSE", "element": "EMBER", "mods": {},
-		"passive_timer": 0.5}]
+	pulse_carry.skills = [_passive_fixture("PULSE", 0.5)]
 	## Read the period off the skill rather than off the card: `cooldown` is
 	## mod-scaled on the way through `skill_stats` (the raw 4.4 arrives as 3.52),
 	## so a hardcoded expectation here would be asserting the table and not the
@@ -11406,8 +11517,7 @@ func _hazard() -> void:
 	pass_carry.spawn_queue.clear()
 	pass_carry.state = SkyGearGame.State.PLAY
 	pass_carry.player.global_position = Vector2(9000.0, 9000.0)
-	pass_carry.skills = [{"shape": "AURA", "element": "EMBER", "mods": {},
-		"passive_timer": 0.5}]
+	pass_carry.skills = [_passive_fixture("AURA", 0.5)]
 	pass_carry._update_passives(0.6)
 	var pass_left: float = float(pass_carry.skills[0].passive_timer)
 	_check("hazard", "and a passive tick carries its remainder instead of throwing it away",

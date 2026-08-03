@@ -266,8 +266,33 @@ func _launch(tool: Dictionary) -> int:
 		args.append_array(["--resolution", "1600x900"])
 	var out: Array = []
 	var code := OS.execute(_godot_path(), args, out, true)
+	var raised := 0
 	for line in out:
-		print(str(line).strip_edges(false, true))
+		var text := str(line).strip_edges(false, true)
+		print(text)
+		raised += text.count("SCRIPT ERROR")
+	## A TOOL THAT RAISES CANNOT REPORT GREEN (SG-149).
+	##
+	## The harness printed fifteen `SCRIPT ERROR` lines and exited 0, and `all`
+	## called that a clear run — for a long time, because the only thing read
+	## here was the exit code, and a GDScript runtime error does not touch the
+	## exit code. It is not an exception: it prints, abandons the rest of the
+	## function it was raised in, and returns to the caller as though the call
+	## had completed. So the checks after it in that function never ran and the
+	## verdict was still "all clear".
+	##
+	## The harness now watches its own errors from the inside, which is the
+	## better half — but only the harness has a `_check` to hang that on, and
+	## `text`, `balance`, `timing`, `motion`, `model`, `clip`, `still`, `rune`
+	## and `layout` do not. This is the half that covers them: we are already
+	## holding every line each one printed, so the gate costs a substring count.
+	##
+	## Deliberately does NOT override a nonzero code — a tool that already failed
+	## keeps its own failure count, which is what the report prints.
+	if raised > 0 and code == 0:
+		print("\n  %s exited 0 with %d raised SCRIPT ERROR — counting that as a failure (SG-149)."
+			% [str(tool.id), raised])
+		return raised
 	return code
 
 
