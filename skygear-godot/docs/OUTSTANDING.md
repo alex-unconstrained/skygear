@@ -17,6 +17,47 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### "Our ship feels like a floating plane" — and why the fix is the EDGE, not one modelled deck
+Asked 2026-08-02: *"Any chance it might be worth having meshy create the 3D
+model of the deck of our ship? I'm still not very happy with the design of the
+railings, prow, etc... Our ship feels like a floating plane - not the deck of a
+ship. Convince me of the better path."*
+
+**The complaint is measured fact, not taste.** DECK-DESIGN §1: 94% of the
+default frame is planking and the near two thirds carries no ship's edge at all.
+
+**The recommendation given (awaiting his decision): model the EDGE KIT, not the
+deck.** Four reasons the deck itself is the wrong object to generate:
+
+1. **The deck is the play space and it is dimensioned.** 1680 x 2320, lanes at
+   ±560, eight cargo rects, three crossings, the spawn line, cannon/vent/Boiler
+   positions — every one a collision or gameplay number that checks measure. A
+   generated mesh will not return at those dimensions, and ratio control is
+   precisely Meshy's demonstrated weakness here: the boarding hulk ignored a
+   stated depth ratio FOUR times, at ninety credits.
+2. **Texture density goes backwards.** The deck is 23 m long and fills most of
+   the screen; baked at 2048 that is a few pixels per plank, against procedural
+   planking's effectively infinite resolution. It would trade the most-looked-at
+   surface in the game for a blurrier one.
+3. **The deck has to CHANGE.** Props re-stow every wave, fittings add real
+   geometry (barricade, spare gun, fourth vent), and his own accumulating
+   scorch-and-stain marks land on it. A baked mesh does none of that.
+4. **The defect is peripheral.** Railings, prow, the absent hull — all edge. Fix
+   the edge and the middle stops reading as a plane.
+
+**The proposed kit** (hand-modelled by him, the route with a 7-for-7 record
+today): a RAIL MODULE that tiles (one stanchion-and-rail section — also where
+generation fails worst: a prompted railing came back on a timber plinth), the
+BOW assembly as one real piece (replacing the painted prow he asked to delete),
+the STERN, and optionally a MAST-AND-RIGGING kit, which DECK-IDENTITY-DESIGN
+wants anyway as shadow casters. All of it wraps an unchanged rectangle.
+
+**Sequencing advised:** an agent is building the bow/stern/sheer as procedural
+geometry right now. Let it land, look at it, then hand-model whatever still
+reads wrong — replacing known-bad parts rather than betting the play space on
+one generation. Prompts to be written on his word.
+
+
 ### Boarders should ARRIVE, not appear — transports, and a jump across the gap
 Asked 2026-08-02, in two messages that are one idea:
 
@@ -140,6 +181,17 @@ the figures himself.
 6. **Furnace knights want slower, more telegraphed hits** — "hard hitting but
    designed to be dodged." A design change, not a number nudge: the fantasy is
    a wall you read and step around.
+   **DONE 2026-08-02 (board SG-97)** — four numbers as one design: windup
+   0.55 -> 0.90 (the read, the Colossus's own tell), recover 0.60 -> 1.00 (the
+   punish), damage 20 -> 34 (three connected swings kill you), reach and swing
+   untouched because they ARE the drawn wedge. Throughput against things that
+   cannot dodge is held at 17.4 -> 17.9 dps on purpose, so the wave schedule is
+   unmoved. And the fault under the ask: the wedge was drawn as a 120-degree fan
+   and the hit was tested as a full CIRCLE, so stepping around the flank — the
+   exact move the picture asks for — never worked. `telegraph · a swing lands
+   inside the wedge it drew and nowhere else`. Balance numbers on the board row,
+   with the honest caveat that the bot never dodges. **Left open in NEEDS_ALEX
+   for his hands** — the bot cannot judge this one for him.
 7. **Object scale audit** — "why are some objects so much larger and what do
    they do?" Distinct from SG-79 (which trued heights against intent): he is
    asking what each thing IS and whether its size is earned.
@@ -147,7 +199,22 @@ the figures himself.
 **Features**
 8. **Sentry autocast** — hold the hotkey to toggle "always drop at my feet,"
    with a visual indicator that it is on.
+   **DONE 2026-08-02 (board SG-98)** — hold the slot's own binding for 0.45s to
+   arm it, the same hold again to stand it down; a lit ring in the element's
+   colour plus the word AUTO on the key row says it is armed. Armed means the
+   existing idle auto-place drops its grace to zero, so it lands at your feet
+   the instant the cooldown ends. Survives a draft, a wave and a pause because
+   the flag lives on the skill dict: `sentry · and stays armed across a wave
+   change`, `sentry · and is still armed when the pause lifts`.
 9. **Auto-attack element choice** — so the basic attack is not always Ember.
+   **DONE 2026-08-02 (board SG-99)** — a cycling THE CORE plate on the title
+   screen, under WHO IS ABOARD, which is where the auto-attack's element was
+   already being chosen silently by the class pick. Not a card (a card is dealt,
+   and this is wanted every run), not the draft (the Cleave is deliberately
+   undraftable and the 32-cell matrix is derived by counting the eight shapes
+   that are), not the Workshop (it would gate flavour behind scrip). Consumes no
+   RNG, so seeds are unmoved: `auto · and naming another one costs the seeded
+   stream nothing`, `auto · and the Cleave is still never dealt as a card`.
 10. **Enemies should FADE after death** rather than vanishing.
 11. **3D weapons** — spears for the crew (who currently bayonet-stab with empty
     hands), plus a few steampunk weapons banked for later.
