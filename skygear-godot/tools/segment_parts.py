@@ -136,31 +136,22 @@ TRI_PART_FLOOR = 220
 # here is 0.00002, so this is three orders of margin and not a fudge.
 AXIS_RATIO_TOLERANCE = 0.02
 
-# THE METALLIC CEILING FOR THIS DECK, and it is ONE number because it was
-# learned once and then missed once.
+# THE METALLIC CEILING FOR THIS DECK — imported, not restated.
 #
-# THIS DECK IS LIT BY LAMPS. A high-metallic surface with almost no environment
-# to reflect has nothing to return: metal in a dark scene is dark. That is
-# physically correct and dramatically useless — it renders the machine as a hole
-# in the planking rather than as a machine. SG-90 learned this from a rendered
-# frame (.shots/clips/boss frame 30, first pass) and wrote the conclusion into
-# the PALETTE below, where it applied to the ONLY path that existed then.
+# It lived here as a number inside PALETTE, and that is precisely how it got
+# missed: SG-90 learned from a rendered frame that this lamp-lit deck turns a
+# metallic surface into a hole in the planking, wrote the conclusion into the
+# only path that existed, and then SG-94 added the painted path below and handed
+# Meshy's material straight through. An audit since found the same omission in
+# `tools/skyships.py` and in every glb in `assets/models/` — Meshy ships NO
+# metallicFactor at all, which glTF reads as 1.0.
 #
-# SG-94 then added the PAINTED path beside it, and the painted path handed
-# Meshy's material straight through. Meshy ships NO metallicFactor at all, which
-# in glTF means the default 1.0, over a metallic map measuring mean 0.4947 /
-# p95 0.7804 / max 0.9647 — twice the ceiling on average and near-chrome at the
-# top. The fact was known in one place and contradicted in another; the boss went
-# dark again and read as a texture bug.
-#
-# So the ceiling lives HERE, above both paths, and both are checked against it:
-# the flat path by the assertion under PALETTE, the painted path by
-# `clamp_metallic`. A THIRD path must not be able to miss it — that is the whole
-# point of this constant existing rather than two clamps that happen to agree.
-#
-# The value is the highest metallic SG-90's judged-by-eye palette actually uses
-# (the head, 0.34). It is a ceiling, not a target: parts are free to sit under it.
-LAMPLIT_METALLIC_MAX = 0.34
+# So the number and its reason now live in `tools/lamplit.py`, above every path
+# that could miss them, and this file is one of its readers rather than its
+# owner. Run `python tools/lamplit.py audit` for the measurement.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from lamplit import (LAMPLIT_METALLIC_MAX, check_palette,  # noqa: E402
+                     clamp_metallic)
 
 # THE PALETTE, by role, out of DESIGN's own list — blackened steel, riveted warm
 # brass, oxblood leather, oxidised copper, and sampled against the colours the
@@ -196,61 +187,8 @@ PALETTE = {
 # The flat path's half of the ceiling, asserted at import so it cannot drift.
 # Editing a PALETTE row up past the ceiling is exactly the edit that would
 # reintroduce SG-90's black silhouette, and it now fails before anything renders.
-_over = {r: v[1] for r, v in PALETTE.items() if v[1] > LAMPLIT_METALLIC_MAX}
-assert not _over, ("PALETTE metallic above the lamplit ceiling %.2f: %s"
-                   % (LAMPLIT_METALLIC_MAX, _over))
-del _over
+check_palette(PALETTE, "segment_parts.PALETTE")
 
-
-def clamp_metallic(material) -> dict:
-    """The painted path's half of the ceiling. Returns what it did, for the log.
-
-    glTF's effective metallic is `metallicFactor * metallicRoughnessTexture.b`,
-    so a factor alone is not the knob — a factor of 1.0 over Meshy's map IS the
-    bug. With a map present the factor is set so the map's PEAK texel lands on
-    the ceiling, which makes the guarantee exact and easy to state: no texel on
-    this surface exceeds `LAMPLIT_METALLIC_MAX`. Scaling to the peak rather than
-    to the mean errs on the BRIGHT side, and bright is the side this deck's one
-    recorded failure was not on.
-
-    The pixels are not rewritten. The map keeps its own spatial variation — the
-    painted difference between plate and brass is the reason to have a map at
-    all — and only its overall level comes down.
-    """
-    import numpy as np
-    before = float(material.metallicFactor
-                   if material.metallicFactor is not None else 1.0)
-    pic = getattr(material, "metallicRoughnessTexture", None)
-    if pic is None:
-        after = min(before, LAMPLIT_METALLIC_MAX)
-        peak_in = before
-    else:
-        b = np.asarray(pic.convert("RGB"), dtype=np.float64)[..., 2] / 255.0
-        peak_in = before * float(b.max())
-        after = (before if peak_in <= LAMPLIT_METALLIC_MAX
-                 else LAMPLIT_METALLIC_MAX / float(b.max()))
-        stat = {k: float(np.percentile(b, k)) for k in (50, 95, 99)}
-        print("metallic: map mean %.4f p95 %.4f max %.4f" % (
-            b.mean(), stat[95], b.max()))
-        print("metallic: effective mean %.4f -> %.4f, p95 %.4f -> %.4f, "
-              "peak %.4f -> %.4f (ceiling %.2f)" % (
-                  before * b.mean(), after * b.mean(),
-                  before * stat[95], after * stat[95],
-                  peak_in, after * float(b.max()), LAMPLIT_METALLIC_MAX))
-    material.metallicFactor = after
-    print("metallic: metallicFactor %s -> %.4f" % (
-        "unset (glTF default 1.0)" if before == 1.0 else "%.4f" % before, after))
-    ## THE GUARD, not decoration. This function's whole reason to exist is that
-    ## the ceiling was applied on one path and silently missed on another, so it
-    ## asserts its own postcondition instead of trusting the arithmetic above.
-    ## A future map with a zero peak, or an early return added by someone in a
-    ## hurry, fails HERE rather than three days later on a dark boss.
-    if after * (1.0 if pic is None else float(b.max())) > LAMPLIT_METALLIC_MAX + 1e-6:
-        raise SystemExit("clamp_metallic failed its own ceiling: peak %.4f > %.2f"
-                         % (after * float(b.max()), LAMPLIT_METALLIC_MAX))
-    return {"factor_in": before, "factor_out": after,
-            "peak_in": peak_in, "peak_out": min(peak_in, LAMPLIT_METALLIC_MAX),
-            "ceiling": LAMPLIT_METALLIC_MAX}
 
 # What the figure is DRAWN at, and it is not a number this file invented:
 # scripts/view3d.gd's `boarder_height("BOSS")` is (120 + radius*3) with no

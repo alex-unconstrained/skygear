@@ -329,9 +329,47 @@ const MODELS := {
 }
 
 
+## NAME KEYS TO REBUILD ONLY THOSE. With no arguments this still rebuilds all of
+## them, which is the behaviour every existing caller has.
+##
+## THIS ARGUMENT EXISTS BECAUSE THE DEFAULT IS A RECORDED FOOT-GUN (board SG-72).
+## `MODELS` is not a list of static props — it is also the switch for which
+## boarders are meshes, so it carries `boss`, `scrapper` and `gunner`, whose
+## scenes are built by OTHER tools: `tools/rig_parts.gd` writes the boss's
+## thirteen-part scene and `tools/ingest_model.py` writes the rigged figures'.
+## A blanket run overwrites those with dumb static holders built from whatever
+## `<key>.glb` happens to sit beside them. It has happened once already: it
+## clobbered `scrapper.tscn` and took the harness to 725/729, and it is written
+## up in `NEEDS_ALEX.md` as something to remember rather than as something fixed.
+##
+## Adding one prop should not require re-deriving twenty-two other scenes and
+## hoping none of them was authored by a different tool this week. So:
+##
+##   godot --path . --headless --script tools/static_model.gd -- railing_segment
+##
+## An unknown key is a FAILURE rather than a silent no-op, because the whole
+## point of naming keys is that you believed you named a real one.
 func _run() -> void:
+	var only := OS.get_cmdline_user_args()
+	var keys: Array = []
+	if only.is_empty():
+		keys = MODELS.keys()
+		print("static_model: rebuilding ALL %d keys — this includes scenes other "
+			% keys.size() + "tools own (boss, scrapper, gunner). See SG-72.")
+	else:
+		var bad_key := 0
+		for a in only:
+			if MODELS.has(a):
+				keys.append(a)
+			else:
+				push_error("static_model: no such key %s" % a)
+				bad_key += 1
+		if bad_key > 0:
+			quit(bad_key)
+			return
+		print("static_model: rebuilding %d named key(s): %s" % [keys.size(), str(keys)])
 	var bad := 0
-	for key in MODELS:
+	for key in keys:
 		if not _wrap(str(key), float(MODELS[key])):
 			bad += 1
 	quit(bad)

@@ -17,7 +17,8 @@
     "factor_out": 0.35243902439024394,
     "peak_in": 0.9647058823529412,
     "peak_out": 0.34,
-    "ceiling": 0.34
+    "ceiling": 0.34,
+    "changed": true
   },
   "metallic_note": "Meshy delivers no metallicFactor, which in glTF means 1.0, over a metallic map peaking near chrome. This deck is lit by lamps and has no environment to reflect, so a metallic surface returns nothing and reads as a hole. `factor_out` is set so the map's PEAK texel lands on `lamplit_metallic_max`; the map's own pixels are untouched, only its level. Same ceiling the flat PALETTE obeys \u2014 see LAMPLIT_METALLIC_MAX.",
   "faces_in": 1318962,
