@@ -12703,6 +12703,7 @@ func _arrival() -> void:
 	_arrival_structure()
 	_arrival_ship()
 	_arrival_ring()
+	_arrival_drop()
 
 
 ## Get a live boarder that is still in its arrival window, out of a real run
@@ -13203,3 +13204,433 @@ func _arrival_ring() -> void:
 	_check("arrival", "and it is the colour the hidden 2D ring has always been — the regression guard",
 		same and SkyGearView3D.ARRIVAL_RING == Color("#e8c376"),
 		"enemy.gd still draws #e8c376: %s" % same)
+
+
+## ═══ SG-142 · THE DROP ═══════════════════════════════════════════════════════
+##
+## Stage 3, and the half of the ask the owner has now made three times: *"why
+## cant you make the enemies jump off the boarding ship and land on deck"*.
+## Stages 1 and 2 put a hull on the bow and a closing ring on the planking; this
+## is the boarder crossing between them.
+##
+## WHAT THESE CHECKS ARE FOR, and it is not the arc's good looks. Three
+## properties carry the feature and every one of them is a way it could be wrong
+## quietly:
+##
+##   1. The mesh cannot end anywhere but on the simulation's own spot. Not within
+##      a tolerance — EXACTLY, because the endpoint is a parameter re-read every
+##      frame rather than a stored plan. A renderer that predicts where a boarder
+##      will be is the `_build_berth_plan` the design kills by name.
+##   2. The drop is legible. The ring says WHERE and the falling figure says
+##      WHEN, and if the arc makes the landing point harder to read it is the
+##      arc's height that goes, not the ring. Check (4) is that pre-commitment
+##      written as a number.
+##   3. Nothing that is missing an asset may stop a kind from arriving. Only
+##      SWARM ships a clip called `jump`; the fallback is the common path.
+func _arrival_drop() -> void:
+	_arrival_drop_arc()
+	_arrival_drop_clips()
+	_arrival_drop_live()
+
+
+## --- (A) THE ARITHMETIC, as pure functions, with no deck stood up ------------
+func _arrival_drop_arc() -> void:
+	var land := Vector2(-140.0, -820.0)
+
+	## (1) IT STARTS AT THE TRANSPORT AND FINISHES ON THE SIMULATION'S SPOT. The
+	## end is asserted with `==` rather than `is_equal_approx`: the crossing is a
+	## lerp whose final `t` is exactly 1, so the drawn point on the landing frame
+	## is the sim's own Vector2 bit for bit, and "close enough" is the tolerance
+	## this design was written so as not to need.
+	var launched := SkyGearView3D.arrival_arc_ground(land, SkyGearEnemy.ARRIVAL_TIME)
+	var landed := SkyGearView3D.arrival_arc_ground(land, 0.0)
+	var midway := SkyGearView3D.arrival_arc_ground(land, SkyGearEnemy.ARRIVAL_TIME * 0.5)
+	_check("arrival", "the drop starts at the transport's own station and ends exactly on the simulation's spot",
+		launched == SkyGearView3D.ARRIVAL_HOLD_XZ and landed == land
+			and midway.distance_to(land) > 1.0
+			and midway.distance_to(SkyGearView3D.ARRIVAL_HOLD_XZ) > 1.0,
+		"launch %s (hold %s), land %s (sim %s)"
+			% [launched, SkyGearView3D.ARRIVAL_HOLD_XZ, landed, land])
+
+	## (2) THE LANDING POINT IS A PARAMETER, WHICH IS WHY A SHOVE BENDS THE ARC
+	## INSTEAD OF BREAKING IT. Two different destinations at the SAME instant of
+	## the same crossing must give two different drawn points, and each must still
+	## finish exactly on its own destination. A renderer that baked the endpoint
+	## when the boarder spawned returns the same point for both — which is the
+	## failure this makes impossible rather than unlikely.
+	var shoved := land + Vector2(260.0, 180.0)
+	var bent := SkyGearView3D.arrival_arc_ground(shoved, SkyGearEnemy.ARRIVAL_TIME * 0.5)
+	_check("arrival", "and the landing point is a parameter, so a boarder shoved in mid-air bends its arc instead of teleporting at the end",
+		bent != midway and SkyGearView3D.arrival_arc_ground(shoved, 0.0) == shoved,
+		"one instant, two destinations: %s vs %s" % [midway, bent])
+
+	## (3) IT CLIMBS OUT FROM UNDER OUR RAIL AND LANDS ON THE DECK. The launch
+	## height is `ARRIVAL_DECK_Y`, the arriving hull's own deck, which stage 1
+	## measured as BELOW ours — so a boarder comes up over the bow rather than
+	## falling out of the sky, and the height it lands at is zero and not "nearly
+	## zero", because a figure stopping an inch above the planking is the thing the
+	## whole contact-shadow system exists to catch.
+	## ONE RISE AND ONE FALL, in that order. A curve that dips and recovers is a
+	## figure bouncing on the way over, and — worse for the ring — it gives the
+	## player two moments that look like the landing.
+	var falling := false
+	var bounces := 0
+	var last := -1e9
+	var apex := -1e9
+	for i in 61:
+		var st: float = SkyGearEnemy.ARRIVAL_TIME * (1.0 - float(i) / 60.0)
+		var h := SkyGearView3D.arrival_arc_lift(st)
+		apex = maxf(apex, h)
+		if h < last - 0.0001:
+			falling = true
+		elif falling and h > last + 0.0001:
+			bounces += 1
+		last = h
+	var descent_ok: bool = falling and bounces == 0
+	_check("arrival", "the drop climbs out from under our own rail and lands at exactly deck height",
+		is_equal_approx(SkyGearView3D.arrival_arc_lift(SkyGearEnemy.ARRIVAL_TIME),
+			SkyGearView3D.ARRIVAL_DECK_Y)
+			and SkyGearView3D.ARRIVAL_DECK_Y < 0.0
+			and SkyGearView3D.arrival_arc_lift(0.0) == 0.0
+			and apex > 0.0 and descent_ok,
+		"launches at %.0f, apex %.0f, lands at %.2f"
+			% [SkyGearView3D.ARRIVAL_DECK_Y, apex,
+				SkyGearView3D.arrival_arc_lift(0.0)])
+
+	## (4) THE READABILITY PIN, PRE-COMMITTED WITH A CUT BRANCH.
+	##
+	## Pillar 6 outranks atmosphere, and the way an arc fights a landing ring is by
+	## still travelling sideways while it comes down: the eye then has a figure
+	## moving one way and a mark sitting somewhere else, and the player cannot tell
+	## which of them is the promise. So the number that matters is not the arc's
+	## height, it is HOW MUCH OF THE CROSSING IS ALREADY DONE WHEN THE FALL STARTS.
+	## At 80% or better the descent reads as a drop ONTO the mark.
+	##
+	## THE CUT BRANCH, written before any frame was looked at: if this cannot be
+	## held, the fix is to lower `ARRIVAL_ARC_APEX` and raise `ARRIVAL_ARC_LEAD`
+	## until it can, or to drop the arc entirely and keep stages 1 and 2 — never to
+	## relax this number. An arc that argues with the ring is worse than no arc.
+	var travel: float = 1.0 - pow(1.0 - SkyGearView3D.ARRIVAL_ARC_APEX_U,
+		SkyGearView3D.ARRIVAL_ARC_LEAD)
+	_check("arrival", "and it is over its own landing ring before it begins to fall — the readability pin",
+		travel >= 0.80,
+		"%.0f%% of the crossing done at the apex, floor 80%%" % [travel * 100.0])
+
+	## (5) THE PER-BOARDER BOW DECORATES THE MIDDLE AND CAN NEVER MOVE THE ENDS. It
+	## exists so a batch of eight does not come down eight parallel rails; it is
+	## closed by `sin(PI*u)` at both ends by construction, and this says the
+	## construction is what shipped.
+	var ends_free := true
+	for id in [1, 7, 13, 61, 122, 907]:
+		var s := SkyGearView3D.arrival_arc_sway(int(id))
+		if SkyGearView3D.arrival_arc_ground(land, 0.0, s) != land:
+			ends_free = false
+		if SkyGearView3D.arrival_arc_ground(land, SkyGearEnemy.ARRIVAL_TIME, s) \
+				!= SkyGearView3D.ARRIVAL_HOLD_XZ:
+			ends_free = false
+	_check("arrival", "and the per-boarder bow decorates the middle of the crossing and never the ends of it",
+		ends_free and SkyGearView3D.arrival_arc_ground(land,
+			SkyGearEnemy.ARRIVAL_TIME * 0.5, 1.0) != midway,
+		"six ids, both ends pinned: %s" % ends_free)
+
+	## (6) WHO CROSSES AND WHO KEEPS ITS OWN ALTITUDE — READ OFF THE TABLES, never
+	## off a typed list of three names. STATUS's seventh failure mode in its purest
+	## form was a roster check looping a hand-typed list, where the one row missing
+	## from the list was the only row that could have failed it. A kind that flies
+	## owns its own `position.y` through `_fly`, and a second author of one number
+	## is the two-functions-disagreeing failure; a kind that is segmented is the
+	## Colossus and has no transport to leave.
+	var roster: Array[String] = []
+	for kind in SkyGearView3D.ROTOR_MOTION:
+		if SkyGearView3D.arrival_arc_lifts(str(kind)):
+			roster.append("%s flies and was given a lift as well" % kind)
+		if not SkyGearView3D.arrival_arc_travels(str(kind)):
+			roster.append("%s flies and was denied the crossing" % kind)
+	for kind in SkyGearView3D.SEGMENTED:
+		if SkyGearView3D.arrival_arc_travels(str(kind)):
+			roster.append("%s is segmented and was sent across anyway" % kind)
+	var ordinary := 0
+	for kind in SkyGearData.ENEMIES:
+		if SkyGearView3D.arrival_arc_lifts(str(kind)) \
+				and SkyGearView3D.arrival_arc_travels(str(kind)):
+			ordinary += 1
+	_check("arrival", "who crosses and who keeps its own altitude is read off ROTOR_MOTION and SEGMENTED, never a typed roster",
+		roster.is_empty() and ordinary >= 3,
+		_joined(roster) + ("   %d kinds get the whole arc" % ordinary))
+
+	## (7) AND IT HOLDS NO CLOCK. The rule `arrival_u` was built on and the one
+	## SG-133 complained about: a renderer with a clock of its own is a renderer
+	## `tools/still.gd` cannot freeze, and four separate measuring rigs here have
+	## already published a moving scene as a still. Every function in the drop is a
+	## pure function of `state_time`. Structural, because the property is "there is
+	## nothing here to drift" and no runtime sample can show that.
+	var ticking: Array[String] = []
+	for fn in ["arrival_arc_u", "arrival_arc_lift", "arrival_arc_ground",
+			"arrival_arc_sway", "arrival_arc_spread"]:
+		var body := _function_body("res://scripts/view3d.gd", str(fn))
+		if body == "":
+			ticking.append("%s: not found" % fn)
+			continue
+		for line in body.split("\n"):
+			var code := str(line).strip_edges()
+			if code.begins_with("#"):
+				continue
+			if code.contains("Time.") or code.contains("_flicker") \
+					or code.contains("run_time") or code.contains("delta"):
+				ticking.append("%s: %s" % [fn, code])
+	_check("arrival", "the drop holds no clock of its own — the SG-133 rule applied to the arc",
+		ticking.is_empty(), _joined(ticking) + "   5 functions read")
+
+
+## --- (B) THE CLIPS, on real rigs built from the committed scenes -------------
+##
+## THE ASSET TRUTH THIS IS WRITTEN AGAINST, measured off `tools/models.json` and
+## contradicting the design's §9 claim that "jump clips [are] ingested for four
+## of five kinds": **only SWARM ships a clip literally named `jump`.** ARMORED
+## and the Boilerwright carry `jump2` and `jump_attack`; SCRAPPER carries `idle,
+## walk, run, swing, hurt` and nothing else; GUNNER has no clips at all.
+func _arrival_drop_clips() -> void:
+	var idle_in_the_air: Array[String] = []
+	var real_jumps := 0
+	var fell_back := 0
+	var asked := 0
+	var skipped: Array[String] = []
+	for kind in SkyGearData.ENEMIES.keys():
+		var path := SkyGearView3D.model_path(str(kind))
+		if not ResourceLoader.exists(path):
+			continue
+		## Only the kinds that actually cross. The Colossus has a rig and a clip
+		## library and is never asked to jump — `arrival_arc_travels` says so off
+		## `SEGMENTED` — and a check that demanded a jump pose from it would be
+		## asserting a thing the feature does not do, which is STATUS's seventh
+		## failure mode. Named in the detail rather than dropped silently.
+		if not SkyGearView3D.arrival_arc_travels(str(kind)):
+			skipped.append(str(kind))
+			continue
+		var rig := SkyGearRig3D.new()
+		root.add_child(rig)
+		var built: bool = rig.setup(path,
+			SkyGearView3D.boarder_height(str(kind)) * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		## A kind with no AnimationPlayer at all is the GUNNER, a lump driven by
+		## arithmetic with nothing to ask. Not a failure here, and not silently
+		## skipped either — `asked` is reported.
+		if built and rig.anim != null and not rig.anim.get_animation_list().is_empty():
+			asked += 1
+			rig.want("jump", 0.0, SkyGearEnemy.ARRIVAL_TIME)
+			## THE CLIP, NOT THE STATE. A rig asked for "jump" reports `state ==
+			## "jump"` whether or not it found anything to play, so a check written
+			## on the state would pass green over a T-pose — which is the bug
+			## report, not the feature.
+			var playing := str(rig.anim.current_animation)
+			if playing == "" or playing.begins_with("idle"):
+				idle_in_the_air.append("%s -> %s" % [kind, playing])
+			elif playing.begins_with("jump"):
+				real_jumps += 1
+			elif playing == "run" or playing == "walk":
+				fell_back += 1
+			else:
+				idle_in_the_air.append("%s -> %s, neither a jump nor a gait"
+					% [kind, playing])
+		rig.queue_free()
+
+	## (1) NO KIND IS LEFT STANDING IN THE AIR. This is the whole of the asset
+	## risk: `want("jump")` on the code this replaces goes through `_fallback`'s
+	## `_:` arm to `_or_idle()` for every kind but one, and a T-pose idle sailing
+	## across the bow is a worse picture than the pop-in it was meant to fix.
+	_check("arrival", "no boarder crosses in an idle pose — a missing jump clip never stops a kind arriving",
+		asked > 0 and idle_in_the_air.is_empty(),
+		"%d kinds asked, %d play a real jump, %d fall back to a gait; %s never crosses.  %s"
+			% [asked, real_jumps, fell_back, _joined(skipped),
+				_joined(idle_in_the_air)])
+
+	## (2) AND THE SPELLING TABLE EARNS ITS PLACE. `VARIANTS["jump"]` exists
+	## because `has_clip("jump")` is false for most of the roster while a real jump
+	## sits in the pack under another name — so at least one kind must reach a clip
+	## through it, or the row is data with no reader (STATUS failure mode one) and
+	## the fallback is quietly doing all the work. `jump_attack` stays out of the
+	## table: a boarder that cannot be touched must not be drawn winding up.
+	_check("arrival", "and at least one kind reaches a real jump clip through the spelling table rather than the fallback",
+		## `.get`, never `VARIANTS["jump"]`: a constant subscript of a missing key is
+		## a PARSE error in GDScript, which takes the whole harness down instead of
+		## failing this one line. A check that cannot report its own failure is the
+		## silenced-detector mode arrived at by accident — found by deleting the row
+		## on purpose to see this check go red, which is the only way it shows up.
+		real_jumps > 0 and SkyGearRig3D.VARIANTS.has("jump")
+			and not (SkyGearRig3D.VARIANTS.get("jump", []) as Array).has("jump_attack"),
+		"%d of %d kinds play a jump clip; table %s"
+			% [real_jumps, asked, SkyGearRig3D.VARIANTS.get("jump", [])])
+
+	## (3) AND THE FALLBACK IS A MOVING CYCLE, NEVER `_or_idle`. Structural, on the
+	## arm itself, because the behavioural half above can only see the kinds that
+	## happen to be committed today — and the arm is what has to be right for the
+	## kind ingested next month.
+	var arm := _function_body("res://scripts/rig3d.gd", "_fallback")
+	_check("arrival", "and the jump fallback is a moving cycle written into _fallback, not a fall-through to idle",
+		arm.contains("\"jump\":") and arm.contains("has_clip(\"run\")"),
+		"_fallback names jump: %s" % arm.contains("\"jump\":"))
+
+
+## --- (C) A LIVE DECK, because the properties that matter are about the CALLER
+##
+## Every piece above is a pure function and every one of them could be perfect
+## while the renderer went on drawing boarders standing on the planking — which
+## is exactly the state stage 2 shipped in, and exactly what `shadow_pose` has
+## been in since SG-107: correct airborne arithmetic that no caller ever reached.
+## So these run a real frame of a real deck.
+func _arrival_drop_live() -> void:
+	var world = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world
+	var game: SkyGearGame = world.get_node("SkyGear")
+	view.cutscenes_enabled = false
+	view.stop_cutscene()
+	_begin(game)
+	game._process(0.05)
+	var boarder := _arriving_boarder(game)
+	if boarder == null:
+		_check("arrival", "a live deck puts a boarder in the air to photograph",
+			false, "nothing in state climb one frame into wave 1")
+		world.queue_free()
+		return
+
+	## Halfway across, and held there: `state_time` is written rather than waited
+	## for, so the frame under test is a chosen instant of the crossing rather than
+	## whatever the clock happened to be on.
+	var mid: float = SkyGearEnemy.ARRIVAL_TIME * 0.5
+	boarder.state = "climb"
+	boarder.state_time = mid
+	var sim_at: Vector2 = boarder.global_position
+	view._process(1.0 / 60.0)
+	var key := "e%d" % boarder.get_instance_id()
+	var rig: SkyGearRig3D = view._rigs.get(key)
+	var drawn := Vector2.ZERO
+	var lifted := 0.0
+	if rig != null:
+		drawn = Vector2(rig.position.x, rig.position.z) / SkyGearView3D.WORLD_SCALE
+		lifted = rig.position.y / SkyGearView3D.WORLD_SCALE
+
+	## (1) THE BOARDER IS ACTUALLY IN THE AIR, and this is the check that fails on
+	## the code it replaces. It is the owner's whole report: on stage 2 the mesh
+	## stands on the planking for the entire arrival window while the ring closes
+	## around a motionless figure. Both halves are asserted — off the deck, and
+	## short of its mark on it — because either one alone can be got by accident.
+	_check("arrival", "a boarder in its arrival window is drawn off the planking and short of its mark, not standing on it",
+		rig != null and lifted > 20.0 and drawn.distance_to(sim_at) > 40.0
+			and boarder.airborne(),
+		("lift %.0f, drawn %.0f short of the mark, sim untouched at %s"
+			% [lifted, drawn.distance_to(sim_at), sim_at]) if rig != null
+			else "no rig for %s" % boarder.kind)
+
+	## (2) THE SIMULATION DID NOT MOVE. The arc is a renderer, and the one way a
+	## renderer-only feature stops being one is by writing back. Nothing above may
+	## have touched where the boarder is, what can reach it, or its clock.
+	_check("arrival", "and the simulation's own position, clock and immunity are exactly as the renderer found them",
+		boarder.global_position == sim_at and not boarder.can_be_hit()
+			and is_equal_approx(boarder.state_time, mid),
+		"sim at %s, state %s, hittable %s"
+			% [boarder.global_position, boarder.state, boarder.can_be_hit()])
+
+	## (3) THE MOON DRAWS NO SECOND MARK. `directional_shadow_max_distance` is 34 m
+	## = 3,400 ground units, so a boarder at the apex is well inside the cascade and
+	## its cast silhouette lands a couple of hundred units from the ring — darker
+	## than the contact blob and pointing somewhere the boarder is not. Two marks
+	## under one man pointing different ways is something the owner has already
+	## reported once. Fails on the code this replaces, where the mesh casts.
+	var casting := 0
+	if rig != null:
+		for child in rig.find_children("*", "MeshInstance3D", true, false):
+			if (child as MeshInstance3D).cast_shadow \
+					!= GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				casting += 1
+	_check("arrival", "and casts no moon shadow of its own while it is crossing",
+		rig != null and casting == 0, "%d meshes still casting" % casting)
+
+	## (4) A MARK WITH HEIGHT UNDER IT IS NEVER SHRUNK TO A CONTACT CORE, the piece
+	## that had no home in `shadow_pose`. `SHADOW_CORE` means "a mesh is already
+	## casting here, so this blob is only the inch under a boot" — true of a figure
+	## standing and false of one 300 units up, where the blob is the only thing left
+	## saying where it is going to be. On the code this replaces the mark is
+	## multiplied by 0.42 and 0.62 at exactly that moment. Enqueued directly,
+	## because a MultiMesh instance buffer does not read back headless — the same
+	## reason the harness calls `shadow_pose` itself.
+	view._shadow_count = 0
+	view._shadow("probe-standing", Vector2.ZERO, 100.0, 0.5, 0.0, 0.0,
+		SkyGearView3D.SHADOW_CORE)
+	view._shadow("probe-flying", Vector2.ZERO, 100.0, 0.5, 0.0,
+		SkyGearView3D.ARRIVAL_ARC_APEX, SkyGearView3D.SHADOW_CORE)
+	var standing_w: float = view._shadow_size[0]
+	var flying_w: float = view._shadow_size[1]
+	var flying_a: float = view._shadow_alpha[1]
+	_check("arrival", "a mark with height under it is never shrunk to a contact core",
+		is_equal_approx(standing_w, 100.0 * SkyGearView3D.SHADOW_CORE_WIDTH)
+			and is_equal_approx(flying_w, 100.0)
+			and is_equal_approx(flying_a, 0.5)
+			and view._shadow_kind[1] == SkyGearView3D.SHADOW_LEANS,
+		"standing core %.1f wide, the same mark at %.0f up is %.1f wide"
+			% [standing_w, SkyGearView3D.ARRIVAL_ARC_APEX, flying_w])
+
+	## (5) AND A PROJECTILE'S MARK IS STILL NEVER THROWN — A REGRESSION GUARD, and
+	## the one this item nearly broke. RULE ONE says a bolt keeps its mark directly
+	## beneath itself however high it is (DESIGN §13c); a height test written one
+	## line wider than it needed to be sweeps every shell's mark down the moonlight,
+	## and shells are lifted TODAY, so that would have shipped live rather than
+	## dormant. Caught while writing the rule, which is why the guard is here.
+	view._shadow_count = 0
+	view._shadow("probe-bolt", Vector2(37.0, -12.0), 40.0, 0.6, 0.0, 400.0,
+		SkyGearView3D.SHADOW_CENTRED)
+	var bolt := view.shadow_pose(view._shadow_at[0], view._shadow_size[0],
+		view._shadow_depth[0], view._shadow_lift[0], view._shadow_kind[0])
+	_check("arrival", "and a projectile's mark is still never thrown down the moonlight — the RULE ONE regression guard",
+		view._shadow_kind[0] == SkyGearView3D.SHADOW_CENTRED
+			and is_equal_approx(bolt.origin.x, 37.0 * SkyGearView3D.WORLD_SCALE)
+			and is_equal_approx(bolt.origin.z, -12.0 * SkyGearView3D.WORLD_SCALE),
+		"a 400-unit bolt's mark sits at %s" % bolt.origin)
+
+	## (6) AND ON THE FRAME IT LANDS, IT LANDS ON THE SIM'S SPOT AND TAKES THE
+	## IMPACT. `react_land` has existed, written and called by nothing, since before
+	## this feature was designed — the sixth failure mode's inverse, a reader with
+	## no data. The squash rides on the rig's scale (`place` bakes it into the
+	## basis), so it is read off the transform rather than off a private, and it
+	## shows on the frame AFTER the landing because that is the order the sync runs
+	## in.
+	## THE SIMULATION ENDS THE CROSSING, not this test. Writing `state = "move"` by
+	## hand would be the harness asserting its own idea of when a climb finishes,
+	## and `enemy.gd` owns that transition — it is the `state_time <= 0.0` arm of
+	## the `climb` block, and it is reached from `_physics_process`, NOT from
+	## `_process`: the wave clock and the spawns run on the frame step, the state
+	## machines run on the physics step, and a headless harness steps neither by
+	## itself. So the boarder's own physics function is driven directly.
+	var spins := 0
+	while is_instance_valid(boarder) and boarder.airborne() and spins < 240:
+		boarder._physics_process(1.0 / 60.0)
+		spins += 1
+	view._process(1.0 / 60.0)
+	## `==` is not available here and this is not a weaker claim, it is a different
+	## measurement: the rig's position is the ground point multiplied by
+	## `WORLD_SCALE`, and dividing it back is a float round trip that loses the
+	## last bit. The EXACTNESS lives one layer down and is asserted there, on
+	## `arrival_arc_ground` itself, where no scaling happens. A hundredth of a
+	## ground unit is a ten-thousandth of a boarder's radius.
+	var settled := (Vector2(rig.position.x, rig.position.z)
+		/ SkyGearView3D.WORLD_SCALE) if rig != null else Vector2(1e9, 1e9)
+	var land_casting := 0
+	if rig != null:
+		for child in rig.find_children("*", "MeshInstance3D", true, false):
+			if (child as MeshInstance3D).cast_shadow \
+					!= GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+				land_casting += 1
+	## The squash rides on the basis, which `place` writes — so it appears on the
+	## frame after the landing, which is the order the sync runs in.
+	view._process(1.0 / 60.0)
+	var scale := rig.transform.basis.get_scale() if rig != null else Vector3.ONE
+	_check("arrival", "and when the simulation ends the crossing it is on the simulation's own spot, casting again, and takes the impact",
+		rig != null and not boarder.airborne() and spins > 0
+			and settled.distance_to(boarder.global_position) < 0.01
+			and is_equal_approx(rig.position.y, 0.0)
+			and land_casting > 0 and scale.y < scale.x * 0.999,
+		"landed after %d frames, drawn %.3f from the sim, %d meshes casting, squash %.3f"
+			% [spins, settled.distance_to(boarder.global_position), land_casting,
+				scale.y / maxf(0.0001, scale.x)])
+
+	world.queue_free()

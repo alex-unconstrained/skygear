@@ -40,13 +40,21 @@ extends Node3D
 ## "turn"` and `take_damage` returns zero through it, so for 1.6 seconds the
 ## simulation is doing nothing else and neither should the figure. It stays
 ## under `hurt` and `die` because a thing that has been killed mid-turn is dead.
-const PRIORITY := ["die", "hurt", "turn", "swing", "dash", "plant", "run", "walk",
-	"idle"]
+##
+## `"jump"` sits under `swing` and over `dash` for the same reason `turn` sits
+## where it does: a boarder crossing from the transport CANNOT be hit
+## (`SkyGearEnemy.can_be_hit()` returns false for the whole climb window), so
+## nothing under `hurt` can honestly interrupt it — and the one thing that can
+## end a climb early, a STEAM push, ends it by moving the boarder to `"move"`,
+## which is `run` and is below this line anyway.
+const PRIORITY := ["die", "hurt", "turn", "swing", "jump", "dash", "plant", "run",
+	"walk", "idle"]
 
 ## Clips that play once and hold rather than looping. A looping swing is a
 ## character having a fit — and a looping plant is a man doing calisthenics.
+## A looping jump is a man treading air.
 const ONE_SHOT := {"swing": true, "dash": true, "hurt": true, "die": true,
-	"plant": true, "turn": true}
+	"plant": true, "turn": true, "jump": true}
 
 ## How long the renderer shows the kneel after a Tap Main lands. The sim's own
 ## signal is `tap_cooldown` (6 s — a cooldown, not an action), so the action
@@ -66,8 +74,25 @@ const PLANT_WINDOW := 0.7
 ## swing..swing3 + spin + combo; the Boilerwright's native great-sword pack
 ## delivers swing..swing5 + spin (heavy two-handed cuts — the wrench swings at
 ## last). Each rig rotates through whichever subset it actually has.
+##
+## THE `jump` ROW IS NOT A ROTATION, IT IS A SPELLING TABLE, and that is the
+## whole reason it is here. Measured off `tools/models.json`: **only SWARM ships
+## a clip literally named `jump`.** ARMORED and the Boilerwright carry `jump2`
+## and `jump_attack` and no `jump`; SCRAPPER carries `idle, walk, run, swing,
+## hurt` and nothing else; GUNNER has no clips at all and never will, because it
+## flies. So `has_clip("jump")` is false for most of the roster and the naive
+## `want("jump")` falls straight through `_fallback`'s `_:` arm to `idle` — a
+## T-pose sailing through the air, which is the bug report, not the feature.
+##
+## `_variant_of` already filters to the clips a rig ACTUALLY has, so listing the
+## spellings here is what gets ARMORED its real jump without a per-kind branch
+## anywhere. `jump_attack` is deliberately NOT listed: it is a swing performed in
+## the air, and a boarder that is untouchable for the whole crossing must not be
+## drawn winding up during it (Pillar 6 — the ring says where, the pose must not
+## say "already dangerous").
 const VARIANTS := {
 	"swing": ["swing", "swing2", "swing3", "swing4", "swing5", "spin", "combo"],
+	"jump": ["jump", "jump2"],
 }
 var _variant := 0
 
@@ -77,6 +102,9 @@ var _variant := 0
 const BLEND := {
 	"swing": 0.06, "dash": 0.05, "hurt": 0.05, "die": 0.10, "plant": 0.08,
 	"turn": 0.12, "run": 0.14, "walk": 0.16, "idle": 0.22,
+	## A jump is entered from the frame the boarder leaves the transport; there is
+	## nothing to blend FROM, and a crossfade here is a figure easing into a leap.
+	"jump": 0.04,
 }
 
 ## Ground units per second the run cycle was authored at. Playback rate scales
@@ -489,6 +517,15 @@ func has_clip(clip: String) -> bool:
 	return anim != null and anim.has_animation(clip)
 
 
+## WHICH CLIP IS ACTUALLY ON SCREEN, as opposed to which state was asked for.
+## The two differ for most of the roster the moment `want("jump")` is called, and
+## the difference IS the thing worth testing — a harness that asserts `state ==
+## "jump"` would pass on a rig showing a T-pose. Reading `_clip` from outside is
+## the alternative and it is the accessor this exists to avoid.
+func playing() -> String:
+	return _clip
+
+
 ## Ask for a state. Idempotent — call it every frame with whatever the
 ## simulation says and it only acts when something changed.
 ## Is she travelling backwards relative to the way she is facing? Set by
@@ -618,6 +655,18 @@ func _fallback(next: String) -> String:
 			return "run" if has_clip("run") else _or_idle()
 		"dash":
 			return "run" if has_clip("run") else _or_idle()
+		## THE JUMP FALLBACK IS THE COMMON PATH, NOT AN EXCEPTION — write it that
+		## way. Most of the roster has no jump clip under any spelling (see
+		## VARIANTS), and `_or_idle()` would put a standing figure in the air for
+		## the whole crossing. A run cycle stretched over the climb window reads as
+		## a body in motion, which is wrong in the details and right in the one
+		## thing the player is reading: this thing is MOVING and it is not standing
+		## on my deck yet. Never `_or_idle` from here; a missing clip must not stop
+		## a kind from arriving.
+		"jump":
+			if has_clip("run"):
+				return "run"
+			return "walk" if has_clip("walk") else _or_idle()
 		_:
 			return _or_idle()
 
@@ -675,6 +724,10 @@ func react_hit(strength: float = 1.0) -> void:
 	_squash = maxf(_squash, 0.6 * clampf(strength, 0.0, 1.0))
 
 
+## Feet meet planking. Written for the arrival drop and, until SG-142, called
+## from nowhere — the sixth failure mode's inverse, a reader with no data. The
+## caller is `view3d.gd`'s enemy sync, on the one frame a boarder stops being
+## airborne.
 func react_land() -> void:
 	_squash = maxf(_squash, 0.85)
 

@@ -478,6 +478,172 @@ static func arrival_u(wave_time: float, wave_clear_time: float) -> float:
 static func _arrival_ease(u: float) -> float:
 	return u * u * (3.0 - 2.0 * u)
 
+
+## ═══ THE DROP ═══════════════════════════════════════════════════════════════
+##
+## Stage 3. A boarder is drawn crossing from the transport to the planking
+## instead of standing on the planking from its first frame — the half of the
+## ask the owner has now made three times, most recently as *"why cant you make
+## the enemies jump off the boarding ship and land on deck"*.
+##
+## RENDERER ONLY, AND THE PROPERTY THAT MAKES THAT SAFE. The simulation already
+## holds a boarder still and untouchable for `SkyGearEnemy.ARRIVAL_TIME`:
+## `state == "climb"` zeroes its velocity and `can_be_hit()` is false, and every
+## path that can reduce a boarder's health consults it. So nothing here changes
+## what can be damaged, what can be reached, or where anything is. What it
+## changes is where the MESH is drawn during a window the simulation has already
+## declared inert.
+##
+## THE LANDING POINT IS A PARAMETER, NEVER A MEMBER. `arrival_arc_ground` is
+## handed `land` and re-read from `enemy.global_position` on every frame, so a
+## boarder shoved by a STEAM push or knocked by a Cleave bends its arc mid-flight
+## and CANNOT land anywhere but on the spot the simulation already believes it
+## occupies. That is bounded by construction rather than by a tolerance — there
+## is no stored endpoint to go stale, because there is no stored endpoint. The
+## design's killed `_build_berth_plan`, which would have predicted the spawn
+## queue 2.2 s ahead, is the version of this that has state to desynchronise.
+##
+## AND IT HOLDS NO CLOCK. Every function below is a pure function of
+## `enemy.state_time`, which the simulation owns and counts down, exactly as
+## `arrival_u` is a pure function of the wave clock. `tools/still.gd` freezes the
+## drop by construction, and two runs of a screenshot tool agree because there is
+## nothing for them to disagree about (STATUS failure mode five).
+
+## HOW HIGH THE ARC GOES over the planking, in ground units, and WHEN it stops
+## climbing as a fraction of the crossing.
+##
+## READABILITY SET THESE, NOT SPECTACLE, and the ordering matters: Pillar 6
+## outranks atmosphere, so the arc is shaped around the ring rather than the ring
+## being fitted around the arc. The apex is EARLY (just past halfway) and the
+## horizontal lead is FRONT-LOADED (below), which together mean the boarder is
+## essentially over its own landing ring by the time it starts to fall. The last
+## third of the crossing is a near-vertical drop onto a mark that is already
+## closed — the player reads WHERE from the ring and WHEN from the falling
+## figure, and the two cues point at the same pixel instead of competing.
+##
+## 300 is deliberately modest against `SHADOW_LIFT_SPREAD`'s 300 and
+## `SHADOW_LIFT_FADE`'s 220: at the apex the contact mark is exactly twice as
+## wide and 2.36 times as faint as the one under a standing boarder, which is a
+## clear read without the mark dissolving. A taller arc buys a more dramatic
+## silhouette and costs the mark — and if the choice ever has to be made again,
+## the answer is to cut the height, not the ring.
+const ARRIVAL_ARC_APEX := 300.0
+const ARRIVAL_ARC_APEX_U := 0.52
+
+## How front-loaded the horizontal crossing is. `1 - (1-u)^LEAD`: at LEAD = 1 the
+## boarder travels at constant speed and is still moving sideways as it lands,
+## which reads as a figure being slid into place. At 2.4 it has covered 82% of
+## the distance by the apex and the remainder while dropping — a leap that
+## commits early and comes down, which is what a jump looks like and, more to the
+## point, what keeps the descent over the ring.
+const ARRIVAL_ARC_LEAD := 2.4
+
+## How far a boarder may bow off the straight line between the transport and its
+## mark, at the widest point, in ground units. Zero would send a batch of eight
+## down eight parallel rails — a conveyor belt, not a boarding party. It closes
+## to nothing at both ends by construction (`sin(PI*u)`), so it can never move
+## where a boarder lands.
+const ARRIVAL_ARC_SWAY := 130.0
+
+
+## HOW FAR THROUGH THE CROSSING — 0 as the boarder leaves the transport, 1 as it
+## lands. `state_time` counts DOWN from `ARRIVAL_TIME`, so this inverts it; the
+## window is read off the simulation and never restated here, the same rule
+## `arrival_ring_closing` follows.
+static func arrival_arc_u(state_time: float) -> float:
+	return 1.0 - clampf(state_time
+		/ maxf(0.05, SkyGearEnemy.ARRIVAL_TIME), 0.0, 1.0)
+
+
+## HOW HIGH OFF THE PLANKING, in ground units. Negative early, and that is the
+## point: `ARRIVAL_DECK_Y` is where the arriving hull's DECK sits and it is
+## BELOW ours (the stage-1 kill test is "masthead strictly below y = 0"), so a
+## boarder starts under our rail and climbs onto the deck rather than dropping
+## out of the sky onto it. It crosses zero about a quarter of the way through,
+## which is roughly when it clears the bow and becomes worth looking at.
+##
+## Two arcs, not one parabola, because one parabola cannot have both a chosen
+## apex height and a chosen apex time when the start and end heights are 1,045
+## units apart — a real ballistic curve from 745 below to 300 above would put the
+## apex almost at the landing. The climb eases out (a leap decelerating) and the
+## fall accelerates (`1 - d²`), so there is a beat of hang at the top and then a
+## committed drop.
+static func arrival_arc_lift(state_time: float, spread: float = 1.0) -> float:
+	var u := arrival_arc_u(state_time)
+	var apex: float = ARRIVAL_ARC_APEX * maxf(0.1, spread)
+	if u >= ARRIVAL_ARC_APEX_U:
+		var d: float = (u - ARRIVAL_ARC_APEX_U) \
+			/ maxf(0.001, 1.0 - ARRIVAL_ARC_APEX_U)
+		return apex * (1.0 - d * d)
+	var r: float = u / maxf(0.001, ARRIVAL_ARC_APEX_U)
+	return lerpf(ARRIVAL_DECK_Y, apex, 1.0 - (1.0 - r) * (1.0 - r))
+
+
+## WHERE ON THE DECK PLANE the boarder is drawn on its way in.
+##
+## `land` IS THE PARAMETER THAT MAKES THIS SAFE. It is `enemy.global_position`,
+## passed fresh every frame and stored nowhere, so at u = 1 this returns exactly
+## the simulation's own position — bit for bit, not within a tolerance — and no
+## amount of shoving mid-flight can put the mesh anywhere else at landing.
+##
+## The launch end is `ARRIVAL_HOLD_XZ`, the station stage 1 parks the hull on. It
+## is a constant, so this is a pure function of the sim's clock and the sim's
+## position and nothing else.
+static func arrival_arc_ground(land: Vector2, state_time: float,
+		sway: float = 0.0) -> Vector2:
+	var u := arrival_arc_u(state_time)
+	var travel: float = 1.0 - pow(1.0 - u, ARRIVAL_ARC_LEAD)
+	var at := ARRIVAL_HOLD_XZ.lerp(land, travel)
+	if sway != 0.0:
+		var run := land - ARRIVAL_HOLD_XZ
+		if run.length_squared() > 1.0:
+			at += run.normalized().orthogonal() \
+				* sway * ARRIVAL_ARC_SWAY * sin(PI * u)
+	return at
+
+
+## PER-FIGURE VARIATION, and it is hashed off the boarder's INSTANCE ID rather
+## than off its landing position, which is a deliberate departure from the
+## design's wording.
+##
+## The design says "hashed from the rounded ground position". That bakes nothing,
+## which is right — but it makes the hash a function of a value that MOVES: a
+## boarder knocked across a grid boundary mid-flight would have its apex and its
+## bow change between one frame and the next, which is a visible pop, and the
+## whole point of re-reading the endpoint is that being shoved must bend the arc
+## smoothly. The instance id is free, stable for the life of the boarder, unable
+## to be disturbed by anything the player does, and the file two hundred lines
+## down already uses it for exactly this (`phase`, the billboard cycle offset).
+static func arrival_arc_sway(id: int) -> float:
+	return float(id % 61) / 30.0 - 1.0
+
+
+static func arrival_arc_spread(id: int) -> float:
+	return 1.0 + 0.16 * (float((id / 7) % 41) / 20.0 - 1.0)
+
+
+## WHO ARRIVES ON AN ARC AND WHO KEEPS ITS OWN HEIGHT — read off the tables that
+## already exist rather than off a hand-typed roster, because a hand-typed roster
+## is the exact shape of STATUS's seventh failure mode (a check that loops three
+## names, and the one row missing from the list is the only row that could have
+## failed it).
+##
+## A kind in `ROTOR_MOTION` FLIES: `_fly` writes its `position.y` after `place`,
+## and a second author of that one number is the two-functions-disagreeing
+## failure. So a drone glides in along the horizontal path and keeps its own
+## hover height — it still stops popping into existence, which is the ask, and
+## nothing touches the arithmetic that owns its altitude.
+static func arrival_arc_lifts(kind: String) -> bool:
+	return not ROTOR_MOTION.has(kind) and not SEGMENTED.has(kind)
+
+
+## A kind in `SEGMENTED` is the Colossus, and it does not arrive at all: wave 12
+## is `{"boss": true}`, `arrival_hull_for_wave` gives it no transport to leave,
+## it owns a cutscene and a thirteen-part shadow path, and the design kills a
+## boss leap by name.
+static func arrival_arc_travels(kind: String) -> bool:
+	return not SEGMENTED.has(kind)
+
 ## The SCUPPER GRATING's height in ground units (SG-56): low deck ironwork,
 ## not a cargo wall — it must never hide a boarder, so it stays well under the
 ## 125-unit module height `_occluded` reasons about, and out of that list.
@@ -5311,6 +5477,29 @@ func _shadow(_key: String, centre: Vector2, width: float, alpha: float,
 		depth: float = 0.0, height: float = 0.0, kind: int = SHADOW_LEANS) -> void:
 	if _shadow_count >= SHADOW_CAP:
 		return
+	## A MARK WITH HEIGHT UNDER IT IS NEVER A CONTACT CORE, and this is the rule
+	## the arrival drop needed and could not have got at its own call site.
+	##
+	## `SHADOW_CORE` means "a mesh is already casting here, so this blob is only
+	## the inch under a boot the shadow map cannot resolve" — and that sentence is
+	## true of a figure STANDING and false of one in the air. There is no inch
+	## under the boot; there is 300 units of nothing, the cast shadow has been
+	## suppressed precisely so it does not draw a second wrong mark, and the blob
+	## is the ONLY thing telling the player where the figure is going to be. The
+	## old behaviour shrank it to 42% and faded it to 62% at exactly that moment.
+	##
+	## Resolved HERE rather than in the enemy sync because it is a property of
+	## marks, not of boarders: every caller inherits it, including the hovering
+	## GUNNER and every corpse `corpse_drop` lifts, the day either of those starts
+	## passing a lift (neither does today — see the note on `_sync_all`).
+	##
+	## ONLY THE CORE. `SHADOW_CENTRED` is a projectile and is left alone: RULE ONE
+	## says a bolt's mark stays directly beneath it however high it is, and a
+	## height test that swept that case up would have thrown every shell's mark
+	## down the moonlight — the marks are already lifted today, so this would have
+	## shipped as a live bug rather than as a dormant one.
+	if kind == SHADOW_CORE and height > 0.0:
+		kind = SHADOW_LEANS
 	## The core shrink happens here rather than at flush, so legacy has to be
 	## honoured here too — otherwise "today's ellipse" would come back with
 	## today's geometry and this item's footprint, which is neither build.
@@ -6388,15 +6577,56 @@ func _sync_all(delta: float) -> void:
 		var swinging: bool = enemy.state == "windup" or enemy.state == "recover"
 		# a phase offset per boarder, or a lane of them marches in lockstep
 		var phase: float = float(enemy.get_instance_id() % 97) * 0.113
+		## ═══ THE DROP (SG-142) ═══════════════════════════════════════════════
+		##
+		## `airborne()` is the simulation's own word for "has not hit the deck and
+		## has not started moving", asked of the enemy rather than restated here,
+		## and it is the same predicate `can_be_hit()` is written on — so a boarder
+		## is drawn in the air for exactly the window it is untouchable for, and
+		## the two can never drift apart into a figure that can be shot at while
+		## still crossing.
+		##
+		## GATED ON THE HULL EXISTING. No transport this wave means nothing to jump
+		## off, and `arrival_hull_for_wave` already returns "" for the boss wave —
+		## so the exclusion the design asks for falls out of stage 1's own table
+		## instead of being a second list that can disagree with it.
+		##
+		## `draw_at` IS THE ONLY THING THAT MOVES. Every line below this block
+		## reads `draw_at` and `lift` where it used to read `enemy.global_position`
+		## and zero, and at the end of the crossing `draw_at` IS
+		## `enemy.global_position` — `arrival_arc_ground` returns `land` unchanged
+		## at u = 1, so the frame the boarder becomes hittable is the frame the
+		## mesh is exactly where it always was.
+		var arcing: bool = enemy.airborne() \
+			and arrival_arc_travels(enemy.kind) \
+			and arrival_hull_for_wave(int(game.wave)) != ""
+		var draw_at: Vector2 = enemy.global_position
+		var lift := 0.0
+		if arcing:
+			draw_at = arrival_arc_ground(enemy.global_position, enemy.state_time,
+				arrival_arc_sway(enemy.get_instance_id()))
+			if arrival_arc_lifts(enemy.kind):
+				lift = maxf(0.0, arrival_arc_lift(enemy.state_time,
+					arrival_arc_spread(enemy.get_instance_id())))
 		## A mesh if one has been ingested for this kind, the painted billboard
 		## if not. Both paths are always here: the boarders will become models
 		## one at a time, and the renderer should not need editing for each.
-		if not _sync_rig(key, enemy.kind, enemy.global_position, heading, height,
+		if not _sync_rig(key, enemy.kind, draw_at, heading, height,
 				swinging, enemy.state == "move", enemy.velocity.length(),
 				maxf(0.0, enemy.state_time), delta, enemy.stun_time,
-				enemy.state == "turn"):
-			_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
-				enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
+				enemy.state == "turn", arcing):
+			_draw_figure(key, enemy.kind, draw_at, heading, height, swinging,
+				enemy.state == "move", game.run_time + phase,
+				maxf(0.0, enemy.state_time), lift)
+		else:
+			## `place` writes the whole transform and puts y at zero, so the height
+			## goes on after it — the same order `_fly` uses, and for the same
+			## reason. A flier's `_fly` has already written this number and `lift`
+			## is zero for it by `arrival_arc_lifts`, so the two never both write.
+			var rig: SkyGearRig3D = _rigs.get(key)
+			if lift > 0.0 and rig != null and is_instance_valid(rig):
+				rig.position.y = lift * WORLD_SCALE
+			_arrival_flight(rig, arcing)
 		## THE CONTACT SHADOW, and it is drawn AFTER the figure rather than
 		## before it so the rig exists to be asked. A segmented machine grounds
 		## itself part by part (`_part_shadows`); everything else — every
@@ -6410,9 +6640,21 @@ func _sync_all(delta: float) -> void:
 		## this drops to a contact core. A painted billboard has no cast shadow at
 		## all and keeps the whole blob, which is the only thing holding it to the
 		## planking.
+		## ...and A LIFT IS FINALLY PASSED. `shadow_pose` has carried the airborne
+		## arithmetic since SG-107 — `SHADOW_LIFT_SPREAD`, `SHADOW_LIFT_FADE`, and
+		## the slide down `moon_track()` — and every caller in the file handed it a
+		## zero, so the branch existed and nothing ever reached it. This is the
+		## caller. A mark that widens and softens as a boarder falls is what sells
+		## the height, and it converges onto the closing ring exactly as the
+		## boarder lands, because both are functions of the same `state_time`.
+		##
+		## The centre is `draw_at`, the point the figure is over — not the landing
+		## point. `shadow_pose` adds the slide down the moonlight itself; handing
+		## it the destination would be this file re-deriving a rule that function
+		## owns.
 		if not _part_shadows(key, _rigs.get(key), 1.0):
-			_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5,
-				0.0, 0.0, SHADOW_CORE if _casts_own_shadow(key) else SHADOW_LEANS)
+			_shadow(key, draw_at, float(enemy.radius) * 2.6, 0.5,
+				0.0, lift, SHADOW_CORE if _casts_own_shadow(key) else SHADOW_LEANS)
 		# burning boarders glow; frozen ones go blue. The status is the read.
 		var node: Sprite3D = _billboards.get(key)
 		if node != null:
@@ -6424,7 +6666,7 @@ func _sync_all(delta: float) -> void:
 			if enemy.stun_time > 0.0:
 				tint = tint.lerp(Color(1.3, 1.25, 0.8), 0.5)
 			node.modulate = tint
-		_xray(key, enemy.global_position, height, Color(0.95, 0.30, 0.22, 0.55))
+		_xray(key, draw_at, height, Color(0.95, 0.30, 0.22, 0.55))
 	for prop in game.props():
 		if not is_instance_valid(prop) or prop.dead:
 			continue
@@ -7286,7 +7528,7 @@ static func boarder_height(kind: String) -> float:
 func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		height: float, attacking: bool, moving: bool, speed: float,
 		attack_clock: float, delta: float, stun: float = 0.0,
-		turning: bool = false) -> bool:
+		turning: bool = false, airborne: bool = false) -> bool:
 	if _no_model.has(kind):
 		return false
 	var rig: SkyGearRig3D = _rigs.get(key)
@@ -7323,7 +7565,15 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"
-	if stun > 0.0:
+	## THE CROSSING OUTRANKS EVERYTHING THE SIMULATION CAN STILL BE SAYING (SG-142),
+	## and that is the `hurt` suppression the design asks for, done by not asking
+	## rather than by adding a suppression flag beside it. A boarder cannot be
+	## damaged in this window — `can_be_hit()` is false through the whole of it —
+	## so a `stun_time` still counting down here is a leftover, and a flinch played
+	## in mid-air is a figure recoiling from nothing on the way over.
+	if airborne:
+		doing = "jump"
+	elif stun > 0.0:
 		## THE FLINCH (SG-85). The sim's own signal, not a hit counter kept
 		## behind the renderer's back: an ARC proc stuns for 0.45 s and the
 		## boarder's whole state machine returns early while it lasts — it is
@@ -7351,7 +7601,14 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## be stretched less; the crossover leaves the scrapper on his run.
 		doing = SkyGearRig3D.gait(speed)
 	var window := 0.0
-	if doing == "turn":
+	if doing == "jump":
+		## The WHOLE crossing, not the remainder of it. `want` re-reads the window
+		## only on the frame the state changes, so this is the value the clip is
+		## fitted to for the entire leap — and the same "the beat's OWN length"
+		## rule the turn below is written on. Read off the simulation's constant,
+		## never restated here.
+		window = SkyGearEnemy.ARRIVAL_TIME
+	elif doing == "turn":
 		## The beat's OWN length, not the countdown the enemy is running. See
 		## `SkyGearEnemy.TURN_TIME` — a window that shrinks every frame is a
 		## one-shot that accelerates as it plays.
@@ -7364,6 +7621,64 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 	rig.place(ground, heading, WORLD_SCALE, delta)
 	_fly(rig, kind, delta)
 	return true
+
+
+## Where a rig remembers that it is off the deck, and what its meshes were
+## casting before it left. On the rig itself rather than in a dictionary beside
+## `_rigs`, because a dictionary beside `_rigs` is a second thing to sweep and
+## the sweep that frees the rig is the one that would have to know about it.
+const FLIGHT_META := "airborne"
+const FLIGHT_CAST_META := "airborne_cast"
+
+
+## THE MOON MUST NOT DRAW A SECOND, WRONG MARK — design §8's second risk, and it
+## is the half of the shadow work that had no home in `shadow_pose`.
+##
+## `moon.directional_shadow_max_distance` is 34 m = 3,400 ground units, so an
+## airborne boarder is well inside the shadow cascade and casts a real
+## silhouette. At the arc's apex the moon puts that silhouette roughly 230 units
+## from the landing ring — a second mark, DARKER than the contact blob, under a
+## figure that has exactly one thing worth saying about it. Two marks under one
+## man pointing different ways is a bug the owner has already reported once.
+##
+## THIS IS NOT A SECOND COPY OF THE `_shadow` RULE. That one says a mark with
+## height under it is never shrunk to a contact core — a property of MARKS, and
+## it holds for callers that have no rig at all. This one suppresses the CAST
+## shadow, which is a property of the mesh. They are two halves of one picture
+## and they happen to agree: with the cast shadow off, `_casts_own_shadow`
+## honestly answers false and the blob would have come back whole anyway. The
+## rule in `_shadow` is what makes that safe rather than lucky.
+##
+## The previous setting is remembered per mesh rather than restored to ON,
+## because "everything on a rig casts" is an assumption about content and this
+## file is not the place to bet on it.
+func _arrival_flight(rig: SkyGearRig3D, airborne: bool) -> void:
+	if rig == null or not is_instance_valid(rig):
+		return
+	## Only on the transitions — twice in a boarder's life, not once a frame. The
+	## tree walk is paid on the same terms `ROTOR_META` and `PARTS_META` pay it.
+	if bool(rig.get_meta(FLIGHT_META, false)) == airborne:
+		return
+	rig.set_meta(FLIGHT_META, airborne)
+	var meshes := rig.find_children("*", "MeshInstance3D", true, false)
+	if airborne:
+		var kept := {}
+		for child in meshes:
+			var mi := child as MeshInstance3D
+			kept[mi.get_instance_id()] = int(mi.cast_shadow)
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		rig.set_meta(FLIGHT_CAST_META, kept)
+		return
+	var was: Dictionary = rig.get_meta(FLIGHT_CAST_META, {})
+	for child in meshes:
+		var mi := child as MeshInstance3D
+		mi.cast_shadow = int(was.get(mi.get_instance_id(),
+			GeometryInstance3D.SHADOW_CASTING_SETTING_ON))
+	if rig.has_meta(FLIGHT_CAST_META):
+		rig.remove_meta(FLIGHT_CAST_META)
+	## FEET MEET PLANKING. `react_land` was written for this moment and called
+	## from nowhere for as long as it has existed.
+	rig.react_land()
 
 
 ## THE DRONE FLIES (board SG-87), and this is the whole of its animation.
@@ -7682,7 +7997,7 @@ func _claim_prop_model(model_key: String) -> Node3D:
 ## written before the art was.
 func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 		height: float, attacking: bool, moving: bool, clock: float,
-		attack_clock: float) -> void:
+		attack_clock: float, lift: float = 0.0) -> void:
 	var v: Dictionary = SkyGearSprites.view_for(heading, attacking)
 	var front: bool = v.front
 	## Front views only. The cycles are authored facing the camera; a figure
@@ -7715,8 +8030,13 @@ func _draw_figure(key: String, kind: String, ground: Vector2, heading: Vector2,
 	else:
 		node.region_enabled = false
 	node.pixel_size = height * WORLD_SCALE / maxf(1.0, tall)
-	node.position = Vector3(ground.x * WORLD_SCALE, height * WORLD_SCALE * 0.5,
-		ground.y * WORLD_SCALE)
+	## `lift` is the arrival drop, and it is added rather than replacing the half
+	## height: the sprite is centred on its own middle, so its feet only meet the
+	## planking at `height/2`, and a boarder 300 units up has its feet 300 above
+	## that. `_xray` copies `source.position` wholesale, so the ghost follows the
+	## arc without knowing the arc exists.
+	node.position = Vector3(ground.x * WORLD_SCALE,
+		(height * 0.5 + maxf(0.0, lift)) * WORLD_SCALE, ground.y * WORLD_SCALE)
 
 
 ## THE BILLBOARD POOL'S IDENTITY, WRITTEN ONCE (board SG-66).

@@ -186,6 +186,105 @@ func _run() -> void:
 		quit()
 		return
 
+	## --- `-- drop`: THE CROSSING ITSELF (board SG-142, stage three) -----------
+	##
+	## The half of the ask the owner has made three times, and the one he judges by
+	## eye: *"why cant you make the enemies jump off the boarding ship and land on
+	## deck"*. The harness can pin that the arc starts at the transport, ends on
+	## the simulation's own spot, and is over its ring before it falls; only a
+	## frame says whether it READS.
+	##
+	## THREE PLATES PER POSE, and the first one is the whole trick:
+	##
+	##   -arc     five boarders sharing ONE landing point at five points of the
+	##            same crossing. They lie along a single curve, so a still shows
+	##            the ARC — a stroboscope of one leap rather than five leaps.
+	##   -batch   five boarders on five marks at staggered times, which is what a
+	##            wave actually looks like coming in, and the plate that says
+	##            whether five arcs at once are a boarding party or a mess.
+	##   -land    the frame before contact, rings shut. Pillar 6's own question:
+	##            with the figure nearly down, is the mark still the thing you
+	##            read? If these two fight, the arc's height goes, not the ring.
+	##
+	## Both kinds are in frame on purpose. SWARM is the ONLY kind in the game with
+	## a clip literally named `jump`; SCRAPPER has no jump clip under any spelling
+	## and comes across on the run-cycle fallback, which is the common path. If the
+	## fallback reads as badly as a T-pose would, that is visible here and nowhere
+	## else.
+	if OS.get_cmdline_user_args().size() > 0 \
+			and str(OS.get_cmdline_user_args()[0]) == "drop":
+		var drop_out := ProjectSettings.globalize_path("res://../.shots/sg142")
+		DirAccess.make_dir_recursive_absolute(drop_out)
+		## Across the window, ends included: `1.0` is the launch frame off the
+		## transport and `0.02` is the frame before the feet land.
+		## WHERE TO SAMPLE THE CROSSING, and the first attempt got this wrong in a
+		## way worth writing down. Sampling evenly across the whole window put three
+		## of five boarders OFF FRAME: the transport holds 3,000 units off the bow
+		## and 1,250 to port, and `ARRIVAL_ARC_LEAD` front-loads the travel on
+		## purpose, so 82% of the distance is covered before the apex and almost all
+		## of it happens outside the picture. What a player actually SEES is the
+		## last third — the descent onto the ring — and that is what has to be
+		## judged, so the `arc` plate samples it and the `batch` plate keeps the
+		## whole window for comparison. This is the design's own §8 admission in a
+		## photograph: what ships is *"boarders fall in from off-screen onto marks"*.
+		var phases := [0.45, 0.34, 0.22, 0.11, 0.02]
+		var whole := [1.0, 0.78, 0.48, 0.22, 0.02]
+		var lanes := [-420.0, -210.0, 0.0, 210.0, 420.0]
+		for pose in ["bow", "fight"]:
+			for plate in ["arc", "batch", "land"]:
+				await _pose(game, view, deck, POSES[pose], 1.0)
+				game.set_process(false)
+				var held: Array[SkyGearEnemy] = []
+				for enemy in game.enemies():
+					if is_instance_valid(enemy) and not enemy.dead:
+						held.append(enemy)
+				for i in held.size():
+					held[i].queue_free()
+				await process_frame
+				for i in 5:
+					## `i % 3`: the second argument is a LANE and there are three of
+					## them. The spawn lane is irrelevant here — every one of these is
+					## repositioned two lines down — but an out-of-range lane makes
+					## `spawn_enemy` bail, and the plate then quietly has three
+					## boarders in it instead of five.
+					game.spawn_enemy("SWARM" if i % 2 == 0 else "SCRAPPER", i % 3)
+				await process_frame
+				var n := 0
+				var mark := Vector2(0.0, game.player.global_position.y - 260.0)
+				for enemy in game.enemies():
+					if not is_instance_valid(enemy) or enemy.dead:
+						continue
+					enemy.state = "climb"
+					## ONE MARK for the arc plate, five for the others — the whole
+					## difference between photographing a curve and photographing a
+					## wave. Written directly because the renderer re-reads this
+					## every frame and never stores it, which is exactly the
+					## property that makes posing it legitimate.
+					enemy.global_position = mark if plate == "arc" \
+						else Vector2(lanes[n % 5], mark.y + float(n % 3) * 90.0)
+					enemy.state_time = SkyGearEnemy.ARRIVAL_TIME * (0.02
+						if plate == "land" else float(phases[n % 5]
+							if plate == "arc" else whole[n % 5]))
+					n += 1
+				view.set("_zoom", 1.0)
+				view.set("_zoom_target", 1.0)
+				view.set("_focus", game.player.global_position)
+				view.set("_focus_set", true)
+				view._process(1.0 / 60.0)
+				await SkyGearStill.freeze(self, view, game)
+				await RenderingServer.frame_post_draw
+				get_root().get_texture().get_image().save_png(
+					"%s/drop-%s-%s.png" % [drop_out, pose, plate])
+				await SkyGearStill.thaw(self, view, game)
+				game.set_process(true)
+				print("  drop %-6s %-6s  %d boarders, %s" % [pose, plate, n,
+					"one mark, five instants of one leap" if plate == "arc"
+					else ("five marks, staggered" if plate == "batch"
+						else "the frame before contact")])
+		print("\nframes -> .shots/sg142/drop-*.png")
+		quit()
+		return
+
 	for pose in POSES:
 		for zoom in ZOOMS:
 			await _pose(game, view, deck, POSES[pose], zoom)
