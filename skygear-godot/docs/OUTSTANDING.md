@@ -17,6 +17,31 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The Colossus is not frightening, and it is not textured
+Reported 2026-08-02 with a screenshot, minutes after the boss was wired:
+*"Collosus is way too easy - he needs to be scary the player. Not sure what's
+going on with his texture."*
+
+Three separate faults, and only one is a surprise:
+
+1. **No texture — known, and it is an ASSET gap, not a bug.** The
+   part-segmentation GLB the owner delivered carries no UVs and no images
+   (measured at ingest: zero bytes of texture), so the boss renders as flat
+   untextured geometry with the furnace lamp glowing inside it. THE FIX NEEDS
+   HIS TEXTURED EXPORT — the `..._texture.glb` twin he supplied for the sentry
+   sphere but not for this one. `tools/split_rotors.py` already does the
+   marriage in the other direction (segmentation labels transferred onto a
+   textured mesh), so the pipeline exists.
+2. **Floating dark and gold blobs around it** — shadow decals sized and placed
+   for a figure, drawn against thirteen parts that no longer match them. Its own
+   bug, visible in the same frame.
+3. **"Way too easy — he needs to be scary."** The fight, not the picture. It has
+   two beats (a turn at half health, a vent of what it called) and neither
+   threatens a competent player. This is a design change and it belongs with
+   the furnace-knight ask from the same playtest — both are about enemies that
+   are READ and RESPECTED rather than out-damaged. Do not tune numbers alone.
+
+
 ### The build-44 playtest — fifteen items, and the first praise of the port
 Reported 2026-08-02 evening, after the all-mesh deck landed. Verbatim where it
 matters. **"I LOVE the goblins and the new 3d enemy models"** — the first
