@@ -259,6 +259,27 @@ const MODELS := {
 	## departure recorded: at 2.3:1 it is a lower, wider rail than the
 	## painting's ~1.35:1 — nearer a low fence than a waist rail.
 	"railing_segment": 0.0,
+	## THE EDGE RAIL, and it is NOT a bigger `railing_segment`. That one is a
+	## 52-unit scattered deck PROP (view3d.gd PROP_HEIGHT/PROP_MODEL, four of
+	## them). This is the module for DECK-IDENTITY item 4 — the continuous run
+	## along the port and starboard edges that replaces the two solid
+	## 14 x 40 x 2320 bars, specified there as "16 stanchions a side at 145-unit
+	## spacing with two horizontal rails at y = 66 and 118". The two can coexist;
+	## they are different objects doing different jobs, which is why this gets its
+	## own key rather than overwriting a shipped one.
+	##
+	## MEASURED: 1.898 x 0.902 x 0.224 model units, 3,060 triangles — under the
+	## 8,000 ceiling with no decimation, which is why it is the one edge piece
+	## registered here. Three stanchions, two rails and a cap; the rail overhangs
+	## 0.114 past each end stanchion, so butt-joining bunches stanchions in pairs
+	## at every seam. THE TILING IS ARITHMETIC, NOT ART: place instances every TWO
+	## stanchion pitches so the end stanchions of neighbouring modules coincide
+	## and the pitch stays uniform through the seam. See NEEDS_ALEX and BOARD
+	## SG-143 for the scale decision, which is the owner's and is not made here.
+	##
+	## Facing 0.0 is the measured default for this batch and the module is
+	## symmetric about its long axis, so a half turn is the same rail.
+	"rail_stanchion": 0.0,
 	## "hatch_cargo" is absent because it was GENERATED THREE TIMES AND
 	## REJECTED — the first entry here that lost on its own merits rather than
 	## on budget, and the reason is geometric rather than a prompt that can be

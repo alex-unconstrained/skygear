@@ -133,6 +133,90 @@ def check_palette(palette: dict, where: str) -> None:
                              % (where, LAMPLIT_METALLIC_MAX, over))
 
 
+def clamp_glb(path: Path, verbose: bool = True) -> dict:
+    """Apply the ceiling to a .glb IN PLACE, by editing its glTF JSON only.
+
+    Surgical on purpose. Loading a Meshy glb through trimesh and re-exporting it
+    re-encodes every image and rewrites every buffer, which is a lossy round
+    trip taken for the sake of one float. This rewrites the single JSON chunk
+    and copies the binary chunk through untouched, so the pixels that land are
+    byte-for-byte the pixels that arrived.
+
+    `metallicFactor` ABSENT means 1.0 in glTF, so an absent field is written
+    rather than skipped — the absence is the bug, not a neutral.
+    """
+    import json as _json
+    import struct
+
+    import numpy as np
+    from PIL import Image
+
+    raw = path.read_bytes()
+    if raw[:4] != b"glTF":
+        raise SystemExit("%s is not a binary glb" % path)
+    _magic, _ver, _total = struct.unpack("<III", raw[:12])
+    off, chunks = 12, []
+    while off < len(raw):
+        clen, ctype = struct.unpack("<II", raw[off:off + 8])
+        chunks.append((ctype, raw[off + 8:off + 8 + clen]))
+        off += 8 + clen
+    gltf = _json.loads(chunks[0][1].decode("utf-8"))
+    blob = chunks[1][1] if len(chunks) > 1 else b""
+
+    ## Decode each metallic-roughness image once so the peak is measured off the
+    ## pixels that actually ship rather than off an assumption about them.
+    def _peak(tex_index: int) -> float:
+        src = gltf["textures"][tex_index].get("source")
+        if src is None:
+            return 1.0
+        image = gltf["images"][src]
+        view = gltf["bufferViews"][image["bufferView"]]
+        start = view.get("byteOffset", 0)
+        data = blob[start:start + view["byteLength"]]
+        import io
+        pic = Image.open(io.BytesIO(data)).convert("RGB")
+        return float(np.asarray(pic, dtype=np.float64)[..., 2].max() / 255.0)
+
+    notes = []
+    for mat in gltf.get("materials", []):
+        pbr = mat.setdefault("pbrMetallicRoughness", {})
+        factor = float(pbr.get("metallicFactor", 1.0))
+        mr = pbr.get("metallicRoughnessTexture")
+        peak_map = 1.0 if mr is None else _peak(mr["index"])
+        peak_in = factor * peak_map
+        if peak_in <= LAMPLIT_METALLIC_MAX:
+            notes.append({"material": mat.get("name"), "changed": False,
+                          "peak_in": peak_in})
+            continue
+        after = LAMPLIT_METALLIC_MAX / peak_map
+        pbr["metallicFactor"] = after
+        notes.append({"material": mat.get("name"), "changed": True,
+                      "factor_in": factor, "factor_out": after,
+                      "peak_in": peak_in, "peak_out": after * peak_map})
+        if verbose:
+            print("  %-22s metallicFactor %s -> %.4f  (peak %.4f -> %.4f)" % (
+                str(mat.get("name"))[:22],
+                "unset" if "metallicFactor" not in pbr else "%.3f" % factor,
+                after, peak_in, after * peak_map))
+
+    if not any(n["changed"] for n in notes):
+        if verbose:
+            print("  already under the %.2f ceiling, untouched"
+                  % LAMPLIT_METALLIC_MAX)
+        return {"changed": False, "materials": notes}
+
+    js = _json.dumps(gltf, separators=(",", ":")).encode("utf-8")
+    js += b" " * ((4 - len(js) % 4) % 4)
+    out = bytearray(b"glTF") + struct.pack("<I", 2)
+    body = struct.pack("<II", len(js), 0x4E4F534A) + js
+    if blob:
+        pad = blob + b"\x00" * ((4 - len(blob) % 4) % 4)
+        body += struct.pack("<II", len(pad), 0x004E4942) + pad
+    out += struct.pack("<I", 12 + len(body)) + body
+    path.write_bytes(bytes(out))
+    return {"changed": True, "materials": notes}
+
+
 def audit(show_all: bool = False) -> int:
     """Measure every shipped model against the ceiling. Reports, never rewrites."""
     import trimesh
@@ -168,10 +252,21 @@ def audit(show_all: bool = False) -> int:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) < 2 or argv[1] != "audit":
-        print(__doc__)
-        return 2
-    return audit(show_all="--all" in argv)
+    if len(argv) >= 2 and argv[1] == "audit":
+        return audit(show_all="--all" in argv)
+    if len(argv) >= 3 and argv[1] == "clamp":
+        bad = 0
+        for name in argv[2:]:
+            target = Path(name)
+            if not target.exists():
+                print("FAIL no such file: %s" % target)
+                bad += 1
+                continue
+            print("%s:" % target.name)
+            clamp_glb(target)
+        return bad
+    print(__doc__)
+    return 2
 
 
 if __name__ == "__main__":
