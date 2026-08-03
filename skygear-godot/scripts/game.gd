@@ -3047,6 +3047,8 @@ func _update_cooldowns(delta: float) -> void:
 		if idle >= grace:
 			deploy_sentry(skill, player.global_position, false)
 
+const PASSIVE_CATCHUP_MAX := 8
+
 func _update_passives(delta: float) -> void:
 	for skill in skills:
 		var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
@@ -3068,14 +3070,39 @@ func _update_passives(delta: float) -> void:
 		## report would have been a balance pass against bad data.
 		SkyGearTelemetry.note_passive(tel, src_slot, skill)
 		var st := skill_stats(skill)
+		## THE PERIOD IS CARRIED, NOT RESET (board SG-126) — the same discarded
+		## remainder SG-122 fixed for a fire pool. `passive_timer = period` threw
+		## away the overshoot, so a drafted card's authored rate was really
+		## `ceil(period / delta) * delta` and a Field's `tick_rate` of 1.8 — a
+		## value that divides neither 1/60 nor 0.05 — was not the rate it ticked
+		## at. `timer` is already <= 0 here and is the overshoot; adding the
+		## period to it carries the remainder into the next interval.
+		var period := 0.0
 		match str(st.kind):
-			"aura":
-				_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, 0.0, true, false)
-				skill.passive_timer = 1.0 / maxf(0.2, float(st.tick_rate))
-			"pulse":
-				_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
-				_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
-				skill.passive_timer = float(st.cooldown)
+			"aura": period = 1.0 / maxf(0.2, float(st.tick_rate))
+			"pulse": period = float(st.cooldown)
+		if period <= 0.0:
+			## A passive shape with no period would spin this loop forever. Skip
+			## it rather than tick it: a shape that wants a rate has to name one.
+			skill.passive_timer = 0.0
+			src_slot = previous_src
+			continue
+		## `while`, per SG-122: a step longer than the period delivers every tick
+		## it spans instead of one. `CATCHUP_MAX` is a safety bound, not a rate
+		## decision — at the frame rates this game runs (1/60) and this rig steps
+		## (0.05) against periods of 0.5 s and up it never binds; it exists so a
+		## debugger pause cannot turn a resumed frame into a burst.
+		var fired := 0
+		while timer <= 0.0 and fired < PASSIVE_CATCHUP_MAX:
+			match str(st.kind):
+				"aura":
+					_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, 0.0, true, false)
+				"pulse":
+					_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
+					_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
+			timer += period
+			fired += 1
+		skill.passive_timer = maxf(timer, 0.0) if fired >= PASSIVE_CATCHUP_MAX else timer
 		src_slot = previous_src
 
 ## The single funnel for damage dealt to a boarder. Crit, brittle, lifesteal,
@@ -3559,6 +3586,22 @@ func _update_deckwork(delta: float) -> void:
 			"color": Color("#37f0c8"), "time": 0.0, "life": 0.32})
 
 
+## A STEAM TAP'S TICK PERIOD IS 0.5 SECONDS AT EVERY FRAME RATE (board SG-126).
+##
+## The same discarded remainder SG-122 fixed for a fire pool: `tap.tick = 0.5`
+## threw away however far past zero the countdown overshot, so the true period
+## was `ceil(0.5 / delta) * delta` and the main's rate was a function of how fast
+## the machine was drawing. It is CARRIED now, and it is a `while` so a step
+## LONGER than the period delivers every tick it spans.
+##
+## This one is the captain's own gauge spend, so the number it moves is a PLAYER
+## damage rate — which is exactly why SG-122 filed it rather than folding it in.
+## The tick damage is `dps * TAP_TICK` rather than a second hand-written 0.5, so
+## the rate and the period cannot drift apart: STATUS's second failure mode is
+## two functions disagreeing about one number, and this was one number written
+## twice on adjacent lines.
+const TAP_TICK := 0.5
+
 func _update_taps(delta: float) -> void:
 	tap_cooldown = maxf(0.0, tap_cooldown - delta)
 	var i := taps.size() - 1
@@ -3570,10 +3613,10 @@ func _update_taps(delta: float) -> void:
 			i -= 1
 			continue
 		tap.tick = float(tap.tick) - delta
-		if float(tap.tick) <= 0.0:
-			tap.tick = 0.5
+		while float(tap.tick) <= 0.0:
+			tap.tick = float(tap.tick) + TAP_TICK
 			_damage_circle(Vector2(tap.position), float(tap.radius),
-				float(SkyGearData.TAP.dps) * 0.5, "STEAM", 0.0, false, false)
+				float(SkyGearData.TAP.dps) * TAP_TICK, "STEAM", 0.0, false, false)
 		i -= 1
 
 

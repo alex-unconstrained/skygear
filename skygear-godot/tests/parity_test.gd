@@ -10692,6 +10692,130 @@ func _hazard() -> void:
 		absf(left - 0.20) < 0.0001, "tick left at %.4f, expected 0.2000" % left)
 	carry.queue_free()
 
+	## SG-126 — THE SAME BUG IN THE PLAYER'S OWN DAMAGE RATES.
+	##
+	## SG-122 fixed the fire pool and filed the other three accumulators rather
+	## than folding a player-damage change into a hazard commit. These are those
+	## three: the steam taps, and the Field aura and Pulse passives. A drafted
+	## card's authored `tick_rate` was not the rate it ticked at.
+	##
+	## Both halves are asserted, per SG-122's own lesson: the RATE (what a player
+	## feels) and the ACCUMULATOR (so a rewrite that reaches the right rate by
+	## other arithmetic still has to keep the remainder).
+	var tap_rates: Array[float] = [1.0 / 60.0, 0.05, 0.1]
+	var tap_ticks: Array[float] = []
+	for step in tap_rates:
+		var rig := _new_game()
+		_begin(rig)
+		rig.spawn_queue.clear()
+		rig.state = SkyGearGame.State.PLAY
+		rig.taps.clear()
+		rig.taps.append({"position": Vector2(0.0, 600.0),
+			"radius": float(SkyGearData.TAP.radius), "life": 999.0,
+			"max_life": 999.0, "tick": 0.0})
+		## Count TICKS, not damage: the rate is what this bug moves, and a tick
+		## count cannot be flattered by a crit roll or an element's status.
+		var fired := 0
+		var elapsed := 0.0
+		while elapsed < 10.0 - 0.0001:
+			var was: float = float(rig.taps[0].tick)
+			rig._update_taps(step)
+			if float(rig.taps[0].tick) > was:
+				fired += 1
+			elapsed += step
+		tap_ticks.append(float(fired) / elapsed)
+		rig.queue_free()
+	var tap_spread: float = tap_ticks.max() - tap_ticks.min()
+	_check("hazard", "a steam main ticks at its authored rate at any frame rate — SG-126",
+		tap_spread <= 0.06 and tap_ticks.min() > 1.94,
+		"1/60 %.3f · 0.05 %.3f · 0.1 %.3f ticks/s against an authored 2.000 (spread %.3f)"
+			% [tap_ticks[0], tap_ticks[1], tap_ticks[2], tap_spread])
+
+	var tap_carry := _new_game()
+	_begin(tap_carry)
+	tap_carry.spawn_queue.clear()
+	tap_carry.state = SkyGearGame.State.PLAY
+	tap_carry.taps.clear()
+	tap_carry.taps.append({"position": Vector2(9000.0, 9000.0), "radius": 10.0,
+		"life": 999.0, "max_life": 999.0, "tick": 0.5})
+	tap_carry._update_taps(0.6)
+	var tap_left: float = float(tap_carry.taps[0].tick)
+	_check("hazard", "and a steam tick carries its remainder instead of throwing it away",
+		absf(tap_left - 0.4) < 0.0001, "tick left at %.4f, expected 0.4000" % tap_left)
+	tap_carry.queue_free()
+
+	## THE PASSIVES. A Field's authored `tick_rate` is 1.8 — a period of 0.5556 s,
+	## which divides neither 1/60 nor 0.05, so it is exactly the value the reset
+	## was rounding up. Driven through `_update_passives` itself rather than a
+	## reimplementation of it.
+	var aura_rates: Array[float] = [1.0 / 60.0, 0.05, 0.1]
+	var aura_ticks: Array[float] = []
+	for step in aura_rates:
+		var rig := _new_game()
+		_begin(rig)
+		rig.spawn_queue.clear()
+		rig.state = SkyGearGame.State.PLAY
+		rig.player.global_position = Vector2(9000.0, 9000.0)
+		rig.skills = [{"shape": "AURA", "element": "EMBER", "mods": {},
+			"passive_timer": 0.0}]
+		var fired := 0
+		var elapsed := 0.0
+		while elapsed < 20.0 - 0.0001:
+			var was: float = float(rig.skills[0].passive_timer)
+			rig._update_passives(step)
+			if float(rig.skills[0].passive_timer) > was:
+				fired += 1
+			elapsed += step
+		aura_ticks.append(float(fired) / elapsed)
+		rig.queue_free()
+	var aura_spread: float = aura_ticks.max() - aura_ticks.min()
+	_check("hazard", "a Field aura ticks at the rate its card authored — SG-126",
+		aura_spread <= 0.07 and aura_ticks.min() > 1.74,
+		"1/60 %.3f · 0.05 %.3f · 0.1 %.3f ticks/s against an authored 1.800 (spread %.3f)"
+			% [aura_ticks[0], aura_ticks[1], aura_ticks[2], aura_spread])
+
+	## PULSE is the third accumulator and it takes its period from `cooldown`
+	## rather than `tick_rate`, so it gets its own assertion — a rewrite that kept
+	## the carry for the aura branch and dropped it for the pulse branch would
+	## pass every check above. Only the ACCUMULATOR is asserted here, and that is
+	## deliberate: Pulse's period is 4.4 s, so the rounding it used to suffer is a
+	## fraction of a percent at any real frame rate, and a rate check tight enough
+	## to catch it would be measuring floating point rather than the game. The
+	## remainder is the durable statement; the rate is not where this one shows.
+	var pulse_carry := _new_game()
+	_begin(pulse_carry)
+	pulse_carry.spawn_queue.clear()
+	pulse_carry.state = SkyGearGame.State.PLAY
+	pulse_carry.player.global_position = Vector2(9000.0, 9000.0)
+	pulse_carry.skills = [{"shape": "PULSE", "element": "EMBER", "mods": {},
+		"passive_timer": 0.5}]
+	## Read the period off the skill rather than off the card: `cooldown` is
+	## mod-scaled on the way through `skill_stats` (the raw 4.4 arrives as 3.52),
+	## so a hardcoded expectation here would be asserting the table and not the
+	## code — and would have to be re-typed by hand every tuning pass.
+	var pulse_period: float = float(pulse_carry.skill_stats(pulse_carry.skills[0]).cooldown)
+	pulse_carry._update_passives(0.6)
+	var pulse_left: float = float(pulse_carry.skills[0].passive_timer)
+	_check("hazard", "and a Pulse carries its remainder too — its period is the cooldown, not the tick rate",
+		absf(pulse_left - (pulse_period - 0.1)) < 0.0001,
+		"timer left at %.4f, expected %.4f (period %.4f less the 0.1 it overshot)"
+			% [pulse_left, pulse_period - 0.1, pulse_period])
+	pulse_carry.queue_free()
+
+	var pass_carry := _new_game()
+	_begin(pass_carry)
+	pass_carry.spawn_queue.clear()
+	pass_carry.state = SkyGearGame.State.PLAY
+	pass_carry.player.global_position = Vector2(9000.0, 9000.0)
+	pass_carry.skills = [{"shape": "AURA", "element": "EMBER", "mods": {},
+		"passive_timer": 0.5}]
+	pass_carry._update_passives(0.6)
+	var pass_left: float = float(pass_carry.skills[0].passive_timer)
+	_check("hazard", "and a passive tick carries its remainder instead of throwing it away",
+		absf(pass_left - (1.0 / 1.8 - 0.1)) < 0.0001,
+		"timer left at %.4f, expected %.4f" % [pass_left, 1.0 / 1.8 - 0.1])
+	pass_carry.queue_free()
+
 	game.queue_free()
 	await process_frame
 

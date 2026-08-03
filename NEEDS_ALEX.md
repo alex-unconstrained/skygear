@@ -756,3 +756,108 @@ It also placed the **POWDER STORE** talent's kegs, and a keg is 26 damage inside
 seeded now, from the same seed text under its own salt, consuming nothing from
 the run's own stream. Nothing to decide — recorded because it changes what a
 shared seed means.
+
+---
+
+## From opus/SG-70 — 2026-08-03
+
+### 1 · The 58% ally share is not a bot artefact, and I could not find what it is
+
+**This is the one that was spending your playtests, and you do not need to spend
+one on the question as it was written.**
+
+SG-70 has been sitting OPEN marked *"needs the owner's next playtest to
+re-measure"*. It recorded that `tools/balance.gd` read a **25%** ally damage
+share against the **58%** your own run reported, and explained the gap by saying
+the bot *"spends 55–60% of the fight at long range"*. SG-118 then found the bot
+never moved at all, so that explanation was the stationary-bot artefact and the
+row was waiting on you for nothing. I re-measured it on the repaired rig first.
+
+| | ally share |
+|---|---|
+| your real run | **58%** |
+| recorded, stationary bot, n=6 | 25% |
+| repaired rig, n=6 (same shape as the original) | 15% |
+| **repaired rig, n=30** | **13%** |
+| repaired rig, n=30, bot's movement stubbed back out | 15% |
+
+Two things follow, and the second is the one I want you to see.
+
+**It moved the wrong way.** 25% → 13% is a drop of 11.8 points (Welch t = 4.78),
+away from your 58%, not toward it.
+
+**The bot's movement is worth about two points of it.** I stubbed
+`bot.gd:desired()` back to standing still on today's code and re-ran the same 30
+runs: 15%. So movement was never the difference. The 25 → 13 drop is almost all
+SG-118's *other* repairs (the captain and the deck props were being stepped by
+the engine on a machine-dependent clock) plus whatever else landed since
+2026-08-02. The row's "55–60% at long range" does not reproduce either — it
+reads 31% moving and 39% standing still.
+
+So the mystery is not closed, it has changed shape: **the rig is not measuring
+the same game you are playing, and a 45-point gap is an instrument
+disagreement rather than a tuning error.** I have not invented an explanation
+and nothing was retuned. What I can tell you is what the bot provably does not
+do, from the rig's own published bot facts: she never repairs, never shoves a
+crate, never works the deck, never retreats from a wave she is losing, and never
+uses KEEL HAULING to tow anything anywhere. Any of those could carry a 45-point
+share gap. None has been measured.
+
+**What would settle it, and only you have it:** next time you play a run,
+the run report's per-source split plus roughly *what your crew looked like* —
+how many were standing by wave 10, and whether you were drafting Muster Roll.
+SG-62 capped allies at 32 (`ALLY_CAP`), and if your 58% run predates that cap it
+may simply be that you had several times more crew alive than the bot can ever
+have. I want to flag that as the first thing to check and explicitly **not** as
+a conclusion — the bot read 25% both before and after that cap landed, so it is
+not obviously the answer.
+
+**Consequence for SG-62.** Its knockback half is fine and unaffected — those
+four checks measure travel in units through the enemy's own physics frame and
+never involve a captain. But its contract to *"measure the 58% share
+before/after"* **cannot be discharged by this tool at all**, and its recorded
+"25% before → 25% after" was two readings of an instrument that was never
+pointed at the phenomenon. Nothing was tuned from it.
+
+### 2 · The player's tick rates were short, and the fix is smaller than it sounds
+
+SG-126: the discarded-remainder bug SG-122 fixed for fire pools was also in the
+steam taps and both player passives, so a drafted card's authored `tick_rate`
+was not the rate it ticked at. Fixed. **You are not meaningfully stronger and I
+did not nerf anything to compensate** (that call is yours, and I do not think
+there is a call to make):
+
+- **Steam taps and Pulse lost nothing at an exact 60 fps** — 0.5 s and 4.4 s are
+  whole numbers of frames. That contradicts what SG-126 expected when it was
+  filed.
+- **The Field aura was ticking at 1.7647/s against an authored 1.8** — a 2.0%
+  shortfall.
+- But all three run on the *render* clock, not a fixed tick, so the real delta
+  jitters and the true average shortfall was more like **1.5–1.7% on taps and
+  the aura, ~0.2% on Pulse — and roughly double that at 30 fps.**
+
+The honest framing is fairness rather than power: a Field card was quietly worth
+less on a slower machine. The whole-run rig could not see the change at all,
+which is the right answer at this size, and I have written it up that way rather
+than claiming a hold-rate improvement the data does not support.
+
+### 3 · Two more rows had their evidence struck — nothing needs rebuilding
+
+Closing SG-125's audit, I inspected the last two unexamined rows. **SG-14 (the
+Heat ladder) and SG-26 (the last two Articles) are both mechanically fine** —
+every structural claim in each is carried by harness checks that never simulate
+a fight, so the rungs, the Articles, the matrix, the capacity and the UI are all
+evidenced exactly as written. But both rows also recorded a *balance paragraph*
+measured on the stationary bot, and those are void: SG-14's **"graded rather
+than a cliff"** and SG-26's **"the named-kit benefit is real"** / **"the trade
+is real"**. Annotated in place, re-measure filed as SG-127. Nothing to decide —
+but if you were relying on "Heat 5 is dead on wave 4 every run" as a design
+fact, it is not one at the moment.
+
+One thing fell out of that with no re-run needed: **SG-14 records Heat 0 as 5/6
+held and SG-26 records Heat 0 as 3/6 held.** Same tool, same Heat, same seeds.
+That disagreement has been sitting in the ledger since both were written, and it
+is the cleanest proof available that n=6 was never a measurement on this rig.
+
+Harness **902/902** (897 before; the 5 new checks all verified to fail on the
+old code first).
