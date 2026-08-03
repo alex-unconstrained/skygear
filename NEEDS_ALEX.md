@@ -57,7 +57,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 51 and judge five things
+## 1 · Play build 52 and judge six things
 
 All shipped tonight; none can be settled by a checker.
 
@@ -67,6 +67,7 @@ All shipped tonight; none can be settled by a checker.
 | **The deck marks** | Scorch and blood accumulate where things actually happened. My kill-test threshold was wrong, the rig built to replace it answered non-proportionally, so the agent took the cautious branch — half the cap, alpha 0.30 → 0.12 — and refused to quote the flattering number. **Too subtle now, or too much?** |
 | **The crew** | 144 units (12.5% smaller) and they turn to face what they fight. **Right size? Right rule?** — see the strafe question below. |
 | **Enemy bolts** | 2.3× smaller, now the browser's own radius. **Too far?** |
+| **The deck's new light** | A cool rim light from the bow, added overnight. The furnace knight measured **15% darker than the planking he stands on** — a warm brown figure on warm brown boards, because the deck had a key and a fill and no rim. He is now marginally brighter than his floor. **It is deck-wide, so the crates and rigging gained edges too.** Frames: `.shots/sg86/full-before-after.png`. **Does the deck look better, or just different?** |
 | **The HUD cluster** | Bottom-left rebuilt on the Supervive lessons. **Does the direction feel right before it spreads to the hand and the lane readout?** |
 
 ---
@@ -189,7 +190,7 @@ keep if I could only keep one.
 
 ## 6 · Where the day got to
 
-**Builds 32 → 51. Harness 499 → 902.** The deck went from half-painted to
+**Builds 32 → 52. Harness 499 → 915.** The deck went from half-painted to
 all-mesh, and **every figure you modelled yourself was wired the same day you
 made it** — the hulk's three states, the furnace knight, the crew, the goblins,
 the drone, the Colossus, and a five-ship fleet.
