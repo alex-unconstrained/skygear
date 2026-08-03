@@ -1,5 +1,5 @@
 extends SceneTree
-## THE WAVE-12 SEGMENT, MEASURED DIRECTLY (SG-131).
+## THE WAVE-12 SEGMENT, MEASURED DIRECTLY (SG-146).
 ##
 ## WHY THIS EXISTS AND WHY `tools/balance.gd` COULD NOT DO IT. `balance.gd`
 ## reports a WHOLE-RUN mean. The Colossus is one wave in twelve, and SG-119
@@ -249,7 +249,7 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 	var ttk := 0.0
 	if boss_spawn >= 0:
 		ttk = float((boss_dead if boss_dead >= 0 else steps) - boss_spawn) * DT
-	## WHOSE DAMAGE IT WAS (SG-131). This is the statistic the whole probe is for:
+	## WHOSE DAMAGE IT WAS (SG-146). This is the statistic the whole probe is for:
 	## a longer fight raises damage-taken all on its own, so "she took three times
 	## as much" says nothing about whether the COLOSSUS became dangerous. Split by
 	## the source string `damage_player` receives — his swings are tagged with his

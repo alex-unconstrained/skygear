@@ -1,6 +1,6 @@
 # COLOSSUS-DESIGN — making the wave-12 boss a fight
 
-Status: **DESIGN, unbuilt.** Written 2026-08-03 against the owner's build report,
+Status: **DESIGN, part-built. READ §1a BEFORE §1 — §1's central claim was measured and is half wrong, and §2's root fix was built, measured, and failed its own kill-test (SG-146).** Written 2026-08-03 against the owner's build report,
 verbatim: *"Collosus is way too easy - he needs to be scary the player."* This is
 about the fight, not the picture — his texture bug is fixed and tracked
 separately. Three designs were written independently and judged twice; both
@@ -69,6 +69,84 @@ deleted with it.
 > question unanswerable. Read §1's difficulty analysis as still standing — it
 > concluded the easiness comes from the cycle and the range rather than the
 > shape — but read its *numbers* as pre-SG-119.
+
+---
+
+## 1a. What §1 got wrong, measured (SG-146, 2026-08-03)
+
+**§1 above is an argument from geometry and it is half wrong. This section is the
+measurement, and it exists because the owner's next decision should rest on
+numbers rather than on the arithmetic in §1.** Nothing above has been edited;
+read §1 as the reasoning that was available before the fight had ever been
+timed, and read this as what the fight actually does.
+
+**THE INSTRUMENT.** `tools/boss_probe.gd` — new, because `tools/balance.gd`
+reports a WHOLE-RUN mean and the Colossus is one wave in twelve, which is the
+error SG-119 paid for. It times the wave-12 segment directly and reports against
+the number of runs that REACHED wave 12. Alongside it, `tel.taken_by_source`
+finally reads the `source` string `damage_player` has always been passed and has
+never recorded — so "who actually hit her" is a measurement now instead of an
+inference. Heat 0, four arms off one base commit:
+
+| | hp 900 (build 53) | hp 1800 | **hp 2900 (shipped)** | hp 2900 + lane walk |
+|---|---|---|---|---|
+| n (reached wave 12) | 211 | 160 | 332 | 214 |
+| boss time-to-kill | 9.7 s | 16.0 s | 22.0 s | 24.0 s |
+| ...on runs she won | 9.8 s | 16.2 s | 23.8 s | 24.2 s |
+| damage taken in wave 12 | 45.5 | 94.4 | 131.5 | 13.4 |
+| **...of that, BY HIM** | **29.9** | **83.4** | **123.4** | **0.00** (sd 0.00) |
+| damage taken per second | 2.35 | 4.59 | 6.04 | 0.59 |
+| Boiler HP lost in wave 12 | 9.5 | 4.6 | 4.8 | 11.3 |
+| runs held | 100% | 92% | 66% | 99% |
+
+**FINDING 1 — §1's central claim is false, and it was false before any of this
+landed.** §1 says his swing "geometrically cannot land" on a moving captain and
+that his real throughput is only against things that do not dodge. At hp 900 he
+was already dealing **66% of all wave-12 damage** (29.9 of 45.5). The reason is
+one number §1 does not mention: **his second-beat swing reaches
+`146 + 90 + 17 = 253` units, and `tools/bot.gd` holds a 210-unit band.** The
+thing he is fighting stands inside his reach. §1's 234-units-of-walk arithmetic
+assumes a captain who keeps retreating; the bot orbits at a fixed radius, and so,
+mostly, does a player who wants her pressure gauge to fill.
+
+**So the honest form of §1's conclusion is narrower: he cannot land on a captain
+who RETREATS, and he lands freely on one who ORBITS.** That is a very different
+design problem, and it is not solved by taking his chase away.
+
+**FINDING 2 — health alone did not make a longer boring fight. It made a shorter
+patience and a real threat.** Wave 12 got 24% longer while damage taken in it
+rose 189%, so danger *per second* rose 157% (t=16.5). His own share went 29.9 →
+123.4. **Read it with its caveat: this is measured against a bot that orbits at
+210 inside a 253-unit reach.** How much survives a player who backs out during
+beat 2 is a question for the owner's hands, and it is the first thing to watch in
+build 56.
+
+**FINDING 3 — the chase gate (§2 graft 1) fails its own pre-committed kill-test,
+and is therefore SHIPPED OFF.** §2's amended statistic (2) set the bar in
+advance: *"Median Boiler HP lost during wave 12 must rise by >= 40 of 500 against
+a baseline of ~0."* Measured **9.5 → 11.3, Welch t = 0.51**, with the Boiler
+still taking nothing at all in 88% of runs. The design's own rule for that
+outcome is written down and it is **CUT, not tune**.
+
+It fails in the other direction too, and worse: with the gate on **he deals the
+captain exactly zero, mean 0.00 with 0.00 spread over 214 runs.** Not "rarely" —
+never, structurally. The victim chain in `enemy.gd` is if/elif and
+`target_turret`/`target_crew` are only populated in the `else` branch, so a boss
+who is not targeting the captain never tests her against his swing at all. §4's
+own honest weakness — *"it can read as indifference"* — arrives here as a number.
+
+**Why the Boiler clock does not bite:** he needs 20.7 s to walk 1,965 units to
+the Boiler, he lives 23.8 s, and he now meets the lane cannon first. The clock
+the design is built on barely fits inside the fight and mostly does not. For the
+gate to earn its `true` he must live long enough to arrive, or start nearer the
+ship, or gain the multi-victim resolve §4 prices at ~220 lines — all decisions,
+not tunings.
+
+**WHAT THIS DOES NOT SETTLE.** Whether 2900 is the right number. It buys a fight
+that is genuinely dangerous and costs 34 points of hold-rate at Heat 0; hp 1800
+buys most of the danger (his damage 29.9 → 83.4) for 8. That is the owner's
+trade and it is in `NEEDS_ALEX.md`, with the curve, rather than being decided
+here.
 
 ---
 

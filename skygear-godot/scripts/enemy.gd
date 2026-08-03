@@ -222,7 +222,7 @@ const BOSS_SECOND_BEAT_REACH := 90.0
 
 
 ## THE COLOSSUS WALKS THE LANE, NOT THE CAPTAIN — COLOSSUS-DESIGN §2 graft 1,
-## the root fix, and SET TO `false` TO PUT HIM BACK ON HER HEELS (board SG-131).
+## the root fix, and SET TO `false` TO PUT HIM BACK ON HER HEELS (board SG-146).
 ##
 ## FLIP THIS ONE LINE AND THE WHOLE CHANGE IS GONE. It is a constant and not a
 ## table field on purpose: the owner asked for more health, got it in its own
@@ -260,7 +260,7 @@ const BOSS_SECOND_BEAT_REACH := 90.0
 ## ---------------------------------------------------------------------------
 ## AND IT SHIPS **OFF**, BECAUSE IT WAS BUILT, MEASURED, AND FAILED ITS OWN
 ## PRE-COMMITTED KILL-TEST. This is the whole reason the flag exists rather than
-## the change simply landing (SG-131).
+## the change simply landing (SG-146).
 ##
 ## `tools/boss_probe.gd`, wave-12 segment, Heat 0, three arms off one base
 ## (c486000), n = 211 / 332 / 214 runs that reached wave 12:

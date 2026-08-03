@@ -3731,7 +3731,7 @@ func damage_player(amount: float, source: String = "", grants_invuln: bool = tru
 	if player.take_damage(amount, grants_invuln):
 		tel.taken += amount
 		tel.taken_by_wave[wave] = float(tel.taken_by_wave.get(wave, 0.0)) + amount
-		## WHO ACTUALLY HIT HER (SG-131). Every caller of this function has passed
+		## WHO ACTUALLY HIT HER (SG-146). Every caller of this function has passed
 		## a source string since the function was written — `enemy.gd` passes the
 		## boarder's `kind`, and the deck passes "bolt", "keg" and "fire" — and
 		## until now the parameter was named `_source` because NOTHING READ IT.

@@ -50,7 +50,57 @@ All shipped tonight; none can be settled by a checker.
 
 ## 2 · Ten decisions
 
-1. **The Colossus is "too easy" — pick a fight.** No longer a blank question:
+1. **The Colossus: you asked for more HP, here is what it bought (SG-146).**
+   Done — `hp` 900 → **2900**, picked by measurement, not feel. **One number to
+   choose and one caveat to judge with your hands.**
+
+   Wave-12 segment, Heat 0, `tools/boss_probe.gd`, n = 211 / 160 / 332 runs that
+   reached wave 12:
+
+   | | time to kill him | damage he deals you | runs you hold |
+   |---|---|---|---|
+   | hp 900 (build 53) | 9.7 s | 29.9 | 100% |
+   | hp 1800 | 16.0 s | 83.4 | 92% |
+   | **hp 2900 — shipped** | **23.8 s** | **123.4** | **66%** |
+
+   **THE DECISION: 2900 or 1800.** 2900 is what "a lot more" honestly looks
+   like; it also costs 34 points of hold-rate at Heat 0, and I have not softened
+   anything to hide that. **1800 keeps most of the menace for 8 points.** One
+   word in `game_data.gd` either way — say which and I will move it.
+
+   **THE CAVEAT, and it is the one thing only you can settle.** His second-beat
+   swing reaches **253 units**; my bot orbits at **210**, so it stands inside his
+   reach and eats nearly everything. A player who backs out during beat 2 will
+   take far less than 123. **So: does he feel dangerous, or does he feel like a
+   long health bar?** If the latter, the honest fix is his *reach and cycle*, not
+   more health again.
+
+   **And one thing I built, measured, and did NOT ship on.** COLOSSUS-DESIGN's
+   recommended root fix — he stops chasing you and walks the lane at the ship —
+   is in the code behind `COLOSSUS_WALKS_THE_LANE`, defaulted **off**. It failed
+   the kill-test the design wrote for itself in advance: the Boiler was supposed
+   to start losing ≥40 HP a wave and it moved 9.5 → 11.3 (nothing), while he went
+   from hitting you for 123 to hitting you for **exactly zero, in all 214 runs**.
+   He can't reach the Boiler in time and he can't touch you on the way. The
+   design's own rule for that result is *cut, not tune*. Flip the constant if you
+   want to see it. Full numbers: `docs/COLOSSUS-DESIGN.md` §1a.
+
+   **Also, §1 of that design doc was half wrong and §1a now says so.** It argued
+   his swing "geometrically cannot land" on a moving captain. At hp 900 he was
+   already dealing **66% of all wave-12 damage**. He can't land on someone
+   *retreating*; he lands freely on someone *orbiting*, which is what the gauge
+   rewards.
+
+1b. **A crash I found and deliberately did not fix (SG-147, P1).** A crit
+   explosion can crit and explode again, with no depth guard — `damage_enemy` →
+   `_damage_circle` → `damage_enemy`. It hard-crashes the game with a stack
+   overflow. Twice in ~1,400 headless runs, both in long boss fights, so **the
+   longer Colossus makes it more likely, not less.** Probably a one-argument fix,
+   but it is a live balance path and wants its own before-and-after rather than
+   riding on a tuning commit. Say the word and it is next.
+
+1c. **The Colossus is "too easy" — the original blank question, now mostly
+   answered above.** No longer a blank question:
    `docs/COLOSSUS-DESIGN.md` is three designs, judged twice, each carrying a
    kill-test that would cut it. **Read §1 even if you read nothing else** — it
    answers *why* he is easy with his real numbers, and the answer is not

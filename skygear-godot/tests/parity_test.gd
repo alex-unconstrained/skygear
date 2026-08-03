@@ -2296,7 +2296,7 @@ func _boss() -> void:
 		minion == null or not is_instance_valid(minion) or minion.dead)
 	_advance(game, 2.0)
 	_check("boss", "and it comes out of the turn", boss.state != "turn", boss.state)
-	## WHO HIT HER, RECORDED (SG-131). `damage_player` has taken a source string
+	## WHO HIT HER, RECORDED (SG-146). `damage_player` has taken a source string
 	## since it was written and the parameter was spelled `_source` — passed by
 	## every caller, read by nothing. It cost a real answer: when the Colossus's
 	## health tripled, wave-12 damage-taken tripled with it, and the total by
@@ -2343,7 +2343,7 @@ func _boss() -> void:
 	await _boss_walks_the_lane()
 
 
-## THE ROOT FIX, ASSERTED AS A BEHAVIOUR RATHER THAN AS A CONSTANT (SG-131).
+## THE ROOT FIX, ASSERTED AS A BEHAVIOUR RATHER THAN AS A CONSTANT (SG-146).
 ##
 ## COLOSSUS-DESIGN §1 measured that the Colossus is easy because he CHASES: he
 ## freezes for 1.9 s to swing at where a 260 u/s captain was, and closes at 95.
@@ -2418,7 +2418,7 @@ func _boss_walks_the_lane() -> void:
 	## exists so that a later hand cannot widen the gate from the Colossus to
 	## every boarder without the harness saying so. A deck where nothing turns to
 	## face you is a deck with no lane defence at all.
-	_check("boss", "and every other boarder still does — the SG-131 regression guard",
+	_check("boss", "and every other boarder still does — the SG-146 regression guard",
 		grunt_chases, "scrapper chases_captain() = %s" % str(grunt_chases))
 	## AND THE BEHAVIOUR ITSELF, IN BOTH POSITIONS OF THE GATE — driven on the
 	## instance rather than read off the shipped constant. This is the half that
@@ -10779,7 +10779,7 @@ func _wedge() -> void:
 	## This check existed to guarantee that the row which made him easier by an
 	## ARC had not also made him easier by a NUMBER. That guarantee still holds
 	## for damage, windup and recover and is still worth keeping. `hp` left it in
-	## SG-131, deliberately and at the owner's direction, so it moves to the
+	## SG-146, deliberately and at the owner's direction, so it moves to the
 	## check below rather than being quietly dropped from this one — a pin that
 	## silently loses a field is a detector silenced to make a change pass.
 	_check("telegraph", "and SG-119 moved his shape and nothing else about him",
@@ -10787,14 +10787,17 @@ func _wedge() -> void:
 			and is_equal_approx(float(cfg.windup), 0.90) and is_equal_approx(float(cfg.recover), 1.0),
 		"dmg %.0f windup %.2f recover %.2f"
 			% [cfg.damage, cfg.windup, cfg.recover])
-	## THE COLOSSUS'S HEALTH IS THE NUMBER A MEASUREMENT PICKED (SG-131).
+	## THE COLOSSUS'S HEALTH IS THE NUMBER A MEASUREMENT PICKED (SG-146).
 	##
 	## The owner asked for "a lot more HP" after build 53. 2900 is not a feel: it
-	## is 900 x (30.4 / 9.3), where 9.3 s is the boss time-to-kill
-	## `tools/boss_probe.gd` measured at HEAD over 113 wave-12 runs and 30.4 s is
-	## sixteen of his own 1.90 s attack cycles — eight per beat, so that the
-	## half-health turn has a first beat to escalate FROM. The derivation is
-	## written out at the row in `scripts/game_data.gd`.
+	## is 1,494 effective / 9.72 s = 153.7 effective HP a second, times a target of
+	## 30.4 s, divided by the 1.66 wave-12 scaling. 9.72 s is the boss
+	## time-to-kill `tools/boss_probe.gd` measured over 211 wave-12 runs, and
+	## 30.4 s is sixteen of his own 1.90 s attack cycles — eight per beat, so that
+	## the half-health turn has a first beat to escalate FROM. The derivation, and
+	## the fact that it overshoots (he dies at 23.8 s, because damage-per-second
+	## against him rises through the fight), are written out at the row in
+	## `scripts/game_data.gd`.
 	##
 	## THIS IS A REGRESSION GUARD, NOT A DISCOVERY. It cannot find a bug; it
 	## exists so that a later hand cannot move a measured number back to a felt
@@ -10803,8 +10806,8 @@ func _wedge() -> void:
 	var eff: float = float(cfg.hp) * (1.0 + SkyGearWorkshop.BASE_HP_SCALING * 11.0)
 	_check("boss", "his health is the number the measurement picked, not a feeling",
 		is_equal_approx(float(cfg.hp), 2900.0),
-		"hp %.0f = %.0f effective at wave 12, about %.0f s at the measured 160.6 eff/s"
-			% [cfg.hp, eff, eff / 160.6])
+		"hp %.0f = %.0f effective at wave 12, about %.0f s at the measured 153.7 eff/s"
+			% [cfg.hp, eff, eff / 153.7])
 	game.queue_free()
 	await process_frame
 
