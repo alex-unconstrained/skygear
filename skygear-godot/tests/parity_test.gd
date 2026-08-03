@@ -12319,6 +12319,7 @@ func _deck_shape() -> void:
 func _arrival() -> void:
 	_arrival_immunity()
 	_arrival_structure()
+	_arrival_ship()
 
 
 ## Get a live boarder that is still in its arrival window, out of a real run
@@ -12525,3 +12526,211 @@ func _game_sources() -> Array[String]:
 		if name.ends_with(".gd"):
 			out.append("res://scripts/" + name)
 	return out
+
+
+## --- STAGE ONE: A SHIP PULLS UP ----------------------------------------------
+##
+## The half of the owner's second sentence that ships on its own. Everything here
+## is geometry and arithmetic, so it runs headless — the picture itself is judged
+## by eye off `.shots/`, which is the only instrument that can judge it.
+func _arrival_ship() -> void:
+	## (1) EVERY WAVE BUT THE BOSS'S HAS A HULL, AND IT IS ONE THAT ALREADY
+	## FLIES. The second half is the decision guard: `skyship_barge_heavy` is
+	## ingested, budgeted and deliberately banked, and whether it comes off the
+	## bench is /NEEDS_ALEX decision 3 — which stage one must not answer by
+	## accident.
+	var flying: Array[String] = []
+	for row: Dictionary in SkyGearView3D.SKYSHIPS:
+		flying.append(str(row.model))
+	var bad: Array[String] = []
+	var boss_waves := 0
+	for w in range(1, SkyGearData.WAVES.size() + 1):
+		var hull := SkyGearView3D.arrival_hull_for_wave(w)
+		if bool(SkyGearData.WAVES[w - 1].get("boss", false)):
+			boss_waves += 1
+			if hull != "":
+				bad.append("wave %d is the boss and got %s" % [w, hull])
+			continue
+		if hull == "":
+			bad.append("wave %d got no hull" % w)
+		elif not flying.has(hull):
+			bad.append("wave %d got %s, which is not in the wedge" % [w, hull])
+	_check("arrival", "every wave but the boss's brings a hull forward, and it is one already flying",
+		bad.is_empty() and boss_waves == 1, "%d boss waves;%s" % [boss_waves, _joined(bad)])
+
+	## (2) THE FLEET THINS, AND IT CANNOT DISAGREE WITH ITSELF. The hull on the
+	## bow is the same node as the gap in the wedge — one fact, not two that have
+	## to be kept in step — so the only thing to assert is that the ship named
+	## for a wave is a ship that has an ambient station to leave.
+	var rotates: Dictionary = {}
+	for w in range(1, SkyGearData.WAVES.size() + 1):
+		var hull := SkyGearView3D.arrival_hull_for_wave(w)
+		if hull != "":
+			rotates[hull] = true
+	_check("arrival", "and across a run the wedge is thinned in more than one place",
+		rotates.size() >= 3, "%d distinct hulls over %d waves"
+			% [rotates.size(), SkyGearData.WAVES.size()])
+
+	## (2b) WAVE ONE GETS THE LONGEST APPROACH. The first draft of the rotation
+	## started with the cutter because it is nearest and reads largest, and the
+	## frames said no: the cutter's ambient station is ALREADY at the hold's own
+	## depth and height, so its whole arrival is a sideways slide. The wave that
+	## teaches the mechanic cannot be the one where nothing approaches, and that
+	## is a property of the table rather than a taste, so it is pinned.
+	var furthest := ""
+	var longest := -1.0
+	for row: Dictionary in SkyGearView3D.SKYSHIPS:
+		var at: Vector3 = row.at
+		var travel: float = Vector2(at.x, at.z).distance_to(SkyGearView3D.ARRIVAL_HOLD_XZ)
+		if travel > longest:
+			longest = travel
+			furthest = str(row.model)
+	_check("arrival", "wave one brings the hull with the furthest to travel",
+		SkyGearView3D.arrival_hull_for_wave(1) == furthest,
+		"wave 1 brings %s; the longest run is the %s's at %.0f units"
+			% [SkyGearView3D.arrival_hull_for_wave(1), furthest, longest])
+
+	## (3) THE APPROACH IS A PURE FUNCTION OF THE SIM'S OWN CLOCK. It starts at
+	## the station, finishes at the hold, never overshoots, and is monotone on
+	## the way — and the departure rides `wave_clear_time` down so the hull is
+	## home on the frame the draft opens rather than on a second timer of its own
+	## length. This is what makes `tools/still.gd` freeze it by construction:
+	## there is no accumulator to freeze.
+	var at_start := SkyGearView3D.arrival_u(0.0, -1.0)
+	var at_hold := SkyGearView3D.arrival_u(SkyGearView3D.ARRIVAL_APPROACH, -1.0)
+	var monotone := true
+	var last := -1.0
+	for i in 40:
+		var u := SkyGearView3D.arrival_u(float(i) * 0.1, -1.0)
+		if u < last - 0.000001 or u < 0.0 or u > 1.0:
+			monotone = false
+		last = u
+	_check("arrival", "the hull leaves its station at wave start and is on the bow hold before the fight",
+		is_equal_approx(at_start, 0.0) and is_equal_approx(at_hold, 1.0) and monotone,
+		"u(0)=%.3f u(%.1f)=%.3f monotone=%s"
+			% [at_start, SkyGearView3D.ARRIVAL_APPROACH, at_hold, monotone])
+	_check("arrival", "and rides the wave's own clear countdown home, arriving as the draft opens",
+		is_equal_approx(SkyGearView3D.arrival_u(99.0, SkyGearGame.WAVE_CLEAR_TIME), 1.0)
+			and is_equal_approx(SkyGearView3D.arrival_u(99.0, 0.0), 0.0),
+		"u at clear-start %.3f, at clear-end %.3f"
+			% [SkyGearView3D.arrival_u(99.0, SkyGearGame.WAVE_CLEAR_TIME),
+				SkyGearView3D.arrival_u(99.0, 0.0)])
+
+	## (4) THE KILL TEST, AND IT IS GEOMETRIC. A 900-unit `bow_prow.png` died at
+	## the bow line against a measured 65-unit headroom budget; a hull parked
+	## 1,440 units past the bow edge with its masthead above the planking is that
+	## same mistake at range, and it would be found by eye in a screenshot after
+	## the fact instead of here. Measured off the REAL scenes, at the REAL scale
+	## `_build_skyships` applies (`length / span.z`), against the sim's own
+	## rectangles.
+	var deck: Rect2 = SkyGearGame.DECK_RECT
+	var fouls: Array[String] = []
+	var measured := 0
+	for row: Dictionary in SkyGearView3D.SKYSHIPS:
+		var key := str(row.model)
+		if not ARRIVAL_HULL_NAMES.has(key):
+			continue
+		var path := SkyGearView3D.model_path(key)
+		if not ResourceLoader.exists(path):
+			fouls.append("%s: no scene" % key)
+			continue
+		var ship: Node3D = (load(path) as PackedScene).instantiate() as Node3D
+		var span := SkyGearView3D.measure_span(ship)
+		ship.free()
+		if span.z <= 0.0:
+			fouls.append("%s: nothing to measure" % key)
+			continue
+		measured += 1
+		## Ground units. The build scales by LENGTH along z, and the 180-degree
+		## yaw every hull wears turns the box about Y, which swaps its signs and
+		## not its extents.
+		var per: float = float(row.length) / span.z
+		var half_x: float = span.x * per * 0.5
+		var half_z: float = float(row.length) * 0.5
+		var tall: float = span.y * per
+		var hold: Vector3 = SkyGearView3D.arrival_hold(tall)
+		var foot := Rect2(hold.x - half_x, hold.z - half_z, half_x * 2.0, half_z * 2.0)
+		if foot.intersects(deck):
+			fouls.append("%s: footprint %s over the deck" % [key, foot])
+		for cargo: Rect2 in SkyGearGame.CARGO_RECTS:
+			if foot.intersects(cargo):
+				fouls.append("%s: footprint over a cargo rect" % key)
+				break
+		## THE MASTHEAD, AND IT IS NOT CHECKED AGAINST THE PLANKING. `y >= 0` is
+		## the trivial threshold and it is the one that let the first build of
+		## this ship park a hull entirely off the top of the picture: `y` in a
+		## `SKYSHIPS` row is the KEEL — `tools/static_model.gd` stands each hull's
+		## measured floor at its scene origin — so a keel at -520 puts the
+		## cutter's deck at -315 against a frame ceiling SG-102 measured at about
+		## -510 at this range. Passing "below the planking" while being above the
+		## top of the frame is exactly the check that cannot fail.
+		##
+		## So the line is drawn at A HULL THE FLEET ALREADY PROVES IS VISIBLE:
+		## the cutter's ambient masthead, which SG-102's 140-station sweep says
+		## reads from the bow and the port rail at zoom 1.0. An arrival hull may
+		## not ask for more of the frame than that.
+		if hold.y + tall > SkyGearView3D.ARRIVAL_DECK_Y + 0.5:
+			fouls.append("%s: masthead at y=%.0f, above the hold's own deck line"
+				% [key, hold.y + tall])
+	_check("arrival", "every arrival hull clears the deck and the cargo at the hold, and parks by its deck rather than its keel",
+		fouls.is_empty() and measured == ARRIVAL_HULL_NAMES.size(),
+		"%d hulls measured;%s" % [measured, _joined(fouls)])
+
+	## (4b) AND THE DECK LINE IS THE FLEET'S OWN CEILING, NOT A CHOSEN HEIGHT.
+	## Re-measured off every ambient hull, so `ARRIVAL_DECK_Y` cannot quietly
+	## drift above the highest thing SG-102 proved is in frame — and so that the
+	## day somebody raises a station, this says so instead of the picture.
+	var ceiling := -1e9
+	var tallest := ""
+	for row: Dictionary in SkyGearView3D.SKYSHIPS:
+		var path := SkyGearView3D.model_path(str(row.model))
+		if not ResourceLoader.exists(path):
+			continue
+		var ship: Node3D = (load(path) as PackedScene).instantiate() as Node3D
+		var span := SkyGearView3D.measure_span(ship)
+		ship.free()
+		if span.z <= 0.0:
+			continue
+		var masthead: float = (row.at as Vector3).y + span.y * float(row.length) / span.z
+		if masthead > ceiling:
+			ceiling = masthead
+			tallest = str(row.model)
+	_check("arrival", "the hold sits at the fleet's own measured ceiling, not at a chosen height",
+		absf(SkyGearView3D.ARRIVAL_DECK_Y - ceiling) <= 1.0,
+		"ARRIVAL_DECK_Y %.0f against the %s's masthead at %.0f"
+			% [SkyGearView3D.ARRIVAL_DECK_Y, tallest, ceiling])
+
+	## (5) AND NOTHING IN THE ARRIVAL TIER READS A WALL CLOCK. SG-133's whole
+	## complaint was a renderer holding a clock the sim could not stop, and the
+	## ambient tier above this one legitimately does exactly that
+	## (`_sync_skyships` heaves on `Time.get_ticks_msec`), which is why the line
+	## has to be drawn at the function rather than at the file. A REGRESSION
+	## GUARD in the sense that it passes the day it is written — its whole job is
+	## the day somebody reaches for a timer here.
+	var body := _function_body("res://scripts/view3d.gd", "_sync_arrival")
+	_check("arrival", "the arrival tier holds no clock of its own — the SG-133 regression guard",
+		body != "" and not body.contains("Time.get_") and not body.contains("delta"),
+		"%d lines read" % body.split("\n").size())
+
+
+## The hulls stage one may bring forward, as a set, for the geometric sweep.
+const ARRIVAL_HULL_NAMES := {"skyship_cutter": true, "skyship_tender": true,
+	"skyship_skiff": true, "skyship_barge": true}
+
+
+## One function's body, out of a source file, for the structural checks. Ends at
+## the next line that starts in column zero, which in GDScript is the next
+## top-level declaration.
+func _function_body(path: String, name: String) -> String:
+	var out: Array[String] = []
+	var inside := false
+	for line in FileAccess.get_file_as_string(path).split("\n"):
+		var text := str(line)
+		if text.begins_with("func %s(" % name):
+			inside = true
+			continue
+		if inside:
+			if text != "" and not text.begins_with("\t") and not text.begins_with(" "):
+				break
+			out.append(text)
+	return "\n".join(out)

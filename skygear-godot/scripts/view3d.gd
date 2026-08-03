@@ -294,6 +294,181 @@ const SKYSHIPS := [
 ## want figures to jump FROM.
 const SKYSHIP_BOW_HOLD := Vector3(0.0, -520.0, -2600.0)
 
+## --- THE ARRIVAL TIER (board SG-134, stage one) -------------------------------
+##
+## The owner, twice: *"having a ship pull up to the front and a bunch of enemies
+## jump off"*. `SKYSHIPS` above is the ambient half of that sentence and shipped
+## as SG-102; this is the other half's first stage — A SHIP PULLS UP. Nothing
+## here jumps, nothing here spawns, and nothing here is read by the simulation.
+##
+## WHICH HULL IS THE ARRIVAL SHIP — A DEFAULT, AND IT IS AWAITING ALEX'S CHOICE.
+## `/NEEDS_ALEX.md` decision 5 has asked which ship is the arrival ship since
+## SG-102 and he has not named one. `docs/BOARDING-ARRIVAL-DESIGN.md` §6 lays out
+## three answers; this is (b), its recommendation — **one of the four hulls
+## already flying comes forward per wave, and its ambient station goes empty
+## while it is away.** THAT SECOND CLAUSE IS FREE AND IT IS THE POINT: the hull
+## on the bow is the same node as the hull missing from the wedge, so "a ship
+## pulled up" and "the fleet is one short" are one fact told twice, and neither
+## can drift from the other.
+##
+## Three properties of picking (b) rather than (a) or (c), all of which are why
+## this can be a default instead of a block:
+##
+##   * IT ANSWERS NO OTHER OPEN QUESTION BY ACCIDENT. `skyship_barge_heavy` stays
+##     on the bench, so decision 3 — is the sixth hull allowed off it — is left
+##     exactly where it was rather than being settled by a stage-one commit.
+##   * IT IS ONE CONSTANT TO OVERRULE. Cut this list to a single entry and the
+##     feature is answer (a), a dedicated arrival ship, with no other edit.
+##   * IT CLAIMS NO CHANNEL NOBODY HAS MEASURED. Answer (c) — the hull SAYS what
+##     is coming — needs the hull to be legible from the poses a run is spent in,
+##     and §6 is blunt that from mid-deck at zoom 1.0 the deck is 100% of the
+##     frame. That is SG-139's row, after a number.
+##
+## THE ORDER IS BY HOW FAR THE HULL TRAVELS, LONGEST FIRST, and that was a
+## MEASUREMENT rather than taste. The first draft of this list started with the
+## cutter on the reasoning that it is nearest and reads largest — and the frames
+## said no: **the cutter's ambient station is already at z = -2600, the hold's own
+## depth, and at keel -950 it is already at the hold's own height.** Its entire
+## arrival is a sideways slide. The wave that TEACHES the mechanic cannot be the
+## one where nothing approaches, so the order runs
+##
+##   tender  z -5600, keel -2100   — 3,000 forward and 1,150 up
+##   barge   z -4600, keel -1650   — 2,000 forward and  700 up
+##   skiff   z -3400, keel -1150   —   800 forward and  200 up
+##   cutter  z -2600, keel  -950   —   sideways only
+##
+## so wave 1 is the biggest approach in the fleet and the smallest lands on wave
+## 4, by which point the player knows what she is looking at. Pinned by
+## `arrival · wave one brings the hull with the furthest to travel`.
+const ARRIVAL_HULL_ORDER := ["skyship_tender", "skyship_barge",
+	"skyship_skiff", "skyship_cutter"]
+
+## How long the hull takes to come forward, in seconds of the SIMULATION's own
+## wave clock. Long enough to read as a ship manoeuvring rather than a decal
+## sliding, short enough that it is on station before the first boarder is.
+const ARRIVAL_APPROACH := 2.6
+
+## WHERE THE ARRIVING HULL'S DECK SITS — and this is a CORRECTION to
+## `SKYSHIP_BOW_HOLD`, found by being the first thing ever to read it.
+##
+## THE BUG IN THE MARK. Every `y` in `SKYSHIPS` is a KEEL: `tools/static_model.gd`
+## stands each hull's measured floor at its scene origin, so the number in a row
+## is how far the BOTTOM of that ship is below the planking. `SKYSHIP_BOW_HOLD`
+## was written in the same units — y = -520, with the reasoning *"520 below puts
+## its deck a little under ours, which is the direction you want figures to jump
+## FROM"*. But a keel 520 down is not a deck 520 down; the deck is the keel plus
+## the hull's own height, and the hulls measure 205 to 465 ground units tall. Put
+## the cutter's KEEL at -520 and its masthead is at -315 — against a frame
+## ceiling that the same file measures at about -510 at this range. **The entire
+## hull is above the top of the picture and what reaches the player is the last
+## few units of its underside.** Photographed before this line existed:
+## `.shots/sg134/bow-z1.00-hold.png` on commit c486000's tree.
+##
+## So the mark the arrival tier hits is the hull's DECK, and its keel is DERIVED
+## per hull — which is also the only version of this that makes four hulls of
+## three different heights read as the same manoeuvre instead of as four
+## different ones. `SKYSHIP_BOW_HOLD` keeps the x and z it was measured for; only
+## its y is superseded, and only for this tier.
+##
+## AND THE NUMBER IS NOT CHOSEN, IT IS THE FLEET'S OWN CEILING. -745 is the
+## HIGHEST MASTHEAD IN THE AMBIENT WEDGE — the cutter, keel -950 and 205 ground
+## units tall — and SG-102's 140-station sweep photographed that station from all
+## six play poses at both zooms and found it in frame from the bow and the port
+## rail at zoom 1.0. The arrival hull is held to it so that it never asks for
+## more of the picture than a hull the fleet already proves is visible. Typed
+## once here and pinned to the measured fleet by
+## `arrival · the hold sits at the fleet's own measured ceiling, not at a chosen
+## height`, which re-measures every hull and fails the day one of them moves.
+const ARRIVAL_DECK_Y := -745.0
+
+
+## WHERE ACROSS AND HOW FAR AHEAD — AND IT IS NOT `SKYSHIP_BOW_HOLD`'s x AND z,
+## WHICH IS THE SECOND CORRECTION THIS TIER OWES ITS OWN MARK.
+##
+## `SKYSHIP_BOW_HOLD` is x = 0, DEAD AHEAD, on the reasoning that *"the bow is
+## the one direction that is on screen from every pose at both zooms"*. That is
+## true of the FRUSTUM and false of the picture, and the file it is written in
+## says why four paragraphs earlier: `tools/skyship_probe.gd`'s own header warns
+## that the analytic sweep "cannot see the SHIP'S OWN HULL — a transport below
+## and abeam is inside the frustum and behind forty metres of opaque deck, and
+## the only instrument that reports that is a photograph." Dead ahead and below
+## is the one bearing where the thing in the way is OUR OWN BOW, and it is the
+## bearing the whole mark was placed on.
+##
+## Photographed: with the hold at x = 0 the tender projects to screen (960, 633)
+## from the bow pose at zoom 1.0 — the middle of the planking — and nothing
+## whatever is drawn there. `.shots/sg134/bow-z1.00-hold.png` and
+## `bow-z1.55-hold.png` on commit c486000's tree carry it; the frame is all deck
+## below the prow and all sky above it, and the ship is on the wrong side of the
+## line.
+##
+## THE FLEET ALREADY KNEW THE ANSWER. Every one of SG-102's four stations is well
+## off the centreline — |x| from 1,250 to 2,400 — and they read, which is the
+## 140-station sweep's actual verdict rather than the summary of it. So the hold
+## takes the CUTTER'S OWN BEARING, the nearest and most legible of the four, and
+## moves 400 units further forward so that a hull sitting on it is unmistakably
+## ahead of the wedge rather than in it.
+##
+## It is still "a ship pulls up to the front": 3,000 units off the bow and 745
+## below, which is forward of every ambient station and the only place a
+## transport can be both close and seen.
+const ARRIVAL_HOLD_XZ := Vector2(-1250.0, -3000.0)
+
+
+## The station an arriving hull of this height holds, in ground units. One place,
+## so the shot tool, the harness and the renderer cannot hold three opinions.
+static func arrival_hold(tall: float) -> Vector3:
+	return Vector3(ARRIVAL_HOLD_XZ.x, ARRIVAL_DECK_Y - maxf(0.0, tall),
+		ARRIVAL_HOLD_XZ.y)
+
+
+## WHICH HULL COMES FORWARD FOR THIS WAVE, or "" for none.
+##
+## Reactive, and off the WAVE NUMBER alone — never off the spawn queue. The
+## design kills a predictive berth planner by name: reading a copy of the queue
+## to know what is about to spawn is a second implementation of the wave
+## scheduler living in the renderer, and `_update_wave` gates popping on
+## `enemy_count() < 64`, so that second copy desynchronises exactly when the deck
+## is fullest and the mistake is most visible.
+##
+## THE BOSS NEVER GETS ONE. Wave 12 is `{"boss": true}`, owns a cutscene
+## (`cue("boss_arrival")`), SG-119's fixed wedge and the SEGMENTED shadow path,
+## and a transport sliding across that is three fights at once.
+static func arrival_hull_for_wave(wave: int) -> String:
+	if wave < 1 or wave > SkyGearData.WAVES.size():
+		return ""
+	if bool(SkyGearData.WAVES[wave - 1].get("boss", false)):
+		return ""
+	return str(ARRIVAL_HULL_ORDER[(wave - 1) % ARRIVAL_HULL_ORDER.size()])
+
+
+## HOW FAR FORWARD THE HULL IS — 0 at its ambient station, 1 at the bow hold.
+##
+## A PURE FUNCTION OF TWO NUMBERS THE SIMULATION ALREADY KEEPS, and that is the
+## whole of its clock. No accumulator, no `Time.get_ticks_msec()`, nothing to
+## drift: `tools/still.gd` freezes it by construction rather than by hope
+## (STATUS failure mode five, four prior instances), and two runs of a screenshot
+## tool agree because there is nothing for them to disagree about — SG-133's
+## complaint, which was exactly a renderer holding a clock of its own.
+##
+## THE DEPARTURE RIDES THE SIM'S OWN WAVE-CLEAR COUNTDOWN rather than a second
+## timer of the same length. `wave_clear_time` counts DOWN from
+## `SkyGearGame.WAVE_CLEAR_TIME` to zero and then the draft opens, so reading it
+## directly means the hull is back on station on the frame the draft appears, and
+## the day that number moves the ship moves with it.
+static func arrival_u(wave_time: float, wave_clear_time: float) -> float:
+	if wave_clear_time >= 0.0:
+		return _arrival_ease(clampf(wave_clear_time
+			/ maxf(0.001, SkyGearGame.WAVE_CLEAR_TIME), 0.0, 1.0))
+	return _arrival_ease(clampf(wave_time / ARRIVAL_APPROACH, 0.0, 1.0))
+
+
+## Ease in and out, so the hull leans out of its station and settles into the
+## hold instead of starting and stopping at full speed. `SkyGearCutscene`'s
+## `inout` shape, which is the one every other move in this project uses.
+static func _arrival_ease(u: float) -> float:
+	return u * u * (3.0 - 2.0 * u)
+
 ## The SCUPPER GRATING's height in ground units (SG-56): low deck ironwork,
 ## not a cargo wall — it must never hide a boarder, so it stays well under the
 ## 125-unit module height `_occluded` reasons about, and out of that list.
@@ -2574,8 +2749,18 @@ func _build_skyships() -> void:
 		for mi: MeshInstance3D in ship.find_children("*", "MeshInstance3D", true, false):
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(ship)
+		## The model key rides along so the arrival tier can name a hull rather
+		## than an index into a table it does not own — a row whose scene was
+		## missing is not in `_skyships` at all, so index N here and index N in
+		## `SKYSHIPS` are not the same ship the moment any art is absent.
+		## …and its measured HEIGHT in ground units, because the arrival tier
+		## parks a hull by its DECK rather than by its keel and the deck is the
+		## keel plus this. Measured once, here, off the same span the scale came
+		## from — re-measuring it at the berth would be a second answer to a
+		## question this line already asked.
 		_skyships.append({"node": ship, "at": at, "heave": float(row.heave),
-			"period": maxf(0.5, float(row.period))})
+			"period": maxf(0.5, float(row.period)), "model": key,
+			"tall": span.y * float(row.length) / span.z})
 
 
 ## Their only motion, and it is deliberately the smallest one that reads.
@@ -2600,6 +2785,65 @@ func _sync_skyships() -> void:
 		## And a whisper of roll off the same phase, a quarter turn behind the
 		## heave, because a hull that rises without leaning is a lift.
 		node.rotation.z = deg_to_rad(0.9 * sin(w * t + float(i) * 1.7 - PI * 0.5))
+	## And then ONE of them may be somewhere else entirely. See `_sync_arrival`:
+	## it runs after this on purpose and overwrites the hull that is forward,
+	## which is `_fly()`'s exact relationship to `place()` — the general rule
+	## writes everything, the special case bends one of them, and the special
+	## case is one function you can delete.
+	_sync_arrival()
+
+
+## A SHIP PULLS UP TO THE FRONT — board SG-134 stage one, and half of the owner's
+## second sentence.
+##
+## The hull for this wave leaves its station in the ambient wedge, comes forward
+## and up to `SKYSHIP_BOW_HOLD`, holds there for the fight, and rides the wave's
+## own clear countdown back. **Its station is empty sky while it is away**, at no
+## cost and with nothing to keep in step, because the ship on the bow and the gap
+## in the wedge are the same node.
+##
+## WRITES NOTHING AND READS THREE FIELDS. `game.wave`, `game.wave_time`,
+## `game.wave_clear_time`. Delete this function and the wave plays out
+## identically; delete `ARRIVAL_HULL_ORDER` and the fleet is SG-102 exactly.
+func _sync_arrival() -> void:
+	if game == null or _skyships.is_empty():
+		return
+	var hull := arrival_hull_for_wave(int(game.wave))
+	if hull == "":
+		return
+	## NO EARLY RETURN AT u = 0, and that is not a micro-optimisation forgone.
+	## `_sync_skyships` rewrites only `.y`, so skipping this at the station would
+	## leave x and z carrying the last frame the hull WAS forward — the ship
+	## would come back down but never come back across, and the wedge would be
+	## permanently one hull short with a duplicate parked on the bow. The lerp at
+	## u = 0 is the station exactly; letting it run is what makes `u` the whole of
+	## the state rather than most of it.
+	var u := arrival_u(float(game.wave_time), float(game.wave_clear_time))
+	for s: Dictionary in _skyships:
+		if str(s.get("model", "")) != hull:
+			continue
+		var node: Node3D = s.node
+		if not is_instance_valid(node):
+			return
+		## The heave this hull is riding THIS frame, taken back out of the
+		## position `_sync_skyships` just wrote and put back on at the far end —
+		## so a ship at the bow hold is still riding air rather than pinned to a
+		## coordinate, and the two motions compose instead of one erasing the
+		## other.
+		##
+		## AND IT IS COMPUTED FROM THE STATION, NEVER FROM WHERE THE SHIP IS.
+		## `_sync_skyships` rewrites only `.y` every frame, so lerping the node's
+		## own `.position` toward the hold would leave x and z carrying last
+		## frame's answer into this one — an accumulator, and the fleet would
+		## creep bowward a little further every wave it flew. `at` is the fixed
+		## point; `u` is the whole of the state.
+		var at: Vector3 = s.at
+		var bob: float = node.position.y / WORLD_SCALE - at.y
+		var from := Vector3(at.x, at.y + bob, at.z)
+		var hold := arrival_hold(float(s.get("tall", 0.0)))
+		var to := Vector3(hold.x, hold.y + bob, hold.z)
+		node.position = from.lerp(to, u) * WORLD_SCALE
+		return
 
 
 func _build_clouds() -> void:

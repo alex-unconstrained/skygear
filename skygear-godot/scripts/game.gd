@@ -143,6 +143,14 @@ var state := State.TITLE
 var state_name := "TITLE"
 var wave := 0
 var wave_time := 0.0
+## HOW LONG "WAVE CLEAR" HOLDS before the draft opens. It was a literal at the
+## one place it is assigned, which is fine until something outside the simulation
+## needs to know how long the beat lasts — and something does now: the arrival
+## transport rides this countdown back to its ambient station
+## (`view3d.gd::arrival_u`), so the hull is home on the frame the draft appears.
+## Same lesson as `SkyGearEnemy.TURN_TIME`: a renderer that re-declares a window
+## the sim owns is two files holding one number.
+const WAVE_CLEAR_TIME := 1.6
 var wave_clear_time := -1.0
 var spawn_queue: Array[Dictionary] = []
 var skills: Array[Dictionary] = []
@@ -2473,7 +2481,7 @@ func _update_wave(delta: float) -> void:
 		if is_push_wave(wave):
 			push_pending = hulk.is_empty() or not bool(hulk.get("dead", false))
 	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0 and not push_pending:
-		wave_clear_time = 1.6
+		wave_clear_time = WAVE_CLEAR_TIME
 		play_sfx("world/wave_clear.ogg", -4.0)
 		if voice != null:
 			voice.say("wave_clear", 1)
