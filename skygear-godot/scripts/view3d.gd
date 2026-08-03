@@ -211,6 +211,89 @@ const WRECK_POSITION := Vector2(0.0, -1500.0)
 ## Its authored height is PROP_HEIGHT["wreck"]; read from there so the fitting and
 ## the prop table can never disagree about how tall the same picture stands.
 
+## THE TRANSPORT FLEET — the owner's own five ships, and the FIRST geometry this
+## renderer puts outside the hull entirely.
+##
+## His ask, and the reason the two tiers below are two tiers: *"I was thinking
+## more of having the sky ships be visible in the distance and below the player
+## ship and then for each wave maybe just having a ship pull up to the front and
+## a bunch of enemies jump off. I just think that ships in the distance can make
+## the sky and the game feel more intense and lived in."* An ambient fleet that
+## does nothing is what makes the one that pulls up MEAN something.
+##
+## THIS IS THE AMBIENT TIER ONLY. Nothing here spawns, schedules or carries a
+## boarder; the arrival choreography is the ledger's "Boarders should ARRIVE, not
+## appear" and it has to be presentation over an UNCHANGED deterministic seeded
+## queue, the same bargain the deaths keep. What this owes that work is a mark to
+## hit, and `SKYSHIP_BOW_HOLD` below is it.
+##
+## WHERE THEY CAN BE, AND IT IS MEASURED. `tools/skyship_probe.gd` swept 140
+## stations against six real play poses at both zooms — not the four sky poses,
+## which are where the SKY is visible and not where a run is spent. The verdict
+## is narrow and it is the whole reason these positions look lopsided:
+##
+##   * AHEAD, ALWAYS. Every station at z >= 0 — abeam or astern — is in frame
+##     from at most 3 of the 12 pose/zoom pairs, and most from none. The camera
+##     is 460 units astern of its focus looking 41 degrees DOWN the deck: there
+##     is no sideways left to see with. 63 of the 140 stations are visible from
+##     no pose at all.
+##   * AND BELOW. The top of the frame looks 23 degrees below horizontal, so at
+##     3,000 units ahead everything above y = -510 is off the top of the picture.
+##     That is the fact that hid the skybox three times (`tools/sky_shot.gd`) and
+##     it is not negotiable; it is also why a fleet "in the distance" has to be a
+##     fleet BELOW, which is what the owner asked for in the same sentence.
+##
+## So the band is a wedge off the bow between about 2,500 and 6,000 units ahead,
+## 700 to 2,100 below, and out to ~2,400 either side. Everything here sits in it,
+## spread in depth so the four parallax against each other and against the two
+## cloud layers for free.
+##
+## y IS THE KEEL. `tools/static_model.gd` stands each hull's measured floor at
+## its scene origin, so the number in a row is how far the bottom of that ship is
+## below the planking — the number you can reason about when you are asking
+## whether a mast clears the top of the frame.
+##
+## DELETE A ROW AND THAT SHIP IS GONE; empty the table and `_build_skyships`
+## builds nothing and the frame is what it was. No other system reads it.
+const SKYSHIPS := [
+	## THE CUTTER, nearest and to port — the knife, and the one hull whose
+	## silhouette survives being small. 900 units at this station is 423 px of
+	## screen, the largest of the four, which is what `tools/skyships.py` sizes
+	## the whole fleet's texture budget against.
+	{"model": "skyship_cutter", "at": Vector3(-1250.0, -950.0, -2600.0),
+		"length": 900.0, "yaw": 180.0, "heave": 26.0, "period": 7.3},
+	## THE SKIFF, starboard and a little further out. The small disposable one,
+	## so it is the one that reads as "there are lots of these".
+	{"model": "skyship_skiff", "at": Vector3(1500.0, -1150.0, -3400.0),
+		"length": 700.0, "yaw": 180.0, "heave": 34.0, "period": 5.9},
+	## THE BARGE, far to port and lowest but one — 1,400 units, the length the
+	## handoff allows only this archetype, so distance is what keeps it from
+	## dominating. Its four rotors are separate meshes (`Rotor1`..`Rotor4`) and
+	## nothing turns them yet.
+	{"model": "skyship_barge", "at": Vector3(-2100.0, -1650.0, -4600.0),
+		"length": 1400.0, "yaw": 180.0, "heave": 18.0, "period": 9.7},
+	## THE TENDER, farthest and deepest, off the starboard bow — the scrap-built
+	## one. Deliberately the least legible station: it is the ship you notice
+	## third, and a fleet with nothing at the back of it is a row of four.
+	{"model": "skyship_tender", "at": Vector3(2400.0, -2100.0, -5600.0),
+		"length": 800.0, "yaw": 180.0, "heave": 22.0, "period": 8.4},
+	## `skyship_barge_heavy` is ingested, budgeted and checked and is NOT here.
+	## It is the second barge; four archetypes is what the handoff asked for and
+	## a fifth hull in the same wedge is traffic. One row brings it back.
+]
+
+## Where a transport should HOLD STATION when it comes forward for a wave, and
+## nothing in this file reads it yet. It is here because the measurement that
+## found it was made here and would otherwise have to be made twice: the bow is
+## the one direction that is on screen from every pose at both zooms, which makes
+## it the safe placement and the reason the arrival tier will work even though
+## the ambient tier had to be argued for. 2,600 units ahead of the deck centre is
+## 1,440 beyond the bow edge and 1,485 beyond the spawn line — clear of the
+## gameplay rectangle, the cargo rects and the boarder clamp by a wide margin —
+## and 520 below puts its deck a little under ours, which is the direction you
+## want figures to jump FROM.
+const SKYSHIP_BOW_HOLD := Vector3(0.0, -520.0, -2600.0)
+
 ## The SCUPPER GRATING's height in ground units (SG-56): low deck ironwork,
 ## not a cargo wall — it must never hide a boarder, so it stays well under the
 ## 125-unit module height `_occluded` reasons about, and out of that list.
@@ -299,6 +382,10 @@ var _focus_set := false
 var _flicker := 0.0
 var _made: Dictionary = {}           ## generated textures, by key
 var _cloud_bands: Array[Dictionary] = []
+## The transport fleet (`SKYSHIPS`), one entry per BUILT ship — a row whose scene
+## was missing is not in here, so `_sync_skyships` iterates what exists rather
+## than what was asked for.
+var _skyships: Array[Dictionary] = []
 var _escort: MeshInstance3D           ## the distant airship, running with us
 var _sparks: Dictionary = {}          ## element -> GPUParticles3D
 var _flashes: Array[OmniLight3D] = []
@@ -684,6 +771,7 @@ func _build_world() -> void:
 	add_child(hull)
 
 	_build_clouds()
+	_build_skyships()
 
 	## THE PAINTED PROW IS RETIRED, 2026-08-02, on the owner's word: *"Get rid of
 	## this 2D sprite — it's not needed anymore."*
@@ -2271,6 +2359,81 @@ const CLOUD_NEAR_WIDTH := 18000.0
 const CLOUD_FAR_WIDTH := 40000.0
 
 
+## THE TRANSPORT FLEET, built once. See `SKYSHIPS` for where they are and why
+## there is nowhere else for them to be.
+##
+## Built here rather than through `_sync_prop_model`, and the difference is the
+## point: that path claims and releases per frame because the deck's props come
+## and go with the stow. These never move house. They are the wreck's bargain
+## (SG-15) — set dressing outside the fight envelope, built once, never entering
+## the sim, the cargo rects or the per-wave stow, and nothing on the deck can
+## path to one.
+##
+## SCALED BY LENGTH, not by height, which is the one place a ship differs from
+## every other entry in the model table. `_sync_prop_model` scales a prop so its
+## measured height matches `PROP_HEIGHT` because a crate is judged standing up. A
+## hull is judged along its length — the handoff spec sizes all five that way
+## ("600-900 ground units long ... up to ~1400 for the barge") — and after
+## `tools/static_model.gd`'s +90 rest facing that length is the span's Z.
+##
+## ABSENT ART COSTS THE FLEET, NOT THE FRAME: a row whose scene is missing is
+## skipped with a warning, exactly as the wreck's own texture is.
+func _build_skyships() -> void:
+	for row: Dictionary in SKYSHIPS:
+		var key := str(row.model)
+		var path := model_path(key)
+		if not ResourceLoader.exists(path):
+			push_warning("skyship %s: no %s — the fleet flies one short" % [key, path])
+			continue
+		var packed := load(path) as PackedScene
+		var ship: Node3D = packed.instantiate() as Node3D if packed != null else null
+		if ship == null:
+			continue
+		var span := measure_span(ship)
+		if span.z <= 0.0:
+			ship.free()
+			push_warning("skyship %s: no mesh to measure" % key)
+			continue
+		var s: float = float(row.length) * WORLD_SCALE / span.z
+		ship.scale = Vector3(s, s, s)
+		ship.rotation.y = deg_to_rad(float(row.yaw))
+		var at: Vector3 = row.at
+		ship.position = at * WORLD_SCALE
+		## No shadow, and it is not a micro-optimisation. The sun's shadow atlas
+		## is budgeted for a deck 23 metres long; a hull 56 metres out in front of
+		## it either falls outside the range entirely or eats the resolution the
+		## boarders' contact shadows are made of.
+		for mi: MeshInstance3D in ship.find_children("*", "MeshInstance3D", true, false):
+			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+		add_child(ship)
+		_skyships.append({"node": ship, "at": at, "heave": float(row.heave),
+			"period": maxf(0.5, float(row.period))})
+
+
+## Their only motion, and it is deliberately the smallest one that reads.
+##
+## A ship pinned exactly still against two drifting cloud layers reads as a
+## decal on the sky; a ship that TRAVELS accumulates, wanders out of the measured
+## wedge, and needs a wrap rule and a reason for it. A phase-offset heave does
+## neither — it is bounded by construction, it cannot leave the band, it is a
+## pure function of run time so two runs of a screenshot tool agree, and at 18 to
+## 34 units against a 700-unit hull it is a ship riding air rather than a ship
+## bouncing. The periods are coprime-ish so the four never pump together.
+func _sync_skyships() -> void:
+	var t: float = float(Time.get_ticks_msec()) * 0.001
+	for i in _skyships.size():
+		var s: Dictionary = _skyships[i]
+		var node: Node3D = s.node
+		if not is_instance_valid(node):
+			continue
+		var at: Vector3 = s.at
+		var w: float = TAU / float(s.period)
+		node.position.y = (at.y + float(s.heave) * sin(w * t + float(i) * 1.7)) * WORLD_SCALE
+		## And a whisper of roll off the same phase, a quarter turn behind the
+		## heave, because a hull that rises without leaning is a lift.
+		node.rotation.z = deg_to_rad(0.9 * sin(w * t + float(i) * 1.7 - PI * 0.5))
+
+
 func _build_clouds() -> void:
 	var art := {
 		false: _texture("res://assets/art/env/clouds_near.png"),
@@ -3176,6 +3339,7 @@ func _process(delta: float) -> void:
 			light.light_energy = maxf(0.0, light.light_energy
 				- delta * float(light.get_meta("decay", 11.0)))
 	_sync_clouds(delta)
+	_sync_skyships()
 	_recycle()
 
 

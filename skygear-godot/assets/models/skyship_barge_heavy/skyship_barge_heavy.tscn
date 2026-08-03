@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/skyship_barge_heavy/skyship_barge_heavy.glb" id="1_aphdm"]
+
+[node name="Skyship Barge Heavy" type="Node3D" unique_id=1970482102]
+metadata/model_height = 0.80575395
+
+[node name="Holder" type="Node3D" parent="." unique_id=301653384]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.07461804, 0.410684, -0.0009095073)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1641361081 instance=ExtResource("1_aphdm")]

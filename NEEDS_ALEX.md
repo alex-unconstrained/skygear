@@ -2,6 +2,48 @@
 
 _Last updated: 2026-08-02, build 44._
 
+## Your five skyships are in — I need to know where you want them (SG-102)
+
+All five arrived complete and all five are in the game's own format, budgeted
+and checked. **Meshy's names for them are wrong without exception**, so I named
+them by what they turned out to be, by looking at them beside your concept
+paintings: your *Copper Cloud Voyager* is the **skiff**, *Brass Leviathan* is
+the **barge**, *Gilded Leviathan* is the **cutter** (it is the narrowest hull
+you sent — a leviathan it is not), and *The Iron Zephyr* is the **hulk-tender**.
+*The Brass Leviathan* is a second barge; it is on disk and ready but not in the
+sky, because four is what the handoff asked for and five in the same patch of
+air reads as traffic rather than a fleet. Say the word and it flies.
+
+**What I measured, because you asked for something the camera fights.** You
+said *"visible in the distance and below the player ship"*. The camera is
+pitched 41° down and the top of the frame looks 23° BELOW horizontal — the same
+fact that hid the skybox three times. I swept 140 positions against six real
+play positions at both zooms, and the honest verdict is:
+
+- **Off the bow and below: yes.** That is where they are, and from the bow or
+  either rail you see them past the gunwale
+  (`.shots/skyships/probe/bow-z1.00.png`, `port-z1.00.png`).
+- **Beside the ship or behind it: no.** Not from anywhere, at any zoom.
+- **From the middle of the deck at normal zoom: no — and nor is anything else.**
+  The planking is one hundred percent of that frame, edge to edge
+  (`.shots/skyships/probe/mid-z1.00.png`). Zoom out one notch and they appear in
+  the top corners.
+
+**So the question I need you to answer: which ship do you want where?** I placed
+them the way the measurement allowed and my own taste filled in the rest — the
+cutter nearest to port, the skiff to starboard, the barge far out and low, the
+tender furthest back. If you want a particular hull to be the one you see most,
+or the fleet closer and bigger, that is four numbers and I will move them.
+
+**And the one that pulls up for a wave.** You said *"for each wave maybe just
+having a ship pull up to the front and a bunch of enemies jump off."* I have NOT
+built that — the arrival choreography has to sit on top of the wave queue
+without changing it, which is a separate job. What I did do is measure the mark
+it should hit: **2,600 units off the bow, 520 below the planking**, which is
+clear of everything the fight uses and is the one direction that is on screen
+from every position. Tell me which of the five should be the one that comes
+forward and I will hold that station for it.
+
 ## The furnace knight is a different fight now — and only you can tell me if it worked (SG-97)
 
 Your ask: *"Furnace knights need slower more telegraphed hits, hard hitting but

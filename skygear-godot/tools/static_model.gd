@@ -291,6 +291,41 @@ const MODELS := {
 	## and a mesh of a flat coil of rope and a billboard of one are the same
 	## forty pixels at a locked 41-degree camera. The prompt is in
 	## tools/meshy.py so the decision can be revisited for 30 credits.
+
+	## --- THE TRANSPORT FLEET --------------------------------------------------
+	## Five ships the owner generated himself from
+	## `handoff-3d/skyship_transports/PROMPTS.md`, and the first entries in this
+	## table that are not ON the deck at all: they fly BELOW AND AHEAD of it, in
+	## the cloud sea. `tools/skyships.py` writes their `.glb`s — it holds the
+	## whole story of what each one turned out to BE, because Meshy's names for
+	## them are misleading without exception and the keys here are the roles the
+	## sculpts actually fill.
+	##
+	## FACING 90 IS MEASURED AND IT IS THE SAME FOR ALL FIVE. Every ship came
+	## back with its length on +X and its BOW at -X — read off the side and plan
+	## renders in `.shots/skyships/id/`, where the skiff's coiled grapple hooks,
+	## the cutter's ram prow and the barge's clear foredeck are all at screen
+	## left and every engine block, stack and paddle wheel is at screen right.
+	## Turning -X to +Z is +90 degrees, and that is the rest facing this table
+	## promises. Which WAY a placed ship then points is a property of its
+	## station, not of the model, so the extra half-turn that has the fleet
+	## flying WITH us rather than at us lives in `view3d.gd`'s own table beside
+	## the position it belongs to.
+	##
+	## The measured height each one gets is its KEEL-to-masthead union, and
+	## `_wrap` stands that union's floor at the scene origin — so the y in a
+	## station row is the ship's KEEL, which is the number you can reason about
+	## when you are asking whether a hull clears the gunwale.
+	"skyship_skiff": 90.0,
+	"skyship_barge": 90.0,
+	"skyship_cutter": 90.0,
+	"skyship_tender": 90.0,
+	## Ingested, budgeted and checked like the other four, and deliberately NOT
+	## placed — see the board. It is the SECOND barge, and four archetypes is
+	## what the handoff asked for; a fifth hull in the same sky is traffic
+	## rather than a fleet. It costs 1.34 MB to have it ready on disk and one
+	## row in `view3d.gd` to fly it, which is the right price for "later".
+	"skyship_barge_heavy": 90.0,
 }
 
 

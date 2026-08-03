@@ -322,6 +322,35 @@ the rule this folder should keep for anything delivered by hand.
 
 ### skyship_transports/ — **FOUR PROMPTS, requested by the owner 2026-08-02**
 
+> **RESOLVED BY THE OWNER, 2026-08-02.** He generated all five himself and sent
+> them complete — five textured exports and four part-segmentation twins,
+> nothing outstanding. They are in as `assets/models/skyship_*` (board SG-102,
+> `tools/skyships.py`).
+>
+> **AND THE NAMES HE GOT BACK WERE WRONG EVERY TIME**, which is this folder's
+> own standing rule earning its keep a second time — the boarding hulk's three
+> state labels were swapped and the models said so. Meshy's names are about
+> grandeur; the mapping below was made by rendering each sculpt and matching it
+> against his own concept paintings, feature for feature:
+>
+> | Meshy called it | it IS | what settles it |
+> |---|---|---|
+> | Copper Cloud Voyager | **the skiff** | open timber boat, one boiler, bag on iron struts, grapple hooks coiled at the bow |
+> | Brass Leviathan | **the barge** | flat freight hull, rope-and-stanchion rail, hinged ramp, four rotors in brass ring mounts |
+> | Gilded Leviathan | **the cutter** | ram prow, swept bag tight to the hull, pintle gun — and the NARROWEST hull delivered |
+> | The Iron Zephyr | **the hulk-tender** | salvage-built, patched bag in netting, plank gangway, chains hanging, paddle wheel aft |
+> | The Brass Leviathan | **a second barge** | deeper, three stacks, bladed rotors. Ingested and banked, not placed |
+>
+> Two clauses in the spec below were paid for and it is worth saying which. The
+> **"separate rotor and envelope masses"** line worked: the barge's four rotors
+> and the skiff's bag came out of the segmentation twin as their own meshes with
+> their own pivots, at no cost. The **"long and low, much wider than deep"** line
+> half worked — the skiff, barge and cutter all landed under 0.50 deep, and the
+> second barge came back 0.90, which is the hulk's depth failure again on the one
+> ship that was a variant rather than an archetype.
+>
+> **Still open, and it is not an asset:** where he wants each one. See NEEDS_ALEX.
+
 His ask: *"Should we also make some 3D skyship assets to use as transports?
 They can be flying beneath the ship and maybe even be the trigger that spawns
 waves. Give me the prompt in the handoff 3D folder and I'll make them manually

@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/skyship_skiff/skyship_skiff.glb" id="1_aw1sa"]
+
+[node name="Skyship Skiff" type="Node3D" unique_id=712828254]
+metadata/model_height = 0.803293
+
+[node name="Holder" type="Node3D" parent="." unique_id=112545849]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, -0.0012625009, 0.403249, -0.001170516)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=651338679 instance=ExtResource("1_aw1sa")]

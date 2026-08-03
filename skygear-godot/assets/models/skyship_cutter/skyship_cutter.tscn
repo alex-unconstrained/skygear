@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/skyship_cutter/skyship_cutter.glb" id="1_sj13u"]
+
+[node name="Skyship Cutter" type="Node3D" unique_id=509774254]
+metadata/model_height = 0.432644
+
+[node name="Holder" type="Node3D" parent="." unique_id=1832261554]
+transform = Transform3D(-4.371139e-08, 0, 1, 0, 1, 0, -1, 0, -4.371139e-08, 0.0006405115, 0.217584, -0.0006740093)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=233703834 instance=ExtResource("1_sj13u")]
