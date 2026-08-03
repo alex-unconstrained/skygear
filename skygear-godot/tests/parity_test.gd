@@ -10662,11 +10662,36 @@ func _wedge() -> void:
 			and is_equal_approx(beat1, legacy + SkyGearEnemy.BOSS_SECOND_BEAT_REACH),
 		"beat 0 %.1f (was %.1f) · beat 1 %.1f (was %.1f)"
 			% [beat0, legacy, beat1, legacy + SkyGearEnemy.BOSS_SECOND_BEAT_REACH])
+	## SG-119's PIN, MINUS THE ONE FIELD THAT HAS SINCE BEEN CHANGED ON PURPOSE.
+	## This check existed to guarantee that the row which made him easier by an
+	## ARC had not also made him easier by a NUMBER. That guarantee still holds
+	## for damage, windup and recover and is still worth keeping. `hp` left it in
+	## SG-131, deliberately and at the owner's direction, so it moves to the
+	## check below rather than being quietly dropped from this one — a pin that
+	## silently loses a field is a detector silenced to make a change pass.
 	_check("telegraph", "and SG-119 moved his shape and nothing else about him",
-		is_equal_approx(float(cfg.damage), 26.0) and is_equal_approx(float(cfg.hp), 900.0) \
+		is_equal_approx(float(cfg.damage), 26.0) \
 			and is_equal_approx(float(cfg.windup), 0.90) and is_equal_approx(float(cfg.recover), 1.0),
-		"hp %.0f dmg %.0f windup %.2f recover %.2f"
-			% [cfg.hp, cfg.damage, cfg.windup, cfg.recover])
+		"dmg %.0f windup %.2f recover %.2f"
+			% [cfg.damage, cfg.windup, cfg.recover])
+	## THE COLOSSUS'S HEALTH IS THE NUMBER A MEASUREMENT PICKED (SG-131).
+	##
+	## The owner asked for "a lot more HP" after build 53. 2900 is not a feel: it
+	## is 900 x (30.4 / 9.3), where 9.3 s is the boss time-to-kill
+	## `tools/boss_probe.gd` measured at HEAD over 113 wave-12 runs and 30.4 s is
+	## sixteen of his own 1.90 s attack cycles — eight per beat, so that the
+	## half-health turn has a first beat to escalate FROM. The derivation is
+	## written out at the row in `scripts/game_data.gd`.
+	##
+	## THIS IS A REGRESSION GUARD, NOT A DISCOVERY. It cannot find a bug; it
+	## exists so that a later hand cannot move a measured number back to a felt
+	## one without the diff saying so, which is exactly what happened to the 900
+	## it replaces.
+	var eff: float = float(cfg.hp) * (1.0 + SkyGearWorkshop.BASE_HP_SCALING * 11.0)
+	_check("boss", "his health is the number the measurement picked, not a feeling",
+		is_equal_approx(float(cfg.hp), 2900.0),
+		"hp %.0f = %.0f effective at wave 12, about %.0f s at the measured 160.6 eff/s"
+			% [cfg.hp, eff, eff / 160.6])
 	game.queue_free()
 	await process_frame
 

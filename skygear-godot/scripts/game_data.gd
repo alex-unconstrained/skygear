@@ -87,7 +87,38 @@ const ENEMIES := {
 	## lied, and his difficulty is a separate question sitting in
 	## `docs/COLOSSUS-DESIGN.md` awaiting the owner. His damage, health,
 	## windup and recover are untouched here on purpose.
-	"BOSS": {"hp": 900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "reach": 146.0, "swing": 2.094395, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
+	##
+	## HIS HEALTH IS 2900, AND THE NUMBER WAS MEASURED RATHER THAN FELT (SG-131,
+	## the owner on build 53: *"The Colossus fight is still super easy. I
+	## defeated him really quickly"* and, asked which redesign he wanted, *"he
+	## also just needs a lot more HP I think"*).
+	##
+	## THE MEASUREMENT. `tools/boss_probe.gd` times the wave-12 segment directly,
+	## because a whole-run mean is the wrong instrument for one wave in twelve —
+	## that is the mistake SG-119 paid for. At 900 (1,494 effective after the
+	## 1 + 0.06x(wave-1) scaling) he was resolved in **9.3 s**, n=113 runs that
+	## reached wave 12, sd 1.3. Wave 12 itself runs 20.4 s, so he was dead before
+	## its halfway mark.
+	##
+	## WHAT 9.3 SECONDS COSTS THE DESIGN, which is the reason a number was chosen
+	## instead of a multiplier. His attack cycle is `windup` 0.90 + `recover` 1.00
+	## = 1.90 s, so at 9.3 s he completes **5 swings in the whole fight** — and he
+	## turns at half health, so each beat gets **two and a half**. The turn is
+	## meant to be the escalation. An escalation that gets two and a half swings
+	## cannot be perceived as one; the player never sees the first beat's pattern
+	## often enough to learn it, so there is nothing for the second to change.
+	##
+	## THE TARGET: eight cycles per beat, sixteen in the fight, **30.4 s**. At the
+	## measured 160.6 effective HP per second the captain was actually dealing
+	## him, that is 4,882 effective, and 4,882 / 1.66 = 2,941 on the row. 2900 is
+	## the round number under it, predicting 29.9 s.
+	##
+	## WHAT IT DID NOT BUY, stated here because the next person will otherwise
+	## re-derive it: see the SG-131 numbers in `docs/COLOSSUS-DESIGN.md` §1a. More
+	## health made the fight LONGER; on its own it did not make it more dangerous,
+	## because §1's cycle analysis is about geometry and geometry does not care
+	## how much health he has. The chase gate in `enemy.gd` is the half that does.
+	"BOSS": {"hp": 2900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "reach": 146.0, "swing": 2.094395, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
 }
 
 # batch = [time, type, count, lane]. Lane is 0/1/2, "all", or omitted.
