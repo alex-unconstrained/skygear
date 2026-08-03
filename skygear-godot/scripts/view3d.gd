@@ -4703,6 +4703,11 @@ const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
 ## says it in this, and never in the oxblood above. Mixing the two palettes is
 ## how a telegraph stops meaning "danger".
 const PLAYER_TEAL := Color(0.216, 0.941, 0.784)   # #37f0c8
+## How much of the recovery the strike flash burns through (SG-158). A fifth: it
+## has to outlast a dropped frame and die well before the boarder can swing
+## again, or the flash of one blow reads as the warning of the next. At the
+## Colossus's 1.00 s recover that is 200 ms; at the furnace knight's, 130 ms.
+const STRIKE_FLASH_FRAC := 0.20
 ## TG_SWING_ARC lived here — 120°, "the fallback wedge for a reach-less melee".
 ## It is DELETED rather than left unused (board SG-119): it was a second opinion
 ## about a swing's shape held in the renderer, and the one enemy it applied to
@@ -5197,6 +5202,103 @@ func _sync_effects() -> void:
 				_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, ang,
 					reach * 2.0 * fill, reach * 2.0 * fill, _fan_texture(arc, true),
 					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.85))
+		elif enemy.state == "recover" and enemy.config.ai != "ranged":
+			## THE STRIKE AND THE OPENING — the two frames this deck never drew
+			## (SG-158, and the owner asked for it twice).
+			##
+			## WHAT WAS WRONG IS THAT THE WARNING WAS THE WHOLE ACCOUNT. The wedge
+			## above is drawn only while the boarder is WINDING UP. On the frame it
+			## actually strikes you, that decal is simply not re-used and the
+			## renderer shelves it — so the player's entire visual record of being
+			## hit is *a warning disappearing*. And the second of recovery after
+			## it, the window the fight is built around punishing, carried no mark
+			## at all. Two of the three beats of every melee exchange were unlit.
+			##
+			## BOTH SHAPES COME FROM `enemy.gd`'s OWN `swing_wedge_*()`, the same
+			## call the windup above uses and the same one the simulation connects
+			## with, so the strike is drawn exactly where it was warned and exactly
+			## where it landed. Three derivations of one wedge is what board SG-119
+			## cost us; this adds none.
+			##
+			## AND THE DIRECTION IS THE SWING'S, NOT THE BODY'S. `attack_direction`
+			## is aimed ONCE, when the wind starts, and never re-aimed — that is
+			## what makes a walking captain hit by only one swing in three (SG-156)
+			## and it is deliberate. Reading it here rather than the boarder's
+			## facing means the mark sits where the blow actually went, including
+			## when it went wide of you. A miss you can SEE miss is the point.
+			var rreach: float = enemy.swing_wedge_reach()
+			var rarc: float = enemy.swing_wedge_arc()
+			var rang: float = enemy.attack_direction.angle()
+			## 0 on the strike frame, 1 when he is ready again: the clock, run the
+			## same way the windup's runs, off the sim's own countdown.
+			var rr: float = 1.0 - clampf(enemy.state_time
+				/ maxf(0.05, float(enemy.config.recover)), 0.0, 1.0)
+			##
+			## 1. THE STRIKE FLASH, AND IT IS DRAWN ON THE RIM ON PURPOSE.
+			## `_fan_texture(arc, false)` is the unfilled variant — a bright band
+			## at the outer edge of the fan — and it has existed unused since the
+			## fan was written. It is the right shape here for a reason the owner
+			## measured: the enemy STANDS ON its own warning, and at this camera
+			## its body is between the player and the patch of deck the filled
+			## wedge paints, so the Colossus hides nearly all of his. The rim is
+			## the one part of that wedge the body cannot cover — and it is also
+			## exactly where the captain is standing when the blow arrives.
+			## Fast: gone within a fifth of the recovery, because a flash that
+			## outlasts the hit reads as a second attack starting.
+			var flash: float = clampf(1.0 - rr / STRIKE_FLASH_FRAC, 0.0, 1.0)
+			if flash > 0.0:
+				## KEPT SATURATED, and the first cut of this was not. Pushing it
+				## most of the way to white and giving it a full-alpha emission
+				## made a pale bloom on the planking that read as spilled LIGHT
+				## rather than as a mark with an edge — indistinguishable from the
+				## knight's own furnace glow in `.shots/sg158`. The hostile orange
+				## carries the shape; only a fifth of the way to white, which is
+				## enough to separate the blow from the warning that preceded it
+				## without turning the band into a lamp.
+				var hot: Color = Color(TG_DANGER_IN.r, TG_DANGER_IN.g,
+					TG_DANGER_IN.b).lerp(Color(1, 1, 1), 0.20 * flash)
+				_decal("tf%d" % enemy.get_instance_id(), enemy.global_position,
+					rang, rreach * 2.0, rreach * 2.0, _fan_texture(rarc, false),
+					Color(hot.r, hot.g, hot.b, 0.22 + 0.56 * flash))
+			##
+			## 2. THE OPENING — A RING ON HIS OWN FOOTPRINT, AND IT IS TEAL.
+			##
+			## THIS WAS A FILLED WEDGE FIRST AND THE WEDGE WAS THE WRONG CARRIER.
+			## A wedge is a statement about GROUND — "this patch is dangerous" —
+			## and the recovery is not about ground at all, it is about a TARGET
+			## being open. Worse, the filled wedge is painted on the deck the
+			## boarder is standing on, which is the exact occlusion the owner
+			## measured: the Colossus's body covered nearly all of it, so the mark
+			## meant to say "hit him" was hidden behind him.
+			##
+			## A ring on his own footprint is the answer to both. It reads as a
+			## property OF HIM rather than of the planking, and a ring survives
+			## the body standing in it — the near arc is occluded, the rest is not,
+			## which is why the arrival ring works at this camera.
+			##
+			## TEAL, because this is the only ground mark in the game that says
+			## "now hit HIM". Red means a thing is about to happen TO you; teal
+			## has meant "this is yours" since the aim ring, and a punish window
+			## drawn in oxblood would be the precise way to make a telegraph stop
+			## meaning danger.
+			##
+			## It FADES rather than fills: the window is widest the instant he is
+			## committed and closes as he recovers, so the mark is strongest when
+			## acting on it is safest.
+			var open_a: float = 0.55 * (1.0 - 0.62 * rr)
+			## WIDE ENOUGH TO CLEAR HIS OWN BODY, which is the whole trick and the
+			## reason the first size drew nothing at all. The arrival ring gets to
+			## sit at barely twice the gameplay radius because a boarder in its
+			## arrival window is IN THE AIR — the planking under it is unobstructed.
+			## A recovering boarder is standing on its ring, and at 1.5x the body
+			## covered every pixel of it. 2.5x puts the band outside the footprint
+			## the figure paints on the deck, which is the only place it can be
+			## seen from this camera. It also lands near the reach of the heavy it
+			## matters most for — the Colossus's ring reads at 175 against his 146.
+			var open_span: float = float(enemy.radius) * 2.0 * 2.5
+			_decal("tp%d" % enemy.get_instance_id(), enemy.global_position, 0.0,
+				open_span, open_span, _ring_texture(),
+				Color(PLAYER_TEAL.r, PLAYER_TEAL.g, PLAYER_TEAL.b, open_a))
 		elif enemy.airborne():
 			## THE LANDING RING — board SG-135, and it is a telegraph that has
 			## existed for months where nobody could see it.
@@ -5319,8 +5421,14 @@ static func _decal_class(key: String) -> DecalClass:
 	## deck is busiest — which is the moment it is the only thing telling the
 	## player where a boarder is about to be. Its prefix is quoted in
 	## `tools/rune_read.gd`, and a harness check holds the two spellings together.
+	## `tf` (the strike flash) and `tp` (the punish window) joined them with
+	## SG-158, and they spend the telegraph budget for the same reason the landing
+	## ring does: they are the two beats of a melee exchange the deck used to
+	## leave unlit, and being evicted by scorch marks at the busiest moment is
+	## exactly when they are the only thing saying he is open.
 	if key.begins_with("tg") or key.begins_with("tr") or key.begins_with("tn") \
-			or key.begins_with("tar"):
+			or key.begins_with("tar") or key.begins_with("tf") \
+			or key.begins_with("tp"):
 		return DecalClass.TELEGRAPH
 	if key.begins_with("fx") or key.begins_with("aura") or key.begins_with("boiler"):
 		return DecalClass.PLAYER

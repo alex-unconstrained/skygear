@@ -3996,6 +3996,72 @@ func _view() -> void:
 		absf(drawn_reach - float(tg_enemy.config.reach)) < 1.0,
 		"drew %.0f against a reach of %.0f" % [drawn_reach, float(tg_enemy.config.reach)])
 
+	## ---- THE STRIKE AND THE OPENING (SG-158) --------------------------------
+	##
+	## The owner asked twice for clearer telegraphs, and what SG-156's beat frames
+	## found was not a dim wedge but TWO MISSING BEATS: on the frame the blow lands
+	## the warning is simply deleted and nothing replaces it, and the second of
+	## recovery -- the window the fight is built around punishing -- carried no mark
+	## at all. `tools/telegraph_beat.gd` PREDICTED both frames would be blank
+	## planking before anyone looked, and they were.
+	##
+	## These guard the two marks that fill them. Same posed boarder, moved into
+	## `recover`, which is the state the whole beat hangs on.
+	var tf_key := "tf%d" % tg_enemy.get_instance_id()
+	var tp_key := "tp%d" % tg_enemy.get_instance_id()
+	tg_enemy.state = "recover"
+	## `state_time` COUNTS DOWN, so a full clock is the STRIKE frame itself.
+	tg_enemy.state_time = float(tg_enemy.config.recover)
+	view._process(0.05)
+	_check("telegraph", "the frame a swing lands is no longer blank planking — a strike flash is drawn",
+		view._decals.has(tf_key),
+		"flash up on the strike frame" if view._decals.has(tf_key)
+			else "nothing is drawn on the frame the damage lands")
+	## THE SAME WEDGE, NOT A THIRD DERIVATION. Board SG-119 was paid for by a drawn
+	## shape and a connecting shape disagreeing about a number; the flash is drawn
+	## from `swing_wedge_reach()` exactly as the windup wedge above is, so this must
+	## read back the same ground size the wedge did.
+	var flash_reach: float = view._decals[tf_key].size.x / (2.0 * SkyGearView3D.WORLD_SCALE) if view._decals.has(tf_key) else -1.0
+	_check("telegraph", "and it marks the wedge that was warned, at the same reach — not a third derivation",
+		absf(flash_reach - drawn_reach) < 1.0,
+		"flash drew %.0f against the wedge's %.0f" % [flash_reach, drawn_reach])
+	## AND THE OPENING IS UP, AND IT CLEARS HIS OWN BODY. This is a regression guard
+	## with a real bug behind it: the first cut drew the punish window as a filled
+	## wedge and then as a ring at 1.5x the gameplay radius, and BOTH were invisible
+	## in the shot -- the wedge because the boarder stands on the deck it paints, the
+	## small ring because his own footprint covered every pixel of it. The arrival
+	## ring gets away with 2x only because a boarder in its arrival window is in the
+	## AIR. A mark nobody can see is STATUS's first failure mode, and it had already
+	## shipped once as the 2D landing ring.
+	_check("telegraph", "and the recovery is marked as his, in the player's colour, not left unlit",
+		view._decals.has(tp_key),
+		"opening ring up through the recovery" if view._decals.has(tp_key)
+			else "nothing marks the second he is punishable")
+	var open_r: float = view._decals[tp_key].size.x / (2.0 * SkyGearView3D.WORLD_SCALE) if view._decals.has(tp_key) else -1.0
+	_check("telegraph", "and that ring is wider than the body standing in it, or nobody can see it",
+		open_r > float(tg_enemy.config.radius) * 2.0,
+		"ring reads %.0f across a %.0f radius" % [open_r, float(tg_enemy.config.radius)])
+	## THE FLASH DIES BEFORE HE CAN SWING AGAIN. A strike flash that outlasts the
+	## recovery reads as the WARNING of the next blow, which would make the fix worse
+	## than the gap it fills. Posed at half the recovery: the opening is still held,
+	## the flash is long gone.
+	tg_enemy.state_time = float(tg_enemy.config.recover) * 0.5
+	view._process(0.05)
+	_check("telegraph", "the strike flash is spent well before he can swing again, so it never reads as the next warning",
+		not view._decals.has(tf_key) and view._decals.has(tp_key),
+		"flash %s at half recovery, opening %s"
+			% ["STILL UP" if view._decals.has(tf_key) else "gone",
+				"held" if view._decals.has(tp_key) else "MISSING"])
+	## AND NEITHER MARK EXISTS OUTSIDE THE BEAT. `tools/rune_probe.gd` measures the
+	## telegraph mask on a frame posed with every boarder in `move` and asserts it
+	## selects EXACTLY zero pixels; a mark that leaked into the walk would break that
+	## instrument silently rather than loudly.
+	tg_enemy.state = "move"
+	view._process(0.05)
+	_check("telegraph", "and a walking boarder carries neither mark, so the quiet frame stays quiet",
+		not view._decals.has(tf_key) and not view._decals.has(tp_key),
+		"a boarder in `move` is still drawing a strike or an opening")
+
 	## The windup pool is capped like every other on this deck: sixty boarders
 	## winding at once cannot spend past the telegraph reserve (STATUS: every perf
 	## problem this project has had was an uncapped collection, never a slow loop).

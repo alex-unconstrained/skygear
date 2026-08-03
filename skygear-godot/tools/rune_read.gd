@@ -108,7 +108,10 @@ extends RefCounted
 ## boarder closes onto its own spot (board SG-135). The harness check
 ## `rune · the telegraph prefixes here are the ones view3d actually draws`
 ## fails if that function's prefixes and these ever drift apart.
-const TELEGRAPH_PREFIXES := ["tg", "tr", "tn", "tar"]
+## Since SG-158, `tf` is the strike flash on the rim of the wedge that just
+## landed and `tp` the teal window held through the recovery — the two beats of
+## a melee exchange the deck used to leave unlit.
+const TELEGRAPH_PREFIXES := ["tg", "tr", "tn", "tar", "tf", "tp"]
 
 ## The planking a rune is read against: the ring just outside it. 12 px at
 ## 1600x900 is about the width of the band itself, which is the distance an eye

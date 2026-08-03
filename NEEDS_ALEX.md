@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 58 live · harness 1017/1017.** Everything else is in
+**Build 58 live · harness 1023/1023.** Everything else is in
 `skygear-godot/docs/NIGHT-LOG-2026-08-03.md`. This file is only your decisions.
 
 ---
@@ -62,9 +62,21 @@ Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. Is that intended?
 
 ---
 
-**6 · Making the telegraphs clearer — you asked twice, here is what I found.**
-Frames are in `skygear-godot/.shots/sg156/`; put `3-wind-095.png` next to
-`4-strike.png` for either enemy and you will see it immediately.
+**6 · Making the telegraphs clearer — ✅ BUILT, you said go. Look at
+`skygear-godot/.shots/sg158/v3/`.** Put `4-strike.png` next to `5-recover.png`
+for either enemy. A melee exchange is three beats now instead of one:
+
+- **The wind-up** — the red wedge, unchanged.
+- **The strike** — an orange band along the *rim* of that wedge on the frame the
+  damage lands. The rim on purpose: it is the one part of the wedge the enemy's
+  own body cannot cover, and it is where you are standing when the blow arrives.
+  Spent in a fifth of the recovery, so it can never read as the next warning.
+- **The opening** — a **teal** ring on his own footprint, held through the
+  recovery and fading as the window closes. Teal because it is the only mark in
+  the game that says "now hit HIM", and red has to keep meaning danger.
+
+Six new checks hold it. **What it looked like before is below**, kept because it
+is the reason the shapes are what they are:
 
 - **There is no "hit" visual at all.** The warning wedge is drawn only while the
   enemy is winding up. On the frame it actually strikes you, the wedge is simply
@@ -75,10 +87,14 @@ Frames are in `skygear-godot/.shots/sg156/`; put `3-wind-095.png` next to
   deck, and at our camera angle the enemy's body is between you and that patch of
   deck. The Colossus hides nearly all of his; the knight most of his.
 
-**What I would do:** keep the wind-up wedge, add a bright fast flash along the
-wedge on the strike frame, and leave a dim mark on the deck through the recovery
-so "now hit him" is visible. `view3d.gd` is free now — the edge-kit work that
-was holding it has landed — so nothing is in the way. **Say go and it is quick.**
+**One thing changed from the plan, and the frames are why.** The recovery mark
+was going to be a dim wedge on the deck. Built that way it was *invisible* — a
+wedge is painted on the planking the boarder is standing on, which is the very
+occlusion above. So it became a ring on his own footprint instead: a ring reads
+as a property of HIM rather than of the deck, and it survives a body standing in
+it. It has to be wide, too — at 1.5× his radius his feet still covered all of
+it, and 2.5× is what clears him. There is a check pinning that now, because a
+mark nobody can see is the failure mode this whole item is about.
 
 ---
 
@@ -129,11 +145,11 @@ was holding it has landed — so nothing is in the way. **Say go and it is quick
 
 ## Known bugs, being worked — nothing needed from you
 
-**Melee enemies do not hit you.** Your report: you stood next to the Colossus
-and the furnace knight and took nothing. Our own rig measures the Colossus
-dealing 123 damage a fight, so **the rig and you disagree and one of us is
-wrong** — being investigated now, top priority.
+~~**Melee enemies do not hit you.**~~ **Answered — items 1 and 1b above.** The
+rig and you were measuring two different players: it reports what the *bot*
+experiences, and the bot kites while you stood still. Nothing in the hit path
+was broken.
 
-**Telegraphs are not clear enough.** Your words. Being worked.
+~~**Telegraphs are not clear enough.**~~ Your words. **Built — item 6 above.**
 
 Everything else is on the board.
