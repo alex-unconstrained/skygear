@@ -213,6 +213,8 @@ func _run() -> void:
 	await process_frame
 	_crit_explode()
 	await process_frame
+	_nocrit()
+	await process_frame
 	## AWAITED — it builds a real world and waits a frame across a kill. An
 	## un-awaited coroutine here reports a clean pass for checks that never ran.
 	await _xray_silhouette()
