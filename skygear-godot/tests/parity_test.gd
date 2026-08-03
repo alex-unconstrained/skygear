@@ -1683,6 +1683,48 @@ func _report() -> void:
 	_check("report", "engagement distance is sampled",
 		float(game.tel.range_time.close) > 0.0,
 		"%.2fs close" % game.tel.range_time.close)
+	## THE AUTO-ATTACK'S ELEMENT IS THE RUN'S, NOT THE TABLE'S (board SG-99, the
+	## build-44 ask: *"Can we get a way to change the auto-attack to another
+	## element? So it's not always fire?"*). Four things have to be true at once,
+	## and each of them is a way this could have been a cheat rather than a
+	## feature: an untouched pick has to be byte-identical to the old game; the
+	## choice has to reach the SWING and not only the label; it must consume no
+	## RNG, because a new draw before the first card deal moves every seeded crit,
+	## element roll and spawn jitter in the game; and it must not put the Cleave
+	## back into the draft, whose 32-cell matrix is 8 draftable shapes × 4
+	## elements and derives that number by counting.
+	_check("auto", "an untouched core is the class's own",
+		game.auto_element == ""
+			and game.auto_element_id() == str(game.class_data().auto.element),
+		game.auto_element_id())
+	var auto_before: int = game.rng.state
+	game.cycle_auto_element()
+	_check("auto", "and naming another one costs the seeded stream nothing",
+		game.rng.state == auto_before, "state moved to %d" % game.rng.state)
+	_check("auto", "the pick reaches the swing, not just the nameplate",
+		game.auto_element_id() != str(game.class_data().auto.element)
+			and game.auto_name().begins_with(
+				str(SkyGearData.ELEMENTS[game.auto_element_id()].name))
+			and game.auto_name().ends_with(str(game.class_data().auto.name)),
+		game.auto_name())
+	## All four, and back to where it started — a cycle that cannot return you to
+	## the run you meant to play is a one-way door.
+	var seen: Array[String] = []
+	for i in SkyGearData.ELEMENTS.size():
+		if not game.auto_element_id() in seen:
+			seen.append(game.auto_element_id())
+		game.cycle_auto_element()
+	_check("auto", "the core cycles every element and comes home",
+		seen.size() == SkyGearData.ELEMENTS.size()
+			and game.auto_element_id() == seen[0],
+		"%d of %d" % [seen.size(), SkyGearData.ELEMENTS.size()])
+	_check("auto", "and the Cleave is still never dealt as a card",
+		not "CLOSEHIT" in SkyGearGame.DRAFT_SHAPES
+			and SkyGearGame.DRAFT_SHAPES.size() * SkyGearData.ELEMENTS.size() == 32,
+		"%d shapes x %d elements" % [SkyGearGame.DRAFT_SHAPES.size(),
+			SkyGearData.ELEMENTS.size()])
+	game.auto_element = ""
+
 	var text: String = game.run_report()
 	_check("report", "the run report names the build, the seed and the work",
 		text.contains("REPORT") and text.contains("Ember Cleave")
@@ -2613,6 +2655,66 @@ func _view() -> void:
 			lead_bad += " %s" % str(pair[0])
 	_check("telegraph", "the windup gives at least the browser's warning time",
 		lead_bad == "", "shorter than the browser:" + lead_bad)
+
+	## THE FURNACE KNIGHT'S OWN DESIGN (board SG-97). The browser floor above is a
+	## floor for everybody; these three pin the knight's shape specifically,
+	## because "slower more telegraphed hits, hard hitting but designed to be
+	## dodged" is a RATIO between three numbers and any one of them drifting back
+	## alone un-designs it. The read has to be at least the Colossus's, the punish
+	## has to outlast the read, and the hit has to be worth dodging — three of them
+	## kill a captain who never moves.
+	var knight: Dictionary = SkyGearData.ENEMIES.ARMORED
+	_check("telegraph", "the furnace knight winds up at least as long as the Colossus",
+		float(knight.windup) >= float(SkyGearData.ENEMIES.BOSS.windup) - 0.001,
+		"knight %.2f against a boss %.2f" % [float(knight.windup),
+			float(SkyGearData.ENEMIES.BOSS.windup)])
+	_check("telegraph", "and leaves a punish window longer than the read",
+		float(knight.recover) >= float(knight.windup) - 0.001
+			and float(knight.recover) >= 1.0,
+		"windup %.2f recover %.2f" % [float(knight.windup), float(knight.recover)])
+	_check("telegraph", "and hits hard enough that eating three is fatal",
+		float(knight.damage) * 3.0 >= SkyGearPlayer.MAX_HP,
+		"3 x %.0f against %.0f hp" % [float(knight.damage), SkyGearPlayer.MAX_HP])
+
+	## THE WEDGE IS THE HITBOX IN BOTH DIMENSIONS (board SG-97).
+	##
+	## SG-3 unified the RADIUS and left the angle alone: the connect test was a
+	## full circle while the picture on the deck is a 120° fan. A player who did
+	## the thing the drawing asks for — step around the flank — was hit by a swing
+	## that visibly went the other way, which is the reason "designed to be dodged"
+	## did not describe the game. Three states of one knight, one swing each: dead
+	## ahead connects, behind does not, and out of range does not.
+	var knight_at := Vector2(0.0, 0.0)
+	var swing_out: float = float(knight.reach) + 17.0
+	var arc_bad := ""
+	for spot in [
+			{"where": Vector2(0.0, swing_out - 20.0), "hits": true, "why": "dead ahead"},
+			{"where": Vector2(0.0, -(swing_out - 20.0)), "hits": false, "why": "behind the swing"},
+			{"where": Vector2(swing_out - 20.0, 0.0), "hits": false, "why": "square on the flank"},
+			{"where": Vector2(0.0, swing_out + 40.0), "hits": false, "why": "out of reach"}]:
+		var probe_knight := SkyGearEnemy.new()
+		probe_knight.kind = "ARMORED"
+		probe_knight.config = SkyGearData.ENEMIES.ARMORED
+		probe_knight.global_position = knight_at
+		probe_knight.attack_direction = Vector2.DOWN
+		var landed: bool = probe_knight._swing_hits(Vector2(spot.where), swing_out, 17.0)
+		if landed != bool(spot.hits):
+			arc_bad += " %s(%s)" % [str(spot.why), "hit" if landed else "missed"]
+		probe_knight.free()
+	_check("telegraph", "a swing lands inside the wedge it drew and nowhere else",
+		arc_bad == "", "wrong:" + arc_bad)
+
+	## And the flank is only safe because there IS a fan to be outside of. A
+	## boarder with no `swing` — the Colossus, which telegraphs with a phase ring
+	## instead — keeps its circle, because there is no drawing to be honest to.
+	var ring_boss := SkyGearEnemy.new()
+	ring_boss.kind = "BOSS"
+	ring_boss.config = SkyGearData.ENEMIES.BOSS
+	ring_boss.global_position = Vector2.ZERO
+	ring_boss.attack_direction = Vector2.DOWN
+	_check("telegraph", "a boarder that draws no wedge keeps its circle",
+		ring_boss._swing_hits(Vector2(0.0, -80.0), 140.0, 17.0))
+	ring_boss.free()
 
 	## And it reaches the renderer: pose a boarder mid-windup, mirror it, and confirm
 	## a telegraph decal is appended and sized in ground units to the swing's reach.
@@ -6109,6 +6211,64 @@ func _view() -> void:
 	game._update_cooldowns(grace * 0.6)
 	_check("sentry", "and then places itself without a press",
 		game.sentries.size() == 1)
+
+	## AUTOCAST (board SG-98) — the same door, opened wide. Armed, the grace is
+	## zero: the slot stops waiting to be sure you were not about to press it.
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.skills[0].sentry_idle = 0.0
+	_check("sentry", "a fresh sentry slot is not armed", not game.autocast_armed(0))
+	game.set_autocast(0, true)
+	_check("sentry", "arming a slot is visible to anything that asks",
+		game.autocast_armed(0))
+	game._update_cooldowns(0.05)
+	_check("sentry", "an armed slot drops at the captain's feet with no grace",
+		game.sentries.size() == 1
+			and Vector2(game.sentries[0].position).distance_to(game.player.global_position) < 1.0,
+		"%d live" % game.sentries.size())
+
+	## A TOGGLE HAS TO SURVIVE THE THINGS THAT HAPPEN TO A RUN. It lives on the
+	## skill dict rather than in an array keyed by slot index, which is the whole
+	## reason: a wave never touches `skills`, a pause only stops `_process`, and
+	## `_trim_empty_slots` can move a slot out from under an index.
+	game.start_wave(int(game.wave) + 1)
+	_check("sentry", "and stays armed across a wave change", game.autocast_armed(0))
+	game._set_state(SkyGearGame.State.PAUSE)
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.skills[0].sentry_idle = 0.0
+	game._update_cooldowns(5.0)
+	_check("sentry", "a paused armed slot places nothing", game.sentries.is_empty())
+	game._set_state(SkyGearGame.State.PLAY)
+	_check("sentry", "and is still armed when the pause lifts", game.autocast_armed(0))
+
+	## AND IT CAN BE TURNED OFF. A toggle you cannot find the off switch for is a
+	## setting, and the hold that armed it is the hold that stands it down.
+	game.set_autocast(0, false)
+	game.sentries.clear()
+	game.skills[0].cooldown_left = 0.0
+	game.skills[0].sentry_idle = 0.0
+	game._update_cooldowns(0.05)
+	_check("sentry", "standing it down puts the grace back",
+		not game.autocast_armed(0) and game.sentries.is_empty())
+
+	## THE HOLD IS ON THE SLOT'S OWN BINDING, whatever that is. The coach line
+	## carries the live key rather than a letter, so a player who rebinds is not
+	## told to press the one they replaced — the `broken_cannon` rule, generalised.
+	var sentry_coach := SkyGearCoach.new()
+	_check("sentry", "the autocast hint names the slot's own binding, not a letter",
+		sentry_coach._key_action("sentry_auto", game) == "skill_1"
+			and not str(SkyGearCoach.TEXT.sentry_auto).contains(" Q ")
+			and str(SkyGearCoach.TEXT.sentry_auto).contains("{key}"))
+
+	## Only a sentry slot watches for a hold. Every other slot keeps press-to-cast
+	## with no added latency, and arming one is refused rather than silently
+	## remembered on a skill that can never act on it.
+	game.skills[0].shape = "LINE_BURST"
+	game.set_autocast(0, true)
+	_check("sentry", "a slot that is not a sentry cannot be armed",
+		not game.autocast_armed(0) and not game.sentry_slot(0))
+	game.skills[0].shape = "SENTRY"
 
 	## Oldest-first retirement. Nine seconds of cooldown across twelve waves is a
 	## deck made of turrets otherwise.

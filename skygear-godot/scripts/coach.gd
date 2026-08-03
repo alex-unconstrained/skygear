@@ -53,6 +53,12 @@ const DWELL := {
 	## Same dwell as `lane`: a lane has to be genuinely walking through before the
 	## shaping tool is worth pointing at.
 	"shape_lane": 6.0,
+	## SG-98. Another fact with no other way in — a hold on a key that already
+	## does something is not a thing anyone discovers by experiment — so it is
+	## earned merely by carrying a Sentry and never having armed one. Long
+	## enough that a player who arms it in the first few seconds of holding the
+	## weapon never sees it at all.
+	"sentry_auto": 7.0,
 }
 const MAX_SHOWS := 2
 const REPEAT_GAP := 42.0
@@ -67,7 +73,10 @@ const FIRST_WAVE := 2    ## nothing before this
 ## without it the whole deckwork system is code no player ever runs.
 ## `find_vent` sits above `empty_bank` because the bank line SAYS "stand on a
 ## vent" — advice that lands on nobody who has not been told the vents exist.
-const ORDER := ["broken_cannon", "find_vent", "empty_bank", "gauge", "kiting", "shape_lane", "lane", "idle_skill"]
+## `sentry_auto` sits with the other two verb-announcements rather than with the
+## mistakes, but BELOW them: a sentry you are placing by hand is working, which
+## is not true of a cannon you are walking past.
+const ORDER := ["broken_cannon", "find_vent", "empty_bank", "gauge", "kiting", "shape_lane", "sentry_auto", "lane", "idle_skill"]
 
 const TEXT := {
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
@@ -91,6 +100,10 @@ const TEXT := {
 	## `{key}` is filled from the live binding rather than written in, so a player
 	## who rebinds the key is not told to press the one they replaced.
 	"broken_cannon": "A cannon is down. Stand at it and HOLD {key} to bring it back.",
+	## SG-98, and it has to carry the way OUT as well as the way in: a toggle
+	## whose off-switch is undocumented is a setting, not a toggle. `{key}` is
+	## the sentry slot's OWN live binding — see `_key_action`.
+	"sentry_auto": "HOLD {key} to arm the Sentry — it will drop at your feet on its own. HOLD it again to stand it down.",
 }
 
 var _dwell := {}
@@ -101,6 +114,10 @@ var _current_until := -1.0
 ## Whether he has stood on a vent this run — the moment he has, `find_vent` is
 ## a lesson already learned and never fires (board SG-59).
 var _vent_stood := false
+## Whether a sentry slot has ever been armed this run. Same shape as
+## `_vent_stood`: the lesson goes quiet forever once it has been learned, and it
+## is learned by DOING it rather than by the line having been shown.
+var _autocast_used := false
 
 
 func reset() -> void:
@@ -110,6 +127,7 @@ func reset() -> void:
 	_current = ""
 	_current_until = -1.0
 	_vent_stood = false
+	_autocast_used = false
 
 
 ## Returns the line to draw, or "". Call every frame while playing.
@@ -126,6 +144,12 @@ func advise(game, delta: float) -> String:
 			if game.player.global_position.distance_to(prop.global_position) \
 					<= SkyGearData.VENT_STAND:
 				_vent_stood = true
+				break
+
+	if not _autocast_used:
+		for slot in game.skills.size():
+			if game.autocast_armed(slot):
+				_autocast_used = true
 				break
 
 	var now: float = float(game.run_time)
@@ -155,7 +179,7 @@ func _still_showing(game) -> String:
 		_current = ""
 		return ""
 	var line := str(TEXT.get(_current, "")).replace(
-		"{key}", SkyGearKeybinds.label("deckwork"))
+		"{key}", SkyGearKeybinds.label(_key_action(_current, game)))
 	## SG-59's live fills — no binding involved, but the same rule as {key}:
 	## the line says what is true NOW, not what was true when it was written.
 	if line.find("{rate}") != -1:
@@ -194,6 +218,22 @@ func _vent_bearing(game) -> String:
 	if side == "":
 		return "dead " + fore
 	return fore + " " + side
+
+
+## WHICH BINDING `{key}` MEANS.
+##
+## It was `"deckwork"`, hardwired, which was true while both lines that used the
+## token were about the same verb. SG-98's line is about a SLOT, and which slot
+## depends on where the draft put the Sentry — so the token resolves per hint,
+## and a line that names a key can never name a key the player did not press.
+func _key_action(id: String, game) -> String:
+	if id != "sentry_auto":
+		return "deckwork"
+	if game != null:
+		for slot in mini(game.skills.size(), 4):
+			if game.sentry_slot(slot):
+				return "skill_%d" % (slot + 1)
+	return "skill_1"
 
 
 func _may_fire(id: String, now: float) -> bool:
@@ -248,6 +288,15 @@ func _is(id: String, game) -> bool:
 			## because the lesson is about the deck, not about a fight. Goes
 			## quiet forever (this run) the moment a vent has paid him.
 			return game.gauge_is_banked() and not _vent_stood
+		"sentry_auto":
+			## Carrying a Sentry, on a key that can actually be held (the fifth
+			## slot has no binding by design), and has never armed one.
+			if _autocast_used:
+				return false
+			for slot in mini(game.skills.size(), 4):
+				if game.sentry_slot(slot):
+					return true
+			return false
 		"lane":
 			## A boarder past the halfway line with the captain nowhere near it.
 			var deck: Rect2 = SkyGearGame.DECK_RECT

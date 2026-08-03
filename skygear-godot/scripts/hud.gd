@@ -533,6 +533,7 @@ func _draw_title() -> void:
 	if heat_on:
 		body += MENU_LADDER_H + MENU_GAP
 	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## WHO IS ABOARD + sentence
+	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## THE CORE + sentence
 	body += MENU_PLATE_H + MENU_GAP                    ## COMPARE THE TWO
 	if shop_on:
 		## THE WORKSHOP and THE BERTHS are HIDDEN, not shown locked, and that is
@@ -569,6 +570,23 @@ func _draw_title() -> void:
 	y += MENU_PLATE_H + MENU_GAP
 	_says(str(game.class_data().get("blurb", "")), Vector2(wx + 10.0, y + 10.0),
 		wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
+	y += MENU_BLURB_H
+	## THE CORE (board SG-99). Directly under WHO IS ABOARD because it is the
+	## other half of the same decision: the class already chose the auto-attack's
+	## element and never said so, and the ask was for a way to say otherwise.
+	## Cycling, like the class row, for the same reason — a screen of its own for
+	## four options is a click paid every run. The plate names the WEAPON rather
+	## than the element ("Frost Cleave", not "FROST"), because the thing being
+	## changed is what she swings, and the element's own colour carries which one.
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
+			"THE CORE  ·  %s" % game.auto_name(),
+			{"key": "THE CORE", "pt": 17}):
+		game.cycle_auto_element()
+	y += MENU_PLATE_H + MENU_GAP
+	_says("Her basic attack, and the only weapon every run has. %s."
+			% str(SkyGearData.ELEMENTS[game.auto_element_id()].blurb).capitalize(),
+		Vector2(wx + 10.0, y + 10.0), wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER,
+		13, 2, Color("#b9afaa"))
 	y += MENU_BLURB_H
 	## ...AND A WAY TO SEE WHAT THE OTHER ONE IS.
 	##
@@ -2140,19 +2158,29 @@ func _draw_game_hud() -> void:
 	## On the portrait rather than in the slot row, because it is not a slot: it
 	## costs no key and cannot be drafted away. A sweep that fills, and a soft
 	## flare on the frame it lands.
-	var auto_period: float = 0.45 * 0.8
+	## Read from the auto itself, not written in. It was `0.45 * 0.8` and a
+	## hardcoded 190 — the Cleave's numbers, spelled twice — so the ring already
+	## lied about the Boilerwright's 0.6s Scald at 210 before anything here made
+	## the element movable too. One source, three readings (SG-99).
+	var auto_data: Dictionary = game.class_data().get("auto", {})
+	var auto_period: float = maxf(0.01, float(auto_data.get("period", 0.36)))
 	var auto_left: float = clampf(float(game.basic_cooldown), 0.0, auto_period)
 	var swung: float = 1.0 - auto_left / auto_period
 	var reach: float = portrait_at.size.x * 0.5 + 7.0
+	## And the ring is the ELEMENT's colour, because the element is now the
+	## player's choice and a ring that stays ember on a Frost Cleave is the HUD
+	## telling them their pick did not take.
+	var auto_hue: Color = SkyGearData.ELEMENTS[game.auto_element_id()].color
 	draw_arc(portrait_at.get_center(), reach, -PI * 0.5, -PI * 0.5 + TAU * swung,
-		36, Color("#ff9a4a"), 2.6)
+		36, auto_hue, 2.6)
 	if swung >= 0.999:
 		## Ready, and there is something in reach for it to hit. A full ring over
 		## an empty deck would read as a cooldown that never fires.
-		var prey = game.nearest_enemy(game.player.global_position, 190.0)
+		var prey = game.nearest_enemy(game.player.global_position,
+			float(auto_data.get("range", 190.0)))
 		if prey != null:
 			draw_arc(portrait_at.get_center(), reach, 0.0, TAU, 36,
-				Color(1.0, 0.72, 0.36, 0.55), 4.4)
+				Color(auto_hue.r, auto_hue.g, auto_hue.b, 0.55), 4.4)
 
 	var health := l.item("captain", "health", panel)
 	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
@@ -2340,6 +2368,19 @@ func _draw_game_hud() -> void:
 		var key_at := l.item(slot, "key", rect)
 		_label(labels[i], key_at.position + Vector2(0, key_at.size.y), key_at.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 13, BRASS_LIT)
+		## ARMED (SG-98). A slot has had two states since the port began — ready
+		## and cooling — and autocast is a third that neither the sweep nor the
+		## nameplate can carry: it is about what the slot will do NEXT time it is
+		## ready, not about now. Two marks, because they answer different
+		## questions at different distances: a lit ring in the element's own
+		## colour, which you catch without looking, and the WORD, which says
+		## which thing is on. A ring alone was the first version and it read as
+		## "something about this slot is different".
+		var armed: bool = game.autocast_armed(i)
+		if armed:
+			_label("AUTO", key_at.position + Vector2(0, key_at.size.y),
+				key_at.size.x - 4.0, HORIZONTAL_ALIGNMENT_RIGHT, 11,
+				SkyGearData.ELEMENTS[game.skills[i].element].color)
 		var icon_at := l.item(slot, "icon", rect)
 		var name_at := l.item(slot, "name", rect)
 		## A dark recess under the glyph, always. The painted bezel has brass
@@ -2395,6 +2436,9 @@ func _draw_game_hud() -> void:
 			_value("%.1f" % float(skill.cooldown_left),
 				Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
 				icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
+		if armed:
+			draw_arc(icon_at.get_center(), icon_at.size.x * 0.62 + 3.0, 0.0, TAU, 28,
+				element, 2.4)
 		var slot_name: String = SkyGearData.skill_name(skill)
 		_stamp(tag)
 		_label(slot_name, Vector2(tag.position.x, name_at.position.y + name_at.size.y - 3.0),

@@ -38,7 +38,34 @@ const SHAPES := {
 const ENEMIES := {
 	"SCRAPPER": {"hp": 60.0, "speed": 150.0, "damage": 12.0, "radius": 22.0, "attack_range": 66.0, "reach": 92.0, "swing": 1.658063, "windup": 0.40, "recover": 0.42, "ai": "melee", "scale": 0.25, "texture": "res://assets/art/enemies/automaton_front_idle.png"},
 	"GUNNER": {"hp": 35.0, "speed": 110.0, "damage": 10.0, "radius": 21.0, "attack_range": 340.0, "windup": 0.45, "recover": 0.80, "ai": "ranged", "bolt_speed": 352.0, "scale": 0.25, "texture": "res://assets/art/enemies/drone_front_idle.png"},
-	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 20.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.55, "recover": 0.60, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
+	## THE FURNACE KNIGHT IS A WALL YOU READ, NOT A DPS CHECK (board SG-97, from
+	## the build-44 playtest: *"slower more telegraphed hits, hard hitting but
+	## designed to be dodged"*). Four numbers moved as ONE design, and the design
+	## is: keep what the knight does to a target that cannot move, change
+	## everything about what it does to a player who can.
+	##
+	##   windup  0.55 → 0.90  the READ. 0.55s is under a human's recognise-and-
+	##       commit budget with twelve other things on the deck; 0.90s is the
+	##       Colossus's own tell, and the two heavies now wind at one tempo. At
+	##       260 u/s that is 234 units of walk after the wedge appears, against
+	##       the 36 units of backward give between the trip (82) and the reach
+	##       (118) — the dodge stops being a reflex and becomes a decision.
+	##   recover 0.60 → 1.00  the PUNISH. A whiffed swing leaves a stationary
+	##       180-HP target for a full second. Stepping around a knight has to PAY,
+	##       or it is just retreating.
+	##   damage  20 → 34      the MISTAKE. Three connected swings kill a full-HP
+	##       captain (34×3 = 102). "Hard hitting" has to mean the health bar
+	##       moves in a way you notice on the first hit, not the fifth.
+	##   reach/swing unchanged (118 / 120°) — they are the drawn wedge, and the
+	##       wedge is now the hitbox in BOTH dimensions (see `enemy.gd`, the arc
+	##       gate). Moving them would move the tell.
+	##
+	## The cycle goes 1.15s → 1.90s and the damage rises with it, so throughput
+	## against the boiler, the crew and the cannons — none of which dodge — is
+	## 17.4 dps before and 17.9 after: the wave's pressure is intact and only the
+	## player's half of the exchange changed. That is deliberate, and it is why
+	## `tools/balance.gd` (whose bot never moves) reports this change as noise.
+	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
 	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "reach": 64.0, "swing": 1.396263, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
 	"BOSS": {"hp": 900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
 }
@@ -130,8 +157,12 @@ const CLASSES := {
 		"gauge_from_damage": true, "gauge_decays": true, "gauge_auto_vents": true,
 		## EMBER CLEAVE. Was hardcoded inside `_process_basic_attack` as four
 		## magic numbers, which is fine with one class and wrong with two.
-		"auto": {"kind": "arc", "range": 190.0, "arc": 2.443, "damage": 22.0,
-			"period": 0.36, "element": "EMBER", "knock": 150.0,
+		## `name` and `element` are separate because the element is now the
+		## player's to change (board SG-99) and the SHAPE is not: an Arc Cleave is
+		## still a Cleave. `element` here is the DEFAULT the pick starts from, not
+		## a law — read it through `game.auto_element_id()`, never directly.
+		"auto": {"kind": "arc", "name": "Cleave", "range": 190.0, "arc": 2.443,
+			"damage": 22.0, "period": 0.36, "element": "EMBER", "knock": 150.0,
 			"sound": "player/shape_cleave.ogg"},
 		## THE ROWS THE COMPARISON SCREEN LAYS SIDE BY SIDE. Parallel keys, so the
 		## screen is a table rather than two paragraphs — the player's question is
@@ -177,8 +208,8 @@ const CLASSES := {
 		## fast ember arc — he reaches slightly further and hits a third less
 		## often, which is the difference between a brawler and a man holding a
 		## line. Pure data; the simulation reads the same fields for both.
-		"auto": {"kind": "cone", "range": 210.0, "arc": 1.134, "damage": 18.0,
-			"period": 0.6, "element": "STEAM", "knock": 190.0,
+		"auto": {"kind": "cone", "name": "Scald", "range": 210.0, "arc": 1.134,
+			"damage": 18.0, "period": 0.6, "element": "STEAM", "knock": 190.0,
 			"sound": "player/shape_gale.ogg"},
 		## BLEED JET. He has no dash, so the dash key does this instead: a short
 		## hop that COSTS the bank and leaves scalding steam in the lane behind

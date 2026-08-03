@@ -97,6 +97,46 @@ func _windup_scale() -> float:
 	return SkyGearWorkshop.windup_for(int(game.heat))
 
 
+## DOES THE SWING LAND — and the answer is the shape that was DRAWN.
+##
+## Board SG-3 made the reach one number instead of two: the wedge is drawn at
+## `config.reach` and the sim connects at `config.reach + target_radius`. But it
+## only ever unified the RADIUS. The connect test stayed a bare
+## `distance_to(...) <= swing_reach` — a full 360° circle — while the telegraph
+## on the deck is a 120° (knight), 95° (scrapper) or 80° (gremlin) FAN pointed
+## along `attack_direction`. So a player who did the thing the picture asks for
+## — step out of the lit wedge, sideways, around the flank — was still hit by a
+## swing that visibly went the other way. That is STATUS failure mode two in the
+## dimension nobody checked, and it is most of why "designed to be dodged"
+## (build-44, the furnace knight) did not describe the game.
+##
+## The wedge is now the hitbox in BOTH dimensions. Two notes on the geometry:
+##
+##   * The test is against the target's BODY, not its centre — a disc of radius
+##     `body` overlaps the fan if its centre is within `swing/2 + asin(body/d)`
+##     of the swing's axis. Being clipped by the edge of the picture should
+##     hurt; only getting clear should not.
+##   * Enemies with no `swing` (the Colossus, which telegraphs with a phase ring
+##     rather than a fan, and any future shape) keep the circle. There is no
+##     drawn wedge to be honest to, so there is nothing to be honest about.
+##
+## Nothing that stands still notices this: `attack_direction` is locked pointing
+## at the target when the windup trips, so the boiler, a cannon and a crewman are
+## dead centre of the fan and connect exactly as before. It is a change to what
+## a MOVING captain can do, which is the whole point.
+func _swing_hits(point: Vector2, swing_reach: float, body: float) -> bool:
+	var offset := point - global_position
+	var distance := offset.length()
+	if distance > swing_reach:
+		return false
+	if not ("swing" in config):
+		return true
+	if distance <= body or distance <= 0.001:
+		return true
+	var half: float = float(config.swing) * 0.5 + asin(clampf(body / distance, 0.0, 1.0))
+	return absf(attack_direction.angle_to(offset)) <= half
+
+
 func configure(owner_game: Node, enemy_kind: String, enemy_lane: int, wave: int) -> void:
 	mass = 2.6 if enemy_kind == "ARMORED" else (24.0 if enemy_kind == "BOSS" else 1.0)
 	game = owner_game
@@ -223,13 +263,13 @@ func _physics_process(delta: float) -> void:
 			if config.ai == "ranged":
 				game.spawn_enemy_bolt(global_position, target_position, float(config.damage), float(config.bolt_speed))
 				game.play_sfx("enemy/shoot_drone.ogg", -7.0)
-			elif targets_player and global_position.distance_to(game.player.global_position) <= swing_reach:
+			elif targets_player and _swing_hits(game.player.global_position, swing_reach, 17.0):
 				game.damage_player(float(config.damage), kind)
-			elif not target_turret.is_empty() and global_position.distance_to(target_position) <= swing_reach:
+			elif not target_turret.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
 				game.damage_turret(target_turret, float(config.damage))
-			elif not target_crew.is_empty() and global_position.distance_to(target_position) <= swing_reach:
+			elif not target_crew.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
 				game.hurt_crew(target_crew, float(config.damage))
-			elif not targets_player and global_position.distance_to(game.boiler_position) <= swing_reach:
+			elif not targets_player and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
 				game.damage_boiler(float(config.damage))
 			state = "recover"
 			state_time = float(config.recover)

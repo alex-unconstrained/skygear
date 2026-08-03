@@ -2,6 +2,59 @@
 
 _Last updated: 2026-08-02, build 44._
 
+## The furnace knight is a different fight now — and only you can tell me if it worked (SG-97)
+
+Your ask: *"Furnace knights need slower more telegraphed hits, hard hitting but
+designed to be dodged."* He winds up for **0.90s** instead of 0.55 (the same
+tell the Colossus gives), stands in his recovery for **1.00s** instead of 0.60,
+and hits for **34** instead of 20 — three connected swings kill you from full.
+
+**And I found the reason your dodges were not working.** The red wedge he draws
+is a 120-degree fan, but the code that decided whether he hit you was a full
+CIRCLE at that radius. Step around his flank exactly as the picture tells you
+to, and you were hit by a swing that visibly went the other way. The wedge is
+now the hitbox in both dimensions, for every melee boarder.
+
+**What to feel-check, because no tool here can:** the simulated bot never moves
+the captain, so a longer telegraph reads to it as EASIER and the flank fix reads
+as nothing at all — its verdict on this change is worth nothing and I am not
+going to pretend otherwise. Fight two or three knights and tell me: is 0.90s
+long enough to READ when there are gremlins on you at the same time, does
+sidestepping now actually work, and does 34 damage feel like a mistake you made
+rather than a tax you paid?
+
+## Sentry autocast is in — hold the key (SG-98)
+
+Your ask: *"Can we make sentry abilities be toggle-able to always drop on player
+at their location? Maybe by holding the hotkey and that triggers a visual
+indicator it's on autocast."* **Hold the sentry's own hotkey for about half a
+second.** The slot lights a ring in the element's colour and stamps **AUTO** on
+its brass key row; from then on it drops at your feet the instant it comes off
+cooldown, no aiming. **Hold the same key again to stand it down.** It survives a
+draft, a wave change and a pause, and it works on whatever key you have bound
+that slot to.
+
+**What to feel-check:** the half-second hold. Too long and it feels sticky, too
+short and you arm it by accident while spamming the key — I picked 0.45s, and
+that is a number a hand decides rather than a test.
+
+## You can pick the auto-attack's element on the title screen (SG-99)
+
+Your ask: *"Can we get a way to change the auto-attack to another element? So
+it's not always fire?"* There is a new plate under WHO IS ABOARD reading
+**THE CORE · Ember Cleave**. Click it to cycle: Frost Cleave, Arc Cleave, Steam
+Cleave. It is the same swing with a different element — the reach, the arc, the
+damage and the rhythm are untouched.
+
+**Why there and not on a card:** a card is dealt, and "not always fire" is a
+thing you want in every run, not in some of them. It costs no randomness at all,
+so a seed still plays the same run.
+
+**What to feel-check:** whether the title screen is the right door, or whether
+you would rather this were a decision inside a run that you have to earn.
+
+
+
 ## The Colossus is textured — here is the frame. "Too easy" is still open. (SG-94)
 
 Your ask: *"Collosus is way too easy - he needs to be scary the player. Not sure

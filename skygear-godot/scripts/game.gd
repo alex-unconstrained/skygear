@@ -157,6 +157,56 @@ var boiler_position := BOILER_POSITION
 var boiler_radius := 62.0
 var end_reason := ""
 var basic_cooldown := 0.0
+## THE AUTO-ATTACK'S ELEMENT, AND WHERE THE CHOICE LIVES (board SG-99, from the
+## build-44 playtest: *"Can we get a way to change the auto-attack to another
+## element? So it's not always fire?"*).
+##
+## It lives on the TITLE SCREEN, on a plate directly under WHO IS ABOARD, and
+## every other candidate loses to it for a reason worth writing down:
+##
+##   * **A card** would have been cheapest to build — `cards.gd` already has
+##     RETUNE CORE, which re-elements a slot — but a card is DEALT. "So it's not
+##     always fire" is a request about every run, and an answer that arrives in
+##     some runs is not one. It also cannot be the answer for the first two
+##     waves of any run, which is where the complaint was formed.
+##   * **The opening weapon draft** is where the run's first choice already is,
+##     but the draft deals SHAPES; the Cleave is deliberately not among them
+##     (`DRAFT_SHAPES`), and the 32-cell matrix the Opening Bid opens is
+##     8 draftable shapes × 4 elements. Putting the auto in there changes that
+##     arithmetic and puts the Cleave back on a card, breaking both rules at
+##     once.
+##   * **A Workshop node** would gate a flavour choice behind scrip, which makes
+##     "not always fire" a thing you grind for.
+##
+## The title screen already carries exactly this kind of choice — WHO IS ABOARD
+## is a class pick that, among other things, decides the auto-attack's element
+## today. This makes the second half of that decision separable. And it is a
+## NAMED choice, not a rolled one: it consumes no RNG at all, which is the
+## `_bid_matrix` precedent and the only reason a new pre-run choice can exist
+## without shifting every seeded card deal, crit and spawn jitter in the game.
+##
+## `""` means "whatever the class brings" — so a player who never touches the
+## plate gets a byte-identical run to the one they got before this existed.
+var auto_element := ""
+## Not reset by `begin_run`: like `class_id` and `heat`, it is a property of the
+## run you are ABOUT to start, chosen before you start it.
+func auto_element_id() -> String:
+	if auto_element != "" and SkyGearData.ELEMENTS.has(auto_element):
+		return auto_element
+	return str(class_data().get("auto", {}).get("element", "EMBER"))
+
+
+## "Ember Cleave", "Frost Scald" — one function, so the report, the run log and
+## anything else that names the basic attack cannot drift from what it fires.
+func auto_name() -> String:
+	return "%s %s" % [str(SkyGearData.ELEMENTS[auto_element_id()].name),
+		str(class_data().get("auto", {}).get("name", "Cleave"))]
+
+
+func cycle_auto_element() -> void:
+	var keys: Array = SkyGearData.ELEMENTS.keys()
+	var at: int = maxi(0, keys.find(auto_element_id()))
+	auto_element = str(keys[(at + 1) % keys.size()])
 var pressure := 0.0
 var pressure_grace := 0.0
 ## Which captain is aboard. The gauge, the speed, the health and whether there
@@ -1601,7 +1651,7 @@ func _process(delta: float) -> void:
 	_update_turrets(delta)
 	_update_crew(delta)
 	_update_hulk(delta)
-	_process_skill_input()
+	_process_skill_input(delta)
 	_process_basic_attack(delta)
 	_process_dash_impacts()
 	queue_redraw()
@@ -1928,7 +1978,7 @@ func run_report() -> String:
 			kept.append(str((SkyGearFittings.FITTINGS.get(str(fit_id), {}) as Dictionary
 				).get("name", str(fit_id))))
 		lines.append("refit · " + ", ".join(kept))
-	var build: Array[String] = ["Ember Cleave (auto)"]
+	var build: Array[String] = ["%s (auto)" % auto_name()]
 	for skill in skills:
 		build.append(SkyGearData.skill_name(skill))
 	lines.append("build: " + "  /  ".join(build))
@@ -1941,7 +1991,7 @@ func run_report() -> String:
 	if total > 0.0:
 		lines.append("")
 		lines.append("skills — damage · share · casts · kills")
-		lines.append(_report_row("auto cleave", float(tel.basic.damage), total,
+		lines.append(_report_row(auto_name().to_lower(), float(tel.basic.damage), total,
 			int(tel.basic.casts), int(tel.basic.kills)))
 		for i in tel.per.size():
 			var row: Dictionary = tel.per[i]
@@ -2059,7 +2109,7 @@ func _set_state(next_state: State) -> void:
 
 
 func _build_names() -> Array[String]:
-	var out: Array[String] = ["Ember Cleave (auto)"]
+	var out: Array[String] = ["%s (auto)" % auto_name()]
 	for skill in skills:
 		out.append(SkyGearData.skill_name(skill))
 	return out
@@ -2684,22 +2734,96 @@ func _process_basic_attack(delta: float) -> void:
 	if target == null:
 		return
 	var direction := (target.global_position - player.global_position).normalized()
+	## The ELEMENT is the run's, not the table's (SG-99). Everything else about
+	## the swing — reach, arc, damage, period, knock, sound — is still the class's
+	## own, because the ask was to change what it is made of and not what it is.
+	var element := auto_element_id()
 	_damage_cone(player.global_position, direction, reach, float(auto.arc),
 		float(auto.damage) * damage_multiplier * overpressure_multiplier(),
-		str(auto.element), float(auto.knock), true)
+		element, float(auto.knock), true)
 	basic_cooldown = float(auto.period)
 	_fx({"kind": str(auto.kind), "position": player.global_position,
 		"direction": direction.angle(), "radius": reach, "arc": float(auto.arc),
-		"element": str(auto.element),
-		"color": SkyGearData.ELEMENTS[str(auto.element)].color,
+		"element": element,
+		"color": SkyGearData.ELEMENTS[element].color,
 		"time": 0.0, "life": 0.16, "follow": true})
 	play_sfx(str(auto.sound), -7.0)
 
-func _process_skill_input() -> void:
+## SENTRY AUTOCAST — hold the slot's own key to arm it (board SG-98, from the
+## build-44 playtest: *"Can we make sentry abilities be toggle-able to always
+## drop on player at their location? Maybe by holding the hotkey and that
+## triggers a visual indicator it's on autocast."*).
+##
+## Three rules that fall out of "hold the hotkey", each of which is a way this
+## could have gone wrong:
+##
+##   * **Only a sentry slot watches for a hold.** Every other slot keeps the
+##     press-to-cast it has always had, on `is_action_just_pressed`, with no
+##     added latency and no behaviour to re-learn. Autocast means nothing for a
+##     Lance; a hold-detector on all four would tax every skill in the game to
+##     pay for one.
+##   * **A sentry slot fires on RELEASE.** You cannot know a press was a tap
+##     until it ends. The cost is the few milliseconds of a real tap; the
+##     alternative — cast on press, then also toggle — deploys a sentry every
+##     time you arm one, which is a toggle that fights you.
+##   * **The key is whatever `keybinds.gd` says it is.** `skill_%d` is the
+##     action; the hold works on a rebound key because it never sees a letter.
+##
+## The flag lives on the skill DICT (`skill.autocast`), beside `sentry_idle`,
+## and that is the whole of why it survives: a wave change never touches
+## `skills`, a pause only stops `_process`, and the draft replaces a whole dict
+## — so a freshly drafted sentry starts disarmed, which is the right default,
+## and a slot that shuffles under `_trim_empty_slots` carries its arming with it
+## instead of handing it to whoever inherits the index.
+const AUTOCAST_HOLD := 0.45
+var _skill_held: Array[float] = []
+var _skill_hold_spent: Array[bool] = []
+
+
+func sentry_slot(index: int) -> bool:
+	return index >= 0 and index < skills.size() \
+		and str(SkyGearData.SHAPES[skills[index].shape].kind) == "sentry"
+
+
+## The one question the HUD, the coach and the harness all ask.
+func autocast_armed(index: int) -> bool:
+	return sentry_slot(index) and bool(skills[index].get("autocast", false))
+
+
+func set_autocast(index: int, on: bool) -> void:
+	if not sentry_slot(index):
+		return
+	skills[index].autocast = on
+	## Standing down clears the grace timer too, so disarming mid-count does not
+	## leave a sentry half-way to placing itself.
+	skills[index].sentry_idle = 0.0
+	play_sfx("ui/click.ogg", -6.0 if on else -10.0)
+
+
+func _process_skill_input(delta: float) -> void:
 	var actions := ["skill_1", "skill_2", "skill_3", "skill_4"]
+	_skill_held.resize(actions.size())
+	_skill_hold_spent.resize(actions.size())
 	for i in mini(skills.size(), actions.size()):
-		if Input.is_action_just_pressed(actions[i]):
-			cast_skill(i)
+		if not sentry_slot(i):
+			if Input.is_action_just_pressed(actions[i]):
+				cast_skill(i)
+			_skill_held[i] = 0.0
+			_skill_hold_spent[i] = false
+			continue
+		if Input.is_action_pressed(actions[i]):
+			if Input.is_action_just_pressed(actions[i]):
+				_skill_held[i] = 0.0
+				_skill_hold_spent[i] = false
+			_skill_held[i] = float(_skill_held[i]) + delta
+			if float(_skill_held[i]) >= AUTOCAST_HOLD and not bool(_skill_hold_spent[i]):
+				_skill_hold_spent[i] = true
+				set_autocast(i, not autocast_armed(i))
+		elif Input.is_action_just_released(actions[i]):
+			if not bool(_skill_hold_spent[i]):
+				cast_skill(i)
+			_skill_held[i] = 0.0
+			_skill_hold_spent[i] = false
 
 ## Base shape table x per-skill mods x global mods, in one place. Everything
 ## that fires reads this rather than the SHAPES table, so a card that says
@@ -2888,7 +3012,13 @@ func _update_cooldowns(delta: float) -> void:
 		var idle := float(skill.get("sentry_idle", 0.0)) + delta
 		skill.sentry_idle = idle
 		var st := skill_stats(skill)
-		if idle >= float(st.get("auto_after", 2.5)):
+		## ARMED means the grace is zero. The idle auto-place already put a ready
+		## sentry at the captain's feet after `auto_after` seconds — the whole of
+		## autocast is that a toggled slot stops waiting to be sure you were not
+		## about to press it, because you have said you never will.
+		var grace: float = 0.0 if bool(skill.get("autocast", false)) \
+			else float(st.get("auto_after", 2.5))
+		if idle >= grace:
 			deploy_sentry(skill, player.global_position, false)
 
 func _update_passives(delta: float) -> void:

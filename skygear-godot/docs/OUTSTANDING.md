@@ -192,6 +192,17 @@ the figures himself.
    inside the wedge it drew and nowhere else`. Balance numbers on the board row,
    with the honest caveat that the bot never dodges. **Left open in NEEDS_ALEX
    for his hands** — the bot cannot judge this one for him.
+   **DONE 2026-08-02 (board SG-97)** — four numbers as one design: windup
+   0.55 -> 0.90 (the read, the Colossus's own tell), recover 0.60 -> 1.00 (the
+   punish), damage 20 -> 34 (three connected swings kill you), reach and swing
+   untouched because they ARE the drawn wedge. Throughput against things that
+   cannot dodge is held at 17.4 -> 17.9 dps on purpose, so the wave schedule is
+   unmoved. And the fault under the ask: the wedge was drawn as a 120-degree fan
+   and the hit was tested as a full CIRCLE, so stepping around the flank — the
+   exact move the picture asks for — never worked. `telegraph · a swing lands
+   inside the wedge it drew and nowhere else`. Balance numbers on the board row,
+   with the honest caveat that the bot never dodges. **Left open in NEEDS_ALEX
+   for his hands** — the bot cannot judge this one for him.
 7. **Object scale audit** — "why are some objects so much larger and what do
    they do?" Distinct from SG-79 (which trued heights against intent): he is
    asking what each thing IS and whether its size is earned.
@@ -206,7 +217,22 @@ the figures himself.
    the instant the cooldown ends. Survives a draft, a wave and a pause because
    the flag lives on the skill dict: `sentry · and stays armed across a wave
    change`, `sentry · and is still armed when the pause lifts`.
+   **DONE 2026-08-02 (board SG-98)** — hold the slot's own binding for 0.45s to
+   arm it, the same hold again to stand it down; a lit ring in the element's
+   colour plus the word AUTO on the key row says it is armed. Armed means the
+   existing idle auto-place drops its grace to zero, so it lands at your feet
+   the instant the cooldown ends. Survives a draft, a wave and a pause because
+   the flag lives on the skill dict: `sentry · and stays armed across a wave
+   change`, `sentry · and is still armed when the pause lifts`.
 9. **Auto-attack element choice** — so the basic attack is not always Ember.
+   **DONE 2026-08-02 (board SG-99)** — a cycling THE CORE plate on the title
+   screen, under WHO IS ABOARD, which is where the auto-attack's element was
+   already being chosen silently by the class pick. Not a card (a card is dealt,
+   and this is wanted every run), not the draft (the Cleave is deliberately
+   undraftable and the 32-cell matrix is derived by counting the eight shapes
+   that are), not the Workshop (it would gate flavour behind scrip). Consumes no
+   RNG, so seeds are unmoved: `auto · and naming another one costs the seeded
+   stream nothing`, `auto · and the Cleave is still never dealt as a card`.
    **DONE 2026-08-02 (board SG-99)** — a cycling THE CORE plate on the title
    screen, under WHO IS ABOARD, which is where the auto-attack's element was
    already being chosen silently by the class pick. Not a card (a card is dealt,
