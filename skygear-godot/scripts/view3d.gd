@@ -782,6 +782,9 @@ func _build_world() -> void:
 	## second copy of the curve.
 	_build_hull_shape()
 
+	## The rig overhead — which the camera never sees and the deck wears all run.
+	_build_rigging()
+
 	## The gunwale. Without it the deck is a rectangle that stops, and at
 	## altitude the thing you most need to read is where the edge is.
 	var rail_mat := StandardMaterial3D.new()
@@ -930,6 +933,38 @@ func _build_world() -> void:
 		em.albedo_color = Color(1, 1, 1, 0.85)
 		em.cull_mode = BaseMaterial3D.CULL_DISABLED
 		_envelope.mesh.material = em
+		## THE OTHER HALF OF DECK-IDENTITY ITEM 1, AND IT WAS BUILT AND THEN CUT.
+		## The item asks for this to become `..._ON`, on the argument that the quad
+		## is 36 x 11 m, is rebuilt into a transform every frame, and can never be
+		## seen — its lowest edge sits at +5 degrees of elevation while the top of
+		## the frame is -23. The first two facts are true. The conclusion does not
+		## follow, and three measurements say so:
+		##
+		##   1. **It is not one character.** A `TRANSPARENCY_ALPHA` material is
+		##      drawn in the transparent pass and Godot does not rasterise it into
+		##      the shadow map at all, so the enum alone is a no-op. Making it cast
+		##      also means moving it to `ALPHA_HASH` — a dithered cutout on a quad,
+		##      which is a material change, not a constant.
+		##   2. **It costs the deck a further 1% for nothing legible.** Deck-region
+		##      mean luminance at zoom 1.00: 43.93 shipped, 43.03 with the rig
+		##      (-2.04%), 42.60 with the rig and this casting (-3.02%). At zoom
+		##      1.55 the extra term is -0.1%, i.e. inside the noise. What it adds
+		##      at 1.00 is a broad soft wash over the bow, not a gas bag.
+		##   3. **AND IT IS TIED TO THE CAMERA.** `_sync_envelope` parks this quad
+		##      at `camera.position + …`, so its shadow does not belong to the ship
+		##      — it belongs to the PLAYER, and a large soft band would slide
+		##      across the planking as she walks. The design's own "explicitly
+		##      not" list rejects precisely that: *"cloud shadows moving across the
+		##      deck — a 12% band sweeping a telegraph is pillar 6 traded for
+		##      decoration."* A band welded to the captain's own feet is that
+		##      trade with a shorter lever.
+		##
+		## So the rig ships and this stays OFF. The real finding underneath the
+		## item is still true and still unbanked: this quad is invisible and is
+		## transformed every frame anyway. The cheap correct answer is probably to
+		## stop DRAWING it rather than to start casting it — but "never seen" has
+		## only been argued from the gameplay camera, and the four `sky_shot` poses
+		## drag it. Left alone tonight; it is a question in NEEDS_ALEX.
 		_envelope.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		add_child(_envelope)
 
@@ -4699,6 +4734,8 @@ const STERN_SEGMENTS := 6
 const STERN_BEAM := 0.52
 
 var _hull_shape: Node3D
+## The masts, yards and shrouds. Never drawn — see `_build_rigging`.
+var _rigging: Node3D
 
 
 ## The sheer line, as one function of depth, because a curve retyped in two
@@ -4730,6 +4767,137 @@ static func hull_beam(z: float) -> float:
 		return 1.0 - pow(t, 1.6)
 	var s: float = clampf((z - rect.end.y) / STERN_LENGTH, 0.0, 1.0)
 	return 1.0 - (1.0 - STERN_BEAM) * pow(s, 1.35)
+
+
+## --- THE RIG OVERHEAD, AS SHADOW ONLY -----------------------------------------
+##
+## DECK-IDENTITY-DESIGN item 1, and it is the top-ranked item there for one
+## reason: DECK-DESIGN §1 measured that 94% of the default frame is planking and
+## the near two thirds carries no ship's edge at all. The rail, the sheer and the
+## bow all live at the EDGE of the frame. This is the only cue that reaches the
+## middle of it.
+##
+## VISIBLE RIGGING WAS TRIED TWICE AND FAILED TWICE, with pictures:
+## `.shots/deck/rig-mid-z1.00.png` and `rig2-mid-z1.55.png`. At the captain's own
+## depth the frame is 490 ground units wide, so a 10 cm rope four metres from the
+## lens is a 30-pixel bar with the captain behind it. `SHADOWS_ONLY` is the only
+## version that works, and it works BY CONSTRUCTION rather than by taste: Godot
+## renders these into the moon's shadow atlas and into no other pass, so there
+## are zero pixels of geometry available to occlude anybody.
+##
+## THE TRICK IS THE LIGHT ANGLE. The moon sits at rotation (-52, 34, 0), a
+## direction of (-0.344, -0.788, -0.510), so every shadow lands 0.437 of its
+## caster's height to PORT and 0.647 of it toward the BOW. A 1500-unit mast at
+## z = +900 is aft of the camera and never in shot, and prints its rig from there
+## to z = -70 — straight across the middle of the deck. The caster lives where
+## the camera cannot go; the shadow lives where the player is looking all run.
+##
+## TWO TRAPS, both written down in DECK-DESIGN P2 before a line was built:
+##
+##   1. `directional_shadow_max_distance` is 34.0 m and was deliberately
+##      tightened to "the deck plus a margin". A mast placed further aft SILENTLY
+##      stops casting — no error, no warning, just a deck that goes blank. Pinned
+##      by `rig · every caster is inside the moon's 34 m shadow distance`, which
+##      measures the far corner of each caster's own AABB rather than trusting
+##      the table.
+##   2. `shadow_blur` is 2.2, which smears a 4-unit shroud into a broad band that
+##      reads as LIGHTING rather than as rope. P2 said try 8-10 first. The
+##      prototype in `deck_probe.gd:_build_rig2` is at 4 and reads as haze; this
+##      ships at 9. The shrouds cost nothing to thicken — they are never drawn.
+##
+## The masts stand on the LANE DIVIDERS, not in a lane, so that if any of them is
+## ever promoted to visible geometry it still is not standing where somebody
+## fights. Authored rows, never a seeded roll — the same rule the cloud field
+## keeps, and the reason the checks below can be checks at all.
+const RIG_MASTS := [
+	{"x": 280.0, "z": 900.0, "h": 1500.0},
+	{"x": -280.0, "z": 260.0, "h": 1500.0},
+	{"x": 280.0, "z": -560.0, "h": 1500.0},
+]
+## Trap 2. Not 4.
+const RIG_SHROUD_RADIUS := 9.0
+const RIG_YARD_AT := 0.74            ## of mast height
+const RIG_SHROUD_HEAD := 0.82        ## of mast height
+
+
+func _build_rigging() -> void:
+	_rigging = Node3D.new()
+	_rigging.name = "Rigging"
+	add_child(_rigging)
+
+	var timber := StandardMaterial3D.new()
+	timber.albedo_color = Color("#41301d")
+	timber.roughness = 0.86
+	var rope := StandardMaterial3D.new()
+	rope.albedo_color = Color("#6a5738")
+	rope.roughness = 0.95
+
+	for m in RIG_MASTS:
+		var h: float = float(m.h)
+		var mx: float = float(m.x)
+		var mz: float = float(m.z)
+
+		var mast := MeshInstance3D.new()
+		var cm := CylinderMesh.new()
+		cm.top_radius = 13.0 * WORLD_SCALE
+		cm.bottom_radius = 26.0 * WORLD_SCALE
+		cm.height = h * WORLD_SCALE
+		cm.radial_segments = 8
+		mast.mesh = cm
+		mast.material_override = timber
+		mast.position = Vector3(mx * WORLD_SCALE, h * 0.5 * WORLD_SCALE,
+			mz * WORLD_SCALE)
+		_rig_piece(mast)
+
+		var yard := MeshInstance3D.new()
+		var ym := CylinderMesh.new()
+		ym.top_radius = 10.0 * WORLD_SCALE
+		ym.bottom_radius = 10.0 * WORLD_SCALE
+		ym.height = 1150.0 * WORLD_SCALE
+		ym.radial_segments = 6
+		yard.mesh = ym
+		yard.material_override = timber
+		yard.rotation_degrees = Vector3(0.0, 0.0, 90.0)
+		yard.position = Vector3(mx * WORLD_SCALE, h * RIG_YARD_AT * WORLD_SCALE,
+			mz * WORLD_SCALE)
+		_rig_piece(yard)
+
+		## Six shrouds a mast, three a side, feet spread 300 / 490 / 680 and
+		## staggered fore-and-aft so the lattice lands DIAGONAL across the
+		## planking. That is deliberate: every telegraph in this game is a circle,
+		## a cone or a lane-aligned strip, so a diagonal lattice shares no
+		## direction with any of them and cannot be mistaken for one.
+		var head := Vector3(mx * WORLD_SCALE, h * RIG_SHROUD_HEAD * WORLD_SCALE,
+			mz * WORLD_SCALE)
+		for dx in [-1.0, 1.0]:
+			for i in 3:
+				var spread: float = 300.0 + float(i) * 190.0
+				var foot := Vector3((mx + dx * spread) * WORLD_SCALE,
+					40.0 * WORLD_SCALE, (mz + (float(i) - 1.0) * 150.0) * WORLD_SCALE)
+				var line := MeshInstance3D.new()
+				var lm := CylinderMesh.new()
+				lm.top_radius = RIG_SHROUD_RADIUS * WORLD_SCALE
+				lm.bottom_radius = RIG_SHROUD_RADIUS * WORLD_SCALE
+				lm.height = foot.distance_to(head)
+				lm.radial_segments = 4
+				line.mesh = lm
+				line.material_override = rope
+				var mid := (foot + head) * 0.5
+				line.position = mid
+				line.look_at_from_position(mid, head, Vector3.RIGHT)
+				line.rotate_object_local(Vector3.RIGHT, PI * 0.5)
+				_rig_piece(line)
+
+
+## ONE PLACE SETS THE ENUM. A piece of rig that arrived with the default
+## `SHADOW_CASTING_SETTING_ON` would be a 30-pixel bar across the lane — the
+## exact failure the shadows-only version exists to avoid — so the enum is not
+## written at eleven call sites where the twelfth can be forgotten. Pinned by
+## `rig · nothing in the rig is in the colour pass`, which walks the built tree.
+func _rig_piece(node: MeshInstance3D) -> void:
+	node.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY
+	node.layers = LAYER_WORLD
+	_rigging.add_child(node)
 
 
 func _build_hull_shape() -> void:

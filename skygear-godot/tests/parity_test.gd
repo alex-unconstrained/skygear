@@ -10502,6 +10502,72 @@ func _deck_shape() -> void:
 	view.sway = false
 	await process_frame
 
+	## ---- THE RIG OVERHEAD ---------------------------------------------------
+	##
+	## DECK-IDENTITY item 1. The whole feature rests on one enum, and the enum is
+	## the difference between a ship cue and a 30-pixel bar across the lane, so
+	## the enum is what gets checked — on every piece, walked out of the built
+	## tree rather than counted in the table it was built from.
+	var rigging: Node3D = view.get_node_or_null("Rigging")
+	var rig_drawn := ""
+	var rig_pieces := 0
+	if rigging != null:
+		for piece in rigging.find_children("*", "MeshInstance3D", true, false):
+			rig_pieces += 1
+			if (piece as MeshInstance3D).cast_shadow \
+					!= GeometryInstance3D.SHADOW_CASTING_SETTING_SHADOWS_ONLY:
+				rig_drawn += " " + str(piece.name)
+	_check("rig", "nothing in the rig is in the colour pass",
+		rigging != null and rig_pieces > 0 and rig_drawn == "",
+		"%d pieces, all SHADOWS_ONLY%s" % [rig_pieces,
+			"" if rig_drawn == "" else "; DRAWN:" + rig_drawn])
+
+	## TRAP 1, and it is the one that fails SILENTLY. `directional_shadow_max_distance`
+	## is 34 m — deliberately tightened to "the deck plus a margin" — so a mast
+	## moved further aft simply stops casting, with no error and no warning and a
+	## deck that has quietly gone blank. Measured to the far corner of each
+	## piece's own world AABB from the camera, not to the table's z.
+	var far_piece := ""
+	var far_m := 0.0
+	if rigging != null:
+		for piece in rigging.find_children("*", "MeshInstance3D", true, false):
+			var mi := piece as MeshInstance3D
+			var box: AABB = mi.global_transform * mi.get_aabb()
+			for corner in 8:
+				var d: float = view.camera.global_position.distance_to(
+					box.get_endpoint(corner))
+				if d > far_m:
+					far_m = d
+					far_piece = str(mi.name)
+	_check("rig", "every caster is inside the moon's 34 m shadow distance",
+		rigging != null and far_m < view._moon.directional_shadow_max_distance,
+		"furthest %.1f m (%s) against %.1f" % [far_m, far_piece,
+			0.0 if view._moon == null else view._moon.directional_shadow_max_distance])
+
+	## TRAP 2. `shadow_blur` is 2.2, which smears a 4-unit shroud into a band that
+	## reads as LIGHTING rather than as rope — DECK-DESIGN P2 said try 8-10 and
+	## the prototype in `deck_probe.gd` is still at 4. The shrouds are never
+	## drawn, so thickening them costs nothing at all; this is here so nobody
+	## "optimises" them back down without reading why they are fat.
+	_check("rig", "the shrouds are thick enough to read as rope under a 2.2 blur",
+		SkyGearView3D.RIG_SHROUD_RADIUS >= 8.0
+			and SkyGearView3D.RIG_SHROUD_RADIUS <= 10.0,
+		"radius %.1f, blur %.1f" % [SkyGearView3D.RIG_SHROUD_RADIUS,
+			view._moon.shadow_blur])
+
+	## AND THE MASTS STAND ON THE LANE DIVIDERS, not in a lane — so that if one is
+	## ever promoted to visible geometry it still is not standing where somebody
+	## fights. Authored rows, never a seeded roll.
+	var in_lane := ""
+	for m in SkyGearView3D.RIG_MASTS:
+		for centre in SkyGearGame.LANE_CENTERS:
+			if absf(float(m.x) - float(centre)) < 180.0:
+				in_lane += " x%.0f" % float(m.x)
+	_check("rig", "and no mast stands in a lane, drawn or not", in_lane == "",
+		"%d masts, none within 180 of a lane centre%s"
+			% [SkyGearView3D.RIG_MASTS.size(),
+				"" if in_lane == "" else "; IN LANE:" + in_lane])
+
 	## ---- THE HULL -----------------------------------------------------------
 	var rect: Rect2 = SkyGearGame.DECK_RECT
 	var shape: Node3D = view.get_node_or_null("HullShape")
