@@ -413,7 +413,25 @@ var _shadow_size: PackedFloat32Array = PackedFloat32Array()
 ## it always got; only a part that measured its own footprint passes one.
 var _shadow_depth: PackedFloat32Array = PackedFloat32Array()
 var _shadow_alpha: PackedFloat32Array = PackedFloat32Array()
+## How far off the planking the caster is, in ground units, and which of the
+## three rules its mark obeys. See `_shadow`.
+var _shadow_lift: PackedFloat32Array = PackedFloat32Array()
+var _shadow_kind: PackedInt32Array = PackedInt32Array()
 var _shadow_count := 0
+## How many of the marks in the last flush were contact cores rather than whole
+## blobs — i.e. how many figures on this deck the moon is already drawing. The
+## harness's window on rule two, and the probe's.
+var _shadow_cores := 0
+var _shadow_cores_last := 0
+## THE KILL-TEST'S SWITCH, and it is here rather than in the tool for a reason
+## this project has paid for twice: DECK-IDENTITY §7.5 records the same build
+## measuring 0.72% and 13.55% on consecutive runs because two godot processes
+## reach the shutter with the braziers, the particles and the GPU's own clocks in
+## different places. An A/B that matters has to happen inside ONE process, one
+## frame apart, which means the old behaviour has to be reachable at runtime.
+## `tools/shadow_probe.gd` is the only thing that sets this, and
+## `shadow · the pool leans where the moon does` asserts it is false in play.
+var shadow_legacy := false
 var _warmup := SkyGearWarmup.new()
 var _warm_frames := 0
 ## The actual free lists. `_billboards` and `_decals` hold what is IN USE this
@@ -978,6 +996,8 @@ func _build_world() -> void:
 	_shadow_size.resize(SHADOW_CAP)
 	_shadow_depth.resize(SHADOW_CAP)
 	_shadow_alpha.resize(SHADOW_CAP)
+	_shadow_lift.resize(SHADOW_CAP)
+	_shadow_kind.resize(SHADOW_CAP)
 	_build_shadows()
 	_build_marks()
 	## A4. Build every generated texture NOW rather than the first time it is
@@ -4612,14 +4632,107 @@ const SHADOW_CAP := 256
 ## caller but the segmented one wants.
 const SHADOW_SQUASH := 0.62
 
+## --- ONE SHADOW AUTHORITY -----------------------------------------------------
+##
+## DECK-IDENTITY item 2. Three things were true in the shipped build and together
+## they made a bug the owner reported as an aesthetic: `_flush_shadows` built
+## `Basis().scaled(...)` — a scale, with NO LIGHT TERM IN IT AT ALL; every rigged
+## figure's mesh casts a real moon shadow (a `MeshInstance3D` casts by default and
+## `rig3d.gd:286` sets it explicitly on the weapon); and the moon throws that real
+## shadow 0.437 of a height to port and 0.647 toward the bow. So a boarder carried
+## TWO shadows pointing in different directions, and the one the eye goes to was
+## the sticker. A shell two hundred units up dragged a hard disc across the boards
+## as if it were lying on them.
+##
+## The fix is not a second number. It is that there is ONE light in this scene and
+## exactly one place is allowed to say where it points: `_moon`'s own basis, read
+## live in `_flush_shadows` and never retyped. Two functions disagreeing about one
+## number is this project's second failure mode, and the whole reason this item
+## exists is that it had already happened here.
+##
+## THE TWO RULES THAT ARE NOT NEGOTIABLE, each pinned by its own check:
+##
+##   * **A projectile's mark is never thrown.** It scales with height and it
+##     stays directly beneath the thing — DESIGN §13c and the audit both say the
+##     mark under a bolt is what tells you where it will cross you. Lean it and
+##     the mark stops answering the only question it is asked. Height scaling
+##     applies; the offset does not.
+##   * **Nothing carries a cast shadow AND a full-strength blob.** Where a mesh
+##     already casts, the blob drops to a tight contact core — the dark under the
+##     feet that a shadow map at this distance cannot resolve — instead of a
+##     second full ellipse pointing somewhere else.
+##
+## `SHADOW_CAP` stays 256, one MultiMesh, one material, one draw call.
+enum {
+	## The ordinary mark: leans along the moon, elongates, offsets with height.
+	SHADOW_LEANS,
+	## A projectile. Height scales it; the lean does not touch it.
+	SHADOW_CENTRED,
+	## A mesh already casts here. A contact core, not a second shadow.
+	SHADOW_CORE,
+}
+
+## How far up something has to be for its mark to double in width, and to fade to
+## half. A shell is a few hundred units up at the top of its arc; a bobbing
+## pickup is nine. These are the numbers that make "in the air" read as a
+## DIFFERENT thing rather than as a slightly bigger circle.
+const SHADOW_LIFT_SPREAD := 300.0
+const SHADOW_LIFT_FADE := 220.0
+## What a contact core keeps of the blob it replaces. Small enough that the mesh's
+## own cast shadow is the shape you read, dark enough that the feet are joined to
+## the planking — a shadow map at 34 m over a whole deck cannot resolve the inch
+## under a boot, which is the one place the eye checks.
+const SHADOW_CORE_WIDTH := 0.42
+const SHADOW_CORE_ALPHA := 0.62
+
+## How many marks the batch drew last frame, and how many of them were contact
+## cores. Functions rather than raw arrays so the harness and the probes never
+## have to reach into the pool — the same rule `mark_count()` follows.
+func multimesh_shadow_count() -> int:
+	if _shadow_batch == null:
+		return 0
+	return (_shadow_batch.multimesh as MultiMesh).visible_instance_count
+
+
+func shadow_core_count() -> int:
+	return _shadow_cores_last
+
+
+## DOES THE MOON ALREADY DRAW THIS ONE? Asked of the built tree rather than of a
+## list of model keys, because a list of model keys is the thing that goes stale
+## the afternoon somebody adds a figure — and the failure would be silent and
+## would look exactly like the bug this item is fixing. A rigged figure is a mesh
+## and a mesh casts unless somebody turned it off; a painted billboard is a
+## `Sprite3D` with `SHADOW_CASTING_SETTING_OFF` and has nothing but its blob.
+func _casts_own_shadow(key: String) -> bool:
+	var rig: SkyGearRig3D = _captain if key == "player" else _rigs.get(key)
+	if rig == null or not is_instance_valid(rig) or not rig.visible:
+		return false
+	for child in rig.find_children("*", "MeshInstance3D", true, false):
+		if (child as MeshInstance3D).cast_shadow \
+				!= GeometryInstance3D.SHADOW_CASTING_SETTING_OFF:
+			return true
+	return false
+
+
 func _shadow(_key: String, centre: Vector2, width: float, alpha: float,
-		depth: float = 0.0) -> void:
+		depth: float = 0.0, height: float = 0.0, kind: int = SHADOW_LEANS) -> void:
 	if _shadow_count >= SHADOW_CAP:
 		return
+	## The core shrink happens here rather than at flush, so legacy has to be
+	## honoured here too — otherwise "today's ellipse" would come back with
+	## today's geometry and this item's footprint, which is neither build.
+	if kind == SHADOW_CORE and not shadow_legacy:
+		width *= SHADOW_CORE_WIDTH
+		alpha *= SHADOW_CORE_ALPHA
+		depth *= SHADOW_CORE_WIDTH
+		_shadow_cores += 1
 	_shadow_at[_shadow_count] = centre
 	_shadow_size[_shadow_count] = width
 	_shadow_depth[_shadow_count] = depth if depth > 0.0 else width * SHADOW_SQUASH
 	_shadow_alpha[_shadow_count] = alpha
+	_shadow_lift[_shadow_count] = maxf(0.0, height)
+	_shadow_kind[_shadow_count] = kind
 	_shadow_count += 1
 
 
@@ -4658,20 +4771,84 @@ func _build_shadows() -> void:
 	add_child(_shadow_batch)
 
 
+## THE ONE LIGHT VECTOR, READ AND NOT RETYPED. A `DirectionalLight3D` shines down
+## its own -Z, so this is the direction the light TRAVELS. Every number in the
+## mark's pose falls out of it: nothing restates -0.344 / -0.788 / -0.510, and if
+## somebody re-aims the moon tomorrow every mark on the deck turns with it in the
+## same frame. That is the whole item — the renderer and the light can no longer
+## hold different opinions about where the light comes from.
+func moon_track() -> Vector3:
+	return -_moon.global_transform.basis.z if _moon != null \
+		else Vector3(-0.344, -0.788, -0.510)
+
+
+## WHERE ONE MARK GOES, as arithmetic rather than as a side effect on a GPU
+## buffer. `_flush_shadows` calls this and so does the harness, which is not a
+## convenience: a `MultiMesh`'s instance buffer lives on the rendering server and
+## does NOT read back under `--headless`, so a check that asserted on
+## `get_instance_transform` asserted on an identity matrix and passed whatever it
+## was given. One function, two callers, and the thing being checked is the thing
+## being drawn.
+func shadow_pose(centre: Vector2, width: float, depth: float, lift: float,
+		kind: int) -> Transform3D:
+	if shadow_legacy:
+		lift = 0.0
+		kind = SHADOW_CENTRED
+	var dir := moon_track()
+	## How far a mark slides per unit of height, and how much it stretches. Both
+	## are the same triangle: `down` is sin(elevation), so `1/down` is the
+	## elongation of a circle cast onto a floor at that angle, and `flat/down` is
+	## the ground travel per unit of height.
+	var down: float = maxf(0.05, -dir.y)
+	var flat := Vector2(dir.x, dir.z)
+	## HEIGHT. A thing in the air and the spot it will land on stop being the same
+	## pixel: the mark widens, softens and — unless it is a projectile — slides
+	## down the light. A readability gain, not decoration.
+	var spread: float = 1.0 + lift / SHADOW_LIFT_SPREAD
+	var at := centre
+	## RULE ONE. A projectile keeps its mark directly beneath itself. The mark
+	## under a bolt is what tells you where it will cross you, so it may grow and
+	## it may fade but it is NEVER thrown (DESIGN §13c).
+	if kind != SHADOW_CENTRED:
+		at += (flat / down) * lift
+	var w: float = width * spread * WORLD_SCALE
+	var d: float = depth * spread * WORLD_SCALE
+	var basis: Basis
+	if kind == SHADOW_CENTRED:
+		## A centred mark has no lean to elongate along — it is a circle under a
+		## thing seen from above, and stretching it would be a direction it does
+		## not have.
+		basis = Basis().scaled(Vector3(w, 1.0, d))
+	else:
+		## The mark's LONG axis is the one that lies along the light. The quad is
+		## FACE_Y with its width on local X, so aligning X to the ground track of
+		## the light is what makes every mark on this deck lean the same way.
+		basis = Basis(Vector3.UP, atan2(flat.x, flat.y)) \
+			* Basis().scaled(Vector3(w / down, 1.0, d))
+	return Transform3D(basis, Vector3(at.x * WORLD_SCALE, 2.0 * WORLD_SCALE,
+		at.y * WORLD_SCALE))
+
+
+## And how dark it is at that height. Same reason it is a function.
+func shadow_alpha(alpha: float, lift: float) -> float:
+	if shadow_legacy:
+		return alpha
+	return alpha / (1.0 + maxf(0.0, lift) / SHADOW_LIFT_FADE)
+
+
 func _flush_shadows() -> void:
 	if _shadow_batch == null:
 		return
 	var mm: MultiMesh = _shadow_batch.multimesh
 	for i in _shadow_count:
-		var width: float = _shadow_size[i] * WORLD_SCALE
-		var basis := Basis().scaled(Vector3(width, 1.0,
-			_shadow_depth[i] * WORLD_SCALE))
-		mm.set_instance_transform(i, Transform3D(basis,
-			Vector3(_shadow_at[i].x * WORLD_SCALE, 2.0 * WORLD_SCALE,
-				_shadow_at[i].y * WORLD_SCALE)))
-		mm.set_instance_color(i, Color(0.02, 0.015, 0.03, _shadow_alpha[i]))
+		mm.set_instance_transform(i, shadow_pose(_shadow_at[i], _shadow_size[i],
+			_shadow_depth[i], _shadow_lift[i], _shadow_kind[i]))
+		mm.set_instance_color(i, Color(0.02, 0.015, 0.03,
+			shadow_alpha(_shadow_alpha[i], _shadow_lift[i])))
 	mm.visible_instance_count = _shadow_count
 	_shadow_count = 0
+	_shadow_cores_last = _shadow_cores
+	_shadow_cores = 0
 
 
 ## --- A HULL SHAPE AROUND A RECTANGLE ------------------------------------------
@@ -5573,7 +5750,11 @@ func _sync_auras() -> void:
 func _sync_all(delta: float) -> void:
 	_age_corpses(delta)
 	if game.player != null and game.player.hp > 0.0:
-		_shadow("player", game.player.global_position, 96.0, 0.55)
+		## She is a mesh whenever `_sync_captain` is driving her, so her blob is a
+		## contact core and the moon draws the rest. On the sprite fallback the
+		## blob is all she has and it stays whole.
+		_shadow("player", game.player.global_position, 96.0, 0.55, 0.0, 0.0,
+			SHADOW_CORE if _casts_own_shadow("player") else SHADOW_LEANS)
 		if not _sync_captain(delta):
 			_draw_figure("player", "hero", game.player.global_position,
 				game.player.aim_direction, 150.0,
@@ -5629,8 +5810,17 @@ func _sync_all(delta: float) -> void:
 		## itself part by part (`_part_shadows`); everything else — every
 		## billboard, and every skinned boarder — keeps the single blob off its
 		## gameplay radius that it always had.
+		## RULE TWO. A segmented machine grounds itself part by part (SG-94's
+		## `_part_shadows`). Everything else gets one blob — but a RIGGED boarder
+		## is a mesh, and a mesh casts a real moon shadow of its own, so a
+		## full-strength ellipse under it is the second shadow the owner reported:
+		## two marks under one man, pointing different ways. Where the mesh casts,
+		## this drops to a contact core. A painted billboard has no cast shadow at
+		## all and keeps the whole blob, which is the only thing holding it to the
+		## planking.
 		if not _part_shadows(key, _rigs.get(key), 1.0):
-			_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
+			_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5,
+				0.0, 0.0, SHADOW_CORE if _casts_own_shadow(key) else SHADOW_LEANS)
 		# burning boarders glow; frozen ones go blue. The status is the read.
 		var node: Sprite3D = _billboards.get(key)
 		if node != null:
@@ -5681,7 +5871,8 @@ func _sync_all(delta: float) -> void:
 			_crew_seq += 1
 			c["rig_key"] = "c%d" % _crew_seq
 		var ckey: String = str(c.rig_key)
-		_shadow(ckey, c.position, 74.0, 0.45)
+		_shadow(ckey, c.position, 74.0, 0.45, 0.0, 0.0,
+			SHADOW_CORE if _casts_own_shadow(ckey) else SHADOW_LEANS)
 		## Crew push UP the deck, into the boarders, so they are almost always
 		## showing you their backs. Drawing them front-on made a line of allies
 		## look like it was retreating.
@@ -5889,7 +6080,12 @@ func _sync_all(delta: float) -> void:
 			## table already has a "goes exactly where it was pointed" entry.
 			_ribbon_path(pts, "FROST" if friendly else "EMBER", col, 0.95,
 				1.15 if friendly else 0.85)
-		_shadow("b%d" % bid, b.position, 40.0, 0.38)
+		## RULE ONE, at the site it exists for. `fly` is how far off the boards
+		## this bolt is; the mark widens and softens with it so an airborne shot
+		## reads as airborne — but it stays DIRECTLY BENEATH the bolt, because the
+		## mark under a bolt is the thing that tells you where it will cross you
+		## (DESIGN §13c). Leaning it would move the answer away from the question.
+		_shadow("b%d" % bid, b.position, 40.0, 0.38, 0.0, fly, SHADOW_CENTRED)
 		## The head is an emissive teardrop now, not the painted fireball (SG-40).
 		## Ours is a brass CANNON slug, theirs an oxblood HOSTILE shot — two
 		## identities crossing the same lanes in opposite directions, kept apart by
@@ -5904,7 +6100,9 @@ func _sync_all(delta: float) -> void:
 		var s: Dictionary = game.salvage[i]
 		var sid: int = int(s.get("id", i))
 		var bob: float = sin(_flicker * 3.4 + float(sid) * 1.7) * 9.0
-		_shadow("s%d" % sid, s.position, 56.0, 0.35)
+		## Salvage bobs, so its mark breathes with it — the same height term every
+		## airborne thing gets, at the nine units a pickup actually rises.
+		_shadow("s%d" % sid, s.position, 56.0, 0.35, 0.0, maxf(0.0, bob))
 		## The bob goes in as `lift`, which for a mesh is height above the deck
 		## and for the billboard is added to its half-height. Both end up the same
 		## distance off the planking, which is why the same number serves.

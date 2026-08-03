@@ -10502,6 +10502,84 @@ func _deck_shape() -> void:
 	view.sway = false
 	await process_frame
 
+	## ---- ONE SHADOW AUTHORITY -----------------------------------------------
+	##
+	## DECK-IDENTITY item 2. The bug was two functions holding different opinions
+	## about one light, so what gets checked is that there is only one opinion and
+	## that it comes from the light itself.
+	## Read through `shadow_pose`, which is the function the renderer draws from —
+	## NOT through `MultiMesh.get_instance_transform`. That buffer lives on the
+	## rendering server and does NOT read back under `--headless`: the first
+	## version of these four checks asserted on an identity matrix and would have
+	## passed absolutely anything.
+	view.shadow_legacy = false
+	var moon_dir: Vector3 = view.moon_track()
+	var track := Vector2(moon_dir.x, moon_dir.z).normalized()
+	## Two marks at the same place, one on the boards and one well up. The lean is
+	## measured by where the high one LANDS, against the light read live from the
+	## moon — if the basis ever goes back to a bare scale these two coincide.
+	var low := view.shadow_pose(Vector2.ZERO, 100.0, 62.0, 0.0,
+		SkyGearView3D.SHADOW_LEANS)
+	var high := view.shadow_pose(Vector2.ZERO, 100.0, 62.0, 400.0,
+		SkyGearView3D.SHADOW_LEANS)
+	var mm_s: MultiMesh = view._shadow_batch.multimesh
+	var thrown := Vector2(high.origin.x - low.origin.x, high.origin.z - low.origin.z)
+	_check("shadow", "the pool leans where the moon does — one light vector, read and not retyped",
+		thrown.length() > 0.0001 and thrown.normalized().dot(track) > 0.999
+			and not view.shadow_legacy,
+		"400 up throws %.2f m along the moon's own track (dot %.4f)"
+			% [thrown.length(), thrown.normalized().dot(track)])
+
+	## HEIGHT, both halves of it: wider and fainter, which is what makes a thing in
+	## the air stop being the same pixel as the spot it will land on.
+	var low_w: float = low.basis.get_scale().x
+	var high_w: float = high.basis.get_scale().x
+	var low_a: float = view.shadow_alpha(0.5, 0.0)
+	var high_a: float = view.shadow_alpha(0.5, 400.0)
+	_check("shadow", "a mark 200 units up is wider and fainter than the same mark on the planking",
+		high_w > low_w * 1.05 and high_a < low_a * 0.95
+			and view.shadow_alpha(0.5, 200.0) < low_a,
+		"width %.3f -> %.3f, alpha %.3f -> %.3f" % [low_w, high_w, low_a, high_a])
+
+	## RULE ONE, and it is the one a later commit is most likely to "tidy" away:
+	## a bolt's mark is the answer to "where will this cross me", so it stays
+	## under the bolt however high the bolt is. It may still grow and fade.
+	var bolt := view.shadow_pose(Vector2(120.0, -80.0), 40.0, 25.0, 400.0,
+		SkyGearView3D.SHADOW_CENTRED)
+	var bolt_off := Vector2(bolt.origin.x / SkyGearView3D.WORLD_SCALE - 120.0,
+		bolt.origin.z / SkyGearView3D.WORLD_SCALE + 80.0)
+	_check("shadow", "a projectile's mark is directly beneath it and is never thrown",
+		bolt_off.length() < 0.5
+			and bolt.basis.get_scale().x > view.shadow_pose(Vector2(120.0, -80.0),
+				40.0, 25.0, 0.0, SkyGearView3D.SHADOW_CENTRED).basis.get_scale().x,
+		"400 units up, mark is %.3f ground units off centre and still grows"
+			% bolt_off.length())
+
+	## RULE TWO. Nothing wears a cast shadow and a full blob at once. Read off the
+	## RECORDED mark rather than the posed one, because the core shrink happens
+	## when a mark is recorded — which is also what makes it impossible for a call
+	## site to ask for a core and quietly get an ellipse.
+	view._shadow_count = 0
+	view._shadow("mesh", Vector2.ZERO, 100.0, 0.5, 0.0, 0.0,
+		SkyGearView3D.SHADOW_CORE)
+	view._shadow("painted", Vector2.ZERO, 100.0, 0.5)
+	var core_w: float = view._shadow_size[0]
+	var blob_w: float = view._shadow_size[1]
+	_check("shadow", "no mesh figure carries both a cast shadow and a full-strength blob",
+		core_w < blob_w * 0.5 and view._shadow_alpha[0] < view._shadow_alpha[1],
+		"core %.1f wide at alpha %.3f against the painted blob's %.1f at %.3f"
+			% [core_w, view._shadow_alpha[0], blob_w, view._shadow_alpha[1]])
+
+	## AND THE STRUCTURE THE ITEM PROMISED NOT TO MOVE: still one batch, still one
+	## material, still one draw, still capped.
+	_check("shadow", "and it is still one batch, one material, one draw, capped at 256",
+		view._shadow_batch is MultiMeshInstance3D
+			and view._shadow_batch.material_override != null
+			and mm_s.instance_count == SkyGearView3D.SHADOW_CAP
+			and SkyGearView3D.SHADOW_CAP == 256,
+		"%d instances, one material" % mm_s.instance_count)
+	view._shadow_count = 0
+
 	## ---- THE RIG OVERHEAD ---------------------------------------------------
 	##
 	## DECK-IDENTITY item 1. The whole feature rests on one enum, and the enum is
