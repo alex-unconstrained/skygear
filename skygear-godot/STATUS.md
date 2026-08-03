@@ -81,6 +81,32 @@ one new static prop overwrote `scrapper.tscn` and its neighbours with dumb
 static holders and took the harness to 725/729. It is silent. Revert the `.tscn`
 files you did not mean to touch before you believe a green run.
 
+**THE MENU IS HARDWARE NOW, NOT FOURTEEN HAIRLINE RECTANGLES (SG-91, owner ask:
+"the header UI element feels on-theme but the rest are just simple text
+boxes").** He was right, and the survey found the reason: the SKYGEAR banner is
+painted brass carrying material, a bevel, corner ironwork and weight, while
+every control under it was `SkyGearUI.button` — **two shape calls**, a flat tint
+and a hairline, with its whole state carried by swapping two colours. The title
+is a **board** now: a riveted iron bulkhead the plates are bolted to, each plate
+a solid body with a bevel, four rivets and an **engraved channel** its label
+stands in; the lit state is a LAMP rather than a tint (a wash down the plate, a
+deepened shadow so it reads raised, rivets catching light on the fire fields'
+own flicker clock); BEGIN RUN is **the door** — taller, teal, wearing the
+banner's own corner brackets, never dark; QUIT is a small iron **hatch** off the
+foot of the board; and the Heat chips are **rungs bolted across a rail**, with
+the chosen one SEATED rather than merely tinted. **The flicker cannot reach a
+glyph, mechanically**: the engraved channel is drawn opaque over every lit layer
+beneath it, which is what keeps the legibility pass — it renders each screen
+twice and samples the second — from measuring noise. `docs/MENU-DESIGN.md` is
+the survey, the vocabulary and the ordered plan; the other screens are SG-93 and
+are deliberately waiting on the owner's look. **Nine `menu ·` checks**, the text
+audit clean at all four widths (and the pass turned a detector ON — nothing on
+the title was inside any frame before, so containment had no opinion about the
+menu at all). It also found and fixed a real bug: a `bare` widget drew at the
+rect from BEFORE the F4 adjustment, so a nudged Heat rung moved its click target
+and left its painted rung behind (`menu · a nudged Heat rung takes its own art
+with it`). `.shots/sg91/` is the witness.
+
 **F4 RESIZES NOW (SG-80, owner ask): a selected element has a size as well as
 a position** — drag a grip, type into the w×h readout, or hold Ctrl and use the
 arrows. It saves as a SIZE DELTA from the size the drawing code chose, beside

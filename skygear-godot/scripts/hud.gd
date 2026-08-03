@@ -157,6 +157,341 @@ func _draw() -> void:
 	if game.show_profiler:
 		_draw_profiler()
 
+## ===========================================================================
+## THE MENU VOCABULARY (SG-91). `docs/MENU-DESIGN.md` is the brief.
+## ===========================================================================
+##
+## The owner's ask: *"the header UI element feels on-theme but the rest are just
+## simple text boxes."* He is right, and the survey found exactly why. The
+## SKYGEAR banner is painted brass with a bevel, corner ironwork and fourteen
+## rivets; every control under it was `SkyGearUI.button`, which is two shape
+## calls — a flat tint and a hairline — with its whole state carried by swapping
+## two colours. Fourteen of those in a column is the visual grammar of a
+## preferences dialog.
+##
+## So a menu item in this game is HARDWARE BOLTED TO THE SHIP. Nothing below
+## needs new art: every idiom is drawn with primitives `hud.gd` already has, the
+## way the Workshop board was built out of `_pipe`, `_valve` and `_rivets`
+## rather than out of an art order.
+
+## One column, one width. The old title had two — COMPARE THE TWO at 480 and
+## everything under it at 300 — which is why the block had no edge to read down.
+const MENU_W := 460.0
+## Board stile to plate edge. Wide enough for the board's own rivets to run
+## down the outside of the column without touching it.
+const MENU_PAD := 26.0
+const MENU_STILE := 18.0             ## board head and foot, above/below content
+const MENU_PLATE_H := 38.0
+const MENU_DOOR_H := 54.0            ## BEGIN RUN is not a menu item
+const MENU_GAP := 8.0
+const MENU_BLURB_H := 30.0           ## a two-line sentence under a plate
+const MENU_RULE_H := 14.0            ## the rule that separates the door
+const MENU_LADDER_H := 96.0          ## DIFFICULTY: header, rungs, sentence
+const MENU_TOP := 352.0              ## the board's head, under the banner
+
+## THE METALS. Cold iron for locked, and it is `FIT_RIM[0]` — the Workshop's own
+## LOCKED metal — rather than a sixth violet, because a fifth shade of purple is
+## how a palette dies (`SIGIL_VIOLET`'s note, and the same argument).
+const MENU_IRON := Color("#4a4356")
+const MENU_TEAL := Color("#37f0c8")
+const MENU_MUTED := Color("#8f8697")  ## on `SkyGearInk.MUTED`, floor 2.6
+## THE ENGRAVED FIELD — the sunk centre of a plate, where the label stands. Drawn
+## opaque and drawn LAST of the lit layers, which is mechanically how the lamp is
+## kept off the words rather than a promise that it is.
+const MENU_FIELD := Color(0.046, 0.038, 0.068, 0.96)
+const MENU_BOARD_FIELD := Color(0.040, 0.034, 0.056, 0.90)
+## THE BODY of a plate: real metal, a solid fill rather than a tint over the
+## deck. Two per material because "lit" is a different metal, not a lighter
+## alpha of the same one.
+const MENU_BODY := Color("#6a4f28")
+const MENU_BODY_LIT := Color("#a1783c")
+const MENU_BODY_DOOR := Color("#1d5b51")
+const MENU_BODY_DOOR_LIT := Color("#2c8375")
+const MENU_BODY_IRON := Color("#39334a")
+
+
+## THE LAMP'S FLICKER. One number, bounded to [0.72, 1.0], allocating nothing:
+## the fire fields' own shape (`game.gd` ~4589, `0.82 + 0.12 * sin(t * 0.012)`),
+## so the menu breathes on the same clock the deck burns on. `seed` keeps two
+## plates from pulsing in lockstep.
+##
+## THIS NEVER REACHES A GLYPH, and that is a hard rule rather than taste. The
+## legibility pass renders every screen TWICE — once normally, once with
+## `hide_text` — and samples the second frame under each string's box to get the
+## contrast against the pixels that are really there. A light that flickered
+## under a label would make those two frames disagree and the figure it reports
+## would be noise. So the flicker plays on the bevel, the rivets and the glow
+## OUTSIDE the engraved channel, and the channel is stamped after every light.
+func _lamp(seed: float) -> float:
+	var t := float(Time.get_ticks_msec()) * 0.001
+	return 0.86 + 0.14 * sin(t * 5.7 + seed) * sin(t * 1.9 + seed * 1.7)
+
+
+## WHAT MAKES A SOLID OUT OF AN OUTLINE. A light stroke along the top and left
+## inner edge and a dark one along the bottom and right: the plate is lit from
+## above, like everything else on this deck. Four lines, and it is most of the
+## difference the ask is about — a hairline rectangle has no opinion about which
+## way is up and a bevelled one is a physical object.
+##
+## `seated` swaps them, which is how a chosen rung reads as PRESSED IN by its
+## shape rather than only by its tint — the same argument `_valve` makes when it
+## turns a shut handwheel forty-five degrees.
+func _bevel(box: Rect2, light: Color, dark: Color, seated: bool = false) -> void:
+	var hi: Color = dark if seated else light
+	var lo: Color = light if seated else dark
+	var i := box.grow(-1.0)
+	draw_line(i.position, Vector2(i.end.x, i.position.y), hi, 2.0)
+	draw_line(i.position, Vector2(i.position.x, i.end.y), hi, 2.0)
+	draw_line(Vector2(i.position.x, i.end.y), i.end, lo, 2.0)
+	draw_line(Vector2(i.end.x, i.position.y), i.end, lo, 2.0)
+
+
+## THE LAMP FALLING DOWN A PLATE. Six bands rather than a gradient texture:
+## `draw_rect` takes no arrays and allocates nothing per frame, and six steps
+## across a 34px plate is a band every six pixels, which no eye resolves at the
+## alphas used here. Capped low on purpose — the channel is stamped over this,
+## so the words are safe either way, but a wash bright enough to notice under
+## text is a wash that is doing the wrong job.
+func _wash(box: Rect2, tint: Color, top_alpha: float) -> void:
+	var bands := 6
+	var h: float = box.size.y / float(bands)
+	for i in bands:
+		var fade: float = 1.0 - float(i) / float(bands)
+		draw_rect(Rect2(box.position.x, box.position.y + h * float(i), box.size.x, h),
+			Color(tint.r, tint.g, tint.b, top_alpha * fade))
+
+
+## A FASTENER. Filled is metal; hollow is a hole with nothing in it — the
+## `_rivets` distinction, and it is what lets LOCKED read as unfastened hardware
+## instead of as grey text. The catch of light is the half of the flicker the
+## eye actually notices, and it is a pixel wide and nowhere near a letter.
+func _rivet(at: Vector2, tint: Color, hollow: bool = false, lamp: float = 0.0) -> void:
+	draw_circle(at, 3.6, Color(0.02, 0.015, 0.03, 0.9))
+	if hollow:
+		draw_arc(at, 2.5, 0.0, TAU, 12, Color(tint.r, tint.g, tint.b, 0.8), 1.4)
+		return
+	draw_circle(at, 2.7, tint.lerp(Color("#ffe6b0"), 0.25))
+	draw_circle(at + Vector2(0.6, 0.7), 1.5, Color(0.0, 0.0, 0.0, 0.30))
+	if lamp > 0.0:
+		draw_circle(at - Vector2(0.8, 0.9), 1.2, Color(1, 1, 1, 0.62 * lamp))
+
+
+## CORNER IRONWORK — an L of brass at each corner. This is the banner's own
+## trick and one of the four things the survey found it doing that nothing else
+## did: a bracket says the thing is BOLTED TO SOMETHING, and a border does not.
+func _brackets(box: Rect2, tint: Color, arm: float, thick: float) -> void:
+	for c in 4:
+		var sx: float = 1.0 if c % 2 == 0 else -1.0
+		var sy: float = 1.0 if c < 2 else -1.0
+		var at := Vector2(box.position.x if sx > 0.0 else box.end.x,
+			box.position.y if sy > 0.0 else box.end.y)
+		draw_line(at, at + Vector2(arm * sx, 0.0), tint, thick)
+		draw_line(at, at + Vector2(0.0, arm * sy), tint, thick)
+
+
+## THE BOARD — the bulkhead the plates are bolted to, and the single biggest
+## change this pass makes. The menu used to sit directly on the planking with no
+## ground of its own, which is the other half of why the header looked like it
+## came from a different game: the header is bolted to something and nothing
+## else was.
+##
+## Deliberately NOT `_panel`'s 48px nine-slice. That frame is right for a whole
+## screen — the Workshop wears it — and it would eat a hundred pixels of a
+## 460-wide column. Same object, one weight lighter: a dark field, a bevel,
+## a brass edge, rivets down both stiles and a bracket at each corner.
+func _menu_board(box: Rect2) -> void:
+	## It sits ON the deck, so it throws a shadow onto it.
+	draw_rect(Rect2(box.position + Vector2(4.0, 5.0), box.size),
+		Color(0.0, 0.0, 0.0, 0.32))
+	draw_rect(box, MENU_BOARD_FIELD)
+	_bevel(box, Color(0.40, 0.33, 0.24, 0.55), Color(0.0, 0.0, 0.0, 0.60))
+	draw_rect(box, Color(BRASS.r, BRASS.g, BRASS.b, 0.62), false, 2.0)
+	## One rivet every ~52px down each stile. Counted from the height rather
+	## than fixed, so the board bolted down at Heat-unlocked (528 tall) and the
+	## one at a fresh profile (424) are the same object at two lengths.
+	var steps: int = maxi(3, int(round(box.size.y / 52.0)))
+	var lamp := _lamp(box.position.y * 0.03)
+	for i in steps + 1:
+		var y: float = box.position.y + box.size.y * float(i) / float(steps)
+		var tint := Color(BRASS.r, BRASS.g, BRASS.b, 0.85)
+		_rivet(Vector2(box.position.x + 11.0, y), tint, false, lamp * 0.5)
+		_rivet(Vector2(box.end.x - 11.0, y), tint, false, lamp * 0.5)
+	_brackets(box, Color(BRASS.r, BRASS.g, BRASS.b, 0.9), 26.0, 4.0)
+
+
+## The board's writing hole, and the frame anything drawn on it is measured
+## against. Its own inset rather than `interior()`'s nine-slice rail — the same
+## argument `card_face` makes for a draft card, and routed through one place so
+## the drawn edge and the laid-out content cannot disagree about where the frame
+## is (STATUS failure mode two).
+##
+## This TURNS ON a detector that the title screen never had: before this pass
+## nothing on it was inside any frame, so the containment half of the audit had
+## no opinion about the menu at all.
+func _open_board(box: Rect2) -> void:
+	_frame = box.grow(-(MENU_PAD * 0.5))
+	_in_frame = true
+	_register_panel(box)
+
+
+## A MENU PLATE. Five layers, and the ORDER is the whole trick:
+##
+##   1. a shadow beneath it, so it sits ON the board rather than in it
+##   2. a dark stamped field
+##   3. the bevel — which is what makes it a solid
+##   4. a brass surround, and two rivets in each short end
+##   5. THE ENGRAVED CHANNEL (`SkyGearInk.recess`) and the label in it
+##
+## Layer 5 goes last, after every light, which is the rule that keeps the lamp
+## away from the words (see `_lamp`).
+##
+## `opts`:
+##   key       the F4 element key, if the label is not it (a label with a live
+##             number in it still keys stably — `_element_key` drops digits)
+##   hint      the key that also does this
+##   state     "live" | "locked" | "door" | "hatch"
+##   pt        label size; defaults to 18
+##
+## LOCKED is a material, not an opacity: cold iron where the brass would be, and
+## the rivets drawn as EMPTY HOLES rather than filled ones. HATCH is the same
+## cold iron without the padlock — QUIT is not locked, it is simply not made of
+## the brass the rest of the column is made of.
+##
+## A `bare` widget is adjusted by ITS CALLER. `SkyGearUI.button` would adjust the
+## rect it declares and hit-tests and hand nothing back, so a saved F4 offset
+## would move the click target and leave the painted plate where it was — which
+## is precisely what the Heat ladder was doing before this pass
+## (`docs/MENU-DESIGN.md` §7). `adjusted` stops it being applied twice.
+func _menu_plate(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
+	rect = _widget_adjust(str(opts.get("key", label)), rect)
+	var state := str(opts.get("state", "live"))
+	var locked: bool = state == "locked"
+	var door: bool = state == "door"
+	var iron: bool = locked or state == "hatch"
+	var mine: int = ui.declared().size()
+	## Never `disabled`, even locked: a disabled widget refuses the hover, and a
+	## locked plate that cannot be hovered cannot say why it is locked. The
+	## refusal is the caller's gate, the shape the Heat ladder already uses.
+	var fired: bool = ui.button(rect, "", {"bare": true, "adjusted": true})
+	var lit: bool = ui.lit(mine)
+	var lamp: float = _lamp(rect.position.y * 0.05)
+	## The door is never dark — it is the way out onto the deck.
+	var glow: float = 1.0 if door else 0.0
+	if lit and not locked:
+		glow = 1.0
+
+	var metal: Color = MENU_IRON if iron else (MENU_TEAL if door else BRASS)
+	if lit and not locked:
+		metal = metal.lerp(Color("#ffe6b0"), 0.30 if door else 0.55)
+
+	## THE SHAPE IS A RIVETED NAMEPLATE: a solid brass body with a SUNK centre
+	## engraved into it, and two rivets in each end holding it to the board. That
+	## shape is the answer to "just simple text boxes" — a bordered rectangle has
+	## no opinion about which way is up, and this one is lit from above, has
+	## thickness, and is fastened to something.
+	##
+	## 1 — the shadow. It deepens when the plate is lit, which is what says
+	## RAISED rather than merely tinted.
+	draw_rect(Rect2(rect.position + Vector2(0.0, 3.0 + 2.0 * glow), rect.size),
+		Color(0.0, 0.0, 0.0, 0.32 + 0.24 * glow))
+	## 2 — the BODY. Real metal, not a tint of the deck showing through.
+	var body: Color = MENU_BODY_IRON if iron \
+		else ((MENU_BODY_DOOR_LIT if lit else MENU_BODY_DOOR) if door
+			else (MENU_BODY_LIT if lit else MENU_BODY))
+	draw_rect(rect, body)
+	## the lamp falling down the brass, warm for a plate and cold for the door
+	if glow > 0.0:
+		_wash(rect, Color("#ffe2b4") if not door else Color("#8ff5e0"),
+			0.20 * glow * lamp)
+	## 3 — the bevel: raised, because the plate stands proud of the board.
+	_bevel(rect, Color(1.0, 0.92, 0.76, 0.26 + 0.24 * glow),
+		Color(0.0, 0.0, 0.0, 0.55))
+	## 4 — the rim and the ironwork.
+	draw_rect(rect, metal, false, 2.2 if (lit or door) else 1.6)
+	if door:
+		## The door wears the banner's own corner brackets. It is the one control
+		## on this screen that is furniture rather than a row.
+		_brackets(rect, metal, 18.0, 3.0)
+
+	## 5 — THE ENGRAVING: the centre stamped INTO the body, bevel inverted so it
+	## reads as sunk. Drawn opaque and drawn here, after every light above, which
+	## is how the lamp is mechanically kept off the words rather than promised to
+	## be (see `_lamp`). The rivets go in the metal either side of it.
+	var pt: int = int(opts.get("pt", 18))
+	var chan := Rect2(rect.position.x + 24.0, rect.position.y + 6.0,
+		rect.size.x - 48.0, rect.size.y - 12.0)
+	draw_rect(chan, MENU_FIELD)
+	_bevel(chan, Color(1.0, 0.92, 0.76, 0.18), Color(0.0, 0.0, 0.0, 0.7), true)
+	for rx in [rect.position.x + 12.0, rect.end.x - 12.0]:
+		for ry in [rect.get_center().y - 9.0, rect.get_center().y + 9.0]:
+			_rivet(Vector2(rx, ry), metal, locked, lamp if glow > 0.0 else 0.0)
+	if locked:
+		_padlock(Vector2(rect.position.x + 34.0, rect.get_center().y - 4.0),
+			MENU_MUTED)
+	SkyGearInk.recess(self, chan.grow(-3.0), 0.35)
+	var hint := str(opts.get("hint", ""))
+	## Reserved at BOTH ends when there is a hint, so the label stays centred on
+	## the plate instead of drifting left of it.
+	var reserve: float = 46.0 if hint != "" else 0.0
+	var ink_tint: Color = MENU_MUTED if iron else (BONE if not door else Color("#d8fff4"))
+	_say_in(rect, label, Vector2(chan.position.x + reserve,
+		rect.get_center().y + float(pt) * 0.36),
+		chan.size.x - reserve * 2.0, HORIZONTAL_ALIGNMENT_CENTER, pt, ink_tint)
+	if hint != "":
+		## BRASS_LIT rather than BRASS, for `SkyGearUI`'s own reason: the audit
+		## once measured the key hints at 1.02 against the housing they sit on,
+		## which is brass text on brass. A hint is meant to be quiet, not absent.
+		_say_in(rect, hint, Vector2(chan.end.x - 44.0, rect.get_center().y + 5.0),
+			44.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
+			MENU_MUTED if iron else BRASS_LIT)
+	return fired
+
+
+## A RUNG. The Heat states already render distinctly (SG-14) — cleared, next,
+## locked, selected — and this gives them a MATERIAL: a bar bolted across the
+## rail with a rivet at each end, cleared ones lit and filled, the next one
+## teal, locked ones cold iron with an empty hole where the rivet would be.
+##
+## The SELECTED rung is SEATED — its bevel inverted, so it reads as pressed in.
+## That matters more here than anywhere else on the screen, because the pick is
+## the one piece of state on the title a player carries into the run, and a
+## bright tab alone is a tint argument.
+func _menu_rung(box: Rect2, metal: Color, filled: bool, seated: bool,
+		lit: bool, locked: bool) -> void:
+	var lamp: float = _lamp(box.position.x * 0.04)
+	var face: Color = metal
+	if lit and not locked:
+		face = metal.lerp(Color("#ffe6b0"), 0.5)
+	## A SEATED rung casts no shadow, because it is not standing off the rail —
+	## it is pressed into it. That is the whole point of drawing the pick as a
+	## shape rather than as a tint.
+	if not seated:
+		draw_rect(Rect2(box.position + Vector2(0.0, 3.0), box.size),
+			Color(0.0, 0.0, 0.0, 0.36))
+	## A cleared rung is FILLED metal and an uncleared one is a hollow frame —
+	## the ladder read across without reading a single number, which is most of
+	## what a ladder is for.
+	var body: Color = MENU_BODY_IRON
+	if filled:
+		body = MENU_BODY_LIT if lit else MENU_BODY
+	elif locked:
+		body = MENU_BODY_IRON
+	draw_rect(box, body)
+	if lit and not locked:
+		_wash(box, Color("#ffe2b4"), 0.20 * lamp)
+	_bevel(box, Color(1.0, 0.92, 0.76, 0.24), Color(0.0, 0.0, 0.0, 0.62), seated)
+	draw_rect(box, face, false, 2.2 if (lit or seated) else 1.5)
+	## The engraved centre, opaque and last — the digit stands in a channel, the
+	## same rule every plate obeys.
+	var chan := Rect2(box.position.x + 13.0, box.position.y + 4.0,
+		box.size.x - 26.0, box.size.y - 8.0)
+	draw_rect(chan, MENU_FIELD)
+	_bevel(chan, Color(1.0, 0.92, 0.76, 0.16), Color(0.0, 0.0, 0.0, 0.7), true)
+	for rx in [box.position.x + 6.5, box.end.x - 6.5]:
+		_rivet(Vector2(rx, box.get_center().y), face, locked,
+			lamp if (lit and not locked) else 0.0)
+
+
 func _draw_title() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 	_banner(size.x * 0.5, 104.0, 600.0)
@@ -176,17 +511,50 @@ func _draw_title() -> void:
 	## the Heat picker put DIFFICULTY on top of CAPTAIN on top of THE WORKSHOP —
 	## three overlapping widgets that the text audit passed, because every string
 	## was inside its OWN frame. A cursor cannot produce that class of bug.
+	##
+	## SG-91 keeps the cursor and gives it a BOARD to run down. One column, one
+	## width: the old layout had COMPARE THE TWO at 480 and everything under it
+	## at 300, so the block had no edge to read down. A two-column board was
+	## drafted and dropped — `SkyGearUI` focus is a flat list in declaration
+	## order, so Up/Down across two columns steps in an order the eye cannot
+	## predict (`docs/MENU-DESIGN.md` §4).
 	ui.begin("title", self, font, get_local_mouse_position())
-	var tw := 300.0
-	var tx: float = size.x * 0.5 - tw * 0.5
-	var wide: float = tw + 180.0
+	var wide := MENU_W
 	var wx: float = size.x * 0.5 - wide * 0.5
-	var y := 372.0
+
+	## --- HOW DEEP THE BOARD WANTS TO BE, MEASURED BEFORE IT IS DRAWN ---------
+	##
+	## The board goes UNDER its contents, so its height has to be known before
+	## the first plate is placed. Arithmetic, never an estimate — an estimate is
+	## what once printed THE ARTICLES through WOUND KIT on the Workshop board.
+	var heat_on: bool = SkyGearWorkshop.heat_available(game.workshop) > 0
+	var shop_on: bool = bool(game.workshop.unlocked)
+	var body: float = 0.0
+	if heat_on:
+		body += MENU_LADDER_H + MENU_GAP
+	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## WHO IS ABOARD + sentence
+	body += MENU_PLATE_H + MENU_GAP                    ## COMPARE THE TWO
+	if shop_on:
+		## THE WORKSHOP and THE BERTHS are HIDDEN, not shown locked, and that is
+		## deliberate: `scripts/workshop.gd`'s first hard constraint is "NONE OF
+		## THIS EXISTS UNTIL YOU HAVE WON. Not unlocked, not shown, not earned."
+		body += (MENU_PLATE_H + MENU_GAP) * 2.0
+	body += MENU_RULE_H + MENU_DOOR_H + MENU_GAP       ## the rule, then the door
+	body += (MENU_PLATE_H + MENU_GAP) * 3.0            ## HOW / SETTINGS / CONTROLS
+	body -= MENU_GAP                                   ## no trailing gap
+
+	var board := Rect2(wx - MENU_PAD, MENU_TOP, wide + MENU_PAD * 2.0,
+		body + MENU_STILE * 2.0)
+	_menu_board(board)
+	## Everything on the board is measured against the board — a detector the
+	## title screen has never had, because nothing on it was inside any frame.
+	_open_board(board)
+	var y: float = MENU_TOP + MENU_STILE
 
 	## DIFFICULTY, as a ladder rather than a cycling row (SG-14). Only once the
 	## first victory has opened it — before that there is exactly one difficulty
 	## and no rung to show.
-	if SkyGearWorkshop.heat_available(game.workshop) > 0:
+	if heat_on:
 		y = _draw_heat_ladder(wx, wide, y)
 
 	## WHO IS ABOARD. A cycling row rather than a screen of its own: two classes,
@@ -194,14 +562,14 @@ func _draw_title() -> void:
 	## click a player pays every single run.
 	var ids: Array = SkyGearData.CLASSES.keys()
 	var at: int = maxi(0, ids.find(game.class_id))
-	var picked: int = ui.choice(Rect2(wx, y, wide, 32.0), "WHO IS ABOARD",
-		ids.map(func(k): return str(SkyGearData.CLASSES[k].name)), at)
-	if picked != at:
-		game.set_class(str(ids[picked]))
-	y += 34.0
-	_says(str(game.class_data().get("blurb", "")), Vector2(wx, y + 12.0), wide,
-		HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
-	y += 32.0
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
+			"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[ids[at]].name),
+			{"key": "WHO IS ABOARD", "pt": 17}):
+		game.set_class(str(ids[(at + 1) % ids.size()]))
+	y += MENU_PLATE_H + MENU_GAP
+	_says(str(game.class_data().get("blurb", "")), Vector2(wx + 10.0, y + 10.0),
+		wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
+	y += MENU_BLURB_H
 	## ...AND A WAY TO SEE WHAT THE OTHER ONE IS.
 	##
 	## A cycling row plus one sentence is enough to pick a class you already know
@@ -209,40 +577,64 @@ func _draw_title() -> void:
 	## "Boilerwright feels slower — and I'm not sure I understand what the class
 	## actually does?" He is slower, deliberately, and nothing on this screen ever
 	## said what the 55 units of speed bought.
-	if ui.button(Rect2(wx, y, wide, 30.0), "COMPARE THE TWO", {"hint": "F7"}):
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "COMPARE THE TWO",
+			{"hint": "F7", "pt": 17}):
 		game.compare_open = true
-	y += 38.0
+	y += MENU_PLATE_H + MENU_GAP
 
-	if bool(game.workshop.unlocked):
-		if ui.button(Rect2(tx, y, tw, 34.0),
-				"THE WORKSHOP  ·  %d" % int(game.workshop.scrip), {"hint": "F6"}):
+	if shop_on:
+		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
+				"THE WORKSHOP  ·  %d" % int(game.workshop.scrip),
+				{"key": "THE WORKSHOP", "hint": "F6", "pt": 17}):
 			game.workshop_open = true
-		y += 40.0
+		y += MENU_PLATE_H + MENU_GAP
 		## THE SHIP'S SIDE of the same save (SG-56): what the ship has kept,
 		## and which six of it sail. Title-only on purpose — no key — so the
 		## refit is structurally a between-runs act, per the owner's rule.
-		if ui.button(Rect2(tx, y, tw, 34.0), "THE BERTHS  ·  %d of %d"
+		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "THE BERTHS  ·  %d of %d"
 				% [SkyGearFittings.berthed_ids(game.workshop).size(),
-					SkyGearFittings.CAP]):
+					SkyGearFittings.CAP], {"key": "THE BERTHS", "pt": 17}):
 			game.berths_open = true
-		y += 40.0
+		y += MENU_PLATE_H + MENU_GAP
 
-	if ui.button(Rect2(tx, y, tw, 44.0), "BEGIN RUN",
-			{"primary": true, "hint": "Enter"}):
+	## THE RULE, and then THE DOOR. BEGIN RUN is not a menu item — it is the way
+	## out onto the deck, and it used to differ from QUIT by six pixels of height
+	## and a hue. A brass rule across the board separates the run from the things
+	## that are about the run.
+	_menu_rule(wx, wide, y + MENU_RULE_H * 0.5)
+	y += MENU_RULE_H
+	if _menu_plate(Rect2(wx, y, wide, MENU_DOOR_H), "BEGIN RUN",
+			{"state": "door", "hint": "Enter", "pt": 22}):
 		game.begin_run()
-	y += 52.0
-	if ui.button(Rect2(tx, y, tw, 38.0), "HOW TO PLAY", {"hint": "F1"}):
+	y += MENU_DOOR_H + MENU_GAP
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "HOW TO PLAY",
+			{"hint": "F1", "pt": 17}):
 		game.how_open = true
-	y += 44.0
-	if ui.button(Rect2(tx, y, tw, 38.0), "SETTINGS", {"hint": "F5"}):
+	y += MENU_PLATE_H + MENU_GAP
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "SETTINGS",
+			{"hint": "F5", "pt": 17}):
 		game.settings_open = true
-	y += 44.0
-	if ui.button(Rect2(tx, y, tw, 38.0), "CONTROLS", {"hint": "F2"}):
+	y += MENU_PLATE_H + MENU_GAP
+	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "CONTROLS",
+			{"hint": "F2", "pt": 17}):
 		game.keys_open = true
-	y += 44.0
-	if ui.button(Rect2(tx, y, tw, 38.0), "QUIT", {"hint": "Alt+F4"}):
+	y += MENU_PLATE_H
+
+	## --- OFF THE BOARD ------------------------------------------------------
+	## Nothing below belongs to the bulkhead, so the frame closes here or the
+	## history line would be measured against a plate it is not on.
+	_in_frame = false
+	y = board.end.y + 14.0
+
+	## THE HATCH. QUIT leaves the board entirely and is made of different stuff —
+	## small, iron, no brass. A destructive control that looks exactly like
+	## SETTINGS is a misclick waiting to happen, and the fix is that it should
+	## not be the same object in a different colour.
+	var qw := 190.0
+	if _menu_plate(Rect2(size.x * 0.5 - qw * 0.5, y, qw, 30.0), "QUIT",
+			{"state": "hatch", "hint": "Alt+F4", "pt": 15}):
 		game.quit_game()
-	y += 56.0
+	y += 30.0 + 22.0
 
 	## What the machine remembers. A title screen with a best-wave on it is the
 	## cheapest possible reason to press Enter again.
@@ -259,9 +651,22 @@ func _draw_title() -> void:
 			if str(history.best_time) != "":
 				line += " (best %s)" % str(history.best_time)
 		_center_text(line, y, 17, Color("#b0813f"))
-		y += 30.0
-	_center_text("Milestone 1 · v11 combat vertical slice", y + 16.0, 15,
+		y += 28.0
+	_center_text("Milestone 1 · v11 combat vertical slice", y + 14.0, 15,
 		Color("#8f8697"))
+
+
+## A BRASS RULE ACROSS THE BOARD, with a collar at each end. The full stop
+## between "what this run is" and "start it" — the same job `_collar` does on
+## the Workshop's pipework, which is where the shape comes from.
+func _menu_rule(x: float, wide: float, y: float) -> void:
+	var lamp := _lamp(y * 0.02)
+	draw_line(Vector2(x + 14.0, y), Vector2(x + wide - 14.0, y),
+		Color(0.0, 0.0, 0.0, 0.6), 4.0)
+	draw_line(Vector2(x + 14.0, y), Vector2(x + wide - 14.0, y),
+		Color(BRASS.r, BRASS.g, BRASS.b, 0.75), 2.0)
+	for cx in [x + 14.0, x + wide - 14.0]:
+		_collar(Vector2(cx, y), Vector2(1.0, 0.0), 5.0, 0.75 * lamp)
 
 
 ## THE HEAT LADDER (SG-14). Five rungs, one per Heat above STOKED, in place of
@@ -270,9 +675,12 @@ func _draw_title() -> void:
 ## LOCKED rungs are dim with a padlock and state their unlock rule on hover or
 ## focus. STOKED — Heat 0, the ground you stand on — is not itself a rung;
 ## clicking the rung you are already on steps back down to it, and the header
-## always names where you stand so 0 is never invisible. The SELECTED rung wears
-## a bright tab, and whichever rung is hot (or, with nothing hot, the one you
-## have picked) spells its one sentence out in the strip beneath the ladder.
+## always names where you stand so 0 is never invisible. The SELECTED rung is
+## SEATED — bevel inverted, pressed into the rail — since SG-91, in place of the
+## bright tab it used to wear: the pick is the one piece of state a player
+## carries off this screen into the run, and a tint alone is a weak way to say
+## it. Whichever rung is hot (or, with nothing hot, the one you have picked)
+## spells its one sentence out in the strip beneath the ladder.
 ##
 ## Every rung is a `bare` widget — declared to the same layer the audit reads, so
 ## COLLIDE and WIDGET see all five — and NONE is `disabled`, because a disabled
@@ -284,60 +692,75 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 	var best: int = int(game.workshop.best_heat)
 	var rungs: int = SkyGearWorkshop.HEAT.size() - 1
 	var sel: int = clampi(game.heat, 0, reachable)
-	var teal := Color("#37f0c8")
-	var dim := Color("#5f5863")
-	var locked_ink := Color("#8f8697")
+	var teal := MENU_TEAL
+	var locked_ink := MENU_MUTED
 	var flame := Color("#ff9a4a")
 
 	## The header carries the current pick, so STOKED reads even though it is the
-	## ground rather than a rung on the ladder.
+	## ground rather than a rung on the ladder. `_say` rather than `_say_free`
+	## since SG-91: the ladder now stands on the board, so there is a frame for
+	## these to be inside of and the containment pass can have an opinion.
 	var here_name := str(SkyGearWorkshop.HEAT[sel].name)
-	_say_free("DIFFICULTY", Vector2(wx, top + 12.0), wide * 0.5,
+	_say("DIFFICULTY", Vector2(wx, top + 12.0), wide * 0.5,
 		HORIZONTAL_ALIGNMENT_LEFT, 13, BONE)
-	_say_free(("HEAT %d · %s" % [sel, here_name]) if sel > 0 else here_name,
+	_say(("HEAT %d · %s" % [sel, here_name]) if sel > 0 else here_name,
 		Vector2(wx, top + 12.0), wide, HORIZONTAL_ALIGNMENT_RIGHT, 13,
 		BRASS_LIT if sel > 0 else locked_ink)
 
 	var row_y := top + 22.0
-	var gap := 8.0
+	## Wide enough that the RAIL shows between the rungs. At the old 8 the rungs
+	## touched and the ladder read as five chips again, which is the thing the
+	## rail was added to stop.
+	var gap := 13.0
 	var rw := (wide - gap * float(rungs - 1)) / float(rungs)
 	var active := -1  ## the rung the strip below should speak for, if any is hot
+	## THE RAIL the rungs are bolted across, drawn first so they sit ON it. This
+	## is what turns five chips into a ladder: the chips were five separate
+	## objects and a ladder is one object with rungs in it.
+	_menu_rail(wx, wide, row_y + 17.0)
 	for r in range(1, rungs + 1):
-		var box := Rect2(wx + (rw + gap) * float(r - 1), row_y, rw, 32.0)
+		var box := Rect2(wx + (rw + gap) * float(r - 1), row_y, rw, 34.0)
 		var is_reachable := r <= reachable
 		var is_cleared := r <= best
 		var is_next := r == reachable
 		var is_locked := r > reachable
 		var is_sel := r == sel
 
+		## Adjusted by ITS CALLER, because a `bare` widget gets nothing back from
+		## the widget layer — before SG-91 this drew at the UNadjusted rect, so a
+		## saved F4 offset moved the rung's click target and left the painted
+		## rung behind (`docs/MENU-DESIGN.md` §7). Nothing caught it because the
+		## shipped layout has no `title` entries at all.
+		box = _widget_adjust("HEAT %d" % r, box)
 		var mine := ui.declared().size()
-		if ui.button(box, "", {"bare": true}):
+		if ui.button(box, "", {"bare": true, "adjusted": true}):
 			## A reachable rung sets the run's Heat; clicking the one you are on
 			## steps back to STOKED. A locked rung refuses, and says why on hover.
 			if is_reachable:
 				game.heat = 0 if r == game.heat else r
-		if ui.lit(mine):
+		var hot: bool = ui.lit(mine)
+		if hot:
 			active = r
 
-		var rim := BRASS_LIT if is_cleared else (teal if is_next else dim)
+		var rim := BRASS_LIT if is_cleared else (teal if is_next else MENU_IRON)
 		var ink := BRASS_LIT if is_cleared else (teal if is_next else locked_ink)
-		var fill := Color(BRASS.r, BRASS.g, BRASS.b, 0.26) if is_cleared \
-			else (Color(teal.r, teal.g, teal.b, 0.12) if is_next \
-			else Color(0.06, 0.05, 0.08, 0.72))
-		draw_rect(box, fill)
-		if ui.lit(mine) and is_reachable:
-			draw_rect(box.grow(-1.0), Color(rim.r, rim.g, rim.b, 0.12))
-		draw_rect(box, rim.lerp(Color.WHITE, 0.35) if ui.lit(mine) else rim,
-			false, 2.0 if (is_sel or ui.lit(mine)) else 1.4)
-		## The bright tab along the foot marks the pick, apart from the
-		## cleared/next/locked state the rung already shows.
-		if is_sel:
-			draw_rect(Rect2(box.position.x + 6.0, box.end.y - 4.0,
-				box.size.x - 12.0, 3.0), BRASS_LIT if is_cleared else teal)
-		_say_free("%d" % r, Vector2(box.position.x, box.get_center().y + 6.0),
+		## Cleared rungs are FILLED metal, the next one is teal and hollow, and a
+		## locked one is cold iron with an empty hole where its rivet would be.
+		## The SELECTED rung is SEATED — pressed into the rail, so the pick reads
+		## by shape as well as by the tint it already had.
+		_menu_rung(box, rim, is_cleared, is_sel, hot, is_locked)
+		## The number belongs to its rung, not to the board — a widget's label is
+		## measured against its widget, which is also what stops five rungs
+		## registering five junk `text` elements for the F4 editor (a digit-only
+		## string slugs to nothing, so they all keyed off draw order).
+		_say_in(box, "%d" % r, Vector2(box.position.x, box.get_center().y + 6.0),
 			box.size.x, HORIZONTAL_ALIGNMENT_CENTER, 18, ink)
+		## (owner, text, at, width, align, pt, tint) — the widget layer's own
+		## `scribe` signature. Worth naming: getting `width` and `align` the
+		## wrong way round hands `draw_string` a one-pixel box, which draws
+		## NOTHING and reports nothing, and it cost this pass a render to spot.
 		if is_locked:
-			_padlock(Vector2(box.end.x - 13.0, box.position.y + 9.0), locked_ink)
+			_padlock(Vector2(box.end.x - 12.0, box.position.y + 7.0), locked_ink)
 
 	## The strip: the hot rung's sentence, or its unlock rule if it is locked;
 	## and with nothing hot, the sentence for the rung you have selected.
@@ -350,9 +773,26 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 		var show: int = active if active > 0 else sel
 		blurb = str(SkyGearWorkshop.HEAT[clampi(show, 0, rungs)].blurb)
 		tint = flame if show > 0 else locked_ink
-	_says(blurb, Vector2(wx, row_y + 44.0), wide, HORIZONTAL_ALIGNMENT_CENTER,
-		13, 2, tint)
-	return row_y + 64.0
+	_says(blurb, Vector2(wx + 10.0, row_y + 46.0), wide - 20.0,
+		HORIZONTAL_ALIGNMENT_CENTER, 13, 2, tint)
+	## The cursor the caller carries on with. ONE number, matched to the
+	## `MENU_LADDER_H` the board's own height was measured from — if these two
+	## disagreed the board would be the wrong length, which is this project's
+	## second failure mode holding a ruler.
+	return top + MENU_LADDER_H + MENU_GAP
+
+
+## THE LADDER'S RAIL — the brass the rungs are bolted across, with a collar at
+## each end. Drawn under them, which is the difference between a ladder and five
+## chips in a row.
+func _menu_rail(x: float, wide: float, y: float) -> void:
+	## `_pipe` is the Workshop's own length of brass — casing, metal, and one
+	## bright edge because a pipe is a cylinder. Reused rather than redrawn: a
+	## second answer to "what does brass tubing look like" is exactly the shape
+	## of this project's second failure mode.
+	_pipe(Vector2(x - 2.0, y), Vector2(x + wide + 2.0, y), 9.0, 0.72)
+	for cx in [x - 2.0, x + wide + 2.0]:
+		_collar(Vector2(cx, y), Vector2(1.0, 0.0), 9.0, 0.72)
 
 
 ## A small padlock, for a locked rung. `at` is the top-centre of the body.

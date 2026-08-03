@@ -2,6 +2,27 @@
 
 _Last updated: 2026-08-02, build 44._
 
+## The title screen is rebuilt — does the vocabulary feel right before it spreads? (SG-91)
+
+Your ask: *"the header UI element feels on-theme but the rest are just simple
+text boxes."* The rest are hardware now — a riveted brass board with real
+plates on it, an engraved channel under every label, a lit lamp on the plate you
+are pointing at, the Heat chips turned into rungs bolted across a rail, BEGIN RUN
+made obviously the door, and QUIT turned into a small iron hatch off the bottom
+of the board. `docs/MENU-DESIGN.md` is the survey and the vocabulary; the whole
+thing is drawn with primitives the Workshop board already used, so no new art.
+
+**Look at `.shots/sg91/compare-title-heat-1920x1080.png`** (before beside after),
+and `compare-title-1600x900.png` for the fresh-profile version at the minimum
+window. 797/797 harness, text audit clean at all four widths.
+
+**The question:** does this vocabulary feel like the ship? If yes, SG-93 spreads
+it to SETTINGS, HOW TO PLAY, CONTROLS and PAUSE — deliberately NOT done in the
+same pass, because you asked to see the direction first and because those four
+are `ui.row` columns (left label, right value) rather than centred plates, so
+they want one more noun rather than a reuse of this one. If it is wrong, it is
+wrong in one file and one screen.
+
 ## The tail of the board — one thing needs your eye, one is a warning
 
 **SG-84 — you are now STOPPED at the boarding hulk, and you asked for a
