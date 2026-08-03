@@ -113,3 +113,87 @@ the drone, the Colossus, and a five-ship fleet.
 
 Every dying thing on this deck now has a death. As of tonight, nothing vanishes
 — it fades.
+
+---
+
+## 7 · Overnight, after you went to sleep (SG-106, SG-107)
+
+**Harness 851 → 862. Text audit clean. Nothing pushed.** Three things landed:
+the audit regression, the rig overhead, and the shadow authority.
+
+### Look at these two first, they are pictures
+
+* **`.shots/sg107/rig-before-mid-z1.00.png` against `rig-only-mid-z1.00.png`.**
+  This is the whole of item 1 in one A/B, and it is the thing you have said
+  twice that the deck needed — the floor now has a ship's rigging printed
+  across the middle of it. Nothing is in the colour pass, so nothing can stand
+  in front of a boarder. Same pair at z1.55.
+* **`.shots/sg107/rig-after-*.png` is the version WITH the envelope casting, and
+  I cut it.** Compare it against `rig-only-*` and you will see the broad grey
+  wash over the bow that I did not think was worth 1% of the deck's light. If
+  you disagree, it is one enum and one material line and it is written down in
+  `view3d.gd` beside the constant.
+
+### Four questions I had to answer myself because you were asleep
+
+1. **The envelope: cast, or stop drawing it?** The design says make the gas bag
+   cast, on the grounds that it can never be seen. I cut it — it costs a further
+   1% of deck luminance for a soft wash, it is not the one-character change the
+   doc expected (a transparent material is never rasterised into the shadow map,
+   so it also needs a dithered `ALPHA_HASH` cutout), and **it is parked on the
+   camera**, so its shadow would slide across the planking as the captain walks
+   — which is the exact trade the design's own "explicitly not" list refuses one
+   page earlier. **But the finding underneath it is real and unbanked:** that
+   quad is invisible and is transformed every frame anyway. The cheap correct
+   answer is probably to stop DRAWING it rather than to start casting it. I did
+   not, because "never seen" has only ever been argued from the gameplay camera
+   and the four `sky_shot` poses drag it. **Your call, and it is a minute's work
+   either way.**
+2. **The blob layer's delete gate fired, and I did not obey it.** Item 2
+   pre-commits that if switching the whole contact-shadow batch OFF is not
+   measurably worse than today, the layer is deleted and the moon does the job.
+   Posed with no ordnance on screen it is not worse — 1.91% of deck pixels,
+   under the 3% gate. That half is true and it is why every mesh figure now
+   drops to a small contact core. **But that gate contradicts §13c**, which the
+   same document calls non-negotiable: a bolt's mark must sit directly under the
+   bolt, and the moon's shadow of a bolt lands 0.44 of its height to port, which
+   answers a question nobody asked. A painted billboard casts nothing at all, so
+   its blob is the only thing holding it to the deck. Posed with ordnance
+   actually in flight the gate does not fire (OFF 4.88%, corrected-vs-today
+   11.76%). **I kept the layer. If you want it gone, it should go for
+   projectiles LAST or not at all.**
+3. **`rig · …` collides with the animation rig's own check namespace.** The
+   design pre-committed those exact strings and the board quotes them, so I used
+   them verbatim rather than inventing `rigging · …`. The harness now has `rig ·
+   a turn is rate limited` (a skeleton) next to `rig · no mast stands in a lane`
+   (a ship). Ugly, harmless, one rename if it bothers you.
+4. **Which contrast floor decides a telegraph.** Item 1's kill-test names
+   `ink.gd`'s floor, which is 4.5 and is a floor for TEXT; §7.5 had already
+   measured the shipped rune-against-planking figure at **1.91** and written
+   down that a gate nothing has ever passed cannot decide anything. I used
+   §7.5's relative 3% gate and printed both numbers every run. If you meant the
+   absolute one, the rig fails it — and so does the shipped build without the
+   rig, which is the point.
+
+### One thing worth knowing about every measurement in this repo
+
+The shadow tool prints its own **noise floor** — two plates of a frozen scene
+with nothing changed between them — and that line is the most useful thing I
+built tonight. It read **53%**. Three answers had already been produced against
+it before I checked. It was not debanding and it was not the volumetric fog:
+**every rigged figure owns an `AnimationPlayer` that runs on the engine's own
+clock and ignores both `game.set_process(false)` and `view.set_process(false)`.**
+Seventeen boarders were breathing through a walk cycle and moving their own cast
+shadows between exposures. Frozen, the floor is 0.00%.
+
+`tools/marks_shot.gd` has the same hole and only got away with it because it
+shoots one frame apart. **SG-101's "residual it could not find" — the one §7.5
+says is "not the marks, and it has not been found" — is very likely this.** That
+is a re-measurement worth doing before you trust the mark-density number.
+
+### Still owed to you from tonight
+
+The shadow A/B plates (`shadow-today` / `-corrected` / `-off`) caught the
+captain mid-swing, so a fire arc dominates the frame and they are poor pictures
+even though the numbers behind them are sound. Worth re-shooting at a quieter
+tick before you judge the look of the contact cores by eye.

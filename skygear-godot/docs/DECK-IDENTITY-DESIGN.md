@@ -31,6 +31,21 @@ named so it can be checked rather than believed.
 ## 2. The ordered plan
 
 ### 1 · The rig overhead, as shadow only — and the envelope with it
+> **BUILT 2026-08-03 (SG-107), commit `b332c66`. The rig SHIPPED and passed its
+> kill-test; the ENVELOPE HALF WAS CUT.** The lattice costs a rune **−0.47%** of
+> its edge contrast at full light and **−2.67%** at the 0.22 darkness floor —
+> negative, i.e. it improves them, because telegraphs are bright and it darkens
+> the planking they sit on — while darkening 18–22% of the ring they are read
+> against, so the pass is not a coincidence. Measured by `tools/rig_probe.gd`.
+> Green as `rig · nothing in the rig is in the colour pass`, `rig · every caster
+> is inside the moon's 34 m shadow distance`, `rig · the shrouds are thick enough
+> to read as rope under a 2.2 blur`, `rig · and no mast stands in a lane, drawn
+> or not`. The envelope is cut for three measured reasons, on the SG-107 board
+> row; the check `rig · the envelope casts and does not draw` was NOT written,
+> because the envelope does not cast. **Note on this item's own kill-test:** it
+> names `ink.gd`'s floor, and §7.5 below had already established that 4.5 is a
+> floor for TEXT and that the shipped rune figure is 1.91. The relative 3% gate
+> decided; both numbers are printed.
 **What.** Three masts, yards and shrouds built as real geometry with
 `cast_shadow = SHADOW_CASTING_SETTING_SHADOWS_ONLY`, at the numbers DECK-DESIGN
 P2 already measured: masts 1500 units at `(280, 900)`, `(−280, 260)`,
@@ -54,6 +69,21 @@ so a mast placed further aft silently stops casting, and `shadow_blur` is 2.2, s
 shroud radius is 8–10, not 4, or the ropes read as lighting. **Size:** days.
 
 ### 2 · One shadow authority — the mark leans where the moon does, and lifts when the thing does
+> **BUILT 2026-08-03 (SG-107), commit `da58bf3`.** `moon_track()` reads the light
+> live and `shadow_pose()` derives lean, elongation and throw from it; nothing
+> restates the vector. Green as `shadow · the pool leans where the moon does —
+> one light vector, read and not retyped`, `shadow · a mark 200 units up is wider
+> and fainter than the same mark on the planking`, `shadow · a projectile's mark
+> is directly beneath it and is never thrown`, `shadow · no mesh figure carries
+> both a cast shadow and a full-strength blob`, `shadow · and it is still one
+> batch, one material, one draw, capped at 256`. **THE DELETE BRANCH OF THIS
+> ITEM'S KILL-TEST FIRED AND WAS NOT OBEYED**, and that is a live question for
+> the owner rather than a settled call: with no ordnance on screen, batch-OFF
+> costs only 1.91% of deck pixels — but that gate contradicts §13c above, which
+> this same section calls non-negotiable, and it is not evidence about a bolt's
+> mark or about a billboard that casts nothing. With ordnance in flight the gate
+> does not fire (OFF 4.88%, corrected-vs-today 11.76%, floor 3.07%).
+> `tools/shadow_probe.gd` reports the branch rather than taking it.
 **What.** `_flush_shadows` (view3d.gd:4249) builds `Basis().scaled(Vector3(width,
 1.0, width * 0.62))` — a scale, no light term — while `rig3d.gd:286` sets every
 figure mesh to `SHADOW_CASTING_ON`. Two functions disagreeing about one number,
@@ -638,6 +668,21 @@ structural and each one is pinned by a check rather than by care:
    9.1%, when the painted fraction of the frame fell by more than half. A rune
    median cannot move 8% when 5.7% of the deck is covered at alpha 0.12. Whatever
    that residual is, it is not the marks, and it has not been found.
+
+   **A LEAD ON IT, found 2026-08-03 by SG-107 while building the same kind of
+   rig for item 2.** There is a fourth confound in this family and it is larger
+   than the three above: **every rigged figure owns an `AnimationPlayer` that
+   advances on the engine's own clock and answers to neither
+   `game.set_process(false)` nor `view.set_process(false)`.** Seventeen boarders
+   breathing through a walk cycle move their limbs, their weapons and their CAST
+   SHADOWS between exposures. `tools/shadow_probe.gd` prints a noise floor — two
+   plates of a frozen scene with nothing changed — and it read **53%** until the
+   AnimationPlayers were stopped, at which point it read **0.00%**.
+   `marks_shot.gd` never saw this because it shoots its two plates one frame
+   apart, which shrinks the effect without removing it. **The mark cost should be
+   re-measured with `Engine.time_scale = 0` and every `AnimationPlayer`'s
+   `speed_scale` zeroed before `MARK_CAP` is moved to 12 on the strength of the
+   old number.**
 
    **So the feature ships at the conservative end and this file says so** rather
    than quoting the flattering number. What IS established: hard cap, eviction
