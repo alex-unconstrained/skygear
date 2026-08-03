@@ -197,12 +197,20 @@ def main() -> int:
     manifest = load_manifest()
     if not args.name or args.name == "list":
         for key, spec in manifest.items():
+            ## Keys beginning with an underscore are prose for the reader —
+            ## `_readme` and `_boarders` are lists, not model specs — and
+            ## `scrapper` is sourced from `rig_glb` rather than an archive.
+            ## `list` used to index spec["archive"] on all of them and died
+            ## with a KeyError before printing a single line.
+            if key.startswith("_") or not isinstance(spec, dict):
+                continue
             built = (ROOT / "assets" / "models" / key / ("%s.tscn" % key)).exists()
+            source = spec.get("archive") or spec.get("rig_glb") or "(no source)"
             print("%-12s %-9s %d clips  %s" % (key, "BUILT" if built else "-",
                                                len(spec.get("clips", {})),
-                                               spec["archive"]))
+                                               source))
         return 0
-    if args.name not in manifest:
+    if args.name not in manifest or args.name.startswith("_"):
         raise SystemExit("unknown model %r; try `list`" % args.name)
     return ingest(args.name, manifest[args.name], args.keep_staging)
 

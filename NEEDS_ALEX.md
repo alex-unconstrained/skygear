@@ -131,26 +131,32 @@ All shipped tonight; none can be settled by a checker.
 
 ## 3 · What only you can unblock
 
-**THE LOOM NEEDS A KEY, OR THE SERVER FOLDER — it is not a broken path.**
-*(Re-diagnosed 2026-08-03, after you asked me to fix the tool.)* I searched this
-machine. `tools/forge.py` is only a **client**: it POSTs to a Loom server on
-`127.0.0.1:8765` that lives outside this repo. There is no
-`run_aether_loom.ps1` anywhere here, no Loom directory, and no stored
-`OPENAI_API_KEY` or `GOOGLE_API_KEY`. (`GitHub/ImageGen` is a different tool —
-childcare flyers.) The dead Codex path in `ASSET-GENERATION.md` is a symptom,
-not the cause.
+**You are making the deck assets by hand** (your call, 2026-08-03) — so the
+Loom is no longer blocking them, and nothing is waiting on Meshy credits.
+**Drop the files anywhere and tell me the path; ingestion is one manifest entry
+and one command.** The spec is `handoff-3d/README.md`: GLB, Y up, facing **+Z**
+(the locked 41° camera only ever sees that side), metres, ≤4k tris, house
+palette, flat albedo with no baked lighting, and **no ground plane, no base, no
+plinth** — that last one is the failure this pipeline hits most often; a
+generated railing once came back standing on its own timber bench.
 
-Two ways out, and **I recommend the second**:
+Piece specs and sizes are in `handoff-3d/ship_edge_kit/PROMPTS.md`. **Do the
+rail module first**: a rail reads as a rail only because you see sky *through*
+it, so the periodic gap is the whole cue — ~145 units between stanchions, rails
+at ~66 and ~118 units high. Tileable, so its left edge meets the right edge of
+a copy of itself.
 
-1. Copy the Loom server folder across from your other device — `forge.py` then
-   works unchanged.
-2. **Paste an image-API key** and I rewrite `forge.py` to call the API directly,
-   retiring the server dependency: no second machine, no localhost service, and
-   it stays fixed. The house `STYLE` block and the prompt-beside-the-manifest-key
-   discipline survive either way. Stored gitignored, like the Meshy key.
+*Fixed this morning so it does not bite you:* `tools/ingest_model.py list`
+crashed with a `KeyError` before printing anything, because it indexed
+`spec["archive"]` on the manifest's prose entries. It works now.
 
-Waiting on it: the ship edge-kit concepts and four HUD pieces, **including a
-real bug — the Boilerwright wears the Corsair's portrait.**
+**The Loom is still wanted, but only for 2D**: the four HUD pieces and a real
+bug — **the Boilerwright wears the Corsair's portrait.** It is not a broken
+path; `tools/forge.py` is only a *client* of a server at `127.0.0.1:8765` that
+is not on this machine, and there is no stored image-API key. Either copy the
+Loom server folder across, or paste a key and I will rewrite `forge.py` to call
+the API directly and retire the server dependency. No rush now that the deck
+assets are yours.
 
 **Your cutlass fit is still uncommitted**, preserved through every build all day
 (29 lines in `assets/models/weapons.json`). Re-fit it in the fixed lab
