@@ -17,7 +17,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **875 harness checks**; the text audit covers 24 screens at
+board SG-56). **897 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -26,6 +26,48 @@ rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE COLOSSUS'S HITBOX WAS A CIRCLE AND HIS TELEGRAPH WAS A WEDGE, AND THE
+HARNESS HAD A CHECK PINNING IT THAT WAY (SG-119, 2026-08-03).** He was the only
+melee row carrying no `reach` and no `swing`, so `_swing_hits` returned true
+unconditionally — a **360° circle at 163** — while `view3d.gd` drew him a **120°
+fan at 146** out of a fallback constant the simulation had never heard of.
+Stepping behind the Colossus, the thing his own telegraph invites, had never
+once worked. He carries the two fields now, **both carve-out branches are
+deleted** so no enemy can take a reach-less path, and the wedge is ONE function
+(`enemy.swing_wedge_reach/arc()`) that the renderer calls rather than
+re-deriving. **His swing lands at exactly the same distance it always did** —
+146 is precisely the `attack_range + 26` both fallbacks computed, so 163 to the
+captain and 253 on the second beat, before and after; the ARC is the whole
+change, and his damage, health, windup and recover are harness-pinned untouched.
+**This makes him easier and nothing was compensated**, on purpose: his
+difficulty is `docs/COLOSSUS-DESIGN.md`'s open question and a shape fix is not
+the place to answer it. **The ugly part is that the harness was asserting the
+bug**: `telegraph · a boarder that draws no wedge keeps its circle` passed every
+run for weeks under a comment claiming he "telegraphs with a phase ring rather
+than a fan" — a renderer that did not exist. That check is INVERTED, in place,
+so the diff shows the assertion changing sides. The measurement that matters is
+geometric and cannot be satisfied by a mismatched shape: sweep the connect test
+over a full circle and the share that lands must equal the arc that is drawn —
+**BOSS 0.335 against a drawn 0.333**, where it read 1.000 before.
+
+**And two smaller ones that were both about a number nobody had measured.**
+`visual_rng` was never seeded anywhere in the repo (SG-120) while
+`set_seed_text` promised in its own comment that a seed reproduces a run — which
+was cosmetic right up until the POWDER STORE talent placed real explosive kegs
+from that stream, so two players on one seed got different decks. It is seeded
+beside `rng` under its own salt now, consuming nothing from it. And a fire
+pool's tick period was reset by ASSIGNMENT rather than carried (SG-122), so the
+overshoot was discarded and the true period was `ceil(0.25 / delta) * delta`.
+**The board row called that "harmless at 60 fps" and it was not**: 1/60 does not
+divide 0.25 in binary floating point either, so the pool has been delivering
+**11.4 dps against its authored 12.0 in every build that ever shipped** — which
+also means SG-117's recorded "the authored 12 dps" was 11.4, and that row is
+annotated rather than left standing. It is 12.0 at 1/60, 0.05 and 0.1 now.
+**The same discard pattern is in three more places and is deliberately NOT
+fixed here** — the steam taps and the player's aura and pulse passives, filed as
+**SG-126**, because those are player-damage rates and want their own before and
+after rather than a fourth change in one commit.
 
 **THE SAFEST PLACE ON THE DECK WAS INSIDE THE FIRE, AND THE RIG THAT SHOULD
 HAVE CAUGHT IT WAS MEASURING A CAPTAIN WHO NEVER MOVED (SG-117 + SG-118,
@@ -217,7 +259,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (875 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (897 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -286,7 +328,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 875 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 897 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -314,7 +356,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 875 checks. Green before anything ships |
+| `harness` | 897 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

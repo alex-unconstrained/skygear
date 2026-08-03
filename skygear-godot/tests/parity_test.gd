@@ -163,6 +163,13 @@ func _run() -> void:
 	await process_frame
 	await _hazard()
 	await process_frame
+	## AWAITED — both build real worlds and spawn real enemies. See the note
+	## above `_view`; an un-awaited coroutine here reports a clean pass for
+	## checks that never ran.
+	await _wedge()
+	await process_frame
+	await _seeded_kegs()
+	await process_frame
 	await _bot()
 	await process_frame
 	_mobility()
@@ -2952,8 +2959,22 @@ func _view() -> void:
 	## the tell lies (STATUS failure mode two). So every melee enemy carries a `reach`
 	## and a `swing`, and the reach must cover the range that TRIPPED the windup —
 	## nothing may connect from outside the shape that was drawn.
+	##
+	## THE LIST IS THE TABLE NOW, not three names typed here (board SG-119). It
+	## used to read `["SCRAPPER", "ARMORED", "SWARM"]`, and the one melee row it
+	## did not name was the one melee row with no reach and no swing — a check
+	## whose scope was a hand-written list quietly exempted the only enemy that
+	## could fail it, for as long as the bug existed. Every `ai == "melee"` row
+	## is in scope, so a new boarder is covered the day it is added rather than
+	## the day somebody remembers this line.
+	var melee_kinds: Array[String] = []
+	for kind in SkyGearData.ENEMIES:
+		if str(SkyGearData.ENEMIES[kind].get("ai", "")) == "melee":
+			melee_kinds.append(str(kind))
+	## (The roster is asserted to be non-trivial in `_wedge()`, not here — `_view`
+	## is closed to new work by the note at the top of `_hazard`.)
 	var tele_bad := ""
-	for kind in ["SCRAPPER", "ARMORED", "SWARM"]:
+	for kind in melee_kinds:
 		var cfg: Dictionary = SkyGearData.ENEMIES[kind]
 		if not ("reach" in cfg and "swing" in cfg):
 			tele_bad += " %s(no reach/swing)" % kind
@@ -2961,6 +2982,8 @@ func _view() -> void:
 			tele_bad += " %s(reach %.0f < trip %.0f)" % [kind, cfg.reach, cfg.attack_range]
 		elif float(cfg.swing) <= 0.0:
 			tele_bad += " %s(swing 0)" % kind
+		elif float(cfg.swing) >= TAU:
+			tele_bad += " %s(swing %.2f is a circle)" % [kind, cfg.swing]
 	_check("telegraph", "every melee windup has a reach and a swing arc to draw",
 		tele_bad == "", "bad:" + tele_bad)
 	## Ranged keeps its own identity — a firing line down the lane, never a swing.
@@ -3026,16 +3049,29 @@ func _view() -> void:
 	_check("telegraph", "a swing lands inside the wedge it drew and nowhere else",
 		arc_bad == "", "wrong:" + arc_bad)
 
-	## And the flank is only safe because there IS a fan to be outside of. A
-	## boarder with no `swing` — the Colossus, which telegraphs with a phase ring
-	## instead — keeps its circle, because there is no drawing to be honest to.
+	## AND THE FLANK IS SAFE FROM THE COLOSSUS TOO, WHICH IT WAS NOT (SG-119).
+	##
+	## This check used to read `a boarder that draws no wedge keeps its circle`
+	## and it PASSED, every run, for weeks — because it asserted the bug. Its
+	## comment said the Colossus "telegraphs with a phase ring instead, because
+	## there is no drawing to be honest to", and that was never true: `view3d.gd`
+	## drew him a 120° fan out of a fallback constant the whole time. So the
+	## harness was pinning a 360° hitbox in place under a sentence describing a
+	## renderer that did not exist. It is INVERTED rather than deleted, at the
+	## same position behind the same boss, so the diff shows the assertion
+	## changing sides: a swing aimed DOWN must no longer land on something
+	## standing 80 units UP.
 	var ring_boss := SkyGearEnemy.new()
 	ring_boss.kind = "BOSS"
 	ring_boss.config = SkyGearData.ENEMIES.BOSS
 	ring_boss.global_position = Vector2.ZERO
 	ring_boss.attack_direction = Vector2.DOWN
-	_check("telegraph", "a boarder that draws no wedge keeps its circle",
-		ring_boss._swing_hits(Vector2(0.0, -80.0), 140.0, 17.0))
+	_check("telegraph", "and stepping behind the Colossus works, which it never did before",
+		not ring_boss._swing_hits(Vector2(0.0, -80.0), 140.0, 17.0),
+		"a swing aimed down still landed on a target 80 units up")
+	_check("telegraph", "while standing in front of him still costs you",
+		ring_boss._swing_hits(Vector2(0.0, 80.0), 140.0, 17.0),
+		"the wedge stopped connecting dead ahead")
 	ring_boss.free()
 
 	## And it reaches the renderer: pose a boarder mid-windup, mirror it, and confirm
@@ -10227,6 +10263,298 @@ func _cutscene() -> void:
 ## and made sixty-one checks quietly stop existing. This block did it again —
 ## 435 became 342, green, no error — which is the third time. `_view` is over
 ## three thousand lines and is now closed to new work.
+## THE WEDGE THAT CONNECTS IS THE WEDGE THAT WAS DRAWN (board SG-119).
+##
+## The Colossus was the only melee row carrying no `reach` and no `swing`, and
+## both files had grown a fallback for exactly that case — so `_swing_hits`
+## returned true unconditionally, a full 360° circle at 163 units, while
+## `view3d.gd` drew him a 120° fan at 146 out of a constant the simulation had
+## never heard of. His hitbox was bigger than his telegraph in BOTH dimensions.
+## It made him HARDER than he looked, which is why it never arrived as a
+## complaint: nobody files a bug saying they were hit by something they could
+## not have dodged, they just conclude the boss is unfair.
+##
+## These checks are deliberately GEOMETRIC rather than a comparison of two
+## numbers, because two numbers agreeing is what the old code also believed. The
+## connect test is swept over a full circle of sample points and the fraction of
+## them that land must equal the arc the renderer opens — a shape that is a
+## circle in the sim and a wedge on the deck fails by a factor of three, and
+## there is no way to satisfy it with a mismatched shape.
+func _wedge() -> void:
+	var melee_kinds: Array[String] = []
+	for kind in SkyGearData.ENEMIES:
+		if str(SkyGearData.ENEMIES[kind].get("ai", "")) == "melee":
+			melee_kinds.append(str(kind))
+	## The roster the `_view` pass checks reach/swing over is READ OFF THE TABLE.
+	## It used to be three names typed into the harness, and the one melee row
+	## missing from that list was the one melee row that would have failed.
+	_check("telegraph", "the melee roster is read off the table, not typed into the harness",
+		melee_kinds.size() >= 4 and "BOSS" in melee_kinds,
+		"%d melee rows: %s" % [melee_kinds.size(), ", ".join(melee_kinds)])
+
+	var game := _new_game()
+	_begin(game)
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+
+	## THE SWEEP. A point target (`body = 0`) so the connect set is exactly the
+	## drawn wedge with no near-edge widening on top of it, sampled at 0.6 of the
+	## reach so distance is never the reason a sample misses. The measured
+	## fraction of a full circle that connects must be the arc over TAU.
+	var swept_bad := ""
+	var swept_note := ""
+	for kind in melee_kinds:
+		game.spawn_enemy(kind, 1)
+		var foe: SkyGearEnemy = null
+		for e in game.get_tree().get_nodes_in_group("enemies"):
+			if e.kind == kind and not e.dead:
+				foe = e
+		if foe == null:
+			swept_bad += " %s(did not spawn)" % kind
+			continue
+		foe.attack_direction = Vector2.RIGHT
+		var reach: float = foe.swing_wedge_reach()
+		var arc: float = foe.swing_wedge_arc()
+		var hits := 0
+		const SAMPLES := 720
+		for s in SAMPLES:
+			var a: float = TAU * float(s) / float(SAMPLES)
+			var at: Vector2 = foe.global_position + Vector2.RIGHT.rotated(a) * reach * 0.6
+			if foe._swing_hits(at, reach, 0.0):
+				hits += 1
+		var share: float = float(hits) / float(SAMPLES)
+		var want: float = arc / TAU
+		swept_note += " %s %.3f/%.3f" % [kind, share, want]
+		if absf(share - want) > 0.01:
+			swept_bad += " %s(connects over %.3f of the circle, draws %.3f)" % [kind, share, want]
+		## And the reach itself, on the axis where the arc cannot be the reason:
+		## just inside connects, just outside does not.
+		if not foe._swing_hits(foe.global_position + Vector2.RIGHT * reach * 0.98, reach, 0.0):
+			swept_bad += " %s(misses inside its own reach)" % kind
+		if foe._swing_hits(foe.global_position + Vector2.RIGHT * reach * 1.02, reach, 0.0):
+			swept_bad += " %s(connects past its own reach)" % kind
+		foe.dead = true
+		foe.queue_free()
+	_check("telegraph", "the wedge that connects is the wedge that was drawn",
+		swept_bad == "", ("bad:" + swept_bad) if swept_bad != "" else swept_note.strip_edges())
+
+	## THE CARVE-OUTS ARE GONE BY CONSTRUCTION, which is the half a geometric
+	## sweep cannot see: a reach-less melee row added tomorrow must be a loud
+	## failure rather than a quiet circle. Both fallbacks are read out of the
+	## source, because their absence is the fix.
+	var enemy_src := FileAccess.get_file_as_string("res://scripts/enemy.gd")
+	var view_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var carve_bad := ""
+	if enemy_src == "" or view_src == "":
+		carve_bad += " (could not read sources)"
+	if enemy_src.contains("if not (\"swing\" in config)"):
+		carve_bad += " enemy.gd still returns true for a swing-less row"
+	if enemy_src.contains("\"reach\" in config"):
+		carve_bad += " enemy.gd still asks whether a row has a reach"
+	if view_src.contains("TG_SWING_ARC := "):
+		carve_bad += " view3d.gd still holds a fallback arc constant"
+	if view_src.contains("\"reach\" in enemy.config"):
+		carve_bad += " view3d.gd still branches on whether a row has a reach"
+	_check("telegraph", "and no enemy can take a reach-less path — both carve-outs are gone",
+		carve_bad == "", "left behind:" + carve_bad)
+
+	## ONE FUNCTION, TWO CALLERS. The renderer must take both dimensions of the
+	## wedge from `enemy.gd`'s accessors rather than re-deriving them beside the
+	## draw call, because SG-119 IS two files deriving one shape separately.
+	var draws_from_sim := view_src.contains("enemy.swing_wedge_reach()") \
+		and view_src.contains("enemy.swing_wedge_arc()")
+	_check("telegraph", "and the renderer takes the wedge from the simulation's own accessor",
+		draws_from_sim,
+		"view3d.gd does not call swing_wedge_reach()/swing_wedge_arc()")
+
+	## A RANGED SHOOTER NEVER ASKS FOR A WEDGE — the ordering invariant, pinned at
+	## the source, and the honest story of why it is pinned THAT way.
+	##
+	## The first draft of SG-119 resolved the wedge one line ABOVE the
+	## `ai == "ranged"` branch, so every GUNNER shot called `swing_wedge_reach()`,
+	## which reads `config.reach`, which a ranged row correctly does not have.
+	## `tools/balance.gd` threw on every bolt in all twelve waves on its first
+	## invocation. The harness was green at 895/895 throughout.
+	##
+	## THE OBVIOUS BEHAVIOURAL CHECK DOES NOT CATCH IT, and that was measured
+	## rather than assumed: an invalid key on a Dictionary is a LOGGED error in
+	## Godot, not a halt — the expression yields null, `float(null)` is 0.0, and
+	## the shooter goes on to fire perfectly normally. The bug's whole symptom is
+	## console noise. So "a bolt reached the air" passes identically with the bug
+	## injected and without it, which is the thing this project calls not evidence
+	## of a fix. The ordering is therefore asserted where it is actually visible —
+	## in the source — and the behavioural check below is kept for what it IS:
+	## coverage the harness genuinely lacked, since nothing here had ever driven a
+	## shooter through a windup to the moment it fires.
+	## Searched from `_physics_process` onward, so the accessor's own doc comment
+	## further up the file cannot be mistaken for the call site.
+	var phys := enemy_src.find("func _physics_process")
+	var wedge_call := enemy_src.find("swing_wedge_reach()", phys)
+	var ranged_branch := enemy_src.find("config.ai == \"ranged\"", phys)
+	_check("telegraph", "a shooter's branch is taken before any wedge is resolved for it",
+		phys > 0 and ranged_branch > 0 and wedge_call > ranged_branch,
+		"in _physics_process: ranged branch at %d, wedge resolved at %d"
+			% [ranged_branch - phys, wedge_call - phys])
+
+	var shooter_game := _new_game()
+	_begin(shooter_game)
+	for e in shooter_game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	shooter_game.spawn_queue.clear()
+	shooter_game.projectiles.clear()
+	shooter_game.spawn_enemy("GUNNER", 1)
+	var gunner: SkyGearEnemy = null
+	for e in shooter_game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "GUNNER" and not e.dead:
+			gunner = e
+	if gunner != null:
+		gunner.global_position = shooter_game.player.global_position + Vector2(0.0, -150.0)
+		gunner.state = "windup"
+		gunner.state_time = 0.01
+		gunner.attack_direction = Vector2.DOWN
+		_advance(shooter_game, 0.05)
+	_check("telegraph", "and a ranged shooter still fires — it never asks for a wedge it has no reach for",
+		gunner != null and shooter_game.projectiles.size() > 0,
+		"%d bolts in the air" % (shooter_game.projectiles.size() if gunner != null else -1))
+	shooter_game.queue_free()
+
+	## THE COLOSSUS'S SWING LANDS EXACTLY AS FAR AS IT DID BEFORE. This fix is a
+	## SHAPE fix and it is not allowed to be a stealth range nerf in either
+	## direction: the retired fallback was `attack_range + 26` on both sides, so
+	## a `reach` of 146 reproduces the old distance to the unit, on both beats.
+	## His damage, health, windup and recover are pinned here for the same
+	## reason — the row that made him easier by an arc must not also have made
+	## him easier by a number (his difficulty is COLOSSUS-DESIGN's question).
+	game.spawn_enemy("BOSS", 1)
+	var boss: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "BOSS" and not e.dead:
+			boss = e
+	var cfg: Dictionary = SkyGearData.ENEMIES.BOSS
+	var legacy: float = float(cfg.attack_range) + 26.0
+	var beat0: float = boss.swing_wedge_reach() if boss != null else -1.0
+	if boss != null:
+		boss.beat = 1
+	var beat1: float = boss.swing_wedge_reach() if boss != null else -1.0
+	_check("telegraph", "and the Colossus's swing still lands exactly as far as it always did",
+		boss != null and is_equal_approx(beat0, legacy) \
+			and is_equal_approx(beat1, legacy + SkyGearEnemy.BOSS_SECOND_BEAT_REACH),
+		"beat 0 %.1f (was %.1f) · beat 1 %.1f (was %.1f)"
+			% [beat0, legacy, beat1, legacy + SkyGearEnemy.BOSS_SECOND_BEAT_REACH])
+	_check("telegraph", "and SG-119 moved his shape and nothing else about him",
+		is_equal_approx(float(cfg.damage), 26.0) and is_equal_approx(float(cfg.hp), 900.0) \
+			and is_equal_approx(float(cfg.windup), 0.90) and is_equal_approx(float(cfg.recover), 1.0),
+		"hp %.0f dmg %.0f windup %.2f recover %.2f"
+			% [cfg.hp, cfg.damage, cfg.windup, cfg.recover])
+	game.queue_free()
+	await process_frame
+
+
+## A SEEDED RUN IS A SEEDED RUN, INCLUDING THE KEGS (board SG-120).
+##
+## `set_seed_text` promises in its own comment that a seed is "a seed a player
+## can hand to someone else", and that is the stated reason card rolls draw from
+## `rng` rather than from `randf()`. But `visual_rng` — the second, cosmetic
+## stream — was a bare `RandomNumberGenerator.new()`, which Godot 4
+## auto-randomizes, and nothing in the repository ever seeded it. Mostly that
+## bought floater jitter. It also placed the `extra_kegs` talent's kegs, and a
+## keg is 26 damage inside 192 units, so two players on one seed got different
+## decks and the promise was false where it mattered most.
+func _keg_spots(game: SkyGearGame) -> Array[Vector2]:
+	var spots: Array[Vector2] = []
+	for p in game.props():
+		if p.prop_type == "keg" and not p.dead:
+			spots.append(p.global_position)
+	spots.sort_custom(func(a: Vector2, b: Vector2) -> bool:
+		return a.x < b.x if not is_equal_approx(a.x, b.x) else a.y < b.y)
+	return spots
+
+
+func _seeded_kegs() -> void:
+	## THE CHECK THAT MATTERS: the same seed twice is the same layout. Two whole
+	## games, seeded identically, with the talent that spends the cosmetic stream
+	## on real explosives — the keg positions must agree to the unit.
+	## `talents` is the resolved field map and `restow_props()` is what places the
+	## deck — the POWDER STORE idiom `_stow` already uses. Eight kegs, so the
+	## talent's own placement loop (the one that spends `visual_rng`) is most of
+	## the layout rather than a rounding error on it.
+	var layouts: Array = []
+	for _pass in 2:
+		var game := _new_game()
+		_begin(game, "KEGSEED")
+		game.talents = {"extra_kegs": 8.0}
+		game.restow_props()
+		layouts.append(_keg_spots(game))
+		game.queue_free()
+	var same: bool = layouts[0].size() == layouts[1].size() and layouts[0].size() > 0
+	if same:
+		for i in layouts[0].size():
+			if layouts[0][i].distance_to(layouts[1][i]) > 0.01:
+				same = false
+	_check("seed", "the same seed twice lays the kegs in the same places",
+		same, "%d kegs vs %d" % [layouts[0].size(), layouts[1].size()])
+
+	## AND A DIFFERENT SEED IS A DIFFERENT DECK, so the check above cannot be
+	## passed by a stream that stopped rolling at all — the failure mode that
+	## would make "reproducible" true and worthless.
+	var other := _new_game()
+	_begin(other, "OTHERSEED")
+	other.talents = {"extra_kegs": 8.0}
+	other.restow_props()
+	var other_spots: Array[Vector2] = _keg_spots(other)
+	var moved := false
+	for a in other_spots:
+		var matched := false
+		for b in layouts[0]:
+			if a.distance_to(b) <= 0.01:
+				matched = true
+		if not matched:
+			moved = true
+	_check("seed", "and a different seed is a different deck",
+		moved, "%d kegs, all in the same places as KEGSEED" % other_spots.size())
+	other.queue_free()
+
+	## THE STREAM IS ACTUALLY SEEDED — stated at the level of the generator, so a
+	## layout that happens to repeat for some other reason cannot carry this.
+	var probe := _new_game()
+	probe.set_seed_text("SALTPROBE")
+	var expected: int = hash("SALTPROBE") ^ SkyGearGame.VISUAL_SALT
+	_check("seed", "the cosmetic stream is seeded from the run's own seed text",
+		probe.visual_rng.seed == expected,
+		"seed %d, expected %d" % [probe.visual_rng.seed, expected])
+
+	## AND IT IS ISOLATED, both ways. Seeding the cosmetic stream must not
+	## consume from `rng` (the whole reason the two streams exist — a cosmetic
+	## draw once shifted every crit roll for the rest of the run), and its salt
+	## must not collide with the only other salted stream in the game, SG-57's
+	## per-wave tempo deal. A collision would mean two streams walking the same
+	## sequence, which is the bug the salt convention exists to prevent.
+	## `rng` after seeding must be byte-identical to a virgin generator seeded the
+	## same way — if the cosmetic stream's setup had drawn so much as one number
+	## from it, the state would have advanced and every card roll in the run
+	## would sit one draw further along.
+	var virgin := RandomNumberGenerator.new()
+	virgin.seed = hash("SALTPROBE")
+	probe.set_seed_text("SALTPROBE")
+	_check("seed", "and seeding it draws nothing from the run's own stream",
+		probe.rng.seed == virgin.seed and probe.rng.state == virgin.state,
+		"rng state %d, a virgin stream on that seed is %d"
+			% [probe.rng.state, virgin.state])
+	var collide := ""
+	for wave in range(0, 40):
+		if SkyGearGame.VISUAL_SALT == wave * 2654435761 + 7919:
+			collide += " wave %d" % wave
+		if SkyGearGame.VISUAL_SALT == wave * 2654435761:
+			collide += " stowage wave %d" % wave
+	_check("seed", "and the cosmetic stream's salt cannot collide with a tempo stream's",
+		collide == "", "collides at:" + collide)
+	probe.queue_free()
+	await process_frame
+
+
 ## HAZARD TICKS AND I-FRAMES (SG-117).
 ##
 ## `invulnerability_left` is ONE global variable. A fire field ticks the captain
@@ -10288,13 +10616,12 @@ func _hazard() -> void:
 	pool.player.hp = 100000.0
 	pool.fire_fields.clear()
 	pool._field({"position": Vector2(0.0, 600.0), "time": 999.0, "tick": 0.0})
-	## STEPPED AT THE GAME'S OWN FRAME DELTA, not this file's usual 0.05. The tick
-	## is reset by ASSIGNMENT (`field.tick = 0.25`) rather than by subtracting the
-	## interval, so the remainder is thrown away every time and the true period is
-	## `ceil(0.25 / delta) * delta`. At 0.05 that rounds to 0.30 and the pool
-	## reads 10 dps; at the 1/60 the game actually runs it is 0.25 and the pool
-	## reads its authored 12. Measuring the fix at a delta the game never uses
-	## would have been this harness testing itself.
+	## STEPPED AT THE GAME'S OWN FRAME DELTA, not this file's usual 0.05 — kept
+	## that way deliberately even though SG-122 has since made the period
+	## frame-rate independent, because this check's job is the RATE and the game
+	## runs at 1/60. The step-independence of that rate is its own check below,
+	## and the two failing separately is the point: one says the pool is worth
+	## 12 dps, the other says it is worth 12 dps no matter who is measuring.
 	var frame := 1.0 / 60.0
 	for _tick in 600:
 		## PINNED. `damage_player` returns early outside PLAY, and an emptied
@@ -10307,6 +10634,64 @@ func _hazard() -> void:
 	_check("hazard", "and a fire pool now deals its authored 12 dps, not a third of it",
 		dps > 11.0 and dps < 12.5, "%.1f dps over 10 s" % dps)
 	pool.queue_free()
+
+	## THE TICK PERIOD IS 0.25 SECONDS AT EVERY FRAME RATE (board SG-122).
+	##
+	## The reset used to be an ASSIGNMENT — `field.tick = 0.25` — which discards
+	## the overshoot, so the real period was `ceil(0.25 / delta) * delta` and the
+	## pool's damage was a function of the observer's frame rate. Measured, not
+	## argued: the same ten seconds of standing in the same pool is stepped at
+	## 1/60, at 0.05 and at 0.1, and the three answers must agree.
+	##
+	## 0.05 is the interesting one and it is why this bug cost an hour. It looks
+	## like it divides 0.25 exactly; in binary floating point it does not, so five
+	## steps land a hair short of zero, a sixth is needed, and the period rounds
+	## up to 0.30 for a 17% shortfall. 0.1 is the coarse case the `while` covers:
+	## a step longer than half the period must still deliver every tick it spans.
+	var rates: Array[float] = [1.0 / 60.0, 0.05, 0.1]
+	var measured: Array[float] = []
+	for step in rates:
+		var rig := _new_game()
+		_begin(rig)
+		rig.spawn_queue.clear()
+		rig.player.global_position = Vector2(0.0, 600.0)
+		rig.player.invulnerability_left = 0.0
+		rig.player.max_hp = 100000.0
+		rig.player.hp = 100000.0
+		rig.fire_fields.clear()
+		rig._field({"position": Vector2(0.0, 600.0), "time": 999.0, "tick": 0.0})
+		var elapsed := 0.0
+		while elapsed < 10.0 - 0.0001:
+			rig.state = SkyGearGame.State.PLAY
+			rig._update_fire_fields(step)
+			rig.player.invulnerability_left = maxf(0.0, rig.player.invulnerability_left - step)
+			elapsed += step
+		measured.append((100000.0 - rig.player.hp) / elapsed)
+		rig.queue_free()
+	var spread: float = measured.max() - measured.min()
+	_check("hazard", "and it deals it at any frame rate — the tick period is not the step",
+		spread <= 0.35 and measured.min() > 11.0,
+		"1/60 %.2f · 0.05 %.2f · 0.1 %.2f dps (spread %.2f)"
+			% [measured[0], measured[1], measured[2], spread])
+
+	## AND THE CARRY IS WHAT MAKES THAT TRUE, at the level of the accumulator
+	## rather than the damage total — so a future rewrite that happens to land on
+	## 12 dps by some other arithmetic still has to keep the remainder. One step
+	## of 0.3 past a fresh 0.25 interval must leave the tick holding 0.20, not a
+	## reset 0.25: the 0.05 it overshot by belongs to the next interval.
+	var carry := _new_game()
+	_begin(carry)
+	carry.spawn_queue.clear()
+	carry.state = SkyGearGame.State.PLAY
+	carry.player.global_position = Vector2(9000.0, 9000.0)
+	carry.fire_fields.clear()
+	carry._field({"position": Vector2(0.0, 600.0), "time": 999.0, "tick": 0.25})
+	carry._update_fire_fields(0.3)
+	var left: float = float(carry.fire_fields[0].tick)
+	_check("hazard", "a fire tick carries its remainder instead of throwing it away",
+		absf(left - 0.20) < 0.0001, "tick left at %.4f, expected 0.2000" % left)
+	carry.queue_free()
+
 	game.queue_free()
 	await process_frame
 

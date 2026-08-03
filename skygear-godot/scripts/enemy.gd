@@ -116,9 +116,25 @@ func _windup_scale() -> float:
 ##     `body` overlaps the fan if its centre is within `swing/2 + asin(body/d)`
 ##     of the swing's axis. Being clipped by the edge of the picture should
 ##     hurt; only getting clear should not.
-##   * Enemies with no `swing` (the Colossus, which telegraphs with a phase ring
-##     rather than a fan, and any future shape) keep the circle. There is no
-##     drawn wedge to be honest to, so there is nothing to be honest about.
+##   * THERE IS NO LONGER A REACH-LESS PATH (board SG-119). It used to say here
+##     that an enemy with no `swing` — the Colossus — "telegraphs with a phase
+##     ring rather than a fan", and that was simply false: `view3d.gd` drew him
+##     a 120° fan out of a fallback constant while this function returned true
+##     unconditionally, so his hitbox was a full circle around a wedge-shaped
+##     picture. He carries his own `reach` and `swing` now, and the two fallback
+##     branches are GONE from both files, so there is no path left that answers
+##     "no shape given" with "then everything hits".
+##
+##     `config.swing` is therefore read with no membership test. Be precise
+##     about what that buys, because the obvious claim is wrong and was checked
+##     rather than assumed: a missing key in Godot is a LOGGED error, not a
+##     halt — the expression yields null and `float(null)` is 0.0 — so a melee
+##     row added without a `swing` would get a zero-width wedge and console
+##     noise, not a crash. What actually guards it is the harness, at
+##     `telegraph · every melee windup has a reach and a swing arc to draw`,
+##     whose roster is read off the ENEMIES table rather than typed out. That
+##     matters: the roster WAS three typed names, and the one melee row missing
+##     from the list was the one melee row that would have failed.
 ##
 ## Nothing that stands still notices this: `attack_direction` is locked pointing
 ## at the target when the windup trips, so the boiler, a cannon and a crewman are
@@ -129,12 +145,32 @@ func _swing_hits(point: Vector2, swing_reach: float, body: float) -> bool:
 	var distance := offset.length()
 	if distance > swing_reach:
 		return false
-	if not ("swing" in config):
-		return true
 	if distance <= body or distance <= 0.001:
 		return true
 	var half: float = float(config.swing) * 0.5 + asin(clampf(body / distance, 0.0, 1.0))
 	return absf(attack_direction.angle_to(offset)) <= half
+
+
+## THE WEDGE THAT CONNECTS IS THE WEDGE THAT WAS DRAWN — one function, called by
+## the sim below and by `view3d.gd`'s telegraph pass, because board SG-119 was
+## caused by two files computing the same shape from the same table separately
+## and drifting apart (STATUS failure mode two). The renderer draws the fan at
+## `swing_wedge_reach()` spanning `swing_wedge_arc()`; the sim connects out to
+## `swing_wedge_reach() + target_radius`, measured to the target's near edge.
+## Anything that wants the shape asks HERE.
+##
+## The Colossus's second beat is the only phase term, and it is one constant.
+const BOSS_SECOND_BEAT_REACH := 90.0
+
+func swing_wedge_reach() -> float:
+	var wedge: float = float(config.reach)
+	if kind == "BOSS" and beat == 1:
+		wedge += BOSS_SECOND_BEAT_REACH
+	return wedge
+
+
+func swing_wedge_arc() -> float:
+	return float(config.swing)
 
 
 func configure(owner_game: Node, enemy_kind: String, enemy_lane: int, wave: int) -> void:
@@ -231,7 +267,7 @@ func _physics_process(delta: float) -> void:
 	var direction := to_target.normalized() if distance > 0.001 else Vector2.DOWN
 	var attack_range: float = float(config.attack_range) + target_radius
 	if kind == "BOSS" and beat == 1:
-		attack_range += 90.0            # the second beat reaches the whole deck
+		attack_range += BOSS_SECOND_BEAT_REACH   # the second beat reaches the whole deck
 
 	if state == "move":
 		if distance <= attack_range:
@@ -251,26 +287,35 @@ func _physics_process(delta: float) -> void:
 		state_time -= delta
 		velocity = Vector2.ZERO
 		if state_time <= 0.0:
-			## The swing lands out to `reach` (the browser's tuned melee reach),
-			## measured to the target's near edge — so `reach + target_radius`, and
-			## `attack_range` here already carries `+ target_radius`. The telegraph
-			## wedge in view3d.gd is drawn at exactly this `reach`, so what is shown
-			## and what connects are ONE number, not a drawing and a `+24..28` fudge
-			## disagreeing about it (STATUS failure mode two). Enemies with no `reach`
-			## (BOSS) keep the old ~26-unit reach past their trip range.
-			var swing_reach: float = attack_range + \
-				((float(config.reach) - float(config.attack_range)) if "reach" in config else 26.0)
 			if config.ai == "ranged":
+				## A SHOOTER NEVER ASKS FOR A WEDGE. This branch is first, and the
+				## reach is resolved INSIDE the melee branch below, because a
+				## ranged row legitimately carries no `reach` — the harness pins
+				## that at `telegraph · a ranged shooter is not handed a melee
+				## swing`. Computing the wedge above this `if` reads `config.reach`
+				## on the GUNNER and crashes its every shot; that is not a
+				## hypothetical, it is what the first draft of SG-119 did, and the
+				## whole harness stayed green while `tools/balance.gd` threw on
+				## every bolt in all twelve waves.
 				game.spawn_enemy_bolt(global_position, target_position, float(config.damage), float(config.bolt_speed))
 				game.play_sfx("enemy/shoot_drone.ogg", -7.0)
-			elif targets_player and _swing_hits(game.player.global_position, swing_reach, 17.0):
-				game.damage_player(float(config.damage), kind)
-			elif not target_turret.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
-				game.damage_turret(target_turret, float(config.damage))
-			elif not target_crew.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
-				game.hurt_crew(target_crew, float(config.damage))
-			elif not targets_player and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
-				game.damage_boiler(float(config.damage))
+			else:
+				## The swing lands out to `reach` (the browser's tuned melee reach),
+				## measured to the target's near edge — so `reach + target_radius`.
+				## The telegraph wedge in view3d.gd is drawn at exactly this `reach`
+				## because it calls the SAME function, so what is shown and what
+				## connects are one shape rather than two derivations that drift
+				## (STATUS failure mode two; board SG-119 is what happens when they
+				## do).
+				var swing_reach: float = swing_wedge_reach() + target_radius
+				if targets_player and _swing_hits(game.player.global_position, swing_reach, 17.0):
+					game.damage_player(float(config.damage), kind)
+				elif not target_turret.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
+					game.damage_turret(target_turret, float(config.damage))
+				elif not target_crew.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
+					game.hurt_crew(target_crew, float(config.damage))
+				elif not targets_player and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
+					game.damage_boiler(float(config.damage))
 			state = "recover"
 			state_time = float(config.recover)
 	elif state == "recover":

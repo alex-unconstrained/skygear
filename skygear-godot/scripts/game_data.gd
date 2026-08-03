@@ -33,8 +33,14 @@ const SHAPES := {
 ## SWARM 64/80°). They were missing here, so the port faked reach with a flat
 ## `attack_range + 24..28` fudge AND drew a thin streak instead of the browser's
 ## filled swing wedge. Now one number: the sim hits at `reach + target_radius` and
-## the telegraph wedge is drawn at `reach` (board SG-3). Ranged/BOSS have no `reach`
-## and keep their own treatments (a firing band, a phase ring).
+## the telegraph wedge is drawn at `reach` (board SG-3).
+##
+## EVERY melee row carries both, including the Colossus (board SG-119). This
+## comment used to end "Ranged/BOSS have no `reach` and keep their own treatments
+## (a firing band, a phase ring)", and the BOSS half of that was never true — he
+## was drawn a fan and hit in a circle. Only RANGED is exempt now: a shooter has
+## a firing band and no wedge at all, which the harness pins at
+## `telegraph · a ranged shooter is not handed a melee swing`.
 const ENEMIES := {
 	"SCRAPPER": {"hp": 60.0, "speed": 150.0, "damage": 12.0, "radius": 22.0, "attack_range": 66.0, "reach": 92.0, "swing": 1.658063, "windup": 0.40, "recover": 0.42, "ai": "melee", "scale": 0.25, "texture": "res://assets/art/enemies/automaton_front_idle.png"},
 	"GUNNER": {"hp": 35.0, "speed": 110.0, "damage": 10.0, "radius": 21.0, "attack_range": 340.0, "windup": 0.45, "recover": 0.80, "ai": "ranged", "bolt_speed": 352.0, "scale": 0.25, "texture": "res://assets/art/enemies/drone_front_idle.png"},
@@ -67,7 +73,21 @@ const ENEMIES := {
 	## `tools/balance.gd` (whose bot never moves) reports this change as noise.
 	"ARMORED": {"hp": 180.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
 	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "reach": 64.0, "swing": 1.396263, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
-	"BOSS": {"hp": 900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
+	## THE COLOSSUS'S HITBOX WAS BIGGER THAN HIS TELEGRAPH IN BOTH DIMENSIONS
+	## (board SG-119). He was the only melee row carrying no `reach` and no
+	## `swing`, so the sim connected in a full 360° circle while the renderer
+	## drew him a 120° fan out of a fallback constant.
+	##
+	## `reach` 146 is EXACTLY the number both files already used — the fallback
+	## was `attack_range + 26` on each side — so the swing's DISTANCE does not
+	## move by a unit: 163 to the captain before, 163 after, and 236+r on the
+	## second beat before and after. The only thing that changes is the ARC,
+	## from an unconditional circle to the 120° wedge that was always drawn.
+	## That makes him easier, which is correct: this row fixes a shape that
+	## lied, and his difficulty is a separate question sitting in
+	## `docs/COLOSSUS-DESIGN.md` awaiting the owner. His damage, health,
+	## windup and recover are untouched here on purpose.
+	"BOSS": {"hp": 900.0, "speed": 95.0, "damage": 26.0, "radius": 70.0, "attack_range": 120.0, "reach": 146.0, "swing": 2.094395, "windup": 0.90, "recover": 1.0, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/colossus_front_idle.png"},
 }
 
 # batch = [time, type, count, lane]. Lane is 0/1/2, "all", or omitted.

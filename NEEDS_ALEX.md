@@ -674,3 +674,85 @@ and annotated rather than quietly edited.
 The general form is the uncomfortable one, and it is now the fifth failure mode
 reaching backwards: **every verdict that rig produced is in this position.**
 SG-125 is the audit of which ones.
+
+---
+
+## SG-119 / SG-120 / SG-122 — the Colossus's hitbox was a lie, and fire was quietly under-delivering
+
+Three fixes, one of which changes how a fight FEELS and therefore needs your
+eye. Nothing here was tuned. Harness **897/897**.
+
+### 1 · The Colossus is easier now, and that is the fix rather than a side effect
+
+He was the only melee enemy in the game carrying no `reach` and no `swing`, and
+both the simulation and the renderer had grown a private fallback for that case.
+They did not agree. **The simulation connected in a full 360° circle; the deck
+drew him a 120° fan.** So stepping behind the Colossus — the thing his telegraph
+explicitly invites you to do — did nothing, and had never done anything.
+
+It made him HARDER than he looked, which is exactly why it never reached you as
+a bug: nobody reports being hit by something they could not have dodged, they
+just decide the boss is unfair.
+
+**What changed is the arc and only the arc.** His swing still lands at the same
+distance to the unit — 163 units to the captain, 253 on his second beat, before
+and after — because the retired fallback was `attack_range + 26` on both sides
+and the `reach` he now carries is that same 146. His damage (26), health (900),
+windup (0.90) and recover (1.00) are untouched, and the harness pins all four so
+a later pass cannot quietly compensate.
+
+**The size of it, measured rather than described:** the share of bearings from
+which his swing connects goes from **1.000 of the circle to 0.335** — the 120°
+he was always drawn. Two thirds of the angles he used to hit from are now misses.
+In practice the reduction is smaller than that, because his facing locks onto
+you when the windup trips: only a captain who MOVES during those 0.90 seconds
+escapes, and a stationary one is hit dead centre exactly as before.
+
+**And at the level of a whole run it does not show up at all, which I am
+reporting rather than hiding.** `tools/balance.gd`, Heat 0, n=120 per arm, the
+two arms differing only by his arc: damage taken **208.2 with the wedge against
+210.3 with the circle — a 1.0% difference, t=−0.21**. Runs held 93/120 against
+99/120. The rig's own noise floor is **8%**, so none of that clears it. That is
+the expected answer rather than a disappointing one — he is one wave of twelve
+and the average run ends at wave 11.6, so a whole-run average was never going to
+see him. The geometric number above is the evidence; the run-level number is
+written down so nobody measures it again hoping for a friendlier one.
+
+**THE DECISION THAT IS YOURS.** This makes him easier and I did not compensate,
+deliberately — `docs/COLOSSUS-DESIGN.md` is already waiting on you for his
+difficulty, and smuggling a buff into a shape correction would have made that
+document's question unanswerable. If he now reads as too soft, the lever is that
+design doc and not this row.
+
+### 2 · Fire was under-delivering at 60 fps too, which the board said it was not
+
+SG-122 was filed as a frame-rate bug that was *"harmless at 60 fps"*. **It was
+not harmless at 60 fps.** The pool's tick period was reset by assignment rather
+than carried, so the overshoot was discarded every interval — and 1/60 does not
+divide 0.25 in binary floating point any more than 0.05 does. Measured over ten
+seconds of standing in a pool at the game's own frame rate:
+
+| | before | after |
+|---|---|---|
+| 1/60 step (the real game) | **11.4 dps** | **12.0 dps** |
+| 0.05 step (hand-stepped tools) | 10.2 dps | 12.0 dps |
+| 0.1 step | 10.2 dps | 12.3 dps |
+
+So a fire pool has been worth about **5% less than its authored 12 dps** in
+every build that has ever shipped, and SG-117's recorded figure of "the authored
+12 dps" was actually 11.4 — I have annotated that row rather than leaving it.
+**Fire is therefore slightly stronger in this build than the last one**, on top
+of SG-117 already making it much stronger. That is a correctness fix and I did
+not offset it, but it is a real change to how much standing in fire costs and
+you should know it landed.
+
+### 3 · A seed now reproduces its kegs
+
+`visual_rng` — the cosmetic stream — was never seeded anywhere in the
+repository, while `set_seed_text` claimed in its own comment that a seed is
+"a seed a player can hand to someone else". Mostly that bought floater jitter.
+It also placed the **POWDER STORE** talent's kegs, and a keg is 26 damage inside
+192 units, so two players on one seed genuinely got different decks. It is
+seeded now, from the same seed text under its own salt, consuming nothing from
+the run's own stream. Nothing to decide — recorded because it changes what a
+shared seed means.

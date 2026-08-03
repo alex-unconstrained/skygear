@@ -4014,7 +4014,11 @@ const TG_DANGER_IN := Color(1.0, 0.549, 0.102)
 ## says it in this, and never in the oxblood above. Mixing the two palettes is
 ## how a telegraph stops meaning "danger".
 const PLAYER_TEAL := Color(0.216, 0.941, 0.784)   # #37f0c8
-const TG_SWING_ARC := 2.094395   # 120°, the fallback wedge for a reach-less melee
+## TG_SWING_ARC lived here — 120°, "the fallback wedge for a reach-less melee".
+## It is DELETED rather than left unused (board SG-119): it was a second opinion
+## about a swing's shape held in the renderer, and the one enemy it applied to
+## was being drawn a wedge the simulation had never agreed to. Every arc this
+## file draws now comes from `enemy.swing_wedge_arc()`.
 
 ## THE ANIMATED RANGED AIM LINE — board SG-28.
 ##
@@ -4487,18 +4491,15 @@ func _sync_effects() -> void:
 				_aim_dash_ribbon(enemy.global_position, enemy.attack_direction, flen, kk)
 			else:
 				## The swing wedge. Apex on the boarder, opening down its facing to
-				## `reach`, spanning `swing`. A reach-less melee (BOSS) gets a wide
-				## wedge from its live range; its turn ring carries the phase change.
-				var reach: float
-				var arc: float
-				if "reach" in enemy.config:
-					reach = float(enemy.config.reach)
-					arc = float(enemy.config.swing)
-				else:
-					reach = float(enemy.config.attack_range) + 26.0
-					if enemy.kind == "BOSS" and enemy.beat == 1:
-						reach += 90.0
-					arc = TG_SWING_ARC
+				## `reach`, spanning `swing` — and BOTH come from `enemy.gd`'s own
+				## `swing_wedge_*()`, the same call the sim connects with, so this
+				## drawing cannot disagree with the hit test (board SG-119). There
+				## used to be a fallback branch here for a reach-less melee, which
+				## invented a 120° arc the sim had never heard of; it is gone, and
+				## the Colossus's second-beat extension lives in that one function
+				## instead of being re-derived on this side.
+				var reach: float = enemy.swing_wedge_reach()
+				var arc: float = enemy.swing_wedge_arc()
 				_decal("tg%d" % enemy.get_instance_id(), enemy.global_position, ang,
 					reach * 2.0, reach * 2.0, _fan_texture(arc, true),
 					Color(TG_DANGER.r, TG_DANGER.g, TG_DANGER.b, flick * 0.5))

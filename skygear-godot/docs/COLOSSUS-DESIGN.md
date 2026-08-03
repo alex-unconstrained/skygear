@@ -54,6 +54,22 @@ game takes the reach-less branch and the carve-out comment about him
 "telegraphing with a phase ring rather than a fan" — which is false today — can be
 deleted with it.
 
+> **SHIPPED 2026-08-03, ahead of your decision (board SG-119).** The paragraph
+> above is written in the present tense and is now history: `ENEMIES.BOSS`
+> carries `reach` 146 and `swing` 120°, both carve-out branches are deleted, and
+> the wedge is one function that the renderer calls instead of re-deriving. The
+> shape lie is gone. **Nothing else about him moved** — 146 is exactly the
+> `attack_range + 26` both fallbacks already computed, so his swing lands at the
+> same 163 (253 on the second beat) it always did, and his damage, health,
+> windup and recover are harness-pinned unchanged. **He is therefore easier than
+> when §1 was measured, by the arc alone**: the share of bearings his swing
+> connects from went 1.000 → 0.335. That is deliberately NOT compensated here,
+> because §2's recommendation is the place to answer how hard he should be, and
+> a shape correction that also carried a buff would have made this document's
+> question unanswerable. Read §1's difficulty analysis as still standing — it
+> concluded the easiness comes from the cycle and the range rather than the
+> shape — but read its *numbers* as pre-SG-119.
+
 ---
 
 ## 2. Recommendation

@@ -124,6 +124,9 @@ var rng := RandomNumberGenerator.new()
 ## the scatter was drawn from `rng`, and every crit roll, scrap roll and spawn
 ## jitter for the rest of the run shifted by however many boarders had been hit.
 ## A seed has to reproduce a run, so nothing cosmetic may touch it.
+## SEEDED, since board SG-120 — from the run's own seed text XOR `VISUAL_SALT`,
+## in `set_seed_text`. "Cosmetic" was never quite true: the `extra_kegs` talent
+## places real, explosive kegs from this stream.
 var visual_rng := RandomNumberGenerator.new()
 ## THERE WAS BRIEFLY A THIRD STREAM. Board SG-48 built SHIP-AND-MAPS §4 as
 ## written — `layout_rng`, a STOWAGE table, a per-wave seeded deal — and then
@@ -1688,6 +1691,14 @@ func props() -> Array[Node]:
 			mine.append(node)
 	return mine
 
+## The salt that makes `visual_rng` a SEEDED stream instead of an auto-randomized
+## one (board SG-120). It is a constant rather than a wave term because the
+## cosmetic stream is per-RUN, and it is checked against the only other salted
+## stream in the game by `seed · the cosmetic stream cannot collide with a tempo
+## stream` — the tempo deal is `hash(seed_text) ^ (wave * 2654435761 + 7919)`,
+## and this value is not of that form for any wave the game deals.
+const VISUAL_SALT := 0x5C0BE11A
+
 func set_seed_text(text: String) -> void:
 	## A seed a player can hand to someone else. Same idea as the browser's
 	## ?seed=, and the reason card rolls draw from `rng` and never from
@@ -1696,6 +1707,22 @@ func set_seed_text(text: String) -> void:
 	if seed_text == "":
 		seed_text = _random_seed_text()
 	rng.seed = hash(seed_text)
+	## AND THE COSMETIC STREAM IS SEEDED TOO (board SG-120). It never was:
+	## `visual_rng` was a bare `RandomNumberGenerator.new()`, which Godot 4
+	## auto-randomizes, so the promise written three lines above — that a seed
+	## reproduces a run — was false for everything drawn from it. Mostly that
+	## is floater jitter and nobody would notice; it is NOT cosmetic where the
+	## `extra_kegs` talent places its kegs, because a keg is 26 damage inside
+	## 192 units and a lane-clearing bomb when it goes off, so two players on
+	## one seed got different decks.
+	##
+	## Seeded HERE, beside `rng`, rather than at `begin_run` where the row
+	## suggested: this is the one function that knows the seed, so the two
+	## streams cannot get out of step, and a tool that sets a seed without
+	## starting a run (most of `tools/`) gets a reproducible picture too.
+	## The XOR salt is the SG-57 isolated-stream idiom — it consumes nothing
+	## from `rng` and shares no state with it.
+	visual_rng.seed = hash(seed_text) ^ VISUAL_SALT
 
 
 func _random_seed_text() -> String:
@@ -3928,13 +3955,33 @@ func _update_salvage(delta: float) -> void:
 		elif float(item.time) <= 0.0:
 			salvage.remove_at(i)
 
+## A FIRE POOL'S TICK PERIOD IS 0.25 SECONDS AT EVERY FRAME RATE (board SG-122).
+##
+## It used to RESET the accumulator — `field.tick = 0.25` — which throws away
+## however far past zero the countdown overshot, so the true period was
+## `ceil(0.25 / delta) * delta` and the pool's rate was a function of how fast
+## the machine was drawing. It is CARRIED now (`+= FIRE_TICK`), so the remainder
+## survives into the next interval and the long-run rate is the authored one
+## whatever the step. That is not a rounding nicety: it cost an hour in the
+## SG-117 session, when `hazard · and a fire pool now deals its authored 12 dps`
+## read 10.2 at a hand-stepped 0.05 and looked exactly like the fix
+## underdelivering. 0.05 does not divide 0.25 in binary floating point, so five
+## steps land a hair SHORT of zero, a sixth is required, and the period rounds
+## up to 0.30 — a 17% shortfall produced entirely by the reset.
+##
+## And it is a `while` rather than an `if`, so a step LONGER than the period
+## delivers every tick it covers instead of one. A hitching frame should cost
+## the captain standing in fire what the fire was authored to cost her; the
+## number of iterations is bounded by the pool's own remaining `time`.
+const FIRE_TICK := 0.25
+
 func _update_fire_fields(delta: float) -> void:
 	for i in range(fire_fields.size() - 1, -1, -1):
 		var field: Dictionary = fire_fields[i]
 		field.time = float(field.time) - delta
 		field.tick = float(field.tick) - delta
-		if float(field.tick) <= 0.0:
-			field.tick = 0.25
+		while float(field.tick) <= 0.0:
+			field.tick = float(field.tick) + FIRE_TICK
 			_damage_circle(field.position, 78.0, 7.5, "EMBER", 0.0, false, false)
 			if field.position.distance_to(player.global_position) <= 78.0:
 				## NO I-FRAMES (SG-117). This tick fires four times a second, and
