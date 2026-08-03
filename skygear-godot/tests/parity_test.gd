@@ -172,6 +172,8 @@ func _run() -> void:
 	await process_frame
 	await _bot()
 	await process_frame
+	_bal()
+	await process_frame
 	_mobility()
 	await process_frame
 	_ink()
@@ -10890,6 +10892,99 @@ func _bot() -> void:
 		out.y < -0.5, "steer %.2f,%.2f" % [out.x, out.y])
 	burner.queue_free()
 	await process_frame
+
+
+## HOW BIG A SAMPLE THE BALANCE RIG NEEDS (SG-128), pinned as arithmetic.
+##
+## `_bot` above exists because the rig lied about what its bot did. This exists
+## because the rig said nothing at all about what its SAMPLE was worth, and the
+## ledger filled up with n=6 verdicts on the strength of that silence — including
+## two rows that recorded the same configuration of the same tool as 5/6 held and
+## as 3/6 held, sat next to each other for two days, and were never reconciled
+## because nothing in the repository could say whether they disagreed.
+##
+## They do not disagree. That is what these checks pin: not a threshold somebody
+## liked, but the arithmetic that makes n=6 indefensible and the derivation the
+## two constants come from, so a later edit cannot quietly move either away from
+## its reason. `tools/bal_stat.gd` carries the working.
+func _bal() -> void:
+	## THE ONE THE BOARD NEEDED AND DID NOT HAVE. SG-14's Heat 0 and SG-26's Heat 0
+	## are the same result. A reader who compares two held-counts by looking at
+	## them concludes the opposite, which is exactly what happened.
+	_check("bal", "5 of 6 and 3 of 6 are the same result — the SG-14/SG-26 contradiction is a sample size, not a disagreement",
+		SkyGearBalStat.held_agrees(5, 6, 3, 6),
+		"Wilson %s vs %s" % [SkyGearBalStat.wilson(5, 6),
+			SkyGearBalStat.wilson(3, 6)])
+
+	## AND THE CONTROL, because a comparator that answers "same" to everything
+	## proves nothing and would pass the check above on its own. The identical
+	## RATES at an honest sample separate cleanly.
+	_check("bal", "and the same two rates DO separate once the sample is honest — so the agreement above is resolution, not a blind comparator",
+		not SkyGearBalStat.held_agrees(100, 120, 60, 120),
+		"Wilson %s vs %s" % [SkyGearBalStat.wilson(100, 120),
+			SkyGearBalStat.wilson(60, 120)])
+
+	## THE FLOOR IS DERIVED, NOT CHOSEN. `MIN_N` is the smallest sample that could
+	## call the 83%-vs-50% gap the two rows accidentally straddled, at 80% power.
+	## If somebody lowers the constant, this fails; if somebody changes the gap it
+	## is justified by, this fails too. That is the point — the number and its
+	## reason cannot drift apart the way the bot's band and `CLOSE.range` could.
+	_check("bal", "the floor below which nothing is recorded is derived from the gap it has to see, not picked",
+		SkyGearBalStat.MIN_N == SkyGearBalStat.min_n_for(
+			SkyGearBalStat.MIN_N_GAP.x, SkyGearBalStat.MIN_N_GAP.y),
+		"MIN_N %d against a derivation of %d" % [SkyGearBalStat.MIN_N,
+			SkyGearBalStat.min_n_for(SkyGearBalStat.MIN_N_GAP.x,
+				SkyGearBalStat.MIN_N_GAP.y)])
+
+	## WHAT n=6 WAS ACTUALLY WORTH — the number that should have been beside every
+	## six-seed verdict this project ever wrote down, and the number that makes
+	## "5/6 versus 3/6" obviously a non-event.
+	_check("bal", "a held-count at the old six-seed default is worth plus or minus forty points",
+		SkyGearBalStat.held_resolution(6) > 35.0
+			and SkyGearBalStat.held_resolution(6) < 45.0,
+		"+-%.1f points at n=6" % SkyGearBalStat.held_resolution(6))
+
+	## AND THAT THE QUOTABLE SAMPLE ACTUALLY RESOLVES SOMETHING. `HONEST_N` is the
+	## point where the worst-case held resolution meets the 8% the rig's header
+	## already declared — which is the finding that the 8% was n=120's sampling
+	## error all along and not a floor of the instrument.
+	_check("bal", "and the quotable sample is the one that meets the eight percent the rig's own header declared",
+		SkyGearBalStat.held_resolution(SkyGearBalStat.HONEST_N) <= 9.0
+			and SkyGearBalStat.held_resolution(SkyGearBalStat.HONEST_N) > 7.0,
+		"+-%.1f points at n=%d" % [SkyGearBalStat.held_resolution(
+			SkyGearBalStat.HONEST_N), SkyGearBalStat.HONEST_N])
+
+	## THE RIG MUST REFUSE, IN WORDS, AT A SAMPLE IT CANNOT SUPPORT. `balance.gd`
+	## prints this line under every result; a reader who takes an n=6 number out of
+	## it now has to walk past a sentence saying it is not a measurement.
+	_check("bal", "and the rig refuses a verdict in words at a sample it cannot support",
+		SkyGearBalStat.verdict(6).contains("NOT A MEASUREMENT")
+			and not SkyGearBalStat.verdict(SkyGearBalStat.HONEST_N).contains(
+				"NOT A MEASUREMENT"),
+		"n=6 says '%s'" % SkyGearBalStat.verdict(6))
+
+	## THE CONSTANT GATE WAS WRONG IN BOTH DIRECTIONS, and this is the direction
+	## nobody noticed. SG-126 quoted the 8% floor at n=30, where the sample cannot
+	## establish anything under about 26% — so the gate was three times too
+	## PERMISSIVE there and would have waved a 9% difference through as a finding.
+	## The row survived on a separate instinct, not on the gate. A gate that does
+	## not carry its n is not a gate, which is why there is no longer a constant.
+	_check("bal", "the eight percent gate was three times too permissive at the sample size it was last quoted at",
+		SkyGearBalStat.resolvable_at(30, 0.357) > 0.24
+			and SkyGearBalStat.resolvable_at(30, 0.357) < 0.29,
+		"n=30 resolves %.0f%%, against a gate quoted as 8%%"
+			% (100.0 * SkyGearBalStat.resolvable_at(30, 0.357)))
+
+	## AND AN EFFECT THIS RIG CANNOT AFFORD TO SEE IS PRICED RATHER THAN
+	## DISMISSED. SG-119's -1.0% was recorded as "below the floor", which reads as
+	## a fact about the difference; it is a fact about the budget. 20,000 runs per
+	## arm is about 61 hours, and saying so is the honest form of the same refusal.
+	_check("bal", "and an effect the rig cannot afford to see is priced in runs rather than dismissed as noise",
+		SkyGearBalStat.runs_for_mean(0.01, 0.357) > 15000
+			and SkyGearBalStat.runs_for_mean(0.30, 0.357) < 40,
+		"1%% costs n=%d per arm, 30%% costs n=%d"
+			% [SkyGearBalStat.runs_for_mean(0.01, 0.357),
+				SkyGearBalStat.runs_for_mean(0.30, 0.357)])
 
 
 func _mobility() -> void:

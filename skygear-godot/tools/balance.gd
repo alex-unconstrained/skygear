@@ -87,10 +87,54 @@ extends SceneTree
 ##
 ## SO: THIS RIG REPORTS A DISTRIBUTION, NEVER A RUN. Per STATUS's fifth failure
 ## mode, a tool that reports a difference must first report its own noise floor.
-## This one's floor is NOT zero, so it is not entitled to call a small
-## difference a result: run `tools/balance_ab.gd`, which runs both arms many
-## times over and prints the floor beside the effect, and disbelieve anything
-## that does not clear it.
+##
+## ---------------------------------------------------------------------------
+## AND HOW BIG THE SAMPLE HAS TO BE. READ THIS BEFORE WRITING A NUMBER DOWN.
+## (SG-128. The arithmetic, the table it comes from and the two constants are in
+## `tools/bal_stat.gd`; this loop prints the verdict beside every result.)
+##
+## TWO CORRECTIONS TO WHAT USED TO BE WRITTEN HERE, both of which cost the
+## ledger something:
+##
+## 1. THIS BLOCK USED TO SAY "run `tools/balance_ab.gd`". THAT FILE HAS NEVER
+##    EXISTED — not in this tree, not in any commit. The one instruction the
+##    header gave a reader who wanted to check a difference properly pointed at
+##    nothing, which is STATUS's sixth failure mode written into the very
+##    paragraph warning about instruments. The instruction is now: pass `reps`
+##    (the fourth argument), read the resolution line this tool prints, and do
+##    not record anything the sample cannot resolve.
+##
+## 2. THE "8% FLOOR" WAS NOT A FLOOR. It was measured honestly — two n=120
+##    batches of identical code came back 8% apart on damage-taken — but the
+##    conclusion drawn from it, *"disbelieve anything that does not clear 8%"*,
+##    treats a SAMPLE SIZE as an INSTRUMENT PROPERTY. A floor does not shrink
+##    when you run more runs; sampling error does. Bootstrapped from a pool of
+##    240 real Heat 0 runs on this repaired rig, the 95% batch-to-batch range of
+##    the damage-taken mean is +-6% AT n=120 — the 8% is that spread, seen once.
+##    At n=240 it is +-4%. There is no 8% wall; there is a sample size, and it is
+##    printed now.
+##
+## WHAT THE SAMPLE BUYS (240-run Heat 0 pool, 2026-08-03):
+##
+##     n     held-rate, worst case   damage-taken mean
+##     6     +-40 points             +-26%      <- the default before SG-118
+##     31    +-18 points             +-12%      <- nothing below this is recorded
+##     120   +- 9 points             +- 6%      <- quotable
+##     240   +- 6 points             +- 4%
+##
+## AND THE REASON THE TABLE EXISTS AT ALL: SG-14 recorded Heat 0 as 5/6 held and
+## SG-26 recorded the same Heat 0, same seeds, same tool as 3/6. Two rows, two
+## answers, two days in the ledger. They are the SAME answer — Fisher's exact on
+## that 2x2 is p=0.55 — and n=6 could never have told them apart. That is what a
+## +-40-point resolution looks like from the inside.
+##
+## THE SEEDS ARE ALMOST NOT DOING ANYTHING, which is worth knowing before you
+## design a comparison around them. Over 240 Heat 0 runs the six seeds' mean
+## damage-taken spans 192..238 while the WITHIN-seed spread is sd 50-76. Seeds
+## account for a few percent of the variance; the rest is the residual described
+## above. Repeating fixed seeds grows the sample honestly, but it does not buy a
+## paired design — treat the runs as independent draws, because they behave like
+## independent draws.
 ## ---------------------------------------------------------------------------
 func _initialize() -> void: call_deferred("_run")
 
@@ -153,6 +197,16 @@ func _run() -> void:
 	var n := float(results.size())
 	print("")
 	print("  across %d runs: %d held, average wave %.1f" % [int(n), wins, waves_reached / n])
+	## WITH ITS INTERVAL, ALWAYS (SG-128). A held-count printed bare is what put
+	## "5/6" in one board row and "3/6" in another for the same configuration —
+	## both true, both meaningless, and neither carrying the one number that would
+	## have shown they did not disagree. Wilson rather than the normal interval:
+	## at 6/6 the normal interval is [100%, 100%] and this rig has published a 6/6.
+	var ci: Vector2 = SkyGearBalStat.wilson(wins, int(n))
+	print("  held %d/%d = %.0f%%   95%% interval %.0f%%..%.0f%%   (worst-case resolution at this n: +-%.0f points)"
+		% [wins, int(n), 100.0 * float(wins) / n, ci.x * 100.0, ci.y * 100.0,
+			SkyGearBalStat.held_resolution(int(n))])
+	print("  %s" % SkyGearBalStat.verdict(int(n)))
 	print("  player %.0f%%   allies %.0f%%" % [player_share / n, ally_share / n])
 	## Damage-taken, for the tempo kill-test (SG-57): the mean, the across-run
 	## spread, and the mean WITHIN-run per-wave spread — §2.2 asks whether
@@ -169,6 +223,20 @@ func _run() -> void:
 	var taken_sd := sqrt(taken_var / maxf(1.0, n - 1.0))
 	print("  damage taken: mean %.0f  across-run sd %.0f  mean within-run wave-sd %.1f"
 		% [taken_mean, taken_sd, wave_sd_sum / n])
+	## WHAT THIS SAMPLE COULD AND COULD NOT HAVE SEEN (SG-128), computed from the
+	## spread THIS run just produced rather than from a remembered constant. The
+	## header explains why a constant gate had to go: quoted at n=120 the old "8%
+	## floor" was roughly right by accident, and quoted at n=30 it was three times
+	## too permissive. This line cannot be wrong about an n it was not measured at,
+	## because it is measured at the n in front of it.
+	var cv: float = taken_sd / maxf(0.001, taken_mean)
+	print("  spread CV %.0f%%. AT THIS n A COMPARISON COULD ESTABLISH A DIFFERENCE OF %.0f%% OR LARGER"
+		% [cv * 100.0, SkyGearBalStat.resolvable_at(int(n), cv) * 100.0])
+	print("  in the mean, and nothing smaller. To see 10%% needs n=%d per arm; 5%% needs n=%d."
+		% [SkyGearBalStat.runs_for_mean(0.10, cv),
+			SkyGearBalStat.runs_for_mean(0.05, cv)])
+	print("  If you cannot afford that n, record that the comparison was NOT ATTEMPTED —")
+	print("  a small sample reported as 'no difference' is the SG-125 error.")
 	## ONE MACHINE-READABLE LINE (SG-118), so an A/B across two builds does not
 	## have to scrape the prose above it — and, more to the point, so the numbers
 	## that reach NEEDS_ALEX are the numbers the rig printed rather than numbers

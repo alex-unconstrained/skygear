@@ -332,6 +332,22 @@ Assume you are about to commit one:
   have failed it. A check written from the same misunderstanding as the code
   does not test the code. Prefer checks that read the table.
 
+**AND THE ONE SENTENCE TO MEET BEFORE YOU TYPE "NO SIGNIFICANT DIFFERENCE" IN A
+BOARD ROW (SG-128).** `tools/balance.gd` **can see about a third of a change and
+cannot see a twentieth of one at any price.** On its own measured spread a 30%
+difference costs 23 runs per arm, 10% costs 200, and 1% costs about twenty
+thousand — 61 hours. So a small sample that comes back "no difference" is not
+evidence of no effect; it is an instrument that could not have seen one, which is
+the mistake SG-125 exists to catch. **The old rule this replaces — "the rig's
+floor is 8%, disbelieve anything under it" — was wrong, and wrong in BOTH
+directions:** the 8% was sampling error at n=120 mistaken for a property of the
+instrument, so it shrinks with n rather than standing as a wall; quoted at n=120
+it was roughly right by accident, and quoted at n=30 (SG-126) the real bar is
+~26% and the gate was three times too permissive. There is no constant now. The
+rig prints what THIS sample can resolve, and what the effect you care about would
+cost, under every result. `n=6` — the default before SG-118 added `reps` — is
+worth +-40 points on a held-count and is not a measurement at all.
+
 ---
 
 ## The code

@@ -266,6 +266,104 @@ tick before you judge the look of the contact cores by eye.
 
 ---
 
+## SG-127 · Heat 5 is not a hard rung, it is a wall — and only you can say whether that is what you wanted
+
+**This needs a design decision from you.** SG-14 built the Heat ladder and
+recorded that it was *"graded rather than a cliff"*. That sentence was measured
+on the broken rig and was formally void; I have now re-measured it on the
+repaired one, and **it looks false**. There is a cliff. It is at Heat 5.
+
+| Heat | runs | held | average wave |
+|---|---|---|---|
+| 0 | 240 | 86.7% | 11.77 |
+| 3 | 120 | 66.7% | 11.34 |
+| 4 | 120 | 77.0% | 11.59 |
+| 5 | 120 | **0 of 120 — 0.0%** | **4.02** (sd **0.18**) |
+
+Heats 0 through 4 sit in a shallow twenty-point band. Heat 5 is not further along
+that curve — **nothing survives it, and every run dies on wave 4.** An sd of 0.18
+on the wave reached means the run does not vary: it is not "hard", it is a fixed
+stopping point. For scale, Heat 4 runs reach wave 11.6 and take 222 damage; Heat 5
+runs reach wave 4 and take 15, because they are dead before the damage arrives.
+
+**What I am NOT claiming.** Heat 4 reads higher than Heat 3 (77.0% against 66.7%),
+which would be a re-ordering of two rungs if it were real. **It is not being
+claimed.** Their 95% intervals are 65.1–85.8% and 57.8–74.5% and they overlap;
+this sample cannot separate them and I am not going to pretend it can.
+
+**Two caveats, both mine, both stated because the alternative is a curve that
+looks complete and is not.** Heats 1 and 2 were **not attempted** — I ran out of
+machine time and chose the Article arms over them. And the bot is a competent but
+not optimal player: she never repairs, never retreats from a wave she is losing,
+and dashes only defensively. A human at Heat 5 may well do better than 0 of 120.
+What she does establish is that Heat 5 is a different KIND of rung from the four
+below it, not a further step along the same slope.
+
+**The design question, which is yours and not mine.** Heat 5 is SKELETON CREW —
+no crew musters and the deck cannons start at half health — and §5's rule is that
+the summit is not a power reward, it pays only the record. So a summit that almost
+nobody clears may be exactly the intent. But "the ladder is graded" and "the top
+rung is a wall" are different promises to a player, and the docs currently make
+the first one. **Nothing has been tuned and I recommend nothing be tuned until you
+have said which you meant** — the honest options are to accept the wall and change
+the sentence, or keep the sentence and soften the rung. I have not touched either.
+
+## SG-128 · I told you SG-117's restraint was good discipline. It was good instinct with wrong arithmetic, and the fire fix is measurably real
+
+**Read this one even if you skip the rest, because it corrects something you were
+told a few hours ago and it is good news rather than bad.**
+
+When SG-117 fixed the fire immunity it also ran a whole-run before/after and
+**declined to claim the result**: damage taken fell 241.2 to 216.7, about
+**-10%**, and the row reported it as unresolvable because "two n=120 batches of
+identical code differ by 8%, so the floor is the same size as the effect." You
+were told that declining to claim it was good discipline. The restraint was
+right. **The reason given for it was wrong, and the difference matters to you.**
+
+**The 8% was never a floor.** It is real — two batches of identical code did come
+back 8% apart — but it was read as a property of the instrument, when it is a
+property of the SAMPLE SIZE. A floor does not shrink when you run more runs;
+sampling error does. I bootstrapped it off a pool of 240 real runs: at n=120 this
+rig's damage-taken mean has a 95% batch-to-batch range of about **+-6%**, which
+is the 8% somebody saw once. At n=240 it is +-4.5%. There is no wall there to
+clear.
+
+**So what does SG-117's -10% actually say?** Its own t-statistic was **2.43**,
+which is **p=0.015** — and a t-test already accounts for sampling error, so the
+floor argument double-counted the noise and threw away the one result of three
+that had actually cleared its own bar. Two things are true at once and you should
+have both:
+
+- **Believe the sign.** The fire fix made a measurable difference to a whole run,
+  not just to the isolated 60-second probe. It is unlikely to be zero.
+- **Do not believe the 10%.** n=120 is only about 57% powered to see an effect
+  that size (200 runs per arm is the number for 80%), and an underpowered result
+  that reaches significance has an inflated magnitude. The true effect is
+  probably real and probably smaller than 10%.
+
+**SG-117's conclusion still stands, and on a better argument that was already in
+the row**: the balance bot walks out of a fire pool she is standing in, so a
+whole-run average barely exercises an exploit that was always available to a
+player who *chose* to stand in one. That is the durable reason the run-level
+number should not be the headline — and it has nothing to do with floors. The
+row rests on it now.
+
+**Nothing shipped wrongly and no tuning value moved.** The three results that
+were dismissed under the bad reasoning (SG-117, SG-119's Colossus arc, SG-126's
+tick correction) all reach the same verdict on the corrected reasoning. I re-ran
+none of them; the correction is to the argument, not to the numbers.
+
+**The one sentence worth carrying:** *this rig can see about a third of a change
+and cannot see a twentieth of one at any price.* Detecting a 30% difference costs
+23 runs per arm; 10% costs 200; 1% costs about twenty thousand, or 61 hours. The
+tool prints that price list under every result now, computed from the spread it
+just measured, so nobody has to remember a constant. Anything finer than a third
+belongs to a targeted probe and not to a whole-run average.
+
+**Nothing here needs a decision from you.** It is on this list because you were
+told something specific and it turned out to be half wrong in your favour.
+
+
 ## SG-117 / SG-118 — the fire immunity is fixed, and the rig that was supposed to judge it was measuring a captain who never moved
 
 **Both are done. Neither changed a tuning value.** The short version: the fire

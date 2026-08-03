@@ -19,6 +19,51 @@ extends SceneTree
 ## "under 14% at full cap" is a number somebody should be able to check rather
 ## than believe.
 ##
+## ---------------------------------------------------------------------------
+## READ THIS BEFORE QUOTING THE "WORST HONEST CASE" (SG-124, measured 2026-08-03).
+##
+## THE SECOND PASS BELOW USUALLY STAMPS NOTHING, AND WHEN IT STAMPS NOTHING IT IS
+## NOT A SECOND MEASUREMENT — it is the first pass photographed twice. Run five
+## times on unchanged code:
+##
+##     run   new marks placed   ring darkened   reported cost
+##      1          --               0.2%           +0.01%
+##      2       13 of 60           14.0%           +1.33%
+##      3        0 of 60            0.0%           +0.00%
+##      4        0 of 60            0.0%           +0.09%
+##      5        0 of 60            0.0%           +0.07%
+##
+## FOUR RUNS IN FIVE, NOT ONE OF THE SIXTY STAMPS REACHES THE PLANKING. The tool's
+## own next line — *"if this is ~0 the figure above is a coincidence"* — is
+## therefore firing correctly most of the time, and the `+0.02%` that has been
+## quoted from this pass is a measurement of two things not overlapping.
+##
+## WHY, and it is not the SG-101 scar (a mark under a boarder's mesh). `_mark` has
+## THREE outcomes and only one puts a disc on the deck: inside `MARK_MIN_SEP` of a
+## same-kind mark it DEEPENS that one at ITS position rather than the requested
+## one, and with the cap full — which it always is here, because `_mark_the_deck`
+## fills all 24 slots first — it retires a victim and queues the newcomer in
+## `_mark_pending`. Whether that retirement completes depends on mark AGES, which
+## depend on how the awaited real frames fell. So the worst case is
+## NON-DETERMINISTIC: same code, same seed, sometimes 13 marks and sometimes zero.
+## That is SG-108's family again — a scene less still than the tool believed.
+##
+## THE ACCOUNTING IS PRINTED NOW rather than assumed, because "issue a stamp" and
+## "place a mark" turned out to be different events and nothing could tell.
+##
+## AND WHAT THE ONE GOOD RUN SAYS: with 14% real overlap the marks cost the rune
+## **+1.33% against a 3% gate** — under it. That is the only honest reading this
+## tool has ever produced of its own worst case, and it is n=1. It is NOT a
+## vindication of `MARK_CAP` 48->24 / `MARK_ALPHA_MAX` 0.30->0.12: those were
+## retuned on 11.5% and 9.1%, which SG-115 established are not reproducible from
+## this repository at all, and `view3d.gd`'s own comment already says the telegraph
+## cost is not established. **The contrast leg of that retune has nothing under it
+## in EITHER direction.** What IS reproducible is the coverage leg — 5.7% painted
+## at cap 24, verified here. `MARK_CAP` is deliberately NOT changed: the owner has
+## the marks on his play list to judge by eye, and an eye is a better instrument
+## than a rig that is inert four times in five.
+## ---------------------------------------------------------------------------
+##
 ## HOW THE DECK IS MARKED. Not randomly: a wave-12 deck is a record of where the
 ## fighting was, so the marks are laid down the three lanes with the density a
 ## twelve-wave run actually produces — heaviest in the centre lane where the
@@ -252,10 +297,31 @@ func _init() -> void:
 	## mark under a boarder is under the BOARDER'S MESH and never reaches the
 	## camera. The rune is drawn AHEAD of the figure, between it and the captain,
 	## and that strip of planking is the planking a rune is actually read against.
+	##
+	## AND THE ACCOUNTING THAT SHOULD HAVE BEEN HERE FROM THE START (SG-124).
+	## "Stamp a mark and re-measure" is not a step that can be assumed to have
+	## happened: `_mark` has THREE outcomes and only one of them puts a new disc on
+	## the planking. Inside `MARK_MIN_SEP` of a same-kind mark it DEEPENS that one
+	## instead — at its position, not at the requested one. And with the cap full,
+	## which it always is here because `_mark_the_deck` fills all 24 slots first, it
+	## retires a victim and puts the newcomer in `_mark_pending` to wait. So the
+	## loop below can issue sixty stamps and move nothing the camera can see, and
+	## the version of this tool that reported a "worst honest case" had no way to
+	## notice. The slot state is snapshotted and diffed rather than trusted.
+	var before_at: Array[Vector2] = []
+	var before_kind: Array[int] = []
+	var before_depth: Array[float] = []
+	for i in SkyGearView3D.MARK_CAP:
+		before_at.append(view._mark_at[i])
+		before_kind.append(view._mark_kind[i])
+		before_depth.append(view._mark_depth[i])
+
 	var cap: Vector2 = game.player.global_position
+	_stamped.clear()
 	for t in TELEGRAPHS:
 		for f in [0.3, 0.5, 0.7]:
 			var at: Vector2 = Vector2(t.at).lerp(cap, float(f))
+			_stamped.append(at)
 			for _r in 4:
 				view._mark(SkyGearView3D.MarkKind.BLOOD, at, 1.3)
 				view._age_marks(0.9)
@@ -263,9 +329,38 @@ func _init() -> void:
 			view._age_marks(0.9)
 	view._flush_marks()
 	view._process(0.0)
+
+	var fresh := 0
+	var deepened := 0
+	for i in SkyGearView3D.MARK_CAP:
+		if view._mark_kind[i] != before_kind[i] \
+				or view._mark_at[i].distance_to(before_at[i]) > 0.5:
+			fresh += 1
+		elif view._mark_depth[i] > before_depth[i] + 0.0001:
+			deepened += 1
+	## HOW MANY OF THE TWELVE STAMP POINTS ARE NEAR A SLOT THAT ACTUALLY MOVED.
+	## A stamp that only deepened a mark 60 units away did not put anything under
+	## the rune it was aimed at.
+	var landed := 0
+	for at in _stamped:
+		for i in SkyGearView3D.MARK_CAP:
+			if view._mark_kind[i] >= 0 and view._mark_at[i].distance_to(at) < 1.0:
+				landed += 1
+				break
 	print("")
 	print("    stamped under the runes — live marks now %d, loudest %.3f"
 		% [view.mark_count(), _loudest(view)])
+	print("    of %d stamps: %d slots took a NEW mark, %d were deepened in place,"
+		% [_stamped.size() * 5, fresh, deepened])
+	print("    %d pending and waiting for a retirement this frozen scene cannot"
+		% view._mark_pending.size())
+	print("    complete, and %d of the %d requested positions has a mark ON it."
+		% [landed, _stamped.size()])
+	if fresh == 0:
+		print("")
+		print("    THE WORST CASE IS THE FIRST PASS PHOTOGRAPHED TWICE. Not one new")
+		print("    mark reached the planking, so the figure below is not a second")
+		print("    measurement and must not be read as one (SG-124).")
 	var worst := await _cost(view, out_dir, "worst",
 		"the worst honest case, the deepest mark directly under each rune")
 
@@ -285,6 +380,11 @@ func _init() -> void:
 ## The whole frame: a rune mask is scattered across it rather than confined to a
 ## rectangle, so the stillness control has to cover all of it.
 const FRAME_BOX := Rect2i(0, 0, 1600, 900)
+
+## The twelve world positions the worst case ASKS for a mark at (SG-124). Kept so
+## the tool can report how many of them actually got one, rather than assuming
+## that issuing a stamp and placing a mark are the same event.
+var _stamped: Array[Vector2] = []
 
 
 ## `frame_post_draw`, not `process_frame` — SG-29's idiom, and SG-108's reason:
