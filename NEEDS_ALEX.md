@@ -1,48 +1,29 @@
 # NEEDS ALEX
 
-_Last updated: 2026-08-02, build 44._
+_Last updated: 2026-08-02, build 47 live; 48 pending._
 
-## Your five skyships are in — I need to know where you want them (SG-102)
+## Where the evening got to
 
-All five arrived complete and all five are in the game's own format, budgeted
-and checked. **Meshy's names for them are wrong without exception**, so I named
-them by what they turned out to be, by looking at them beside your concept
-paintings: your *Copper Cloud Voyager* is the **skiff**, *Brass Leviathan* is
-the **barge**, *Gilded Leviathan* is the **cutter** (it is the narrowest hull
-you sent — a leviathan it is not), and *The Iron Zephyr* is the **hulk-tender**.
-*The Brass Leviathan* is a second barge; it is on disk and ready but not in the
-sky, because four is what the handoff asked for and five in the same patch of
-air reads as traffic rather than a fleet. Say the word and it flies.
+**Build 47 is on itch** — 840 checks. Since 44 it has picked up: the boss
+TEXTURED (you sent the twin), the title screen rebuilt on a real vocabulary,
+the sentry-orb bug, F4 resizing plus the save fix, the hull silhouette with a
+bow that is geometry rather than a painting, accumulating scorch-and-blood
+marks, the furnace knight rebuilt to be dodgeable, sentry autocast, and a
+choosable auto-attack element.
 
-**What I measured, because you asked for something the camera fights.** You
-said *"visible in the distance and below the player ship"*. The camera is
-pitched 41° down and the top of the frame looks 23° BELOW horizontal — the same
-fact that hid the skybox three times. I swept 140 positions against six real
-play positions at both zooms, and the honest verdict is:
+**Pushed but not yet in a build:** your five-ship fleet. It rides in 48 with
+the last of the playtest batch (crew facing, crew size, bolt size, death fades).
 
-- **Off the bow and below: yes.** That is where they are, and from the bow or
-  either rail you see them past the gunwale
-  (`.shots/skyships/probe/bow-z1.00.png`, `port-z1.00.png`).
-- **Beside the ship or behind it: no.** Not from anywhere, at any zoom.
-- **From the middle of the deck at normal zoom: no — and nor is anything else.**
-  The planking is one hundred percent of that frame, edge to edge
-  (`.shots/skyships/probe/mid-z1.00.png`). Zoom out one notch and they appear in
-  the top corners.
-
-**So the question I need you to answer: which ship do you want where?** I placed
-them the way the measurement allowed and my own taste filled in the rest — the
-cutter nearest to port, the skiff to starboard, the barge far out and low, the
-tender furthest back. If you want a particular hull to be the one you see most,
-or the fleet closer and bigger, that is four numbers and I will move them.
-
-**And the one that pulls up for a wave.** You said *"for each wave maybe just
-having a ship pull up to the front and a bunch of enemies jump off."* I have NOT
-built that — the arrival choreography has to sit on top of the wave queue
-without changing it, which is a separate job. What I did do is measure the mark
-it should hit: **2,600 units off the bow, 520 below the planking**, which is
-clear of everything the fight uses and is the one direction that is on screen
-from every position. Tell me which of the five should be the one that comes
-forward and I will hold that station for it.
+**Two things I would put your eyes on first:**
+1. **The knight.** Its telegraph drew a 120-degree wedge and its hit test was a
+   full circle — sidestepping the flank, the exact move the picture invites,
+   never worked. Now gated on arc. Is 0.90s readable with gremlins on you, and
+   does 34 damage feel like a mistake you made?
+2. **The deck marks.** The kill-test threshold I set was wrong (an ink floor is
+   not a decal floor), the rig built to replace it answered
+   non-proportionally, so the agent took the conservative branch — half the
+   cap, alpha 0.30 to 0.12 — and refused to quote the flattering number. It is
+   the one thing nobody is sure about.
 
 ## The furnace knight is a different fight now — and only you can tell me if it worked (SG-97)
 
@@ -94,7 +75,6 @@ so a seed still plays the same run.
 
 **What to feel-check:** whether the title screen is the right door, or whether
 you would rather this were a decision inside a run that you have to earn.
-
 
 
 ## The ship has a bow now, and the painted prow is gone (SG-100)
@@ -230,18 +210,6 @@ should be. It does not warn. I reverted them and nothing of that is in this
 commit, but the tool should probably refuse to touch a key that has an
 AnimationLibrary beside it. Not fixed — it is not my row and somebody else is in
 that file right now.
-
-**One honest defect in my own commit, and it is already healed.** Two of us
-were committing into this tree within the same hour. `fa14403` (mine) picked up
-nine `menu ·` checks that had appeared in `tests/parity_test.gd` while I was
-staging it, without the `hud.gd` constants they read — so THAT COMMIT ALONE does
-not parse. The very next commit, `16e778e`, brings the constants and main is
-green again: **797/797, text audit clean, containment clean, 0 faint, 0 small.**
-Nothing is broken now and nothing needs doing; but if you ever bisect across this
-evening, `fa14403` is the one commit that will not run, and the reason is
-staging, not code. I did not rewrite it — it is not mine alone any more, and
-rebasing somebody else's commit off the top to tidy my own is worse than the
-untidiness.
 
 **And a housekeeping note you may already know:** two of us were writing this
 tree at the same time this evening. `scripts/hud.gd` had an in-flight menu
