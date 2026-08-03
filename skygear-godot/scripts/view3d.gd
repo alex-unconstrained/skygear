@@ -4257,6 +4257,12 @@ func _recycle() -> void:
 		if not _used.has(key):
 			var rig: SkyGearRig3D = _rigs[key]
 			_rigs.erase(key)
+			## THE GHOST DOES NOT OUTLIVE THE BOARDER (board SG-141). A rig that
+			## leaves `_rigs` is never handed to `_xray` again, so nothing would
+			## ever turn its silhouette off — and a corpse that keeps one lies
+			## about where the danger is for a second and a half, on top of
+			## fighting the corpse fade for the same mesh instances.
+			rig.silhouette(false)
 			if _corpses.size() >= CORPSE_CAP or game == null or not game.is_playing():
 				## The cap, and the not-in-a-fight case: freed on the spot, which
 				## is what every unclaimed rig did before there was a death.
@@ -8265,10 +8271,30 @@ func _occluded(ground: Vector2, stand: float) -> bool:
 ## through everything. Pooled alongside the real one and only present while it
 ## is needed, so a clear deck costs nothing.
 func _xray(key: String, ground: Vector2, height_units: float, tint: Color) -> void:
+	var hidden := _occluded(ground, height_units)
+	## THE MESH PATH, AND THE WHOLE OF SG-141. The sprite branch below cannot run
+	## for a figure, because a figure has no `Sprite3D` any more — every enemy
+	## archetype and both captains are rigged meshes, so `_billboards.get(key)`
+	## is null for all of them and this function used to return on its first
+	## line, every frame, for everybody. The silhouette was dead code guarded by
+	## dead code, which is why SG-139 measured its own change as doing nothing.
+	##
+	## `rig.silhouette` owns the how (see the long note in `rig3d.gd`); this
+	## function keeps owning the WHEN, so there is still exactly one answer to
+	## "is this figure behind cargo" and it is `_occluded`.
+	##
+	## CLEARED ON THE ELSE, not just set on the if. A ghost that is only ever
+	## turned on is a boarder who steps into the open still glowing through the
+	## crate he is no longer behind.
+	var rig: SkyGearRig3D = _captain if key == "player" else _rigs.get(key)
+	if rig != null:
+		rig.silhouette(hidden, tint)
+		return
+	## The painted-plate path, kept for anything genuinely drawn as a sprite.
 	var source: Sprite3D = _billboards.get(key)
 	if source == null or source.texture == null:
 		return
-	if not _occluded(ground, height_units):
+	if not hidden:
 		return
 	var ghost_key := "xr_" + key
 	_used[ghost_key] = true

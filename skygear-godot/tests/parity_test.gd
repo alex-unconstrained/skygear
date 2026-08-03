@@ -144,6 +144,12 @@ func _run() -> void:
 	await process_frame
 	_report()
 	await process_frame
+	_crit_explode()
+	await process_frame
+	## AWAITED — it builds a real world and waits a frame across a kill. An
+	## un-awaited coroutine here reports a clean pass for checks that never ran.
+	await _xray_silhouette()
+	await process_frame
 	_boss()
 	await process_frame
 	await _audio()
@@ -2258,6 +2264,240 @@ func _report() -> void:
 			and won_line.contains("waves repelled"),
 		"won: %s / lost: %s" % [won_line, lost_line])
 	game.queue_free()
+
+
+## --- THE CRIT EXPLOSION (board SG-147) ---
+##
+## The crash was never that the explosion was too strong. It was that nothing in
+## the code said it had to stop: `damage_enemy` opened a circle, the circle
+## called `damage_enemy`, and every re-entry could roll its own crit and open
+## another one. No counter decreased along that path, so the only thing ending
+## it was the rolls going cold — and twice in ~1,400 wave-12 runs they did not.
+##
+## SO THIS PASS IS DETERMINISTIC ON PURPOSE. It sets `crit_chance` to 1.0, which
+## is the exact condition the crash needs, and then makes ONE call and reads the
+## hit points. There is no seed to get lucky with and no wave to wait for: under
+## the old code this scenario is a chain, under the new one it is a single
+## explosion, and the difference is two integers apart.
+##
+## The health numbers are chosen so the OLD code terminates too — 61 hp dies to
+## a few 40-damage crits — because a check that hangs or overflows the stack
+## instead of failing takes the rest of the harness with it, which is the trap
+## STATUS.md wrote down today. This one fails; it does not crash.
+func _crit_explode() -> void:
+	var game := _new_game()
+	_begin(game)
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	game.spawn_enemy("SWARM", 1)
+	game.spawn_enemy("SWARM", 1)
+	var live: Array = []
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			live.append(e)
+	_check("crit", "two boarders stand close enough to pass an explosion between them",
+		live.size() == 2, "%d spawned" % live.size())
+	if live.size() != 2:
+		game.queue_free()
+		return
+	var first: SkyGearEnemy = _landed(live[0])
+	var neighbour: SkyGearEnemy = _landed(live[1])
+	## Thirty units apart, well inside the explosion's radius of 70, and both
+	## parked by hand so the check does not depend on where the lane put them.
+	first.global_position = Vector2.ZERO
+	neighbour.global_position = Vector2(30.0, 0.0)
+	for e in [first, neighbour]:
+		e.max_hp = 61.0
+		e.hp = 61.0
+	game.mods.crit_chance = 1.0
+	game.mods.crit_explode = 1.0
+	## Both off, so nothing but the crit explosion can move these numbers: a
+	## kill explosion would confound the arithmetic and knockback would move the
+	## boarders out of each other's radius mid-check.
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	## No element, so no burn or slow ticks land between here and the assertions.
+	game.damage_enemy(first, 10.0, "", 0.0, Vector2(0.0, -50.0), false)
+
+	## 61 - 20 (one explosion, at its flat 20) = 41. Under the old code the
+	## explosion crit for 40, exploded again, and this boarder is dead.
+	_check("crit", "an explosion may not explode",
+		not neighbour.dead and is_equal_approx(neighbour.hp, 41.0),
+		"neighbour hp %.1f dead=%s — expected 41.0 alive" % [neighbour.hp, neighbour.dead])
+	## 61 - 20 (the crit-doubled direct hit) - 20 (its own explosion) = 21.
+	_check("crit", "and the hit that opened it is still a crit",
+		not first.dead and is_equal_approx(first.hp, 21.0),
+		"struck hp %.1f dead=%s — expected 21.0 alive" % [first.hp, first.dead])
+	## REGRESSION GUARD, not a fix witness — this passes on the old code too. It
+	## is here because the cheapest way to stop a recursion is to delete the
+	## feature, and the card would still read as working while doing nothing.
+	_check("crit", "the explosion still reaches a neighbour at all — the guard against capping it to nothing",
+		neighbour.hp < 61.0, "neighbour hp %.1f" % neighbour.hp)
+	game.queue_free()
+
+	## REGRESSION GUARD in the other direction: `can_crit` defaults to true, so
+	## the aura, the pulse, the vent and the taps must be exactly as they were.
+	## The fix is one argument on one call site and must not have reached them.
+	var other := _new_game()
+	_begin(other)
+	for e in other.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	other.spawn_queue.clear()
+	other.spawn_enemy("SWARM", 1)
+	var lone: SkyGearEnemy = null
+	for e in other.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			lone = _landed(e)
+	if lone != null:
+		lone.global_position = Vector2.ZERO
+		lone.max_hp = 400.0
+		lone.hp = 400.0
+		other.mods.crit_chance = 1.0
+		other.mods.crit_explode = 0.0
+		other.mods.knock_multiplier = 0.0
+		other._damage_circle(Vector2.ZERO, 100.0, 10.0, "", 0.0, false, false)
+		_check("crit", "a circle opened first-hand still crits, so the cap did not reach the auras",
+			is_equal_approx(lone.hp, 380.0), "hp %.1f — expected 380.0" % lone.hp)
+	other.queue_free()
+
+
+## --- THE X-RAY SILHOUETTE (board SG-141) ------------------------------------
+##
+## The bug this pass exists to make impossible: `_xray` read `_billboards` and
+## returned when it found nothing, and it found nothing for EVERY figure in the
+## game, because the boarders became meshes and a mesh has no `Sprite3D`. The
+## feature was off for months and the harness had nothing to say about it.
+##
+## SO THE FIRST CHECK PINS THE PREMISE rather than the fix. A check that only
+## asserts "the silhouette is on" can be satisfied by a sprite figure that no
+## longer exists; the one that would have CAUGHT this says out loud that the
+## figures are meshes, so the sprite path is provably not the one under test.
+##
+## AND THE POSITION IS CHOSEN BY `_occluded`, NOT TYPED IN. Hand-typing a spot
+## "behind the cargo" would be this file re-deriving a rule `view3d.gd` owns,
+## and it would rot the moment a cargo rect moves — the roster-of-three-names
+## mistake STATUS.md's last failure mode describes. The check searches the deck
+## for a spot the renderer itself calls occluded and uses that.
+func _xray_silhouette() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	if game.impact != null:
+		game.impact.enabled = false
+	view.sway = false
+	_begin(game, "XRAY")
+	game.player.global_position = Vector2(0, 200)
+	view._process(0.05)
+
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	game.spawn_enemy("SCRAPPER", 0)
+	var boarder: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead:
+			boarder = _landed(e)
+	if boarder == null:
+		_check("xray", "a boarder spawns to be hidden", false)
+		world.queue_free()
+		return
+	var key := "e%d" % boarder.get_instance_id()
+
+	## Ask the renderer where a figure would be hidden, over the whole deck.
+	var stand := 150.0
+	var hidden_at := Vector2.INF
+	var open_at := Vector2.INF
+	var deck: Rect2 = SkyGearGame.DECK_RECT
+	var x := deck.position.x + 20.0
+	while x < deck.end.x and (hidden_at == Vector2.INF or open_at == Vector2.INF):
+		var y := deck.position.y + 20.0
+		while y < deck.end.y:
+			var spot := Vector2(x, y)
+			if view._occluded(spot, stand):
+				if hidden_at == Vector2.INF:
+					hidden_at = spot
+			elif open_at == Vector2.INF:
+				open_at = spot
+			y += 40.0
+		x += 40.0
+	_check("xray", "the deck has somewhere to hide and somewhere to stand in the open",
+		hidden_at != Vector2.INF and open_at != Vector2.INF,
+		"hidden %s / open %s" % [hidden_at, open_at])
+	if hidden_at == Vector2.INF or open_at == Vector2.INF:
+		world.queue_free()
+		return
+
+	## THE PREMISE, and the check that would have caught SG-141 on the day the
+	## boarders were ingested. Passes on the old code too — it is not a witness,
+	## it is the reason the witness below could never have fired.
+	boarder.global_position = hidden_at
+	view._process(0.05)
+	var rig: SkyGearRig3D = view._rigs.get(key)
+	_check("xray", "a boarder is a mesh with no sprite, so the painted-plate silhouette could never have drawn one",
+		rig != null and view._billboards.get(key) == null,
+		"rig %s / billboard %s" % [rig != null, view._billboards.get(key) != null])
+	if rig == null or rig.model == null:
+		world.queue_free()
+		return
+
+	var lit: Array = []
+	for child in rig.model.find_children("*", "MeshInstance3D", true, false):
+		lit.append(child)
+	var overlaid := 0
+	for mi in lit:
+		if (mi as MeshInstance3D).material_overlay != null:
+			overlaid += 1
+	_check("xray", "a boarder standing behind the cargo is drawn as a silhouette",
+		lit.size() > 0 and overlaid == lit.size(),
+		"%d of %d mesh parts carry the ghost" % [overlaid, lit.size()])
+
+	var ghost: StandardMaterial3D = (lit[0] as MeshInstance3D).material_overlay \
+		as StandardMaterial3D if lit.size() > 0 else null
+	_check("xray", "and the silhouette draws THROUGH the crates rather than being hidden by them",
+		ghost != null and ghost.no_depth_test
+			and ghost.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED,
+		"no_depth_test %s / unshaded %s" % [
+			ghost != null and ghost.no_depth_test,
+			ghost != null and ghost.shading_mode == BaseMaterial3D.SHADING_MODE_UNSHADED])
+
+	## THE LEAK GUARD. Passes on the old code (which never set an overlay at all),
+	## so it is a guard rather than a witness — named as one.
+	boarder.global_position = open_at
+	view._process(0.05)
+	var still_on := 0
+	for mi in lit:
+		if is_instance_valid(mi) and (mi as MeshInstance3D).material_overlay != null:
+			still_on += 1
+	_check("xray", "and it clears the moment he steps into the open — the guard against a permanent ghost",
+		still_on == 0, "%d of %d still ghosted" % [still_on, lit.size()])
+
+	## THE SECOND LEAK GUARD, same standing: a rig that leaves `_rigs` is never
+	## handed to `_xray` again, so nothing else would ever turn its ghost off.
+	boarder.global_position = hidden_at
+	view._process(0.05)
+	var before_death := 0
+	for mi in lit:
+		if is_instance_valid(mi) and (mi as MeshInstance3D).material_overlay != null:
+			before_death += 1
+	boarder.dead = true
+	boarder.queue_free()
+	await process_frame
+	view._process(0.05)
+	var after_death := 0
+	for mi in lit:
+		if is_instance_valid(mi) and (mi as MeshInstance3D).material_overlay != null:
+			after_death += 1
+	_check("xray", "and a corpse does not keep the ghost the boarder had — the guard against a silhouette outliving its owner",
+		before_death > 0 and after_death == 0,
+		"%d ghosted before the kill, %d after" % [before_death, after_death])
+	world.queue_free()
 
 
 ## The finale has two beats and the second one has to actually arrive. A phase

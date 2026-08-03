@@ -26,7 +26,12 @@ func _initialize() -> void: call_deferred("_run")
 ##   make    changes files or spends money; never in `all`
 const TOOLS := [
 	{"id": "harness", "kind": "check", "script": "tests/parity_test.gd",
-		"what": "the whole simulation, 867 checks",
+		## NO COUNT HERE ON PURPOSE. This line read "867 checks" while the harness
+		## reported 970 — a number duplicated out of the one place that can know
+		## it goes stale the moment anybody adds a check, which is STATUS.md's
+		## sixth failure mode in its smallest possible form. The harness prints
+		## its own total; this menu does not need to guess at it.
+		"what": "the whole simulation, every check in tests/parity_test.gd",
 		"why": "the one thing that must be green before anything ships"},
 	{"id": "text", "kind": "check", "script": "tools/text_audit.gd", "window": true,
 		"what": "every string on 21 screens at 4 resolutions — fit, size, contrast, overlap and drift",

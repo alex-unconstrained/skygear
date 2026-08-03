@@ -3116,13 +3116,40 @@ func _update_passives(delta: float) -> void:
 ## The single funnel for damage dealt to a boarder. Crit, brittle, lifesteal,
 ## pressure and telemetry all happen here, once, because every other version of
 ## this project put them in four places and one of them was always wrong.
-func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float, origin: Vector2, grants_pressure: bool) -> float:
+## `can_crit` is the browser's `noCrit` option, which this port dropped on the
+## way across, and dropping it is what made SG-147 a crash rather than a
+## flourish. AN EXPLOSION MAY NOT EXPLODE: the crit explosion below re-enters
+## this function through `_damage_circle`, and while every re-entry can roll its
+## own crit there is no quantity that decreases, so the recursion terminates
+## only when the rolls happen to stop. That is not a termination argument, it is
+## a probability, and twice in ~1,400 wave-12 runs the probability lost.
+## Passing `false` on that one edge makes AN EXPLOSION'S OWN DEPTH EXACTLY 1 by
+## construction — `crit` cannot be true when `can_crit` is false, so the branch
+## that recurses cannot be reached from inside itself, for any seed, at any
+## frame rate.
+##
+## AND THE PRECISE CLAIM, because "it cannot recurse" would be too strong. One
+## re-entry survives: an explosion can KILL, `_kill_enemy` opens a `kill_explode`
+## circle, and that circle crits normally. So the cycle can still be walked —
+## but only ever across a kill, and a dead boarder cannot die twice. Every
+## traversal now costs one living boarder permanently, so the depth is bounded
+## by the number of figures on the deck instead of by nothing at all. That is
+## the difference between a terminating program and a lucky one, and it is the
+## property to preserve if anyone edits this path.
+##
+## (The browser passes `noCrit:true` on the kill explosion too, storm-dusk-v11
+## line 1863, and on the vent, the pools, the kegs, the cannon and the crew. This
+## port dropped the flag everywhere. Restoring the other six is a real balance
+## change and is filed separately rather than smuggled into a crash fix.)
+func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float, origin: Vector2, grants_pressure: bool, can_crit: bool = true) -> float:
 	if not is_instance_valid(enemy) or enemy.dead:
 		return 0.0
 	var scaled := amount
 	if enemy.slow_time > 0.0:
 		scaled *= 1.0 + float(mods.slow_damage)
-	var crit := rng.randf() < float(mods.crit_chance)
+	## Short-circuited exactly as the browser writes it (`!o.noCrit && chance()`),
+	## so a no-crit hit consumes nothing from the seeded stream.
+	var crit := can_crit and rng.randf() < float(mods.crit_chance)
 	if crit:
 		scaled *= 2.0
 	var hit_at := enemy.global_position
@@ -3153,7 +3180,12 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 					float(tap.life) + float(SkyGearData.TAP.extend_on_kill))
 				break
 	if crit and float(mods.crit_explode) > 0.0:
-		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false)
+		## THE ONE RECURSIVE EDGE IN THE DAMAGE PATH, and the `false` on the end
+		## is the whole of SG-147. Do not remove it and do not let a caller pass
+		## `true` here: the harness pins it as `crit · an explosion may not
+		## explode`. Browser original, storm-dusk-v11.html:1734, which has always
+		## passed `noCrit:true` on this call.
+		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false, false)
 	if grants_pressure:
 		register_damage(dealt, enemy.global_position)
 	return dealt
@@ -3205,10 +3237,13 @@ func heal_player(amount: float, source: String) -> float:
 		add_floater("+%d" % roundi(healed), player.global_position, Color("#37f0c8"))
 	return healed
 
-func _damage_circle(center: Vector2, radius: float, damage: float, element: String, knock: float, grants_pressure: bool, hits_props: bool) -> void:
+## `can_crit` is forwarded and never re-raised, so a circle opened by a no-crit
+## caller stays no-crit for every enemy it touches. That is what turns the
+## depth-1 rule above into a property of the call graph rather than a habit.
+func _damage_circle(center: Vector2, radius: float, damage: float, element: String, knock: float, grants_pressure: bool, hits_props: bool, can_crit: bool = true) -> void:
 	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.global_position.distance_to(center) <= radius + enemy.radius:
-			damage_enemy(enemy, damage, element, knock, center, grants_pressure)
+			damage_enemy(enemy, damage, element, knock, center, grants_pressure, can_crit)
 	if hits_props:
 		_damage_props_circle(center, radius, damage)
 

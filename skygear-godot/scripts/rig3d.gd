@@ -732,6 +732,66 @@ func react_land() -> void:
 	_squash = maxf(_squash, 0.85)
 
 
+## --- THE X-RAY SILHOUETTE, FOR A FIGURE MADE OF MESH (board SG-141) ---------
+##
+## `view3d._xray` draws the see-through-cargo ghost by cloning the figure's
+## `Sprite3D` and flattening it to one colour. NOBODY ON THIS DECK HAS A
+## `Sprite3D` ANY MORE. Every archetype is a rigged mesh, so that function has
+## returned on its first line for every figure in the game since the boarders
+## were ingested, and the feature the browser turned on at v3 has been off ever
+## since. It was survivable while the cargo runs were flat painted decals. They
+## are solid crate meshes now, so a boarder can stand behind cover and be
+## genuinely, completely absent from the picture.
+##
+## A MESH FIGURE'S SILHOUETTE IS ITS OWN GEOMETRY, DRAWN AGAIN WITH THE DEPTH
+## TEST OFF. That is better than the sprite version ever was and not merely a
+## restoration: the ghost is posed by the same skeleton on the same frame, so it
+## reads as THIS boarder mid-swing rather than a generic plate — the shape tells
+## you which one it is and what it is doing, which is the whole point of pillar
+## six. `material_overlay` draws it as a second pass over the real material, so
+## the figure keeps its normal appearance where it is NOT occluded.
+##
+## THE TRAP, AND IT IS WRITTEN DOWN ONE FILE OVER (view3d.gd, the corpse fade,
+## board SG-103): one crew mesh serves the whole deck, so anything set on a
+## shared MATERIAL or a shared MESH leaks to every figure using it.
+## `material_overlay` is a property of the GeometryInstance3D, exactly like the
+## `transparency` the corpse fade uses, so it stays per figure — and the
+## material itself is allocated PER RIG, never shared, so a tint set for one
+## boarder cannot reach another.
+var _ghost: StandardMaterial3D = null
+var _ghost_on := false
+
+
+func silhouette(on: bool, tint: Color = Color.WHITE) -> void:
+	if model == null:
+		return
+	## Cheap no-op on the frames nothing changed, which is nearly all of them —
+	## this is called for every figure every frame, and a `find_children` walk
+	## per figure per frame in the middle of a fight is the cost the corpse fade
+	## went out of its way to avoid.
+	if not on and not _ghost_on:
+		return
+	if on and _ghost != null and _ghost_on and _ghost.albedo_color == tint:
+		return
+	if on and _ghost == null:
+		_ghost = StandardMaterial3D.new()
+		## UNSHADED so the deck's lamps cannot make the silhouette dim exactly
+		## where it is needed, NO_DEPTH_TEST so it draws through the crates, and
+		## a render priority above the opaque pass so it sorts last.
+		_ghost.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+		_ghost.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		_ghost.no_depth_test = true
+		_ghost.render_priority = 8
+		## Back faces culled, or the far side of the body draws over the near
+		## side and the shape stops reading as a body at all.
+		_ghost.cull_mode = BaseMaterial3D.CULL_BACK
+	if on:
+		_ghost.albedo_color = tint
+	for child in model.find_children("*", "MeshInstance3D", true, false):
+		(child as MeshInstance3D).material_overlay = _ghost if on else null
+	_ghost_on = on
+
+
 func _process(delta: float) -> void:
 	_clock += delta
 	_follow_cloak()
