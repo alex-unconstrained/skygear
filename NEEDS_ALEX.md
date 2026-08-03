@@ -25,6 +25,58 @@ the last of the playtest batch (crew facing, crew size, bolt size, death fades).
    cap, alpha 0.30 to 0.12 — and refused to quote the flattering number. It is
    the one thing nobody is sure about.
 
+## The character cluster, bottom left — one corner, done properly (SG-103)
+
+Your ask, with the Supervive shot: *"borders, accents, smaller elements to give
+the thematic guidance while not sacrificing the player's readability… focus on
+one space first (character info, bottom left) to see how we can make it look."*
+
+**Done, and only that corner.** The skill bar, the lane readout and the
+objective plate are untouched on purpose — the direction should get your eye
+before it spreads to five clusters. The thinking is in
+`skygear-godot/docs/HUD-DESIGN.md`; the two frames to open side by side are:
+
+```
+.shots/screens/hud-before/playing-1920x1080.png
+.shots/screens/hud-after/playing-1920x1080.png
+```
+
+and the same pair at `-1600x900` for the narrowest window the game opens at.
+Also worth a look: `playing-the-boilerwright-1920x1080.png` in both, because his
+plate is where the old layout was worst — `SPC JET` was printed onto the brass
+bracket and his damage multiplier, which is the whole of his class, was two
+words next to a dial.
+
+What the reference taught, in four lines: clusters are **bounded** and separated
+by real gaps; each answers **one question**; the character block is **unequal on
+purpose** — portrait, health and resource are different shapes at different
+sizes, never a stack of equal rows; and the theme lives **on the frame** while
+the numbers sit on quiet ground. What I did not take: its palette, its density,
+or its hard-cut hexagons. Ours is a **porthole**, a heavy gauge, a light gauge
+half its height with the pressure dial shrunk to an instrument cap on its end,
+and a stamped rail for the dashes.
+
+**One real bug fell out of measuring it.** The health bar has been drawing at a
+fifth of its own height since the bar art landed — `bar_fill_hot.png` paints its
+band in rows 102–153 of a 256-tall canvas and the code stretched the whole
+canvas into the bar, so at full health the bar was a **199 × 2 pixel hairline**.
+Same on the BOILER bar at the top of the screen, which is the thing you lose by.
+Fixed (SG-104). It is the single biggest difference between the two frames.
+
+**One thing I need from you, and one question.**
+
+- **The Aether Loom is not running** and I could not find it to start:
+  `127.0.0.1:8765` refuses, and the install path in `ASSET-GENERATION.md`
+  (`C:/Users/alexr/Documents/Codex/2026-07-26/done-66-images-fully-specced-for`)
+  does not exist on this machine. I did not fake it — the cluster is built
+  entirely on art already in `assets/art/ui/`, the way the menu rebuild was. The
+  four prompts it should run are written out in the house frames in
+  `HUD-DESIGN.md` §6, top of the list being a **Boilerwright portrait**: he
+  wears the Corsair's face right now, which the cluster's whole identity job
+  gets wrong.
+- **Does the direction feel right before it spreads?** If yes, the order is the
+  hand, then the ship plate, then the objective (`HUD-DESIGN.md` §9).
+
 ## The furnace knight is a different fight now — and only you can tell me if it worked (SG-97)
 
 Your ask: *"Furnace knights need slower more telegraphed hits, hard hitting but

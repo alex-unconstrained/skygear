@@ -2135,17 +2135,48 @@ func _draw_game_hud() -> void:
 	## --- the captain -------------------------------------------------------
 	var panel: Rect2 = plates.captain
 	_panel(panel)
+	var inner := interior(panel)
+
+	## THE PORTHOLE — identity, and the largest object in the cluster
+	## (docs/HUD-DESIGN.md §3.2). It is largest because it is the only thing here
+	## identifiable at zero resolution, and the cluster is read peripherally: the
+	## player's eye is on the middle of the screen, where the boarders are.
+	##
+	## `portrait_corsair.png` is a CUT-OUT BUST on transparency — not a disc and
+	## not a framed portrait — so something has always had to frame it, and what
+	## was doing the job was `gauge_ring.png` drawn at grow(6): a thin INSTRUMENT
+	## bezel with graduation marks, which is the wrong object at this size and was
+	## fighting the live auto-attack arc for the same rim. Three concentric rings
+	## on one element, one of them carrying information.
+	##
+	## Four layers now and each has one job: the glass she is behind, her, the
+	## brass rim, and the live arc OUTSIDE all of it. The only ring that moves is
+	## the one carrying information.
 	var portrait_at := l.item("captain", "portrait", panel)
+	var eye := portrait_at.get_center()
+	var seat: float = portrait_at.size.x * 0.5
+	## The glass. Opaque, because it is a hole in the plate rather than a tint on
+	## it, and because a bust standing on painted brass is a bust with rivets
+	## through its jaw.
+	draw_circle(eye, seat, Color(0.055, 0.045, 0.085, 0.98))
 	var portrait := _tex("res://assets/art/ui/portrait_corsair.png")
 	if portrait != null:
-		draw_texture_rect_region(portrait, portrait_at,
+		## Inside the glass by six, so her hair and shoulders are cut by the rim
+		## rather than spilling past it onto the plate.
+		draw_texture_rect_region(portrait, portrait_at.grow(-6.0),
 			Rect2(Vector2.ZERO, portrait.get_size()))
-	var bezel := _tex("res://assets/art/ui/gauge_ring.png")
-	if bezel != null:
-		draw_texture_rect(bezel, portrait_at.grow(6.0), false, BRASS_LIT)
-	else:
-		draw_arc(portrait_at.get_center(), portrait_at.size.x * 0.5 + 2.0, 0.0, TAU, 40,
-			BRASS, 2.4)
+	## The rim, and it is thick — the porthole is castings and bolts, not a
+	## hairline. It also covers whatever of her the glass did not.
+	draw_arc(eye, seat - 1.0, 0.0, TAU, 48, Color(0.02, 0.015, 0.03, 0.85), 3.0)
+	draw_arc(eye, seat + 2.5, 0.0, TAU, 56, BRASS, 7.0)
+	## Lit from the upper left, like every other solid on this ship.
+	draw_arc(eye, seat + 2.5, PI * 1.04, PI * 1.66, 24, BRASS_LIT, 3.0)
+	## Bolted through the bulkhead, on the diagonals — the compass points are
+	## where the auto-attack sweep starts and ends, and a rivet sitting on its
+	## zero reads as part of the sweep.
+	for corner in 4:
+		var bolt: float = PI * 0.25 + float(corner) * PI * 0.5
+		_rivet(eye + Vector2(cos(bolt), sin(bolt)) * (seat + 2.5), BRASS)
 
 	## THE AUTO-ATTACK, as a ring around her portrait.
 	##
@@ -2182,23 +2213,54 @@ func _draw_game_hud() -> void:
 			draw_arc(portrait_at.get_center(), reach, 0.0, TAU, 36,
 				Color(auto_hue.r, auto_hue.g, auto_hue.b, 0.55), 4.4)
 
+	## --- THE READOUT BAYS, right of the porthole (docs/HUD-DESIGN.md §4) --------
+	##
+	## The porthole's own rim is the boundary on that side — a vertical divider was
+	## drafted here and cut, because the auto-attack arc swings out to seat + 7 and
+	## a rule the live ring crosses reads as a mistake rather than as a boundary.
+	##
+	## BAY 1 — THE HEAVY GAUGE (§3.3). Life, and deliberately the loudest object
+	## in the cluster: it is the only question here that has to be answerable
+	## WITHOUT moving the eye off the middle of the screen, so it is answered by
+	## area and colour rather than by a word. Measured in §4 off the before and
+	## after frames — 2 156 px² of lit band at full health against 359, and 15.6 px
+	## of band height against 2.
 	var health := l.item("captain", "health", panel)
 	_bar(health, player.hp / player.max_hp, Color("#e8542e"), Color("#8b2418"),
 		## Whose health this is. It said CAPTAIN for both, which is wrong the
 		## moment there are two of them — and the short name rather than the full
-		## one, because the bar is 212 wide and "THE BOILERWRIGHT" is not.
+		## one, because the bar is 186 wide and "THE BOILERWRIGHT" is not.
 		str(game.class_data().get("name", "CAPTAIN")).replace("THE ", ""),
-		"%d / %d" % [player.hp, player.max_hp])
+		"%d / %d" % [player.hp, player.max_hp], {"recessed": true})
+	_divider(Vector2(health.position.x, health.end.y + 8.0),
+		Vector2(health.end.x, health.end.y + 8.0))
+
 	## And what is true of HER right now, in the same chips the boarders use, so
 	## there is one vocabulary rather than two. Only states that change what she
 	## should do: untouchable mid-dash, and a gauge that is ready to vent.
+	##
+	## SET INTO THE PORTHOLE'S LOWER GLASS, as lamps. They are about HER, so they
+	## belong to her half of the plate — and they OVERLAY rather than occupy,
+	## which is §3's rule: nothing in this cluster moves when the state changes. A
+	## readout that reflows has to be re-found, and re-finding costs the whole
+	## quarter-second budget the second question gets. A row of its own was
+	## drafted and cut with the plate's height (hud_layout.gd), and overlaying is
+	## the better answer anyway: a chip carries its own dark box and its own
+	## coloured rim, so it is legible on the glass without a bay to stand in. They
+	## used to hang off the health bar's bottom edge, which is now a divider.
 	var mine: Array = []
 	if player.invulnerability_left > 0.0:
 		mine.append({"kind": "invuln", "remaining": player.invulnerability_left / 0.4})
 	if player.pressure >= 100.0:
 		mine.append({"kind": "vent", "remaining": 1.0})
-	_status_chips(Vector2(health.get_center().x, health.end.y + 5.0), mine)
+	_status_chips(Vector2(eye.x, portrait_at.end.y - 17.0), mine)
 
+	## BAY 2 — THE INSTRUMENT AND THE LIGHT GAUGE (§3.4). The dial is now 26 px
+	## and bolted to the left end of the gauge as its cap, rather than a 40 px
+	## disc floating beside two words. It is the ACCENT: it says steampunk and it
+	## says roughly-how-full at a glance, and it carries no number, because the
+	## gauge beside it carries the number. Decoration on the end of the object,
+	## never across the value.
 	var pressure_ratio: float = player.pressure / 100.0
 	var dial_at := l.item("captain", "dial", panel)
 	_dial(dial_at, pressure_ratio)
@@ -2223,54 +2285,71 @@ func _draw_game_hud() -> void:
 			draw_arc(dial_at.get_center(), ring, 0.0, TAU, 40,
 				Color(1.0, 0.30, 0.22, clampf(game.overpressure_lost / 1.6, 0.0, 1.0)),
 				3.0)
+	## THE VALVE LAMP, on a dark disc of its own — the same argument the skill
+	## glyphs make. A 16 px icon drawn straight onto painted brass is an icon
+	## competing with a rivet, and this one's whole job is to be noticed the frame
+	## it changes.
 	var vent_at := l.item("captain", "vent_icon", panel)
+	draw_circle(vent_at.get_center(), vent_at.size.x * 0.62, Color(0.05, 0.04, 0.07, 0.86))
+	draw_arc(vent_at.get_center(), vent_at.size.x * 0.62, 0.0, TAU, 22,
+		Color("#f2eaff") if pressure_ratio >= 1.0 else Color(0.02, 0.015, 0.03, 0.9), 1.6)
 	var gauge_icon := _tex("res://assets/art/ui/icon_vent.png" if pressure_ratio >= 1.0
 		else "res://assets/art/ui/icon_pressure.png")
 	if gauge_icon != null:
 		draw_texture_rect_region(gauge_icon, vent_at,
 			Rect2(Vector2.ZERO, gauge_icon.get_size()),
 			Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#a79bb5"))
-	var pressure_at := l.item("captain", "pressure_label", panel)
 	## The gauge is named by the class. His does not vent, so a label that says
 	## VENTING at the top is a promise the game does not keep.
 	var gauge_name: String = str(game.class_data().get("gauge", "PRESSURE"))
 	var venting: bool = pressure_ratio >= 1.0 			and bool(game.class_data().get("gauge_auto_vents", true))
-	## THE STRIP RIGHT OF THE DIAL, measured to the plate's own interior rather
-	## than to the item box. The two rows here are the only place either class's
-	## gauge is explained, and they were laid out against `pressure_label`'s 96 and
-	## a hard-coded 92 — which put "V BLOWDOWN" eight pixels past the brass. No
-	## screen in the audit posed the Boilerwright, so nothing ever said so.
-	var strip_x: float = pressure_at.position.x
-	var strip_w: float = maxf(60.0, interior(panel).end.x - strip_x)
-	_label("VENTING" if venting else gauge_name,
-		pressure_at.position + Vector2(0, pressure_at.size.y), 60.0,
-		HORIZONTAL_ALIGNMENT_LEFT, 12,
-		Color("#f2eaff") if pressure_ratio >= 1.0 else Color("#b4a8c4"))
-	## WHAT THE GAUGE IS BUYING, next to the gauge, in the units it is bought in.
-	## "HEAD 41" says how full a bar is; "x1.45 DAMAGE" says why anyone should
-	## care, and x1.00 in red says what was just lost.
+	## AND THE STRIP RIGHT OF THE DIAL IS NOW A GAUGE, half the height of the one
+	## above it. That ratio is the hierarchy and it does the work a word cannot:
+	## at a glance this is visibly NOT your health, before a single glyph resolves.
+	##
+	## It also gives the Corsair a NUMBER for the first time — her pressure was a
+	## needle and nothing else, so "can I afford to vent" was a judgement about an
+	## angle. And it gives him the multiplier that is the whole of his class in the
+	## value slot: "HEAD 41" says how full a bar is, "x1.45 DAMAGE" says why
+	## anyone should care, and x1.00 in red says what was just lost.
+	var pressure_at := l.item("captain", "pressure_label", panel)
+	var gauge_read := "%d" % int(round(player.pressure))
+	var gauge_value_tint := Color("#fff6e4")
 	if boost > 0.0:
 		var mult: float = game.overpressure_multiplier()
-		var lit: Color = Color("#ff9a4a")
+		gauge_read = "x%.2f DAMAGE" % mult
+		gauge_value_tint = Color("#ff9a4a")
 		if mult <= 1.0:
-			lit = Color("#ff4d37") if game.overpressure_lost > 0.0 else Color("#8f8697")
-		_label("x%.2f DAMAGE" % mult,
-			pressure_at.position + Vector2(0, pressure_at.size.y), strip_w,
-			HORIZONTAL_ALIGNMENT_RIGHT, 12, lit)
-	## THE DASH ROW IS THE CLASS ROW. She has two recharging dashes and he has
-	## none, so for him that strip is dead space — and it is exactly where his
-	## three bindings want to be. One row, two meanings, no new layout.
+			gauge_value_tint = Color("#ff4d37") if game.overpressure_lost > 0.0 			else Color("#8f8697")
+	_bar(pressure_at, pressure_ratio,
+		Color("#f2eaff") if venting else Color("#b48ce8"), Color("#6a4aa0"),
+		"VENTING" if venting else gauge_name, gauge_read,
+		{"recessed": true, "value_tint": gauge_value_tint,
+			"label_tint": Color("#f2eaff") if pressure_ratio >= 1.0 else BRASS_LIT})
+
+	## BAY 3 — THE CHARGE STRIP, and it is the class row. She has two recharging
+	## dashes and he has none, so for him that strip is his three bindings
+	## instead. One row, two meanings, no new layout.
 	##
-	## All three, including the one on the dash key: he has no dash, so Space is a
-	## Bleed Jet that costs 12 Head, and a move living on a key labelled DASH for a
-	## class with no dash is a move nobody finds. Tinted by whether the bank can
-	## currently pay for it, which turns the row into the answer to "what can I do
-	## right now" rather than a list of letters.
+	## STAMPED FIRST (§3.5). This is the only row in the cluster that does not sit
+	## in a gauge's own dark bed, so it is the only one that would otherwise stand
+	## on painted brass with rivets running through the words — and the channel is
+	## also what the containment audit then measures the row against. His three
+	## keys used to be laid out against the plate's whole interior, which printed
+	## SPC JET onto the right-hand bracket; the strip now ends where the health
+	## bar ends and the three cells divide THAT.
 	var dash_at := l.item("captain", "dash_label", panel)
+	var strip := _stamp(Rect2(dash_at.position,
+		Vector2(maxf(60.0, health.end.x - dash_at.position.x), dash_at.size.y)), 0.62)
 	if player.max_dash_charges <= 0:
+		## All three, including the one on the dash key: he has no dash, so Space is
+		## a Bleed Jet that costs 12 Head, and a move living on a key labelled DASH
+		## for a class with no dash is a move nobody finds. Tinted by whether the
+		## bank can currently pay for it, which turns the row into the answer to
+		## "what can I do right now" rather than a list of letters.
 		var jet_cost: float = float((game.class_data().get("jet", {}) as Dictionary)
 			.get("cost", 0.0))
-		var row := Vector2(dash_at.position.x, dash_at.position.y + dash_at.size.y)
+		var row := Vector2(strip.position.x, strip.end.y - 3.0)
 		var keys := [
 			{"text": "F MAIN", "lit": Color("#9be8d2"),
 				"ready": game.tap_cooldown <= 0.0
@@ -2283,7 +2362,7 @@ func _draw_game_hud() -> void:
 			{"text": "SPC JET", "lit": Color("#ddcdff"),
 				"ready": jet_cost > 0.0 and game.pressure >= jet_cost},
 		]
-		var cell: float = strip_w / float(keys.size())
+		var cell: float = strip.size.x / float(keys.size())
 		for i in keys.size():
 			_label(str(keys[i].text), row + Vector2(float(i) * cell, 0.0), cell - 4.0,
 				HORIZONTAL_ALIGNMENT_LEFT, 12,
@@ -2479,7 +2558,67 @@ func _dash_pips(dash_at: Rect2, panel: Rect2, player: SkyGearPlayer,
 				Color("#37f0c8"), 2.4)
 
 
-func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, value: String) -> void:
+## WHERE THE BAND ACTUALLY IS INSIDE ITS OWN CANVAS — and a bug that had been
+## on screen since the art landed (docs/HUD-DESIGN.md §7).
+##
+## `bar_fill_hot.png` and `bar_fill_cold.png` are 256x256 with the painted band
+## in rows 102..153 — 52 rows of 256, one fifth — and everything above and below
+## it fully transparent. This drew the WHOLE 256 stretched into the bar's bed, so
+## a 13.5 px bed received a 2.7 px band floating in the middle of it with dark
+## bed showing through above and below. Measured off `.shots/screens/hud-before`:
+## the captain's health bar at 100/100 was a 199 x 2 hairline, and the boiler's
+## bar at the top of the screen was the same — which on the thing you lose by is
+## the same bug with a worse consequence.
+##
+## Exactly the `frame_hud.png` mistake, whose own note says it: "which is what
+## happens when you use an asset for the thing its filename suggests instead of
+## the thing its pixels are." Same fix — name the region.
+const BAND_REGION := Rect2(0, 102, 256, 52)
+
+
+## HOW HARD THE CHANNEL UNDER A GAUGE'S OWN LABEL IS STAMPED.
+##
+## Not `recess`'s own 0.55 default and not the nameplates' 0.62, because this one
+## is stamped into a BAND that is carrying information. Measured both ways: at
+## 0.62 the Boilerwright's bar is a dark trough with two lit words in it — his
+## name is 110 px of a 186 px gauge, so the channel takes most of the band with
+## it, and the loudest object in the cluster stops being loud. At 0.50 the ember
+## composites to 0.062 luminance, which puts BRASS_LIT at 5.6:1 — past the 4.5
+## floor with a margin — and the band is still plainly a band underneath.
+## Legibility first, and then as much of the gauge back as legibility allows.
+const CHANNEL := 0.50
+
+
+## THE BOUNDARY BETWEEN TWO BAYS (docs/HUD-DESIGN.md §3.6).
+##
+## The reference's first lesson is that clusters are bounded and separated by real
+## gaps, and this is the whole of it: a dark line and a light one, which reads as
+## a scribed groove in the plate rather than as a rule drawn on top of it. It is
+## the cheapest thing in the HUD pass and it does more than any of the rest.
+##
+## The gap on either side is the caller's job and the floor is 10 px — under that
+## the audit's collision detector is the only thing that can tell two bays apart,
+## which is a fair sign the eye cannot either.
+func _divider(from: Vector2, to: Vector2) -> void:
+	draw_line(from, to, Color(0.02, 0.015, 0.03, 0.78), 1.6)
+	draw_line(from + Vector2(0, 1.6), to + Vector2(0, 1.6),
+		Color(BRASS.r, BRASS.g, BRASS.b, 0.42), 1.2)
+
+
+## A gauge. `opts` carries what only some callers want, so the four that have
+## always called this with six arguments still do:
+##
+##   recessed     stamp `SkyGearInk.recess` under the two strings before writing
+##                them. Needed the moment the BAND is bright enough to swallow a
+##                label — the captain's ember and steam-violet both are, and the
+##                measured figures are in HUD-DESIGN §4. Sized to the strings
+##                rather than across the bar, so the channel costs the band two
+##                small patches instead of its middle.
+##   label_tint   / value_tint — a readout whose colour IS the state. The
+##                overpressure multiplier goes red the moment the bank empties,
+##                and that used to be a separate `_label` outside the gauge.
+func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String,
+		value: String, opts: Dictionary = {}) -> void:
 	var filled := Rect2(rect.position, Vector2(rect.size.x * clampf(ratio, 0.0, 1.0), rect.size.y))
 	var housing := _tex("res://assets/art/ui/bar_housing.png")
 	var fill := _tex("res://assets/art/ui/bar_fill_cold.png" if top.g > top.r
@@ -2504,9 +2643,10 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 		if fill != null and filled.size.x > 1.0:
 			## Clipped, not scaled: the band is authored even along its length so
 			## it can be cut anywhere, and stretching it would smear the lit edge.
-			var cut: float = filled.size.x / maxf(1.0, bed.size.x) * fill.get_width()
+			var cut: float = filled.size.x / maxf(1.0, bed.size.x) * BAND_REGION.size.x
 			draw_texture_rect_region(fill, filled,
-				Rect2(0, 0, cut, fill.get_height()), Color(top.r, top.g, top.b, 0.98))
+				Rect2(BAND_REGION.position.x, BAND_REGION.position.y, cut,
+					BAND_REGION.size.y), Color(top.r, top.g, top.b, 0.98))
 		elif filled.size.x > 1.0:
 			draw_rect(filled, top)
 	else:
@@ -2523,10 +2663,29 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String, v
 			Color(0.05, 0.04, 0.07, 0.5), 1.5)
 	## Inside the bar rather than floating above it, so a gauge is one object
 	## and the label cannot land on the plate's brass frame.
-	_label(label, rect.position + Vector2(6, rect.size.y * 0.5 + 4.0), rect.size.x,
-		HORIZONTAL_ALIGNMENT_LEFT, 11, BRASS_LIT)
-	_value(value, rect.position + Vector2(-6, rect.size.y * 0.5 + 5.0), rect.size.x,
-		HORIZONTAL_ALIGNMENT_RIGHT, 13)
+	##
+	## AND, WHERE THE CALLER ASKS FOR IT, in a channel stamped into the band. A
+	## bar's own fill is a saturated mid-value colour and a label standing on it is
+	## a label at about 1.5:1 — `SkyGearInk.recess` at 0.62 takes the captain's
+	## ember and steam-violet both under 0.08 luminance, which puts BRASS_LIT past
+	## the 4.5 floor with room. Two patches sized to the words, so the band keeps
+	## its middle. This is `ink.gd` being obeyed rather than routed around: nothing
+	## here shrinks a glyph to win a contrast figure.
+	var lead := rect.position + Vector2(6, rect.size.y * 0.5 + 4.0)
+	var tail := rect.position + Vector2(-6, rect.size.y * 0.5 + 5.0)
+	if bool(opts.get("recessed", false)):
+		var lead_w: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1,
+			SkyGearInk.MIN_PT).x
+		SkyGearInk.recess(self, Rect2(lead.x, lead.y - SkyGearInk.MIN_PT,
+			minf(lead_w, rect.size.x), float(SkyGearInk.MIN_PT) * 1.15), CHANNEL)
+		var tail_w: float = font.get_string_size(value, HORIZONTAL_ALIGNMENT_RIGHT, -1,
+			13).x
+		SkyGearInk.recess(self, Rect2(tail.x + rect.size.x - minf(tail_w, rect.size.x),
+			tail.y - 13.0, minf(tail_w, rect.size.x), 13.0 * 1.15), CHANNEL)
+	_label(label, lead, rect.size.x, HORIZONTAL_ALIGNMENT_LEFT, 11,
+		opts.get("label_tint", BRASS_LIT))
+	_value(value, tail, rect.size.x, HORIZONTAL_ALIGNMENT_RIGHT, 13,
+		opts.get("value_tint", Color("#fff6e4")))
 
 
 ## --- health, and what is wrong with you -------------------------------------

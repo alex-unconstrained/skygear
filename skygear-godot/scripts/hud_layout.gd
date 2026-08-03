@@ -62,16 +62,51 @@ const FRAME_MAX := 30.0
 ## as in the shipped file, so a corrupt or absent file can never leave a player
 ## with no HUD at all.
 const DEFAULT := {
+	## THE CAPTAIN'S STATION (docs/HUD-DESIGN.md §4). Two bays: the porthole on
+	## the left, and the three readouts stacked to the right of it, each in a bay
+	## it keeps whether or not it has anything to say.
+	##
+	## EVERY BOX IS ANCHORED top_left AND SIZED TO FIT THE NARROWEST PLATE THE
+	## GAME DRAWS. That is deliberate, and it is what stopped the redesign moving
+	## under itself: `hud_plates` hands the side plates whatever the hand leaves,
+	## so at 1280 the captain is 352 wide rather than 380 — and `item()` clamps a
+	## box that no longer fits by moving it LEFT, which would have slid the health
+	## bar over the portrait on exactly the width the audit runs at. Laid out
+	## against the 1280 interior (278 x 94) and given the spare 28 px at 1920 as
+	## right margin, nothing ever moves. Anchoring the lower rows to `bottom_left`
+	## instead — which is what they used to do — would have made a plate that
+	## resizes shuffle three rows past each other.
+	##
+	## AND 146 IS THE HEIGHT CEILING, MEASURED, NOT CHOSEN. It was drafted at 168,
+	## which is the height the design wants; the text audit found the health bar's
+	## own name printed through the opening bid's bottom row at 1280x720
+	## ("CAPTAIN" through "EMBER SENTRY"). The bid matrix runs to a FIXED
+	## y = CARD_TOP + CARD_H + 6 = 600 at every window height, and its last row's
+	## label box therefore ends at about 586 whatever the row count — so at 720
+	## the plate's own head is what has to give way. The first captain string
+	## sits at (720 - 24 - h) + min(54, 0.22h) + 8, which clears 586 for
+	## h <= 151; 146 takes it with three pixels to spare rather than one.
 	"captain": {
-		"anchor": "bottom_left", "offset": [24, -24], "size": [350, 132],
+		"anchor": "bottom_left", "offset": [24, -24], "size": [380, 146],
 		"items": {
-			"portrait": {"anchor": "centre_left", "offset": [0, 0], "size": [60, 60]},
-			"health": {"anchor": "top_left", "offset": [74, 8], "size": [212, 26]},
-			"dial": {"anchor": "bottom_left", "offset": [74, -4], "size": [40, 40]},
-			"vent_icon": {"anchor": "bottom_left", "offset": [120, -34], "size": [15, 15]},
-			"pressure_label": {"anchor": "bottom_left", "offset": [140, -26], "size": [96, 14]},
-			"dash_label": {"anchor": "bottom_left", "offset": [140, -8], "size": [40, 14]},
-			"dash_pips": {"anchor": "bottom_left", "offset": [184, -14], "size": [48, 20]},
+			## The porthole. It is the interior's full height less the chip line
+			## reserved under it, which is why it is not square-to-the-plate.
+			"portrait": {"anchor": "top_left", "offset": [0, 3], "size": [76, 76]},
+			## The heavy gauge. Twice the height of the light one below it, and
+			## that ratio is the hierarchy — see §3.3.
+			"health": {"anchor": "top_left", "offset": [88, 0], "size": [194, 30]},
+			## The instrument, bolted to the left end of the light gauge as its
+			## cap. 26 rather than 40: it says roughly, the gauge says exactly.
+			"dial": {"anchor": "top_left", "offset": [88, 40], "size": [22, 22]},
+			## `pressure_label` is now the light GAUGE, not a label — the name it
+			## carries is drawn inside it. The key is kept because a hand-placed
+			## layout in `user://` refers to it.
+			"pressure_label": {"anchor": "top_left", "offset": [120, 43], "size": [140, 16]},
+			"vent_icon": {"anchor": "top_left", "offset": [262, 44], "size": [14, 14]},
+			"dash_label": {"anchor": "top_left", "offset": [88, 67], "size": [46, 14]},
+			## Six pixels after the word, not forty-four. They used to sit past the
+			## end of PRESSURE on the row above and read as belonging to it.
+			"dash_pips": {"anchor": "top_left", "offset": [140, 67], "size": [80, 14]},
 		},
 	},
 	## THE OBJECTIVE, TOP CENTRE. It is the thing you lose by and it was in a
