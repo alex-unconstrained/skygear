@@ -73,7 +73,7 @@ All shipped tonight; none can be settled by a checker.
 
 ---
 
-## 2 · Nine decisions
+## 2 · Ten decisions
 
 1. **The Colossus is "too easy" — pick a fight.** No longer a blank question:
    `docs/COLOSSUS-DESIGN.md` is three designs, judged twice, each carrying a
@@ -102,10 +102,24 @@ All shipped tonight; none can be settled by a checker.
    Controls / Pause are deliberately untouched pending your verdict, because
    they are a different structure (label-left, value-right) wanting one more
    noun.
-5. **The skyships** — which ship goes where, and which is the arrival ship? All
+5. **Boarders arriving off a ship — you asked twice and it was never filed.**
+   That is my failure, not the backlog's: an ask with no row is invisible to a
+   loop that works the board. It is now SG-134 with a full design
+   (`docs/BOARDING-ARRIVAL-DESIGN.md`) — three approaches, judged twice,
+   recommendation is renderer-only so the sim never learns about it, with the
+   landing point re-read every frame so a boarder shoved mid-flight bends its
+   arc rather than teleporting. **It needs exactly one thing from you: which
+   hull is the arrival ship** — which is the same question as decision 6 below,
+   so answering that starts this.
+   *Found while surveying it, and worth knowing now:* a boarder's 0.8 s climb
+   draws a gold telegraph ring **in the hidden 2D scene, so nobody has ever seen
+   it**, and only cannons and crew exempt a climbing boarder from damage — every
+   skill, aura and fire pool already hits it. Harmless while it stands on the
+   deck; not harmless once it is in the air. Filed as SG-135.
+6. **The skyships** — which ship goes where, and which is the arrival ship? All
    five are in, placed in a wedge off the bow and below. A second barge is
    ingested but banked rather than flown.
-6. **Heat 5 is a wall, not a rung — is that what you meant?** Measured
+7. **Heat 5 is a wall, not a rung — is that what you meant?** Measured
    overnight at proper sample size: Heats 0, 3 and 4 sit in a shallow 20-point
    band, then **Heat 5 holds 0 of 120 runs, dead on wave 4.02 with sd 0.18.**
    `SG-14` recorded the ladder as "graded rather than a cliff"; that is now
@@ -113,16 +127,16 @@ All shipped tonight; none can be settled by a checker.
    and the bot never repairs or retreats, so you may well clear what it cannot.
    **Accept the wall and change the sentence, or keep the sentence and soften
    the rung?** Nothing has been tuned pending your answer.
-7. **The ally-share mystery needs one fact only you have.** Your real run read
+8. **The ally-share mystery needs one fact only you have.** Your real run read
    **58%**; the repaired rig reads **13%**. I predicted the stationary bot
    explained the gap and I was wrong — stubbing the movement back out reads
    15%, so movement was worth two points. **What were your crew count and your
    draft in that run?** `ALLY_CAP := 32` is the first thing to check and
    explicitly not being called the answer.
-8. **Bolts still "not cool"?** The agent fixed the measurable half (size) and
+9. **Bolts still "not cool"?** The agent fixed the measurable half (size) and
    stopped rather than guess at style. Its proposal if you agree: the browser's
    hard ink rim plus a hot leading spike.
-9. **Heat 3 deals a weapon draft with no weapon in it, in about a third of
+10. **Heat 3 deals a weapon draft with no weapon in it, in about a third of
    runs — is that intended?** COLD DECK caps the draft at two cards, and as
    the shapes you already hold leave the pool those two are sometimes Field
    and Pulse — both passives, neither on a key. Measured on the repaired
