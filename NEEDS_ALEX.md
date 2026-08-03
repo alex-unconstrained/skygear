@@ -1,8 +1,29 @@
 # NEEDS ALEX
 
-_Last updated: 2026-08-02, build 43._
+_Last updated: 2026-08-02, build 44._
 
-## Build 43 is live — what to look at
+## Build 44 is live — the deck is ALL MESH
+
+**Nothing painted stands on the planking any more.** You modelled the last four
+figures yourself this afternoon and every one is wired: the crew (bayonet stab,
+and Dying Backwards as a real death), the goblin swarm (three attacks and a
+death; six of them are six skeletons sharing ONE mesh), the gunner drone (its
+three rotors actually turn — the export was one welded surface, so a new tool
+found the blades by measurement), and the Colossus — 1,366,036 triangles down
+to 7,994 locally for zero credits, dying by coming apart at the joints it
+hinged on, in sequence, with one foot that never releases so it collapses off
+its own anchor.
+
+**Every dying thing on this deck now has a death.** It had none this morning.
+
+Two numbers worth your eye: the boss stands at **330 units** (the sim's own
+number for the archetype, not my spec's 360 guess) — does it read big enough
+beside the knight? And the crew came out at **165**, retiring a hard-coded 110
+that was simply wrong.
+
+Clips: `.shots/clips/{crew,swarm,drone,boss,deck44}.gif`.
+
+## Build 43 — what landed before it
 
 **You made two of its best pieces.** The hulk's three states and the furnace
 knight both came from your own Meshy sessions after prompted attempts failed;
