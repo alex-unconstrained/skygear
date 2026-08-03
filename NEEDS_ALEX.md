@@ -68,6 +68,18 @@ commit, but the tool should probably refuse to touch a key that has an
 AnimationLibrary beside it. Not fixed — it is not my row and somebody else is in
 that file right now.
 
+**One honest defect in my own commit, and it is already healed.** Two of us
+were committing into this tree within the same hour. `fa14403` (mine) picked up
+nine `menu ·` checks that had appeared in `tests/parity_test.gd` while I was
+staging it, without the `hud.gd` constants they read — so THAT COMMIT ALONE does
+not parse. The very next commit, `16e778e`, brings the constants and main is
+green again: **797/797, text audit clean, containment clean, 0 faint, 0 small.**
+Nothing is broken now and nothing needs doing; but if you ever bisect across this
+evening, `fa14403` is the one commit that will not run, and the reason is
+staging, not code. I did not rewrite it — it is not mine alone any more, and
+rebasing somebody else's commit off the top to tidy my own is worse than the
+untidiness.
+
 **And a housekeeping note you may already know:** two of us were writing this
 tree at the same time this evening. `scripts/hud.gd` had an in-flight menu
 redesign in it (SG-91, `docs/MENU-DESIGN.md`) while I was fixing the BERTHS
