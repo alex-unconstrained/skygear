@@ -176,6 +176,16 @@ func _run() -> void:
 	Engine.physics_ticks_per_second = 20
 	print("  BOT   steers to a %.0f-unit band, strafes in it, leaves fire, dashes under %.0f"
 		% [BotScript.BAND, BotScript.DASH_AT])
+	## SG-130. Set SKYGEAR_PASSIVE_PROBE and she prefers the passives instead —
+	## the instrument for "is a slot spent on a Field worth it?". Printed on its
+	## own line, always, because a probe batch and an ordinary batch are not
+	## comparable and a reader must never have to guess which one they are
+	## holding. The env-var precedent is SKYGEAR_TEMPO_FLAT, one line above.
+	bot.passive_probe = OS.get_environment("SKYGEAR_PASSIVE_PROBE") != ""
+	print("  DRAFT %s" % ("PASSIVE PROBE — passives first (an instrument, not an arm)"
+		if bot.passive_probe
+		else "takes the best card offered by %s, passives last — SG-130"
+			% ", ".join(BotScript.DRAFT_ORDER.slice(0, 3) + ["..."])))
 	var ally_share := 0.0
 	var player_share := 0.0
 	var waves_reached := 0.0
@@ -208,6 +218,35 @@ func _run() -> void:
 			SkyGearBalStat.held_resolution(int(n))])
 	print("  %s" % SkyGearBalStat.verdict(int(n)))
 	print("  player %.0f%%   allies %.0f%%" % [player_share / n, ally_share / n])
+	## SG-130's STATISTIC, printed under every batch and not only when somebody
+	## goes looking. The bug it exists to catch was that two arms were played by
+	## different draft policies, and this is the line on which that is visible:
+	## it was 114 of 120 runs against 0 of 120 before the fix. With its interval,
+	## per SG-128 — a run-rate printed bare is the thing that rig was built to
+	## stop.
+	var passive_runs := 0
+	var draft_total := 0
+	var passive_total := 0
+	for r in results:
+		draft_total += int(r.drafts)
+		passive_total += int(r.passive_drafts)
+		if int(r.passive_drafts) > 0:
+			passive_runs += 1
+	var pci: Vector2 = SkyGearBalStat.wilson(passive_runs, int(n))
+	print("  drafted a passive in %d/%d runs = %.1f%%   95%% interval %.1f%%..%.1f%%   (%d of %d cards taken)"
+		% [passive_runs, int(n), 100.0 * float(passive_runs) / n,
+			pci.x * 100.0, pci.y * 100.0, passive_total, draft_total])
+	## THE CROSS-ARM STATISTIC. Must read 0 in every arm, always: see the lemma
+	## in `bot.gd`. A non-zero here means the draft policy has grown an opinion
+	## that prefers a passive to an available active, which is SG-130 returning.
+	var free_total := 0
+	var over_total := 0
+	for r in results:
+		free_total += int(r.free_choices)
+		over_total += int(r.passive_over_active)
+	print("  took a passive over an available active: %d of %d such drafts%s"
+		% [over_total, free_total,
+			"  <- SG-130 IS BACK" if over_total > 0 else "  (0 is the only passing value)"])
 	## Damage-taken, for the tempo kill-test (SG-57): the mean, the across-run
 	## spread, and the mean WITHIN-run per-wave spread — §2.2 asks whether
 	## variance within waves shifts between rhythms, so all three are printed.
@@ -293,11 +332,25 @@ func _run() -> void:
 	## 3. ARE PASSIVES WORTH A DRAFT SLOT? Both real runs drafted one and it
 	## returned 1% of damage. A card that cannot compete with the cards beside it
 	## is a card the draft should not be offering.
-	if passives / n < 5.0:
-		print("  passives returned %.1f%% of damage — a drafted slot doing nothing."
-			% (passives / n))
+	##
+	## AND THIS LINE MUST SAY WHOSE FACT IT IS (SG-130). The bot ranks passives
+	## BELOW every active, so in an ordinary batch she takes one only when the
+	## game offers her nothing else, and a near-zero share here is a fact about
+	## her order rather than about the cards. Reading it as a verdict on passives
+	## is precisely the error SG-130 was filed for, one statistic along. The
+	## question has an instrument — `bot.passive_probe` — and this line names it
+	## instead of quietly answering without it.
+	if bot.passive_probe:
+		print("  PASSIVE PROBE: she drafted a passive wherever one was offered,")
+		print("  and passives returned %.1f%% of damage%s"
+			% [passives / n, " — a drafted slot doing nothing."
+				if passives / n < 5.0 else "."])
+		print("  A probe run is an instrument, not an arm: compare it only with")
+		print("  another probe run.")
 	else:
-		print("  passives returned %.1f%% of damage." % (passives / n))
+		print("  passives returned %.1f%% of damage — but she ranks them last, so"
+			% (passives / n))
+		print("  that is her order talking, not the cards. Set `passive_probe` to ask.")
 	print("")
 	quit(0)
 
@@ -357,33 +410,63 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 		game.impact.enabled = false
 	game.set_seed_text(seed_text)
 	game.begin_run()
-	game.choose_draft(0)
+	game.choose_draft(bot.draft_pick(game.draft_options))
 	## A competent-but-not-optimal player: casts what is off cooldown at whatever
 	## is nearest, holds the 210-unit pressure band and strafes inside it, leaves
 	## a fire pool she is standing in, dashes only to break contact. The full
 	## policy — and what she still does NOT do — is documented at the top of this
 	## file, because things get measured against it (SG-118).
 	var steps := 0
+	## SG-130's OWN STATISTIC, counted rather than inferred. Passive SHARE OF
+	## DAMAGE is a noisy proxy for a question about a POLICY — it moves with how
+	## long the run lasted and what else she was holding. What SG-130 is actually
+	## about is how often the draft rule hands her a passive, so count that
+	## directly: it is the number the fix has to make width-independent, and a
+	## count of drafts cannot be argued with the way a share of a total can.
+	var drafts_seen := 0
+	var passives_drafted := 0
+	var choices_with_an_active := 0
+	var passives_over_an_active := 0
 	while game.state_name == "PLAY" or game.state_name == "DRAFT":
 		if game.state_name == "DRAFT":
-			## Card 0 every time meant the bot could finish a run having never
-			## taken a passive, so "passives did 0%" was a fact about the bot.
-			## It now PREFERS one when offered, which is the pessimistic read the
-			## question needs: if a player who deliberately drafts them still
-			## gets nothing back, they are not worth a slot.
-			var pick := 0
-			## THE OPENING BID's matrix: more than four options is the grid, and
-			## "prefers a passive" there would open every run with a Field — a
-			## fact about this bot, not about the Article. Cell 0 is the first
-			## unheld shape in EMBER, which is the plain competent bid.
-			if game.draft_options.size() <= 4:
-				for card_index in game.draft_options.size():
-					var shape := str((game.draft_options[card_index] as Dictionary)
-						.get("skill", {}).get("shape", ""))
-					if shape != "" and bool(SkyGearData.SHAPES.get(shape, {}).get(
-							"passive", false)):
-						pick = card_index
-						break
+			## SG-130. This used to be written out here, and what it said was
+			## "prefer a passive if the draft offers <=4 cards, else take cell
+			## 0" — a policy that READ THE OPTION COUNT. The Opening Bid turns
+			## every weapon draft into the 32-cell matrix, so signing it flipped
+			## the bot from "drafts a passive in 114 runs out of 120" to "never
+			## drafts one", and the bid arm and the baseline arm stopped being
+			## played by the same captain. The rule lives in `tools/bot.gd` now,
+			## it is stated in that file's header, and it is a function of the
+			## CARD alone — see `bot ·` in the harness, which pins exactly that.
+			var pick := bot.draft_pick(game.draft_options)
+			var took := str((game.draft_options[pick] as Dictionary)
+				.get("skill", {}).get("shape", ""))
+			drafts_seen += 1
+			var took_passive := took != "" and bool(
+				SkyGearData.SHAPES.get(took, {}).get("passive", false))
+			if took_passive:
+				passives_drafted += 1
+			## AND WHETHER SHE HAD A CHOICE, which is the statistic that is
+			## actually comparable across arms (SG-130). The RAW passive rate is
+			## not: a width-blind policy still draws differently from different
+			## offers, so the bid arm's matrix — which always contains an active
+			## — reads 0% while a Heat 3 two-card deal that happens to be Field
+			## and Pulse reads 100%, with the SAME policy on both sides. What
+			## must be equal, and equal at ZERO, is how often she took a passive
+			## WHEN AN ACTIVE WAS ON THE TABLE. `bot.gd`'s lemma proves that is
+			## zero; this counts it, so the next comparison can check rather
+			## than trust the proof.
+			var had_active := false
+			for opt in game.draft_options:
+				var s := str((opt as Dictionary).get("skill", {}).get("shape", ""))
+				if s != "" and not bool(SkyGearData.SHAPES.get(s, {}).get(
+						"passive", false)):
+					had_active = true
+					break
+			if had_active:
+				choices_with_an_active += 1
+				if took_passive:
+					passives_over_an_active += 1
 			game.choose_draft(pick)
 		## STEER FIRST, so the input she acts on this tick is the one that matches
 		## the deck she is about to be stepped through.
@@ -479,6 +562,10 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 		"close": float(seconds.close) / lived * 100.0,
 		"far": float(seconds.far) / lived * 100.0,
 		"passive": passive_dmg / total * 100.0,
+		"drafts": drafts_seen,
+		"passive_drafts": passives_drafted,
+		"free_choices": choices_with_an_active,
+		"passive_over_active": passives_over_an_active,
 	}
 	## Held keys do not belong to the next seed. `Input` is a singleton and a
 	## press left down here would open the following run mid-stride.

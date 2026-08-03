@@ -10953,6 +10953,125 @@ func _bot() -> void:
 	burner.queue_free()
 	await process_frame
 
+	## HOW SHE DRAFTS (SG-130), and the reason these five are structural rather
+	## than statistical.
+	##
+	## The bug: the draft rule preferred a passive when the draft offered <=4
+	## cards and took cell 0 when it offered more. The Opening Bid turns every
+	## weapon draft into the 32-cell matrix, so the vow silently swapped the bot
+	## — 114 of 120 baseline runs drafted a passive against 0 of 120 in the bid
+	## arm — and no comparison across those arms meant anything.
+	##
+	## THE PASS CONDITION IS "DOES THE POLICY READ THE OPTION COUNT?", WHICH IS A
+	## QUESTION ABOUT THE FUNCTION AND NOT ABOUT A BATCH OF RUNS. A statistic
+	## could only ever say "these two shares came out close", and this rig has
+	## just spent a night learning what a close pair of shares is worth (SG-128:
+	## a run-rate at n=120 is +-9 points). So these ask the policy directly, on
+	## `draft_pick`, which is pure arithmetic over the offered cards.
+	_bot_draft()
+
+
+## One weapon draft option, as thin as `rank_of` actually reads it. Built here
+## rather than by calling into the game so the offer can be shaped by hand —
+## the whole point is to hand the policy widths and orders the game would take
+## a seeded run to produce.
+func _offer(shape: String) -> Dictionary:
+	return {"kind": "skill", "skill": {"shape": shape, "element": "EMBER"}}
+
+
+func _bot_draft() -> void:
+	var bot: RefCounted = BOT_SCRIPT.new()
+
+	## GUARD — this can only fail if the shape table and the bot's order drift
+	## apart, which is the `BAND` precedent one file over. It carries no argument
+	## about how she plays; it stops the order silently missing a shape somebody
+	## adds to `DRAFT_SHAPES` tomorrow, and it pins the ranking rule the header
+	## defends: every passive behind every active.
+	var order: Array = BOT_SCRIPT.DRAFT_ORDER
+	var catalogue: Array = SkyGearGame.DRAFT_SHAPES
+	var same_set := order.size() == catalogue.size()
+	for shape in catalogue:
+		if not (shape in order):
+			same_set = false
+	var last_active := -1
+	var first_passive := order.size()
+	for i in order.size():
+		if bool(SkyGearData.SHAPES.get(str(order[i]), {}).get("passive", false)):
+			first_passive = mini(first_passive, i)
+		else:
+			last_active = maxi(last_active, i)
+	_check("bot", "the draft order is the catalogue's, with the passives at the back",
+		same_set and first_passive > last_active,
+		"%d of %d shapes, last active at %d, first passive at %d"
+			% [order.size(), catalogue.size(), last_active, first_passive])
+
+	## THE ONE THAT WOULD HAVE CAUGHT SG-130. The same four cards, once as a
+	## four-card deal and once buried inside a 32-cell matrix padded only with
+	## cards that rank WORSE than the one she should take — so if the answer
+	## moves, it moved because the table got wider and for no other reason.
+	##
+	## On the old rule this fails outright: at four cards it preferred the
+	## passive (the Field at index 1), and at thirty-two it took cell 0.
+	var deal: Array = [_offer("CONE"), _offer("AURA"), _offer("RAY"), _offer("PULSE")]
+	var matrix: Array = deal.duplicate()
+	while matrix.size() < 32:
+		matrix.append(_offer(["RAY", "SENTRY", "AURA", "PULSE", "LINE_BURST"][
+			matrix.size() % 5]))
+	var narrow := str(deal[bot.draft_pick(deal)].skill.shape)
+	var wide := str(matrix[bot.draft_pick(matrix)].skill.shape)
+	_check("bot", "widening a draft does not change the card she takes",
+		narrow == wide, "%s at 4 cards, %s at %d" % [narrow, wide, matrix.size()])
+
+	## AND SHE IS NOT JUST TAKING CELL 0 EITHER, which is the other way to be
+	## width-blind and the one the header rejects as unrepresentative. Put the
+	## worst card in the catalogue first and the best card second.
+	var reversed: Array = [_offer("PULSE"), _offer("CHAIN")]
+	_check("bot", "and she takes the best card offered, not the first cell",
+		bot.draft_pick(reversed) == 1,
+		"took cell %d of [PULSE, CHAIN]" % bot.draft_pick(reversed))
+
+	## THE RANKING'S WHOLE JUSTIFICATION, as behaviour: passives last means the
+	## game has to leave her nothing else before she takes one. Both halves,
+	## because the first alone would pass on a bot that never takes a passive at
+	## all and could not then draft The Second Hand's passive-only fifth deal.
+	var only_passives: Array = [_offer("AURA"), _offer("PULSE")]
+	var one_active: Array = [_offer("AURA"), _offer("CHAIN"), _offer("PULSE")]
+	var forced := str(only_passives[bot.draft_pick(only_passives)].skill.shape)
+	var free := str(one_active[bot.draft_pick(one_active)].skill.shape)
+	_check("bot", "she takes a passive only when the draft leaves her nothing else",
+		bool(SkyGearData.SHAPES[forced].get("passive", false))
+			and not bool(SkyGearData.SHAPES[free].get("passive", false)),
+		"%s from two passives, %s when an active is beside them" % [forced, free])
+
+	## GUARD — the upgrade drafts, which carry no `skill` and no shape at all.
+	## She has no opinion there, so every card ties and the first offered wins at
+	## any width. This one passed on the old rule too and is here to stop a
+	## future ranking from accidentally growing an opinion about a card it cannot
+	## read; it is not evidence that SG-130 is fixed.
+	var small: Array = []
+	var big: Array = []
+	for i in 12:
+		var card := {"kind": "upgrade", "title": "CARD %d" % i}
+		if i < 3:
+			small.append(card)
+		big.append(card)
+	_check("bot", "and an upgrade draft takes the first card at any width",
+		bot.draft_pick(small) == 0 and bot.draft_pick(big) == 0,
+		"cell %d of 3, cell %d of 12" % [bot.draft_pick(small), bot.draft_pick(big)])
+
+	## CONTROL for the probe — it cannot fail on the old code because the flag
+	## did not exist there. It is here so the instrument that answers "is a
+	## passive worth a slot?" is itself pinned, and so the default is provably
+	## OFF: an arm that quietly ran with the probe on would be SG-130 again.
+	var probe: RefCounted = BOT_SCRIPT.new()
+	var default_off: bool = not probe.passive_probe
+	probe.passive_probe = true
+	var probed := str(one_active[probe.draft_pick(one_active)].skill.shape)
+	_check("bot", "and the passive probe inverts that on purpose, and only when asked",
+		default_off and bool(SkyGearData.SHAPES[probed].get("passive", false)),
+		"default %s, probe took %s where the plain order took %s"
+			% ["off" if default_off else "ON", probed, free])
+
 
 ## HOW BIG A SAMPLE THE BALANCE RIG NEEDS (SG-128), pinned as arithmetic.
 ##

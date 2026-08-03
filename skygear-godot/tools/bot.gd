@@ -42,10 +42,81 @@ extends RefCounted
 ##      that dashed on cooldown would carry a background immunity that quietly
 ##      flatters anything measuring how often she is hittable.
 ##
+## HOW SHE DRAFTS (SG-130), and why the rule is written the way it is.
+##
+## **THE POLICY IN ONE SENTENCE: she takes the best card she is offered, where
+## "best" is a fixed published order over the CARD, and the number of cards on
+## the table is not part of the decision.**
+##
+## The order is `DRAFT_ORDER`: the six active shapes in the catalogue's own
+## order, then the two passives — Field and Pulse — last. Ties, and any draft of
+## cards that are not weapons at all (the upgrade drafts), go to the first card
+## offered. That is the whole rule. `draft_pick` never reads `options.size()`.
+##
+## THIS REPLACES A RULE THAT DID READ THE COUNT, and the replacement is the
+## point of SG-130. The old rule preferred a passive when the draft offered <=4
+## cards and took cell 0 when it offered more. THE OPENING BID's entire mechanic
+## is that a weapon draft becomes the 32-cell matrix, so signing that Article
+## silently swapped the bot for a different bot: measured passive share was
+## 5.20% in the baseline arm and 0.00% in the bid arm, 114 of 120 runs against
+## 0 of 120. The two arms differed in the vow AND in who was playing them, and
+## no comparison across them could be attributed to the vow.
+##
+## WHY PASSIVES RANK LAST, since that is the part with a judgement in it.
+##
+##   1. It is what the repository already measured. A drafted passive returns
+##      about 5% of a run's damage for a whole slot; `balance.gd` prints that
+##      finding under every batch. Ranking last is the competent read, not a
+##      thumb on any scale — and "competent, not optimal" is this bot's whole
+##      character.
+##   2. It is the ONLY ranking that keeps passive share width-invariant. There
+##      are two passive shapes out of eight, so a draft of three or more
+##      DISTINCT shapes always contains an active: with passives last she takes
+##      a passive only when the game leaves her nothing else — COLD DECK's
+##      two-card hand, or The Second Hand's fifth draft, which deals passives
+##      exclusively. Widening the offer cannot hand her one. Rank passives ANY
+##      HIGHER and widening the offer makes a passive strictly more likely to be
+##      present and therefore taken, which re-creates SG-130 in a gentler form.
+##      **So this is not a free choice: an order that puts a passive above any
+##      active reconfounds every Article that changes draft width.**
+##
+## THE LEMMA THAT LETS YOU READ AN ARM WITHOUT RE-DERIVING ANY OF THIS, and the
+## most reusable thing SG-130 produced. Actives occupy ranks 0..5 and passives
+## 6..7, so the minimum rank offered is a passive's ONLY when no active is on the
+## table at all:
+##
+##     **`draft_pick` returns a passive IF AND ONLY IF every card offered is a
+##     passive.**
+##
+## It is an identity, not a tendency, and it converts a statistical question into
+## a structural one. **Any residual gap in passive rate between two arms is a
+## difference in what the GAME OFFERED, never a difference in what she
+## PREFERRED.** That is the exact opposite of the bug: under the old rule the two
+## arms held different preferences, which is why nothing measured across them
+## meant anything. Under this rule they hold the same preference and the offer
+## does the rest — so a gap is attributable to whatever changed the offer, which
+## is the thing you were trying to measure.
+##
+## WORKED EXAMPLE, from the SG-130 re-run itself, because the number surprises
+## people: at Heat 3 the baseline arm still drafted a passive in 37 of 120 runs.
+## That is not the bug coming back. HEAT 3 IS COLD DECK, which caps the hand at
+## two cards, and as held shapes leave the pool a two-card deal can be Field and
+## Pulse and nothing else. By the lemma those 37 runs are precisely the runs
+## where the game offered her no active weapon. The check
+## `bot · she takes a passive only when the draft leaves her nothing else` is
+## that lemma as a harness assertion, and it goes red on the old rule.
+##
+## THE PASSIVE PROBE. Asking "is a passive worth a slot?" needs a captain who
+## deliberately drafts one, and that is what the old rule was reaching for. It
+## is an explicit flag now — `passive_probe`, which inverts the order so the two
+## passives rank FIRST — rather than something a draft width switches on by
+## accident. **It is an instrument, not an arm. A probe run may only be compared
+## with another probe run; never put one beside a normal arm.**
+##
 ## WHAT SHE STILL DOES NOT DO, stated because it is the first thing to suspect
 ## when a result surprises you: she never repairs, never shoves a crate, never
-## works the deck, and never retreats from a wave she is losing. Those are the
-## remaining bot facts.
+## works the deck, never rerolls a draft, and never retreats from a wave she is
+## losing. Those are the remaining bot facts.
 
 ## Named here rather than read from the table so the bot's policy cannot change
 ## silently underneath a recorded measurement when a tuning pass moves a number.
@@ -59,6 +130,58 @@ const DASH_AT := 90.0     ## dash defensively only when something is this close
 const FIRE_RADIUS := 78.0 ## `_update_fire_fields`' own number
 
 const ACTIONS := ["move_left", "move_right", "move_up", "move_down"]
+
+## HER DRAFT ORDER, best first. Named here rather than derived at the point of
+## use for the same reason `BAND` is: a recorded measurement must not change
+## meaning because somebody reordered a table. The check
+## `bot · the draft order is the catalogue's, with the passives at the back`
+## fails if this stops being exactly the draftable shapes with every passive
+## behind every active.
+const DRAFT_ORDER := ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY",
+	"SENTRY", "AURA", "PULSE"]
+
+## Prefer the passives instead — the "is a slot spent on a Field worth it?"
+## instrument, off by default. Read the header before you set it: a probe run is
+## not an arm and may only be compared with another probe run.
+var passive_probe := false
+
+
+## Where a card sits in her order — lower is better. A pure function of the
+## CARD, which is the whole of SG-130: nothing here reads how many other cards
+## are on the table, so widening a draft cannot change what she thinks of any
+## card in it.
+func rank_of(option: Variant) -> int:
+	var shape := ""
+	if option is Dictionary:
+		var skill: Variant = (option as Dictionary).get("skill", {})
+		if skill is Dictionary:
+			shape = str((skill as Dictionary).get("shape", ""))
+	if shape == "":
+		## Not a weapon card — the upgrade drafts. She has no opinion, so every
+		## card ranks the same and the tie-break below takes the first offered.
+		return DRAFT_ORDER.size()
+	var at := DRAFT_ORDER.find(shape)
+	if at < 0:
+		return DRAFT_ORDER.size()
+	if passive_probe and bool(SkyGearData.SHAPES.get(shape, {}).get("passive", false)):
+		## Ahead of every active, keeping the passives' order among themselves.
+		return at - DRAFT_ORDER.size()
+	return at
+
+
+## Which card she takes: the best-ranked one offered, ties to the first offered.
+## Call it for EVERY draft, including the opening one — that draft is a 32-cell
+## matrix under The Opening Bid too, so hard-coding cell 0 there would leave
+## half of SG-130 unfixed.
+func draft_pick(options: Array) -> int:
+	var best := 0
+	var best_rank := 1 << 30
+	for i in options.size():
+		var rank := rank_of(options[i])
+		if rank < best_rank:
+			best_rank = rank
+			best = i
+	return best
 
 
 ## The direction she WANTS to travel this tick, as a unit vector, or ZERO for

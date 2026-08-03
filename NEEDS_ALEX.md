@@ -72,7 +72,7 @@ All shipped tonight; none can be settled by a checker.
 
 ---
 
-## 2 · Eight decisions
+## 2 · Nine decisions
 
 1. **The Colossus is "too easy" — pick a fight.** No longer a blank question:
    `docs/COLOSSUS-DESIGN.md` is three designs, judged twice, each carrying a
@@ -121,6 +121,19 @@ All shipped tonight; none can be settled by a checker.
 8. **Bolts still "not cool"?** The agent fixed the measurable half (size) and
    stopped rather than guess at style. Its proposal if you agree: the browser's
    hard ink rim plus a hot leading spike.
+9. **Heat 3 deals a weapon draft with no weapon in it, in about a third of
+   runs — is that intended?** COLD DECK caps the draft at two cards, and as
+   the shapes you already hold leave the pool those two are sometimes Field
+   and Pulse — both passives, neither on a key. Measured on the repaired
+   balance rig: **the captain was offered a passives-only weapon draft in 37
+   of 120 Heat 3 runs (31%)**. This is a GAME fact, not a bot fact — a human
+   at Heat 3 sees the same two cards. Flagged only because you have already
+   ruled once that a draft should not deal "a card worse than a skip" (that
+   is why SPARE PARTS leaves the catalogue under The Opening Bid), so this
+   may be the same question one rung along. **If a two-passive deal is the
+   intended bite of COLD DECK, nothing needs doing** — the fix, if you want
+   one, is to guarantee one active in every weapon draft. No recommendation
+   beyond: you should know it happens. (SG-130)
 
 ---
 
