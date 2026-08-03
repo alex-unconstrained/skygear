@@ -12320,6 +12320,7 @@ func _arrival() -> void:
 	_arrival_immunity()
 	_arrival_structure()
 	_arrival_ship()
+	_arrival_ring()
 
 
 ## Get a live boarder that is still in its arrival window, out of a real run
@@ -12726,7 +12727,7 @@ func _function_body(path: String, name: String) -> String:
 	var inside := false
 	for line in FileAccess.get_file_as_string(path).split("\n"):
 		var text := str(line)
-		if text.begins_with("func %s(" % name):
+		if text.begins_with("func %s(" % name) or text.begins_with("static func %s(" % name):
 			inside = true
 			continue
 		if inside:
@@ -12734,3 +12735,89 @@ func _function_body(path: String, name: String) -> String:
 				break
 			out.append(text)
 	return "\n".join(out)
+
+
+## --- STAGE TWO: THE RING ------------------------------------------------------
+##
+## Board SG-135's first half. `enemy.gd::_draw()` has drawn a gold `#e8c376` ring
+## around an arriving boarder since the port began — in the 2D scene, which is
+## hidden, so no player has ever seen it. This is that ring on the planking,
+## closing over the arrival window.
+##
+## IT IS THE ONLY CHANNEL THAT SURVIVES MID-DECK. SG-102 measured the deck as
+## 100% of the frame from the middle at zoom 1.0 and stage one cannot fix that,
+## so `.shots/sg134/mid-z1.00-hold.png` shows no hull at all. If the arrival is
+## not legible from the planking it is not legible where the fight happens.
+func _arrival_ring() -> void:
+	## (1) IT CLOSES ONTO THE CIRCLE YOU ACTUALLY HAVE TO FIGHT. A telegraph that
+	## settles at any other radius is a promise about a shape that does not
+	## exist. Checked at the real gameplay radius of every kind the sim can
+	## spawn, off `ENEMIES` rather than a typed list — the roster that goes stale
+	## is the roster somebody typed.
+	var wrong: Array[String] = []
+	for kind in SkyGearData.ENEMIES:
+		var radius: float = float((SkyGearData.ENEMIES[kind] as Dictionary).radius)
+		var opened := SkyGearView3D.arrival_ring_span(radius, SkyGearEnemy.ARRIVAL_TIME)
+		var shut := SkyGearView3D.arrival_ring_span(radius, 0.0)
+		if not is_equal_approx(shut, radius * 2.0):
+			wrong.append("%s shuts at %.1f, not its own %.1f" % [kind, shut, radius * 2.0])
+		if opened <= shut * 1.5:
+			wrong.append("%s opens at %.1f against %.1f — barely a close at all"
+				% [kind, opened, shut])
+	_check("arrival", "the landing ring closes onto the boarder's own gameplay radius, for every kind",
+		wrong.is_empty(), _joined(wrong))
+
+	## (2) AND IT ONLY EVER CLOSES. A telegraph that widens at any point in its
+	## run reads as a thing growing rather than a thing arriving, and the
+	## countdown is the whole of what separates this from a decoration.
+	var monotone := true
+	var last := 1e9
+	for i in 81:
+		var span := SkyGearView3D.arrival_ring_span(22.0,
+			SkyGearEnemy.ARRIVAL_TIME * (1.0 - float(i) / 80.0))
+		if span > last + 0.0001:
+			monotone = false
+		last = span
+	_check("arrival", "and only ever closes, never widens",
+		monotone and is_equal_approx(last, 44.0), "ends at %.2f" % last)
+
+	## (3) THE WINDOW IS THE BOARDER'S OWN. `0.8` was a bare literal on
+	## `state_time`'s declaration; the ring reads `SkyGearEnemy.ARRIVAL_TIME`, and
+	## a second copy in the renderer is the SG-85 failure — a window that
+	## disagrees with the state machine is a clip, or a ring, that finishes at the
+	## wrong moment. Structural: the number may not appear in the renderer at all.
+	var restated := false
+	var body := _function_body("res://scripts/view3d.gd", "arrival_ring_closing")
+	for line in body.split("\n"):
+		var code := str(line).strip_edges()
+		if not code.begins_with("#") and code.contains("0.8"):
+			restated = true
+	_check("arrival", "the ring's window is the boarder's own, never a second copy of 0.8",
+		not restated and is_equal_approx(SkyGearEnemy.ARRIVAL_TIME, 0.8)
+			and body != "",
+		"ARRIVAL_TIME %.2f, renderer restates it: %s"
+			% [SkyGearEnemy.ARRIVAL_TIME, restated])
+
+	## (4) AND IT SPENDS A TELEGRAPH'S BUDGET, NOT A SCORCH MARK'S. `_decal_class`
+	## derives the budget from the key so a new effect cannot forget to declare
+	## itself; the landing ring is a telegraph, and a ring evicted by a keg blast
+	## at the moment the deck is busiest is a ring missing exactly when it is the
+	## only thing saying where a boarder will be. This FAILS on the code it
+	## replaces, where the key falls through to DECOR.
+	_check("arrival", "the landing ring draws on the telegraph budget, not the decor one",
+		SkyGearView3D._decal_class("tar1234") == SkyGearView3D.DecalClass.TELEGRAPH
+			and SkyGearView3D._decal_class("tr1") == SkyGearView3D.DecalClass.TELEGRAPH,
+		"tar -> %d" % SkyGearView3D._decal_class("tar1234"))
+
+	## (5) AND THE 2D RING IT PROMOTES IS STILL THERE. Deliberately: the hidden
+	## scene is the sim's own debug view and deleting its mark would make the two
+	## views disagree about what an arrival looks like. A REGRESSION GUARD, and
+	## the thing it guards is that the two rings are the SAME COLOUR — this ring
+	## exists to show the one that was always drawn, not to invent a second.
+	var same := false
+	for line in FileAccess.get_file_as_string("res://scripts/enemy.gd").split("\n"):
+		if str(line).contains("#e8c376"):
+			same = true
+	_check("arrival", "and it is the colour the hidden 2D ring has always been — the regression guard",
+		same and SkyGearView3D.ARRIVAL_RING == Color("#e8c376"),
+		"enemy.gd still draws #e8c376: %s" % same)

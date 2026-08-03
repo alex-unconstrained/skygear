@@ -134,6 +134,58 @@ func _run() -> void:
 		print("\nframes -> .shots/sg134/holds/")
 		quit()
 		return
+	## --- `-- ring`: THE LANDING RING, ACROSS ITS CLOSE ------------------------
+	##
+	## Stage two, and the channel that has to work from mid-deck because stage
+	## one demonstrably does not (`.shots/sg134/mid-z1.00-hold.png`). Three
+	## boarders held at three points of the same arrival window, in one frame, so
+	## the CLOSE is visible in a still: a ring at one radius is a photograph of a
+	## circle, and the thing being judged is a countdown.
+	if OS.get_cmdline_user_args().size() > 0 \
+			and str(OS.get_cmdline_user_args()[0]) == "ring":
+		for pose in ["mid", "fight"]:
+			await _pose(game, view, deck, POSES[pose], 1.0)
+			game.set_process(false)
+			## Tight enough that all three fit one frame: the point of the plate
+			## is the PROGRESSION, and a stage that falls off the edge is a stage
+			## the owner has to take on trust.
+			var lane_x := [-330.0, 0.0, 330.0]
+			var held: Array[SkyGearEnemy] = []
+			for enemy in game.enemies():
+				if is_instance_valid(enemy) and not enemy.dead:
+					held.append(enemy)
+			for i in held.size():
+				held[i].queue_free()
+			await process_frame
+			for i in 3:
+				game.spawn_enemy("SCRAPPER", i)
+			await process_frame
+			var n := 0
+			for enemy in game.enemies():
+				if not is_instance_valid(enemy) or enemy.dead:
+					continue
+				## Opening, half shut, and the frame before contact.
+				enemy.state = "climb"
+				enemy.state_time = SkyGearEnemy.ARRIVAL_TIME * [0.98, 0.5, 0.06][n % 3]
+				enemy.global_position = Vector2(lane_x[n % 3],
+					game.player.global_position.y - 300.0)
+				n += 1
+			view.set("_zoom", 1.0)
+			view.set("_zoom_target", 1.0)
+			view.set("_focus", game.player.global_position)
+			view.set("_focus_set", true)
+			view._process(1.0 / 60.0)
+			await SkyGearStill.freeze(self, view, game)
+			await RenderingServer.frame_post_draw
+			get_root().get_texture().get_image().save_png(
+				"%s/ring-%s.png" % [out, pose])
+			await SkyGearStill.thaw(self, view, game)
+			game.set_process(true)
+			print("  ring %-6s  three boarders at 98%%, 50%% and 6%% of the window" % pose)
+		print("\nframes -> .shots/sg134/ring-*.png")
+		quit()
+		return
+
 	for pose in POSES:
 		for zoom in ZOOMS:
 			await _pose(game, view, deck, POSES[pose], zoom)

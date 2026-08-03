@@ -46,7 +46,7 @@ extends RefCounted
 ## its own floor is exactly zero.
 ##
 ## Which decals are telegraph is not a judgement this file makes. `view3d.gd`'s
-## `_decal_class()` keys telegraphs by the `tg`/`tr`/`tn` prefix and that is the
+## `_decal_class()` keys telegraphs by the `tg`/`tr`/`tn`/`tar` prefix and that is
 ## authority; `TELEGRAPH_PREFIXES` below is that predicate quoted, with a harness
 ## check holding the two spellings together so the quote cannot go stale.
 ##
@@ -104,10 +104,11 @@ extends RefCounted
 
 ## WHICH DECALS ARE TELEGRAPH. Quoted from `view3d.gd`'s `_decal_class()`:
 ## `tg` is the wedge and the ranged aim band, `tr` the inner fill that runs the
-## windup clock, `tn` the boss turn ring. The harness check
+## windup clock, `tn` the boss turn ring, `tar` the landing ring an arriving
+## boarder closes onto its own spot (board SG-135). The harness check
 ## `rune · the telegraph prefixes here are the ones view3d actually draws`
 ## fails if that function's prefixes and these ever drift apart.
-const TELEGRAPH_PREFIXES := ["tg", "tr", "tn"]
+const TELEGRAPH_PREFIXES := ["tg", "tr", "tn", "tar"]
 
 ## The planking a rune is read against: the ring just outside it. 12 px at
 ## 1600x900 is about the width of the band itself, which is the distance an eye

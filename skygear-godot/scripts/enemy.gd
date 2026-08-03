@@ -13,7 +13,17 @@ var hp := 1.0
 var max_hp := 1.0
 var radius := 22.0
 var state := "climb"
-var state_time := 0.8
+
+## HOW LONG THE ARRIVAL LASTS, and it is named for the same reason `TURN_TIME`
+## is. It was a bare `0.8` on the line below — fine while nothing outside the
+## simulation needed to know how long a boarder takes to get aboard, and
+## something does now: `view3d.gd` closes the landing ring over exactly this
+## window, and reading `state_time` itself would not do, because it counts DOWN
+## and a window that shrinks every frame is a ring that accelerates as it
+## closes. Same number, named once, so 0.8 never becomes a literal two files
+## each own (STATUS failure mode two; board SG-85 is what happens when it does).
+const ARRIVAL_TIME := 0.8
+var state_time := ARRIVAL_TIME
 var attack_direction := Vector2.DOWN
 var dead := false
 ## HOW HARD A SHOVE CAN EVER BE.

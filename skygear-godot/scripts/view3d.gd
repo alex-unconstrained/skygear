@@ -4827,6 +4827,39 @@ func _sync_effects() -> void:
 				_decal("tr%d" % enemy.get_instance_id(), enemy.global_position, ang,
 					reach * 2.0 * fill, reach * 2.0 * fill, _fan_texture(arc, true),
 					Color(TG_DANGER_IN.r, TG_DANGER_IN.g, TG_DANGER_IN.b, 0.85))
+		elif enemy.airborne():
+			## THE LANDING RING — board SG-135, and it is a telegraph that has
+			## existed for months where nobody could see it.
+			##
+			## `enemy.gd::_draw()` has always drawn a gold `#e8c376` ring around a
+			## boarder in its arrival window. It draws it in the 2D scene, which
+			## is HIDDEN, so no player has ever seen it — a mark with no reader,
+			## STATUS's first failure mode wearing a colour. This is that ring,
+			## promoted onto the planking, where the mark for every other
+			## telegraph on this deck already lives.
+			##
+			## AND IT CLOSES, which the 2D one never did. A ring at a fixed radius
+			## says "something is here"; a ring shrinking from wide to the
+			## boarder's own gameplay radius says WHEN, and a countdown is the
+			## whole difference between a decoration and a telegraph. It is also
+			## the only channel that survives the thing SG-102 measured and stage
+			## one cannot fix: from mid-deck at zoom 1.0 the deck is 100% of the
+			## frame and NO hull is visible, so the arrival has to be legible from
+			## the planking or it is legible nowhere.
+			##
+			## THE CLOCK IS THE SIM'S OWN and the window is read off the boarder
+			## rather than re-declared here — `SkyGearEnemy.ARRIVAL_TIME`. And the
+			## CENTRE is `global_position`, live, every frame: the sim owns where
+			## a boarder lands, so the ring cannot promise a spot the boarder does
+			## not take.
+			var closing := arrival_ring_closing(enemy.state_time)
+			var span := arrival_ring_span(float(enemy.radius), enemy.state_time)
+			## Brightening as it closes, for the same reason: the last quarter
+			## second is the one that has to be read across a crowded deck.
+			_decal("tar%d" % enemy.get_instance_id(), enemy.global_position, 0.0,
+				span, span, _ring_texture(),
+				Color(ARRIVAL_RING.r, ARRIVAL_RING.g, ARRIVAL_RING.b,
+					0.34 + 0.52 * closing))
 		elif enemy.state == "turn":
 			var ring: float = (enemy.radius + 26.0 + sin(enemy.turn_time * 9.0) * 6.0) * 2.0
 			## Hollow by construction: `ring` is built from the boss's own radius,
@@ -4867,6 +4900,38 @@ func _sync_effects() -> void:
 ##
 ## Reserved rather than shared. A telegraph is guaranteed its capacity even when
 ## the deck is covered in scorch marks.
+## THE LANDING RING'S COLOUR AND ITS OPENING WIDTH (board SG-135). The colour is
+## `enemy.gd::_draw()`'s own `#e8c376` — the ring this promotes out of the hidden
+## 2D scene — because the point is to SHOW the mark that has always been drawn,
+## not to invent a second one. The width is a MULTIPLE of the boarder's own
+## gameplay radius rather than a flat number of units, so a gremlin's ring and a
+## Colossus's both close onto the circle you actually have to fight.
+const ARRIVAL_RING := Color("#e8c376")
+const ARRIVAL_RING_WIDE := 3.4
+
+
+## HOW FAR THROUGH ITS CLOSE THE RING IS — 0 the frame the boarder starts
+## arriving, 1 the frame it lands. Eased out, so the ring slams shut on contact
+## rather than creeping in at a constant rate; the last quarter second is the one
+## that has to read across a crowded deck.
+##
+## STATIC AND PURE, the `corpse_drop` idiom: the harness can pin the countdown
+## without standing a deck up, and the clock is the SIMULATION's own `state_time`
+## counting down over the SIMULATION's own `ARRIVAL_TIME`, so `tools/still.gd`
+## freezes the ring by construction and nothing here holds a second copy of 0.8.
+static func arrival_ring_closing(state_time: float) -> float:
+	var t: float = 1.0 - clampf(state_time
+		/ maxf(0.05, SkyGearEnemy.ARRIVAL_TIME), 0.0, 1.0)
+	return 1.0 - pow(1.0 - t, 2.2)
+
+
+## …and how wide it is drawn, as a DIAMETER in ground units. It ends at exactly
+## the boarder's own gameplay radius: the ring is a promise about the circle you
+## will have to fight, so it may not close onto a circle that is not that one.
+static func arrival_ring_span(radius: float, state_time: float) -> float:
+	return lerpf(radius * ARRIVAL_RING_WIDE, radius,
+		arrival_ring_closing(state_time)) * 2.0
+
 enum DecalClass { TELEGRAPH, PLAYER, DECOR }
 const DECAL_BUDGET := {
 	DecalClass.TELEGRAPH: 48,      ## enemy windups and turn rings — never dropped
@@ -4879,7 +4944,13 @@ var _decal_live := {DecalClass.TELEGRAPH: 0, DecalClass.PLAYER: 0, DecalClass.DE
 ## Which budget a key draws from. Derived from the key rather than passed in, so
 ## a new effect cannot forget to declare itself and quietly spend a telegraph.
 static func _decal_class(key: String) -> DecalClass:
-	if key.begins_with("tg") or key.begins_with("tr") or key.begins_with("tn"):
+	## The landing ring is a TELEGRAPH and spends that budget. A ring that fell
+	## through to DECOR would be evicted by scorch marks at exactly the moment the
+	## deck is busiest — which is the moment it is the only thing telling the
+	## player where a boarder is about to be. Its prefix is quoted in
+	## `tools/rune_read.gd`, and a harness check holds the two spellings together.
+	if key.begins_with("tg") or key.begins_with("tr") or key.begins_with("tn") \
+			or key.begins_with("tar"):
 		return DecalClass.TELEGRAPH
 	if key.begins_with("fx") or key.begins_with("aura") or key.begins_with("boiler"):
 		return DecalClass.PLAYER
