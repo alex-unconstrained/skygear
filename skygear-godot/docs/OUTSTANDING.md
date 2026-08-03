@@ -17,6 +17,31 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The deck itself — irregularity over time, and a hull shape around a rectangle
+Asked 2026-08-02, alongside the deck-identity question:
+
+> *"Maybe consider some subtle elements to break up the deck visuals? Blood
+> stains, scorch marks? These could appear over time to add some irregularity
+> to the deck. Also, can we address the deck shape and consider how to keep the
+> playable area a rectangle, but make the visual deck look more shiplike."*
+
+Two asks, and the second contains the insight: **the collision rectangle and
+the visible silhouette do not have to be the same shape.** Lanes, cargo rects,
+crossings and every pinned check keep the 1680 × 2320 rectangle they were
+measured against; the DRAWN deck gets a bow that narrows to a point, sheer
+along the sides, and a stern — geometry the player never walks on, outboard of
+a play area that never changes. Nothing in the sim needs to know.
+
+The first ask has a prior decision worth honouring rather than overturning
+silently: `VFX-PLAN.md` §7 deliberately deferred accumulating decals — *"the
+keg scorch is in; a persistent accumulating set needs a cap and an eviction
+policy, which is a system rather than an effect."* That was right, and it is
+now the specification: he is asking for the system, so it ships WITH the cap
+and the eviction policy rather than as an unbounded set that grows for twelve
+waves. Extends `docs/DECK-IDENTITY-DESIGN.md`, which already owns the deck's
+look.
+
+
 ### The Colossus is not frightening, and it is not textured
 Reported 2026-08-02 with a screenshot, minutes after the boss was wired:
 *"Collosus is way too easy - he needs to be scary the player. Not sure what's
