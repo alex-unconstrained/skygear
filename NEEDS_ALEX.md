@@ -3,6 +3,13 @@
 _Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live**
 — it carries everything below plus the overnight work._
 
+> **One thing to know before you play: standing in fire currently makes you
+> immune to almost everything** (SG-117, found tonight, verified, being fixed) —
+> a hazard tick buys 0.55 s of *global* i-frames every 0.75 s, so a fire pool is
+> the safest square on the deck. If a fight has ever felt oddly survivable, that
+> is why. The fix changes felt difficulty in both directions and you will get
+> the before/after numbers rather than just the fix.
+>
 > **Read §SG-108 at the bottom before you trust any measurement in this file.**
 > The screenshot tools were photographing a moving scene and calling it still —
 > every rigged figure's `AnimationPlayer` ignores both `set_process(false)`
@@ -36,9 +43,17 @@ All shipped tonight; none can be settled by a checker.
 
 ## 2 · Six decisions
 
-1. **The Colossus is "too easy" — what should scary mean?** Filed, deliberately
-   not guessed at. More damage, a mechanic you must answer, or something that
-   changes the deck? The biggest open design question.
+1. **The Colossus is "too easy" — pick a fight.** No longer a blank question:
+   `docs/COLOSSUS-DESIGN.md` is three designs, judged twice, each carrying a
+   kill-test that would cut it. **Read §1 even if you read nothing else** — it
+   answers *why* he is easy with his real numbers, and the answer is not
+   "needs more damage". He pays 1.9 s frozen for a swing that geometrically
+   cannot reach a moving captain, closes at 95 u/s against her 260, is pinned
+   inside a 240-wide column on a 1,680-wide deck, and out-ranged by Ember
+   Cleave by 97 units for free. His half-health turn *removes* the fight's only
+   pressure by killing seven adds that each refund you pressure, dash and heal.
+   The panel recommends **Option B** with three grafts; A and C are written up
+   honestly in case you prefer one. **The recommendation is a recommendation.**
 2. **Crew strafing.** The four `strafe` clips are unwired on purpose: while a
    sailor closes, his travel and threat vectors are the *same* vector, so a
    strafe would sell something the mover never does. **If you pictured
