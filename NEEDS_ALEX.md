@@ -3,13 +3,16 @@
 _Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live**
 — it carries everything below plus the overnight work._
 
-> **The overnight run found something that changes how you should read earlier
-> numbers.** The measurement noise floor was **53%**, because every rigged
-> figure's `AnimationPlayer` ignores both `set_process(false)` calls — so a
-> "still" frame was never still. Three A/B answers had already been produced
-> against that floor, including the deck-marks kill-test in §1 that nobody was
-> sure about. Frozen properly, the floor is **0.00%**. Nothing needs redoing
-> tonight, but do not treat those three numbers as settled. Details in §7.
+> **Read §SG-108 at the bottom before you trust any measurement in this file.**
+> The screenshot tools were photographing a moving scene and calling it still —
+> every rigged figure's `AnimationPlayer` ignores both `set_process(false)`
+> calls, so the noise floor was **53%**. It is now **0.00%**, and the three
+> answers taken against it were re-measured. **Two of them did not survive**,
+> including one I reported to you as settled: the rigging does NOT improve
+> telegraph contrast, and the evidence behind the shadow-layer verdict is gone.
+> **No tuning value was changed on the strength of a re-measurement** — the
+> corrections are written down and the two live questions are yours. The marks
+> finding is the one to read: the halving that shipped was decided on noise.
 
 Everything here is either **a decision only you can make** or **a verdict only
 your eyes can give**. Nothing in it blocks the loop — there is plenty to do
@@ -127,12 +130,19 @@ Every dying thing on this deck now has a death. As of tonight, nothing vanishes
 
 ## 7 · Overnight, after you went to sleep (SG-106, SG-107)
 
+> **Superseded in part.** Two of this section's measurements were refuted the
+> same night by SG-108, which fixed the instrument that produced them. Where
+> they disagree, **§SG-108 is right and this section is wrong**. Kept in place
+> because the mistake is the useful part.
+
 **Harness 851 → 862. Text audit clean. Pushed, and build 49 is live.** Three things landed:
 the audit regression, the rig overhead, and the shadow authority.
 
 ### Look at these two first, they are pictures
 
 * **`.shots/sg107/rig-before-mid-z1.00.png` against `rig-only-mid-z1.00.png`.**
+  *(Re-shot at a quiet tick by SG-108 — the numbers in this section were not
+  all confirmed; see §SG-108. The picture still stands.)*
   This is the whole of item 1 in one A/B, and it is the thing you have said
   twice that the deck needed — the floor now has a ship's rigging printed
   across the middle of it. Nothing is in the colour pass, so nothing can stand
