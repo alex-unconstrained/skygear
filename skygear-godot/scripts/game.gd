@@ -4115,6 +4115,23 @@ func hulk_splash(at: Vector2, amount: float) -> void:
 		damage_hulk(amount)
 
 
+## THE HULL'S FOOTPRINT, or `{}` when nothing is grappled to the bow (board
+## SG-84). The `barricade_rect()`/`cargo_rects()` pattern, for the one shape on
+## this deck that is a circle: ONE accessor, so the captain's clamp reads the
+## same `hulk.radius` the crew march on (`_crew_step`), every splash measures
+## against (`hulk_splash`) and the renderer shadows at. A push-out that carried
+## its own copy of that number would be failure mode two with a boarding craft
+## bolted to it.
+##
+## It answers for ALL THREE states, because `hulk_state()` draws a mesh in all
+## three: a broken hulk is a WRECK that stays for the rest of the wave, and a
+## wreck is exactly as solid to walk into as a sealed one.
+func hulk_hull() -> Dictionary:
+	if hulk_state() == "":
+		return {}
+	return {"position": Vector2(hulk.position), "radius": float(hulk.radius)}
+
+
 func correct_player_position(position: Vector2, radius: float) -> Vector2:
 	var corrected := Vector2(
 		clampf(position.x, DECK_RECT.position.x + radius, DECK_RECT.end.x - radius),
@@ -4156,6 +4173,51 @@ func correct_player_position(position: Vector2, radius: float) -> Vector2:
 				corrected.y = expanded.position.y
 			else:
 				corrected.y = expanded.end.y
+
+	## AND THE HULL IS NOT A PLACE (board SG-84).
+	##
+	## Until SG-76 the boarding hulk was a painted card and walking "into" it
+	## meant standing in FRONT of one — harmless, and so nothing ever stopped
+	## her. It is a 429-unit-deep hull now, and at the bow she went inside it
+	## and vanished but for the tip of her cutlass
+	## (`.shots/hulk-states/inside-the-hulk.png`). She is stopped at it in the
+	## same function and on the same principle as cargo: a push-out to the
+	## nearest outside, off the SAME number — `hulk_hull()` is the one
+	## accessor, and `hulk.radius` is what the crew already march on and what
+	## every splash already measures against.
+	##
+	## THE BOARDERS ARE UNTOUCHED, and that is the point of doing it here: this
+	## is the CAPTAIN's clamp. Enemies go through `correct_enemy_position`,
+	## which has never known about the hulk and still does not — they come OUT
+	## of the thing, and a wall around it would strand every boarder it lands.
+	##
+	## THE BOW IS NOT AN EXIT. The hull is bolted across the bow at (0, -1000)
+	## with a 190 radius, and the deck runs 143 units north of its centre —
+	## so the geometrically shortest way out of the circle is sometimes off the
+	## ship. When the nearest outside will not survive the deck clamp she comes
+	## out ASTERN at her own x: the way she came in, and the only side of that
+	## circle with planking under it.
+	var hull: Dictionary = hulk_hull()
+	if not hull.is_empty():
+		var centre: Vector2 = hull.position
+		var keep: float = float(hull.radius) + radius
+		var out: Vector2 = corrected - centre
+		var gap: float = out.length()
+		if gap < keep:
+			## Dead on the centre there is no direction to leave by, so she
+			## leaves the way the fallback would send her anyway: astern.
+			var away: Vector2 = (out / gap) if gap > 0.001 else Vector2(0.0, 1.0)
+			var pushed := centre + away * keep
+			var landed := Vector2(
+				clampf(pushed.x, DECK_RECT.position.x + radius,
+					DECK_RECT.end.x - radius),
+				clampf(pushed.y, DECK_RECT.position.y + radius,
+					DECK_RECT.end.y - radius))
+			if landed.distance_to(centre) < keep - 0.01:
+				var dx: float = clampf(landed.x - centre.x, -keep, keep)
+				landed.y = clampf(centre.y + sqrt(maxf(keep * keep - dx * dx, 0.0)),
+					DECK_RECT.position.y + radius, DECK_RECT.end.y - radius)
+			corrected = landed
 	return corrected
 
 ## THE LANES MERGE AT THE STERN.

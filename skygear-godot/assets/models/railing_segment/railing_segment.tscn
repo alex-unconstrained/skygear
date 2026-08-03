@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/railing_segment/railing_segment.glb" id="1_jefol"]
+
+[node name="Railing Segment" type="Node3D" unique_id=1776295857]
+metadata/model_height = 0.818364
+
+[node name="Holder" type="Node3D" parent="." unique_id=510501992]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.00034749508, 0.410897, 0.0011489987)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1639188635 instance=ExtResource("1_jefol")]

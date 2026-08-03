@@ -32,6 +32,9 @@ extends SceneTree
 ##         watch it on the real model at the size the deck will draw it, and
 ##         SAVE, which writes `assets/models/lights.json` — the file
 ##         `scripts/view3d.gd` reads at launch and applies to EVERY instance of
+##         SG-17: its three RENDERER dials save to assets/models/fx.json, which
+##         scripts/view3d.gd reads at launch; the four the SIMULATION owns still
+##         go to the clipboard with the call they belong to.
 ##         that model on the deck. Not the clipboard: the renderer got the
 ##         reader first, and this is the thing that writes to it. DARK ROOM in
 ##         the LOOK panel kills the lab's own lamps so what is left is the
@@ -230,8 +233,16 @@ var _fx_kind := 0
 var _fx_element := 0
 var _fx_clock := 0.0
 var _fx_list: VBoxContainer
+## SG-17: the three RENDERER dials are seeded from the file the renderer reads,
+## so the lab opens on the numbers the game is actually running — not on a set
+## of literals that drift away from it the first time anybody saves. The other
+## six are the lab's own and the simulation's; see `SkyGearView3D.FX_PATH` for
+## which is which and why.
 var _fx_dial := {"radius": 190.0, "life": 0.22, "arc": 1.7, "damage": 40.0,
-	"period": 1.1, "slowmo": 1.0, "glow": 1.0, "spark": 26.0, "plife": 1.0}
+	"period": 1.1, "slowmo": 1.0, "glow": 0.32, "spark": 1.0, "plife": 1.0}
+## `str()` of the three saved dials as they were loaded — the whole UNSAVED read,
+## the `_lit_saved` idiom.
+var _fx_saved := ""
 
 ## --- SG-81: the lights on the loaded model -----------------------------------
 ## The rows themselves, in the renderer's own schema — `_save` hands this array
@@ -462,6 +473,15 @@ func _build_ui() -> void:
 	_bonelist.add_theme_constant_override("separation", 1)
 	bone_scroll.add_child(_bonelist)
 
+	## SG-17: seed the three renderer dials from `assets/models/fx.json` through
+	## the RENDERER's own reader, so the lab and the game read one file with one
+	## function and the lab can never open on a number the deck is not running.
+	var tuned: Dictionary = SkyGearView3D.load_fx()
+	_fx_dial.glow = float(tuned.glow)
+	_fx_dial.spark = float(tuned.spark)
+	_fx_dial.plife = float(tuned.particle_life)
+	_fx_saved = _fx_signature()
+
 	_build_fx_panel()
 	_build_lights_panel()
 
@@ -559,9 +579,10 @@ func _build_rows() -> void:
 			["fxd", "DAMAGE   drives sparks + flash"],
 			["fxp", "EVERY    seconds between casts"],
 			["fxs", "SLOW-MO  time scale"],
-			["fxg", "GLOW     bloom strength"],
-			["fxq", "SPARK    particle size"],
-			["fxt", "SPARK    particle lifetime"]]
+			## SG-17: these three, and only these three, are SAVED.
+			["fxg", "GLOW     bloom over emissives *"],
+			["fxq", "SPARK    particle size x *"],
+			["fxt", "SPARK    particle lifetime *"]]
 	## Which local axis (if any) each MOUNT rotation row spins about, so hovering
 	## the row can light the matching coloured line on the blade.
 	var rot_axis := {"rx": 0, "ry": 1, "rz": 2}
@@ -903,14 +924,19 @@ func _dial(which: String, way: float) -> void:
 		"fxs":
 			_fx_dial.slowmo = clampf(float(_fx_dial.slowmo) + 0.1 * way, 0.05, 2.0)
 			Engine.time_scale = float(_fx_dial.slowmo)
+		## SG-17: the three saved dials are clamped to the RENDERER's own
+		## `FX_LIMITS` rather than to a second set of numbers here — the lab
+		## cannot dial past what the reader would keep, so what you see is what
+		## saves and what saves is what loads.
 		"fxg":
-			_fx_dial.glow = clampf(float(_fx_dial.glow) + 0.15 * way, 0.0, 4.0)
+			_fx_dial.glow = _fx_clamp("glow", float(_fx_dial.glow) + 0.05 * way)
 			_apply_fx_dials()
 		"fxq":
-			_fx_dial.spark = clampf(float(_fx_dial.spark) + 4.0 * way, 4.0, 160.0)
+			_fx_dial.spark = _fx_clamp("spark", float(_fx_dial.spark) + 0.1 * way)
 			_apply_fx_dials()
 		"fxt":
-			_fx_dial.plife = clampf(float(_fx_dial.plife) + 0.1 * way, 0.1, 4.0)
+			_fx_dial.plife = _fx_clamp("particle_life",
+				float(_fx_dial.plife) + 0.1 * way)
 			_apply_fx_dials()
 		_:
 			## `way` already carries the step multiplier.
@@ -1044,7 +1070,7 @@ func _raw_value(key: String) -> String:
 		"fxp": return "%.1f" % float(_fx_dial.period)
 		"fxs": return "%.2f" % float(_fx_dial.slowmo)
 		"fxg": return "%.2f" % float(_fx_dial.glow)
-		"fxq": return "%.0f" % float(_fx_dial.spark)
+		"fxq": return "%.2f" % float(_fx_dial.spark)
 		"fxt": return "%.1f" % float(_fx_dial.plife)
 	return ""
 
@@ -1130,9 +1156,9 @@ func _apply_typed(key: String, val: float) -> void:
 		"fxs":
 			_fx_dial.slowmo = clampf(val, 0.05, 2.0)
 			Engine.time_scale = float(_fx_dial.slowmo)
-		"fxg": _fx_dial.glow = clampf(val, 0.0, 4.0); _apply_fx_dials()
-		"fxq": _fx_dial.spark = clampf(val, 4.0, 160.0); _apply_fx_dials()
-		"fxt": _fx_dial.plife = clampf(val, 0.1, 4.0); _apply_fx_dials()
+		"fxg": _fx_dial.glow = _fx_clamp("glow", val); _apply_fx_dials()
+		"fxq": _fx_dial.spark = _fx_clamp("spark", val); _apply_fx_dials()
+		"fxt": _fx_dial.plife = _fx_clamp("particle_life", val); _apply_fx_dials()
 	_show()
 
 
@@ -1720,23 +1746,56 @@ func _leave_fx() -> void:
 	_cam.current = true
 
 
-## Everything a dial can reach on a running renderer. Deliberately live rather
-## than saved: these map onto constants in `view3d.gd`, and a JSON file nobody
-## reads is the failure this project has made five times. SAVE in FX mode puts
-## the numbers on the clipboard with the constant they belong to instead.
+## The renderer's own ceiling for a saved dial, read from `FX_LIMITS` rather
+## than copied — a second set of bounds in the lab is the two-functions-
+## disagreeing-about-one-number failure with a slider on it.
+func _fx_clamp(key: String, value: float) -> float:
+	var span: Array = SkyGearView3D.FX_LIMITS[key]
+	return clampf(value, float(span[0]), float(span[1]))
+
+
+## The three saved dials as one string, for the UNSAVED read.
+func _fx_signature() -> String:
+	return "%.3f/%.3f/%.3f" % [float(_fx_dial.glow), float(_fx_dial.spark),
+		float(_fx_dial.plife)]
+
+
+## Everything a dial can reach on a running renderer — and, since SG-17, the
+## three that persist reach exactly the properties `view3d.gd` spends
+## `_fx_tuning` on, so what you dial here is what the deck will do.
+##
+## TWO OF THEM WERE DIALLING NOTHING and that is why this function changed:
+##
+##   * GLOW wrote `glow_strength`. The renderer sets `glow_intensity` and has
+##     never set `glow_strength`, so the dial moved a number the shipped game
+##     does not carry — the "no home" this row is about, one level down.
+##   * SPARK wrote `mesh.size` on `draw_pass_1 as QuadMesh`. SG-63 gave the
+##     impact particles real bodies — a prism for the two made of light, a lit
+##     sphere for the puff — so that cast has returned null, and the dial has
+##     moved nothing, since the day the cards were retired. It is a SCALE on the
+##     three authored `PARTICLE_BODY` figures now, which also keeps a shard long
+##     and a puff round where one absolute size flattened them together.
 func _apply_fx_dials() -> void:
+	## Through the RENDERER's own appliers, never a second copy of the sums.
+	var tuning := {"glow": float(_fx_dial.glow), "spark": float(_fx_dial.spark),
+		"particle_life": float(_fx_dial.plife)}
 	if _fx_env != null:
-		_fx_env.glow_strength = float(_fx_dial.glow)
+		_fx_env.glow_intensity = SkyGearView3D.fx_glow(tuning)
 	if _fx_view == null:
 		return
 	for family in _fx_view._sparks.keys():
 		var node: GPUParticles3D = _fx_view._sparks[family]
-		node.lifetime = float(_fx_dial.plife)
-		var mesh := node.draw_pass_1 as QuadMesh
-		if mesh != null:
-			var scale: float = 1.0 if family != "steam" else 46.0 / 26.0
-			mesh.size = Vector2.ONE * float(_fx_dial.spark) * scale \
-				* SkyGearView3D.WORLD_SCALE
+		node.lifetime = SkyGearView3D.fx_particle_life(tuning)
+		var figure: Vector2 = SkyGearView3D.fx_particle_body(tuning, str(family))
+		var girth: float = figure.x
+		var long: float = figure.y
+		var ball := node.draw_pass_1 as SphereMesh
+		if ball != null:
+			ball.radius = girth
+			ball.height = long * 2.0
+		var chip := node.draw_pass_1 as PrismMesh
+		if chip != null:
+			chip.size = Vector3(girth, long, girth)
 
 
 func _fx_fire() -> void:
@@ -1882,7 +1941,9 @@ func _show() -> void:
 				float(_fx_dial.period)])
 		lines.append("the real renderer on the real deck - pick an effect on the right - click a dial to type it.   %s"
 			% _step_hint())
-		lines.append("SAVE puts these numbers on the clipboard with the constant they belong to")
+		lines.append("SAVE writes the three starred dials to assets/models/fx.json (the renderer reads it); the sim's four go to the clipboard.   %s"
+			% ("UNSAVED" if _fx_signature() != _fx_saved
+				else "saved to assets/models/fx.json"))
 	elif _mode == LIGHTS:
 		lines.append("%s        LIGHTS        %d on this model, editing %d"
 			% [_models[_at].to_upper(), _lit.size(),
@@ -1939,7 +2000,7 @@ func _show() -> void:
 				["fxp", "%.1f s" % float(_fx_dial.period)],
 				["fxs", "%.2fx" % float(_fx_dial.slowmo)],
 				["fxg", "%.2f" % float(_fx_dial.glow)],
-				["fxq", "%.0f" % float(_fx_dial.spark)],
+				["fxq", "%.2fx" % float(_fx_dial.spark)],
 				["fxt", "%.1f s" % float(_fx_dial.plife)]]:
 			var value: Button = _row_value.get(str(pair[0]))
 			if value != null:
@@ -2205,28 +2266,51 @@ func _save() -> void:
 	_show()
 
 
-## The effect dials have no data file, deliberately. Every one of them is a
-## CONSTANT in the renderer, and inventing a JSON for them would be the fifth
-## time this project has shipped a table nothing reads. So SAVE hands back the
-## numbers and the exact place they go, on the clipboard and on stdout.
+## SG-17: THE THREE RENDERER DIALS NOW HAVE A FILE, and the file has a reader —
+## `SkyGearView3D.save_fx` is the only way out of here, and it writes through
+## `sanitise_fx`, which is the same function the game loads with. So SAVE means
+## the deck: launch the game and the bloom, the particle size and the particle
+## lifetime are the ones on this screen.
+##
+## THE OTHER SIX STILL GO TO THE CLIPBOARD, and that is not a shortfall — it is
+## the honest half. `radius`, `arc`, `life` and `damage` are arguments the
+## SIMULATION chooses per shape at the moment it fires, so their home is the
+## `_fx({...})` call site in `game.gd`; `period` and `slowmo` are this tool's own
+## controls and do not exist in a run at all. A file that pretended to own any
+## of the six would be a table nothing reads by the back door — which is the
+## exact failure this row was opened to avoid.
 func _save_fx() -> void:
+	var problem: String = SkyGearView3D.save_fx({
+		"glow": float(_fx_dial.glow),
+		"spark": float(_fx_dial.spark),
+		"particle_life": float(_fx_dial.plife),
+	})
 	var lines := [
 		"# dialled in tools/model_lab.gd, FX mode, %s / %s"
 			% [FX_KINDS[_fx_kind], FX_ELEMENTS[_fx_element]],
-		"# scripts/view3d.gd  _build_impacts()",
-		"    node.lifetime = %.2f                 # was 1.0" % float(_fx_dial.plife),
-		"    mesh.size = Vector2(%.0f, %.0f) * WORLD_SCALE   # was 26 / 46"
-			% [float(_fx_dial.spark), float(_fx_dial.spark) * 46.0 / 26.0],
+		"# the three below are SAVED to assets/models/fx.json and read by",
+		"# scripts/view3d.gd at launch — nothing to paste:",
+		"#     glow %.2f   spark %.2fx   particle life %.1fs"
+			% [float(_fx_dial.glow), float(_fx_dial.spark),
+				float(_fx_dial.plife)],
+		"# these belong to the SIMULATION's own call, and still do:",
 		"# scripts/game.gd  the _fx({...}) call for this shape",
 		'    {"kind": "%s", "radius": %.0f, "arc": %.2f, "life": %.2f}'
 			% [FX_KINDS[_fx_kind], float(_fx_dial.radius), float(_fx_dial.arc),
 				float(_fx_dial.life)],
-		"# environment glow_strength = %.2f" % float(_fx_dial.glow),
+		"    view.impact_at(at, element, %.0f)   # damage drives sparks + flash"
+			% float(_fx_dial.damage),
 	]
 	var text := "\n".join(lines)
 	DisplayServer.clipboard_set(text)
-	print("\n" + text + "\n\ncopied to the clipboard")
-	_note = "copied to the clipboard — paste it where the comment says."
+	print("\n" + text)
+	if problem != "":
+		print("\nFX FILE NOT WRITTEN: " + problem)
+		_note = "the three saved dials FAILED to write: " + problem
+	else:
+		_fx_saved = _fx_signature()
+		print("\nsaved to assets/models/fx.json; the four sim numbers are on the clipboard")
+		_note = "saved to assets/models/fx.json — the sim's four are on the clipboard."
 	_show()
 
 

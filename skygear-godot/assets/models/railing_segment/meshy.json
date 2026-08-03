@@ -1,0 +1,35 @@
+{
+  "key": "railing_segment",
+  "ai_model": "meshy-6",
+  "prompt": "One short section of airship deck railing, wider than it is tall, mostly open empty space: exactly two upright riveted brass posts joined by one dark timber handrail across the top and three separate thin dark steel rods between the posts, wide open gaps between the rods. No base board, no plank, no platform, no step, nothing underneath the posts. One object alone, whole and complete, standing on nothing. No base, plinth or ground plane, no wall or scenery, no duplicate, no lettering or numbers. Stylised game-ready steampunk airship prop: blackened steel, riveted brass fittings, oxblood leather, oxidised copper accents, honest wear at the edges. Chunky readable forms and broad flat colour areas, not photoreal, no micro-detail. Flat albedo, no baked lighting, no baked shadow.",
+  "texture_prompt": "Warm polished brass posts and rivets, very dark oiled timber handrail with open grain, blackened steel rods, oxidised copper patina in the recesses. Nothing pale, nothing bleached, no bare light timber. Hand-painted stylised game texture: blackened gunmetal, warm polished brass, deep oxblood leather, dull oxidised-copper patina settled in the recesses, bare worn metal along the working edges. Any furnace, grate, vent, ember or lamp flame is hot orange; nothing else emits light. Broad flat colour areas, no baked lighting, no baked shadow, no text, no logos.",
+  "target_polycount": 8000,
+  "texture_resolution": "2k",
+  "preview_task": "019fc551-1e05-71e0-858e-234e8f585a94",
+  "refine_task": "019fc551-c7a4-7549-ad80-57a1b1e92075",
+  "credits": 30,
+  "files": [
+    "railing_segment.glb",
+    "railing_segment.fbx",
+    "railing_segment_base_color.png",
+    "railing_segment_metallic.png",
+    "railing_segment_roughness.png",
+    "railing_segment_normal.png",
+    "railing_segment_emission.png",
+    "railing_segment_thumb.png"
+  ],
+  "screen_units": 52.0,
+  "remesh_task": "019fc553-4053-758b-aa88-9c08db436a1e",
+  "remesh_credits": 5,
+  "remeshed": {
+    "tris": 3000,
+    "tex": {
+      "base_color": 512,
+      "normal": 256,
+      "metallic_roughness": 128,
+      "emission": 128
+    },
+    "bytes": 268876,
+    "original_bytes": 9963648
+  }
+}

@@ -234,6 +234,58 @@ const MODELS := {
 	## 157 px, and a real cube's corners catching the deck light beats a card
 	## that shows the same face from every position.
 	"crate_small": 0.0,
+
+	## v2, board SG-72 — the purge's unfunded tail, and the same shape as the
+	## SG-64 pair: v1 lost, the fault was named INTO the prompt, and the re-roll
+	## cleared the bar.
+	##
+	## v1's verdict, kept because it is why the v2 prompt reads as it does: it
+	## came back STANDING ON A SOLID TIMBER BOARD, because the subject said the
+	## stanchions stood "on round bolted base flanges" while the shared DECK
+	## frame says "No base, plinth or ground plane" — one prompt carrying both
+	## halves of an argument, the fourth time this file has been bitten by
+	## exactly that. On the deck it read as a BENCH lying at the rail. Its
+	## handrail also arrived pale bare timber against the painting's dark oiled
+	## one, and its three rods merged into a single bar — which is the one thing
+	## that could not be allowed, because the GAPS are the whole case for paying
+	## for this prop rather than keeping the card.
+	##
+	## v2 measures 1.898 x 0.818 x 0.288 — ~120 ground units across at
+	## PROP_HEIGHT 52 — stands on its own two feet, carries a dark rail, and
+	## shows planking through three separate rods, lit by the deck's own lamps
+	## where the painting carries its lighting baked in and blue-tinted
+	## (.shots/sg72/railing-after-v2-crop.png against railing-before-crop.png
+	## and the v1 railing-after-crop.png, same pose, same deck edge). One
+	## departure recorded: at 2.3:1 it is a lower, wider rail than the
+	## painting's ~1.35:1 — nearer a low fence than a waist rail.
+	"railing_segment": 0.0,
+	## "hatch_cargo" is absent because it was GENERATED THREE TIMES AND
+	## REJECTED — the first entry here that lost on its own merits rather than
+	## on budget, and the reason is geometric rather than a prompt that can be
+	## fixed:
+	##
+	##   v1  1.899 x 1.507 x 1.535 — a cube. "cargo deck hatch cover ... much
+	##       wider than it is thick" lost the argument to the noun; the
+	##       generator hears "cargo hatch" as a container with a lid, the same
+	##       way crate_small's v1 heard "leather strap with a brass buckle" as a
+	##       treasure chest.
+	##   v2  the honest description of a flat panel ("only a hand deep ... not a
+	##       box, not a crate, nothing hollow") FAILED AT PREVIEW three
+	##       consecutive times, uncharged, at 99%. The preview stage will not
+	##       build a near-flat plate.
+	##   v3  flatness written as buildable geometry ("four times as wide as it
+	##       is thick") came back 1.897 x 1.557 x 0.865 — a box again, standing
+	##       proud of the planking with upright sides
+	##       (.shots/sg72/hatch-after-v2-crop.png against hatch-before-crop.png).
+	##
+	## And underneath all three: a hatch cover lies FLAT IN the deck, so at the
+	## locked 41-degree camera essentially all of it that reaches the player is
+	## its own top face — which is a texture in both worlds. That is the rope
+	## coil's standing verdict one size up, and 3D has nothing to add to it
+	## except depth the object is not supposed to have. The prompts stay in
+	## tools/meshy.py with this history so the decision can be revisited, not
+	## re-discovered.
+	##
 	## "rope_coil" is deliberately absent and was never generated. It is 30
 	## ground units tall — the shortest entry in PROP_HEIGHT by a factor of two —
 	## and a mesh of a flat coil of rope and a billboard of one are the same

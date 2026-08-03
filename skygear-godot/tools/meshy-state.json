@@ -581,5 +581,33 @@
    "bytes": 321500,
    "original_bytes": 11008716
   }
+ },
+ "railing_segment": {
+  "preview": "019fc551-1e05-71e0-858e-234e8f585a94",
+  "refine": "019fc551-c7a4-7549-ad80-57a1b1e92075",
+  "credits": 30,
+  "files": [
+   "railing_segment.glb",
+   "railing_segment.fbx",
+   "railing_segment_base_color.png",
+   "railing_segment_metallic.png",
+   "railing_segment_roughness.png",
+   "railing_segment_normal.png",
+   "railing_segment_emission.png",
+   "railing_segment_thumb.png"
+  ],
+  "remesh": "019fc553-4053-758b-aa88-9c08db436a1e",
+  "remesh_credits": 5,
+  "remeshed": {
+   "tris": 3000,
+   "tex": {
+    "base_color": 512,
+    "normal": 256,
+    "metallic_roughness": 128,
+    "emission": 128
+   },
+   "bytes": 268876,
+   "original_bytes": 9963648
+  }
  }
 }

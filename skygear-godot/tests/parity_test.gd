@@ -146,6 +146,9 @@ func _run() -> void:
 	## AWAITED — this pass draws real frames. See the note above `_view`.
 	await _screen_editor()
 	await process_frame
+	## AWAITED for the same reason: it reads what the real title draw declared.
+	await _menu()
+	await process_frame
 	## AWAITED — this one poses real sandboxes over a live run. Same rule.
 	await _screen_poser()
 	await process_frame
@@ -990,6 +993,90 @@ func _fittings() -> void:
 			mid.turrets.size(), mid.fitting_walls.size()])
 	mid.queue_free()
 
+	_berths_foot_strip()
+
+
+## THE BERTHS' FOOT STRIP FITS EVERY SLATE, NOT JUST THE ONE THE POSE HOVERS
+## (SG-92). The audit found `SPARE GUN  ·  a fourth deck can…` overflowing —
+## "needs 640, given 578" — and reported ONE finding, because a posed screen
+## rests on one slate and the strip only says something about the slate under
+## the cursor. Measured by hand, FOUR of the six fittings busted the box. That
+## is the shape of bug this project keeps filing: the detector was working
+## perfectly and was only ever pointed at a sixth of the surface.
+##
+## So this walks the whole cross-product — every fitting, in every state the
+## screen can put it in, at every window size the audit uses — through the SAME
+## `_share_strip` the screen calls, on the SAME budget `berths_strip_budget`
+## hands the screen, and insists both columns can draw their sentence at the ink
+## floor. A new fitting whose prose runs long now fails the harness before it
+## reaches the audit, and it fails naming itself.
+func _berths_foot_strip() -> void:
+	var hud := SkyGearHUD.new()
+	hud.font = ThemeDB.fallback_font
+	var rows: int = SkyGearFittings.FITTINGS.size()
+	var worst := 999.0
+	var worst_at := ""
+	var busted: Array = []
+	## The audit's own four window sizes, from the file that owns them.
+	var poser := preload("res://scripts/screen_poser.gd")
+	for screen in poser.SIZES:
+		var laid: Dictionary = SkyGearHUD.berths_page(screen as Vector2, rows)
+		var budget: float = SkyGearHUD.berths_strip_budget(laid.page as Rect2)
+		for id in SkyGearFittings.FITTINGS:
+			var fit: Dictionary = SkyGearFittings.FITTINGS[id]
+			var shelved: bool = SkyGearFittings.tabled(str(id))
+			## Exactly the two sentences `_draw_berths` builds, both branches.
+			var lead: String = "%s  ·  %s" % [str(fit.name),
+				("tabled with the crate-verb family — nothing is lost" if shelved
+					else str(fit.text))]
+			var states: Array = ["berthed · tap to clear the berth",
+				"earned · tap to berth",
+				"earned · the berth row is full — clear one first",
+				"locked · earned by: %s" % str(fit.earn)]
+			if shelved:
+				states = ["TABLED — an interaction pass will revisit"]
+			for status in states:
+				var share: Vector2 = hud._share_strip(lead, 14,
+					SkyGearInk.MIN_PT, str(status), 13, 10, budget)
+				var lead_needs: float = hud.font.get_string_size(lead,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, SkyGearInk.MIN_PT).x
+				var tail_needs: float = hud.font.get_string_size(str(status),
+					HORIZONTAL_ALIGNMENT_LEFT, -1, SkyGearInk.MIN_PT).x
+				## HEADROOM is the strip's, not a column's: how much more prose
+				## the pair could carry before the floor stops saving it. A
+				## per-column figure would read tiny even on a roomy strip,
+				## because a column that fits is handed exactly what it wants.
+				var head: float = budget - lead_needs - tail_needs
+				if head < worst:
+					worst = head
+					worst_at = "%s at %dx%d" % [id, int(screen.x), int(screen.y)]
+				if share.x < lead_needs or share.y < tail_needs:
+					busted.append("%s at %dx%d: lead needs %.0f given %.0f · status needs %.0f given %.0f"
+						% [id, int(screen.x), int(screen.y), lead_needs, share.x,
+							tail_needs, share.y])
+	_check("berths", "every slate's foot strip fits both its sentences at the ink floor",
+		busted.is_empty(),
+		"%d over: %s" % [busted.size(), ", ".join(busted)])
+	## And the allocation is not merely non-negative by luck: the tightest pair
+	## in the whole table keeps real room, so the next fitting has somewhere to
+	## be written before this fails again.
+	_check("berths", "and the tightest slate on the board still keeps room to spare",
+		worst >= 40.0, "worst headroom %.1f px, at %s" % [worst, worst_at])
+	## THE RULE ITSELF, pinned at both ends: a pair that fits gets full size and
+	## the lead keeps the slack, and a pair that cannot both fit is SPLIT rather
+	## than silently widened past the strip it was given.
+	var roomy: Vector2 = hud._share_strip("a", 14, 12, "b", 13, 12, 900.0)
+	_check("berths", "the strip hands its slack to the lead when both sentences fit",
+		roomy.x + roomy.y <= 900.5 and roomy.x > roomy.y,
+		"lead %.1f, status %.1f" % [roomy.x, roomy.y])
+	var long_pair := "a sentence far too long for the box it has been handed here"
+	var squeezed: Vector2 = hud._share_strip(long_pair, 14, 12, long_pair, 13, 12,
+		40.0)
+	_check("berths", "and never widens a column past the strip to hide an overflow",
+		squeezed.x + squeezed.y <= 40.5,
+		"lead %.1f + status %.1f against 40" % [squeezed.x, squeezed.y])
+	hud.free()
+
 
 ## One run's starting ship, byte for byte: the captain's numbers, the
 ## objective, the seeded stream's state, every stowed prop, every gun and the
@@ -1236,6 +1323,79 @@ func _lanes() -> void:
 			float(bar_sealed.get("ratio", -1.0)), float(bar_open.get("ratio", -1.0)),
 			"gone" if bar_dead.is_empty() else "still drawn"])
 	bar_push.queue_free()
+
+	## --- board SG-84: she is stopped AT the hull, not swallowed by it -------
+	##
+	## The bug SG-76 filed and did not fix: `correct_player_position` clamped to
+	## `DECK_RECT` and to nothing else, so the captain walked into a 429-unit
+	## hull and disappeared inside it. She is pushed out now, off the ONE number
+	## (`hulk_hull()` → `hulk.radius`), in all three states — a wreck is as solid
+	## as a sealed plate.
+	##
+	## Walked in from every side, at every state, and at the centre where there
+	## is no direction to leave by. What is asserted is the whole contract: she
+	## ends OUTSIDE the hull AND still on the deck. Either one alone can be had
+	## by cheating — a push that ignores the rail, or a clamp that puts her back
+	## in the hold.
+	var walled := _new_game()
+	walled.begin_run()
+	var no_hull: Vector2 = walled.correct_player_position(
+		Vector2(0.0, SkyGearGame.BOW_Y), 17.0)
+	_check("hulk", "with nothing grappled on, the bow is open deck as it always was",
+		no_hull.is_equal_approx(Vector2(0.0, SkyGearGame.BOW_Y)),
+		"%s" % no_hull)
+	walled.start_wave(4)
+	var swallowed := PackedStringArray()
+	var moved_free := PackedStringArray()
+	for state in ["sealed", "open", "destroyed"]:
+		if state == "open":
+			_advance(walled, SkyGearGame.HULK_GRAPPLE_TIME + 0.2)
+		elif state == "destroyed":
+			walled.damage_hulk(1e9)
+		if walled.hulk_state() != state:
+			swallowed.append("%s: state read %s" % [state, walled.hulk_state()])
+			continue
+		var hull: Dictionary = walled.hulk_hull()
+		var centre: Vector2 = hull.position
+		var keep: float = float(hull.radius) + 17.0
+		var walks: Array = [centre, centre + Vector2(0.0, 120.0),
+			centre + Vector2(0.0, -120.0), centre + Vector2(120.0, 0.0),
+			centre + Vector2(-120.0, 0.0), centre + Vector2(90.0, 90.0),
+			Vector2(0.0, -1134.0)]
+		for step: Vector2 in walks:
+			var out: Vector2 = walled.correct_player_position(step, 17.0)
+			var deck: Rect2 = SkyGearGame.DECK_RECT.grow(-17.0)
+			if out.distance_to(centre) < keep - 0.5 or not deck.has_point(out):
+				swallowed.append("%s: %s -> %s (%.1f from centre, keep %.1f)"
+					% [state, step, out, out.distance_to(centre), keep])
+		## And the rest of the deck is exactly as free as it was: a walk that
+		## never went near the hull is handed back untouched, so this is a hull
+		## she cannot enter and not a new invisible wall across the bow.
+		for clear: Vector2 in [Vector2(0.0, 0.0), Vector2(-600.0, -700.0),
+				Vector2(600.0, 900.0), Vector2(0.0, -700.0)]:
+			if not walled.correct_player_position(clear, 17.0).is_equal_approx(clear):
+				moved_free.append("%s: %s moved" % [state, clear])
+	_check("hulk", "the captain is stopped at the hull — walked into it from any side she ends outside it, and on the deck",
+		swallowed.is_empty(), "clean" if swallowed.is_empty()
+			else ", ".join(swallowed))
+	_check("hulk", "and only there — every other step on the deck is handed back untouched",
+		moved_free.is_empty(), "clean" if moved_free.is_empty()
+			else ", ".join(moved_free))
+	## THE BOARDERS ARE NOT IN THIS. The hull lives in the captain's clamp; the
+	## enemies' clamp has never heard of it and must not start, or every boarder
+	## the hulk lands is stranded inside its own ramp.
+	var boarder_faults := PackedStringArray()
+	var hull_now: Dictionary = walled.hulk_hull()
+	for step: Vector2 in [Vector2(hull_now.position), Vector2(0.0, -1050.0),
+			Vector2(60.0, -960.0)]:
+		for lane in 3:
+			var landed: Vector2 = walled.correct_enemy_position(step, lane, 16.0)
+			if absf(landed.y - step.y) > 0.01:
+				boarder_faults.append("lane %d: %s -> %s" % [lane, step, landed])
+	_check("hulk", "and the boarders walk out of it exactly as they always did — the hull is hers alone",
+		boarder_faults.is_empty(), "clean" if boarder_faults.is_empty()
+			else ", ".join(boarder_faults))
+	walled.queue_free()
 
 
 ## SG-62. The owner, 2026-08-02: "Something is still knocking back enemies all
@@ -1825,6 +1985,116 @@ func _view() -> void:
 		% [env.tonemap_exposure, int(amb.r * 255), int(amb.g * 255), int(amb.b * 255),
 			env.ambient_light_energy, view._moon.light_energy, view._lantern.light_energy,
 			furnace_emit])
+
+	## SG-17 — THE FX DIALS HAVE A HOME, AND THE HOME HAS A READER.
+	##
+	## The lab could tune effect constants on the real renderer and had nowhere
+	## to put the answer; SAVE copied numbers to the clipboard with a comment
+	## naming the constant to paste them over. It writes `assets/models/fx.json`
+	## now — and these checks are the price of being allowed to, the same five
+	## SG-81 paid: an absent file is today's rendering, the file round-trips
+	## through its own reader, one malformed dial costs one dial, the ceilings
+	## are applied at READ time so a hand-typed 40 is the ceiling on the deck,
+	## and EVERY key in the schema moves something the renderer spends.
+	##
+	## The last one is the whole item. Two of these three dials were moving
+	## NOTHING before this row: GLOW wrote `glow_strength`, which this renderer
+	## never sets, and SPARK wrote `mesh.size` on a `QuadMesh` that SG-63 had
+	## already replaced with prisms and spheres. A reader for dials that do not
+	## reach anything would have been the failure wearing the fix's clothes.
+	_check("view", "with no fx file at all the renderer runs its own shipped numbers",
+		str(SkyGearView3D.load_fx("res://assets/models/no_such_fx.json"))
+			== str(SkyGearView3D.FX_DEFAULT),
+		str(SkyGearView3D.load_fx("res://assets/models/no_such_fx.json")))
+	var fx_once := SkyGearView3D.load_fx()
+	var fx_twice := SkyGearView3D.sanitise_fx({"fx": fx_once})
+	_check("view", "the fx dial file round-trips through its own reader",
+		str(fx_once) == str(fx_twice), "%s vs %s" % [fx_once, fx_twice])
+	## PER-KEY FALLBACK and the read-time ceiling, in one table: a dial that is
+	## nonsense falls back alone, a dial past its limit is clamped rather than
+	## obeyed, and an unknown key is dropped rather than carried.
+	var fx_spoiled := SkyGearView3D.sanitise_fx({"fx": {
+		"glow": "very bright", "spark": 99.0, "particle_life": 0.5,
+		"invented": 3.0}})
+	_check("view", "a spoiled fx dial falls back alone, a wild one is clamped, an invented one is dropped",
+		is_equal_approx(float(fx_spoiled.glow), float(SkyGearView3D.FX_DEFAULT.glow))
+			and is_equal_approx(float(fx_spoiled.spark),
+				float((SkyGearView3D.FX_LIMITS.spark as Array)[1]))
+			and is_equal_approx(float(fx_spoiled.particle_life), 0.5)
+			and not fx_spoiled.has("invented")
+			and fx_spoiled.size() == SkyGearView3D.FX_DEFAULT.size(),
+		str(fx_spoiled))
+	## THE TWIN-GUARD, one dial at a time — SG-81's, second use. Build a
+	## renderer with each dial moved off its default and insist the property it
+	## claims to own moved with it. A dead dial fails the build.
+	var fx_dead: Array[String] = []
+	var fx_base := _fx_spend(SkyGearView3D.FX_DEFAULT)
+	for dial in [["glow", 0.9], ["spark", 2.5], ["particle_life", 2.5]]:
+		var tuned := SkyGearView3D.FX_DEFAULT.duplicate()
+		tuned[str(dial[0])] = dial[1]
+		if _fx_spend(tuned) == fx_base:
+			fx_dead.append(str(dial[0]))
+	_check("view", "every dial in the fx table is read by the renderer",
+		fx_dead.is_empty(), "3 dials walked, dead: %s"
+			% ("none" if fx_dead.is_empty() else str(fx_dead)))
+	## And the write is the read: what SAVE puts on disk is what launch loads.
+	var fx_tmp := "user://sg17_fx_probe.json"
+	var fx_wrote: String = SkyGearView3D.save_fx({"glow": 0.71, "spark": 9.0,
+		"particle_life": 1.4}, fx_tmp)
+	var fx_back := SkyGearView3D.load_fx(fx_tmp)
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(fx_tmp))
+	_check("view", "the lab's save is the renderer's load — and it clamps on the way out, not just on the way in",
+		fx_wrote == "" and is_equal_approx(float(fx_back.glow), 0.71)
+			and is_equal_approx(float(fx_back.spark),
+				float((SkyGearView3D.FX_LIMITS.spark as Array)[1]))
+			and is_equal_approx(float(fx_back.particle_life), 1.4),
+		"%s %s" % [fx_wrote, fx_back])
+	## AND THE LIVE RENDERER AGREES WITH THE APPLIERS. The walk above proves the
+	## three appliers read their dials; this proves the BUILT renderer is
+	## actually built out of them, which is the other half and the half that
+	## would have caught the two dead dials on its own. Anything that goes back
+	## to a literal in `_build_impacts` fails here.
+	##
+	## DRIVEN OFF THE DEFAULTS ON PURPOSE. The shipped file IS the defaults —
+	## that is what "an absent file is today's rendering" means — so comparing
+	## the built nodes against the shipped tuning would pass against a hard 1.0
+	## just as happily. So the renderer is rebuilt on a tuning that is nothing
+	## like the defaults first, and put back afterwards.
+	var fx_kept: Dictionary = view._fx_tuning
+	var fx_old: Dictionary = view._sparks.duplicate()
+	var fx_flashes: Array = view._flashes.duplicate()
+	view._fx_tuning = {"glow": 0.9, "spark": 2.5, "particle_life": 2.5}
+	view._build_impacts()
+	var fx_built: Array[String] = []
+	for fam in ["spark", "shard", "steam"]:
+		var fx_node: GPUParticles3D = view._sparks[fam]
+		if not is_equal_approx(fx_node.lifetime,
+				SkyGearView3D.fx_particle_life(view._fx_tuning)):
+			fx_built.append("%s lifetime %.2f" % [fam, fx_node.lifetime])
+		var want: Vector2 = SkyGearView3D.fx_particle_body(view._fx_tuning, fam)
+		var ball := fx_node.draw_pass_1 as SphereMesh
+		var chip := fx_node.draw_pass_1 as PrismMesh
+		if ball != null and not is_equal_approx(ball.radius, want.x):
+			fx_built.append("%s radius %.4f vs %.4f" % [fam, ball.radius, want.x])
+		if chip != null and not is_equal_approx(chip.size.y, want.y):
+			fx_built.append("%s long %.4f vs %.4f" % [fam, chip.size.y, want.y])
+		if ball == null and chip == null:
+			fx_built.append("%s has no body" % fam)
+	## Put the deck back exactly: the probe emitters go, the shipped tuning
+	## returns, and the real ones are rebuilt — every check after this one is
+	## looking at the renderer it was written against.
+	for probe_any in view._sparks.values():
+		(probe_any as Node).queue_free()
+	view._sparks = fx_old
+	view._fx_tuning = fx_kept
+	## `_build_impacts` also stocks the flash pool, and it APPENDS — a second
+	## call leaves sixteen lights where the pool check counts eight. The
+	## originals are still live and still parented; the probe's are not needed.
+	for extra_any in view._flashes.slice(fx_flashes.size()):
+		(extra_any as Node).queue_free()
+	view._flashes = fx_flashes
+	_check("view", "and the renderer on screen is built out of those dials, not out of literals beside them",
+		fx_built.is_empty(), "clean" if fx_built.is_empty() else ", ".join(fx_built))
 
 	## SG-81 — MODEL LIGHTS: THE TABLE, THE BUDGET, AND EVERY FIELD SPENT.
 	##
@@ -7707,6 +7977,148 @@ func _layout() -> void:
 			- (narrow.captain as Rect2).end.x))
 
 
+## --- the menu vocabulary (SG-91) -----------------------------------------------
+##
+## The owner's ask was a LOOK question — *"the header UI element feels on-theme
+## but the rest are just simple text boxes"* — and a look cannot be asserted.
+## Stills are the deliverable and `.shots/sg91/` is the witness.
+##
+## What CAN be asserted is the structure the look is built on, and each of these
+## corresponds to something that was wrong or absent before the pass. They drive
+## the REAL draw code — pose the title, redraw, read what it declared — for the
+## same reason `_screen_editor` does: a check against a reimplementation of the
+## layout is a check that two functions agree with each other and not with the
+## screen (STATUS failure mode two).
+func _menu() -> void:
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	SkyGearHUD.layout = null
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1920, 1080)
+	## The fullest the title ever gets: the Heat ladder AND the two board doors,
+	## which is the pose the layout is tightest in.
+	game.workshop.unlocked = true
+	game.workshop.best_heat = 3
+	game.heat = 4
+	game.layout_edit = true
+	hud.queue_redraw()
+	await process_frame
+
+	## ONE COLUMN, ONE WIDTH. The old title ran COMPARE THE TWO at 480 and
+	## everything under it at 300, which is why the block had no edge to read
+	## down. Every plate on the board is `MENU_W`; the Heat rungs share the same
+	## span between them and the QUIT hatch is deliberately not on the board.
+	var board := Rect2()
+	for panel in hud.edit_panels:
+		## The board is the only registered panel on this screen besides the page
+		## itself (index 0), which is the whole viewport.
+		if panel.size.x < hud.size.x and panel.size.y < hud.size.y:
+			board = panel
+	_check("menu", "the title stands on a board rather than on the planking",
+		board.size.x > 0.0 and is_equal_approx(board.size.x,
+			SkyGearHUD.MENU_W + SkyGearHUD.MENU_PAD * 2.0), str(board))
+
+	var one_width := true
+	var plates := 0
+	var off_board := 0
+	for item in hud.ui.declared():
+		var r: Rect2 = item.rect
+		if not board.encloses(r.grow(-0.5)):
+			off_board += 1
+			continue
+		if absf(r.size.x - SkyGearHUD.MENU_W) < 0.5:
+			plates += 1
+		elif absf(r.size.x - SkyGearHUD.MENU_W) > 0.5 and r.size.y > 30.0 \
+				and r.size.x > SkyGearHUD.MENU_W * 0.5:
+			## Anything plate-shaped that is NOT the column width is the ragged
+			## edge this pass removed.
+			one_width = false
+	_check("menu", "every plate on the board is one column wide",
+		one_width and plates >= 7, "%d plates, %d off the board" % [plates, off_board])
+	## The hatch is the ONE control that leaves the board, and that is the point:
+	## a destructive control made of the same stuff as SETTINGS is a misclick
+	## waiting to happen.
+	_check("menu", "QUIT is the one control that leaves the board",
+		off_board == 1, "%d off the board" % off_board)
+
+	## NOTHING OVERLAPS, AND EVERY PLATE SITS ON THE BOARD. `SkyGearUI.collisions`
+	## is the same function the text audit and the F4 live verdict read, so this
+	## cannot drift from either — the title is the screen that once carried three
+	## widgets on the same pixels with every check green.
+	var trouble: Array = SkyGearUI.collisions(hud.ui.declared())
+	_check("menu", "no two plates share pixels, and none sits on the board's frame",
+		trouble.is_empty(), "%d: %s" % [trouble.size(),
+			str(trouble[0].text) if not trouble.is_empty() else ""])
+
+	## THE BOARD IS AS DEEP AS THE COLUMN STANDING ON IT. Its height is measured
+	## before it is drawn, from the same constants the cursor then walks — and if
+	## those two arithmetics ever disagree the board is the wrong length, which
+	## is this project's second failure mode holding a ruler. The bottom plate's
+	## foot must clear the board's foot by exactly one stile.
+	var lowest := 0.0
+	for item in hud.ui.declared():
+		var r: Rect2 = item.rect
+		if board.encloses(r.grow(-0.5)):
+			lowest = maxf(lowest, r.end.y)
+	_check("menu", "the board is exactly as deep as the column standing on it",
+		absf((board.end.y - lowest) - SkyGearHUD.MENU_STILE) < 1.0,
+		"foot gap %.1f, stile %.1f" % [board.end.y - lowest, SkyGearHUD.MENU_STILE])
+
+	## EVERY RUNG HAS A NAME THE EDITOR CAN GRAB. A `bare` widget is declared with
+	## an EMPTY label, so before SG-91 all five Heat rungs keyed off the `widget`
+	## fallback plus draw order — five handles called `widget`, `widget_2`… that
+	## said nothing about what they were. They are adjusted by their caller now,
+	## under their own name, which is also what makes the saved offset move the
+	## PAINTED rung and not just its click target (docs/MENU-DESIGN.md §7).
+	_check("menu", "every Heat rung is a named element, not an anonymous widget",
+		hud.edit_elements.has("heat") and hud.edit_elements.has("heat_5")
+			and not hud.edit_elements.has("widget"),
+		", ".join(hud.edit_elements.keys()))
+
+	## AND THE SAVED OFFSET MOVES THE RUNG ITSELF. `_widget_adjust` hands the
+	## adjusted rect back to the caller, which both DRAWS into it and declares
+	## it — so the rectangle input is tested against is the rectangle the rung was
+	## painted in. Read off `declared()` rather than off `edit_elements`, because
+	## `edit_elements` is written by the adjuster and would agree with itself.
+	var before := Rect2()
+	for item in hud.ui.declared():
+		if absf((item.rect as Rect2).size.y - 34.0) < 0.5:
+			before = item.rect
+			break
+	SkyGearHUD.layout.set_screen_offset("title", "heat", Vector2(17.0, -9.0))
+	hud.queue_redraw()
+	await process_frame
+	var after := Rect2()
+	for item in hud.ui.declared():
+		if absf((item.rect as Rect2).size.y - 34.0) < 0.5:
+			after = item.rect
+			break
+	_check("menu", "a nudged Heat rung takes its own art with it",
+		before.size.x > 0.0
+			and after.position.is_equal_approx(before.position + Vector2(17.0, -9.0)),
+		"%s -> %s" % [str(before.position), str(after.position)])
+	SkyGearHUD.layout.set_screen_offset("title", "heat", Vector2.ZERO)
+
+	## THE LAMP CANNOT REACH A GLYPH. The flicker is bounded and the engraved
+	## channel is drawn OPAQUE over every lit layer beneath it, which is the
+	## mechanical reason the legibility pass — which renders each screen twice and
+	## samples the second — cannot read noise under a label. Both halves asserted,
+	## because "it is drawn last" is a claim about code that a constant can pin.
+	var lo := 2.0
+	var hi := 0.0
+	for i in 400:
+		var v: float = hud._lamp(float(i) * 0.37)
+		lo = minf(lo, v)
+		hi = maxf(hi, v)
+	_check("menu", "the lamp flickers within bounds and never goes dark",
+		lo >= 0.70 and hi <= 1.0, "%.3f .. %.3f" % [lo, hi])
+	_check("menu", "the engraved channel is opaque, so no light reaches the words",
+		SkyGearHUD.MENU_FIELD.a >= 0.95, str(SkyGearHUD.MENU_FIELD.a))
+
+	game.layout_edit = false
+
+
 ## --- the screen editor (SG-42) -------------------------------------------------
 ## The F4 editor reaches every screen now, and its element registry is built by
 ## the REAL draw code as it draws. So the checks drive the real draw: pose a
@@ -9429,6 +9841,18 @@ func _readability() -> void:
 		int(cap.coach._shown.get("find_vent", 0)) == 0,
 		"the vent line fired for the captain")
 	cap.queue_free()
+
+
+## SG-17's twin-guard probe, the same idea one table over: everything a tuning
+## dictionary actually SPENDS, gathered through the renderer's own appliers.
+## A dial that changes nothing in this string is data with no reader.
+func _fx_spend(tuning: Dictionary) -> String:
+	var parts := ["glow %.4f" % SkyGearView3D.fx_glow(tuning),
+		"life %.4f" % SkyGearView3D.fx_particle_life(tuning)]
+	for family in ["spark", "shard", "steam"]:
+		parts.append("%s %s" % [family,
+			SkyGearView3D.fx_particle_body(tuning, family)])
+	return " / ".join(parts)
 
 
 ## SG-81's twin-guard probe: run ONE light row through the renderer's WHOLE

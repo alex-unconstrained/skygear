@@ -17,8 +17,12 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **774 harness checks**; the text audit covers 24 screens at
-4 widths and is clean. Build 38 is on itch at
+board SG-56). **788 harness checks**; the text audit covers 24 screens at
+4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
+sentence above it said so for days while the audit reported a BERTHS overflow on
+every windowed run, filed under an ID (SG-68) that belongs to a different,
+finished row. Board SG-92 has the whole of it, and the reason it was one finding
+rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
@@ -42,6 +46,40 @@ brazier, the lantern post, the steam vent (a spot, up out of the grate), the
 Boiler, and the furnace knight — whose chest light is SG-86's named candidate
 and measurably lifts him (30.4 → 33.4 mean luminance, 10 → 276 hot pixels).
 `.shots/sg81/` is the witness.
+
+**AND THE FX DIALS HAVE A HOME TOO (SG-17), on exactly that pattern and with
+the reader written first.** `assets/models/fx.json` carries the three FX dials
+that are genuinely RENDERER constants — the bloom over emissives, a scale on the
+impact particles' bodies, and how long one of them lives — read by
+`scripts/view3d.gd` at launch, clamped as they are read, with per-KEY fallback
+so a half-typed file costs you the dial you were half-typing. The lab's SAVE
+writes it. **The other six dials go on going to the clipboard, and that is the
+honest half:** `radius`, `arc`, `life` and `damage` are arguments the SIMULATION
+picks per shape at the moment it fires, so their home is the `_fx({...})` call in
+`game.gd`; `period` and `slowmo` are the lab's own controls and do not exist in a
+run. **Two of the three were moving nothing at all before this** — GLOW wrote a
+property this renderer has never set, and SPARK wrote `mesh.size` on a `QuadMesh`
+that SG-63 replaced with real prisms and spheres, so it has been dialling a null
+cast for weeks. A reader for dials that reach nothing would have been the failure
+wearing the fix's clothes; `view · every dial in the fx table is read by the
+renderer` and `view · and the renderer on screen is built out of those dials, not
+out of literals beside them` are the two checks that say it is not.
+
+**The deck's railings are geometry (SG-72), and the cargo hatches are NOT, on
+purpose.** The railing won its second roll — v1 arrived standing on a solid
+timber board, because the prompt asked for "base flanges" while the shared frame
+refused a plinth, and on the deck it read as a bench lying at the rail. The
+hatch was generated three times and REJECTED: it lies flat IN the planking, so at
+the locked 41-degree camera nearly all of it that reaches the player is its own
+top face, which is a texture either way — the rope coil's standing verdict, one
+size up. All three verdicts are written where the prompts wait, in
+`tools/meshy.py` and `tools/static_model.gd`.
+
+**One trap, found the hard way:** `tools/static_model.gd` rebuilds the `.tscn`
+for EVERY key in its table, including the RIGGED figures — so running it to wrap
+one new static prop overwrote `scrapper.tscn` and its neighbours with dumb
+static holders and took the harness to 725/729. It is silent. Revert the `.tscn`
+files you did not mean to touch before you believe a green run.
 
 **F4 RESIZES NOW (SG-80, owner ask): a selected element has a size as well as
 a position** — drag a grip, type into the w×h readout, or hold Ctrl and use the
@@ -105,7 +143,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (774 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (788 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -159,7 +197,7 @@ Assume you are about to commit one:
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 774 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 788 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -187,7 +225,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 774 checks. Green before anything ships |
+| `harness` | 788 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

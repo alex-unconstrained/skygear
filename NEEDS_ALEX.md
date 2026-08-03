@@ -2,6 +2,59 @@
 
 _Last updated: 2026-08-02, build 44._
 
+## The tail of the board — one thing needs your eye, one is a warning
+
+**SG-84 — you are now STOPPED at the boarding hulk, and you asked for a
+feel-check before anybody picked a fix, so here is the fix and here is the
+question.** You could walk into the hulk and vanish inside it — harmless when it
+was a painted card, not harmless since it became a 429-unit hull. She is pushed
+out of it now, in the same function that already stops her at the cargo, off the
+same `hulk.radius` the crew march on and every splash measures against — one
+number, not a second copy. Deliberately the MINIMUM fix: a circle at the hull's
+own radius, nothing clever.
+
+What that costs, and what I want you to feel: **it changes movement at the bow on
+every push wave.** The hull sits 190 units across the middle of the bow, and you
+now slide around it instead of through it. Because the deck reaches further north
+than the hull's centre, being pushed out at the very top of the deck puts you
+ASTERN of it rather than in front — there is no ship on the other side to stand
+on. Play a wave 4 or a wave 8 and tell me: does being stopped there feel right,
+or does it feel like the bow got smaller? If it feels wrong, the honest answers
+are a smaller radius or a bow-only exception. What I do NOT want to do is give
+the hulk a second collision shape that disagrees with the one the crew use —
+that is the failure mode this project keeps filing.
+
+Before: `.shots/sg84/inside-the-hull-before.png` (you are not in the frame at
+all). After: `.shots/sg84/stopped-at-the-hull.png`.
+
+**SG-72 — the railings are 3D and the cargo hatches are staying painted, and I
+want you to know I chose that rather than ran out of money.** The railing won on
+its second roll and looks right. The hatch was generated three times and lost
+every time: it lies FLAT in the planking, so at our camera almost everything you
+see of it is its own top face — which is a texture whether it is a mesh or a
+card. Three rolls, three boxes standing proud of the deck, reading as a fifth
+kind of crate on a ship that already has four. If you disagree, the prompts and
+all three verdicts are written where they wait in `tools/meshy.py`; it is 35
+credits to reopen. **140 of the 200 credits spent; balance 1857.**
+
+**A WARNING FOR WHOEVER RUNS THE MODEL TOOLS NEXT, and it cost me a confusing
+half hour.** `tools/static_model.gd` rebuilds the `.tscn` for EVERY key in its
+table — including the RIGGED figures. Running it to wrap one new static prop
+silently overwrote `scrapper.tscn` and its neighbours with dumb static holders,
+and the harness went to 725/729 with the boss reporting one part where thirteen
+should be. It does not warn. I reverted them and nothing of that is in this
+commit, but the tool should probably refuse to touch a key that has an
+AnimationLibrary beside it. Not fixed — it is not my row and somebody else is in
+that file right now.
+
+**And a housekeeping note you may already know:** two of us were writing this
+tree at the same time this evening. `scripts/hud.gd` had an in-flight menu
+redesign in it (SG-91, `docs/MENU-DESIGN.md`) while I was fixing the BERTHS
+screen in the same file. I committed only my own hunks and left the menu work
+untouched in your working tree — but that is a coin-flip I would rather not
+repeat, and it is why my new row is numbered SG-92 rather than the SG-87 I first
+claimed.
+
 ## Build 44 is live — the deck is ALL MESH
 
 **Nothing painted stands on the planking any more.** You modelled the last four

@@ -916,6 +916,83 @@ ASSETS = [
       "recesses.",
       "props", 12000, DECK, screen=118.0),
 
+    # --- board SG-72: the purge's unfunded tail ------------------------------
+    # Four railings at the deck edges (52u, ~97 px apiece) and two hatches flat
+    # on the planking (44u, ~82 px). These are the two smallest deck presences
+    # above the rope coil, and SG-64's 200-credit cap ran out before them —
+    # they are not here because anybody judged them and lost.
+    #
+    # The case for paying: the railing is the one deck prop whose whole read is
+    # the GAPS between its rods, and a billboard paints whatever is behind them
+    # once, at one angle, forever. The case against: 97 px, and this camera
+    # never moves, so a card painted at the shipped 41 degrees is a very good
+    # impostor. That argument is settled at the camera, not here.
+    #
+    # "one short straight section" and "far wider than it is tall" are
+    # load-bearing, the HULK clause's lesson applied to a small object: a prompt
+    # that says "railing" and stops generates a FENCE — a long run of a dozen
+    # posts, or a corner — and a dozen posts inside 52 ground units is a comb.
+    #
+    # v2. v1 LOST at the camera and its verdict is kept here because it is why
+    # this prompt reads as it does (.shots/sg72/railing-before-crop.png against
+    # railing-after-crop.png, the same deck edge in the same pose):
+    #
+    #   * IT CAME BACK ON A PLINTH. v1's subject said the stanchions stood "on
+    #     round bolted base flanges" and DECK says "No base, plinth or ground
+    #     plane" — ONE PROMPT CARRYING BOTH HALVES OF AN ARGUMENT, the exact
+    #     failure this file has now been burned by four times (the hulk, the
+    #     furnace knight, crate_small's brackets, this). It resolved the way it
+    #     liked: a solid timber board under both posts. On the deck that board
+    #     reads as a BENCH lying at the rail, not a railing standing at it.
+    #   * THE HANDRAIL CAME BACK PALE BARE TIMBER against the painting's dark
+    #     oiled rail, so the whole object reads light where the ship is dark.
+    #   * THE THREE RODS MERGED INTO ONE BAR, which is the one thing that could
+    #     not be allowed to happen: the gaps ARE the read. That was the entire
+    #     case for paying for this prop over keeping the card.
+    #
+    # So the flanges are GONE rather than negotiated, the plinth is refused by
+    # every name it might arrive under, the rail is dark in both prompts, and
+    # the empty space is stated as a property of the object.
+    A("railing_segment",
+      "One short section of airship deck railing, wider than it is tall, mostly "
+      "open empty space: exactly two upright riveted brass posts joined by one "
+      "dark timber handrail across the top and three separate thin dark steel "
+      "rods between the posts, wide open gaps between the rods. No base board, "
+      "no plank, no platform, no step, nothing underneath the posts.",
+      "Warm polished brass posts and rivets, very dark oiled timber handrail "
+      "with open grain, blackened steel rods, oxidised copper patina in the "
+      "recesses. Nothing pale, nothing bleached, no bare light timber.",
+      "props", 8000, DECK, screen=52.0),
+
+    # The hatch is the harder sell of the two and the prompt says so: it lies
+    # FLAT and CLOSED on the planking, so at 41 degrees almost all of its
+    # apparent height is its own top face — the rope coil's argument, one size
+    # up. "lying flat and closed" keeps it from arriving as an open trapdoor
+    # with a hole under it, which would want the ground plane DECK refuses.
+    #
+    # v2. v1 LOST, and the fault is one word: HATCH. v1 said "cargo deck hatch
+    # cover ... much wider than it is thick" and came back 1.899 x 1.507 x 1.535
+    # — a CUBE. The generator hears "cargo hatch" as a container with a lid, and
+    # the proportion clause lost the argument to the noun, exactly the way
+    # crate_small's v1 heard "one oxblood leather strap with a brass buckle" as
+    # a treasure chest. On the deck it read as a fifth kind of small crate on a
+    # ship that already has four (.shots/sg72/hatch-after-crop.png against
+    # hatch-before-crop.png, same pose: the painting is a flat plate lying in
+    # the planking, the mesh is a box standing proud of it).
+    #
+    # So the noun is now PANEL, the depth is stated as an absolute rather than a
+    # ratio, and every container word it might reach for is refused by name.
+    A("hatch_cargo",
+      "One square shallow wooden lid lying face up, four times as wide as it is "
+      "thick, like the low flat lid of a ship's deck hatch: heavy dark timber "
+      "planks laid across a shallow squared timber frame, blackened iron plates "
+      "at the four corners, two iron strap hinges along one edge, one round "
+      "brass pull ring in the middle. No deep sides, no box, no crate.",
+      "Weathered dark timber planks with open grain, blackened iron corner "
+      "plates and hinges, one warm brass ring, oxidised copper patina in the "
+      "recesses.",
+      "props", 6000, DECK, SURFACE_WOOD, screen=44.0),
+
     # In the manifest, deliberately NOT generated, and the reason is the same one
     # that keeps the furnace knight painted: it would not be an improvement.
     # rope_coil is 30 ground units tall — the flattest, smallest thing on the

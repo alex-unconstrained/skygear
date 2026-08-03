@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "fx": {
+    "glow": 0.32,
+    "spark": 1.0,
+    "particle_life": 1.0
+  }
+}

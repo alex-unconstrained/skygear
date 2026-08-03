@@ -100,6 +100,17 @@ const PROP_MODEL := {
 	## unfunded this wave — SG-66 has the queue.
 	"mast": "mast_section",
 	"ballista": "harpoon_ballista",
+	## SG-72, half of it. The railing WON at the real camera on its second roll
+	## (v1 arrived on a timber plinth and read as a bench lying at the rail);
+	## v2 stands free, dark, and shows the deck through its rods.
+	"railing": "railing_segment",
+	## "hatch": NOT generated, and REJECTED rather than unfunded — three rolls,
+	## the verdict at tools/static_model.gd. It is the rope coil's argument one
+	## size up: a hatch cover lies FLAT in the planking, so at the locked 41
+	## degree camera essentially everything the player sees of it is its own top
+	## face, and a top face is a texture either way. All three rolls came back
+	## with DEPTH the object must not have and read as a fifth kind of small
+	## crate on a ship that already carries four.
 }
 
 ## The deck cannons and the salvage pickups are not in the `props` group, so they
@@ -417,6 +428,10 @@ func _build_world() -> void:
 	## An absent or unreadable file leaves this empty, which is the "no model
 	## lights at all, today's rendering" path — see the MODEL LIGHTS region.
 	_model_light_rows = load_model_lights()
+	## SG-17, and for the same reason and in the same order: the FX constants
+	## table, read before the environment that spends the first of them and long
+	## before `_build_impacts` spends the other two.
+	_fx_tuning = load_fx()
 	var env := WorldEnvironment.new()
 	var e := Environment.new()
 	## A real sky, because the top of the frame is where the horizon is and a
@@ -514,7 +529,10 @@ func _build_world() -> void:
 	## has no post chain. Here it is one flag, and without it the emissive
 	## surfaces read as flat orange paint rather than as light.
 	e.glow_enabled = true
-	e.glow_intensity = 0.32
+	## SG-17: the lab's GLOW dial lands HERE. It used to write `glow_strength`,
+	## which this renderer never sets — so the dial moved a number the shipped
+	## game does not have, which is "no home" by another route.
+	e.glow_intensity = fx_glow(_fx_tuning)
 	e.glow_bloom = 0.06
 	e.glow_hdr_threshold = 1.05
 	e.glow_blend_mode = Environment.GLOW_BLEND_MODE_SOFTLIGHT
@@ -911,7 +929,8 @@ func _build_impacts() -> void:
 	for family in ["spark", "shard", "steam"]:
 		var node := GPUParticles3D.new()
 		node.amount = SPARK_CAPACITY
-		node.lifetime = 1.0
+		## SG-17: the lab's PARTICLE LIFE dial lands here.
+		node.lifetime = fx_particle_life(_fx_tuning)
 		node.one_shot = false
 		node.emitting = false          ## nothing auto-emits; everything is injected
 		node.local_coords = false
@@ -927,8 +946,15 @@ func _build_impacts() -> void:
 		## a lit sphere for the one that is air. Not a `QuadMesh` in
 		## `BILLBOARD_PARTICLES`, which is where the sticker read came from.
 		var body: Dictionary = PARTICLE_BODY[family]
-		var girth: float = float(body.girth) * WORLD_SCALE
-		var long: float = float(body.long) * WORLD_SCALE
+		## SG-17: the lab's SPARK dial lands here, as a SCALE on the three
+		## authored bodies rather than as one absolute size. The dial used to
+		## write `mesh.size` on a `QuadMesh` — and SG-63 gave these particles
+		## real bodies, so `draw_pass_1 as QuadMesh` has been null and the dial
+		## has moved nothing since. A scale keeps the per-family proportions
+		## (a shard is long, a puff is round) that an absolute size flattened.
+		var figure: Vector2 = fx_particle_body(_fx_tuning, str(family))
+		var girth: float = figure.x
+		var long: float = figure.y
 		var puff: bool = str(family) == "steam"
 		var mesh: Mesh
 		if puff:
@@ -5750,6 +5776,134 @@ func _player_texture() -> Texture2D:
 ## at all. Saying so is the honest half: the budget above is guarded separately,
 ## by `view · model lights are accents, and the budget says so in numbers`, and
 ## between them the two checks cover what one of them alone cannot.
+## ---------------------------------------------- SG-17: the FX constants -----
+## THE DIALS HAVE A HOME NOW, and the home was built the same way round as
+## SG-81's: THE READER CAME FIRST. `tools/model_lab.gd`'s FX mode could tune
+## effect constants on the real renderer and then had nowhere to put the answer,
+## so SAVE copied the numbers to the clipboard with a comment saying which
+## constant to paste them over. That is honest, and it is also a feature that
+## ends in a human retyping a float. A file would have been worse — a table
+## nothing reads is the failure this project has committed five times — so the
+## renderer got the reader, and only then did SAVE start writing.
+##
+## WHAT IS IN HERE, AND WHAT DELIBERATELY IS NOT. Three of the lab's nine FX
+## dials are RENDERER constants and all three are here. The other six are not
+## constants at all and a file would be lying about them:
+##
+##   radius · arc · life · damage   arguments to the `_fx({...})` and
+##                                  `impact_at()` calls, chosen per shape by the
+##                                  SIMULATION at the moment it fires. Their home
+##                                  is `game.gd`'s call sites and `game_data.gd`,
+##                                  and the lab still hands those four to the
+##                                  clipboard with the call they belong to.
+##   period · slowmo                the LAB's own controls — how often the
+##                                  preview re-fires, and `Engine.time_scale`
+##                                  while you watch it. Neither exists in a run.
+##
+## AN ABSENT FILE IS TODAY'S RENDERING, EXACTLY, because `FX_DEFAULT` is the
+## number the renderer shipped with in each case: glow 0.32 is what
+## `_build_world` set, and the two particle figures are 1.0 multipliers.
+const FX_PATH := "res://assets/models/fx.json"
+
+## Every key here is READ by the renderer and the twin-guard walks them one at a
+## time — `view · every dial in the fx table is read by the renderer`. A key
+## that stops being spent fails the build rather than going quiet.
+const FX_DEFAULT := {
+	## Environment.glow_intensity — the bloom over every emissive surface.
+	"glow": 0.32,
+	## A multiplier on all three `PARTICLE_BODY` girths and lengths.
+	"spark": 1.0,
+	## Seconds a hit particle lives, on all three families.
+	"particle_life": 1.0,
+}
+
+## Clamped AS THEY ARE READ, the `MODEL_LIGHT_MAX_*` rule: a hand-typed 40 in
+## the file is the ceiling on the deck, and the lab cannot save past it either,
+## because the lab saves THROUGH this reader. The ceilings are the point at
+## which each dial stops being a tuning and starts being a different game:
+## bloom that eats the deck, particles the size of the captain, sparks that
+## outlive the wave.
+const FX_LIMITS := {
+	"glow": [0.0, 1.2],
+	"spark": [0.2, 4.0],
+	"particle_life": [0.1, 4.0],
+}
+
+## What the renderer is actually spending. `FX_DEFAULT` until `_build_world`
+## reads the file, and `FX_DEFAULT` for ever if there is no file.
+var _fx_tuning: Dictionary = FX_DEFAULT.duplicate()
+
+
+## WHERE EACH DIAL IS SPENT, one function apiece. The builders call these, the
+## LAB calls these, and the harness walks these — so a dial has exactly one
+## expression in the whole project instead of one in `_build_impacts`, a second
+## in `model_lab.gd` and a third in a check that agrees with neither. That is
+## the arrangement `SkyGearHUD.rail()` and `ink.gd` exist to enforce elsewhere,
+## and it is what makes "every dial is read" a fact rather than a hope.
+static func fx_glow(tuning: Dictionary) -> float:
+	return float(tuning.get("glow", FX_DEFAULT.glow))
+
+
+static func fx_particle_life(tuning: Dictionary) -> float:
+	return float(tuning.get("particle_life", FX_DEFAULT.particle_life))
+
+
+## Girth and length of one particle family's body, in WORLD units, with the
+## SPARK dial applied as a scale on the authored figures.
+static func fx_particle_body(tuning: Dictionary, family: String) -> Vector2:
+	var body: Dictionary = PARTICLE_BODY[family]
+	var fat: float = float(tuning.get("spark", FX_DEFAULT.spark))
+	return Vector2(float(body.girth), float(body.long)) * fat * WORLD_SCALE
+
+
+## The table, checked. A missing file, an unreadable file, an unparseable file
+## and a file that is not an object all mean the same thing, and it is not an
+## error: today's rendering.
+static func load_fx(path: String = FX_PATH) -> Dictionary:
+	if not FileAccess.file_exists(path):
+		return FX_DEFAULT.duplicate()
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return FX_DEFAULT.duplicate()
+	var text := file.get_as_text()
+	file.close()
+	return sanitise_fx(JSON.parse_string(text))
+
+
+## PER-KEY FALLBACK, the `hud_layout`/lights rule: a malformed or out-of-range
+## dial costs THAT DIAL and leaves the two beside it standing. A half-typed file
+## costs you the thing you were half-typing, never the frame. An unknown key is
+## dropped rather than carried, so a typo cannot masquerade as a feature.
+static func sanitise_fx(raw: Variant) -> Dictionary:
+	var out: Dictionary = FX_DEFAULT.duplicate()
+	if raw is not Dictionary:
+		return out
+	var dials: Variant = (raw as Dictionary).get("fx")
+	if dials is not Dictionary:
+		return out
+	for key in FX_DEFAULT.keys():
+		var value: Variant = (dials as Dictionary).get(key)
+		if value is not float and value is not int:
+			continue
+		var span: Array = FX_LIMITS[key]
+		out[key] = clampf(float(value), float(span[0]), float(span[1]))
+	return out
+
+
+## THE WRITE, beside the read so the two cannot drift — `tools/model_lab.gd`
+## calls this and nothing else, and it goes back out THROUGH `sanitise_fx`, so
+## what is saved is exactly what will be read. Returns "" on success or the
+## reason, because a save that quietly does nothing is the shape SG-83 was.
+static func save_fx(dials: Dictionary, path: String = FX_PATH) -> String:
+	var doc := {"version": 1, "fx": sanitise_fx({"fx": dials})}
+	var file := FileAccess.open(path, FileAccess.WRITE)
+	if file == null:
+		return "could not open %s for writing" % path
+	file.store_string(JSON.stringify(doc, "  ") + "\n")
+	file.close()
+	return ""
+
+
 const MODEL_LIGHTS_PATH := "res://assets/models/lights.json"
 
 ## Eight live model lights at once. The seeded deck asks for ten (three

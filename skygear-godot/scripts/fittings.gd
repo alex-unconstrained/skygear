@@ -66,8 +66,8 @@ const FITTINGS := {
 	},
 	"bow_barricade": {
 		"name": "BOW BARRICADE",
-		"text": "a fixed crate line across the bow of the middle lane — cover where the boarders land",
-		"earn": "hold both boarding actions in one run: clear wave 8",
+		"text": "a fixed crate line across the middle lane's bow — cover where boarders land",
+		"earn": "hold both boarding waves: clear wave 8",
 		"props": [
 			{"type": "crates", "position": Vector2(-110.0, -940.0)},
 			{"type": "crates", "position": Vector2(110.0, -940.0)},
@@ -75,7 +75,7 @@ const FITTINGS := {
 	},
 	"spare_gun": {
 		"name": "SPARE GUN",
-		"text": "a fourth deck cannon on the stern line of the middle lane — shipped broken; repair it and it fires",
+		"text": "a fourth cannon on the middle lane's stern line — ships broken; repair it and it fires",
 		"earn": "win at Heat 1 or above",
 		"turret": true,
 	},
@@ -99,7 +99,7 @@ const FITTINGS := {
 	},
 	"scupper_grating": {
 		"name": "SCUPPER GRATING",
-		"text": "seals the stern cross-passage to port and stands a vent on the grating — a cost with a benefit",
+		"text": "seals the port stern cross-passage and stands a vent on the grating — a cost that pays",
 		"earn": "hold the deck without healing",
 		"props": [
 			{"type": "vent", "position": Vector2(-280.0, 515.0)},

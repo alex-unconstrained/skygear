@@ -1600,6 +1600,56 @@ func _fits(text: String, width: float, pt: int, floor_pt: int = SkyGearInk.MIN_P
 	return size_pt
 
 
+## TWO STRINGS, ONE STRIP, AND ONE RULE ABOUT WHO GETS THE ROOM (SG-92).
+## A foot strip that carries a lead and a status used to split its width by a
+## pair of hand-picked fractions — 0.58 to the lead, 0.38 to the status. That is
+## a guess about sentences nobody had measured, and on THE BERTHS it was wrong
+## for four of the six fittings: the audit only ever named one of them because
+## only one slate is hovered in the pose. A fraction cannot know that "earned ·
+## tap to berth" wants a third of what "locked · earned by: …" wants, so the
+## short status hoarded room the long lead was overflowing for.
+##
+## The rule here is arithmetic. Each column is first given the width its own
+## string needs AT ITS OWN FLOOR — the smallest `_fits` is ever allowed to draw
+## it, so this is precisely the width below which nothing can save it — and the
+## slack left over is shared in proportion to how much each still WANTS at full
+## size. ONE function hands back both widths, because a strip whose two halves
+## are measured in two places is this project's second failure mode holding a
+## ruler.
+##
+## When the two floors cannot both be paid the budget is split between them in
+## proportion to those floors and the overflow is left to be REPORTED. Widening
+## a column past its own strip to make a detector quiet is the third failure
+## mode; the audit saying "needs 640, given 578" is the system working.
+func _share_strip(lead: String, lead_pt: int, lead_floor: int,
+		tail: String, tail_pt: int, tail_floor: int, budget: float) -> Vector2:
+	var lf: int = maxi(lead_floor, SkyGearInk.MIN_PT)
+	var tf: int = maxi(tail_floor, SkyGearInk.MIN_PT)
+	var lead_min: float = font.get_string_size(lead,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, lf).x
+	var tail_min: float = font.get_string_size(tail,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, tf).x
+	var lead_want: float = font.get_string_size(lead,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(lead_pt, lf)).x
+	var tail_want: float = font.get_string_size(tail,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, maxi(tail_pt, tf)).x
+	## Both fit at full size: the tail takes what it needs and the lead keeps
+	## the rest, so a box is never narrower than the words standing in it.
+	if lead_want + tail_want <= budget:
+		return Vector2(budget - tail_want, tail_want)
+	if lead_min + tail_min >= budget:
+		var floors: float = maxf(lead_min + tail_min, 1.0)
+		return Vector2(budget * lead_min / floors, budget * tail_min / floors)
+	var slack: float = budget - lead_min - tail_min
+	var lead_room: float = maxf(lead_want - lead_min, 0.0)
+	var tail_room: float = maxf(tail_want - tail_min, 0.0)
+	var total: float = lead_room + tail_room
+	if total <= 0.0:
+		return Vector2(lead_min + slack, tail_min)
+	return Vector2(lead_min + slack * lead_room / total,
+		tail_min + slack * tail_room / total)
+
+
 ## A caption, and a number. The two were the whole readability layer once: each
 ## drew a one-pixel offset shadow under itself and then the glyph. On a flat
 ## panel that works. On the painted brass housings it is worth nothing — the
@@ -3673,6 +3723,11 @@ const SHOP_GATE := 18.0
 ## Board floor to plate floor: the description strip, the gap over it, the two
 ## buttons, and the painted bevel `writing_area` already knows about.
 const SHOP_TAIL := 78.0
+## THE BERTHS' foot strip, whose two columns are shared out by `_share_strip`
+## rather than by fractions (SG-92). These are the only pixels on that strip
+## that are NOT sentence: an inset at each end and one gutter between them.
+const BERTHS_STRIP_PAD := 10.0
+const BERTHS_STRIP_GAP := 18.0
 const SHOP_STEP_MAX := 42.0
 const SHOP_STEP_MIN := 26.0
 ## The gutter the main runs down, inside each branch column, and the gap between
@@ -4234,6 +4289,34 @@ func _draw_workshop() -> void:
 ## slate refuses in `SkyGearFittings.can_berth`, never here. Every change
 ## saves and re-snapshots the TITLE deck — the run's own set is frozen at
 ## `begin_run`, which is what "the ship never changes mid-run" means.
+## THE BERTHS' SHEET, AS ARITHMETIC (SG-92). Lifted out of `_draw_berths`
+## unchanged so that the harness can ask for the same rectangle the screen
+## draws on instead of keeping a second copy of this sum — the guard below
+## measures the foot strip's columns, and a guard that measures a width the
+## screen does not use is worse than no guard.
+##
+## MEASURED, like the Workshop board: the rows close up before the chrome or the
+## point size ever would. 1280x720 is the height this family of screen has
+## broken at twice.
+static func berths_page(screen: Vector2, rows: int) -> Dictionary:
+	var step := 54.0
+	var fixed: float = 62.0 + SHOP_HEAD + SHOP_LEDGER + SHOP_LEDGER_GAP \
+		+ SHOP_BRANCH_HEAD + SHOP_TAIL + 84.0
+	var wanted: float = fixed + float(rows) * step
+	var tall: float = minf(screen.y - 116.0, wanted)
+	if wanted > tall:
+		step = clampf((tall - fixed) / float(maxi(1, rows)), 34.0, 54.0)
+	var page_w: float = clampf(screen.x - 96.0, 900.0, 1120.0)
+	return {"page": Rect2(screen.x * 0.5 - page_w * 0.5,
+		maxf(48.0, (screen.y - tall) * 0.4), page_w, tall), "step": step}
+
+
+## And the room the foot strip's two columns have between them, which is the
+## strip less its own chrome. One function, read by the screen and by the check.
+static func berths_strip_budget(page: Rect2) -> float:
+	return writing_area(page).size.x - BERTHS_STRIP_PAD * 2.0 - BERTHS_STRIP_GAP
+
+
 func _draw_berths() -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
@@ -4241,20 +4324,10 @@ func _draw_berths() -> void:
 	var ids: Array = SkyGearFittings.FITTINGS.keys()
 	var berthed: Array = SkyGearFittings.berthed_ids(w)
 
-	## MEASURED, like the Workshop board: the rows close up before the chrome
-	## or the point size ever would. 1280x720 is the height this family of
-	## screen has broken at twice.
 	var rows: int = ids.size()
-	var step := 54.0
-	var fixed: float = 62.0 + SHOP_HEAD + SHOP_LEDGER + SHOP_LEDGER_GAP \
-		+ SHOP_BRANCH_HEAD + SHOP_TAIL + 84.0
-	var wanted: float = fixed + float(rows) * step
-	var tall: float = minf(size.y - 116.0, wanted)
-	if wanted > tall:
-		step = clampf((tall - fixed) / float(maxi(1, rows)), 34.0, 54.0)
-	var page_w: float = clampf(size.x - 96.0, 900.0, 1120.0)
-	var page := Rect2(size.x * 0.5 - page_w * 0.5,
-		maxf(48.0, (size.y - tall) * 0.4), page_w, tall)
+	var laid: Dictionary = berths_page(size, rows)
+	var step: float = laid.step
+	var page: Rect2 = laid.page
 	_sheet(page)
 	var plate := _frame
 	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
@@ -4469,13 +4542,18 @@ func _draw_berths() -> void:
 			strip.size.x - 20.0, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#8f8697"))
 	else:
 		var lead := "%s  ·  %s" % [str(told.name), str(told.text)]
-		var lead_w: float = strip.size.x * 0.58
-		_label(lead, Vector2(strip.position.x + 10.0, strip.end.y - 8.0), lead_w,
-			HORIZONTAL_ALIGNMENT_LEFT, _fits(lead, lead_w, 14), Color("#dcd2c4"))
-		_label(str(told.status), Vector2(strip.end.x - 10.0 - strip.size.x * 0.38,
-			strip.end.y - 8.0), strip.size.x * 0.38, HORIZONTAL_ALIGNMENT_RIGHT,
-			_fits(str(told.status), strip.size.x * 0.38, 13, 10),
-			told.tint as Color)
+		var status := str(told.status)
+		## SG-92: the two columns are sized by what they need, not by 0.58/0.38.
+		## `BERTHS_STRIP_PAD` a side and `BERTHS_STRIP_GAP` between them is the
+		## whole chrome; everything else is the sentences.
+		var share := _share_strip(lead, 14, SkyGearInk.MIN_PT, status, 13, 10,
+			berths_strip_budget(page))
+		_label(lead, Vector2(strip.position.x + BERTHS_STRIP_PAD,
+			strip.end.y - 8.0), share.x,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(lead, share.x, 14), Color("#dcd2c4"))
+		_label(status, Vector2(strip.end.x - BERTHS_STRIP_PAD - share.y,
+			strip.end.y - 8.0), share.y, HORIZONTAL_ALIGNMENT_RIGHT,
+			_fits(status, share.y, 13, 10), told.tint as Color)
 	_frame = plate
 	_in_frame = true
 
