@@ -57,7 +57,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 53 and judge seven things
+## 1 · Play build 53 and judge eight things
 
 All shipped tonight; none can be settled by a checker.
 
@@ -67,6 +67,7 @@ All shipped tonight; none can be settled by a checker.
 | **The deck marks** | Scorch and blood accumulate where things actually happened. My kill-test threshold was wrong, the rig built to replace it answered non-proportionally, so the agent took the cautious branch — half the cap, alpha 0.30 → 0.12 — and refused to quote the flattering number. **Too subtle now, or too much?** |
 | **The crew** | 144 units (12.5% smaller) and they turn to face what they fight. **Right size? Right rule?** — see the strafe question below. |
 | **Enemy bolts** | 2.3× smaller, now the browser's own radius. **Too far?** |
+| **Fire's hitbox** | **The fire you can see is not the fire that burns you.** The renderer sizes flames, scorch and the burn mark from a `radius` the damage ignores: a scald trail is *drawn* at 46 and *burns* at 78; a lantern 62 against 78. So a pool burns you from outside its own picture, by up to 70%. Filed as SG-121 and **deliberately not fixed** — wiring the damage to the picture moves three hitboxes, deleting the field changes every drawn fire, and both are balance changes you should choose. It matters more since last night: fire stopped granting immunity and now delivers its authored rate. **Play it and say which way it should go.** |
 | **The knight's furnace** | It burns now. His emission map was effectively **empty** — 0.15% non-black — so every `emission_energy` he was ever given multiplied nothing, which is why the earlier "raise the emission" attempts measured as no-ops. The map is authored from his own albedo, no Meshy credits spent. Molten fraction **0.19% → 0.62%**, deliberately under his painting's 1.12%: pushed further the furnace goes white and the lit count *falls*. **Does he read as lit from inside now?** |
 | **The deck's new light** | A cool rim light from the bow, added overnight. The furnace knight measured **15% darker than the planking he stands on** — a warm brown figure on warm brown boards, because the deck had a key and a fill and no rim. He is now marginally brighter than his floor. **It is deck-wide, so the crates and rigging gained edges too.** Frames: `.shots/sg86/full-before-after.png`. **Does the deck look better, or just different?** |
 | **The HUD cluster** | Bottom-left rebuilt on the Supervive lessons. **Does the direction feel right before it spreads to the hand and the lane readout?** |
