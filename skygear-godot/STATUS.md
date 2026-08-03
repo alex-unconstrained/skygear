@@ -330,6 +330,21 @@ they do not reopen the retired parity goal. But CHECK `git branch
 --show-current` is `main` before you work: a Codex branch checked out over
 the shared tree once made every agent read its own committed work as a mess.
 
+**A THIRD GOTCHA, AND IT IS ABOUT COMMITTING RATHER THAN BUILDING (found the
+hard way 2026-08-03).** Everyone follows the rule *commit with explicit
+pathspecs, never* `git add -A`. **That is not enough when two agents are live in
+one tree, because the unit git stages is the FILE, not your hunks.** SG-117/118
+touched `tests/parity_test.gd`; another agent had in-progress SG-116 work sitting
+uncommitted in the same file, and `git add tests/parity_test.gd` took all of it —
+including a check referencing a constant that existed only in their unstaged
+`tools/rune_read.gd`. The commit looked fine and the harness passed **in the
+working tree**; a freshly extracted worktree of that HEAD would not PARSE. So the
+clean-worktree verification is not a formality that confirms what you already
+know — it is the only thing that catches this, and it caught it. If you share a
+file with a live agent, diff your commit against its parent for that file before
+you believe it, and rebuild the file from the parent plus your own additions if
+it carries someone else's.
+
 **Two build gotchas.** The Windows export template lives in a GITIGNORED
 `skygear-godot/.templates/`, so a fresh clone cannot build. And when agents are
 working, build from a clean `git worktree` of HEAD or you ship a half-written
