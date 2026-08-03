@@ -306,3 +306,54 @@ on the rim light.** (2) should wait until someone can show you a before/after of
 whole deck, not just of him.
 
 **His axe is still missing and still untouched**, as briefed.
+
+---
+
+## Fire: the circle you can see is not the circle that burns you (SG-121)
+
+**One question: which radius is the real one?** Three fire creators write a
+`radius`. The RENDERER reads it (`view3d.gd:4470`) to size the flames, the scorch
+under them and the permanent burn mark. The DAMAGE ignores it and uses a flat 78
+units for everyone. So:
+
+| fire | drawn at | burns at |
+|---|---|---|
+| Boilerwright's scald trail | 46 | 78 |
+| broken lantern | 62 | 78 |
+| RESIDUE, one stack | 84 | 78 |
+
+Two of the three burn the captain standing somewhere no fire is drawn. The third
+draws fire that does not burn. **My recommendation is to make the damage read the
+field's own radius** — it is the number the art already agrees with, and "the
+hitbox is the picture" is the fairness rule the telegraph work has been holding
+everywhere else. That shrinks the lantern and the scald trail and grows RESIDUE,
+which is a real balance change and is why it is on this list instead of in a
+commit.
+
+**Do not read this as urgent.** It is P3 and it has been true in every build. It
+is here because both of the two things the board row told the next agent to do —
+wire it up, or delete it — change the game, and neither should happen quietly.
+
+There is a second field, `dps`, that genuinely nothing reads (13x residue, 9.0 for
+the scald trail). Wiring that would move fire's damage rate a THIRD time in one
+session, after SG-117 and SG-122. **My recommendation is to leave `dps` alone
+until fire has been played after those two changes.**
+
+---
+
+## `lit_probe.gd` photographs however many boarders the clock spawned (SG-136)
+
+**One question: may I re-baseline the furnace-knight numbers?** `--fixed-fps 60`
+makes that tool repeatable — its molten reading goes from 0.24 / 0.23 / 0.25 over
+three runs to **0.81 / 0.81 / 0.81, bit-identical**. But the flag also changes how
+far the game has run by the time the tool takes its picture, so the deck holds
+**8 boarders instead of 3**, and that is what moves the number, not the flag.
+
+Which means the figure the knight's emission was tuned against was read off a
+composition the machine's speed chose. **I did not touch the constants**, because
+re-baselining them is changing tuning values to make a result look better and
+that is the one thing every agent this session was told not to do on its own.
+
+**My recommendation: yes, adopt the flag, and re-publish the bands in one commit
+with both sets of numbers in the row.** It costs one afternoon and it is the
+difference between a tool that can resolve a 1% asset change and one that cannot.
