@@ -363,6 +363,13 @@ var compare_open := false
 ## and zero until a first victory — so there is exactly one difficulty until the
 ## game has been beaten and every harness claim is against that one.
 var heat := 0
+## OPEN ALL HEATS (board SG-160). The settings sheet's playtest bypass, mirrored
+## here from `audio.open_heats` so every reader on the hot path — the title
+## ladder, `begin_run`'s clamp — asks the game rather than reaching through a
+## node that is null in the harness. `toggle_open_heats` is the only writer and
+## it writes both, the same shape `toggle_fullscreen` uses, so the settings row
+## and the file on disk cannot drift apart.
+var open_heats := false
 ## DECKWORK. What you are standing next to that you could work on, and how far
 ## through doing it you are. See `scripts/deckwork.gd` — a verb table rather than
 ## a repair button, because the ask was framed as the seed of the player shaping
@@ -488,6 +495,10 @@ func _ready() -> void:
 	audio = SkyGearAudio.new()
 	audio.name = "Audio"
 	add_child(audio)
+	## `add_child` runs `_ready`, which is where `settings.cfg` is read — so the
+	## bypass is live before the first title frame is drawn rather than one
+	## settings visit later (board SG-160).
+	open_heats = audio.open_heats
 	profiler = SkyGearProfiler.new()
 	profiler.name = "Profiler"
 	add_child(profiler)
@@ -1547,6 +1558,18 @@ func toggle_fullscreen() -> void:
 		audio.save_settings()
 
 
+## OPEN ALL HEATS (board SG-160), on the same shape as `toggle_fullscreen` and
+## for the same reason: one function, so the settings row and the file on disk
+## cannot disagree. Turning it OFF while a high rung is picked does not need to
+## reach in and fix `heat` — `begin_run`'s clamp already refuses to start a run
+## above the ceiling, and the title's own ladder re-clamps what it draws.
+func toggle_open_heats() -> void:
+	open_heats = not open_heats
+	if audio != null:
+		audio.open_heats = open_heats
+		audio.save_settings()
+
+
 func copy_report() -> void:
 	copy_run_report()
 
@@ -1813,8 +1836,13 @@ func begin_run() -> void:
 	## reads `talents`, so resolving it after any of them is a talent that applies
 	## to nothing. Shot Locker did exactly that until a check compared a kitted
 	## cannon against a bare one and found them identical.
-	## Clamped on the way in, so a save file edited to Heat 9 is Heat 2.
-	heat = clampi(heat, 0, SkyGearWorkshop.heat_available(workshop))
+	## Clamped on the way in, so a save file edited to Heat 9 is Heat 2 — and, with
+	## OPEN ALL HEATS on (board SG-160), Heat 5 rather than Heat 2, because the
+	## ceiling is what the player may be OFFERED. What such a run is worth is not
+	## decided here: `SkyGearWorkshop.bank` reads `heat_available` and pays a
+	## bypassed run nothing, so there is still exactly one place that knows the
+	## rule.
+	heat = clampi(heat, 0, SkyGearWorkshop.heat_ceiling(workshop, open_heats))
 	talents = SkyGearWorkshop.resolved(workshop)
 	articles = SkyGearWorkshop.articles_for(workshop, class_id)
 	## THE SHIP, RESOLVED ONCE — the fittings' whole application point (board

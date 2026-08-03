@@ -242,7 +242,7 @@ own bed:
 | legibility | smallest point size in the cluster | 12 | **≥ `SkyGearInk.MIN_PT` = 12** | 12 |
 | stability | elements that move when a status appears | 2 | **0** | 0 |
 | containment | strings printed on the painted brass frame | 1 (`SPC JET`) | **0** | 0 |
-| the whole audit | `tools/text_audit.gd`, 24 screens × 4 widths | clean | **clean** | clean; worst 2.84 against a 2.6 muted floor |
+| the whole audit | `tools/text_audit.gd`, 25 screens × 4 widths | clean | **clean** | clean; worst 2.84 against a 2.6 muted floor |
 
 The floors that were *chosen* rather than inherited, and the reasoning:
 

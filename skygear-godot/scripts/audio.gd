@@ -55,6 +55,12 @@ var muted := false
 ## Not audio, but this is the file that already persists preferences and a
 ## second settings file for one boolean is a second settings file.
 var fullscreen := true
+## OPEN ALL HEATS (board SG-160). Same argument as `fullscreen`, one step
+## further: this one deliberately does NOT live in `user://workshop.json`,
+## because that file is the player's earned progression and a playtest switch
+## has no business inside it. A save written by a build that has never heard of
+## this key loads unchanged and reads `false`.
+var open_heats := false
 
 
 func _ready() -> void:
@@ -177,6 +183,7 @@ func save_settings() -> void:
 		cfg.set_value("audio", key, volumes[key])
 	cfg.set_value("audio", "muted", muted)
 	cfg.set_value("display", "fullscreen", fullscreen)
+	cfg.set_value("playtest", "open_heats", open_heats)
 	cfg.save(SETTINGS_PATH)
 
 
@@ -189,4 +196,5 @@ func load_settings() -> void:
 		volumes[key] = float(cfg.get_value("audio", key, volumes[key]))
 	muted = bool(cfg.get_value("audio", "muted", false))
 	fullscreen = bool(cfg.get_value("display", "fullscreen", true))
+	open_heats = bool(cfg.get_value("playtest", "open_heats", false))
 	apply_volumes()

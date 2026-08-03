@@ -272,7 +272,7 @@ before then.
 - **Screenshots: minimum 5, minimum 1920 × 1080, 16:9.** Valve requires
   **gameplay footage only** — "no concept art or cinematics." This matters for
   SkyGear: **do not use the cutscene shots** as store screenshots. The `screens`
-  tool (`SkyGear Tools.bat screens`) already photographs 24 screens at 4 widths;
+  tool (`SkyGear Tools.bat screens`) already photographs 25 screens at 4 widths;
   the 1920-wide fight frames are the source. Plan on **8–10**, ordered so the
   first three read as: a full deck under boarding pressure, the draft, and a
   vent/keg chain.

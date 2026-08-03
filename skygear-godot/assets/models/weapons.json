@@ -17,20 +17,35 @@
   "Meshy returns blades along the mesh's own Y. A hand holds a blade along roughly",
   "the forearm axis, so every one of these carries a large rotation."
  ],
- "captain": {
-  "weapon": "sword_cutlass",
+ "boilerwright": {
   "bone": "mixamorig_RightHand",
-  "length": 0.95,
+  "length": 1.25,
   "offset": [
    0.0,
-   0.0,
-   0.0
+   -0.08,
+   -0.14
   ],
   "rotation": [
    -120.0,
-   0.0,
+   25.0,
    0.0
-  ]
+  ],
+  "weapon": "wrench_pipe"
+ },
+ "captain": {
+  "bone": "mixamorig_RightHand",
+  "length": 0.99,
+  "offset": [
+   0.379999935626984,
+   0.0499999970197678,
+   -2.23517412911711e-10
+  ],
+  "rotation": [
+   -96.0,
+   -96.0,
+   0.0
+  ],
+  "weapon": "sword_cutlass"
  },
  "weapons": {
   "axe_furnace": {
@@ -63,20 +78,5 @@
    "length": 1.9,
    "path": "res://assets/models/wrench_scrap/wrench_scrap.glb"
   }
- },
- "boilerwright": {
-  "weapon": "wrench_pipe",
-  "bone": "mixamorig_RightHand",
-  "length": 1.25,
-  "offset": [
-   0.0,
-   -0.08,
-   -0.14
-  ],
-  "rotation": [
-   -120.0,
-   25.0,
-   0.0
-  ]
  }
 }

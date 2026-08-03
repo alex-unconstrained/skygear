@@ -31,6 +31,14 @@ extends RefCounted
 const SCREENS := [
 	{"name": "title", "state": "TITLE"},
 	{"name": "title + heat", "state": "TITLE", "heat": true},
+	## THE SAME LADDER WITH THE BYPASS ON (board SG-160) — a genuinely different
+	## set of strings and states, not a tint of the one above: the header names
+	## the mode, three rungs wear the OPEN state instead of a padlock, and the
+	## strip carries the longest sentence this screen can produce (Skeleton Crew's
+	## blurb plus what it costs). Posed from a save that has never won, which is
+	## exactly the case the switch exists for and the one where every rung is
+	## bypassed at once.
+	{"name": "title + heat open", "state": "TITLE", "heat_open": true},
 	{"name": "title + controls", "state": "TITLE", "keys": true},
 	{"name": "settings", "state": "TITLE", "settings": true},
 	{"name": "how to play", "state": "TITLE", "how": true},
@@ -141,6 +149,12 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 	## Live again while the pose is being built; frozen once it is. See the note
 	## at the foot of this function.
 	game.set_process(true)
+	## THE PLAYTEST BYPASS IS A POSE INPUT, NOT AN INHERITED ONE (board SG-160).
+	## It persists in `user://settings.cfg`, so without this line the audit and the
+	## batch camera would measure whatever the dev machine last left switched on —
+	## two machines auditing two different title screens, which is the same trap
+	## `game.workshop = fresh(true)` twenty lines below exists to close.
+	game.open_heats = false
 	game.settings_open = false
 	game.keys_open = false
 	game.how_open = false
@@ -245,6 +259,14 @@ static func pose(tree: SceneTree, game, hud, screen: Dictionary,
 		game.workshop.scrip = 240
 		game.workshop.best_heat = 3
 		game.heat = 4
+	if bool(screen.get("heat_open", false)):
+		## A SAVE THAT HAS NEVER WON, with the bypass on — the ladder is on the
+		## board with no Workshop plate beside it and every rung OPEN, which is the
+		## state a first-time tester sees the moment he flips the switch. The pick
+		## sits on the summit so the strip is measured at its longest.
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.open_heats = true
+		game.heat = SkyGearWorkshop.HEAT.size() - 1
 	if bool(screen.get("banked", false)):
 		game.workshop = SkyGearWorkshop.fresh(true)
 		game.workshop.unlocked = true

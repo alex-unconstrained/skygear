@@ -6325,6 +6325,13 @@ func _view() -> void:
 	summit.articles = {"first_win": true, "reach_eight": true, "won_close": true,
 		"won_unhealed": true, "win_boilerwright": true}
 	var h_top: int = SkyGearWorkshop.HEAT.size() - 1
+	## AND THE RUNG BELOW ALREADY CLEARED, because that is the only way to be
+	## standing on the summit legitimately — one rung above your best, which is
+	## what `heat_available` has always meant. Implicit until SG-160 made a run
+	## above the earned rung a run that banks nothing: without this line the
+	## fixture is a BYPASSED summit clear, and the correct answer to that is the
+	## no sigil it was already asserting, for entirely the wrong reason.
+	summit.best_heat = h_top - 1
 	var before_sigils: int = int(summit.sigils)
 	SkyGearWorkshop.bank(summit,
 		{"won": true, "wave": 12, "seed": "TOP", "heat": h_top, "close_share": 50})
@@ -6332,6 +6339,162 @@ func _view() -> void:
 		int(summit.best_heat) == h_top and int(summit.sigils) == before_sigils,
 		"best %d · sigils %d -> %d" % [int(summit.best_heat), before_sigils,
 			int(summit.sigils)])
+
+	## --- OPEN ALL HEATS, the playtest bypass (board SG-160) ---------------------
+	##
+	## The owner has only ever played Heat 1 and cannot judge a rung he cannot
+	## reach. The bypass had to be built WITHOUT deleting the gate, so the pair of
+	## properties below is the whole feature: the ladder still climbs for anybody
+	## who has not switched it on, and a run played above the rung you have earned
+	## is worth exactly nothing.
+	##
+	## THE FIRST ONE IS THE REGRESSION THIS CHANGE RISKS, so it is stated on its
+	## own rather than left implied by the older `heat_available` checks: with the
+	## switch OFF, a fresh save's ceiling is still zero and still climbs one rung
+	## at a time.
+	var gate := SkyGearWorkshop.fresh(true)
+	var gate_walk := "%d" % SkyGearWorkshop.heat_ceiling(gate, false)
+	var gate_ok: bool = SkyGearWorkshop.heat_ceiling(gate, false) == 0
+	gate.unlocked = true
+	gate_walk += ",%d" % SkyGearWorkshop.heat_ceiling(gate, false)
+	gate_ok = gate_ok and SkyGearWorkshop.heat_ceiling(gate, false) == 1
+	gate.best_heat = 1
+	gate_walk += ",%d" % SkyGearWorkshop.heat_ceiling(gate, false)
+	gate_ok = gate_ok and SkyGearWorkshop.heat_ceiling(gate, false) == 2
+	_check("heat", "with the bypass off the ladder still climbs one rung at a time — the SG-160 regression",
+		gate_ok, "ceiling walked: " + gate_walk)
+
+	## And ON, from a save that has never won — the case the switch exists for.
+	var open_save := SkyGearWorkshop.fresh(true)
+	_check("heat", "OPEN ALL HEATS offers the whole ladder from a save that has never won",
+		SkyGearWorkshop.heat_ceiling(open_save, true)
+			== SkyGearWorkshop.HEAT.size() - 1
+			and SkyGearWorkshop.heat_available(open_save) == 0,
+		"ceiling %d · earned %d" % [SkyGearWorkshop.heat_ceiling(open_save, true),
+			SkyGearWorkshop.heat_available(open_save)])
+
+	## The bypass is a CEILING, not a rewrite of what has been earned — which is
+	## what lets the ladder go on rendering cleared/next/locked correctly under it
+	## and what makes switching the thing off instantaneous rather than a
+	## migration. Walked over every state of the save, not asserted at one.
+	var ceiling_drift := ""
+	var top_of_ladder: int = SkyGearWorkshop.HEAT.size() - 1
+	for won_at in range(0, SkyGearWorkshop.HEAT.size()):
+		for latch in [false, true]:
+			var rung_probe := SkyGearWorkshop.fresh(true)
+			rung_probe.unlocked = latch
+			rung_probe.best_heat = won_at
+			if SkyGearWorkshop.heat_ceiling(rung_probe, false) \
+					!= SkyGearWorkshop.heat_available(rung_probe):
+				ceiling_drift += " off@%d/%s" % [won_at, latch]
+			## And ON it is the summit from every one of those states, so the
+			## bypass cannot be a "one rung more" that quietly still climbs.
+			if SkyGearWorkshop.heat_ceiling(rung_probe, true) != top_of_ladder:
+				ceiling_drift += " on@%d/%s" % [won_at, latch]
+	_check("heat", "and switching it off puts the ceiling back exactly where it was, from every state of the save",
+		ceiling_drift == "", "drifted at:" + ceiling_drift)
+
+	## A BYPASSED RUN BANKS NOTHING. Not "no heat sigil" — nothing: no scrip, no
+	## sigil, no fitting, no record of the rung. The decision is written out at
+	## `SkyGearWorkshop.bank`; this is it holding.
+	var void_run := SkyGearWorkshop.fresh(true)
+	void_run.unlocked = true
+	void_run.scrip = 77
+	var void_before: int = SkyGearFittings.earned_count(void_run)
+	var void_out: Dictionary = SkyGearWorkshop.bank(void_run,
+		{"won": true, "wave": 12, "seed": "BYPASS", "heat": 4, "close_share": 50})
+	_check("heat", "a run above the rung you have earned banks nothing at all",
+		bool(void_out.get("bypassed", false))
+			and int(void_out.scrip) == 0 and int(void_out.sigils) == 0
+			and str(void_out.get("fitting", "")) == ""
+			and int(void_run.scrip) == 77 and int(void_run.best_heat) == 0
+			and int(void_run.sigils) == 0
+			and SkyGearFittings.earned_count(void_run) == void_before,
+		"scrip %d · best_heat %d · sigils %d · fittings %d -> %d"
+			% [int(void_run.scrip), int(void_run.best_heat), int(void_run.sigils),
+				void_before, SkyGearFittings.earned_count(void_run)])
+
+	## Including the one that would have been the FIRST victory. A bypassed clear
+	## that opened the Workshop would be the bypass paying the largest reward in
+	## the game, which is the opposite of the rule.
+	var void_first := SkyGearWorkshop.fresh(true)
+	var first_out: Dictionary = SkyGearWorkshop.bank(void_first,
+		{"won": true, "wave": 12, "seed": "BYPASS1", "heat": 2, "close_share": 50})
+	_check("heat", "and a bypassed first clear does not open the Workshop",
+		not bool(void_first.unlocked) and not bool(first_out.unlocked)
+			and (void_first.articles as Dictionary).is_empty(),
+		"unlocked %s · articles %d" % [bool(void_first.unlocked),
+			(void_first.articles as Dictionary).size()])
+
+	## AND THE OTHER HALF, which is the half a blunter rule would have got wrong:
+	## having the switch ON does not void anything. A Heat 0 run is within every
+	## save's ceiling, so it banks exactly as it always has — what voids a run is
+	## WHERE it was played, never which switches were set.
+	var switch_on := SkyGearWorkshop.fresh(true)
+	var switch_out: Dictionary = SkyGearWorkshop.bank(switch_on,
+		{"won": true, "wave": 12, "seed": "STOKED", "heat": 0, "close_share": 50})
+	_check("heat", "and a Heat 0 run banks in full however the bypass is set",
+		not bool(switch_out.get("bypassed", true))
+			and bool(switch_on.unlocked) and int(switch_on.scrip) > 0
+			and int(switch_on.sigils) > 0,
+		"scrip %d · sigils %d · unlocked %s" % [int(switch_on.scrip),
+			int(switch_on.sigils), bool(switch_on.unlocked)])
+
+	## THE SWITCH IS A SETTING, NOT A SAVE FIELD. `workshop.json`'s schema is
+	## `fresh()`'s key list, and the merge in `load_state` walks exactly that — so
+	## a key added here would be a key written into every player's progression
+	## file. It lives in `user://settings.cfg` beside fullscreen instead, which is
+	## the whole reason turning it on cannot invalidate a save.
+	var audio_src := FileAccess.get_file_as_string("res://scripts/audio.gd")
+	var shop_src := FileAccess.get_file_as_string("res://scripts/workshop.gd")
+	_check("heat", "the bypass lives in settings.cfg and never in the save file",
+		not SkyGearWorkshop.fresh(true).has("open_heats")
+			and audio_src.contains('cfg.set_value("playtest", "open_heats"')
+			and audio_src.contains('cfg.get_value("playtest", "open_heats"')
+			and not shop_src.contains('"open_heats"')
+			and not shop_src.contains("state.open_heats"),
+		"fresh keys: %s" % str(SkyGearWorkshop.fresh(true).keys()))
+
+	## A RUN ACTUALLY STARTS AT THE SUMMIT, AND IT IS THE REAL HEAT 5. The clamp in
+	## `begin_run` is the gate a save edited to Heat 9 hits, and it is the same
+	## line the bypass has to lift — so it is driven rather than reasoned about,
+	## with the modifiers read off the deck the run built.
+	var top_rung: int = SkyGearWorkshop.HEAT.size() - 1
+	var jump := _new_game()
+	jump.workshop = SkyGearWorkshop.fresh(true)
+	jump.open_heats = true
+	jump.heat = 9
+	jump.set_seed_text("JUMP")
+	jump.begin_run()
+	var jump_turret: float = float(jump.turrets[0].hp)
+	_check("heat", "a run can start at the summit from a save that has never won",
+		jump.heat == top_rung, "started at %d against a top rung of %d"
+			% [jump.heat, top_rung])
+	## And it is not a label: the cannons came up half dead, which is Skeleton
+	## Crew's own modifier and nothing else in the game does it. Against a Heat 0
+	## run off the same never-won save, so the only difference between the two
+	## decks is the rung.
+	var jump_flat := _new_game()
+	jump_flat.workshop = SkyGearWorkshop.fresh(true)
+	jump_flat.heat = 0
+	jump_flat.set_seed_text("JUMP")
+	jump_flat.begin_run()
+	var flat_again: float = float(jump_flat.turrets[0].hp)
+	_check("heat", "and it is the real rung — Skeleton Crew's cannons, not a Heat 0 run wearing the number",
+		is_equal_approx(jump_turret, flat_again
+			* SkyGearWorkshop.turret_hp_scale_for(top_rung))
+			and jump_turret < flat_again,
+		"cannon %.0f at the summit against %.0f at Heat 0" % [jump_turret, flat_again])
+	jump_flat.queue_free()
+	## ...and switching the bypass off puts the clamp straight back. Same object,
+	## same line, one flag apart — this is the check that would fail if the clamp
+	## had been deleted rather than widened.
+	jump.open_heats = false
+	jump.heat = 9
+	jump.begin_run()
+	_check("heat", "and with the bypass off the same run is clamped back to Heat 0",
+		jump.heat == 0, "started at %d" % jump.heat)
+	jump.queue_free()
 
 	## THE ARTICLES. The sigil side: commitments rather than experiments, no
 	## refund, and two of them fight over the same key.
@@ -10015,6 +10178,65 @@ func _menu() -> void:
 		lo >= 0.70 and hi <= 1.0, "%.3f .. %.3f" % [lo, hi])
 	_check("menu", "the engraved channel is opaque, so no light reaches the words",
 		SkyGearHUD.MENU_FIELD.a >= 0.95, str(SkyGearHUD.MENU_FIELD.a))
+
+	## --- THE BYPASS ON THE REAL TITLE (board SG-160) ---------------------------
+	##
+	## Everything above this point in the SG-160 work is arithmetic on a state
+	## dictionary. The thing the owner actually needs is a rung he can CLICK, so
+	## it is asserted where the clicking happens: pose a save that has never won,
+	## redraw the real title, and count what the widget layer was handed.
+	##
+	## First the baseline, which is also the gate's own regression on this screen:
+	## with the switch off, a never-won save has no ladder at all.
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.open_heats = false
+	game.heat = 0
+	hud.queue_redraw()
+	await process_frame
+	var shut_rungs := 0
+	for item in hud.ui.declared():
+		if absf((item.rect as Rect2).size.y - 34.0) < 0.5:
+			shut_rungs += 1
+	_check("menu", "a save that has never won gets no Heat ladder — the gate, on the screen",
+		shut_rungs == 0, "%d rungs drawn" % shut_rungs)
+
+	game.open_heats = true
+	game.heat = SkyGearWorkshop.HEAT.size() - 1
+	hud.queue_redraw()
+	await process_frame
+	var open_rungs := 0
+	for item in hud.ui.declared():
+		if absf((item.rect as Rect2).size.y - 34.0) < 0.5:
+			open_rungs += 1
+	_check("menu", "and OPEN ALL HEATS puts every rung on that same title, clickable",
+		open_rungs == SkyGearWorkshop.HEAT.size() - 1,
+		"%d rungs drawn against %d on the ladder"
+			% [open_rungs, SkyGearWorkshop.HEAT.size() - 1])
+
+	## AND THE BOARD IS STILL THE RIGHT LENGTH UNDER IT. This is the pose the
+	## bypass invents and nothing else in the game produces: the ladder present
+	## while THE WORKSHOP and THE BERTHS are absent, which is a height combination
+	## `_draw_title`'s arithmetic had never been asked for. A board measured from a
+	## body it does not contain is exactly the failure that once printed THE
+	## ARTICLES through WOUND KIT, so it is measured rather than eyeballed.
+	var open_board := Rect2()
+	for panel in hud.edit_panels:
+		if panel.size.x < hud.size.x and panel.size.y < hud.size.y:
+			open_board = panel
+	var open_lowest := 0.0
+	for item in hud.ui.declared():
+		var r: Rect2 = item.rect
+		if open_board.encloses(r.grow(-0.5)):
+			open_lowest = maxf(open_lowest, r.end.y)
+	var open_trouble: Array = SkyGearUI.collisions(hud.ui.declared())
+	_check("menu", "and the board is still exactly as deep as the column standing on it, with the ladder up and the Workshop absent",
+		open_board.size.y > 0.0 and open_trouble.is_empty()
+			and absf((open_board.end.y - open_lowest) - SkyGearHUD.MENU_STILE) < 1.0,
+		"foot gap %.1f, stile %.1f, %d collisions"
+			% [open_board.end.y - open_lowest, SkyGearHUD.MENU_STILE,
+				open_trouble.size()])
+	game.open_heats = false
+	game.heat = 0
 
 	game.layout_edit = false
 

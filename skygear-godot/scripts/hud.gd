@@ -188,6 +188,10 @@ const MENU_BLURB_H := 30.0           ## a two-line sentence under a plate
 const MENU_RULE_H := 14.0            ## the rule that separates the door
 const MENU_LADDER_H := 96.0          ## DIFFICULTY: header, rungs, sentence
 const MENU_TOP := 352.0              ## the board's head, under the banner
+## THE ONE CAPTION ON THE SETTINGS SHEET (SG-160): two wrapped 12pt lines under
+## OPEN ALL HEATS, saying what the switch costs. Named, because the sheet's own
+## height is arithmetic and a magic 42 added in two places is failure mode two.
+const SETTINGS_CAPTION_H := 42.0
 
 ## THE METALS. Cold iron for locked, and it is `FIT_RIM[0]` — the Workshop's own
 ## LOCKED metal — rather than a sixth violet, because a fifth shade of purple is
@@ -527,7 +531,12 @@ func _draw_title() -> void:
 	## The board goes UNDER its contents, so its height has to be known before
 	## the first plate is placed. Arithmetic, never an estimate — an estimate is
 	## what once printed THE ARTICLES through WOUND KIT on the Workshop board.
-	var heat_on: bool = SkyGearWorkshop.heat_available(game.workshop) > 0
+	## The ladder is on the board once there is a rung to hand out — which, with
+	## OPEN ALL HEATS on (board SG-160), is true from a fresh save. That is the
+	## point of the switch: the owner has never had a first victory on the build
+	## he is testing, and a ladder he cannot see is a ladder he cannot play.
+	var heat_on: bool = SkyGearWorkshop.heat_ceiling(game.workshop,
+		game.open_heats) > 0
 	var shop_on: bool = bool(game.workshop.unlocked)
 	var body: float = 0.0
 	if heat_on:
@@ -706,7 +715,15 @@ func _menu_rule(x: float, wide: float, y: float) -> void:
 ## rungs a player most wants to read. The purchase is refused instead by the
 ## `is_reachable` gate, the same shape the Workshop board uses for its fittings.
 func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
-	var reachable: int = SkyGearWorkshop.heat_available(game.workshop)
+	## TWO CEILINGS, NOT ONE (board SG-160). `earned` is the progression rule and
+	## is what the ladder's own states are drawn from — cleared, next, locked all
+	## still mean exactly what they meant. `reachable` is what the screen may hand
+	## out, which OPEN ALL HEATS lifts to the top of the ladder. Collapsing them
+	## into one number would make the bypass indistinguishable from having climbed,
+	## which is the one thing this must not look like.
+	var earned: int = SkyGearWorkshop.heat_available(game.workshop)
+	var reachable: int = SkyGearWorkshop.heat_ceiling(game.workshop,
+		game.open_heats)
 	var best: int = int(game.workshop.best_heat)
 	var rungs: int = SkyGearWorkshop.HEAT.size() - 1
 	var sel: int = clampi(game.heat, 0, reachable)
@@ -718,9 +735,14 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 	## ground rather than a rung on the ladder. `_say` rather than `_say_free`
 	## since SG-91: the ladder now stands on the board, so there is a frame for
 	## these to be inside of and the containment pass can have an opinion.
+	##
+	## The MODE rides on the left-hand label rather than on the pick, so the
+	## longest string this header can produce is still "HEAT 4 · BOARDERS ALOFT" —
+	## the one the text audit already measures at all four widths.
 	var here_name := str(SkyGearWorkshop.HEAT[sel].name)
-	_say("DIFFICULTY", Vector2(wx, top + 12.0), wide * 0.5,
-		HORIZONTAL_ALIGNMENT_LEFT, 13, BONE)
+	_say("DIFFICULTY · OPEN" if game.open_heats else "DIFFICULTY",
+		Vector2(wx, top + 12.0), wide * 0.5,
+		HORIZONTAL_ALIGNMENT_LEFT, 13, flame if game.open_heats else BONE)
 	_say(("HEAT %d · %s" % [sel, here_name]) if sel > 0 else here_name,
 		Vector2(wx, top + 12.0), wide, HORIZONTAL_ALIGNMENT_RIGHT, 13,
 		BRASS_LIT if sel > 0 else locked_ink)
@@ -740,7 +762,11 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 		var box := Rect2(wx + (rw + gap) * float(r - 1), row_y, rw, 34.0)
 		var is_reachable := r <= reachable
 		var is_cleared := r <= best
-		var is_next := r == reachable
+		var is_next := r == earned
+		## OPENED, not earned (board SG-160): reachable only because the bypass is
+		## on. Its own state and its own colour — a bypassed rung must never wear
+		## the teal that means "this is the one you have climbed to".
+		var is_open := r > earned and r <= reachable
 		var is_locked := r > reachable
 		var is_sel := r == sel
 
@@ -760,8 +786,10 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 		if hot:
 			active = r
 
-		var rim := BRASS_LIT if is_cleared else (teal if is_next else MENU_IRON)
-		var ink := BRASS_LIT if is_cleared else (teal if is_next else locked_ink)
+		var rim := BRASS_LIT if is_cleared else (teal if is_next
+			else (flame if is_open else MENU_IRON))
+		var ink := BRASS_LIT if is_cleared else (teal if is_next
+			else (flame if is_open else locked_ink))
 		## Cleared rungs are FILLED metal, the next one is teal and hollow, and a
 		## locked one is cold iron with an empty hole where its rivet would be.
 		## The SELECTED rung is SEATED — pressed into the rail, so the pick reads
@@ -784,11 +812,18 @@ func _draw_heat_ladder(wx: float, wide: float, top: float) -> float:
 	## and with nothing hot, the sentence for the rung you have selected.
 	var blurb := ""
 	var tint := locked_ink
+	var show: int = active if active > 0 else sel
 	if active > reachable:
 		blurb = "LOCKED · " + (("clear HEAT %d to unlock." % (active - 1))
 			if active - 1 >= 1 else "win a run to open the ladder.")
+	elif show > earned:
+		## OPENED BY THE BYPASS, and the price is named at the moment the pick is
+		## made rather than discovered on the results sheet (board SG-160). The
+		## rung plays in full; it simply pays nothing.
+		blurb = "OPEN · %s Banks nothing." % str(
+			SkyGearWorkshop.HEAT[clampi(show, 0, rungs)].blurb)
+		tint = flame
 	else:
-		var show: int = active if active > 0 else sel
 		blurb = str(SkyGearWorkshop.HEAT[clampi(show, 0, rungs)].blurb)
 		tint = flame if show > 0 else locked_ink
 	_says(blurb, Vector2(wx + 10.0, row_y + 46.0), wide - 20.0,
@@ -5213,8 +5248,13 @@ func _draw_settings() -> void:
 	## Nine rows of chrome rather than eight, and the extra one is the banner:
 	## its ornament hangs 115 below the top of the sheet and the first slider was
 	## starting at 86.
-	var rows := 9
-	var tall: float = 150.0 + rows * 40.0 + 58.0
+	##
+	## TEN since SG-160, plus the one caption OPEN ALL HEATS carries under it —
+	## arithmetic, and added here rather than to the row count, because the caption
+	## is 24 tall and a row is 40. A sheet measured by a row count that lies is how
+	## the results screen once printed its footer across the bottom rail.
+	var rows := 10
+	var tall: float = 150.0 + rows * 40.0 + 58.0 + SETTINGS_CAPTION_H
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
 	_panel(sheet)
@@ -5250,6 +5290,24 @@ func _draw_settings() -> void:
 			{"hint": "F11"}):
 		game.toggle_fullscreen()
 	y += 40.0
+	## OPEN ALL HEATS (board SG-160). The bypass lives HERE, on the settings sheet,
+	## rather than as a command-line flag or a hand-edited save, because the ask
+	## was to be able to playtest any rung in the build he actually plays — and
+	## because a bypass nobody can find is a bypass that gets replaced by deleting
+	## the gate. No key hint: there is no binding, deliberately. This is a switch
+	## you set once, not a thing to hit by accident mid-menu.
+	if ui.row(Rect2(x, y, w, 34.0), "OPEN ALL HEATS",
+			"ON" if game.open_heats else "OFF"):
+		game.toggle_open_heats()
+	y += 40.0
+	## The consequence, stated where the switch is. Every clause is load bearing:
+	## the ladder still exists, the run is the real run, and the save is untouched
+	## either way. `_says` rather than `_label`, because 12 is the ink floor and a
+	## sentence this long cannot be shrunk to fit — it has to be allowed to wrap.
+	_says("Playtest: pick any Heat at the title. A run above the rung you have earned still plays in full, and banks nothing — no scrip, no sigil, no record.",
+		Vector2(x + 14.0, y + 12.0), w - 28.0, HORIZONTAL_ALIGNMENT_LEFT, 12, 2,
+		Color("#b9afaa"))
+	y += SETTINGS_CAPTION_H
 	if ui.button(Rect2(x, y, w, 34.0), "REBIND CONTROLS", {"hint": "F2"}):
 		game.settings_open = false
 		game.keys_open = true
@@ -5313,6 +5371,10 @@ func _draw_results(title: String, tint: Color) -> void:
 	if game.talent("show_ledger") > 0.0:
 		chrome += 18.0
 	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
+		chrome += 18.0
+	## The bypass line (SG-160) takes the same 18 the payout line would have, and
+	## never both — a bypassed run banks no scrip, so the branch above is false.
+	if bool((game.banked as Dictionary).get("bypassed", false)):
 		chrome += 18.0
 	if str((game.banked as Dictionary).get("fitting", "")) != "":
 		chrome += 18.0
@@ -5391,7 +5453,18 @@ func _draw_results(title: String, tint: Color) -> void:
 
 	## AND WHAT IT PAID. A run that quietly banked scrip is a run whose reward the
 	## player finds two screens later, if at all.
-	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
+	##
+	## A BYPASSED RUN TAKES THE SAME SLOT (board SG-160) and says the opposite, for
+	## the same reason: a run that quietly banked NOTHING is worse than one that
+	## quietly banked something. The two are mutually exclusive by construction —
+	## `bank()` returns zero scrip for a bypassed run — so this is one line in one
+	## place, at the width the payout line is already audited at.
+	if bool((game.banked as Dictionary).get("bypassed", false)):
+		_label("OPEN HEAT · nothing banked: this run was played above the rung you have earned",
+			Vector2(page.position.x, y + 14.0), page.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#ff9a4a"))
+		y += 18.0
+	elif not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
 		var earned := "+%d scrip" % int(game.banked.scrip)
 		if int(game.banked.get("sigils", 0)) > 0:
 			earned += "  ·  +%d sigil" % int(game.banked.sigils)
