@@ -17,15 +17,40 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1011 harness checks**; the text audit covers 24 screens at
-4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
-sentence above it said so for days while the audit reported a BERTHS overflow on
-every windowed run, filed under an ID (SG-68) that belongs to a different,
-finished row. Board SG-92 has the whole of it, and the reason it was one finding
-rather than four. Build 38 is on itch at
+board SG-56). **1024 harness checks**; the text audit covers 25 screens at
+4 widths and **is clean as of 2026-08-03** — and it is worth remembering why
+that sentence is stated with a date: it said so for days while the audit
+reported a BERTHS overflow on every windowed run, filed under an ID (SG-68) that
+belongs to a different, finished row. Board SG-92 has the whole of it, and the
+reason it was one finding rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE OWNER HAS ONLY EVER PLAYED HEAT 1, AND THAT IS NOW A SETTING RATHER THAN A
+RUN OF WINS (SG-155, 2026-08-03, owner: *"if you're able to just unlock it so I
+can jump to any heat, that would be better for my testing"*).** SETTINGS →
+**OPEN ALL HEATS** → ON, then pick any rung on the title. It persists in
+`user://settings.cfg` beside fullscreen and the volumes, so it survives a
+restart and works in the packaged Windows build; it is deliberately NOT in
+`user://workshop.json`, which is why switching it on cannot touch a byte of what
+has been earned. **The gate is not deleted and the ladder still climbs** — two
+functions, not one: `heat_available` is the progression rule and never moves,
+`heat_ceiling` is what the screen may OFFER. **THE DECISION, so it is not
+ambiguous: a run played above the rung you have earned banks NOTHING** — no
+scrip, no sigil, no fitting, no `best_heat`, and it does not count as the first
+victory. Not partial credit: "the tree was bought at Heat 5" is not a sentence
+this harness can reason about, and the ladder has to stay a thing other players
+climb. **What voids a run is WHERE it was played, never which switches are set**
+— a Heat 0 run with the bypass on banks in full, which is also what makes the
+switch safe to leave on. It says so in three places (the settings caption, the
+rung's own OPEN strip, the results sheet). Thirteen checks; the two that matter
+are `heat · with the bypass off the ladder still climbs one rung at a time — the
+SG-155 regression` and `heat · a run above the rung you have earned banks
+nothing at all`. **And it found a fixture asserting the right answer for the
+wrong reason:** the summit check banked a Heat 5 win onto a save with
+`best_heat` 0 — a bypassed clear — and got its "no sigil" from that rather than
+from §5's rule.
 
 **THE COLOSSUS DIED IN 9.7 SECONDS, AND THE DESIGN DOC'S EXPLANATION OF WHY HE
 IS EASY WAS HALF WRONG (SG-146, 2026-08-03, owner: "still super easy... he also
@@ -289,8 +314,8 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1011 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
-photograph all 24 screens at all 4 widths as one page — for auditing everything
+`harness` (1024 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+photograph all 25 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
 the step that makes a hand-alignment pass real).
@@ -395,7 +420,7 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1011 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1024 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -423,8 +448,8 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1011 checks. Green before anything ships |
-| `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
+| `harness` | 1024 checks. Green before anything ships |
+| `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |

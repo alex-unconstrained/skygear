@@ -17,7 +17,7 @@ and the Boilerwright), the full 41-card draft with reroll and seeded rolls,
 persistent progression (the Workshop, the Articles, Heat), a difficulty ladder,
 a run log, rebindable keys, a cutscene system with all five cues filled, two rigged boarders that walk and die, and the
 browser's painted sky sampled by view direction. Verified by the harness —
-774 checks — and a text audit across 24 screens at 4 widths.
+774 checks — and a text audit across 25 screens at 4 widths.
 
 Build 44 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
 

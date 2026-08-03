@@ -989,6 +989,17 @@ to average wave 10.2, and held Heat 5 none, dying on wave 4 every run.
 
 ## Done
 
+- **DONE 2026-08-03 — jump straight to any Heat, for testing.** Asked the same
+  day: *"to be fair, I've only ever played the game on heat 1, so I don't have a
+  lot of information to share. For me, if you're able to just unlock it so I can
+  jump to any heat, that would be better for my testing."* **SETTINGS → OPEN ALL
+  HEATS → ON**, then pick any rung on the title. It persists in
+  `user://settings.cfg`, so it holds across restarts and works in the packaged
+  Windows build. The progression gate is NOT deleted — the ladder still climbs
+  for anyone who has not switched it on — and **a run played above the rung you
+  have earned banks nothing at all**, which is what keeps your save and every
+  balance claim in these docs meaning what they meant. Board SG-155.
+
 - **DROPPED — the crate mechanics ("The crate mechanics suck"), by your own
   verdict, 2026-08-02:** *"the current push crate mechanic is boring. table
   that feature for now we can revisit interactions like that later."* The

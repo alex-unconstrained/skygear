@@ -365,10 +365,40 @@ static func turret_hp_scale_for(level: int) -> float:
 
 ## You may pick any Heat up to one above your best clear, so the ladder is
 ## climbed rather than skipped — and never at all before the first victory.
+##
+## THIS FUNCTION IS THE PROGRESSION RULE AND IT NEVER MOVES. `heat_ceiling`
+## below is what the UI is allowed to OFFER; this is what has been EARNED, and
+## keeping them as two functions is the whole reason OPEN ALL HEATS can exist
+## without the ladder quietly becoming decoration (board SG-155).
 static func heat_available(state: Dictionary) -> int:
 	if not bool(state.unlocked):
 		return 0
 	return mini(HEAT.size() - 1, int(state.best_heat) + 1)
+
+
+## OPEN ALL HEATS (board SG-155, owner: *"if you're able to just unlock it so I
+## can jump to any heat, that would be better for my testing"*). The highest rung
+## the title screen may hand out — the earned one normally, the whole ladder when
+## the settings sheet's bypass is on.
+##
+## A SETTING, NOT A SAVE FIELD. It lives in `user://settings.cfg` beside
+## fullscreen and the volumes (`scripts/audio.gd`), never in `workshop.json`, so
+## turning it on cannot touch, migrate or invalidate a single byte of what the
+## player has earned — and `fresh()`'s key list stays the whole schema.
+static func heat_ceiling(state: Dictionary, open_heats: bool) -> int:
+	if open_heats:
+		return HEAT.size() - 1
+	return heat_available(state)
+
+
+## Is this run being played above the rung its save has earned? The one place the
+## question is asked — `bank()` reads it to decide the run pays nothing, and the
+## HUD reads it to say so on the rung, on the ladder's strip and on the results
+## sheet. Note it does NOT ask whether the bypass is switched on: a Heat 0 run
+## with OPEN ALL HEATS enabled is not bypassed and banks exactly as it always
+## has. What voids a run is where it was played, never which switches were set.
+static func heat_bypassed(state: Dictionary, level: int) -> bool:
+	return level > heat_available(state)
 
 
 ## A tier opens once two nodes in its branch are bought. Gating on COUNT rather
@@ -460,12 +490,29 @@ static func scrip_for(row: Dictionary, seen_seed: bool) -> int:
 static func bank(state: Dictionary, row: Dictionary) -> Dictionary:
 	var won: bool = bool(row.get("won", false))
 	var was_locked: bool = not bool(state.unlocked)
+	## THE BYPASS PAYS NOTHING (board SG-155), and it is decided FIRST, against the
+	## state as it stands on the way in — before the first-win latch below flips,
+	## so a bypassed clear cannot open the Workshop by unlocking itself.
+	##
+	## THE DECISION, stated once so it is not ambiguous: a run played above the
+	## rung you have earned banks NOTHING AT ALL — no scrip, no sigil, no fitting,
+	## no `best_heat`, and it does not count as the first victory. Not "no heat
+	## sigil" and the rest as usual: partial credit is what would make every
+	## balance claim in this repo ambiguous, because "the tree was bought at Heat
+	## 5" is not a sentence the harness can reason about, and because the ladder
+	## has to stay a thing you CLIMB for other players. The switch buys the owner
+	## a seat at any rung; it does not buy the save a shortcut. It also means the
+	## bypass is unconditionally safe to leave on — the only thing it can do to a
+	## save is nothing.
+	if heat_bypassed(state, int(row.get("heat", 0))):
+		return {"scrip": 0, "sigils": 0, "unlocked": bool(state.unlocked),
+			"first_win": false, "fitting": "", "bypassed": true}
 	## THE GATE. Nothing accrues before the first victory — not banked-and-hidden,
 	## not retroactive. A player who has not won has no Workshop and no scrip,
 	## and the run they just played was exactly the shipped game.
 	if was_locked and not won:
 		return {"scrip": 0, "sigils": 0, "unlocked": false, "first_win": false,
-			"fitting": ""}
+			"fitting": "", "bypassed": false}
 	if was_locked:
 		state.unlocked = true
 
@@ -494,7 +541,7 @@ static func bank(state: Dictionary, row: Dictionary) -> Dictionary:
 	var kept := SkyGearFittings.award_in(state, row)
 	save_state(state)
 	return {"scrip": gained, "sigils": sigils, "unlocked": true,
-		"first_win": was_locked, "fitting": kept}
+		"first_win": was_locked, "fitting": kept, "bypassed": false}
 
 
 ## Which one-time achievements this run completed. Named `firsts` because that is
