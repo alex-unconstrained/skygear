@@ -17,7 +17,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 48 and judge five things
+## 1 · Play build 49 and judge five things
 
 All shipped tonight; none can be settled by a checker.
 
@@ -93,8 +93,8 @@ things are specced and waiting: the ship edge-kit concepts and four HUD pieces,
 One agent, three items, none needing you:
 
 1. **The audit regression** — the results screen's report head overflows at
-   every width, from tonight's menu rebuild narrowing the banner's interior.
-   Already diagnosed; it is a width fix.
+   every width. *(My diagnosis here — "the menu rebuild narrowed the banner" —
+   turned out to be wrong. It was never a width problem. See §7.)*
 2. **The rig overhead, as shadow only** — the top-ranked item in
    `docs/DECK-IDENTITY-DESIGN.md`, and my answer to "it feels like a floating
    plane": masts, yards and shrouds built as **shadow casters with no visible
@@ -115,7 +115,7 @@ numbers here rather than a feature nobody measured.
 
 ## 6 · Where the day got to
 
-**Builds 32 → 48. Harness 499 → 851.** The deck went from half-painted to
+**Builds 32 → 49. Harness 499 → 862.** The deck went from half-painted to
 all-mesh, and **every figure you modelled yourself was wired the same day you
 made it** — the hulk's three states, the furnace knight, the crew, the goblins,
 the drone, the Colossus, and a five-ship fleet.
@@ -127,7 +127,7 @@ Every dying thing on this deck now has a death. As of tonight, nothing vanishes
 
 ## 7 · Overnight, after you went to sleep (SG-106, SG-107)
 
-**Harness 851 → 862. Text audit clean. Nothing pushed.** Three things landed:
+**Harness 851 → 862. Text audit clean. Pushed, and build 49 is live.** Three things landed:
 the audit regression, the rig overhead, and the shadow authority.
 
 ### Look at these two first, they are pictures
