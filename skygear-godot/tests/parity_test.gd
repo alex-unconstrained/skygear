@@ -2339,6 +2339,119 @@ func _boss() -> void:
 		is_equal_approx(summed, float(game.tel.taken_by_wave.get(12, 0.0))),
 		"%.1f against %.1f" % [summed, float(game.tel.taken_by_wave.get(12, 0.0))])
 	game.queue_free()
+	await process_frame
+	await _boss_walks_the_lane()
+
+
+## THE ROOT FIX, ASSERTED AS A BEHAVIOUR RATHER THAN AS A CONSTANT (SG-131).
+##
+## COLOSSUS-DESIGN §1 measured that the Colossus is easy because he CHASES: he
+## freezes for 1.9 s to swing at where a 260 u/s captain was, and closes at 95.
+## §2's graft 1 stops him chasing. The check that matters is not "the constant is
+## true" — that is a tautology — but "put the captain right next to him and he
+## still walks at the ship", which is the thing the sim has to do.
+##
+## BOTH ROWS WERE RUN AGAINST THE OLD CODE AND BOTH FAILED THERE: with the gate
+## absent the Colossus turned on her exactly like a scrapper and his velocity
+## pointed bow-ward, away from the Boiler.
+func _boss_walks_the_lane() -> void:
+	var game := _new_game()
+	_begin(game)
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	## The cannon and the crew are cleared so that the ONLY two candidates left
+	## are the captain and the Boiler. With a cannon standing he would walk at the
+	## cannon and this check would pass for the wrong reason.
+	for t in game.turrets:
+		t.dead = true
+	for c in game.crew:
+		c.dead = true
+	game.spawn_enemy("BOSS", 1)
+	game.spawn_enemy("SCRAPPER", 1)
+	var boss: SkyGearEnemy = null
+	var grunt: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "BOSS":
+			boss = e
+		elif e.kind == "SCRAPPER":
+			grunt = e
+	_check("boss", "the Colossus and a scrapper are both on the deck to compare",
+		boss != null and grunt != null)
+	if boss == null or grunt == null:
+		game.queue_free()
+		return
+	## Mid-deck, with the captain 200 units BOW-ward of both. 200 is chosen: it is
+	## inside the 280 the chase branch triggers at, and OUTSIDE his 137-unit
+	## windup range, so on a build without the gate he WALKS at her rather than
+	## freezing to swing — which makes the velocity row below a test of who he is
+	## walking at rather than of whether he happens to be mid-windup. It is also
+	## the opposite direction from the Boiler, so the two answers have opposite
+	## signs and no threshold has to be picked.
+	for e in [boss, grunt]:
+		e.state = "move"
+		e.state_time = 0.0
+		e.global_position = Vector2(0.0, 0.0)
+	game.player.global_position = Vector2(0.0, -200.0)
+	## Asked through `has_method` for the same reason as the telemetry row above:
+	## on a build without the gate this must FAIL rather than raise, or it takes
+	## the three checks below it with it. On c486000 `has_method` is false, both
+	## boarders read as chasing, and this row and the velocity row below both
+	## fail while the regression guard passes — which is exactly the pattern a
+	## correct new check should show against old code.
+	var has_gate: bool = boss.has_method("chases_captain")
+	var boss_chases: bool = boss.chases_captain() if has_gate else true
+	var grunt_chases: bool = grunt.chases_captain() if has_gate else true
+	## PINNED TO THE CONSTANT, NOT TO ONE OF ITS POSITIONS. The gate ships OFF
+	## (it failed its own kill-test — see the constant), and a check that simply
+	## asserted "he does not chase" would turn the harness red the moment the
+	## owner flips the one word he is invited to flip. So the assertion is that
+	## the constant DECIDES: whichever way it is set, the simulation agrees with
+	## it. That still fails on a build with no gate at all, which is the bar.
+	_check("boss", "the Colossus's chase is decided by the one named constant",
+		has_gate and boss_chases != SkyGearEnemy.COLOSSUS_WALKS_THE_LANE,
+		"chases_captain() = %s against COLOSSUS_WALKS_THE_LANE = %s (the gate exists: %s)"
+			% [str(boss_chases), str(SkyGearEnemy.COLOSSUS_WALKS_THE_LANE),
+				str(has_gate)])
+	## THE REGRESSION GUARD, and named as one: this row cannot find a new bug, it
+	## exists so that a later hand cannot widen the gate from the Colossus to
+	## every boarder without the harness saying so. A deck where nothing turns to
+	## face you is a deck with no lane defence at all.
+	_check("boss", "and every other boarder still does — the SG-131 regression guard",
+		grunt_chases, "scrapper chases_captain() = %s" % str(grunt_chases))
+	## AND THE BEHAVIOUR ITSELF, IN BOTH POSITIONS OF THE GATE — driven on the
+	## instance rather than read off the shipped constant. This is the half that
+	## bites: the flag ships OFF, so a row that only tested the shipped default
+	## passed at 946/946 even with the call to `chases_captain()` deleted from the
+	## targeting `if`. Setting it per boarder tests the wiring instead of the
+	## setting. Stern-ward is +y (the Boiler is at y = +850) and the captain is at
+	## -200, so the two answers have opposite signs and neither can pass by
+	## accident.
+	for walk in [true, false]:
+		for e in [boss, grunt]:
+			e.state = "move"
+			e.state_time = 0.0
+			e.velocity = Vector2.ZERO
+			e.global_position = Vector2(0.0, 0.0)
+		game.player.global_position = Vector2(0.0, -200.0)
+		boss.walks_the_lane = walk
+		_advance(game, 0.3)
+		if walk:
+			_check("boss", "with the lane walk ON he walks at the ship while she stands on his toes",
+				boss.velocity.y > 0.0,
+				"boss velocity %.1f,%.1f — positive y is toward the Boiler"
+					% [boss.velocity.x, boss.velocity.y])
+		else:
+			_check("boss", "and with it OFF he turns on the captain like anything else",
+				boss.velocity.y < 0.0,
+				"boss velocity %.1f,%.1f — negative y is toward the captain"
+					% [boss.velocity.x, boss.velocity.y])
+		_check("boss", "and the scrapper beside him walks at her either way",
+			grunt.velocity.y < 0.0,
+			"lane walk %s · scrapper velocity %.1f,%.1f"
+				% [str(walk), grunt.velocity.x, grunt.velocity.y])
+	game.queue_free()
 
 
 ## Sound the player can control, and that survives the session. A build people

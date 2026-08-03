@@ -220,6 +220,105 @@ func _swing_hits(point: Vector2, swing_reach: float, body: float) -> bool:
 ## The Colossus's second beat is the only phase term, and it is one constant.
 const BOSS_SECOND_BEAT_REACH := 90.0
 
+
+## THE COLOSSUS WALKS THE LANE, NOT THE CAPTAIN — COLOSSUS-DESIGN §2 graft 1,
+## the root fix, and SET TO `false` TO PUT HIM BACK ON HER HEELS (board SG-131).
+##
+## FLIP THIS ONE LINE AND THE WHOLE CHANGE IS GONE. It is a constant and not a
+## table field on purpose: the owner asked for more health, got it in its own
+## commit, and this is the SEPARATE half he must be able to revert without
+## touching that one. Nothing else in this file or in `game.gd` knows about the
+## chase gate; it is exactly this boolean and the one `if` that reads it.
+##
+## WHY IT IS THE ROOT FIX, in the numbers COLOSSUS-DESIGN §1 measured. He trips
+## his windup at `attack_range 120 + target radius 17 = 137` and then stands
+## still for `windup 0.90 s`, in which a 260 u/s captain walks 234 units — to
+## ~371, comfortably outside his 163-unit swing — and then stands still again for
+## `recover 1.00 s`. **Every swing he aims at a moving captain costs him 1.9
+## seconds of frozen uptime for a hit that geometrically cannot land**, and he
+## closes at 95 u/s against her 260 plus two 265-unit dashes, so he never gets
+## the initiative back. Chasing her is not a weak behaviour, it is a behaviour
+## with negative value: it is the thing that makes him harmless.
+##
+## SO HE STOPS CHASING AND THE `else` BRANCH BELOW — WHICH ALREADY EXISTS AND IS
+## ALREADY THE RIGHT ONE — takes over: lane cannon, then a crewman in the way,
+## then the Boiler. He becomes a clock rather than a pursuer. 1,965 units at
+## 95 u/s is 20.7 s to the Boiler and 26 damage per 1.9 s burns its 500 HP in
+## 36 s, so ignoring him is no longer free — it is priced in the ship. Standing
+## at her comfortable 260, where her Ember Cleave reaches his centre because
+## player damage tests add the target's radius, now costs Boiler HP per second.
+##
+## THIS IS DELIBERATELY NOT THE WHOLE OF OPTION B. No furnace gauge, no wash, no
+## cooling, no `on_boss_turn` rewrite. Those are the design's recommendation and
+## they are not decided; this is the one line both independent judges converged
+## on unprompted, which §7 records as "the real finding".
+##
+## IT APPLIES TO THE COLOSSUS ALONE. Every other boarder still turns on the
+## captain inside 280 — that is what makes a lane feel defended, and gating it
+## for everyone would be a different and much larger change.
+##
+## ---------------------------------------------------------------------------
+## AND IT SHIPS **OFF**, BECAUSE IT WAS BUILT, MEASURED, AND FAILED ITS OWN
+## PRE-COMMITTED KILL-TEST. This is the whole reason the flag exists rather than
+## the change simply landing (SG-131).
+##
+## `tools/boss_probe.gd`, wave-12 segment, Heat 0, three arms off one base
+## (c486000), n = 211 / 332 / 214 runs that reached wave 12:
+##
+##                              hp 900   hp 2900   hp 2900 + this gate ON
+##   boss time-to-kill            9.7 s    22.0 s    24.0 s
+##   damage taken in wave 12      45.5     131.5      13.4
+##     ...OF THAT, BY HIM         29.9     123.4       0.00   (sd 0.00)
+##   Boiler HP lost in wave 12     9.5       4.8      11.3    (t=0.51, UNRESOLVED)
+##   runs held                    100%       66%       99%
+##
+## TWO THINGS THAT ARE BOTH FATAL TO SHIPPING IT ON:
+##
+## 1. **He stops being able to touch her AT ALL — not rarely, never.** 0.00 mean
+##    with 0.00 spread over 214 runs is not a small number, it is a structural
+##    zero, and the code says why: the victim chain below is if/elif, and
+##    `target_turret`/`target_crew` are only populated in the `else` branch, so
+##    when he is not targeting the captain she is never tested against his swing.
+##    The owner asked for a Colossus who is SCARY. This one cannot hit him.
+## 2. **The compensating threat never arrives.** COLOSSUS-DESIGN §2's amended
+##    statistic (2) pre-committed the bar: *"Median Boiler HP lost during wave 12
+##    must rise by >= 40 of 500 against a baseline of ~0."* Measured: 9.5 -> 11.3,
+##    Welch t = 0.51, and the Boiler still takes nothing at all in 88% of runs.
+##    The design's own rule for that outcome is written down and it is **CUT, not
+##    tune**. The arithmetic behind the miss is worth keeping: he needs 20.7 s to
+##    walk 1,965 units to the Boiler and he only lives 24 s, and he spends part of
+##    that on the lane cannon he now meets first — so the clock the design is
+##    built on barely fits inside the fight, and mostly does not.
+##
+## WHAT WOULD HAVE TO CHANGE FOR IT TO EARN ITS `true`: either he lives long
+## enough to arrive (more health again, which is the thing that already tripled),
+## or he starts much closer to the ship, or the swing gains the multi-victim
+## resolve §4 costs at ~220 lines. All three are decisions, not tunings, and they
+## belong to the owner and to the unbuilt half of COLOSSUS-DESIGN.
+##
+## FLIP IT TO `true` TO SEE IT. Nothing else needs editing; the harness pins the
+## constant to the behaviour in both positions.
+const COLOSSUS_WALKS_THE_LANE := false
+
+
+## THE SHIPPED DEFAULT, PER INSTANCE — and it is a `var` for a reason that cost
+## a rewrite to find. With the constant shipped `false`, a check that could only
+## read the shipped default was VACUOUS: deleting the call to `chases_captain()`
+## from the targeting `if` below left the harness at 946/946, because with the
+## gate off both branches behave identically. A mechanism whose wiring is only
+## tested in the position it is not shipped in is not tested at all — that is
+## STATUS's "a harness check that asserts the bug", one step earlier. Settable
+## per instance, the harness drives BOTH positions and reverting that line turns
+## it red.
+var walks_the_lane := COLOSSUS_WALKS_THE_LANE
+
+
+## Whether this boarder will break off toward the captain when she is close.
+## One function rather than an inline `kind != "BOSS"` so that the harness can
+## ask the question directly instead of inferring it from a velocity.
+func chases_captain() -> bool:
+	return not (walks_the_lane and kind == "BOSS")
+
 func swing_wedge_reach() -> float:
 	var wedge: float = float(config.reach)
 	if kind == "BOSS" and beat == 1:
@@ -304,7 +403,7 @@ func _physics_process(delta: float) -> void:
 	var targets_player := false
 	var target_turret: Dictionary = {}
 	var target_crew: Dictionary = {}
-	if global_position.distance_to(game.player.global_position) < 280.0:
+	if chases_captain() and global_position.distance_to(game.player.global_position) < 280.0:
 		target_position = game.player.global_position
 		target_radius = 17.0
 		targets_player = true
