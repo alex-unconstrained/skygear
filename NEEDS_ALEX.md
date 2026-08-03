@@ -1,7 +1,15 @@
 # NEEDS ALEX — the morning list
 
-_Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live**
-— it carries everything below plus the overnight work._
+_Written 2026-08-02 as you went to sleep; updated through the night. **Build 50
+is live**, harness **881/881**._
+
+> **What changed between 49 and 50 that you will actually feel:** fire is no
+> longer a shield. Standing in a fire pool used to make you immune to
+> *everything* — a swing included — 73% of the time. Measured directly: a
+> captain swung at every 1.5 s for a minute took **700 damage inside the fire
+> and 1014 outside it**. It costs **1440** now. If wave 8 suddenly feels
+> heavier, that is why, and it is the game working rather than the game
+> changing.
 
 > **Standing in fire made you immune to almost everything. It is FIXED** —
 > SG-117, found and verified last night, fixed 2026-08-03; a hazard tick bought
@@ -47,7 +55,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 49 and judge five things
+## 1 · Play build 50 and judge five things
 
 All shipped tonight; none can be settled by a checker.
 
@@ -157,7 +165,7 @@ numbers here rather than a feature nobody measured.
 
 ## 6 · Where the day got to
 
-**Builds 32 → 49. Harness 499 → 862.** The deck went from half-painted to
+**Builds 32 → 50. Harness 499 → 881.** The deck went from half-painted to
 all-mesh, and **every figure you modelled yourself was wired the same day you
 made it** — the hulk's three states, the furnace knight, the crew, the goblins,
 the drone, the Colossus, and a five-ship fleet.
