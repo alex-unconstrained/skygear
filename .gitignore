@@ -9,3 +9,6 @@ node_modules/
 .shots/
 *.wav.orig
 .env.local
+
+# Rendered demo reels — deliverables, not source (SG-165)
+*.mp4
