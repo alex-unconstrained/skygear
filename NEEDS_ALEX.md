@@ -1,6 +1,15 @@
 # NEEDS ALEX — the morning list
 
-_Written 2026-08-02, ~23:15, as you went to sleep. Build 48 is live on itch._
+_Written 2026-08-02 as you went to sleep; updated overnight. **Build 49 is live**
+— it carries everything below plus the overnight work._
+
+> **The overnight run found something that changes how you should read earlier
+> numbers.** The measurement noise floor was **53%**, because every rigged
+> figure's `AnimationPlayer` ignores both `set_process(false)` calls — so a
+> "still" frame was never still. Three A/B answers had already been produced
+> against that floor, including the deck-marks kill-test in §1 that nobody was
+> sure about. Frozen properly, the floor is **0.00%**. Nothing needs redoing
+> tonight, but do not treat those three numbers as settled. Details in §7.
 
 Everything here is either **a decision only you can make** or **a verdict only
 your eyes can give**. Nothing in it blocks the loop — there is plenty to do
