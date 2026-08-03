@@ -17,6 +17,47 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The build-44 playtest — fifteen items, and the first praise of the port
+Reported 2026-08-02 evening, after the all-mesh deck landed. Verbatim where it
+matters. **"I LOVE the goblins and the new 3d enemy models"** — the first
+unqualified praise this port has had, and it came the day the owner modelled
+the figures himself.
+
+**Bugs**
+1. **Crew walk BACKWARDS** — "they should face enemies when walking."
+2. **The 2D hulk sprite still sits in the same place as the 3D model** — a
+   duplicate, now that SG-76 wired three real states.
+3. **The sentry sometimes has no model** — already fixed (SG-66, the shared
+   billboard pool handing a sentry a spark's additive material), but the fix
+   landed AFTER build 44 was cut. Not a recurrence; ships in 45.
+4. **Enemy projectiles are far too large** "and dont look very cool."
+
+**Tuning / balance**
+5. **Crew 10–15% smaller** — too close to the hero's size.
+6. **Furnace knights want slower, more telegraphed hits** — "hard hitting but
+   designed to be dodged." A design change, not a number nudge: the fantasy is
+   a wall you read and step around.
+7. **Object scale audit** — "why are some objects so much larger and what do
+   they do?" Distinct from SG-79 (which trued heights against intent): he is
+   asking what each thing IS and whether its size is earned.
+
+**Features**
+8. **Sentry autocast** — hold the hotkey to toggle "always drop at my feet,"
+   with a visual indicator that it is on.
+9. **Auto-attack element choice** — so the basic attack is not always Ember.
+10. **Enemies should FADE after death** rather than vanishing.
+11. **3D weapons** — spears for the crew (who currently bayonet-stab with empty
+    hands), plus a few steampunk weapons banked for later.
+
+**Aesthetic direction**
+12. **Cloud diversity** — variations, sizes, shapes, more Z layers.
+13. **Dynamic shadows** — not one circle blob under everything.
+14. **"How do we make the deck feel more shiplike, and more steampunk?"** — the
+    open question, prompted by liking the steam. This one gets a design pass
+    rather than a guess.
+
+
+
 ### The morning-after playtest — eight findings from the owner's Boilerwright run
 Reported 2026-08-02 morning after a full run to wave 11 (seed SFHBVG, THE
 WRECK berthed), with clarifications taken before work started. Items, each a
