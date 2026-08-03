@@ -30,5 +30,5 @@ test('browser entry point is the published V1 runtime with parity layer',async()
   const classic=await readFile(new URL('../index.html',import.meta.url),'utf8');
   const layer=await readFile(new URL('../src/v1-parity.js',import.meta.url),'utf8');
   assert.match(html,/<canvas id="c"><\/canvas>/); assert.match(html,/src\/v1-parity\.js/);
-  assert.match(classic,/window\.SKYGEAR/); assert.match(layer,/THE OPEN MATRIX/); assert.match(layer,/boilerwright/);
+  assert.match(classic,/window\.SKYGEAR/); assert.match(layer,/THE OPENING DRAFT/); assert.match(layer,/OPENING_SKILLS/); assert.match(layer,/v1-mobile-controls/); assert.match(layer,/boilerwright/);
 });
