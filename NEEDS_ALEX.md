@@ -10,8 +10,22 @@
 **1 · The Colossus's health.** He is 2900 now (was 900). Fight went 9.8s → 23.8s.
 Bot hold-rate 100% → 66%. **1800 buys most of the menace for a third of the
 cost.** Keep 2900, or go to 1800?
-→ *But see the bug list below: you say he never hits you, and that changes what
-this number even means. You may want to answer this after that is fixed.*
+→ *Answered, and it changes the question: **he does hit you.** Measured with a
+captain standing still next to him, he lands **11.8 swings for 306 damage** in
+his life — three times your health bar. Standing next to him kills you in 8
+seconds. The reason he felt harmless is that you were **moving**: his swing aims
+once, when the wind starts, and never re-aims, so a captain who walks is hit by
+**1 in 3**. That is deliberate (it is what makes him dodgeable) and I did not
+touch it. So 2900 vs 1800 is a real question again — my read is KEEP 2900.*
+
+**1b · The furnace knight — you were exactly right, and it is not the hitbox.**
+It has **342 health at wave 11 and lives 3.1 seconds**. Its attack cycle is 1.9
+seconds. So in its entire life it gets **one swing**, for 34 damage, once. SG-97
+gave it a slow 0.9s tell and called it *"a wall you read"* — **but nothing
+survives long enough to read.** Nothing is wrong with its swing: standing next
+to it, 60 of 60 swings land. It is purely health. **My recommendation: roughly
+double it, 180 → 360**, which buys it ~6 seconds and three swings instead of
+one. That is a balance change and it is yours, so I did not make it.
 
 **2 · The rail's size.** Your rail sits with its cap at **83% of the captain's
 height**. The spec wanted lower. It cannot hide her either way (the camera
@@ -29,6 +43,26 @@ Colossus's texture bug. Do the other fourteen get clamped too, or do some things
 
 **5 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. Is that intended?
+
+---
+
+**6 · Making the telegraphs clearer — you asked twice, here is what I found.**
+Frames are in `skygear-godot/.shots/sg156/`; put `3-wind-095.png` next to
+`4-strike.png` for either enemy and you will see it immediately.
+
+- **There is no "hit" visual at all.** The warning wedge is drawn only while the
+  enemy is winding up. On the frame it actually strikes you, the wedge is simply
+  **deleted** and nothing replaces it. Your whole visual account of being hit is
+  a warning disappearing. The second of recovery afterwards — the window you are
+  meant to punish — is unmarked too.
+- **The enemy stands on top of its own warning.** The wedge is painted on the
+  deck, and at our camera angle the enemy's body is between you and that patch of
+  deck. The Colossus hides nearly all of his; the knight most of his.
+
+**What I would do:** keep the wind-up wedge, add a bright fast flash along the
+wedge on the strike frame, and leave a dim mark on the deck through the recovery
+so "now hit him" is visible. That is a change to `view3d.gd`, which another
+agent is holding right now, so I have not made it. **Say go and it is quick.**
 
 ---
 

@@ -11224,6 +11224,77 @@ func _wedge() -> void:
 	_check("telegraph", "the wedge that connects is the wedge that was drawn",
 		swept_bad == "", ("bad:" + swept_bad) if swept_bad != "" else swept_note.strip_edges())
 
+	## THE WHOLE PATH, END TO END — and this is the check whose ABSENCE let a rig
+	## and the owner disagree for a whole build (SG-156).
+	##
+	## REGRESSION GUARD, AND SAID PLAINLY: it passed the moment it was written, on
+	## the code that prompted it, and it could not have found the reported problem
+	## because the reported problem was not here. It is not evidence that anything
+	## was fixed. What it guards is that the answer stays yes.
+	##
+	## WHY IT IS WORTH A ROW ANYWAY. Everything above tests the wedge as GEOMETRY —
+	## `_swing_hits` against sampled points, a pure function of a position and a
+	## facing. Nothing in this file tested that a windup resolving on a captain who
+	## is standing in that wedge actually reaches `player.hp`. Between the two sit
+	## the victim chain's if/elif, `can_be_hit()`, `damage_player`, the
+	## `grants_invuln` flag and the 0.55 s i-frame window — five places a landed
+	## hit can be dropped with every geometric check in this file still green.
+	##
+	## The owner reported precisely that shape of defect: *"I just stood next to
+	## them as the captain and they died. I never was worried about their hits."*
+	## `tools/melee_probe.gd` measured it and the swings do land, 60 of 60 against
+	## a pinned captain. The harness had no way to say so, which is why the claim
+	## took a new tool to answer instead of a check that already existed.
+	var reach_bad := ""
+	var reach_note := ""
+	for kind in ["BOSS", "ARMORED"]:
+		var hit_game := _new_game()
+		_begin(hit_game)
+		for e in hit_game.get_tree().get_nodes_in_group("enemies"):
+			e.dead = true
+			e.queue_free()
+		hit_game.spawn_queue.clear()
+		hit_game.spawn_enemy(kind, 1)
+		var foe2: SkyGearEnemy = null
+		for e in hit_game.get_tree().get_nodes_in_group("enemies"):
+			if e.kind == kind and not e.dead:
+				foe2 = e
+		if foe2 == null:
+			reach_bad += " %s(did not spawn)" % kind
+			continue
+		## Pinned, adjacent, and dead ahead — the owner's situation exactly.
+		var spot := Vector2(0.0, 200.0)
+		hit_game.player.global_position = spot
+		foe2.global_position = spot + Vector2(0.0, -float(foe2.config.attack_range) - 10.0)
+		## Held alive so the window is a clock, not a race: this check asks whether
+		## a swing REACHES her, not who wins. `tools/melee_probe.gd`'s own reason.
+		foe2.max_hp = 1.0e9
+		foe2.hp = 1.0e9
+		var before: float = hit_game.player.hp
+		var swung := false
+		for _s in 200:
+			hit_game.player.global_position = spot
+			hit_game.player.velocity = Vector2.ZERO
+			foe2.hp = 1.0e9
+			var was := str(foe2.state)
+			hit_game._process(0.05)
+			if not is_instance_valid(foe2):
+				break
+			foe2.set_physics_process(false)
+			foe2._physics_process(0.05)
+			if was == "windup" and str(foe2.state) == "recover":
+				swung = true
+				break
+		if not swung:
+			reach_bad += " %s(never resolved a swing in 10s)" % kind
+		elif hit_game.player.hp >= before:
+			reach_bad += " %s(swung at a captain in its own wedge and she took nothing)" % kind
+		else:
+			reach_note += " %s -%.0f" % [kind, before - hit_game.player.hp]
+		hit_game.queue_free()
+	_check("telegraph", "a captain standing in the wedge is hit by the swing that drew it — REGRESSION GUARD",
+		reach_bad == "", ("bad:" + reach_bad) if reach_bad != "" else reach_note.strip_edges())
+
 	## THE CARVE-OUTS ARE GONE BY CONSTRUCTION, which is the half a geometric
 	## sweep cannot see: a reach-less melee row added tomorrow must be a loud
 	## failure rather than a quiet circle. Both fallbacks are read out of the
