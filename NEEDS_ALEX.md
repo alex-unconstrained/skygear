@@ -1,7 +1,7 @@
 # NEEDS ALEX — the morning list
 
 _Written 2026-08-02 as you went to sleep; rewritten through the night as the
-detail outgrew it. **Build 57 is live**, harness **986/986**. Evidence for
+detail outgrew it. **Build 58 is live**, harness **997/997**. Evidence for
 everything below is in `skygear-godot/docs/NIGHT-LOG-2026-08-03.md` — this file
 is only what needs you._
 
@@ -29,7 +29,7 @@ without any of it.
 
 ---
 
-## 1 · Play build 55 and judge ten things
+## 1 · Play build 58 and judge ten things
 
 All shipped tonight; none can be settled by a checker.
 
