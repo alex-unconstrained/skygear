@@ -31,6 +31,13 @@ land here directly.
    `SkyGear Tools.bat harness` (green before AND after your change), and check
    this board's IN PROGRESS rows so you don't collide.
 
+**Where write-ups go.** `/NEEDS_ALEX.md` is a **page**, not a dossier — it holds
+only what needs the owner's judgement, and it has had to be cut back from 600+
+lines twice in one day. **Append your evidence to `docs/NIGHT-LOG-<date>.md`,
+not to NEEDS_ALEX.** If something genuinely needs his decision, add a short
+entry to its decision list and put the numbers in the log. A section he will not
+read because the file is six hundred lines long is the same as not writing it.
+
 ## Active
 
 | ID | P | Type | Title | Status | Notes |
