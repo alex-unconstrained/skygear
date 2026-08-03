@@ -11241,6 +11241,58 @@ func _bal() -> void:
 			% [SkyGearBalStat.runs_for_mean(0.01, 0.357),
 				SkyGearBalStat.runs_for_mean(0.30, 0.357)])
 
+	## -----------------------------------------------------------------------
+	## SG-129, AND AN HONEST LABEL ON WHAT THESE THREE ARE WORTH, because SG-128
+	## set the house rule and it applies hardest to the row that inherits it:
+	## THE FIRST AND THIRD ARE REGRESSION GUARDS. They pin arithmetic identities
+	## and they can only fail if the helper beneath them breaks. They are NOT
+	## evidence that `balance.gd` does or does not drift — that question was
+	## answered by 960 runs, and a harness check cannot re-answer it, because the
+	## answer is a property of the measured data and not of this repository.
+	## THE SECOND ONE HAS TEETH: it distinguishes two implementations that
+	## disagree about a real verdict, and the shortcut it refuses is the one a
+	## reasonable person would have written.
+	## -----------------------------------------------------------------------
+
+	## GUARD. A planted trend must come back at the size it was planted at, or
+	## every slope this rig ever reports is off by a factor nobody can see.
+	var planted := PackedFloat64Array()
+	for i in 200:
+		planted.append(50.0 + 0.25 * float(i))
+	var got: Array = SkyGearBalStat.ols_slope_t(planted)
+	_check("bal", "a planted trend across run order comes back as the slope it was planted at (REGRESSION GUARD — arithmetic identity, not evidence about the rig)",
+		absf(float(got[0]) - 0.25) < 1.0e-9,
+		"planted 0.25/run, recovered %.9f/run" % float(got[0]))
+
+	## THE ONE WITH TEETH. At df=10 a t of 2.10 is p=0.062 under Student and
+	## p=0.036 under the normal shortcut — one side of 0.05 each. A rig that used
+	## the shortcut would CALL a trend that the honest distribution refuses, so
+	## this check fails for a real implementation somebody would plausibly ship,
+	## not merely if the file is deleted. Demonstrated by mutation: replacing the
+	## body of `t_p_two_sided` with the normal approximation turns this red and
+	## leaves the two guards around it green.
+	var p_student := SkyGearBalStat.t_p_two_sided(2.10, 10)
+	_check("bal", "and the p that calls a trend comes from Student's t, not the normal shortcut that would call it significant",
+		p_student > 0.05 and absf(p_student - 0.0619) < 0.002,
+		"t=2.10 df=10 gives p=%.4f; the normal shortcut gives 0.0357 and clears 0.05" % p_student)
+
+	## GUARD. The reason a slope is worth measuring at an n a mean could not use:
+	## the index's spread grows with n, so SE(slope) falls as n^-1.5 while a
+	## mean's falls as n^-0.5. Doubling n buys ~2.83x on a trend and ~1.41x on a
+	## difference. Pinned because the SG-129 power calculation rests on it.
+	var flat200 := PackedFloat64Array()
+	var flat400 := PackedFloat64Array()
+	for i in 400:
+		if i < 200:
+			flat200.append(100.0 + float(i % 7))
+		flat400.append(100.0 + float(i % 7))
+	var sxx200 := 200.0 * (200.0 * 200.0 - 1.0) / 12.0
+	var sxx400 := 400.0 * (400.0 * 400.0 - 1.0) / 12.0
+	var ratio := sqrt(sxx400 / sxx200)
+	_check("bal", "and a trend resolves as n^1.5 where a mean resolves as n^0.5, which is why 480 runs can price a slope (REGRESSION GUARD — arithmetic identity)",
+		absf(ratio - 2.828) < 0.01,
+		"doubling n buys %.3fx on a slope against 1.414x on a mean" % ratio)
+
 
 func _mobility() -> void:
 	var travel := {}

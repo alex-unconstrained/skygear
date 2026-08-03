@@ -162,15 +162,38 @@ static func min_n_for(p1: float, p2: float) -> int:
 ##      instrument that could not have seen an effect being read as evidence
 ##      against one.
 ##
-## WHAT IT COSTS on the Heat 0 damage-taken spread (CV 0.36, ~11 s per run):
+## WHAT IT COSTS on the Heat 0 damage-taken spread.
+##
+## ***RE-MEASURED 2026-08-03 (SG-137), AND BOTH OLD COLUMNS WERE WRONG AT HEAD.***
+## The original table was taken at CV 0.36 and "~11 s per run". Neither survived
+## a fresh 480-run Heat 0 pool, and this is exactly the failure this file was
+## written to end — a measured constant frozen into a comment, outliving the
+## build it was measured on. THE FILE DID IT TO ITSELF. Read the dates.
+##
+##   * CV is **0.45**, not 0.36 (mean 119.3, sd 53.4 at n=480). The mean moved
+##     -43% because `15ea5e0` (SG-130) changed the bot's DRAFT policy after the
+##     old pool was drawn; a better-drafting captain takes less damage. Since
+##     `runs_for_mean` goes as CV squared, **every old price was 1.56x too
+##     CHEAP** — the unsafe direction.
+##   * A run costs **~1.7 s**, not 11 s — measured twice, 327 runs in 600 s and
+##     480 runs in 800 s. **Six times cheaper than advertised**, which is the
+##     timid direction, and it means work has been declined as unaffordable that
+##     was not.
+##
+## AT HEAD, 2026-08-03 (CV 0.45, 1.7 s per run):
 ##
 ##     effect you want to see    n per arm    wall clock per arm
-##     30%                        23           4 minutes
-##     20%                        50           9 minutes
-##     15%                        89          16 minutes
-##     10%                       200          37 minutes
-##      5%                       800           2.4 hours
-##      1%                     19985          61 hours
+##     30%                        35           1 minute
+##     20%                        79           2 minutes
+##     15%                       140           4 minutes
+##     10%                       314           9 minutes
+##      5%                      1256          36 minutes
+##      1%                     31386          14.8 hours
+##
+## AND DO NOT TRUST THIS TABLE EITHER. It is a snapshot of one build's spread and
+## the last one was obsoleted by a bot change nobody connected to it. `balance.gd`
+## prints `resolvable_at` from the CV of the batch IN FRONT OF IT, which is the
+## number to use; this table is orientation, not authority.
 ##
 ## THAT TABLE IS THE FINDING. A whole-run mean on this rig is a BLUNT instrument
 ## — it can see a third of a change and it cannot see a twentieth at any price.
@@ -230,6 +253,148 @@ static func resolvable_at(n: int, cv: float) -> float:
 	if n <= 0:
 		return 1.0
 	return (1.96 + 0.84) * cv * sqrt(2.0 / float(n))
+
+
+## ---------------------------------------------------------------------------
+## THE SLOPE FAMILY (SG-129). Everything above prices a DIFFERENCE OF TWO MEANS.
+## SG-129 asks a different question — does one statistic TREND across the order
+## its runs were played in? — and a trend is not a two-arm comparison, so it gets
+## its own arithmetic rather than a borrowed formula.
+##
+## WHY IT MATTERS AND NOT ONLY TO SG-129: if damage-taken drifts with run index,
+## then two arms played SEQUENTIALLY INSIDE ONE INVOCATION differ by run order as
+## well as by the thing under test, and every such comparison is confounded. Arms
+## run as separate processes are immune. That is the whole stake.
+##
+## THE PRICE OF A SLOPE, which is NOT the price of a difference and is much
+## cheaper per run: for indices 0..n-1 the sum of squared deviations of the index
+## is n(n^2-1)/12, which grows as n^3, so SE(slope) falls as n^-1.5 rather than
+## the n^-0.5 that governs a mean. Doubling n buys nearly three times the
+## resolution on a trend. At n=480 and the Heat 0 spread (sd ~75) SE is about
+## 0.025 damage/run, so 80% power reaches a slope of 0.069/run — a 33-damage,
+## ~16% drift end to end.
+## ---------------------------------------------------------------------------
+
+## OLS SLOPE of `ys` against its own 0-based index, with the t statistic for
+## H0: slope = 0. Returns [slope, t, df]. The index is the run ORDER, which is
+## the only thing SG-129 is about — so this deliberately takes no x vector: the
+## caller cannot accidentally regress against something else.
+static func ols_slope_t(ys: PackedFloat64Array) -> Array:
+	var n := ys.size()
+	if n < 3:
+		return [0.0, 0.0, 0]
+	var nf := float(n)
+	var xbar := (nf - 1.0) * 0.5
+	var ybar := 0.0
+	for y in ys:
+		ybar += y
+	ybar /= nf
+	## Closed form for sum (x - xbar)^2 over 0..n-1, used rather than accumulated
+	## so the denominator cannot drift with floating-point order.
+	var sxx := nf * (nf * nf - 1.0) / 12.0
+	var sxy := 0.0
+	for i in n:
+		sxy += (float(i) - xbar) * (ys[i] - ybar)
+	if sxx <= 0.0:
+		return [0.0, 0.0, 0]
+	var slope := sxy / sxx
+	var intercept := ybar - slope * xbar
+	var rss := 0.0
+	for i in n:
+		var resid := ys[i] - (intercept + slope * float(i))
+		rss += resid * resid
+	var df := n - 2
+	var s2 := rss / float(df)
+	var se := sqrt(s2 / sxx)
+	if se <= 0.0:
+		return [slope, 0.0, df]
+	return [slope, slope / se, df]
+
+
+## REGULARIZED INCOMPLETE BETA I_x(a, b), Lentz's continued fraction. Present
+## only because the two-sided p below needs it; it is not a general-purpose
+## numerics library and should not grow into one.
+static func _betacf(a: float, b: float, x: float) -> float:
+	var tiny := 1.0e-30
+	var qab := a + b
+	var qap := a + 1.0
+	var qam := a - 1.0
+	var c := 1.0
+	var d := 1.0 - qab * x / qap
+	if absf(d) < tiny:
+		d = tiny
+	d = 1.0 / d
+	var h := d
+	for m in range(1, 200):
+		var mf := float(m)
+		var m2 := 2.0 * mf
+		var aa := mf * (b - mf) * x / ((qam + m2) * (a + m2))
+		d = 1.0 + aa * d
+		if absf(d) < tiny:
+			d = tiny
+		c = 1.0 + aa / c
+		if absf(c) < tiny:
+			c = tiny
+		d = 1.0 / d
+		h *= d * c
+		aa = -(a + mf) * (qab + mf) * x / ((a + m2) * (qap + m2))
+		d = 1.0 + aa * d
+		if absf(d) < tiny:
+			d = tiny
+		c = 1.0 + aa / c
+		if absf(c) < tiny:
+			c = tiny
+		d = 1.0 / d
+		var del := d * c
+		h *= del
+		if absf(del - 1.0) < 3.0e-14:
+			break
+	return h
+
+
+## LOG-GAMMA, Lanczos g=7. Written out because GDScript has no `lgamma` — that
+## is not an oversight worth working around with an approximation, since the beta
+## function below is only as good as this is.
+static func _lgamma(z: float) -> float:
+	const G := [
+		0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+		771.32342877765313, -176.61502916214059, 12.507343278686905,
+		-0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7]
+	if z < 0.5:
+		## Reflection, so the caller never has to know the range.
+		return log(PI / sin(PI * z)) - _lgamma(1.0 - z)
+	var zz := z - 1.0
+	var x: float = G[0]
+	for i in range(1, 9):
+		x += float(G[i]) / (zz + float(i))
+	var t := zz + 7.5
+	return 0.5 * log(2.0 * PI) + (zz + 0.5) * log(t) - t + log(x)
+
+
+static func _betai(a: float, b: float, x: float) -> float:
+	if x <= 0.0:
+		return 0.0
+	if x >= 1.0:
+		return 1.0
+	var lbeta := _lgamma(a + b) - _lgamma(a) - _lgamma(b) \
+		+ a * log(x) + b * log(1.0 - x)
+	var bt := exp(lbeta)
+	if x < (a + 1.0) / (a + b + 2.0):
+		return bt * _betacf(a, b, x) / a
+	return 1.0 - bt * _betacf(b, a, 1.0 - x) / b
+
+
+## TWO-SIDED p FOR A t STATISTIC, from the STUDENT t with `df` degrees of
+## freedom — not the normal approximation. At SG-129's df=478 the two agree to
+## the fourth decimal and it would not have mattered; it is exact here so that
+## the SAME function is still right the next time somebody runs a trend at n=40,
+## where the critical value is 2.02 rather than 1.96 and the shortcut would call
+## a result that the honest distribution refuses.
+static func t_p_two_sided(t: float, df: int) -> float:
+	if df <= 0:
+		return 1.0
+	var dff := float(df)
+	return _betai(dff * 0.5, 0.5, dff / (dff + t * t))
 
 
 ## WELCH'S t FOR TWO ARMS' MEANS — unequal variances, because the arms this rig

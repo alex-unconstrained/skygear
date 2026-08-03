@@ -114,7 +114,15 @@ extends SceneTree
 ##    At n=240 it is +-4%. There is no 8% wall; there is a sample size, and it is
 ##    printed now.
 ##
-## WHAT THE SAMPLE BUYS (240-run Heat 0 pool, 2026-08-03):
+## WHAT THE SAMPLE BUYS. The held-rate column is arithmetic and does not age.
+## THE DAMAGE-TAKEN COLUMN DOES, AND IT HAS (SG-137): it was built on a 240-run
+## pool with CV 0.36 and a mean near 210, and a fresh 480-run Heat 0 pool at HEAD
+## reads mean 119.3, sd 53.4, CV 0.45 — because `15ea5e0` (SG-130) changed the
+## bot's draft policy after that pool was drawn. The percentages below are the
+## OLD spread. Read the line THIS TOOL PRINTS under your own batch instead; it is
+## computed from the CV in front of it and cannot be stale.
+##
+## WHAT THE SAMPLE BUYS (240-run Heat 0 pool, 2026-08-03; taken column now stale):
 ##
 ##     n     held-rate, worst case   damage-taken mean
 ##     6     +-40 points             +-26%      <- the default before SG-118
