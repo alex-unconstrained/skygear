@@ -52,16 +52,26 @@ def find_ffmpeg() -> str | None:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fps", type=int, default=30)
-    parser.add_argument("--crf", type=int, default=18,
-                        help="x264 quality; lower is better. 18 was picked by "
-                             "looking, not by rule of thumb: the reel was cut "
-                             "at 14 (37 MB) and at 20 (15 MB) and the two "
-                             "darkest frames in it — the opening sky and the "
-                             "arrival's empty deck, which are where a night "
-                             "deck bands if it is going to — were "
-                             "indistinguishable. 18 sits between them at about "
-                             "20 MB, under the 25 MB attachment limit most "
-                             "places still enforce, with no banding.")
+    parser.add_argument("--crf", type=int, default=20,
+                        help="x264 quality; lower is better. 20, and the "
+                             "number moved for a reason. It was 18, picked by "
+                             "looking rather than by rule of thumb: v1 was cut "
+                             "at 14 (37 MB) and at 20 (15 MB), the two darkest "
+                             "frames in it were indistinguishable, and 18 sat "
+                             "between them at 20 MB. V2 IS A HARDER ENCODE — "
+                             "the captain is bot-driven now, so the camera is "
+                             "moving in every gameplay shot instead of holding "
+                             "on a standing figure, and inter-frame prediction "
+                             "has much less to work with. Same flags, same "
+                             "CRF 18: 31.2 MB, over the 25 MB attachment limit "
+                             "most places still enforce. So 20 (23.3 MB), and "
+                             "it was re-measured rather than assumed — every "
+                             "captured PNG against the frame ffmpeg decodes "
+                             "back out of the mp4, worst mean absolute error "
+                             "1.81/255 (05_deck's keg blast), median 1.45, and "
+                             "the darkest frames in the reel are the draft "
+                             "plate's, at mean luma 17, with no banding on the "
+                             "deck behind it.")
     parser.add_argument("--out", default=str(ROOT / "skygear_demo.mp4"))
     parser.add_argument("--shots", default=str(SHOTS))
     args = parser.parse_args()

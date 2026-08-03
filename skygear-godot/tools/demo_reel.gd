@@ -84,14 +84,18 @@ extends SceneTree
 ##    is staged AT THE BOW, where the boarding hulk is parked and where the
 ##    crossing actually comes from, and the wave is settled past
 ##    `ARRIVAL_APPROACH` first so the hull is on its hold rather than still
-##    coming forward. Three staggered groups, so the frame holds several arcs at
-##    once — one boarder falling is a jump, five is a boarding party.
+##    coming forward. FIVE staggered groups across the whole cut rather than one
+##    volley at the head, because `ARRIVAL_TIME` is eight tenths of a second and
+##    a single wave of arrivals is over before a viewer has found it — so the
+##    groups overlap and there is a figure in the air, or a ring closing on the
+##    planking, through most of the shot. One boarder falling is a jump; three
+##    at once is a boarding party.
 ##
 ## 3. MORE OF THE GAME, which on one deck means variety of PLACE and MOMENT.
 ##    The bow and the hulk and the sky (02), the cargo runs and the deck cannons
-##    (04), the mast, the braziers, a powder keg and the fire it leaves (05),
+##    (04), the mast, the braziers and a powder keg going up (05),
 ##    and the three screens a viewer would otherwise never know exist — the
-##    title with its Heat ladder, the berths, and a weapon draft (06). Fore, mid
+##    title with its Heat ladder, the berths, and a draft (06). Fore, mid
 ##    and aft come free from (1), because the camera tracks her.
 ##
 ## AND THE SKIP HINT IS SUPPRESSED, for the reel only. `CLICK TO SKIP` is real
@@ -148,7 +152,11 @@ const SHOTS := [
 	{"id": "02_board", "kind": "board", "settle": 260, "ticks": 270,
 		"at": Vector2(0.50, 0.13), "zoom": 1.08,
 		"what": "boarders cross from the hulk and drop onto the bow — gremlins, scrappers, a knight"},
-	{"id": "03_swarm", "kind": "swarm", "settle": 110, "ticks": 190,
+	## 150, not 190. At 190 the last forty ticks are the captain walking an
+	## empty stretch of deck with the crew: the six gremlins are down by then and
+	## the wave is being held open by a spawn parked in the far future, so there
+	## is nothing left to fight. Cut where the fight ends.
+	{"id": "03_swarm", "kind": "swarm", "settle": 110, "ticks": 150,
 		"at": Vector2(0.50, 0.40),
 		"what": "six swarm gremlins on the crew line, and the captain working through them"},
 	{"id": "04_guns", "kind": "guns", "settle": 90, "ticks": 200,
@@ -159,13 +167,21 @@ const SHOTS := [
 	## walks OUT of, because that is rule 2 of its policy and it is nice to see.
 	{"id": "05_deck", "kind": "deck", "settle": 120, "ticks": 190,
 		"at": Vector2(0.44, 0.56),
-		"what": "amidships — the mast, the braziers, a powder keg, and the fire it leaves"},
+		"what": "amidships — the mast, the braziers, the cargo runs, and a powder keg going up"},
 	## THE SCREENS. Three plates in one directory, cut in sequence: a viewer who
 	## only ever sees the deck has no idea there is a run structure around it.
 	{"id": "06_screens", "kind": "screens", "ticks": 186,
-		"what": "the title and its Heat ladder, the berths between runs, a weapon draft"},
+		"what": "the title and its Heat ladder, the berths between runs, a draft"},
+	## 72 TICKS OF A 4.0 s SCENE, and the number came off the frames rather than
+	## off the scene length. It opens hard on the Colossus and holds him for
+	## about 1.2 s, then pulls back across the middle of the deck to hand the
+	## camera over — and that stretch, frames 40 through 84 of the full capture,
+	## is EMPTY PLANKING under a caption. It is right in the game, because the
+	## hand-back has to travel; it is a second and a half of nothing in a
+	## trailer. Out on frame 35, with him still filling a third of the width,
+	## and the cut lands on 08_boss where he is standing on the deck.
 	{"id": "07_arrival", "kind": "cutscene", "cutscene": "colossus_arrival",
-		"wave": 12, "settle": 90, "ticks": 210,
+		"wave": 12, "settle": 90, "ticks": 72,
 		"what": "the Colossus arrival cutscene, wave 12"},
 	## 260 ticks, measured off the frames rather than guessed. `kill()` lands on
 	## tick 150 (frame 75) but the Colossus does not break THERE — the death
@@ -176,10 +192,12 @@ const SHOTS := [
 	{"id": "08_boss", "kind": "boss", "settle": 250, "ticks": 260,
 		"what": "the Colossus fight — the slam, the half-health turn, and thirteen parts coming apart"},
 	## THE CLOSER. `victory` runs 5.4 s and a trailer does not have 5.4 s to
-	## spend on its last shot; 168 ticks holds the caption up through the middle
-	## of the scene and hands the encoder's half-second fade something to eat.
+	## spend on its last shot. The scene lifts off the deck and climbs into the
+	## rigging; 144 ticks goes out with the ship and the sky still in frame
+	## rather than on the underside of the envelope, and hands the encoder's
+	## half-second fade something to eat.
 	{"id": "09_victory", "kind": "cutscene", "cutscene": "victory", "wave": 12,
-		"settle": 60, "ticks": 168,
+		"settle": 60, "ticks": 144,
 		"what": "the victory shot — the deck held"},
 ]
 
@@ -187,6 +205,14 @@ const SHOTS := [
 ## not watched: under about 45 frames a viewer registers a flash of brass and
 ## nothing else. `screen` is matched against `scripts/screen_poser.gd`'s own
 ## list, so these are the exact screens the text audit measures.
+##
+## THE UPGRADE DRAFT RATHER THAN THE WEAPON DRAFT, and it is the reel's own
+## rule deciding: `draft (weapons)` poses the OPENING draft, which by definition
+## has nothing seated, so it puts four `draft a weapon / EMPTY` plates across
+## the foot of the frame — the exact thing this tool exists to keep off a
+## shareable clip, and the reason it is not three more clip.gd scenarios. The
+## upgrade draft is the same screen with the same three cards and the reel's own
+## four weapons under it.
 const PLATES := [
 	{"screen": "title + heat", "ticks": 62},
 	{"screen": "the berths", "ticks": 58},
@@ -581,6 +607,16 @@ func _shoot_screens(shot: Dictionary) -> void:
 		## visible rect is the canvas the HUD actually draws into.
 		await Screens.pose(self, game, hud, screen,
 			Vector2(root.get_visible_rect().size))
+		## AND THE HEADING HAS TO MATCH THE CARDS. `SkyGearHUD.draft_heading`
+		## reads `game.opening_draft` before it reads the hand, and the poser
+		## reaches its DRAFT states through `begin_run()` — which raises that
+		## flag — and then seats four skills by hand. So the upgrade draft comes
+		## back captioned CHOOSE YOUR OPENING WEAPON over three upgrade cards.
+		## The flag is the sim's own, this is the sim's own answer to it, and
+		## `scripts/hud.gd` is not touched: with four seated and the opening past,
+		## the heading is DRAFT AN UPGRADE, which is what the plate shows.
+		if int(game.skills.size()) >= 4:
+			game.opening_draft = false
 		## Two settled frames before the shutter, screen_shot.gd's reason
 		## verbatim: the pose touches the simulation and the HUD redraws on
 		## `_process`, so the first frame after a pose can carry the previous
@@ -668,12 +704,20 @@ func _beat(game: SkyGearGame, kind: String, tick: int) -> void:
 			elif tick == 170:
 				game.cast_skill(1, game.player.global_position + Vector2(-200.0, -380.0))
 		"deck":
-			## THE KEG, blown the way a player blows one: a shell into it. It is
-			## `PROP_LAYOUT`'s keg at (100, 50), it takes the shot through the
-			## real prop damage path, and what it leaves behind is a real fire
-			## pool at the radius SG-163 made it draw at — which the bot then
-			## walks out of on its own.
+			## THE KEG, taken to zero through `SkyGearProp.damage` — the sim's own
+			## and only door to a prop's hp, the one a mortar shell goes through.
+			## It does not detonate here: `damage()` lights a 0.45 s FUSE and
+			## `prop.gd:_process` burns it down, which is why `_tick` hand-steps
+			## the props (SG-118 found that fuse running on the engine's clock).
+			## So the beat is a hit at tick 24 and a 175-unit blast at tick 51,
+			## with the wick visibly lit in between.
+			##
+			## AIMED RATHER THAN CAST AT, because `cast_skill` on a shell is not
+			## reliable furniture-breaking: the reel wants the keg, not a
+			## near-miss.
 			if tick == 24:
+				_light_nearest_keg(game, Vector2(100.0, 50.0))
+			elif tick == 44:
 				game.cast_skill(1, Vector2(100.0, 50.0))
 			elif tick == 90:
 				_cast_at_nearest(game, 0)
@@ -711,6 +755,23 @@ func _cast_at_nearest(game: SkyGearGame, slot: int) -> void:
 			best = foe
 	if best != null:
 		game.cast_skill(slot, best.global_position)
+
+
+## Take the keg nearest a mark to zero, through the prop's own damage entry.
+## `damage()` refuses a keg whose fuse is already lit, so this cannot double-fire
+## and cannot be the thing that makes a shot different on a second take.
+func _light_nearest_keg(game: SkyGearGame, near: Vector2) -> void:
+	var best = null
+	var best_d := INF
+	for prop in game.get_tree().get_nodes_in_group("props"):
+		if not is_instance_valid(prop) or str(prop.prop_type) != "keg":
+			continue
+		var d: float = prop.global_position.distance_to(near)
+		if d < best_d:
+			best_d = d
+			best = prop
+	if best != null:
+		best.damage(9999.0)
 
 
 func _kill_one(game: SkyGearGame, kind: String) -> void:
