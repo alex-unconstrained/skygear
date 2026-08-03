@@ -1,67 +1,82 @@
 {
-  "_comment": [
-    "Where a weapon sits in a hand. Data, not code, for the same reason the HUD",
-    "layout is: getting a sword to look held is a dozen small nudges, and a dozen",
-    "small nudges through an edit-compile-launch loop is an afternoon.",
-    "",
-    "Run `godot --path . --script tools/weapon_fit.gd` to render a contact sheet of",
-    "the captain holding whatever is in here, across the poses that matter. Nudge a",
-    "number, run it again. No game build in the loop.",
-    "",
-    "  bone      the skeleton bone it hangs off",
-    "  bone      the skeleton bone it hangs off",
-    "  length    how long the weapon reads IN THE WORLD, metres. She is 1.8 m.",
-    "  offset    metres, in bone space directions, applied before rotation",
-    "  rotation  degrees, XYZ, applied in that order",
-    "",
-    "Meshy returns blades along the mesh's own Y. A hand holds a blade along roughly",
-    "the forearm axis, so every one of these carries a large rotation."
+ "_comment": [
+  "Where a weapon sits in a hand. Data, not code, for the same reason the HUD",
+  "layout is: getting a sword to look held is a dozen small nudges, and a dozen",
+  "small nudges through an edit-compile-launch loop is an afternoon.",
+  "",
+  "Run `godot --path . --script tools/weapon_fit.gd` to render a contact sheet of",
+  "the captain holding whatever is in here, across the poses that matter. Nudge a",
+  "number, run it again. No game build in the loop.",
+  "",
+  "  bone      the skeleton bone it hangs off",
+  "  bone      the skeleton bone it hangs off",
+  "  length    how long the weapon reads IN THE WORLD, metres. She is 1.8 m.",
+  "  offset    metres, in bone space directions, applied before rotation",
+  "  rotation  degrees, XYZ, applied in that order",
+  "",
+  "Meshy returns blades along the mesh's own Y. A hand holds a blade along roughly",
+  "the forearm axis, so every one of these carries a large rotation."
+ ],
+ "captain": {
+  "weapon": "sword_cutlass",
+  "bone": "mixamorig_RightHand",
+  "length": 0.95,
+  "offset": [
+   0.0,
+   0.0,
+   0.0
   ],
-  "captain": {
-    "weapon": "sword_cutlass",
-    "bone": "mixamorig_RightHand",
-    "length": 0.95,
-    "offset": [
-      0.0,
-      0.0,
-      0.0
-    ],
-    "rotation": [
-      -120.0,
-      0.0,
-      0.0
-    ]
+  "rotation": [
+   -120.0,
+   0.0,
+   0.0
+  ]
+ },
+ "weapons": {
+  "axe_furnace": {
+   "grip_at": 0.3,
+   "length": 1.9,
+   "path": "res://assets/models/axe_furnace/axe_furnace.glb"
   },
-  "weapons": {
-    "sword_cutlass": {
-      "path": "res://assets/models/sword_cutlass/sword_cutlass.glb",
-      "grip_at": 0.42,
-      "length": 1.9
-    },
-    "sword_gearblade": {
-      "path": "res://assets/models/sword_gearblade/sword_gearblade.glb",
-      "grip_at": 0.42,
-      "length": 1.9
-    },
-    "wrench_pipe": {
-      "path": "res://assets/models/wrench_pipe/wrench_pipe.glb",
-      "grip_at": 0.35,
-      "length": 1.9
-    }
+  "pike_boarding": {
+   "grip_at": 0.33,
+   "length": 1.9,
+   "path": "res://assets/models/pike_boarding/pike_boarding.glb"
   },
-  "boilerwright": {
-    "weapon": "wrench_pipe",
-    "bone": "mixamorig_RightHand",
-    "length": 1.25,
-    "offset": [
-      0.0,
-      -0.08,
-      -0.14
-    ],
-    "rotation": [
-      -120.0,
-      25.0,
-      0.0
-    ]
+  "sword_cutlass": {
+   "grip_at": 0.42,
+   "length": 1.9,
+   "path": "res://assets/models/sword_cutlass/sword_cutlass.glb"
+  },
+  "sword_gearblade": {
+   "grip_at": 0.42,
+   "length": 1.9,
+   "path": "res://assets/models/sword_gearblade/sword_gearblade.glb"
+  },
+  "wrench_pipe": {
+   "grip_at": 0.35,
+   "length": 1.9,
+   "path": "res://assets/models/wrench_pipe/wrench_pipe.glb"
+  },
+  "wrench_scrap": {
+   "grip_at": 0.3,
+   "length": 1.9,
+   "path": "res://assets/models/wrench_scrap/wrench_scrap.glb"
   }
+ },
+ "boilerwright": {
+  "weapon": "wrench_pipe",
+  "bone": "mixamorig_RightHand",
+  "length": 1.25,
+  "offset": [
+   0.0,
+   -0.08,
+   -0.14
+  ],
+  "rotation": [
+   -120.0,
+   25.0,
+   0.0
+  ]
+ }
 }
