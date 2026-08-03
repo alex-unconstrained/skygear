@@ -275,7 +275,7 @@ const MODELS := {
 	## at every seam. THE TILING IS ARITHMETIC, NOT ART: place instances every TWO
 	## stanchion pitches so the end stanchions of neighbouring modules coincide
 	## and the pitch stays uniform through the seam. See NEEDS_ALEX and BOARD
-	## SG-143 for the scale decision, which is the owner's and is not made here.
+	## SG-145 for the scale decision, which is the owner's and is not made here.
 	##
 	## Facing 0.0 is the measured default for this batch and the module is
 	## symmetric about its long axis, so a half turn is the same rail.

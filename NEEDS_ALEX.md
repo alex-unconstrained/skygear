@@ -505,3 +505,85 @@ now under-sells it, **the lever is `SkyGearLanes.HULK.radius` (currently 190)**,
 which moves the picture and the collision together — raising it to 240 would put
 it back near 480 wide and still inside the lane. I have not touched it because it
 is a gameplay number, not a rendering one. Say a number, or say "leave it".
+
+## 13 · Fourteen shipped models are shinier than this deck's light can pay for (SG-144)
+
+The Colossus's "texture bug" was not decimation and not the export. Meshy writes
+**no `metallicFactor` at all**, which glTF reads as **1.0** — not as neutral —
+over a metallic map averaging 0.49 and peaking near chrome. SG-90 already learned
+from a rendered frame that a metallic surface on a lamp-lit deck with nothing to
+reflect goes black, and wrote that down. It reached one code path out of four.
+
+That is fixed for the pipeline: the ceiling lives in `tools/lamplit.py` now and
+the boss went 1.0000 → 0.3524 (read back out of `boss_parts.scn`, not asserted),
+with the geometry byte-identical. **No credits spent — rebuilt from your old
+`0803021335` export as you decided.**
+
+**The decision I did not make for you.** `python tools/lamplit.py audit` says
+**14 of 27 shipped models are over the same ceiling**:
+
+    gunner 0.71 · scrapper 0.64 · steam_vent 0.56 · sword_gearblade 0.55
+    harpoon_ballista 0.54 · salvage_pile 0.53 · wrench_pipe 0.51 · boiler 0.45
+    sword_cutlass 0.44 · skyship_cutter 0.41 · lantern_post 0.36  (+3 more)
+
+I clamped the four NEW edge models on the way in, but I did not touch the
+fourteen. The ceiling was derived from one frame of a big dark machine that has
+to read as a machine. Whether a **brass gearblade or a lantern post wants to be
+shiny** is a judgement about that object and about your deck's light — restyling
+fourteen shipped assets on my reading of one frame is the same overreach as the
+bug, pointed the other way.
+
+**Three ways to go, pick one:** (a) clamp all fourteen, one command, reversible;
+(b) clamp only the dark machines that must not vanish (scrapper, gunner, boiler,
+hulks) and leave the brass and blades bright on purpose; (c) leave it and treat
+0.34 as a boss-only rule. I'd suggest **(b)** — the failure was always about
+things disappearing, and a bright cutlass was never the complaint.
+
+**One gap, honestly.** No harness check landed for any of this.
+`tests/parity_test.gd` was carrying 362 uncommitted lines from another agent and
+`git add` stages whole files, so adding mine would have committed their
+unfinished work. The strings are written and ready to land:
+`lamplit · the metallic ceiling is read from one place and not restated`,
+`lamplit · every ingest path that writes a material clamps it`,
+`lamplit · a palette row above the ceiling fails at import`.
+The first two fail on `3a82cdb~1`; the third is a regression guard only.
+
+## 14 · The new rail is good, and its scale is a choice only you should make (SG-145)
+
+It's ingested, clamped, and it renders well — no plinth, you can genuinely see
+the deck through it, 3,060 triangles so nothing had to be decimated. **It is not
+wired up**, because placing it means editing `view3d.gd` and another agent is
+holding that file today.
+
+**The thing worth your ten seconds.** DECK-IDENTITY item 4 asks for "16
+stanchions a side at 145-unit spacing with two horizontal rails at y = 66 and
+118". This module **cannot produce that at any scale** — it is a *three*-bar
+rail (two pipes plus a timber cap) where the spec describes a two-bar rail. So:
+
+| | stanchion pitch | cap height | vs the captain (176) | modules over the 2320 deck |
+|---|---|---|---|---|
+| **A** — honour the spec's *spacing* | **145** (spec exact) | **146** | 83% | 8 × 290, exact |
+| **B** — honour the spec's *height* | 116 | **117** (spec wanted 118) | 66% | 10 × 232, exact |
+
+Both divide the deck length exactly. **I recommend B**: the "see the sky through
+it" cue is a property of the module and survives scaling, whereas cap height is
+what decides how much of your frame the rail eats. A costs you 28 units of
+skyline for a spacing number; B costs you the spec's stanchion *count* (20 a
+side, not 16) and nothing you can see.
+
+**On occlusion, the honest version.** The camera's x tracks the captain's
+(`view3d.gd:4202`), the rails sit at x = ±840, and no figure ever gets past
+|x| = 750 — so a straight line from camera to figure never reaches the rail.
+**At the shipped camera the side rails structurally cannot hide anybody**, which
+means Pillar 6 does *not* force the smaller scale; the choice above is aesthetic.
+I'd still make item 4's own pre-committed check (`view · no stanchion stands
+between the camera and a figure at any zoom`, projected and measured) run before
+it ships, because that argument is geometry and the rule here is measurement.
+
+**One correction to the tiling plan.** "Place every 290 so the end stanchions
+coincide" gives a uniform pitch, but *coincide* means a **doubled stanchion and
+19.8 units of overlapping rail at every seam** — the module overhangs 0.114 past
+each end post. Butt-joining instead bunches posts in pairs; spacing at 3 pitches
+leaves a hole in the rail. **The clean fix is to trim the overhang off the asset
+so the rail ends flush at the end posts**, after which 2 × pitch tiles perfectly
+with nothing doubled. That's a small mesh edit and I'd do it before wiring.
