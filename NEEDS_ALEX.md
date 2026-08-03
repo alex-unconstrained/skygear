@@ -84,7 +84,11 @@ All shipped tonight; none can be settled by a checker.
    arc rather than teleporting. **It needs exactly one thing from you: which
    hull is the arrival ship** — which is the same question as decision 6 below,
    so answering that starts this.
-   *Found while surveying it, and worth knowing now:* a boarder's 0.8 s climb
+   **ANSWERED 2026-08-03 — your words:** *"while they're jumping, they should
+   be immune to all damage until they hit the deck and start moving."* That
+   closes the either/or below, and it is being built as ONE authority every
+   damage path consults rather than a check each path can forget.
+   *Found while surveying it:* a boarder's 0.8 s climb
    draws a gold telegraph ring **in the hidden 2D scene, so nobody has ever seen
    it**, and only cannons and crew exempt a climbing boarder from damage — every
    skill, aura and fire pool already hits it. Harmless while it stands on the
@@ -125,14 +129,28 @@ All shipped tonight; none can be settled by a checker.
 
 ---
 
-## 3 · Two things only you can unblock
+## 3 · What only you can unblock
 
-**The Aether Loom is not running, and the path in the docs does not exist on
-this machine.** `ASSET-GENERATION.md` says
-`C:/Users/alexr/Documents/Codex/2026-07-26/done-66-images-fully-specced-for`
-then `.\run_aether_loom.ps1` — that directory is not there. Once it is up, four
-things are specced and waiting: the ship edge-kit concepts and four HUD pieces,
-**including a real bug — the Boilerwright wears the Corsair's portrait.**
+**THE LOOM NEEDS A KEY, OR THE SERVER FOLDER — it is not a broken path.**
+*(Re-diagnosed 2026-08-03, after you asked me to fix the tool.)* I searched this
+machine. `tools/forge.py` is only a **client**: it POSTs to a Loom server on
+`127.0.0.1:8765` that lives outside this repo. There is no
+`run_aether_loom.ps1` anywhere here, no Loom directory, and no stored
+`OPENAI_API_KEY` or `GOOGLE_API_KEY`. (`GitHub/ImageGen` is a different tool —
+childcare flyers.) The dead Codex path in `ASSET-GENERATION.md` is a symptom,
+not the cause.
+
+Two ways out, and **I recommend the second**:
+
+1. Copy the Loom server folder across from your other device — `forge.py` then
+   works unchanged.
+2. **Paste an image-API key** and I rewrite `forge.py` to call the API directly,
+   retiring the server dependency: no second machine, no localhost service, and
+   it stays fixed. The house `STYLE` block and the prompt-beside-the-manifest-key
+   discipline survive either way. Stored gitignored, like the Meshy key.
+
+Waiting on it: the ship edge-kit concepts and four HUD pieces, **including a
+real bug — the Boilerwright wears the Corsair's portrait.**
 
 **Your cutlass fit is still uncommitted**, preserved through every build all day
 (29 lines in `assets/models/weapons.json`). Re-fit it in the fixed lab
