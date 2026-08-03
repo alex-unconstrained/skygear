@@ -122,11 +122,22 @@ func _run() -> void:
 			mi.name = name
 			mi.mesh = meshes.get(name)
 			mi.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_ON
-			var mat := StandardMaterial3D.new()
-			mat.albedo_color = Color(str(row.colour))
-			mat.metallic = float(row.metallic)
-			mat.roughness = float(row.roughness)
-			mi.mesh.surface_set_material(0, mat)
+			## THE KIT'S OWN MATERIAL WINS WHEN THERE IS ONE, and until the
+			## textured twin arrived there never was. The part-segmentation
+			## export carries no UVs and no images, so this file painted every
+			## part a flat role colour out of `parts.json` — which is precisely
+			## what the owner was looking at when he said "not sure what's going
+			## on with his texture". `tools/segment_parts.py` now cuts the parts
+			## out of the PAINTED sculpt instead and they arrive wearing one
+			## shared material with four maps on real UVs; overwriting that with
+			## a flat albedo would throw the whole marriage away one line before
+			## it shipped. The flat path stays for a kit that has nothing to lose.
+			if not bool(row.get("textured", false)):
+				var mat := StandardMaterial3D.new()
+				mat.albedo_color = Color(str(row.colour))
+				mat.metallic = float(row.metallic)
+				mat.roughness = float(row.roughness)
+				mi.mesh.surface_set_material(0, mat)
 			var parent: Node3D = nodes.get(parent_name, holder)
 			parent.add_child(mi)
 			mi.owner = out_root

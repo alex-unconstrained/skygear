@@ -2,11 +2,11 @@
 
 [ext_resource type="PackedScene" path="res://assets/models/boss/boss_parts.scn" id="1_parts"]
 
-; The SEGMENTED Colossus (board SG-87) — thirteen rigid parts on hinges, built
+; The SEGMENTED Colossus (board SG-90) — thirteen rigid parts on hinges, built
 ; by tools/rig_parts.gd from the kit tools/segment_parts.py cuts. Rebuild both
 ; rather than editing this file. `model_height` is measured off the built parts,
 ; not declared: scripts/rig3d.gd scales the figure by it.
 [node name="Boss" type="Node3D"]
-metadata/model_height = 3.3110
+metadata/model_height = 3.2922
 
 [node name="Colossus" parent="." instance=ExtResource("1_parts")]

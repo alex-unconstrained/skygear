@@ -6925,6 +6925,155 @@ func _view() -> void:
 				and ResourceLoader.exists(bsprite),
 			"a kind with no scene at its slug path resolves to nothing and falls through to %s"
 				% bsprite.get_file())
+
+		## --- board SG-94: THE MARRIAGE -----------------------------------
+		## "Not sure what's going on with his texture." Nothing was: the
+		## part-segmentation export Meshy delivers carries no UVs and no images
+		## at all, so `tools/rig_parts.gd` painted each part a flat role colour
+		## and the owner photographed an untextured machine with a lamp glowing
+		## inside it. The textured twin of the same sculpt is now the surface
+		## the parts are CUT FROM (`tools/segment_parts.py`, third argument),
+		## with the segmentation demoted to a label source.
+		##
+		## This bites on the regression that would actually happen: rig_parts
+		## overwriting the kit's material with a flat albedo again is one
+		## deleted `if` away, and it would leave every other check on this asset
+		## green — thirteen parts, right names, right joints, right clips, and
+		## no paint.
+		var bmats := {}
+		var buntextured := PackedStringArray()
+		for pname in bparts:
+			var bmi := bparts[pname] as MeshInstance3D
+			var bmat: Material = null
+			if bmi.mesh != null and bmi.mesh.get_surface_count() > 0:
+				bmat = bmi.get_active_material(0)
+			var bbase := bmat as BaseMaterial3D
+			if bbase == null or bbase.albedo_texture == null:
+				buntextured.append(str(pname))
+			else:
+				bmats[bbase.get_instance_id()] = bbase
+		_check("figure", "the Colossus is PAINTED — every part wears the marriage's own maps, not a flat role colour",
+			buntextured.is_empty() and bparts.size() == 13,
+			"%d of 13 parts textured%s" % [13 - buntextured.size(),
+				"" if buntextured.is_empty() else " (flat: %s)" % ", ".join(buntextured)])
+		## ONE MATERIAL, THIRTEEN PARTS. The kit shares a single material
+		## instance so the file carries four images and not fifty-two; a build
+		## that stopped sharing would still look right and would cost thirteen
+		## copies of a 1024 albedo.
+		var bshared: BaseMaterial3D = null
+		for bmid in bmats:
+			bshared = bmats[bmid]
+		_check("figure", "and all thirteen share ONE material, so the kit carries four maps rather than fifty-two",
+			bmats.size() == 1 and bshared != null,
+			"%d distinct materials across 13 parts" % bmats.size())
+		## THE MAPS ARE AT THE PROJECT'S OWN BUDGET, which for a figure this
+		## size (330 ground units, 616 px) is a full 1024 base colour, a half
+		## normal and a quarter for the two lighting modulators — the same law
+		## `tools/meshy.py` applies to every other asset here, and the same one
+		## that took the boarding hulk from 142 MB to 2.3 MB. The delivered twin
+		## is 34.7 MB of 4096s; shipping it as delivered is the failure.
+		var bsides := {}
+		if bshared != null:
+			for bslot in [["albedo", bshared.albedo_texture],
+					["normal", bshared.normal_texture],
+					["metal", bshared.metallic_texture]]:
+				var btex: Texture2D = bslot[1]
+				if btex != null:
+					bsides[str(bslot[0])] = maxi(btex.get_width(), btex.get_height())
+		_check("figure", "and its maps are shrunk to the budget a 616 px figure earns, not shipped at the delivered 4096",
+			bsides.has("albedo") and int(bsides.albedo) <= 1024
+				and int(bsides.get("normal", 0)) <= 512
+				and int(bsides.get("metal", 0)) <= 512,
+			"albedo %d, normal %d, metal %d (ceilings 1024 / 512 / 512)"
+				% [bsides.get("albedo", 0), bsides.get("normal", 0),
+					bsides.get("metal", 0)])
+
+		## --- board SG-94: THE CONTACT SHADOW -----------------------------
+		## "Floating dark and gold blobs around him." Every figure on this deck
+		## gets ONE contact shadow, sized off its gameplay radius and dropped at
+		## its origin. That is right for a boarder and wrong for a machine whose
+		## death throws it across two metres of deck: the blob stayed at an
+		## origin none of the thirteen parts occupied any more.
+		##
+		## Exercised through the renderer's own batch rather than by reading the
+		## function's return value: what a shadow IS here is an entry in that
+		## batch, and a check that trusted the return would pass on a function
+		## that wrote nothing.
+		brig.state = "idle"
+		brig.want("idle", 0.0)
+		brig.anim.seek(0.0, true)
+		brig.set_meta(SkyGearView3D.PARTS_META,
+			brig.model.find_children("*", "MeshInstance3D", true, false))
+		view._shadow_count = 0
+		var bgrounded: bool = view._part_shadows("sg94", brig, 1.0)
+		var bstanding := view._shadow_count
+		_check("view", "a segmented machine grounds itself part by part, and only the parts actually near the deck",
+			bgrounded and bstanding >= 4 and bstanding < 13,
+			"%d of 13 parts darken the planking; the rest are over %.1f m up"
+				% [bstanding, SkyGearView3D.CONTACT_FADE_M])
+
+		## THE BUG ITSELF. Throw a part across the deck the way the death does
+		## and its shadow must GO WITH IT. Before this row the living boss's
+		## shadow was one blob at `enemy.global_position` and a corpse's was one
+		## blob at the rig's origin, so a part that moved left its shadow
+		## standing — which is what a dark blob floating with nothing above it
+		## is.
+		## Compared as SETS of centres rather than by proximity to the part that
+		## moved: a shin stands directly over its own foot, so "is there a
+		## shadow near here" cannot tell the two apart and would call a leg's
+		## shadow the foot's. Matching the whole set says exactly one blob moved
+		## and names where it went.
+		var bfoot: MeshInstance3D = bparts["foot_l"] as MeshInstance3D
+		var bfoot_was: Vector3 = bfoot.position
+		var bbefore := _shadow_centres(view, bstanding)
+		bfoot.position = bfoot_was + Vector3(2.0, 0.0, 0.0)
+		view._shadow_count = 0
+		view._part_shadows("sg94", brig, 1.0)
+		var bafter := _shadow_centres(view, view._shadow_count)
+		var bvanished := _centres_missing(bbefore, bafter)
+		var barrived := _centres_missing(bafter, bbefore)
+		var bhop := 0.0
+		if bvanished.size() == 1 and barrived.size() == 1:
+			bhop = (barrived[0] as Vector2).distance_to(bvanished[0] as Vector2)
+		_check("view", "and a part thrown across the deck TAKES ITS SHADOW WITH IT — the reported floating blob",
+			view._shadow_count == bstanding and bvanished.size() == 1
+				and barrived.size() == 1 and absf(bhop - 2.0) < 0.01,
+			"the foot moved 2.00 m and exactly one shadow moved with it, by %.2f m — %d blobs before, %d after, none left standing"
+				% [bhop, bstanding, view._shadow_count])
+
+		## AND HEIGHT PUTS IT OUT, which is what makes the STANDING machine's
+		## shadow its footprint rather than its silhouette — derived from the
+		## one rule rather than declared as a second one.
+		bfoot.position = bfoot_was + Vector3(0.0,
+			SkyGearView3D.CONTACT_FADE_M + 1.0, 0.0)
+		view._shadow_count = 0
+		view._part_shadows("sg94", brig, 1.0)
+		var blifted := _shadow_centres(view, view._shadow_count)
+		_check("view", "and a part lifted clear of the planking stops darkening it",
+			view._shadow_count == bstanding - 1
+				and _centres_missing(blifted, bbefore).is_empty(),
+			"%d blobs with the foot %.1f m up against %d with it down — exactly the foot's, and nothing new"
+				% [view._shadow_count, SkyGearView3D.CONTACT_FADE_M + 1.0,
+					bstanding])
+		bfoot.position = bfoot_was
+		view._shadow_count = 0
+
+		## THE DEPTH PARAMETER IS OPT-IN. Every other caller of `_shadow` — the
+		## captain, every boarder, the props, the crew, the sentries, the bolts,
+		## the hulk — passes no depth and must keep the squashed circle it has
+		## always had. A default that changed them would make this fix a quiet
+		## restyle of every shadow in the game.
+		view._shadow("sg94_default", Vector2.ZERO, 100.0, 0.5)
+		var bdefault: float = view._shadow_depth[0]
+		view._shadow_count = 0
+		view._shadow("sg94_own", Vector2.ZERO, 100.0, 0.5, 250.0)
+		var bown: float = view._shadow_depth[0]
+		view._shadow_count = 0
+		_check("view", "and every other figure's shadow keeps the squash it always had — the depth is opt-in",
+			absf(bdefault - 100.0 * SkyGearView3D.SHADOW_SQUASH) < 0.001
+				and absf(bown - 250.0) < 0.001,
+			"no depth given -> %.1f (100 x %.2f); a part measuring its own -> %.1f"
+				% [bdefault, SkyGearView3D.SHADOW_SQUASH, bown])
 	brig.queue_free()
 
 	## --- board SG-88: THE CREW, the last flat ALLY figures -------------------
@@ -7538,6 +7687,31 @@ func _view() -> void:
 	_check("voice", "an undelivered key is silence, not a fallback",
 		not game.voice.say("no_such_line"))
 	world.queue_free()
+
+
+## The contact-shadow batch's centres this frame, in METRES, for the SG-94 rows.
+## Read out of the batch the renderer actually flushes rather than out of any
+## bookkeeping beside it.
+func _shadow_centres(view: SkyGearView3D, count: int) -> Array:
+	var out := []
+	for i in count:
+		out.append(view._shadow_at[i] * SkyGearView3D.WORLD_SCALE)
+	return out
+
+
+## Which of `a`'s centres have no match in `b`. Millimetre tolerance, because
+## these are floats that went through a transform and back.
+func _centres_missing(a: Array, b: Array) -> Array:
+	var out := []
+	for one in a:
+		var found := false
+		for other in b:
+			if (one as Vector2).distance_to(other as Vector2) < 0.001:
+				found = true
+				break
+		if not found:
+			out.append(one)
+	return out
 
 
 ## --- what survives closing the game -----------------------------------------

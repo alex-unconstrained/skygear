@@ -319,6 +319,12 @@ var _core_light_req: Array = []       ## this frame's {pos, col} light requests
 var _shadow_batch: MultiMeshInstance3D
 var _shadow_at: PackedVector2Array = PackedVector2Array()
 var _shadow_size: PackedFloat32Array = PackedFloat32Array()
+## Depth is its own array rather than `size * 0.62` at flush time, because a
+## FIGURE is an upright thing whose shadow is a squashed circle and a fallen
+## MACHINE PART is not — a Colossus foot lying on the planking is half again
+## deeper than it is wide. Every existing caller omits it and gets the 0.62
+## it always got; only a part that measured its own footprint passes one.
+var _shadow_depth: PackedFloat32Array = PackedFloat32Array()
 var _shadow_alpha: PackedFloat32Array = PackedFloat32Array()
 var _shadow_count := 0
 var _warmup := SkyGearWarmup.new()
@@ -780,6 +786,7 @@ func _build_world() -> void:
 	_build_ribbons()
 	_shadow_at.resize(SHADOW_CAP)
 	_shadow_size.resize(SHADOW_CAP)
+	_shadow_depth.resize(SHADOW_CAP)
 	_shadow_alpha.resize(SHADOW_CAP)
 	_build_shadows()
 	## A4. Build every generated texture NOW rather than the first time it is
@@ -3185,10 +3192,17 @@ func _age_corpses(delta: float) -> void:
 			_corpses.erase(key)
 			continue
 		rig.position.y = -corpse_drop(float(body.life), float(body.height))
-		_shadow("dead" + key, Vector2(rig.position.x / WORLD_SCALE,
-			rig.position.z / WORLD_SCALE),
-			float(body.height) / WORLD_SCALE * 0.55,
-			0.5 * clampf(float(body.life) / DEATH_SINK, 0.0, 1.0))
+		var fade: float = clampf(float(body.life) / DEATH_SINK, 0.0, 1.0)
+		## A DISASSEMBLY HAS NO ONE PLACE TO PUT A SHADOW. The Colossus's death
+		## throws thirteen parts across two metres of deck, and the blob below —
+		## sized off the body height, dropped at the rig's origin — stayed
+		## exactly where the machine no longer was, which is the second half of
+		## the owner's "floating dark and gold blobs". Each part grounds itself
+		## instead, and lands its own shadow when it lands.
+		if not _part_shadows("dead" + key, rig, fade):
+			_shadow("dead" + key, Vector2(rig.position.x / WORLD_SCALE,
+				rig.position.z / WORLD_SCALE),
+				float(body.height) / WORLD_SCALE * 0.55, 0.5 * fade)
 
 
 func _recycle() -> void:
@@ -4196,11 +4210,17 @@ func _decal(key: String, centre: Vector2, angle: float, sx: float, sy: float,
 ## shadow under something that has died.
 const SHADOW_CAP := 256
 
-func _shadow(_key: String, centre: Vector2, width: float, alpha: float) -> void:
+## `depth` defaults to zero meaning "the figure squash", which is what every
+## caller but the segmented one wants.
+const SHADOW_SQUASH := 0.62
+
+func _shadow(_key: String, centre: Vector2, width: float, alpha: float,
+		depth: float = 0.0) -> void:
 	if _shadow_count >= SHADOW_CAP:
 		return
 	_shadow_at[_shadow_count] = centre
 	_shadow_size[_shadow_count] = width
+	_shadow_depth[_shadow_count] = depth if depth > 0.0 else width * SHADOW_SQUASH
 	_shadow_alpha[_shadow_count] = alpha
 	_shadow_count += 1
 
@@ -4246,7 +4266,8 @@ func _flush_shadows() -> void:
 	var mm: MultiMesh = _shadow_batch.multimesh
 	for i in _shadow_count:
 		var width: float = _shadow_size[i] * WORLD_SCALE
-		var basis := Basis().scaled(Vector3(width, 1.0, width * 0.62))
+		var basis := Basis().scaled(Vector3(width, 1.0,
+			_shadow_depth[i] * WORLD_SCALE))
 		mm.set_instance_transform(i, Transform3D(basis,
 			Vector3(_shadow_at[i].x * WORLD_SCALE, 2.0 * WORLD_SCALE,
 				_shadow_at[i].y * WORLD_SCALE)))
@@ -4423,7 +4444,6 @@ func _sync_all(delta: float) -> void:
 		## look stubby.
 		var height: float = boarder_height(enemy.kind)
 		var key := "e%d" % enemy.get_instance_id()
-		_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
 		## Boarders come DOWN the deck, so most of the time you are looking at
 		## their backs — which is the view the port never drew. They face you when
 		## they turn to swing, and that turn is the tell.
@@ -4442,6 +4462,13 @@ func _sync_all(delta: float) -> void:
 				enemy.state == "turn"):
 			_draw_figure(key, enemy.kind, enemy.global_position, heading, height, swinging,
 				enemy.state == "move", game.run_time + phase, maxf(0.0, enemy.state_time))
+		## THE CONTACT SHADOW, and it is drawn AFTER the figure rather than
+		## before it so the rig exists to be asked. A segmented machine grounds
+		## itself part by part (`_part_shadows`); everything else — every
+		## billboard, and every skinned boarder — keeps the single blob off its
+		## gameplay radius that it always had.
+		if not _part_shadows(key, _rigs.get(key), 1.0):
+			_shadow(key, enemy.global_position, float(enemy.radius) * 2.6, 0.5)
 		# burning boarders glow; frozen ones go blue. The status is the read.
 		var node: Sprite3D = _billboards.get(key)
 		if node != null:
@@ -5079,6 +5106,78 @@ const ROTOR_MOTION := {
 ## paid once per figure rather than once per frame.
 const ROTOR_META := "rotors"
 
+## Which kinds arrive as a KIT OF PARTS rather than as one skinned surface. The
+## Colossus is the only one and probably stays the only one — thirteen rigid
+## geometries on hinges is what `tools/segment_parts.py` cuts and what
+## `tools/rig_parts.gd` assembles — but the row is a table for the same reason
+## ROTOR_MOTION is: a kind not named here is untouched.
+const SEGMENTED := {"BOSS": true}
+## Where a rig keeps those parts, found ONCE when the rig is built and kept on
+## the rig, exactly as ROTOR_META does. A pooled rig pays one tree walk in its
+## life; a frame with the boss on it pays none.
+const PARTS_META := "parts"
+
+## HOW HIGH A PART MAY BE AND STILL DARKEN THE PLANKING, in metres.
+##
+## THE BUG THIS NUMBER FIXES. A contact shadow is the renderer saying "this
+## touches down HERE", and every figure on this deck gets exactly one, sized off
+## the gameplay radius and dropped at the figure's origin. That is right for a
+## boarder, who is one object standing in one place, and it is wrong for the
+## Colossus twice over. Alive it is a 3.09 m machine wearing a 1.82 m ellipse at
+## its middle. DEAD it is thirteen parts that have come apart and thrown
+## themselves across two metres of deck, with one blob still sitting at an
+## origin none of them occupies any more — the owner's "floating dark and gold
+## blobs", which is what a scattered pile with its shadow left behind looks
+## like.
+##
+## ONE RULE COVERS BOTH, and it is the definition of the thing: a contact shadow
+## belongs to whatever is in contact. Every part darkens the deck under its own
+## footprint, and the darkening falls off with how far off the planking that
+## part's underside is. A machine STANDING then shades under its feet and its
+## shins and nothing else — the head and the shoulders are two metres up and
+## contribute nothing — which is a footprint shadow DERIVED rather than declared.
+## The same rule, unchanged, grounds each part of the disassembly as it lands.
+##
+## 1.0 m because the Colossus's legs start 0.11 m off the deck and its torso
+## starts at 0.94 (measured, assets/models/boss/parts.json): a metre is the band
+## that takes the feet and the shins and leaves the body out of it.
+const CONTACT_FADE_M := 1.0
+## What a fully grounded part is worth, against the 0.5 a whole boarder gets.
+## Lower because thirteen of them overlap and the eye adds them up.
+const CONTACT_ALPHA := 0.34
+
+
+## Contact shadows for a SEGMENTED figure — one per part, under the part.
+##
+## Returns false when this rig is not one, so the caller falls back to the
+## single blob every other figure on the deck wears.
+func _part_shadows(key: String, rig: SkyGearRig3D, fade: float) -> bool:
+	if rig == null or not is_instance_valid(rig):
+		return false
+	var parts: Array = rig.get_meta(PARTS_META, [])
+	if parts.is_empty():
+		return false
+	## Into THIS node's frame, because that is the frame the shadow batch is
+	## written in and the rig is only a child of it by convention.
+	var into := global_transform.affine_inverse()
+	for i in parts.size():
+		var mi: MeshInstance3D = parts[i]
+		if not is_instance_valid(mi):
+			continue
+		## The part's own box, where it actually is this frame — so a part
+		## swinging on its hinge, falling, or lying where it landed is followed
+		## without anything having to be told which of those it is doing.
+		var box: AABB = into * (mi.global_transform * mi.get_aabb())
+		var lift: float = maxf(0.0, box.position.y)
+		var grounded: float = clampf(1.0 - lift / CONTACT_FADE_M, 0.0, 1.0)
+		if grounded <= 0.02:
+			continue
+		var centre := Vector2(box.position.x + box.size.x * 0.5,
+			box.position.z + box.size.z * 0.5) / WORLD_SCALE
+		_shadow("%s#%d" % [key, i], centre, box.size.x / WORLD_SCALE,
+			CONTACT_ALPHA * grounded * fade, box.size.z / WORLD_SCALE)
+	return true
+
 
 static func model_path(kind: String) -> String:
 	var slug := kind.to_lower()
@@ -5149,6 +5248,13 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		if ROTOR_MOTION.has(kind) and rig.model != null:
 			rig.set_meta(ROTOR_META, rig.model.find_children("Rotor*", "Node3D",
 				true, false))
+		## SG-94: the thirteen parts, found once, for the contact shadows. Same
+		## bargain as the rotors above — and it must be stamped HERE rather than
+		## looked up at draw time, because a corpse mid-disassembly has left
+		## `_rigs` and no longer knows what kind it was.
+		if SEGMENTED.has(kind) and rig.model != null:
+			rig.set_meta(PARTS_META, rig.model.find_children(
+				"*", "MeshInstance3D", true, false))
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"

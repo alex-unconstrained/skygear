@@ -2,6 +2,37 @@
 
 _Last updated: 2026-08-02, build 44._
 
+## The Colossus is textured — here is the frame. "Too easy" is still open. (SG-94)
+
+Your ask: *"Collosus is way too easy - he needs to be scary the player. Not sure
+what's going on with his texture."* Two of those three faults are fixed and the
+third is yours to steer.
+
+**The texture: nothing was on him.** The part-segmentation file he was cut from
+is a visualisation — no UVs, zero bytes of image — so every part wore a flat
+colour and the furnace lamp glowed inside an untextured body. The textured twin
+you sent is now the surface the thirteen parts are cut FROM, with the
+segmentation kept only as the label source. He keeps all thirteen parts, their
+joints, all five beats and the disassembly (one foot still never lets go).
+
+**The blobs: his shadow was one ellipse at his origin.** Fine for a boarder,
+wrong for a machine whose death throws it across two metres of deck — the blob
+stayed where he no longer was. Each part now shades the planking under its own
+footprint. Your wider "dynamic shadows, not one circle blob under everything"
+ask is filed separately as SG-95 and was deliberately not touched here.
+
+**Look at `.shots/clips/boss_before_after.png`** — your frame on top, the same
+staging underneath. `.shots/clips/boss.png` is the still on its own at the real
+camera with the captain in it for scale, and `.shots/clips/boss.gif` is ten
+seconds of the walk, the slam, the turn and the death.
+
+**The question — and it is the half I did not touch:** "way too easy" is a
+DESIGN change, not a number nudge, so it is filed as SG-96 rather than guessed
+at. He has two beats and neither threatens you. It belongs with your furnace
+knight ask from the same playtest ("hard hitting but designed to be dodged") —
+both are about enemies you READ and RESPECT rather than out-damage. What should
+he make you DO? He now looks the part, which makes the mismatch sharper.
+
 ## The title screen is rebuilt — does the vocabulary feel right before it spreads? (SG-91)
 
 Your ask: *"the header UI element feels on-theme but the rest are just simple
