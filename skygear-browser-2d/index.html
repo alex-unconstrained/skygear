@@ -112,7 +112,7 @@ function approach(cur, target, delta){ return cur < target ? Math.min(cur+delta,
 --------------------------------------------------------------------------- */
 const cv = document.getElementById('c');
 let ctx = cv.getContext('2d', { alpha: false });
-const View = { scale: 1, ox: 0, oy: 0, w: 0, h: 0, dpr: 1 };
+const View = { scale: 1, ox: 0, oy: 0, w: 0, h: 0, dpr: 1, mobile: false };
 
 // Draw into an offscreen context using all the same helpers.
 function withCtx(c, fn){ const prev = ctx; ctx = c; try { fn(); } finally { ctx = prev; } }
@@ -125,9 +125,12 @@ function resize(){
   cv.style.width = w + 'px';
   cv.style.height = h + 'px';
   View.dpr = dpr; View.w = w; View.h = h;
-  View.scale = Math.min(w / TUNING.world.w, h / TUNING.world.h);
+  View.mobile = matchMedia('(pointer:coarse)').matches || w < 760 || new URLSearchParams(location.search).has('mobile-preview');
+  const cameraW = View.mobile ? 1180 : TUNING.world.w;
+  const cameraH = View.mobile ? 780 : TUNING.world.h;
+  View.scale = Math.min(w / cameraW, h / cameraH);
   View.ox = (w - TUNING.world.w * View.scale) * 0.5;
-  View.oy = (h - TUNING.world.h * View.scale) * 0.5;
+  View.oy = (h - TUNING.world.h * View.scale) * (View.mobile ? 0.34 : 0.5);
 }
 window.addEventListener('resize', () => { resize(); _spriteCache.clear(); buildBackdrops(); buildStage(); });
 
@@ -148,6 +151,7 @@ const Input = {
   rightClicked: false,
   wheel: 0,
   anyInput: false,
+  mobileMode: false,
 };
 
 function keyName(e){
@@ -708,7 +712,7 @@ function resetGame(){
 
   S.mods = freshMods();
   S.player = {
-    x: TUNING.deck.cx, y: TUNING.deck.cy + 170, vx: 0, vy: 0, aim: -Math.PI/2,
+    x: TUNING.deck.cx, y: TUNING.deck.cy + 170, vx: 0, vy: 0, aim: -Math.PI/2, facing: -Math.PI/2, abilityAim: -Math.PI/2,
     hp: TUNING.player.hp, maxHp: TUNING.player.hp,
     dashT: 0, dashAng: 0, dashCd: 0, dashStock: TUNING.player.dashCharges,
     iframe: 0, hurt: 0, walk: 0, hitList: null, trail: [], pressure: 0, pressureGrace: 0,
@@ -1076,14 +1080,30 @@ function randomLiveEnemy(skip){
   return live.length ? pick(live) : null;
 }
 
+function mobileAimTarget(from){
+  const target = nearestLiveEnemy(from);
+  if (target) return target;
+  if (S.hulk && !S.hulk.dead && S.hulk.vulnerable) return S.hulk;
+  return null;
+}
+function abilityAimPoint(from, opt){
+  if (opt && opt.atX !== undefined) return { x: opt.atX, y: opt.atY };
+  if (Input.mobileMode){
+    const target = mobileAimTarget(from);
+    if (target) return { x: target.x, y: target.y };
+  }
+  return { x: Input.mouse.x, y: Input.mouse.y };
+}
+
 /* ---------------------------------------------------------------------------
    SYSTEMS — casting. Six shapes × four elements, resolved through one path.
 --------------------------------------------------------------------------- */
 function deploySentry(idx, sk, st, opt){
   if (sk.cdLeft > 0 || S.sentries.filter(t => t.slot === idx).length >= st.maxLive) return false;
   const P = S.player;
-  let tx = opt.atX !== undefined ? opt.atX : Input.mouse.x;
-  let ty = opt.atY !== undefined ? opt.atY : Input.mouse.y;
+  const point = abilityAimPoint(P, opt);
+  let tx = point.x;
+  let ty = point.y;
   const d = dist(P.x, P.y, tx, ty);
   if (d > st.deployRange){ tx = P.x + (tx - P.x) / d * st.deployRange; ty = P.y + (ty - P.y) / d * st.deployRange; }
   const c = clampToDeck(tx, ty, 34);
@@ -1140,12 +1160,16 @@ function castSlot(idx, opt){
   const sk = S.slots[idx];
   if (!sk) return false;
   const st = skillStats(sk);
+  const P = opt.from || S.player;
+  const point = abilityAimPoint(P, opt);
   if (st.kind === 'aura' || st.kind === 'pulse') return false;
   if (st.kind === 'sentry') return deploySentry(idx, sk, st, opt);
-  if (st.kind === 'ray') return startRay(idx, sk, st);
+  if (st.kind === 'ray'){
+    if (!opt.from){ P.abilityAim = Math.atan2(point.y - P.y, point.x - P.x); P.aim = P.abilityAim; }
+    return startRay(idx, sk, st);
+  }
   if (!opt.free && sk.cdLeft > 0) return false;
 
-  const P = opt.from || S.player;
   const E = ELEMENTS[sk.element];
 
   sk.casts++;
@@ -1156,7 +1180,8 @@ function castSlot(idx, opt){
   }
   if (!free) sk.cdLeft = st.cd;
 
-  let aim = (opt.atX !== undefined) ? Math.atan2(opt.atY - P.y, opt.atX - P.x) : S.player.aim;
+  let aim = Math.atan2(point.y - P.y, point.x - P.x);
+  if (!opt.from) P.abilityAim = aim;
 
   if (!opt.from){ S.player.castFlash = 0.12; S.player.lastElem = sk.element; }
   SFX.fire[sk.element]();
@@ -1351,7 +1376,7 @@ function updateRay(dt){
   R.t += dt;
   if (!slotHeld(R.slot) || R.t >= st.maxDur){ endRay(); return; }
 
-  const P = S.player, aim = P.aim, E = ELEMENTS[sk.element];
+  const P = S.player, aim = P.abilityAim || P.aim, E = ELEMENTS[sk.element];
   R.len = lerp(R.len, st.len, 1 - Math.pow(0.0001, dt));   // beam extends fast on start
   const dx = Math.cos(aim), dy = Math.sin(aim);
   const ex = P.x + dx * R.len, ey = P.y + dy * R.len;
@@ -1423,12 +1448,13 @@ function updatePlayer(dt){
   const P = S.player, T = TUNING.player;
   if (P.hp <= 0) return;
 
-  // Godot's basic weapon owns facing: always turn toward the nearest live boarder.
-  // The pointer remains useful for aimed ability previews, but never makes the
-  // captain stare away from the threat she is automatically attacking.
+  // Facing and ability aim are separate: the basic weapon tracks threats, while
+  // desktop abilities follow the pointer and mobile abilities smart-cast to the lock.
   const closest = nearestLiveEnemy(P);
-  if (closest) P.aim = Math.atan2(closest.y - P.y, closest.x - P.x);
-  else P.aim = Math.atan2(Input.mouse.y - P.y, Input.mouse.x - P.x);
+  const pointerAim = Math.atan2(Input.mouse.y - P.y, Input.mouse.x - P.x);
+  P.facing = closest ? Math.atan2(closest.y - P.y, closest.x - P.x) : pointerAim;
+  P.abilityAim = Input.mobileMode && closest ? P.facing : pointerAim;
+  P.aim = P.abilityAim;
 
   // --- input direction
   let ix = 0, iy = 0;
@@ -1450,7 +1476,7 @@ function updatePlayer(dt){
     P.dashStock--;
     if (P.dashCd <= 0) P.dashCd = dashCdMax();
     P.dashT = T.dashTime;
-    P.dashAng = il > 0 ? Math.atan2(iy, ix) : P.aim;
+    P.dashAng = il > 0 ? Math.atan2(iy, ix) : P.facing;
     P.hitList = [];
     P.trail.length = 0;
     S.stats.dashes++;
@@ -1466,7 +1492,7 @@ function updatePlayer(dt){
     P.vx = Math.cos(P.dashAng) * v;
     P.vy = Math.sin(P.dashAng) * v;
     if (P.trail.length === 0 || dist(P.trail[P.trail.length-1].x, P.trail[P.trail.length-1].y, P.x, P.y) > 12)
-      P.trail.push({ x:P.x, y:P.y, a:P.aim, t:0 });
+      P.trail.push({ x:P.x, y:P.y, a:P.facing, t:0 });
     if (S.mods.dashDamage > 0){
       Hash.query(P.x, P.y, 44, _q);
       for (const e of _q){
@@ -2884,7 +2910,7 @@ function drawPlayer(){
     ctx.restore();
   }
   if (inv) ctx.globalAlpha *= 0.55;
-  ctx.rotate(P.aim);
+  ctx.rotate(P.facing || P.aim);
   ctx.scale(AS, AS);
   ctx.lineJoin = 'round';
 
@@ -3687,7 +3713,7 @@ function drawRay(){
   const sk = S.slots[R.slot];
   if (!sk) return;
   const st = skillStats(sk), E = ELEMENTS[sk.element];
-  const P = S.player, a = P.aim;
+  const P = S.player, a = P.abilityAim || P.aim;
   const pulse = 0.85 + Math.sin(S.rt * 40) * 0.15;
   ctx.save();
   ctx.globalCompositeOperation = 'lighter';
@@ -3859,12 +3885,31 @@ function drawNums(){
 /* ---------------------------------------------------------------------------
    RENDER — world composition
 --------------------------------------------------------------------------- */
+function drawMobileTarget(){
+  if (!View.mobile || S.mode !== 'play' || !S.player) return;
+  const target = mobileAimTarget(S.player);
+  if (!target) return;
+  const pulse = 1 + Math.sin(S.rt * 5) * 0.08;
+  ctx.save();
+  ctx.globalAlpha = 0.78;
+  ctx.strokeStyle = '#FFD36B'; ctx.lineWidth = 2.4;
+  ctx.setLineDash([7, 6]); ctx.lineDashOffset = -S.rt * 22;
+  circ(target.x, target.y, (target.r + 14) * pulse); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.55;
+  ctx.beginPath(); ctx.moveTo(target.x - target.r - 8, target.y); ctx.lineTo(target.x + target.r + 8, target.y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(target.x, target.y - target.r - 8); ctx.lineTo(target.x, target.y + target.r + 8); ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  ctx.fillStyle = '#FFD36B'; circ(target.x, target.y, 2.8); ctx.fill();
+  ctx.restore();
+}
 function drawAoePreview(){
   for (let i = 0; i < 4; i++){
     const sk = S.slots[i];
     if (!sk || SHAPES[sk.shape].kind !== 'aoe') continue;
     const st = skillStats(sk);
-    let tx = Input.mouse.x, ty = Input.mouse.y;
+    const point = abilityAimPoint(S.player, {});
+    let tx = point.x, ty = point.y;
     const d = dist(S.player.x, S.player.y, tx, ty);
     if (d > st.castRange){
       tx = S.player.x + (tx - S.player.x) / d * st.castRange;
@@ -3913,6 +3958,7 @@ function drawWorld(){
   drawPlayer();
   drawCannons();
   drawBolts();
+  drawMobileTarget();
   drawFx();
   drawRay();
   drawParticles();
@@ -4004,6 +4050,7 @@ function drawScreenFx(){
 }
 
 function drawCursor(){
+  if (View.mobile) return;
   const x = Input.mouse.sx, y = Input.mouse.sy;
   ctx.save();
   ctx.translate(x, y);
@@ -4028,7 +4075,10 @@ function drawCursor(){
 /* ---------------------------------------------------------------------------
    RENDER — HUD. Brass-framed panels, no images, all drawn.
 --------------------------------------------------------------------------- */
-function hudScale(){ return clamp(Math.min(View.w / 1400, View.h / 860), 0.6, 1.4); }
+function hudScale(){
+  const base = Math.min(View.w / 1400, View.h / 860);
+  return clamp(base * (View.mobile ? 1.18 : 1), View.mobile ? 0.68 : 0.6, 1.4);
+}
 
 function brassPanel(x, y, w, h, r, alpha){
   ctx.save();
@@ -4389,7 +4439,7 @@ function drawSkillBar(){
 function drawHealthPanel(){
   const HS = hudScale();
   const w = 250 * HS, h = 96 * HS;
-  const x = 20 * HS, y = View.h - h - 20 * HS;
+  const x = 20 * HS, y = View.mobile ? 102 * HS : View.h - h - 20 * HS;
   brassPanel(x, y, w, h, 10*HS, 0.9);
 
   const P = S.player;
@@ -4582,7 +4632,7 @@ function drawBanner(){
 }
 
 function drawHints(){
-  if (S.hintT <= 0 || S.wave > 1) return;
+  if (View.mobile || S.hintT <= 0 || S.wave > 1) return;
   const HS = hudScale();
   const a = clamp(S.hintT / 2.5, 0, 1);
   ctx.save();
@@ -4997,6 +5047,6 @@ window.SKYGEAR = { S, Input, TUNING, SHAPES, ELEMENTS, ENEMIES, WAVES, CARDS,
                    jump(w){ startRun(); S.wave = w - 1; S.interT = 0.05; } };
 
 </script>
-<script type="module" src="src/v1-parity.js?v=godot-draft-3"></script>
+<script type="module" src="src/v1-parity.js?v=godot-draft-4"></script>
 </body>
 </html>
