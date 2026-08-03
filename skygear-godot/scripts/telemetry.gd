@@ -41,6 +41,15 @@ static func fresh(slots: int = 4) -> Dictionary:
 		# telemetry idiom from ENEMY-VARIETY-DESIGN §2.5, shipped with the first
 		# system that reads it (tempo's §2.2 kill-test, via tools/balance.gd).
 		"taken": 0.0, "taken_by_wave": {},
+		# AND BY WHOSE HAND (SG-131). `{wave: {source: amount}}`, where source is
+		# the string `damage_player` has always been handed and has never until
+		# now recorded — a boarder's `kind`, or "bolt", "keg", "fire". Nested
+		# under the wave rather than flat because every question this answers is
+		# a question about one wave: "the Colossus took three times as long to
+		# kill and the captain took three times the damage — was that HIM?" is
+		# not answerable from a run total, and answering it wrongly is how a
+		# tuning change gets credited to the wrong mechanic.
+		"taken_by_source": {},
 	}
 
 

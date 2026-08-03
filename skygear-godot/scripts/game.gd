@@ -3699,7 +3699,7 @@ func vent_pressure() -> void:
 ## `_damage_circle`, which iterates enemies and props and never the captain.
 ## The flag is threaded rather than special-cased on `_source` so the next
 ## hazard is a parameter rather than a rediscovery.
-func damage_player(amount: float, _source: String = "", grants_invuln: bool = true) -> void:
+func damage_player(amount: float, source: String = "", grants_invuln: bool = true) -> void:
 	if state != State.PLAY:
 		return
 	## ANCHORED. Declared in `SkyGearData.TAP.anchor_resist` and read by
@@ -3731,6 +3731,19 @@ func damage_player(amount: float, _source: String = "", grants_invuln: bool = tr
 	if player.take_damage(amount, grants_invuln):
 		tel.taken += amount
 		tel.taken_by_wave[wave] = float(tel.taken_by_wave.get(wave, 0.0)) + amount
+		## WHO ACTUALLY HIT HER (SG-131). Every caller of this function has passed
+		## a source string since the function was written — `enemy.gd` passes the
+		## boarder's `kind`, and the deck passes "bolt", "keg" and "fire" — and
+		## until now the parameter was named `_source` because NOTHING READ IT.
+		## That is STATUS failure mode one, live in the damage path: the question
+		## "is the Colossus dangerous, or is it the four gremlins standing next to
+		## him?" was unanswerable from a total that had the answer in its argument
+		## list the whole time. Keyed by wave AND source, because the question is
+		## always about one wave — a run total cannot tell a wave-12 boss swing
+		## from a wave-3 gremlin.
+		var by: Dictionary = tel.taken_by_source.get(wave, {})
+		by[source] = float(by.get(source, 0.0)) + amount
+		tel.taken_by_source[wave] = by
 		play_sfx("player/hurt.ogg", -3.0)
 		player.hurt_time = 0.34
 		if impact != null:

@@ -2296,6 +2296,48 @@ func _boss() -> void:
 		minion == null or not is_instance_valid(minion) or minion.dead)
 	_advance(game, 2.0)
 	_check("boss", "and it comes out of the turn", boss.state != "turn", boss.state)
+	## WHO HIT HER, RECORDED (SG-131). `damage_player` has taken a source string
+	## since it was written and the parameter was spelled `_source` — passed by
+	## every caller, read by nothing. It cost a real answer: when the Colossus's
+	## health tripled, wave-12 damage-taken tripled with it, and the total by
+	## itself cannot say whether that was HIM or the four gremlins that now live
+	## three times as long beside him. It can now.
+	##
+	## The i-frames are cleared between the two hits deliberately: `take_damage`
+	## grants 0.55 s on any hit, so without it the second call is swallowed and
+	## this check would pass on a reader that only ever recorded one source.
+	game.wave = 12
+	## HEALED TO FULL FIRST, and this is not tidiness. Without it the 35 damage
+	## below could finish a captain the boss fight above had already worn down —
+	## and a captain who dies here ends the run, which writes a wave-12 row to the
+	## RUN LOG. `log · the title screen can read a best wave out of it` then reads
+	## 3 runs / best 12 against its own 2 / best 11 and fails, three thousand
+	## lines away, for a reason nothing at the failure site could explain. Found
+	## exactly that way.
+	game.player.hp = game.player.max_hp
+	game.player.invulnerability_left = 0.0
+	game.damage_player(26.0, "BOSS")
+	game.player.invulnerability_left = 0.0
+	game.damage_player(9.0, "SWARM")
+	## Fetched through `get` with a default rather than as a field. On a build
+	## without the reader this must report FAIL — if it raises instead, it takes
+	## the REST of this function's checks down with it and the harness quietly
+	## stops testing the Colossus, which is the "detector silenced" failure mode
+	## arriving by accident. Demonstrated: on c486000 this row reads `{}` and
+	## fails, and every check below it still runs.
+	var by_hand: Dictionary = (game.tel.get("taken_by_source", {}) as Dictionary).get(12, {})
+	_check("boss", "the captain's damage is recorded against the hand that dealt it",
+		is_equal_approx(float(by_hand.get("BOSS", 0.0)), 26.0)
+			and is_equal_approx(float(by_hand.get("SWARM", 0.0)), 9.0),
+		"wave 12 by source: %s" % str(by_hand))
+	## AND IT MUST STILL ADD UP. A split that does not sum to the total is worse
+	## than no split, because it looks like an answer.
+	var summed := 0.0
+	for v in by_hand.values():
+		summed += float(v)
+	_check("boss", "and the split sums to the wave's own total",
+		is_equal_approx(summed, float(game.tel.taken_by_wave.get(12, 0.0))),
+		"%.1f against %.1f" % [summed, float(game.tel.taken_by_wave.get(12, 0.0))])
 	game.queue_free()
 
 
