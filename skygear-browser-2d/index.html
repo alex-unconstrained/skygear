@@ -1033,6 +1033,15 @@ function killEnemy(e, ang){
            life: 0.5, delay: i * 0.13, r: rnd(40,90), col: i%2 ? PAL.brass : '#FFD36B' });
   }
 }
+function nearestLiveEnemy(from, skip){
+  const live = S.enemies.filter(e => !e.dead && e !== skip && e.state !== 'climb');
+  let best = null, bestD = Infinity;
+  for (const e of live){
+    const d = dist(from.x, from.y, e.x, e.y);
+    if (d < bestD){ bestD = d; best = e; }
+  }
+  return best;
+}
 function randomLiveEnemy(skip){
   const live = S.enemies.filter(e => !e.dead && e !== skip && e.state !== 'climb');
   return live.length ? pick(live) : null;
@@ -1325,7 +1334,12 @@ function updatePlayer(dt){
   const P = S.player, T = TUNING.player;
   if (P.hp <= 0) return;
 
-  P.aim = Math.atan2(Input.mouse.y - P.y, Input.mouse.x - P.x);
+  // Godot's basic weapon owns facing: always turn toward the nearest live boarder.
+  // The pointer remains useful for aimed ability previews, but never makes the
+  // captain stare away from the threat she is automatically attacking.
+  const closest = nearestLiveEnemy(P);
+  if (closest) P.aim = Math.atan2(closest.y - P.y, closest.x - P.x);
+  else P.aim = Math.atan2(Input.mouse.y - P.y, Input.mouse.x - P.x);
 
   // --- input direction
   let ix = 0, iy = 0;
@@ -1415,6 +1429,13 @@ function updatePlayer(dt){
   }
 
   // --- fire
+  // Slot 0 is the class basic attack: auto-fire it at the nearest enemy.
+  const basic = S.slots[0];
+  if (basic && closest){
+    const bst = skillStats(basic);
+    const inReach = bst.range === undefined || dist(P.x, P.y, closest.x, closest.y) <= bst.range + closest.r;
+    if (inReach && basic.cdLeft <= 0) castSlot(0, {atX:closest.x, atY:closest.y});
+  }
   for (let i = 0; i < 4; i++){
     const sk = S.slots[i];
     if (!sk) continue;
