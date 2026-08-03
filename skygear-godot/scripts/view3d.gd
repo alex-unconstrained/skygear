@@ -146,6 +146,15 @@ const HULK_MODELS := {
 	"destroyed": "boarding_hulk_destroyed",
 }
 const HULK_RULER := "boarding_hulk_open"
+## The painted fallback's own height, which is the 420 this block used for
+## everything until SG-140. Kept for the plate tier only — see the call site.
+const HULK_PLATE_HEIGHT := 420.0
+## SG-139. How long a broken hulk takes to settle, and what it settles AT.
+## The residual is not zero and the call site explains why at length: the
+## simulation keeps a dead hulk's hull solid, so an invisible wreck is an
+## invisible wall.
+const WRECK_FADE_TIME := 2.2
+const WRECK_RESIDUAL := 0.28
 
 ## The Boiler. Until now the ONLY object in the port with no art at all — four
 ## cylinders, two toruses, a box and a quad assembled in `_build_boiler` — and at
@@ -477,6 +486,44 @@ const GRATING_H := 55.0
 const WALL_MODULE_D := 100.0
 const WALL_MODULE_H := 125.0
 
+## THE CARGO RUNS ARE CRATES NOW, NOT A PAINTING OF CRATES (board SG-138, the
+## owner: *"I still see some 2D sprites and just some straight, simple deck
+## layouts"*).
+##
+## This repository already knew. The SG-41 note in `tests/parity_test.gd` wrote
+## it down in so many words — *"`_build_cargo` projects it across every cargo
+## run's TOP face, which is most of what a 41-degree camera sees"* — and then
+## fixed the COLOUR of the band it had found there and left the mechanism
+## standing. A `Decal` with no rotation projects along its own -Y, which is
+## straight down, so `cargo_wall_module.png` — a cut-out the browser draws
+## SIDE-ON — was being stamped flat onto the lid of eight boxes. At the locked
+## 41-degree camera the lid is most of what reaches the player, so eight of the
+## largest objects on the deck were, precisely, a painted picture of crates
+## lying face-up on a slab. That is the read the owner has reported more than
+## once, and it is the sixth failure mode: the fact was in the repo and never
+## reached the thing it was a fact about.
+##
+## So the runs are built out of THE SAME MESH the deck's loose crates use — the
+## one standing beside the captain in his screenshot — instanced through one
+## `MultiMesh`, which is why ~100 real crate stacks cost ONE draw call and not
+## a hundred. The painted module stays, rotated onto the OUTBOARD FACE where
+## the browser always drew it and where a cut-out reads as markings on cargo
+## rather than as the cargo itself; that also keeps `cargo_wall_module.png` a
+## thing the renderer still reads, so the SG-41 check goes on guarding an asset
+## that is actually on screen instead of an orphan.
+const CARGO_CRATE_MODEL := "crate_stack"
+## The crate stacks are scaled so the TALLEST of them is exactly WALL_MODULE_H.
+## That is not a taste number: `_occluded` tests a sight line against
+## WALL_MODULE_H to decide whether a boarder needs an x-ray silhouette, so
+## geometry that stood TALLER than the test would hide a figure the test had
+## already decided was in clear air. Every instance varies DOWNWARD from this
+## and none of them exceeds it, which keeps the error on the safe side — an
+## unnecessary ghost, never a lost boarder.
+const CARGO_CRATE_JITTER := 0.10   ## how far below full height a stack may sit
+## A low lashed plinth under the stacks, so the run meets the planking in a
+## straight line instead of in a row of gaps.
+const CARGO_PLINTH_H := 22.0
+
 ## THE AIRSTREAM (F-03) and THE SWAY (F-04).
 ##
 ## Both were reported against the browser build and both are still open there.
@@ -552,6 +599,13 @@ var _lights: Dictionary = {}         ## prop id -> OmniLight3D
 var _envelope: MeshInstance3D
 var _wreck: Sprite3D                  ## the Colossus fitting (SG-15/56); null if the art is absent
 var _grating: MeshInstance3D          ## the scupper grating fitting (SG-56)
+## Every crate stack in every cargo run, in ONE batch (SG-138). Null only if
+## `crate_stack` failed to load, which is also the only way the runs are still
+## the painted box — so the harness can read this and tell the two apart.
+var _cargo_crates: MultiMeshInstance3D
+## How long the hulk at the bow has been a wreck (SG-139). Reset the moment it
+## is anything else, so a fresh hulk grappling on starts solid.
+var _hulk_wreck_age := 0.0
 var _focus := Vector2.ZERO
 var _focus_set := false
 var _flicker := 0.0
@@ -3021,20 +3075,34 @@ func _build_cargo() -> void:
 	band_mat.albedo_color = Color("#6d5227")
 	band_mat.metallic = 0.45
 	band_mat.roughness = 0.55
-	for rect: Rect2 in SkyGearGame.CARGO_RECTS:
+	## The mesh every run is built out of, and the fork this whole row turns on.
+	## Without it the runs stay the solid painted box they have always been: a
+	## cargo wall is what stops a boarder and what `_occluded` reasons about, so
+	## it has to EXIST whatever the asset pipeline is doing — the same argument
+	## `_build_boiler` makes about the object you lose the run by.
+	var crate_mesh := _cargo_crate_mesh()
+	var real_crates: bool = crate_mesh != null
+	## A 22-unit lashed plinth under real stacks; the whole 125-unit wall
+	## without them.
+	var base_h: float = CARGO_PLINTH_H if real_crates else WALL_MODULE_H
+	var placements: Array[Transform3D] = []
+	var module := _texture("res://assets/art/props/cargo_wall_module.png")
+	for r in SkyGearGame.CARGO_RECTS.size():
+		var rect: Rect2 = SkyGearGame.CARGO_RECTS[r]
 		var height := WALL_MODULE_H
 		var box := MeshInstance3D.new()
 		var mesh := BoxMesh.new()
-		mesh.size = Vector3(rect.size.x, height, rect.size.y) * WORLD_SCALE
+		mesh.size = Vector3(rect.size.x, base_h, rect.size.y) * WORLD_SCALE
 		box.mesh = mesh
 		box.material_override = crate_mat
 		box.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
-			height * 0.5 * WORLD_SCALE, (rect.position.y + rect.size.y * 0.5) * WORLD_SCALE)
+			base_h * 0.5 * WORLD_SCALE, (rect.position.y + rect.size.y * 0.5) * WORLD_SCALE)
 		add_child(box)
-		## The brass capping rail. A full plate over the top face turned every
-		## cargo run into a flat olive slab from this angle, which is what the
-		## camera mostly sees — so it is four edge bars and the crate lids stay
-		## visible between them.
+		## The brass capping rail, riding the top of whatever the base is. A full
+		## plate over the top face turned every cargo run into a flat olive slab
+		## from this angle, which is what the camera mostly sees — so it is four
+		## edge bars, and over the plinth they read as the kick rail the stacks
+		## are lashed down to.
 		for edge in 4:
 			var along_x: bool = edge < 2
 			var cap := MeshInstance3D.new()
@@ -3046,32 +3114,46 @@ func _build_cargo() -> void:
 			var oz: float = 0.0 if not along_x else (rect.size.y * 0.5) * (1.0 if edge == 0 else -1.0)
 			cap.material_override = band_mat
 			cap.position = Vector3((rect.position.x + rect.size.x * 0.5 + ox) * WORLD_SCALE,
-				(height + 2.0) * WORLD_SCALE,
+				(base_h + 2.0) * WORLD_SCALE,
 				(rect.position.y + rect.size.y * 0.5 + oz) * WORLD_SCALE)
 			add_child(cap)
-		## The painted module, tiled down the run as decals.
+		## THE CRATES THEMSELVES. Real geometry, standing on the plinth.
+		if real_crates:
+			_stack_cargo_run(r, rect, crate_mesh.get_aabb(), placements)
+		## The painted module — SIDE-ON, and the rotation below is the fix.
 		##
-		## `cargo_wall_module.png` is what the browser paints its cargo with, and
-		## the first 3D pass stretched it over the box with alpha off and got
-		## eight black slabs. A cut-out belongs in a decal, not on a surface: the
-		## alpha is respected, it wraps the box rather than facing one way, and
-		## the procedural crate underneath fills whatever the module leaves bare.
-		var module := _texture("res://assets/art/props/cargo_wall_module.png")
+		## `cargo_wall_module.png` is what the browser paints its cargo with and
+		## it is drawn there SIDE-ON, where its steel-blue chest is a sliver. A
+		## `Decal` projects along its own -Y, and unrotated that is straight
+		## DOWN, so this stamped a side-on cut-out flat across the LID of every
+		## run — which at 41 degrees is most of what reaches the player, and is
+		## exactly the "painted crate-stacks lying on the planking" read. SG-41
+		## measured that top-face projection, hue-shifted the navy band it
+		## found there, and left the projection standing.
 		var modules := maxi(1, int(round(rect.size.y / WALL_MODULE_D)))
 		for i in modules:
 			var t: float = 0.5 if modules == 1 else float(i) / float(modules - 1)
 			var z: float = lerpf(rect.position.y + 34.0, rect.end.y - 34.0, t)
-			if module != null:
+			if module != null and not real_crates:
 				var skin := Decal.new()
 				skin.cull_mask = 0xFFFFF & ~LAYER_FIGURES & ~LAYER_SHADOWS
 				skin.texture_albedo = module
-				skin.albedo_mix = 1.0
+				## MARKINGS on real crates, not a replacement for them. At 1.0
+				## the cut-out overwrote whatever it landed on, which is the
+				## whole reason the old lid read as a painting.
+				skin.albedo_mix = 0.55 if real_crates else 1.0
 				skin.upper_fade = 0.05
 				skin.lower_fade = 0.05
 				skin.normal_fade = 0.0
-				skin.size = Vector3(rect.size.x + 10.0, height + 30.0, WALL_MODULE_D) * WORLD_SCALE
+				## In the decal's OWN frame: local X and Z are the texture
+				## plane, local Y is how far it projects. Rolled onto the run's
+				## outboard face that makes X the length of one module along the
+				## run, Y the width it has to punch through, and Z the height.
+				skin.size = Vector3(WALL_MODULE_D, rect.size.x + 10.0,
+					height + 30.0) * WORLD_SCALE
 				skin.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
 					height * 0.5 * WORLD_SCALE, z * WORLD_SCALE)
+				skin.basis = _outboard_decal_basis(rect)
 				add_child(skin)
 			# and a lashing strap, so the run reads as cargo rather than as wall
 			var strap := MeshInstance3D.new()
@@ -3082,6 +3164,125 @@ func _build_cargo() -> void:
 			strap.position = Vector3((rect.position.x + rect.size.x * 0.5) * WORLD_SCALE,
 				height * 0.62 * WORLD_SCALE, z * WORLD_SCALE)
 			add_child(strap)
+	## ONE MultiMesh for every cargo run on the ship — about a hundred crate
+	## stacks in a single draw call. Instanced rather than `_sync_prop_model`ed
+	## because these never move, never recycle and are all the same object; a
+	## hundred `Node3D`s would be a hundred draw calls for a wall.
+	if real_crates and not placements.is_empty():
+		var mm := MultiMesh.new()
+		mm.transform_format = MultiMesh.TRANSFORM_3D
+		mm.mesh = crate_mesh
+		mm.instance_count = placements.size()
+		for i in placements.size():
+			mm.set_instance_transform(i, placements[i])
+		var mmi := MultiMeshInstance3D.new()
+		mmi.multimesh = mm
+		add_child(mmi)
+		_cargo_crates = mmi
+
+
+## The one mesh the cargo runs are instanced from — the SAME asset the deck's
+## loose `crates` prop uses, which is the point: the owner's screenshot has a
+## real crate standing beside a painted one, and this is what closes that gap.
+##
+## Returns the `Mesh` rather than the scene. A `MultiMesh` needs one mesh with
+## one material and `crate_stack` is exactly that (one `MeshInstance3D`, one
+## surface, 3017 triangles), so a hundred of them cost one draw call. A model
+## that ever arrives with several surfaces would return the first and look
+## wrong, which is why this asserts a single mesh instead of guessing.
+func _cargo_crate_mesh() -> Mesh:
+	var path := model_path(CARGO_CRATE_MODEL)
+	if not ResourceLoader.exists(path):
+		return null
+	var packed := load(path) as PackedScene
+	if packed == null:
+		return null
+	var probe: Node3D = packed.instantiate() as Node3D
+	if probe == null:
+		return null
+	var found: Mesh = null
+	for child in probe.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		if mi.mesh == null:
+			continue
+		if found != null or mi.mesh.get_surface_count() != 1:
+			## More than one mesh, or more than one material on it: this cannot
+			## be one MultiMesh, and half a cargo wall is worse than the box.
+			found = null
+			break
+		found = mi.mesh
+	probe.free()
+	return found
+
+
+## Fill one cargo run with crate stacks, appending their transforms to `into`.
+##
+## Two columns and as many rows as the run is long, each stack overlapping its
+## neighbour slightly so no sight line opens down the middle of a wall the
+## simulation treats as solid.
+func _stack_cargo_run(index: int, rect: Rect2, aabb: AABB,
+		into: Array[Transform3D]) -> void:
+	if aabb.size.y <= 0.0:
+		return
+	## Scaled so a FULL-height stack is exactly WALL_MODULE_H. See the constant:
+	## standing taller than the number `_occluded` tests against would hide a
+	## boarder the x-ray pass had already decided was in clear air.
+	var full: float = (WALL_MODULE_H - CARGO_PLINTH_H) * WORLD_SCALE / aabb.size.y
+	var crate_d: float = aabb.size.z * full
+	var rows: int = maxi(2, int(round(rect.size.y * WORLD_SCALE / (crate_d * 0.92))))
+	## The two columns sit inboard of the rect's own edges and OVERLAP at the
+	## centre line, so the shortest pair in a row still meets in the middle.
+	var col: float = rect.size.x * 0.215
+	for iz in rows:
+		var t: float = 0.5 if rows == 1 else float(iz) / float(rows - 1)
+		var z: float = lerpf(rect.position.y + rect.size.x * 0.22,
+			rect.end.y - rect.size.x * 0.22, t)
+		for ix in 2:
+			var j := _cargo_jitter(index, ix, iz)
+			var s: float = full * lerpf(1.0 - CARGO_CRATE_JITTER, 1.0, j)
+			## A HALF TURN, and it is the difference between cargo and
+			## corrugated iron. One stack repeated down a run puts its rope
+			## lashings in the same place every 44 units, which reads as a
+			## ribbed stripe rather than as crates — the same trap the browser's
+			## own module tiling avoided by "alternating mirror so one module
+			## does not read as a repeating stamp". 180 degrees mirrors the
+			## lashings and leaves the FOOTPRINT identical, which a quarter turn
+			## would not: the stack is 55 by 48, so turning it would swing its
+			## depth past the row spacing and crates would intersect.
+			var flip: float = 180.0 if _cargo_jitter(index, ix + 31, iz) > 0.5 else 0.0
+			var yaw: float = deg_to_rad(flip
+				+ lerpf(-11.0, 11.0, _cargo_jitter(index, ix + 7, iz)))
+			var basis := Basis(Vector3.UP, yaw).scaled(Vector3(s, s, s))
+			var x: float = rect.position.x + rect.size.x * 0.5 \
+				+ (col if ix == 1 else -col) \
+				+ lerpf(-3.0, 3.0, _cargo_jitter(index, ix + 53, iz))
+			var foot := Vector3(x * WORLD_SCALE, CARGO_PLINTH_H * WORLD_SCALE,
+				(z + lerpf(-4.0, 4.0, _cargo_jitter(index, ix + 97, iz))) * WORLD_SCALE)
+			## The mesh is modelled about its own centre, so its base has to be
+			## brought to the plinth rather than assumed to be at y = 0.
+			var centre := Vector3(aabb.position.x + aabb.size.x * 0.5,
+				aabb.position.y, aabb.position.z + aabb.size.z * 0.5)
+			into.append(Transform3D(basis, foot - basis * centre))
+
+
+## Deterministic per-stack variation. NOT `visual_rng` and not `randf()`: the
+## deck has to be byte-identical between two photographs of it, which is the
+## whole of `tools/still.gd`'s rule, and it must not consume from the stream a
+## seed reproduces a run out of (SG-120). A hash of the three indices is stable
+## across runs, machines and reorderings of this loop.
+static func _cargo_jitter(a: int, b: int, c: int) -> float:
+	var h: int = (a * 73856093) ^ (b * 19349663) ^ (c * 83492791)
+	return float(absi(h) % 65536) / 65535.0
+
+
+## The basis that rolls a cargo decal off the run's LID and onto its OUTBOARD
+## face. `looking_at` aims local -Z along the projection direction; a decal
+## projects along local -Y, so the quarter turn about X swings one onto the
+## other. Outboard rather than inboard because that is the face the module art
+## was drawn for and the face a wide shot of the deck actually shows.
+static func _outboard_decal_basis(rect: Rect2) -> Basis:
+	var dir := Vector3(-1.0 if rect.get_center().x < 0.0 else 1.0, 0.0, 0.0)
+	return Basis.looking_at(dir, Vector3.UP) * Basis(Vector3.RIGHT, deg_to_rad(90.0))
 
 
 ## The Boiler, as geometry. There is no painted boiler in the manifest — the
@@ -6598,7 +6799,33 @@ func _sync_all(delta: float) -> void:
 	var hulk_state: String = game.hulk_state()
 	if hulk_state != "":
 		var art := "res://assets/art/props/boarding_hulk_%s.png" % hulk_state
-		_shadow("hulk", game.hulk.position, 300.0, 0.5)
+		## THE WRECK GOES OUT (board SG-139, the owner: *"After the boarding
+		## Hulk is destroyed, it just sits there and it blocks vision of objects
+		## and enemies"*). He is describing four waves of it: `game.gd` empties
+		## `hulk` only on a run reset, so a hulk broken on wave 4 stands at the
+		## bow until wave 8 replaces it.
+		##
+		## IT DOES NOT GO TO ZERO, and that is the honest half. `hulk_hull()`
+		## answers for all three states ON PURPOSE — "a wreck is exactly as
+		## solid to walk into as a sealed one" — and `correct_player_position`
+		## pushes the captain out of it, so a wreck faded to nothing is an
+		## invisible wall across the bow, which is a worse bug than the one
+		## being fixed. The renderer cannot release that hull; only `game.gd`
+		## can, and `game.gd` is another agent's file today. So it fades until
+		## it stops competing for attention and stays visible enough to explain
+		## the wall. WRECK_RESIDUAL is one constant away from 0.0 the moment the
+		## simulation drops the hull.
+		var solid := 1.0
+		if hulk_state == "destroyed":
+			_hulk_wreck_age += delta
+			solid = lerpf(1.0, WRECK_RESIDUAL,
+				clampf(_hulk_wreck_age / WRECK_FADE_TIME, 0.0, 1.0))
+		else:
+			_hulk_wreck_age = 0.0
+		## THE SHADOW IS THE HULL, not a third number (board SG-140). This read
+		## a flat 300 under an object the simulation collides with at 380 and
+		## the renderer drew at 528.
+		_shadow("hulk", game.hulk.position, hulk_hull_width(), 0.5 * solid)
 		## A MESH PER STATE, which is the thing this block could not have until
 		## 2026-08-02. The comment that stood here said one generation buys the
 		## state the player fights in, because three prompts would return three
@@ -6615,9 +6842,18 @@ func _sync_all(delta: float) -> void:
 		## the face we stopped drawing on its own model's free list — which is
 		## also what leaves the wreck standing alone instead of inside itself.
 		if not _sync_prop_model("hulkm-" + hulk_state,
-				str(HULK_MODELS.get(hulk_state, "")), game.hulk.position, 420.0,
-				0.0, 0.0, HULK_RULER):
-			_place("hulk", _texture(art), game.hulk.position, 420.0)
+				str(HULK_MODELS.get(hulk_state, "")), game.hulk.position,
+				hulk_height_units(), 0.0, 0.0, HULK_RULER):
+			## The painted tier keeps the old 420: a plate's width comes from
+			## its own texture aspect, so the hull ruler below has nothing to
+			## solve for it, and this fires only if all three meshes fail to
+			## load.
+			_place("hulk", _texture(art), game.hulk.position, HULK_PLATE_HEIGHT)
+			var plate: Sprite3D = _billboards.get("hulk")
+			if plate != null:
+				plate.modulate.a = solid
+		else:
+			_fade_prop_model("hulkm-" + hulk_state, solid)
 		if hulk_state == "open":
 			## The furnace in its throat, as light rather than as texture. Same
 			## argument as the Boiler's lamp: an emissive map cannot throw
@@ -7286,6 +7522,56 @@ func _ruler_span(model_key: String) -> Vector3:
 	return span
 
 
+## --- SG-140: THE HULK IS DRAWN AT THE SIZE THE SIMULATION GIVES IT ----------
+##
+## It was drawn at a flat 420, and 420 is a SCREEN height — SG-79's ruler says a
+## prop covers that many ground units of FRAME at the locked camera. That says
+## nothing about width, and width is the only dimension that matters for a thing
+## parked across a lane. Measured through the renderer's own ruler
+## (`tools/hulk_probe.gd`), 420 put the hull on screen **528 ground units wide**
+## against a collision radius of **190** — a 380-wide solid wearing a 528-wide
+## picture, with a 300-wide shadow under it. Three numbers for one object, which
+## is failure mode two; `hulk_hull()`'s own comment had already made exactly
+## this argument for the simulation side and the renderer never heard it.
+##
+## The gap is not cosmetic. The centre lane between the two cargo runs is **440**
+## units across, so the drawn hull was **88 units wider than the lane it sits
+## in** and overhung the cargo on both sides — which is the owner's "it blocks
+## that lane", and why this is filed as a bug and not as a placement note.
+##
+## So the ruler is INVERTED: ask for the screen height that makes the drawn
+## WIDTH equal the hull the simulation collides with. One number, `hulk.radius`,
+## the same one `_crew_step`, `hulk_splash` and `correct_player_position` use.
+func hulk_hull_width() -> float:
+	return float(game.hulk.get("radius", 0.0)) * 2.0
+
+
+func hulk_height_units() -> float:
+	var ruler := _ruler_span(HULK_RULER)
+	var want := hulk_hull_width()
+	if ruler.x <= 0.0 or ruler.y <= 0.0 or want <= 0.0:
+		return HULK_PLATE_HEIGHT
+	return want * camera_span(ruler, 0.0) / ruler.x
+
+
+## Fade a placed prop MESH, the way a corpse fades (SG-103). `transparency` is
+## per `GeometryInstance3D` rather than per material, which is the only reason
+## this is safe: these meshes share their material with every other instance of
+## the same model, and writing the material would take the whole free list with
+## it. The mesh list is walked only when the value actually moves, so a wreck
+## standing at its residual costs one float compare a frame.
+func _fade_prop_model(key: String, solid: float) -> void:
+	var node: Node3D = _prop_models.get(key)
+	if node == null:
+		return
+	var want: float = clampf(1.0 - solid, 0.0, 1.0)
+	if is_equal_approx(float(node.get_meta("faded", 0.0)), want):
+		return
+	node.set_meta("faded", want)
+	for child in node.find_children("*", "GeometryInstance3D", true, false):
+		(child as GeometryInstance3D).transparency = want
+
+
 ## `ruler_key` names ANOTHER model whose span sets this one's scale, and it
 ## exists for exactly one situation: several scenes that are the same object in
 ## different states. Empty — every prop on the deck but the hulk — measures
@@ -7334,6 +7620,14 @@ func _claim_prop_model(model_key: String) -> Node3D:
 	if not free.is_empty():
 		var reused: Node3D = free.pop_back()
 		reused.visible = true
+		## A SHELVED NODE CAN CARRY SG-139's WRECK FADE. The hulk's destroyed
+		## face is recycled when the next push grapples a fresh one on, and a
+		## node handed back still transparent would put the NEXT hulk on the
+		## deck already a ghost — at full health, before anybody hit it.
+		if float(reused.get_meta("faded", 0.0)) != 0.0:
+			reused.set_meta("faded", 0.0)
+			for child in reused.find_children("*", "GeometryInstance3D", true, false):
+				(child as GeometryInstance3D).transparency = 0.0
 		return reused
 	if _no_prop_model.has(model_key):
 		return null
@@ -7624,6 +7918,26 @@ func _occluded(ground: Vector2, stand: float) -> bool:
 			continue
 		if CAM_HEIGHT + (torso - CAM_HEIGHT) * t < WALL_MODULE_H:
 			return true
+	## THE HULK IS DELIBERATELY NOT IN THIS LIST, and it was in it for an hour
+	## (board SG-141). The reasoning was that the paragraph above — "the cargo
+	## runs are the only geometry tall enough to hide anybody" — dated from when
+	## the hulk was a painted plate, and it is a solid mesh now. Both halves of
+	## that turned out not to survive measurement:
+	##
+	##   * A boarder SPAWNS at y = -1115 in a lane centre, and the hulk's own
+	##     footprint at the SG-140 size is y = -1154..-846. The centre lane's
+	##     boarders spawn INSIDE it, and `_exit_t` correctly reports a point
+	##     inside a box as un-occluded — the same answer it gives for a captain
+	##     standing in a cargo rect. There is no deck BEYOND the hulk to be
+	##     hidden: it sits at the bow and the planking ends 6 units past it.
+	##   * More decisively, `_xray` returns immediately unless the figure has a
+	##     `Sprite3D`, and every figure on this deck is a rigged mesh — so
+	##     adding the hulk here changes nothing on screen for anybody. It would
+	##     have been dead code calling dead code, and a fix that fixes nothing.
+	##
+	## SG-141 is the real bug and carries both measurements. What the owner was
+	## actually seeing is SCREEN COVERAGE, not occlusion, and that is answered
+	## by SG-140 shrinking it and SG-139 fading the wreck.
 	return false
 
 

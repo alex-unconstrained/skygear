@@ -214,6 +214,8 @@ func _run() -> void:
 	await process_frame
 	_arrival()
 	await process_frame
+	_deck_solids()
+	await process_frame
 	_owner_layout_untouched()
 
 	## A CANARY AGAINST SILENT TRUNCATION. The harness once reported "192/192
@@ -11551,6 +11553,203 @@ func _clip() -> void:
 		empty_dir, refused_gif], lines, true)
 	_check("clip", "the stitcher refuses zero frames",
 		code != 0 and not FileAccess.file_exists(refused_gif), "exit %d" % code)
+
+
+## --- SG-138/139/140: the owner's 2026-08-03 screenshots ----------------------
+##
+## Three notes off one playtest, and two of them turned out to be the same
+## object. Every check below except the two named as guards was RUN AGAINST THE
+## OLD RENDERER FIRST and failed there — the numbers in the failure messages are
+## the ones the old build actually produced.
+func _deck_solids() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	if game.impact != null:
+		game.impact.enabled = false
+	view.sway = false
+	_begin(game, "SOLID")
+	game.player.global_position = Vector2(0, 200)
+	view._process(0.05)
+
+	## SG-138 — THE CARGO RUNS ARE CRATES, NOT A PAINTING OF CRATES.
+	##
+	## Written to search the TREE for crate geometry rather than to read the
+	## member this change introduced. That is deliberate and it is the rule
+	## STATUS's last failure mode asks for: a check that names a new variable
+	## cannot be run against the build it is meant to indict, so it proves
+	## nothing. This one runs on either renderer, and on the old one it finds
+	## zero crate meshes on the deck because there were none — the runs were
+	## boxes wearing a decal.
+	var crate_aabb := AABB()
+	var crate_scene := load("res://assets/models/crate_stack/crate_stack.tscn") as PackedScene
+	if crate_scene != null:
+		var probe: Node3D = crate_scene.instantiate() as Node3D
+		for mi_any in probe.find_children("*", "MeshInstance3D", true, false):
+			var pm: Mesh = (mi_any as MeshInstance3D).mesh
+			if pm != null:
+				crate_aabb = pm.get_aabb()
+				break
+		probe.free()
+	var batches: Array[MultiMeshInstance3D] = []
+	for child in view.find_children("*", "MultiMeshInstance3D", true, false):
+		var mmi := child as MultiMeshInstance3D
+		if mmi.multimesh == null or mmi.multimesh.mesh == null:
+			continue
+		if mmi.multimesh.mesh.get_aabb().size.is_equal_approx(crate_aabb.size):
+			batches.append(mmi)
+	var stacks := 0
+	for b in batches:
+		stacks += b.multimesh.instance_count
+	var runs: int = SkyGearGame.CARGO_RECTS.size()
+	_check("cargo", "the cargo runs are built out of the deck's own crate mesh",
+		crate_aabb.size.y > 0.0 and batches.size() == 1 and stacks >= runs * 8,
+		"%d batch, %d crate stacks over %d runs (old renderer: 0 batches, 0 stacks)"
+		% [batches.size(), stacks, runs])
+
+	## GUARD — cannot fail before SG-138, because before it there were no
+	## instances to be too tall. It is here because the thing that would break
+	## silently is the x-ray pass: `_occluded` tests a sight line against
+	## WALL_MODULE_H, so cargo geometry standing TALLER than that number would
+	## hide a boarder the occlusion test had already ruled to be in clear air.
+	## HEADLESS CANNOT READ A MULTIMESH BACK, and the first version of this guard
+	## did not know that. `MultiMesh.set_instance_transform` writes to the
+	## rendering server; the headless dummy renderer keeps none of it and
+	## `get_instance_transform` hands back IDENTITY for every instance whatever
+	## was written — verified by running the same three lines windowed, where
+	## they read back correctly. A guard reading the batch would have reported
+	## the SAME number for any code at all (it reported a confident 94.7 for a
+	## build whose crates are 125), which is the fifth failure mode wearing a
+	## check's clothes: a rig that cannot see its own subject.
+	##
+	## So it asks the PLACEMENT FUNCTION for the transforms instead. That is
+	## where the arithmetic being guarded actually lives, and it answers the
+	## same in both renderers.
+	var placed: Array[Transform3D] = []
+	for r in SkyGearGame.CARGO_RECTS.size():
+		view._stack_cargo_run(r, SkyGearGame.CARGO_RECTS[r], crate_aabb, placed)
+	var tallest := 0.0
+	var lowest := 1.0e9
+	for xf: Transform3D in placed:
+		var s: float = xf.basis.get_scale().y
+		tallest = maxf(tallest, (xf.origin.y
+			+ (crate_aabb.position.y + crate_aabb.size.y) * s) / SkyGearView3D.WORLD_SCALE)
+		lowest = minf(lowest, (xf.origin.y
+			+ crate_aabb.position.y * s) / SkyGearView3D.WORLD_SCALE)
+	_check("cargo", "and no crate stack stands taller than the height the x-ray pass tests against",
+		not placed.is_empty() and placed.size() == stacks
+			and tallest <= SkyGearView3D.WALL_MODULE_H + 1.0,
+		"tallest %.1f of %.1f over %d stacks — regression guard"
+		% [tallest, SkyGearView3D.WALL_MODULE_H, placed.size()])
+	## And the other end of it, which is the mistake the readback hid: a stack
+	## whose base is below the planking is half-buried, and at this camera a
+	## half-buried crate and a short one look identical.
+	_check("cargo", "and every crate stack stands ON the plinth rather than sunk through it",
+		not placed.is_empty() and lowest >= SkyGearView3D.CARGO_PLINTH_H - 1.0,
+		"lowest base %.1f against a %.1f plinth"
+		% [lowest, SkyGearView3D.CARGO_PLINTH_H])
+
+	## GUARD — the same. A cargo module projected straight DOWN is what stamped
+	## a side-on cut-out flat across the lid of all eight runs, and it is the
+	## shape of the bug rather than one instance of it: any decal on this deck
+	## whose projection axis is vertical is painting a picture onto a top face.
+	var flat_modules := 0
+	for child in view.find_children("*", "Decal", true, false):
+		var d := child as Decal
+		if d.texture_albedo == null:
+			continue
+		if not str(d.texture_albedo.resource_path).ends_with("cargo_wall_module.png"):
+			continue
+		if absf((-d.basis.y).normalized().y) > 0.01:
+			flat_modules += 1
+	_check("cargo", "and no cargo module is projected onto the lid of a run",
+		flat_modules == 0,
+		"%d module decals aimed at the planking (old renderer: 24) — regression guard"
+		% flat_modules)
+
+	## SG-140 — THE HULK IS DRAWN AT THE SIZE THE SIMULATION GIVES IT.
+	game.hulk = SkyGearLanes.make_hulk(SkyGearGame.BOW_Y, 1.0)
+	game.hulk.vulnerable = true
+	view._process(0.05)
+	var hull_w: float = float(game.hulk.radius) * 2.0
+	var node: Node3D = view._prop_models.get("hulkm-open")
+	var drawn_w := 0.0
+	if node != null:
+		drawn_w = SkyGearView3D.measure_span(node).x * node.scale.x \
+			/ SkyGearView3D.WORLD_SCALE
+	_check("hulk", "the boarding hulk is drawn at the width the simulation collides with",
+		node != null and absf(drawn_w - hull_w) <= hull_w * 0.02,
+		"drawn %.0f wide against a %.0f hull (old renderer: 528 against 380)"
+		% [drawn_w, hull_w])
+	## And the lane it sits in. This is the owner's actual complaint expressed
+	## as a number: the gap between the two cargo runs is 440 units, and the
+	## hull used to be drawn wider than that.
+	var gap: float = SkyGearGame.CARGO_RECTS[4].position.x \
+		- SkyGearGame.CARGO_RECTS[0].end.x
+	_check("hulk", "and it fits between the cargo runs it is parked between",
+		drawn_w > 0.0 and drawn_w < gap,
+		"%.0f wide in a %.0f lane (old renderer: 528 in 440)" % [drawn_w, gap])
+
+	## SG-141 — AND THE OCCLUSION CLAIM THAT DID NOT SURVIVE ITS OWN CHECK.
+	##
+	## This started life as `hulk · a boarder behind the hulk is occluded by it`
+	## and it FAILED, which is the check doing its job to its author. A boarder
+	## spawns at y = -1115 and the hulk's footprint is y = -1154..-846, so the
+	## centre lane's boarders spawn INSIDE it — and a point inside a box is
+	## un-occluded by that box, the same answer a captain standing in a cargo
+	## rect gets. There is no deck beyond the hulk to hide. It is pinned here as
+	## the fact rather than deleted, so the next person to reach for the same
+	## idea finds the measurement instead of rediscovering it.
+	var spawn_y := -1115.0
+	var hulk_near: float = float(game.hulk.position.y) + 154.0
+	_check("hulk", "a boarder spawns inside the hulk's own footprint, not behind it",
+		spawn_y < hulk_near and not view._occluded(Vector2(0.0, spawn_y), 150.0),
+		"spawn y %.0f against a hull reaching %.0f — SG-141 carries the rest"
+		% [spawn_y, hulk_near])
+
+	## SG-139 — AND THE WRECK GOES OUT.
+	game.hulk.hp = 1.0
+	game.damage_hulk(50.0)
+	view._process(0.05)
+	var wreck: Node3D = view._prop_models.get("hulkm-destroyed")
+	var fresh_t := _model_transparency(wreck)
+	for _i in 60:
+		view._process(0.05)
+	var faded_t := _model_transparency(wreck)
+	_check("hulk", "a destroyed hulk fades instead of standing at the bow",
+		wreck != null and fresh_t <= 0.05
+			and faded_t >= 1.0 - SkyGearView3D.WRECK_RESIDUAL - 0.02,
+		"transparency %.2f -> %.2f over %.1fs (old renderer: 0.00 -> 0.00, forever)"
+		% [fresh_t, faded_t, SkyGearView3D.WRECK_FADE_TIME])
+
+	## GUARD — the pooling trap. The wreck's node is shelved per model key and
+	## handed back to the next hulk that breaks; a faded node returned to the
+	## shelf would put the NEXT wreck on the deck already a ghost.
+	game.hulk = SkyGearLanes.make_hulk(SkyGearGame.BOW_Y, 1.0)
+	game.hulk.vulnerable = true
+	view._process(0.05)
+	game.hulk.hp = 1.0
+	game.damage_hulk(50.0)
+	view._process(0.05)
+	_check("hulk", "and the next hulk to break is not born a ghost",
+		_model_transparency(view._prop_models.get("hulkm-destroyed")) <= 0.05,
+		"transparency %.2f on a fresh wreck — regression guard"
+		% _model_transparency(view._prop_models.get("hulkm-destroyed")))
+	world.queue_free()
+
+
+## The transparency a placed prop mesh is currently wearing, read off the first
+## `GeometryInstance3D` in it — which is where `_fade_prop_model` writes, and
+## deliberately not off the material, because the material is shared.
+func _model_transparency(node: Node3D) -> float:
+	if node == null:
+		return -1.0
+	for child in node.find_children("*", "GeometryInstance3D", true, false):
+		return (child as GeometryInstance3D).transparency
+	return -1.0
 
 
 ## --- SG-59/60/61: the morning playtest's readability batch -------------------
