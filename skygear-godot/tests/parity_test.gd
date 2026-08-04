@@ -266,6 +266,8 @@ func _run() -> void:
 	await process_frame
 	_lanes()
 	await process_frame
+	_crew_assist()
+	await process_frame
 	_sg62()
 	await process_frame
 	_draft()
@@ -1885,6 +1887,390 @@ func _prop_count(game: SkyGearGame, kind: String) -> int:
 	var n := 0
 	for p in game.props():
 		if is_instance_valid(p) and not p.dead and str(p.prop_type) == kind:
+			n += 1
+	return n
+
+
+## --- board SG-187: the crew go to the fight, within reason ------------------
+##
+## The owner, after a full twelve-wave run: *"Dont have crew standing around and
+## auto attacking at the end of their lane - we can improve their AI to run
+## towards available enemies if their lane is clear."*
+##
+## These checks assert on `game.crew_orders()` rather than on where a sailor
+## ends up standing after N seconds. That is deliberate and it is the SG-119
+## lesson: a check written on positions passes or fails on walking speed and on
+## how many ticks the fixture happened to advance, and the thing under test here
+## is a DECISION. The two live checks at the end still advance a real deck,
+## because a decision nothing acts on is the first failure mode in STATUS.
+##
+## THE ONE THAT MATTERS IS THE FIRST ONE. Everything this row adds is a new
+## reason for a crewman to leave his lane, so the regression it risks is a
+## crewman who leaves a lane that still has a boarder in it — which would be the
+## feature deleting the behaviour it was supposed to extend. `crew · a boarder
+## in his own lane is still his, whatever is happening next door` is that check,
+## and it is pre-committed as the one that must fail if the ordering of the two
+## passes in `crew_orders` is ever swapped.
+func _crew_assist() -> void:
+	## THE LEASH IS THE DECK'S OWN NUMBER, not a second copy of it. Read off
+	## `LANE_CENTERS` so that moving the lanes moves the leash, rather than
+	## leaving a constant behind that used to mean "one lane over".
+	var spacing: float = float(SkyGearGame.LANE_CENTERS[1]) \
+		- float(SkyGearGame.LANE_CENTERS[0])
+	_check("crew", "the leash is the lane spacing, read off the deck rather than typed twice",
+		is_equal_approx(SkyGearLanes.ASSIST_LEASH, spacing),
+		"leash %.0f against a %.0f spacing" % [SkyGearLanes.ASSIST_LEASH, spacing])
+	## AND THE ADJACENCY CLAUSE IS BELT AND BRACES ON THIS DECK, WHICH IS WORTH
+	## SAYING RATHER THAN TESTING. `crew_orders` refuses a boarder two lanes over
+	## AND refuses one past the leash; with three lanes 560 apart and a boarder
+	## held to +-190 of its own centre, the nearest a two-lanes-over boarder can
+	## ever be to a station is 1120 - 190 = 930, so the leash already excludes
+	## every one of them. A check that asserted "he ignores lane 2" would pass on
+	## a deck where the adjacency clause had been deleted, which is the vacuous
+	## check STATUS warns about. So assert the ARITHMETIC that makes it vacuous —
+	## if someone widens the leash past this, the clause starts doing real work
+	## and this check goes red to say so.
+	var two_over: float = 2.0 * spacing - 190.0
+	_check("crew", "and two lanes over is out of reach by geometry, so the adjacency clause is a guard rather than the mechanism",
+		two_over > SkyGearLanes.ASSIST_LEASH,
+		"nearest possible two-lanes-over boarder is %.0f from a station, leash %.0f"
+			% [two_over, SkyGearLanes.ASSIST_LEASH])
+
+	var game := _new_game()
+	_begin(game)
+	_clear_boarders(game)
+	var watch := _muster_watch(game)
+	_check("crew", "a full watch musters and every hand has a station of his own",
+		watch == 12, "%d hands" % watch)
+
+	## THE FIXTURE: five boarders in the MIDDLE lane, spread across its band,
+	## and nothing at all in the outer two. Placed on the crew line itself so the
+	## distance from a station to a boarder is purely lateral and the leash
+	## arithmetic in these checks is exact rather than approximate.
+	var line: float = SkyGearGame.BOW_Y + SkyGearLanes.POST_AFT
+	var near_port := _boarder_at(game, "SCRAPPER", 1, Vector2(-180.0, line))
+	var mid_port := _boarder_at(game, "SCRAPPER", 1, Vector2(-90.0, line))
+	var centre := _boarder_at(game, "SCRAPPER", 1, Vector2(0.0, line))
+	var mid_star := _boarder_at(game, "SCRAPPER", 1, Vector2(90.0, line))
+	var near_star := _boarder_at(game, "SCRAPPER", 1, Vector2(180.0, line))
+	## ...and one far down the middle lane, past every station's leash: the
+	## middle lane's own men take it, and no outer-lane man may.
+	var far_down := _boarder_at(game, "SCRAPPER", 1,
+		Vector2(0.0, SkyGearGame.BOW_Y + 900.0))
+	var orders: Array = game.crew_orders()
+
+	## 1. THE REGRESSION CHECK. Every man in the middle lane has boarders in his
+	## own lane and must be pointed at one of them — never at anything else, and
+	## never at nothing.
+	var own_lane_faults := PackedStringArray()
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if int(c.lane) != 1 or bool(c.dead):
+			continue
+		var t = orders[i]
+		if t == null:
+			own_lane_faults.append("hand %d idle with five in his lane" % i)
+		elif int(t.lane) != 1:
+			own_lane_faults.append("hand %d sent to lane %d" % [i, int(t.lane)])
+	_check("crew", "a boarder in his own lane is still his, whatever is happening next door",
+		own_lane_faults.is_empty(),
+		"clean" if own_lane_faults.is_empty() else ", ".join(own_lane_faults))
+
+	## 2. THE FEATURE. The outer lanes are empty, so hands from both flanks
+	## should be on their way to the middle.
+	var assisting := _assist_count(game, orders)
+	_check("crew", "and a crewman whose own lane is clear goes to the fight in the next one",
+		assisting.port > 0 and assisting.starboard > 0,
+		"%d from port, %d from starboard, %d holding"
+			% [assisting.port, assisting.starboard, assisting.holding])
+
+	## 3. THE LEASH. Nothing outside it may be picked by an outer-lane hand —
+	## the far-down boarder is 850 from the nearest outer station.
+	var leash_faults := PackedStringArray()
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if bool(c.dead) or orders[i] == null:
+			continue
+		var t = orders[i]
+		if int(t.lane) == int(c.lane):
+			continue
+		var post: Vector2 = SkyGearLanes.station(SkyGearGame.LANE_CENTERS,
+			int(c.lane), SkyGearGame.BOW_Y)
+		var reach_out: float = t.global_position.distance_to(post)
+		if reach_out > SkyGearLanes.ASSIST_LEASH + 0.01:
+			leash_faults.append("hand %d sent %.0f from his post" % [i, reach_out])
+	_check("crew", "he will not be sent further from his own post than one lane",
+		leash_faults.is_empty() and _claimed_by_other_lane(game, orders, far_down) == 0,
+		"%s; the boarder 850 out was picked by %d outer hands"
+			% ["clean" if leash_faults.is_empty() else ", ".join(leash_faults),
+				_claimed_by_other_lane(game, orders, far_down)])
+
+	## 4. ONE MAN PER BOARDER. Eight idle sailors and five boarders next door:
+	## no boarder may collect two of them.
+	var seen := {}
+	var doubled := PackedStringArray()
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if bool(c.dead) or orders[i] == null:
+			continue
+		var t = orders[i]
+		if int(t.lane) == int(c.lane):
+			continue
+		var id: int = t.get_instance_id()
+		if seen.has(id):
+			doubled.append("hands %d and %d on one boarder" % [int(seen[id]), i])
+		seen[id] = i
+	_check("crew", "one man per boarder — a fight next door does not collect a mob",
+		doubled.is_empty() and seen.size() == assisting.port + assisting.starboard,
+		"%d assisting onto %d distinct boarders%s" % [
+			assisting.port + assisting.starboard, seen.size(),
+			"" if doubled.is_empty() else "; " + ", ".join(doubled)])
+
+	## 5. THE ANCHOR. However loud it is next door, a lane never empties.
+	var stranded := PackedStringArray()
+	for lane in SkyGearGame.LANE_CENTERS.size():
+		var living := 0
+		var gone := 0
+		for i in game.crew.size():
+			var c: Dictionary = game.crew[i]
+			if bool(c.dead) or int(c.lane) != lane:
+				continue
+			living += 1
+			if orders[i] != null and int(orders[i].lane) != lane:
+				gone += 1
+		if living > 0 and gone >= living:
+			stranded.append("lane %d sent all %d of its hands away" % [lane, living])
+	_check("crew", "and every lane keeps its anchor, however loud the fight next door",
+		stranded.is_empty(),
+		"clean" if stranded.is_empty() else ", ".join(stranded))
+
+	## 6. THE RECALL, which is the question the design had to answer and the one
+	## a commitment timer would have got wrong. Take a hand who is on his way to
+	## the middle lane, drop a boarder into HIS lane, and ask again.
+	var traveller := -1
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if not bool(c.dead) and orders[i] != null and int(orders[i].lane) != int(c.lane):
+			traveller = i
+			break
+	var recalled := false
+	var recall_detail := "no hand was assisting to recall"
+	if traveller >= 0:
+		var his_lane: int = int(game.crew[traveller].lane)
+		var homecoming := _boarder_at(game, "SCRAPPER", his_lane,
+			Vector2(float(SkyGearGame.LANE_CENTERS[his_lane]), line - 120.0))
+		var after: Array = game.crew_orders()
+		recalled = after[traveller] == homecoming
+		recall_detail = "hand %d was on a lane-%d boarder, is now on %s" % [
+			traveller, int(orders[traveller].lane),
+			"the one that just landed in his own lane" if recalled
+				else "something else"]
+		homecoming.dead = true
+		homecoming.queue_free()
+	_check("crew", "and he turns for home the tick a boarder lands in his own lane — no timer to run out",
+		recalled, recall_detail)
+
+	## 7. THE HULK OUTRANKS A NEIGHBOUR'S FIGHT, both ways round. Breaking it is
+	## the crew's real job — `siege` 22 against a swing of 1.5 — so a push wave
+	## must not find the watch helping next door instead.
+	var pushing := _new_game()
+	_begin(pushing)
+	_clear_boarders(pushing)
+	_muster_watch(pushing)
+	_boarder_at(pushing, "SCRAPPER", 1, Vector2(-180.0, line))
+	var before_push := _assist_count(pushing, pushing.crew_orders())
+	pushing.start_wave(4)
+	_clear_boarders(pushing)
+	_advance(pushing, SkyGearGame.HULK_GRAPPLE_TIME + 0.2)
+	_boarder_at(pushing, "SCRAPPER", 1, Vector2(-180.0, line))
+	var during_push := _assist_count(pushing, pushing.crew_orders())
+	_check("crew", "a hulk with its door open outranks the fight next door — the siege is their actual job",
+		before_push.port > 0 and during_push.port == 0 and during_push.starboard == 0,
+		"%d assisting with no hulk, %d with one open"
+			% [before_push.port + before_push.starboard,
+				during_push.port + during_push.starboard])
+	pushing.queue_free()
+
+	## 8. THE OTHER HALF OF THE ASK, and the half that is not about running: a
+	## man with nothing to fight STANDS. Before this row he walked to the head of
+	## his lane and entered `windup` on arrival, because the arrival test asked
+	## how far away his goal was and never asked whether anything was standing in
+	## it — so he swung at bare planking for the rest of the wave. An empty deck,
+	## eight seconds, and not one swing may be thrown.
+	var quiet := _new_game()
+	_begin(quiet)
+	_clear_boarders(quiet)
+	_muster_watch(quiet)
+	var swings := 0
+	var moving_at_rest := 0
+	for _step in 160:
+		quiet.spawn_queue.clear()
+		_clear_boarders(quiet)
+		quiet._process(0.05)
+		for c in quiet.crew:
+			if bool(c.dead):
+				continue
+			if str(c.state) != "move":
+				swings += 1
+	var adrift := PackedStringArray()
+	for c in quiet.crew:
+		if bool(c.dead):
+			continue
+		var post: Vector2 = SkyGearLanes.station(SkyGearGame.LANE_CENTERS,
+			int(c.lane), SkyGearGame.BOW_Y)
+		if Vector2(c.position).distance_to(post) > SkyGearLanes.POST_SLACK + 0.5:
+			adrift.append("%.0f out" % Vector2(c.position).distance_to(post))
+		if (c.get("velocity", Vector2.ZERO) as Vector2).length() > 0.001:
+			moving_at_rest += 1
+	_check("crew", "a man with nothing to fight stands at his post instead of swinging at the planking",
+		swings == 0 and adrift.is_empty(),
+		"%d swing-ticks over 8 s on an empty deck, %s" % [swings,
+			"every hand at his post" if adrift.is_empty() else ", ".join(adrift)])
+	## AND THE RENDERER HAS TO BE ABLE TO TELL. `view3d` picks `idle` over a walk
+	## cycle off `velocity`, so a man holding station with a stale non-zero
+	## velocity is a figure walking on the spot — the skate `gait()` exists to
+	## stop, wearing a different hat.
+	_check("crew", "and he is standing still in the field the renderer reads, not only in the one the simulation does",
+		moving_at_rest == 0,
+		"%d hands at rest carrying a non-zero velocity" % moving_at_rest)
+	## EVERY HAND IN A LANE HOLDS THE SAME STATION, AND THAT IS A BALANCE
+	## ASSERTION RATHER THAN A TIDINESS ONE (SG-187).
+	##
+	## Four sailors of radius 15 standing inside one another is not pretty, and
+	## it becomes visible the day they stop milling through a swing cycle and
+	## start standing still — which is what the check above does. So the first
+	## version of this row gave each man a post offset off the muster jitter he
+	## already carried. Against the same 240-run Heat 0 baseline that ONE
+	## cosmetic line took crew damage share from **6.02% to 4.55%** and the
+	## captain's damage taken from **346 to 406**, and it cost the same fanned
+	## ACROSS the lane (4.55% / 406) as fanned DOWN it (4.85% / 387) — which is
+	## what rules out "a roadblock with a hole in it" and leaves the real
+	## mechanism: a stacked watch is four swings on one boarder with no walking,
+	## and 120 units of separation is a second of not swinging per man per
+	## boarder. The roaming this row is actually about costs nothing resolvable
+	## (6.31% / 360 against 6.02% / 346).
+	##
+	## Pinned here, with the number in the name, because the next person to think
+	## the watch looks cramped will reach for exactly that offset — and because a
+	## comment saying "we measured this" is not evidence that anybody did.
+	var posts := {}
+	for c in quiet.crew:
+		var post: Vector2 = SkyGearLanes.station(SkyGearGame.LANE_CENTERS,
+			int(c.lane), SkyGearGame.BOW_Y)
+		posts["%d:%.1f:%.1f" % [int(c.lane), post.x, post.y]] = true
+		if not is_equal_approx(post.x, float(SkyGearGame.LANE_CENTERS[int(c.lane)])):
+			posts["off-lane"] = true
+	_check("crew", "every hand in a lane holds the same station — fanning the idle watch out cost 17% more damage taken, so it is refused",
+		posts.size() == 3 and not posts.has("off-lane"),
+		"%d distinct stations for %d hands across 3 lanes"
+			% [posts.size(), quiet.crew.size()])
+	quiet.queue_free()
+
+	## 9. THE INSTRUMENT (SG-187). The crew row has to be a SUBSET of the ally
+	## row and not a sibling, or every ally share ever printed changes meaning
+	## the day this lands. Asserted twice: on the attribution function directly,
+	## and on a real deck where sailors are the only allies that can reach
+	## anything.
+	var tel := SkyGearTelemetry.fresh()
+	SkyGearTelemetry.note_damage(tel, -4, 7.0, true)
+	SkyGearTelemetry.note_damage(tel, -3, 5.0, false)
+	_check("crew", "a crew swing is counted in the crew row AND in the allies row; a cannon shot only in allies",
+		is_equal_approx(float(tel.crew.damage), 7.0)
+			and is_equal_approx(float(tel.allies.damage), 12.0)
+			and int(tel.crew.kills) == 1,
+		"crew %.1f of allies %.1f, %d kills"
+			% [float(tel.crew.damage), float(tel.allies.damage), int(tel.crew.kills)])
+
+	var live := _new_game()
+	_begin(live)
+	_clear_boarders(live)
+	_muster_watch(live)
+	## The guns off, so anything that lands in the ally row on this deck was
+	## landed by a sailor and the two rows can be compared without arithmetic.
+	for turret in live.turrets:
+		turret.dead = true
+	live.player.global_position = Vector2(0.0, SkyGearGame.BASE_Y - 40.0)
+	var punchbag := _boarder_at(live, "SCRAPPER", 1, Vector2(0.0, line))
+	punchbag.hp = 1e9
+	punchbag.max_hp = 1e9
+	_advance(live, 4.0)
+	_check("crew", "and a sailor swinging on a real deck moves both rows by the same amount",
+		float(live.tel.crew.damage) > 0.0
+			and is_equal_approx(float(live.tel.crew.damage), float(live.tel.allies.damage)),
+		"crew %.1f, allies %.1f" % [float(live.tel.crew.damage),
+			float(live.tel.allies.damage)])
+	live.queue_free()
+	game.queue_free()
+
+
+## Every boarder off the deck and no more coming — the fixture floor for the
+## SG-187 checks, which are all about which boarder a sailor picks and would
+## otherwise be picking from whatever wave 1 had already put on the planking.
+func _clear_boarders(game: SkyGearGame) -> void:
+	game.spawn_queue.clear()
+	for enemy in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(enemy):
+			enemy.dead = true
+			enemy.queue_free()
+
+
+## A FULL WATCH AT ITS STATIONS. Mustered by the simulation's own bell rather
+## than appended by hand — `crew_timer = 0` plus one `_update_crew` tick is two
+## hands per lane, which is what a run does — and then placed at the posts they
+## would have walked to, because these checks are about what a man who has
+## ARRIVED does and not about how long the walk from the stern takes.
+func _muster_watch(game: SkyGearGame) -> int:
+	game.crew.clear()
+	for _bell in 2:
+		game.crew_timer = 0.0
+		game._update_crew(0.05)
+	for c in game.crew:
+		c.position = SkyGearLanes.station(SkyGearGame.LANE_CENTERS, int(c.lane),
+			SkyGearGame.BOW_Y)
+		c.state = "move"
+		c.state_time = 0.0
+	return game.crew.size()
+
+
+## A landed boarder, placed. `spawn_enemy` puts one in the arrival window and
+## `_landed` is the file's own way of ending it.
+func _boarder_at(game: SkyGearGame, kind: String, lane: int,
+		at: Vector2) -> SkyGearEnemy:
+	game.spawn_enemy(kind, lane)
+	var live := game.get_tree().get_nodes_in_group("enemies")
+	var placed: SkyGearEnemy = live[live.size() - 1]
+	placed.global_position = at
+	placed.lane = lane
+	return _landed(placed)
+
+
+## How many hands have been sent out of their own lane, by flank, and how many
+## are holding station.
+func _assist_count(game: SkyGearGame, orders: Array) -> Dictionary:
+	var out := {"port": 0, "starboard": 0, "holding": 0}
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if bool(c.dead):
+			continue
+		if orders[i] == null:
+			out.holding += 1
+		elif int(orders[i].lane) != int(c.lane):
+			if int(c.lane) == 0:
+				out.port += 1
+			elif int(c.lane) == 2:
+				out.starboard += 1
+	return out
+
+
+## How many hands from OTHER lanes were sent at this particular boarder.
+func _claimed_by_other_lane(game: SkyGearGame, orders: Array,
+		who: SkyGearEnemy) -> int:
+	var n := 0
+	for i in game.crew.size():
+		var c: Dictionary = game.crew[i]
+		if bool(c.dead) or orders[i] != who:
+			continue
+		if int(c.lane) != int(who.lane):
 			n += 1
 	return n
 
@@ -13359,7 +13745,7 @@ func _clip() -> void:
 	## listed and does not resolve is a tool that fails at the exact moment
 	## somebody reaches for evidence.
 	var kinds := ["fight", "dash", "projectiles", "scrapper", "boilerwright",
-		"knight", "boss", "crew", "swarm", "drone", "cutscene"]
+		"knight", "boss", "crew", "crewassist", "swarm", "drone", "cutscene"]
 	## EVERY failure, not the last one. This accumulated into a single `String`
 	## until 2026-08-02, so three unstageable scenarios landed in the table and
 	## the check named only the one that sorted last — which is a check that

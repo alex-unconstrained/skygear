@@ -4349,6 +4349,104 @@ func allies_alive() -> int:
 	return alive
 
 
+## WHO EACH CREWMAN IS FIGHTING THIS TICK — one answer for the whole watch,
+## computed once, in one place (board SG-187).
+##
+## Returns an array parallel to `crew`: the boarder that hand is to go at, or
+## null for a hand with nobody to go at — who marches a vulnerable hulk if there
+## is one and otherwise holds his station. The FOUR RULES it enforces, and the
+## reasoning and the arithmetic behind each of them, are written at
+## `SkyGearLanes.ASSIST_LEASH`; this function is only their bookkeeping.
+##
+## IT IS SEPARATE FROM `_update_crew` BECAUSE THE ANSWER IS NOT PER-MAN. Rules 3
+## and 4 — one man per boarder, and every lane keeps its anchor — are statements
+## about the WATCH, and a loop that decides one sailor at a time cannot make them
+## without a second pass over the others. And it is PUBLIC for the reason
+## `hulk_state()` is: the harness asserts on the decision itself rather than on
+## the positions it eventually produces, so a check about who a man is fighting
+## cannot pass or fail on walking speed and tick counts.
+func crew_orders() -> Array:
+	var orders: Array = []
+	orders.resize(crew.size())
+	var hulk_open := not hulk.is_empty() and not bool(hulk.get("dead", true)) \
+		and bool(hulk.get("vulnerable", false))
+	## PASS ONE — HIS OWN LANE, WHICH OUTRANKS EVERYTHING (rule 1). This is the
+	## scan the crew have always had, unchanged and still first: nothing below
+	## can reach a man who has a boarder in his own lane, so the recall is the
+	## ORDER OF THESE TWO PASSES rather than a rule that has to fire.
+	var free: Array[int] = []
+	var anchored := {}
+	for i in crew.size():
+		var c: Dictionary = crew[i]
+		orders[i] = null
+		if bool(c.get("dead", false)):
+			continue
+		var target: SkyGearEnemy = null
+		var best := 1e9
+		for enemy in enemies():
+			## Never one he could not hurt — the same guard the cannons carry.
+			if not is_instance_valid(enemy) or not enemy.can_be_hit():
+				continue
+			if enemy.lane != int(c.lane):
+				continue
+			var d: float = enemy.global_position.distance_to(c.position)
+			if d < best:
+				best = d
+				target = enemy
+		if target != null:
+			orders[i] = target
+			continue
+		## RULE 4, THE ANCHOR: the longest-serving UNENGAGED hand in a lane holds
+		## it. `crew` is muster order, so this is stable frame to frame and the
+		## man it picks is that lane's veteran. A hand already fighting in his
+		## own lane does not consume the anchor slot — he is in his lane either
+		## way, and spending the slot on him would send a lane's whole idle
+		## remainder next door.
+		if not anchored.has(int(c.lane)):
+			anchored[int(c.lane)] = true
+			continue
+		## A HULK WITH ITS DOOR OPEN OUTRANKS A NEIGHBOUR'S FIGHT. Breaking it is
+		## the crew's actual job and the one thing they are better at than the
+		## captain — `siege` is 22 against a swing of 1.5 — so a push wave must
+		## not find the watch helping in the lane next door.
+		if hulk_open:
+			continue
+		free.append(i)
+	## PASS TWO — THE ASSIST (rules 2 and 3), in muster order, one man per
+	## boarder. Muster order rather than nearest-first: a nearest-first rule
+	## changes its mind every time two men swap distances, and that is a rule you
+	## can watch flickering on the deck.
+	var claimed := {}
+	for i in free:
+		var c: Dictionary = crew[i]
+		var post: Vector2 = SkyGearLanes.station(LANE_CENTERS, int(c.lane), BOW_Y)
+		var pick: SkyGearEnemy = null
+		var best := 1e9
+		for enemy in enemies():
+			if not is_instance_valid(enemy) or not enemy.can_be_hit():
+				continue
+			if absi(int(enemy.lane) - int(c.lane)) != 1:
+				continue
+			if claimed.has(enemy.get_instance_id()):
+				continue
+			## MEASURED FROM HIS STATION, not from where he happens to be
+			## standing. A leash measured from his feet is not a leash: it lets
+			## a man walk the length of the deck one leash at a time. Measured
+			## from the post it is also the whole of the bound — he walks in a
+			## straight line at a point inside a circle he is already inside, so
+			## he cannot leave it, and a boarder that walks OUT of it stops
+			## qualifying next tick and the man turns for home.
+			var d: float = enemy.global_position.distance_to(post)
+			if d > SkyGearLanes.ASSIST_LEASH or d >= best:
+				continue
+			best = d
+			pick = enemy
+		if pick != null:
+			claimed[pick.get_instance_id()] = true
+			orders[i] = pick
+	return orders
+
+
 ## Your own boarders, pushing the other way. They are minions: they hold a lane
 ## while you are somewhere else, and on a push they are what breaks the hulk if
 ## you do not.
@@ -4377,32 +4475,40 @@ func _update_crew(delta: float) -> void:
 				if voice != null:
 					voice.say("crew_muster")
 
+	## WHO EVERY HAND IS FIGHTING, DECIDED FOR THE WHOLE WATCH AT ONCE (SG-187).
+	## Removals below cannot invalidate it: this loop runs BACKWARDS, so an entry
+	## removed at `i` only shifts entries the loop has already visited.
+	var orders := crew_orders()
 	for i in range(crew.size() - 1, -1, -1):
 		var c: Dictionary = crew[i]
 		c.flash = maxf(0.0, float(c.flash) - delta)
 		if bool(c.dead):
 			crew.remove_at(i)
 			continue
-		# nearest boarder in this crewman's lane, else march at the hulk —
-		# and, as with the cannon above, never one he could not hurt
-		var target: SkyGearEnemy = null
-		var best := 1e9
-		for enemy in enemies():
-			if not is_instance_valid(enemy) or not enemy.can_be_hit():
-				continue
-			if enemy.lane != int(c.lane):
-				continue
-			var d: float = enemy.global_position.distance_to(c.position)
-			if d < best:
-				best = d
-				target = enemy
-		var goal: Vector2 = Vector2(float(LANE_CENTERS[int(c.lane)]), BOW_Y + 260.0)
+		var target: SkyGearEnemy = orders[i] if i < orders.size() else null
+		if target != null and not is_instance_valid(target):
+			target = null
+		## HIS OWN STATION, which used to be an inline `BOW_Y + 260.0` here and
+		## is a function now because the leash is measured from it.
+		var post: Vector2 = SkyGearLanes.station(LANE_CENTERS, int(c.lane), BOW_Y)
+		var goal: Vector2 = post
 		var reach := float(SkyGearLanes.CREW.reach)
+		## HOLDING is "there is nothing on this deck for this man to swing at",
+		## and before SG-187 there was no such state. A crewman with no target
+		## walked at the head of his lane and the arrival test below was
+		## `distance <= reach` — a test that asks how far away his GOAL is and
+		## never asks whether anything is standing in it — so he arrived, wound
+		## up, swung at bare planking, recovered and did it again for the rest of
+		## the wave. That is the second half of the owner's sentence, and it is
+		## this one boolean.
+		var holding := false
 		if target != null:
 			goal = target.global_position
 		elif not hulk.is_empty() and not bool(hulk.dead) and bool(hulk.vulnerable):
 			goal = hulk.position
 			reach = float(hulk.radius) + 40.0
+		else:
+			holding = true
 		var to_goal: Vector2 = goal - Vector2(c.position)
 		var distance := to_goal.length()
 		## WHICH WAY THIS SAILOR IS POINTED, and it is the goal he is already
@@ -4421,17 +4527,28 @@ func _update_crew(delta: float) -> void:
 		## are derived from `to_goal`, which was computed three lines up for the
 		## simulation's own use: no RNG is touched, nothing here reads them
 		## back, and they die with the man.
-		if distance > 0.001:
+		if holding:
+			## A MAN AT HIS POST WATCHES THE BOW, which is where boarders come
+			## from — not whichever way the last thing he killed happened to lie.
+			c["attack_direction"] = Vector2(0.0, -1.0)
+		elif distance > 0.001:
 			c["attack_direction"] = to_goal / distance
 		c["velocity"] = Vector2.ZERO
 		match str(c.state):
 			"move":
-				if distance <= reach:
+				if not holding and distance <= reach:
 					c.state = "windup"
 					c.state_time = SkyGearLanes.CREW.windup
-				else:
-					c["velocity"] = to_goal.normalized() * float(SkyGearLanes.CREW.speed)
-					c.position = Vector2(c.position) + to_goal.normalized() * float(SkyGearLanes.CREW.speed) * delta
+				elif distance > (SkyGearLanes.POST_SLACK if holding else reach):
+					var heading: Vector2 = to_goal / distance
+					c["velocity"] = heading * float(SkyGearLanes.CREW.speed)
+					## The step is CLAMPED to the distance left. Walking at a
+					## boarder it never mattered — `reach` is 52 and a step is
+					## six — but walking home to a post he is allowed to stand
+					## ON, an overshoot is a man crossing his own station and
+					## turning round for the rest of the wave.
+					c.position = Vector2(c.position) + heading \
+						* minf(float(SkyGearLanes.CREW.speed) * delta, distance)
 			"windup":
 				## CREW INSIDE A MAIN SWING FASTER. The last unread field, and the
 				## one that makes the Boilerwright the only class with a reason to
@@ -4442,7 +4559,12 @@ func _update_crew(delta: float) -> void:
 					c.state = "recover"
 					c.state_time = SkyGearLanes.CREW.recover
 					var previous := src_slot
-					src_slot = -3
+					## -4 rather than -3 (SG-187): a crew swing still lands in
+					## `tel.allies` — `note_damage` falls through to it — and now
+					## also lands in `tel.crew`, so "did the assist make the crew
+					## stronger?" is a question the rig can answer without the
+					## three deck cannons in the total.
+					src_slot = -4
 					if target != null and target.global_position.distance_to(c.position) <= reach + 20.0:
 						## A crewman's swing crits as well (SG-159).
 						damage_enemy(target, SkyGearLanes.CREW.damage, "", 60.0, c.position, false)

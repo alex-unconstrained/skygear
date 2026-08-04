@@ -8127,11 +8127,24 @@ func _sync_all(delta: float) -> void:
 		## renderer draws that are not enemies, so this is the one call site
 		## where the height does not come from `boarder_height`.
 		var cheight: float = crew_height()
+		## HIS OWN SPEED, NOT THE TABLE'S (SG-187). This passed the constant
+		## `CREW.speed` for any crewman who was not mid-swing, and asserted
+		## `moving` for the same men — which was true right up until the assist
+		## work gave a crewman a reason to STAND: with nothing in his lane he now
+		## holds his station instead of swinging at the planking, and a figure
+		## standing still fed a 118 would have played a walk cycle on the spot,
+		## which is the skate `gait()` exists to stop wearing a different hat.
+		## `velocity` is written every tick by `_update_crew` and is exactly zero
+		## when he is holding, so the rig picks `idle` for a man at his post and
+		## the same walk it always did for a man crossing the deck (118 is under
+		## `GAIT_CROSSOVER`, before and after — no gait changed here).
+		var cspeed: float = (c.get("velocity", Vector2.ZERO) as Vector2).length()
+		var walking: bool = not busy and cspeed > 1.0
 		if not _sync_rig(ckey, "CREW", c.position, chead, cheight,
-				busy, not busy, float(SkyGearLanes.CREW.speed) if not busy else 0.0,
+				busy, walking, cspeed if walking else 0.0,
 				float(c.get("state_time", 0.0)), delta):
 			_draw_figure(ckey, "CREW", c.position, chead, cheight,
-				busy, not busy, game.run_time + float(i) * 0.21,
+				busy, walking, game.run_time + float(i) * 0.21,
 				float(c.get("state_time", 0.0)))
 	## Deployed sentries. A short brass post with a live head on it, the range it
 	## covers written on the planking, and a wick that burns down — you should be
@@ -8901,6 +8914,15 @@ static func crew_height() -> float:
 ## does. The captain is the one figure that keeps her own path (`_sync_captain`
 ## hands `place` a separate `travel`), because she faces her cursor rather than
 ## her feet and is the only thing here that can genuinely walk sideways.
+##
+## AND THE ASSIST DID NOT CHANGE THAT (SG-187), which is worth writing down
+## because it is the obvious place to expect it to. A crewman crossing into the
+## next lane is walking in a straight line at the boarder he has claimed, so his
+## travel vector and his threat vector are still the same vector and a strafe
+## still has nothing to play. The one genuinely new pose the assist creates is
+## the opposite of a strafe — a man STANDING at his station, watching the bow,
+## which is `idle`. The four clips stay unwired and whether the owner wants them
+## is still his open question.
 static func figure_heading(attack_direction: Vector2, velocity: Vector2,
 		travelling: bool) -> Vector2:
 	if travelling and velocity.length_squared() > 1.0:

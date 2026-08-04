@@ -66,6 +66,8 @@ const SCENARIOS := [
 		"what": "the segmented Colossus (SG-90): the walk at ninety-five, a two-fisted slam, the half-health TURN it cannot be burst through — and then it COMES APART, thirteen parts breaking at the joints they hinged on and landing on the planking"},
 	{"id": "crew", "kind": "crew", "seconds": 8.0, "still": false,
 		"what": "your own sailors, on a rig at last (SG-88): a lane of crew working up the deck beside a gun, the bayonet stab they close a boarder with — and then one of them DIES, which is the first time an ALLY has gone down on screen rather than blinking out"},
+	{"id": "crewassist", "kind": "crewassist", "seconds": 9.0, "still": false,
+		"what": "the owner's crew ask on film (SG-187): a FULL watch of twelve at their stations, five boarders in the middle lane and NOTHING in the outer two — before, the eight outer men stand at the head of an empty lane swinging at bare planking; after, the ones who can reach step across to the fight, one man per boarder, and each lane keeps its anchor"},
 	{"id": "swarm", "kind": "swarm", "seconds": 8.0, "still": false,
 		"what": "the goblin (SG-89), and the deck is all mesh: SIX of them at two hundred and thirty units a second, three different swings on the same crew, and two dying — the figure a player sees most after the captain, moving for the first time"},
 	{"id": "drone", "kind": "drone", "seconds": 6.0, "still": false,
