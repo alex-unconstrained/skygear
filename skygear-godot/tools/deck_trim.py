@@ -69,6 +69,16 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Close enough to budget that cutting is not worth a decimation pass. Alex has
+# Meshy generate at ~3,000 now, so most deliveries land here and should go
+# through untouched.
+NEAR_ENOUGH = 0.85
+
+# Below this share kept, say so. NOT a refusal — see the note at the point of
+# use for why the refusal I first wrote here was wrong and what predicts damage
+# instead.
+CLIFF_EDGE = 0.80
 MODELS = ROOT / "assets" / "models"
 
 ## The kit the owner hand-made on 2026-08-03, and the one number this file is
@@ -496,7 +506,7 @@ def out_f_reindex(out_f: np.ndarray, back: np.ndarray) -> np.ndarray:
 
 
 def trim(key: str, target: int, suffix: str | None = None,
-         out: Path | None = None) -> int:
+         out: Path | None = None, anyway: bool = False) -> int:
     """Decimate to `target` triangles, carrying UVs, copying the images."""
     src = glb_path(key)
     d = load_primitive(src)
@@ -506,6 +516,53 @@ def trim(key: str, target: int, suffix: str | None = None,
         print("%s is already %d triangles, at or under the %d asked for."
               % (src.name, len(f), target))
         return 0
+
+    # ALREADY-AT-BUDGET DELIVERIES PASS THROUGH UNTOUCHED (SG-177).
+    #
+    # Alex now has Meshy generate at ~3,000 rather than delivering a dense mesh
+    # for us to cut, which removes the most dangerous step in the whole ingest.
+    # Shaving the last few percent off a delivery that already meets budget buys
+    # nothing measurable and spends a decimation pass to get it.
+    kept_if_cut = float(target) / float(len(f))
+    if kept_if_cut >= NEAR_ENOUGH and not anyway:
+        print("%s is %d triangles against a %d budget (%.0f%%). Close enough — "
+              "passing it through UNCUT rather than spending a decimation on "
+              "%d triangles." % (src.name, len(f), target, 100.0 * kept_if_cut,
+                                 len(f) - target))
+        return 0
+
+    # A DEEP CUT GETS A WARNING, NOT A REFUSAL — and the reason it is not a
+    # refusal is that the first version of this WAS one and it was wrong.
+    #
+    # I wrote a rule refusing deep cuts on sources under 40,000 triangles,
+    # citing the Colossus (30,606 -> 8,000, shredded), the skyship hulls
+    # (10,200 -> 3,500, "clouds of loose brass shards") and the gunner drone.
+    # Then I tested it against the prow ingested the same day: 9,770 -> 3,000 is
+    # 30.7% kept, well inside what the rule refused, and it came through with
+    # ZERO open boundary edges and 0.13% deviation. The rule would have blocked
+    # a cut that demonstrably worked.
+    #
+    # Triangle count is not the predictor. `tools/skyships.py` already worked
+    # out what is: those hulls were not a SURFACE — 91.7% of their edges were
+    # used by one triangle and only 25% of their indexed vertices were distinct
+    # positions, so the decimator was collapsing a cloud of loose shards. The
+    # fix was welding by position, and `decimate_welded` — which this function
+    # calls — does exactly that. The prow survives because it is welded first.
+    # The other predictor is thin members, which `thin` measures and which no
+    # amount of welding helps.
+    #
+    # So this says the deep cut is coming and names the two instruments that
+    # actually answer it, rather than blocking on a number that does not.
+    if kept_if_cut < CLIFF_EDGE:
+        print("  note: keeping %.0f%% of %d triangles — a deep cut.\n"
+              "        Usually fine here, because `decimate_welded` welds by "
+              "position first,\n"
+              "        which is what the skyship hulls needed. What actually "
+              "predicts damage\n"
+              "        is THIN MEMBERS: run `thin` before and `damage` after, "
+              "and believe the\n"
+              "        open-boundary-edge count over this note."
+              % (100.0 * kept_if_cut, len(f)))
 
     out_v, out_f, out_uv, out_n = decimate_welded(v, f, uv, nrm, target)
     out_v = out_v.astype(np.float32)
@@ -743,7 +800,8 @@ def main(argv: list[str]) -> int:
         suffix = None
         if "--suffix" in argv:
             suffix = argv[argv.index("--suffix") + 1]
-        return trim(argv[2], int(argv[3]), suffix)
+        return trim(argv[2], int(argv[3]), suffix,
+                    anyway="--anyway" in argv)
     if len(argv) >= 3 and argv[1] == "check":
         return check(argv[2])
     print(__doc__)
