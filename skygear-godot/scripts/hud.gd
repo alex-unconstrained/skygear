@@ -3266,12 +3266,19 @@ const CARD_H := 404.0
 ## Clearly portrait, not the near-square it was — the ceiling the harness pins.
 const CARD_ASPECT_MAX := 0.78
 
-## THE CARD'S OWN RAIL — slim, the browser's, not the HUD's 48px brass.
+## THE CARD'S OWN RAIL — slim, not the HUD's 48px brass.
 ##
-## The draft is the one screen that is meant to match the browser closely
-## (DESIGN has no deliberate departure for it, unlike the HUD's bottom band), and
-## the browser frames a card in a 6px ink edge plus a 3px rarity-tinted rail, not
-## an ornate nine-slice. So the card is NOT drawn with `_panel`; it is drawn with
+## A DRAFT CARD IS MOSTLY ART AND WORDS, and both are the thing the player is
+## reading; an ornate nine-slice around them spends the card's edge on frame
+## rather than on content, and at three cards abreast it crowds the middle one
+## worst. So a card gets a 6px ink edge plus a 3px rarity-tinted rail — enough to
+## separate it from the dim and to carry rarity as colour, and no more.
+##
+## (That is also what the browser build did, which is where the measurement came
+## from. It is kept because it is right at this size, not because it is
+## inherited — the rest of this screen has already diverged.)
+##
+## So the card is NOT drawn with `_panel`; it is drawn with
 ## `_card_frame`, and its writing hole is `card_face` — both routed through the
 ## SAME `rail(rect, CARD_FRAME)`, so the drawn edge and the laid-out content
 ## cannot disagree about where the frame is (STATUS failure mode two). `rail()`

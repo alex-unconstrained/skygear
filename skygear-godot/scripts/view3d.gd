@@ -1805,7 +1805,7 @@ const ELEMENT_BOLT := {
 	## GIRTH 16 -> 7 (board SG-103). Owner, build-44: *"Projectiles from enemies
 	## are way larger than they should be, and dont look very cool."* He is right
 	## and the amount is measurable rather than a matter of taste, because the
-	## browser this port is parity with draws the same shot and RECORDS its size:
+	## build this shot was first authored in RECORDS its size:
 	## `src/storm-dusk/_render_entities.js::drawBolts` puts the bolt's hard body
 	## at `ctx.arc(q.x, q.y, 7 * q.k)` — radius seven ground units, fourteen
 	## across. `girth` is a cross-section RADIUS too (see the key above), so 16
@@ -7855,18 +7855,13 @@ func _sync_captain(delta: float) -> bool:
 		## absent for now and `weapon_fit` returns {} — an empty hand, not a crash.
 		##
 		## Not fatal when it fails: an empty hand is a worse captain, but a captain.
-		var fit := SkyGearRig3D.weapon_fit(str(model.get("fit", who)))
-		if not fit.is_empty():
-			var offset: Array = fit.get("offset", [0, 0, 0])
-			var turn: Array = fit.get("rotation", [0, 0, 0])
-			## The height here is in METRES (the deck runs on WORLD_SCALE), and the
-			## fit table was authored against a 1.8 m figure — so the blade scales
-			## with the character rather than being 0.95 m on a figure 1.76 tall.
-			var to_world: float = model_height * WORLD_SCALE / 1.8
-			_captain.hold(str(fit.path), str(fit.bone),
-				Vector3(offset[0], offset[1], offset[2]) * to_world,
-				Vector3(turn[0], turn[1], turn[2]),
-				float(fit.get("length", 0.95)) * to_world, LAYER_FIGURES)
+		##
+		## SG-170 moved the body of this out to `mount_weapon`, unchanged, so the
+		## hero and every boarder scale a weapon by ONE arithmetic. The fit table
+		## is authored against a 1.8 m figure, so the blade scales with the
+		## character rather than being 0.95 m on a figure 1.76 tall — and that
+		## sentence was the whole of what a second copy would have got wrong.
+		mount_weapon(_captain, str(model.get("fit", who)), model_height)
 		## And the cape, if this class has a row (SG-23). Additive only: a
 		## class without a row — or a rig `wear()` refuses — is byte-for-byte
 		## the figure that shipped before capes existed.
@@ -8171,6 +8166,51 @@ static func boarder_height(kind: String) -> float:
 		* float(FIGURE_SCALE.get(kind, 1.0))
 
 
+## PUT THE FITTED WEAPON IN A FIGURE'S HAND (SG-170). The one place in this
+## renderer that turns a row of `assets/models/weapons.json` into a held object,
+## called by the hero path and by `_sync_rig` — which is every boarder and the
+## crew — so a pike and a cutlass cannot be scaled by two different arithmetics.
+##
+## `drawn_height` is GROUND UNITS, the number the figure is actually drawn at
+## (`boarder_height`, `crew_height`, or the hero row's `height`), because the
+## scale factor below has to be the height on screen and not the height in the
+## manifest.
+##
+## THE SCALING IS THE PART THAT IS EASY TO GET WRONG AND IT IS WHY THIS IS ONE
+## FUNCTION. The fit table is authored against a **1.8 m figure** — that is what
+## its header says and what the captain's numbers mean. Both the OFFSET and the
+## LENGTH therefore scale by the holder's own height: a knight standing 2.16 m
+## given the table's metres raw would carry a captain-sized axe held at a
+## captain-sized distance from a hand a third again as far from his shoulder.
+## The rotation does not scale, being an angle.
+##
+## Returns false when the figure has no row, which is the normal case for most
+## of the roster and is not an error — see the call site in `_sync_rig`.
+##
+## `override` replaces named fields of the row and is for the FITTING TOOL only
+## (`tools/grip_sheet.gd --variants`): the game never passes it. It exists so a
+## tool trying twenty candidate grips does not have to restate the 1.8 m scaling
+## above — which is the exact arithmetic a fitting tool is most likely to get
+## subtly wrong, and would then have you author numbers against a scale the game
+## does not use. The seam is one `merge`; the alternative is a second copy.
+static func mount_weapon(rig: SkyGearRig3D, who: String,
+		drawn_height: float, override: Dictionary = {}) -> bool:
+	if rig == null or who == "":
+		return false
+	var fit := SkyGearRig3D.weapon_fit(who)
+	if fit.is_empty():
+		return false
+	if not override.is_empty():
+		fit.merge(override, true)
+	var offset: Array = fit.get("offset", [0, 0, 0])
+	var turn: Array = fit.get("rotation", [0, 0, 0])
+	var to_world: float = drawn_height * WORLD_SCALE / 1.8
+	return rig.hold(str(fit.path), str(fit.bone),
+		Vector3(float(offset[0]), float(offset[1]), float(offset[2])) * to_world,
+		Vector3(float(turn[0]), float(turn[1]), float(turn[2])),
+		float(fit.get("length", 0.95)) * to_world, LAYER_FIGURES)
+
+
 ## Drive a rigged figure, if this kind has one. Returns false when it does not,
 ## so the caller falls back to the painted billboard.
 func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
@@ -8197,6 +8237,31 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## place for it to disagree — and a corpse still playing `die` has left
 		## `_rigs` and no longer knows its kind at all.
 		rig.set_meta("model_key", model_path(kind).get_file().get_basename())
+		## AND PUT SOMETHING IN THE HAND (SG-170).
+		##
+		## The crew, the furnace knight and the gremlin had empty hands for the
+		## whole life of this port while their weapons sat ingested, committed
+		## and registered in `weapons.json` — because the ONLY `hold()` call in
+		## this renderer was the hero's, in `_sync_captain`. Rows in the table
+		## alone would have moved nothing: the code path did not exist. That is
+		## STATUS's first failure mode wearing its largest coat — not a field
+		## with no reader, a whole ASSET CLASS with no reader.
+		##
+		## Keyed off the `model_key` stamped one line above rather than off a
+		## fresh `kind.to_lower()`, because that slug is decided by `model_path`
+		## and a second copy of the derivation is a second place for it to
+		## disagree (failure mode two, and the reason `model_key` exists).
+		##
+		## ONE-TIME, here in the setup block, for the same reason the rotors and
+		## the parts are: `hold()` frees and rebuilds a `BoneAttachment3D`, loads
+		## a scene and walks the weapon's meshes twice to measure its span. Doing
+		## that every frame would rebuild twelve pikes sixty times a second.
+		##
+		## AN ABSENT ROW IS A CLEAN REFUSAL, NOT A CRASH: `weapon_fit` returns {}
+		## for a kind the table has never heard of — SCRAPPER, GUNNER and BOSS
+		## today — and such a figure is byte-for-byte the figure that shipped
+		## before this block existed. An empty hand stays legal.
+		mount_weapon(rig, str(rig.get_meta("model_key", "")), height)
 		## SG-87: the rotor children, found once. `Rotor*` is the contract
 		## `tools/split_rotors.py` writes and nothing else in the tree answers
 		## to it; a kind with no ROTOR_MOTION row never looks.

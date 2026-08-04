@@ -9,10 +9,16 @@ extends RefCounted
 ## do, how much the draft should want to offer it, and what a concrete instance
 ## of it says and does.
 ##
-## Structure matches the browser deliberately, because a difference that is not
-## deliberate is a bug nobody will find:
+## THE SCHEMA IS OURS. It shares its field names with the browser build's deck
+## because that is where this list was first written, and keeping the spelling
+## meant an accidental divergence could not hide as an intentional one while the
+## port was being built. That was a migration argument and the migration is over
+## (STATUS, 2026-08-01): these fields stay because they are the right fields, and
+## any of them may be changed, added to or dropped the moment the Godot game
+## wants something else. "The browser had it this way" is not a reason to keep
+## anything here.
 ##
-##   id      stable identifier, same string as the browser card
+##   id      stable identifier
 ##   rarity  common | rare | epic; drives the frame's metal on the card face
 ##   scope   which class of thing it touches; drives the word in the card's band
 ##           and the row of affected-skill glyphs under it
@@ -182,7 +188,8 @@ static func role_of(card: Dictionary) -> String:
 		else "ACTIVE"
 
 
-## THE CENTRAL EMBLEM — the browser's rule, restored (SG-35).
+## THE CENTRAL EMBLEM — every card gets one, because a card without one has a
+## HOLE in its middle (SG-35).
 ##
 ## `drawDraft` (~245) draws a gauge ring with a glyph inside on EVERY card: the
 ## card's SHAPE where it has one, and a themed icon keyed by id where it does
@@ -219,7 +226,8 @@ static func emblem_shape(game, card: Dictionary) -> String:
 		return str((card.skill as Dictionary).get("shape", ""))
 	if card.has("shape"):
 		return str(card.shape)
-	## A slot upgrade shows the weapon it lands on, exactly as the browser does.
+	## A slot upgrade shows the weapon it LANDS ON, because the thing a player is
+	## choosing is what that slot becomes, not the upgrade in the abstract.
 	if str(card.get("scope", "")) == SCOPE_SKILL and card.has("slot") and game != null:
 		var i: int = int(card.slot)
 		if i >= 0 and i < game.skills.size():

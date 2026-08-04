@@ -42,8 +42,9 @@ E. Dash starts with two charges. Between waves, one of three cards is chosen.
 - World: 1900 × 2560 source-space envelope.
 - Deck: 1680 × 2320, with three lanes and three cross-passages.
 - Boiler: stern objective, 500 HP.
-- View: bounded follow camera, top-down in Milestone 1. A later visual pass may
-  restore the browser renderer's 41° projection while keeping gameplay in 2D.
+- View: bounded follow camera. The shipped game draws at a 41° projection with
+  gameplay solved in 2D — measured and harness-pinned, not inherited on trust
+  (board SG-2).
 - Art: production PNGs are used by actors and props; procedural deck geometry
   ensures the game remains legible while scene composition is rebuilt.
 
@@ -183,7 +184,13 @@ Consequences, stated so they are not rediscovered:
 - Forward+ needs Vulkan. On hardware without it Godot falls back and logs; that
   is an accepted cost of choosing acceleration over reach.
 
-## 13. Parity with the browser build, as of 2026-07-27
+## 13. Parity with the browser build, as of 2026-07-27 — HISTORICAL
+
+> **Retired 2026-08-01 by the owner.** Parity is no longer a goal, for visuals
+> OR mechanics: *"we build the Godot version to be better than the web one ever
+> was."* This section is kept as the record of what the port had achieved when
+> the goal changed. Do not treat anything below as a requirement, and do not
+> justify a change by it — see STATUS.md's header for the rule that replaced it.
 
 Verified by `tests/parity_test.gd` — **40 checks, all passing**:
 

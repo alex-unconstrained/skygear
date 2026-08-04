@@ -8,10 +8,13 @@ extends Node
 ## keep, a volume slider is not polish — a game that is only as loud as your
 ## system mixer is a game you close.
 ##
-## Three buses under a master, matching the browser's split so the same mixing
-## decisions carry over: music sits under everything, SFX is the fight, UI never
-## ducks. Godot gives us real buses, so unlike the browser build these are
-## actual AudioServer buses rather than gain nodes we manage by hand.
+## Three buses under a master, split by what the player needs to hear THROUGH:
+## music sits under everything, SFX is the fight, and UI never ducks — a menu
+## click that dips the mix reads as a fault. The split came over from the browser
+## build with its mixing decisions attached, which saved re-deriving them; it
+## stays because it is the right split, and any bus here can change when the
+## Godot mix wants something else. Godot gives us REAL buses, so these are
+## AudioServer buses rather than gain nodes managed by hand.
 
 const BUS_MASTER := "Master"
 const BUSES := ["Music", "SFX", "UI", "Voice"]

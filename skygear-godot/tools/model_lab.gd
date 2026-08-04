@@ -16,6 +16,18 @@ extends SceneTree
 ##   ... -- --model boiler                    open on one
 ##   ... -- --mount                           open holding it
 ##   ... -- --mount --fit boilerwright        ...on HIS weapons.json entry
+##   ... -- --mount --fit crew                the boarding pike, on a crewman
+##   ... -- --mount --fit armored             the axe, on the furnace knight
+##   ... -- --mount --fit swarm               the scrap wrench, on a gremlin
+##
+## `--fit` takes any key in `weapons.json`: the two hero classes, and — since
+## SG-170 — any BOARDER KIND or the crew, whose bodies come from the same scene
+## the renderer draws them from. The rig always stands 1.8 m in here whoever it
+## is, because 1.8 m is the frame `weapons.json` is authored in and the renderer
+## rescales offset and length by the figure's real deck height on the way in.
+## That is not a lie about size: the figure and what it is holding scale by the
+## same factor, so the PROPORTION you are looking at is the proportion that
+## ships. The header prints each figure's true drawn height beside it.
 ##   ... -- --fx                              open on the effects loop
 ##   ... -- --lights --model brazier          open on that model's own lights
 ##   ... -- --clip swing2 --at 0.62           pose an animation frame
@@ -157,6 +169,9 @@ var _saved := {}
 ## not silently overwriting the captain's). Default is the captain, so every
 ## existing invocation behaves exactly as before.
 var _fit_who := "captain"
+## Whether `--model` named one. When it did not, `--fit` picks the weapon its own
+## row points at (SG-170).
+var _picked_model := false
 var _stats := ""
 var _note := ""
 var _dragging := 0
@@ -297,6 +312,7 @@ func _run() -> void:
 	for i in argv.size():
 		if argv[i] == "--model" and i + 1 < argv.size() and _models.has(str(argv[i + 1])):
 			_at = _models.find(str(argv[i + 1]))
+			_picked_model = true
 		if argv[i] == "--mount":
 			_mode = MOUNT
 		if argv[i] == "--fit" and i + 1 < argv.size():
@@ -322,6 +338,22 @@ func _run() -> void:
 			for b in BACKDROPS.size():
 				if str(BACKDROPS[b].name) == str(argv[i + 1]):
 					_bg_at = b
+
+	## `--fit crew` OPENS ON THE PIKE (SG-170). The weapon MOUNT hangs off the
+	## hand is the model SELECTED IN THE LEFT LIST — not the one the fit row
+	## names — so `--fit crew` alone put the crewman's own entry against
+	## whatever happened to be first in the list, and you had to know to type
+	## `--model pike_boarding` beside it. The row already says which weapon it
+	## is for; asking twice is a way of typing it wrong once.
+	##
+	## Only when `--model` was NOT given, so an explicit choice still wins —
+	## trying a different weapon on the same hand is a thing you do.
+	if not _picked_model:
+		var owned := SkyGearRig3D.weapon_fit(_fit_who)
+		if not owned.is_empty():
+			var dir := str(owned.path).get_base_dir().get_file()
+			if _models.has(dir):
+				_at = _models.find(dir)
 
 	var seen := root.get_visible_rect().size
 	if seen.x > 200.0 and seen.y > 200.0:
@@ -1452,14 +1484,39 @@ func _live_box(under: Node3D) -> AABB:
 	return box
 
 
+## WHOSE BODY `--fit <key>` HANGS THE WEAPON ON, and the scene that is (SG-170).
+##
+## A hero class names its own scene in `HERO_MODELS`; anything else is a KIND the
+## renderer already knows how to find. Falls back to the captain when the key
+## names neither, which is the behaviour every `--fit` had before this row.
+static func _fit_scene(who: String) -> String:
+	if SkyGearView3D.HERO_MODELS.has(who):
+		var hero := str(SkyGearView3D.HERO_MODELS[who].scene)
+		if ResourceLoader.exists(hero):
+			return hero
+	var kind := SkyGearView3D.model_path(who)
+	if ResourceLoader.exists(kind):
+		return kind
+	return RIG
+
+
 func _deck_units(key: String) -> float:
 	if key == "captain":
 		return SkyGearView3D.CAPTAIN_HEIGHT
+	## The crew are the one figure whose height is not a row of `ENEMIES`, and
+	## they are drawn through their own function for exactly the reason this
+	## branch exists — see `SkyGearView3D.crew_height`.
+	if key == "crew":
+		return SkyGearView3D.crew_height()
 	var kind := key.to_upper()
 	if SkyGearData.ENEMIES.has(kind):
-		## The same expression `_sync_all` uses for a boarder's height. If that one
-		## moves, this one is wrong and the lab will quietly lie about every enemy.
-		return 120.0 + float(SkyGearData.ENEMIES[kind].get("radius", 22.0)) * 3.0
+		## ASKED OF THE RENDERER RATHER THAN RESTATED (SG-170). This used to be
+		## its own copy of `120 + radius*3` under a comment warning that it would
+		## "quietly lie about every enemy" if the renderer's version ever moved.
+		## It had moved: `FIGURE_SCALE` arrived afterwards and halves the goblins
+		## and the drone, so the lab has been reporting a SWARM at 165 against a
+		## deck that draws it at 83. `boarder_height` is the one expression.
+		return SkyGearView3D.boarder_height(kind)
 	for prop_type in SkyGearView3D.PROP_MODEL:
 		if str(SkyGearView3D.PROP_MODEL[prop_type]) == key:
 			return float(SkyGearView3D.PROP_HEIGHT.get(prop_type, 0.0))
@@ -1480,11 +1537,20 @@ func _build_mount() -> void:
 	## rigs shared their rest pose family — true of the SG-12 retarget, NOT of
 	## his native Mixamo rig, whose rest differs. A grip judged on somebody
 	## else's rest pose is judged at the one frame the game never shows.
-	var mount_rig := RIG
-	if SkyGearView3D.HERO_MODELS.has(_fit_who):
-		var owner_scene := str(SkyGearView3D.HERO_MODELS[_fit_who].scene)
-		if ResourceLoader.exists(owner_scene):
-			mount_rig = owner_scene
+	##
+	## AND THE SAME ARGUMENT REACHES THE BOARDERS AND THE CREW (SG-170). Until
+	## this row the lookup was `HERO_MODELS` and nothing else, and that table has
+	## exactly two rows — so `--fit crew` fell through to the captain and you
+	## would have been fitting a two-metre boarding pike to HER body: her rest
+	## pose, her proportions, her 176 units against a knight's 216. The three
+	## figures Alex hand-made weapons for are the three figures the old lookup
+	## could not open on.
+	##
+	## Resolved through `SkyGearView3D.model_path()` rather than a second string
+	## built here, because that function is the one place a kind's slug is
+	## decided and a second copy is a second place for it to disagree — the same
+	## reason `_sync_rig` stamps `model_key` instead of re-deriving it.
+	var mount_rig := _fit_scene(_fit_who)
 	## 1.8 m, which is the frame `weapons.json` is authored in — the renderer
 	## rescales offset and length by her real deck height on the way in. Change
 	## this and every saved number silently means something else.

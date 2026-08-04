@@ -1,82 +1,127 @@
 {
- "_comment": [
-  "Where a weapon sits in a hand. Data, not code, for the same reason the HUD",
-  "layout is: getting a sword to look held is a dozen small nudges, and a dozen",
-  "small nudges through an edit-compile-launch loop is an afternoon.",
-  "",
-  "Run `godot --path . --script tools/weapon_fit.gd` to render a contact sheet of",
-  "the captain holding whatever is in here, across the poses that matter. Nudge a",
-  "number, run it again. No game build in the loop.",
-  "",
-  "  bone      the skeleton bone it hangs off",
-  "  bone      the skeleton bone it hangs off",
-  "  length    how long the weapon reads IN THE WORLD, metres. She is 1.8 m.",
-  "  offset    metres, in bone space directions, applied before rotation",
-  "  rotation  degrees, XYZ, applied in that order",
-  "",
-  "Meshy returns blades along the mesh's own Y. A hand holds a blade along roughly",
-  "the forearm axis, so every one of these carries a large rotation."
- ],
- "boilerwright": {
-  "bone": "mixamorig_RightHand",
-  "length": 1.25,
-  "offset": [
-   0.0,
-   -0.08,
-   -0.14
+  "_comment": [
+    "Where a weapon sits in a hand. Data, not code, for the same reason the HUD",
+    "layout is: getting a sword to look held is a dozen small nudges, and a dozen",
+    "small nudges through an edit-compile-launch loop is an afternoon.",
+    "",
+    "Run `godot --path . --script tools/weapon_fit.gd` to render a contact sheet of",
+    "the captain holding whatever is in here, across the poses that matter. Nudge a",
+    "number, run it again. No game build in the loop.",
+    "",
+    "  bone      the skeleton bone it hangs off",
+    "  bone      the skeleton bone it hangs off",
+    "  length    how long the weapon reads IN THE WORLD, metres. She is 1.8 m.",
+    "  offset    metres, in bone space directions, applied before rotation",
+    "  rotation  degrees, XYZ, applied in that order",
+    "",
+    "Meshy returns blades along the mesh's own Y. A hand holds a blade along roughly",
+    "the forearm axis, so every one of these carries a large rotation."
   ],
-  "rotation": [
-   -120.0,
-   25.0,
-   0.0
-  ],
-  "weapon": "wrench_pipe"
- },
- "captain": {
-  "bone": "mixamorig_RightHand",
-  "length": 0.99,
-  "offset": [
-   0.379999935626984,
-   0.0499999970197678,
-   -2.23517412911711e-10
-  ],
-  "rotation": [
-   -96.0,
-   -96.0,
-   0.0
-  ],
-  "weapon": "sword_cutlass"
- },
- "weapons": {
-  "axe_furnace": {
-   "grip_at": 0.3,
-   "length": 1.9,
-   "path": "res://assets/models/axe_furnace/axe_furnace.glb"
+  "armored": {
+    "bone": "mixamorig_RightHand",
+    "length": 1.2,
+    "offset": [
+      0.177,
+      0.197,
+      0.025
+    ],
+    "rotation": [
+      135.0,
+      -135.0,
+      0.0
+    ],
+    "weapon": "axe_furnace"
   },
-  "pike_boarding": {
-   "grip_at": 0.33,
-   "length": 1.9,
-   "path": "res://assets/models/pike_boarding/pike_boarding.glb"
+  "boilerwright": {
+    "bone": "mixamorig_RightHand",
+    "length": 1.25,
+    "offset": [
+      0.0,
+      -0.08,
+      -0.14
+    ],
+    "rotation": [
+      -120.0,
+      25.0,
+      0.0
+    ],
+    "weapon": "wrench_pipe"
   },
-  "sword_cutlass": {
-   "grip_at": 0.42,
-   "length": 1.9,
-   "path": "res://assets/models/sword_cutlass/sword_cutlass.glb"
+  "captain": {
+    "bone": "mixamorig_RightHand",
+    "length": 1.07,
+    "offset": [
+      0.304400265216827,
+      0.133600100874901,
+      -0.0900000035762787
+    ],
+    "rotation": [
+      -16.8480625152588,
+      20.5771598815918,
+      -87.5002136230469
+    ],
+    "weapon": "sword_cutlass"
   },
-  "sword_gearblade": {
-   "grip_at": 0.42,
-   "length": 1.9,
-   "path": "res://assets/models/sword_gearblade/sword_gearblade.glb"
+  "crew": {
+    "bone": "mixamorig_RightHand",
+    "length": 2.5,
+    "offset": [
+      0.283,
+      0.043,
+      -0.318
+    ],
+    "rotation": [
+      -180.0,
+      -135.0,
+      0.0
+    ],
+    "weapon": "pike_boarding"
   },
-  "wrench_pipe": {
-   "grip_at": 0.35,
-   "length": 1.9,
-   "path": "res://assets/models/wrench_pipe/wrench_pipe.glb"
+  "swarm": {
+    "bone": "mixamorig_RightHand",
+    "length": 0.85,
+    "offset": [
+      0.062,
+      0.041,
+      0.179
+    ],
+    "rotation": [
+      90.0,
+      -45.0,
+      0.0
+    ],
+    "weapon": "wrench_scrap"
   },
-  "wrench_scrap": {
-   "grip_at": 0.3,
-   "length": 1.9,
-   "path": "res://assets/models/wrench_scrap/wrench_scrap.glb"
+  "weapons": {
+    "axe_furnace": {
+      "grip_at": 0.3,
+      "length": 1.9,
+      "path": "res://assets/models/axe_furnace/axe_furnace.glb"
+    },
+    "pike_boarding": {
+      "grip_at": 0.33,
+      "length": 1.9,
+      "path": "res://assets/models/pike_boarding/pike_boarding.glb"
+    },
+    "sword_cutlass": {
+      "grip_at": 0.42,
+      "length": 1.9,
+      "path": "res://assets/models/sword_cutlass/sword_cutlass.glb"
+    },
+    "sword_gearblade": {
+      "grip_at": 0.42,
+      "length": 1.9,
+      "path": "res://assets/models/sword_gearblade/sword_gearblade.glb"
+    },
+    "wrench_pipe": {
+      "grip_at": 0.35,
+      "length": 1.9,
+      "path": "res://assets/models/wrench_pipe/wrench_pipe.glb"
+    },
+    "wrench_scrap": {
+      "grip_at": 0.3,
+      "length": 1.9,
+      "path": "res://assets/models/wrench_scrap/wrench_scrap.glb"
+    }
   }
- }
 }

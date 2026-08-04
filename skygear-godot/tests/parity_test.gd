@@ -219,6 +219,12 @@ func _run() -> void:
 	## un-awaited coroutine here reports a clean pass for checks that never ran.
 	await _xray_silhouette()
 	await process_frame
+	## SG-170. `_armed_hands` is arithmetic and needs no frame; the live one
+	## builds a real deck, so it gets one on either side like its neighbours.
+	_armed_hands()
+	await process_frame
+	_armed_hands_live()
+	await process_frame
 	_boss()
 	await process_frame
 	await _audio()
@@ -15297,4 +15303,239 @@ func _arrival_drop_live() -> void:
 			% [spins, settled.distance_to(boarder.global_position), land_casting,
 				scale.y / maxf(0.0001, scale.x)])
 
+	world.queue_free()
+
+
+## THE THREE HAND-MADE WEAPONS, AND WHETHER ANYTHING PUTS THEM IN A HAND
+## (SG-170).
+##
+## THE FAILURE THIS EXISTS TO CATCH IS NOT A WRONG NUMBER. Alex modelled a
+## boarding pike, a furnace axe and a scrap wrench by hand; they were ingested,
+## committed, given rows in `assets/models/weapons.json`, and they were not in
+## the game — because the ONLY `hold()` call in the renderer was the hero's, and
+## `_sync_rig`, which builds every boarder AND every crewman, had never mounted
+## anything. Every part of that shipment was green: the files loaded, the table
+## parsed, `weapon_fit` returned a row. The gap was that nothing CALLED it.
+##
+## So the load-bearing check is the LIVE one below in `_armed_hands_live`; this
+## function pins the table, the paths and the scaling around it.
+##
+## AND IT IS DRIVEN OFF THE TABLE, never off a list typed here. STATUS's seventh
+## failure mode is a roster check that loops three hand-written names while the
+## one row that could have failed it is the row not on the list. Arm a fourth
+## figure tomorrow and this fails until the renderer mounts it.
+func _armed_hands() -> void:
+	var raw = JSON.parse_string(
+		FileAccess.get_file_as_string(SkyGearRig3D.WEAPON_TABLE))
+	var table: Dictionary = raw if raw is Dictionary else {}
+	var armed: Array[String] = []
+	for key in table.keys():
+		## `_comment` is prose and `weapons` is the parts bin; everything else in
+		## this file is somebody who carries something.
+		if str(key).begins_with("_") or str(key) == "weapons":
+			continue
+		armed.append(str(key))
+	armed.sort()
+	_check("weapon", "the table arms the hero classes AND the figures on the deck",
+		armed.has("captain") and armed.has("crew") and armed.has("armored")
+			and armed.has("swarm") and armed.size() >= 5,
+		"armed: %s" % ", ".join(armed))
+
+	## (1) EVERY ARMED FIGURE HAS A BODY AND A WEAPON, both on disk. The body is
+	## resolved the way the renderer resolves it — a hero class out of
+	## `HERO_MODELS`, anything else out of `model_path`, which is the one place a
+	## kind's slug is decided.
+	var bodiless := ""
+	var weaponless := ""
+	var bodies: Dictionary = {}
+	for who in armed:
+		var scene := ""
+		if SkyGearView3D.HERO_MODELS.has(who):
+			scene = str((SkyGearView3D.HERO_MODELS[who] as Dictionary).scene)
+		else:
+			scene = SkyGearView3D.model_path(who)
+		if ResourceLoader.exists(scene):
+			bodies[who] = scene
+		else:
+			bodiless += " " + who
+		var fit := SkyGearRig3D.weapon_fit(who)
+		if fit.is_empty() or not ResourceLoader.exists(str(fit.get("path", ""))):
+			weaponless += " " + who
+	_check("weapon", "every armed figure has a body and a weapon on disk",
+		bodiless == "" and weaponless == "",
+		"no body:%s   no weapon:%s" % [bodiless if bodiless != "" else " -",
+			weaponless if weaponless != "" else " -"])
+
+	## (2) AND THE RENDERER'S OWN MOUNT FILLS THAT HAND. Through
+	## `SkyGearView3D.mount_weapon` — the one function the hero path and
+	## `_sync_rig` both go through — at each figure's REAL drawn height, because
+	## the fit table is authored against a 1.8 m figure and that conversion is
+	## the part of this which is easy to get wrong.
+	var empty := ""
+	var reaches := ""
+	for who in bodies.keys():
+		var tall := _drawn_height(str(who))
+		var rig := SkyGearRig3D.new()
+		root.add_child(rig)
+		var ok: bool = rig.setup(str(bodies[who]),
+			tall * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES)
+		if ok and SkyGearView3D.mount_weapon(rig, str(who), tall) \
+				and rig.held != null:
+			var pts := rig.blade_points()
+			var reach: float = pts[0].distance_to(pts[1]) if pts.size() == 2 else 0.0
+			if reach > 0.05:
+				reaches += "  %s %.2fm" % [who, reach]
+			else:
+				empty += " " + str(who)
+		else:
+			empty += " " + str(who)
+		rig.queue_free()
+	_check("weapon", "and the renderer's own mount puts a real weapon in every one of those hands",
+		empty == "", ("hands still empty:" + empty) if empty != ""
+			else "reach from the hand —" + reaches)
+
+	## (3) THE SCALING IS THE FIGURE'S OWN. The same row on a body twice as tall
+	## must reach twice as far, or a 216-unit knight carries a captain-sized axe
+	## at a captain-sized distance from a hand a third further out. Measured
+	## rather than asserted: two heights, one ratio.
+	var short_rig := SkyGearRig3D.new()
+	var tall_rig := SkyGearRig3D.new()
+	root.add_child(short_rig)
+	root.add_child(tall_rig)
+	var short_reach := 0.0
+	var tall_reach := 0.0
+	var body := str(bodies.get("crew", ""))
+	if body != "" and short_rig.setup(body, 1.0, SkyGearView3D.LAYER_FIGURES) \
+			and tall_rig.setup(body, 2.0, SkyGearView3D.LAYER_FIGURES):
+		if SkyGearView3D.mount_weapon(short_rig, "crew",
+				1.0 / SkyGearView3D.WORLD_SCALE):
+			var sp := short_rig.blade_points()
+			short_reach = sp[0].distance_to(sp[1]) if sp.size() == 2 else 0.0
+		if SkyGearView3D.mount_weapon(tall_rig, "crew",
+				2.0 / SkyGearView3D.WORLD_SCALE):
+			var tp := tall_rig.blade_points()
+			tall_reach = tp[0].distance_to(tp[1]) if tp.size() == 2 else 0.0
+	_check("weapon", "a weapon is scaled by the figure holding it, not by the captain",
+		short_reach > 0.05
+			and absf(tall_reach / maxf(0.0001, short_reach) - 2.0) < 0.05,
+		"a 1 m body reaches %.3f m, a 2 m body %.3f m — ratio %.3f against 2.000"
+			% [short_reach, tall_reach, tall_reach / maxf(0.0001, short_reach)])
+	short_rig.queue_free()
+	tall_rig.queue_free()
+
+	## (4) AN ABSENT ROW IS A REFUSAL, NOT A CRASH. Every rigged kind the table
+	## has never heard of must still build, still draw, and come back with an
+	## empty hand — which is what most of the roster does and always has.
+	var broken := ""
+	var refused := 0
+	for kind in SkyGearData.ENEMIES.keys():
+		var slug := str(kind).to_lower()
+		if armed.has(slug) \
+				or not ResourceLoader.exists(SkyGearView3D.model_path(slug)):
+			continue
+		var bare := SkyGearRig3D.new()
+		root.add_child(bare)
+		var built: bool = bare.setup(SkyGearView3D.model_path(slug),
+			_drawn_height(slug) * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES)
+		var mounted: bool = SkyGearView3D.mount_weapon(bare, slug,
+			_drawn_height(slug))
+		if built and not mounted and bare.held == null:
+			refused += 1
+		else:
+			broken += " " + slug
+		bare.queue_free()
+	_check("weapon", "a kind with no fit row keeps an empty hand — a refusal, not a crash",
+		refused > 0 and broken == "",
+		"%d rigged kinds refused cleanly%s" % [refused,
+			("; broken:" + broken) if broken != "" else ""])
+
+
+## How tall this figure is DRAWN, in ground units, asked of the renderer rather
+## than restated here. The crew are the one row that is not an `ENEMIES` entry.
+func _drawn_height(who: String) -> float:
+	if who == "crew":
+		return SkyGearView3D.crew_height()
+	if SkyGearData.ENEMIES.has(who.to_upper()):
+		return SkyGearView3D.boarder_height(who.to_upper())
+	if SkyGearView3D.HERO_MODELS.has(who):
+		return float((SkyGearView3D.HERO_MODELS[who] as Dictionary).get(
+			"height", SkyGearView3D.CAPTAIN_HEIGHT))
+	return SkyGearView3D.CAPTAIN_HEIGHT
+
+
+## AND THE SAME QUESTION ASKED OF A RUNNING DECK, which is the only form of it
+## that could have failed on the day the weapons shipped (SG-170).
+##
+## Everything in `_armed_hands` calls `mount_weapon` itself. That is worth
+## having — it pins the table, the paths and the scaling — and it is EXACTLY the
+## shape of check that would have passed every run of that week while the deck
+## stayed empty-handed, because the renderer's defect was that it never made the
+## call. So this one makes no call at all: it spawns boarders and a crewman
+## through the simulation, lets `view._process` build whatever it builds, and
+## reads the hand back out of `_rigs`.
+func _armed_hands_live() -> void:
+	var world = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world
+	var game: SkyGearGame = world.get_node("SkyGear")
+	view.cutscenes_enabled = false
+	view.stop_cutscene()
+	view.sway = false
+	_begin(game, "SG170")
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	game.spawn_enemy("ARMORED", 0)
+	game.spawn_enemy("SWARM", 1)
+	game.spawn_enemy("SCRAPPER", 2)
+	## A crewman, made the way `_update_crew` makes one. The renderer stamps his
+	## `rig_key` into this same dictionary the first time it draws him (SG-88),
+	## which is how the crew are found in `_rigs` at all.
+	game.crew.clear()
+	var sailor := SkyGearLanes.make_crew(1, SkyGearGame.LANE_CENTERS,
+		SkyGearGame.BASE_Y, null)
+	game.crew.append(sailor)
+	view._process(1.0 / 60.0)
+	view._process(1.0 / 60.0)
+
+	var held: Dictionary = {}
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		var rig: SkyGearRig3D = view._rigs.get("e%d" % e.get_instance_id())
+		if rig != null:
+			held[str(e.kind)] = rig.held != null
+	var sailor_rig: SkyGearRig3D = view._rigs.get(str(sailor.get("rig_key", "")))
+	held["CREW"] = sailor_rig != null and sailor_rig.held != null
+
+	## THE ONE THAT WOULD HAVE FIRED. All three armed kinds, on a live deck,
+	## holding — with no help from this file beyond spawning them.
+	_check("weapon", "a live deck puts the pike, the axe and the wrench in the hands they were made for — the SG-170 regression",
+		bool(held.get("CREW", false)) and bool(held.get("ARMORED", false))
+			and bool(held.get("SWARM", false)),
+		"crew %s, armored %s, swarm %s" % [held.get("CREW", "no rig"),
+			held.get("ARMORED", "no rig"), held.get("SWARM", "no rig")])
+	## And the control, on the same deck in the same frame: a kind with no row is
+	## drawn, is a rig, and is empty-handed. Without this the check above could be
+	## satisfied by a renderer that hands everything a cutlass.
+	_check("weapon", "and a kind the table never armed is still drawn, still a rig, still empty-handed",
+		held.has("SCRAPPER") and not bool(held["SCRAPPER"]),
+		"scrapper rig present %s, holding %s"
+			% [held.has("SCRAPPER"), held.get("SCRAPPER", "-")])
+
+	## THE MOUNT IS ONE-TIME, not per frame. `hold()` frees and rebuilds a
+	## `BoneAttachment3D`, loads a scene and walks the weapon's meshes twice to
+	## measure its span; twelve crew on deck at sixty frames a second is the
+	## difference between a mount and a stall. Asserted by identity, which is the
+	## only way to tell a mount that was kept from one that was rebuilt into the
+	## same place.
+	var before: int = sailor_rig.held.get_instance_id() \
+		if sailor_rig != null and sailor_rig.held != null else 0
+	for _i in 20:
+		view._process(1.0 / 60.0)
+	var after: int = sailor_rig.held.get_instance_id() \
+		if sailor_rig != null and sailor_rig.held != null else -1
+	_check("weapon", "and the weapon is mounted once, not rebuilt on every frame",
+		before != 0 and before == after,
+		"same mount node after 20 frames: %s" % (before == after))
 	world.queue_free()
