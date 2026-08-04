@@ -32,8 +32,8 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1073 harness checks**; the text audit covers 25 screens at
-board SG-56). **1073 harness checks**; the text audit covers 24 screens at
+board SG-56). **1077 harness checks**; the text audit covers 25 screens at
+board SG-56). **1077 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -250,6 +250,30 @@ longest axis, so "both are 1.9 wide" is not a statement about the ship — the
 stern's mirror plane says 189 of it runs FORE-AND-AFT and only 90 goes across.
 Four `edge ·` checks; the sheets are `.shots/owner-review/2-bow-stern-redo/`.
 
+**AND THERE IS AN UPPER DECK OVER THE BOW (SG-178, 2026-08-03).** Alex asked for
+*"an upper level that you can see from the deck but you don't actually go on
+to"*, SG-176 measured which of it the camera can see and wrote the four-piece
+brief, and he made all four: a platform bay, a support post, a staircase and a
+corner post, ingested at budget with **no decimation at all** — he generates at
+~3,000 now and `deck_trim.py` passes anything within 85% of budget straight
+through, so trimming would only have cost UV accuracy. **The whole placement is
+one derivation.** The platform's floor is **two of the SHIPPED rail's own
+heights**, read off `edge_rail_scale()` and not typed, because the stair was
+built to climb exactly that; the stair's scale follows from its own measured
+TREADS rather than from its handrail-high bounding box; and **the platform's aft
+edge is one stair-run forward of the bow line**, which is the only seat that
+satisfies all three of the constraints that were in tension — a stair under the
+platform cannot be found in the frame (SG-176), nothing may stand in the
+rectangle she walks, and the stair's run is the model's own. Its beam is the
+hull's beam where it seats, so the outer bays end on the strake lines and no post
+stands in open air. **It is SET DRESSING**: sixteen instanced pieces, no
+collision node anywhere, nothing in the play rectangle. **The frame share is
+21.72% at the stem and 0.00% from mid-deck at the shipped zoom** — the second
+number is forced rather than a failure, because SG-176's lattice found that
+nothing forward of the bow line reads from there at all, and the only way to buy
+it back is to stand in the rectangle. Four `edge ·` checks; the sheets are
+`.shots/owner-review/3-upper-deck/`.
+
 **THE MODELS CAN BE LIT NOW, AND THE LIGHTS ARE DATA (SG-81, owner ask:
 "the models don't have baked lighting").** `assets/models/lights.json` is a
 per-MODEL-KEY table — omni or spot, colour, strength, reach, falloff, offset in
@@ -392,9 +416,9 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1073 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1077 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1073 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1077 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -500,8 +524,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1073 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1073 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1077 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1077 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -529,9 +553,9 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1073 checks. Green before anything ships |
+| `harness` | 1077 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1073 checks. Green before anything ships |
+| `harness` | 1077 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

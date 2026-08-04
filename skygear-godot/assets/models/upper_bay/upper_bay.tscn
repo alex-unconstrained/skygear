@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/upper_bay/upper_bay.glb" id="1_eq8sf"]
+
+[node name="Upper Bay" type="Node3D" unique_id=1985010072]
+metadata/model_height = 1.07791
+
+[node name="Holder" type="Node3D" parent="." unique_id=1872135855]
+transform = Transform3D(-1, 0, -8.742278e-08, 0, 1, 0, 8.742278e-08, 0, -1, -0.001260519, 0.5423, -0.0006420016)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=725308093 instance=ExtResource("1_eq8sf")]

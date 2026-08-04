@@ -1,0 +1,11 @@
+[gd_scene format=3]
+
+[ext_resource type="PackedScene" path="res://assets/models/upper_post/upper_post.glb" id="1_4tcs3"]
+
+[node name="Upper Post" type="Node3D" unique_id=1147936072]
+metadata/model_height = 1.898972
+
+[node name="Holder" type="Node3D" parent="." unique_id=1052057338]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.0010520071, 0.950234, 0.0011139959)
+
+[node name="Model" type="Node3D" parent="Holder" unique_id=1103176439 instance=ExtResource("1_4tcs3")]

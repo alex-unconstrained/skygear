@@ -330,6 +330,58 @@ const MODELS := {
 	## aft. See the placement note in `view3d.gd`.
 	"prow_ram": 0.0,
 	"stern_counter_v2": 0.0,
+
+	## --- THE UPPER-DECK KIT (SG-178) ------------------------------------------
+	## Four modules the owner made to `handoff-3d/ship_edge_kit/UPPER-DECK-KIT.md`,
+	## and the first entries in this table that are a KIT rather than four objects:
+	## the renderer tiles them, so the number of bays and the number of posts are
+	## variables in `view3d.gd` and not a hand-placed list.
+	##
+	## MEASURED off the shipped files, in ground units, before any placement:
+	##   upper_bay      189.6 x 107.8 x 152.2   2,688 tris
+	##   upper_post      41.6 x 189.9 x  41.5   2,934 tris
+	##   upper_stair    119.1 x 172.4 x 189.6   2,920 tris
+	##   upper_corner    45.6 x 189.9 x  76.4   2,920 tris
+	##
+	## NOT DECIMATED, AND THAT IS THE CHANGE FROM SG-174 RATHER THAN AN OVERSIGHT.
+	## The owner generates at ~3,000 now, `deck_trim.py`'s `NEAR_ENOUGH` passes
+	## anything within 85% of budget straight through, and all four are already
+	## there. Running a trim on a piece that does not need one is the SG-155
+	## mistake in a new place: every collapse costs UV accuracy and buys nothing.
+	## Maps shrunk to the kit budget (512/256/128/128) and `lamplit` clamped all
+	## four from glTF's unset-means-1.0 down to 0.34 — `audit` is 0 of 40 over.
+	##
+	## THE FACINGS ARE MEASURED AND THREE OF THE FOUR ARE NON-ZERO, which is the
+	## first batch in this table where the column has actually earned its keep on
+	## more than one row. `.shots/sg148/sg178-id/` is the evidence, four yaws each:
+	##
+	##   upper_bay 180 — the piece is a floor with ONE deep side: its two curved
+	##     knees and the beam they brace hang below the planking at -Z as authored,
+	##     and the platform's deep side has to face AFT, toward the lens, because
+	##     the underside and the beam under the near edge are the whole reason this
+	##     kit exists (UPPER-DECK-KIT.md: "the most-seen surface in this whole kit
+	##     is the underside of the platform"). At 0 the beam faces the bow and the
+	##     player gets a plain plank edge.
+	##   upper_post 0 — square in plan (41.6 x 41.5) with its collars and its foot
+	##     plate turned all the way round. Every yaw is the same post; 0 is the
+	##     honest entry for a piece with no front.
+	##   upper_stair 0 — MEASURED, not defaulted: the top of the mesh falls
+	##     monotonically from +0.86 at -Z to -0.16 at +Z, so the flight climbs
+	##     toward -Z, which is FORWARD on this ship. That is the direction SG-176's
+	##     mock proved is the only one that reads (a flight running aft-under the
+	##     platform cannot be found in the frame), so the model arrived pointing
+	##     the way the placement needs and nothing turns it.
+	##   upper_corner 90 — the lantern is bracketed off ONE face: the mesh is
+	##     45.6 across and 76.4 deep, and the extra depth is all on +Z, where the
+	##     geometry stops at y +0.05 instead of running to the foot. Turning +Z to
+	##     +X puts the lantern OUTBOARD, which is what §4 asks for — "a small
+	##     bright point at the end of a long dark run is the cheapest way to make
+	##     the eye find the corner", and a lantern pointing up-deck is behind the
+	##     post from every camera this game has. The placement mirrors it per side.
+	"upper_bay": 180.0,
+	"upper_post": 0.0,
+	"upper_stair": 0.0,
+	"upper_corner": 90.0,
 	## "hatch_cargo" is absent because it was GENERATED THREE TIMES AND
 	## REJECTED — the first entry here that lost on its own merits rather than
 	## on budget, and the reason is geometric rather than a prompt that can be

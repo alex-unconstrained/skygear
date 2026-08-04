@@ -6555,6 +6555,8 @@ func _build_edge_kit() -> void:
 		_build_edge_prow()
 	if edge_stern_v2:
 		_build_edge_stern_v2()
+	if upper_deck:
+		_build_upper_deck()
 
 
 ## Rebuild at a different tile count, for the scale comparison. The probe drives
@@ -6695,6 +6697,288 @@ func _build_edge_stern_v2() -> void:
 		edge_stern_v2_aft_z - along * s * 0.5) * WORLD_SCALE)
 	node.name = "SternCounter"
 	_edge_kit.add_child(node)
+
+
+## --- THE UPPER DECK — SG-178, and it is a KIT rather than four objects ---------
+##
+## Alex: *"I wanted there to be an upper level that you can see from the deck but
+## you don't actually, or at least not currently, go on to it."* Four modules
+## arrived against `handoff-3d/ship_edge_kit/UPPER-DECK-KIT.md` — a platform bay,
+## a support post, a staircase and a corner post — and the fifth piece of the kit
+## is `rail_stanchion`, which is NOT respecced: SG-176 proved the module the deck
+## already ships reads up there at the scale it already ships at.
+##
+## EVERY NUMBER BELOW IS MEASURED OFF THE SHIPPED MESH, in ground units at model
+## scale 1, and TWO OF THEM ARE MEASURED OFF SURFACES RATHER THAN OFF A BOUNDING
+## BOX, which is the part that matters:
+##
+##   upper_bay      189.6 x 107.8 x 152.2   2,688 tris
+##   upper_post      41.6 x 189.9 x  41.5   2,934 tris
+##   upper_stair    119.1 x 172.4 x 189.6   2,920 tris
+##   upper_corner    76.4 x 189.9 x  45.6   2,920 tris   (as WRAPPED, facing +90)
+##
+## `BAY_SOFFIT_NATIVE` is the flat underside of the beam, not the bottom of the
+## piece: the bay's lowest geometry is the two curved KNEES, 107.1 below the
+## planking, while the soffit the posts have to meet is the 2.02-unit-area
+## down-facing plane 32.8 below it. Standing the posts on the bbox floor would
+## have driven them into the knees and left the beam unsupported by 74 units.
+##
+## `STAIR_RISE_NATIVE` is likewise not the model's height. The mesh is 172.4 tall
+## because its HANDRAIL is, and a stair scaled by its handrail lands its treads
+## three quarters of the way up the platform. The climb is measured off the TREADS
+## — ten up-facing planes of ~0.19 area each from -0.761 to +0.353 in model units,
+## a 12.4-unit riser, over a floor at -0.863 — so the deck it delivers her onto is
+## one riser above the top tread: (0.353 + 0.863) * 100 + 12.4 = 134.0. Eleven
+## risers, which is what the delivery note said it was built with.
+const UPPER_BAY_SCENE := "res://assets/models/upper_bay/upper_bay.tscn"
+const UPPER_POST_SCENE := "res://assets/models/upper_post/upper_post.tscn"
+const UPPER_STAIR_SCENE := "res://assets/models/upper_stair/upper_stair.tscn"
+const UPPER_CORNER_SCENE := "res://assets/models/upper_corner/upper_corner.tscn"
+
+const BAY_NATIVE := Vector3(189.6, 107.8, 152.2)
+const BAY_SOFFIT_NATIVE := 32.8      ## plank top down to the beam's underside
+const POST_NATIVE := Vector3(41.6, 189.9, 41.5)
+const STAIR_NATIVE := Vector3(119.1, 172.4, 189.6)
+const STAIR_RISE_NATIVE := 134.0     ## its own floor to the deck it lands on
+const CORNER_NATIVE := Vector3(76.4, 189.9, 45.6)
+## The rail module's own LENGTH, the one dimension `_build_edge_rail` never needs
+## because it tiles by pitch and the deck is exactly divisible. Laid across the
+## ship the run is finite, so the last module's overhang is the whole question of
+## whether the corner posts fit. Measured, `tools/edge_place.gd -- measure`.
+const RAIL_MODULE_NATIVE := 189.83
+
+## ON. Unlike the stern this is not a refusal — see the verdict under
+## `_build_upper_deck()` — but the switch exists so `tools/edge_ab.gd` can take
+## the control plate in the SAME freeze, which is the only kind of A/B this repo
+## accepts (SG-108).
+var upper_deck := true
+
+## THE PLATFORM'S HEIGHT IS DERIVED FROM THE SHIPPED RAIL AND IS NOT A LITERAL.
+##
+## The kit was proportioned to "two of your rails stacked" and the STAIR WAS BUILT
+## TO CLIMB EXACTLY THAT, so the number has to come from the rail the deck
+## actually ships rather than from a 250 typed in here. `edge_rail_tiles` is a
+## live variable — `tools/edge_place.gd -- scales` drives it through 8, 10 and 12
+## — and at N = 8 the rail's top is 156.7 rather than 125.3. A literal would have
+## silently put the stair's top tread 62 units below a platform that had moved.
+var upper_rails_stacked := 2
+
+## Five bays across, one post under each. The kit doc asks for "about five" bays
+## and "four or five" posts; both counts are variables and the tiling is arithmetic
+## so either can move without a hand-placed list moving with it.
+var upper_bays := 5
+
+## HOW FAR FORWARD THE STAIR'S FOOT STANDS OF THE BOW LINE. Four units, and it is
+## not a taste: the seat below is derived so the stair's foot lands ON the bow
+## line, and `Rect2.intersects` excludes borders, so a piece whose aft face is at
+## exactly `DECK_RECT.position.y` passes or fails the play-rectangle check on the
+## last bit of a float. This is the clearance that makes the answer not depend on
+## rounding.
+const UPPER_STAIR_CLEAR := 4.0
+
+
+## The platform's floor, in ground units above the deck plane. Two rail-heights,
+## read off the rail this deck ships.
+func upper_platform_top() -> float:
+	return RAIL_TOP_NATIVE * edge_rail_scale() * float(upper_rails_stacked)
+
+
+## The stair is scaled by its CLIMB, so its top tread lands on the platform by
+## construction — there is no value of anything above that floats it or buries it.
+func upper_stair_scale() -> float:
+	return upper_platform_top() / STAIR_RISE_NATIVE
+
+
+func upper_stair_run() -> float:
+	return STAIR_NATIVE.z * upper_stair_scale()
+
+
+## THE SEAT, AND IT IS THE WHOLE PLACEMENT ARGUMENT.
+##
+## The platform's aft edge is exactly one STAIR RUN forward of the bow line, so
+## the flight fits between the two — and that single derivation is what satisfies
+## the three constraints that were in tension, none of which is negotiable:
+##
+##   1. SG-176 measured that a stair running forward UNDERNEATH the platform
+##      cannot be found in the frame. So the stair has to be AFT of the platform's
+##      aft edge, in the open.
+##   2. Nothing in this kit may stand in the rectangle she walks. So the stair
+##      cannot be aft of the BOW LINE either.
+##   3. The stair's slope is the model's, and its rise is the platform's height,
+##      so its run is not a free variable: 355 units at the shipped rail scale.
+##
+## (1) and (2) together leave exactly one strip of ship for the flight — the
+## apron between the bow line and the platform — and (3) says how wide that strip
+## has to be. The seat is therefore the aft-most one that works, which is the one
+## that keeps the platform as big and as near the lens as the stair allows.
+##
+## THE COST IS RECORDED RATHER THAN HIDDEN: SG-176's mock stood the platform ON
+## the bow line at the full 1,680 beam and measured 49.31% of the frame. It had no
+## stair in it that could be found. This seat is 355 units further out, where the
+## hull is 59% of its beam, and the frame share it buys is in the board row.
+func upper_deck_aft_z() -> float:
+	return SkyGearGame.DECK_RECT.position.y - UPPER_STAIR_CLEAR - upper_stair_run()
+
+
+## THE PLATFORM'S BEAM IS THE HULL'S OWN BEAM WHERE IT SEATS — `_build_edge_prow`'s
+## rule, for `_build_edge_prow`'s reason. The apron narrows on `hull_beam()`, so a
+## platform sized independently of its seat either overhangs into open air (the
+## posts under its ends stand on nothing, which is SG-157's whole bow verdict) or
+## stops short of the strakes. Derived, there is no setting that does either.
+func upper_deck_beam() -> float:
+	return SkyGearGame.DECK_RECT.size.x * hull_beam(upper_deck_aft_z())
+
+
+func upper_bay_scale() -> float:
+	return upper_deck_beam() / (float(upper_bays) * BAY_NATIVE.x)
+
+
+## A head above the rail cap, which is what §4 asks the corner post to stand.
+## A head is the captain's own height over seven, so the piece is proportioned
+## against the figure it has to read beside rather than against a typed number.
+func upper_corner_scale() -> float:
+	return (RAIL_TOP_NATIVE * edge_rail_scale() + CAPTAIN_HEIGHT / 7.0) / CORNER_NATIVE.y
+
+
+## HOW MANY RAIL MODULES CROSS THE PLATFORM, and it is counted rather than chosen.
+##
+## The rail is laid across the ship at the scale the DECK ships it at (SG-176 —
+## "no new railing asset"), so its module length and its two-pitch step are both
+## fixed and the run has to fit between the two corner posts. That is the seam the
+## corner post exists to make: the rail's cap ends where the post's inboard face
+## begins, so the run terminates rather than stopping in mid-air.
+##
+## `n` modules butt-joined every TWO stanchion pitches span (n-1) steps plus one
+## module — the same arithmetic `_build_edge_rail` tiles the deck with, so the
+## pitch survives every seam here too.
+func upper_rail_count() -> int:
+	var s := edge_rail_scale()
+	var room: float = upper_deck_beam() - 2.0 * CORNER_NATIVE.x * upper_corner_scale()
+	var step: float = 2.0 * RAIL_PITCH_NATIVE * s
+	return maxi(1, int(floor((room - RAIL_MODULE_NATIVE * s) / step)) + 1)
+
+
+func upper_rail_run() -> float:
+	return RAIL_MODULE_NATIVE * edge_rail_scale() \
+		+ float(upper_rail_count() - 1) * 2.0 * RAIL_PITCH_NATIVE * edge_rail_scale()
+
+
+## THE UPPER DECK, BUILT. Set dressing and nothing else: every node here is an
+## instanced `MeshInstance3D` tree with no body of any kind, nothing reaches aft of
+## the bow line, and the rectangle she walks is not touched by a single unit. Both
+## are harness checks rather than paragraphs.
+func _build_upper_deck() -> void:
+	var bay_scene: PackedScene = load(UPPER_BAY_SCENE)
+	var post_scene: PackedScene = load(UPPER_POST_SCENE)
+	var stair_scene: PackedScene = load(UPPER_STAIR_SCENE)
+	var corner_scene: PackedScene = load(UPPER_CORNER_SCENE)
+	if bay_scene == null or post_scene == null or stair_scene == null \
+			or corner_scene == null:
+		push_warning("upper deck: a kit piece is missing from assets/models/upper_*")
+		return
+
+	var top := upper_platform_top()
+	var aft := upper_deck_aft_z()
+	var beam := upper_deck_beam()
+	var s_bay := upper_bay_scale()
+	var bay_w: float = BAY_NATIVE.x * s_bay
+	var bay_d: float = BAY_NATIVE.z * s_bay
+	## The underside the player looks at all run. Posts stop here, not at the
+	## knees — see `BAY_SOFFIT_NATIVE`.
+	var soffit: float = top - BAY_SOFFIT_NATIVE * s_bay
+
+	## a · THE BAYS. Butt ends, left face against right face, `upper_bays` of them
+	## across the platform's own beam. The wrapper stands each piece on its floor
+	## and centres it over its footprint, so the y below drops the piece until its
+	## PLANK TOP is the platform floor and the z pushes it forward by half its own
+	## depth so its aft face lands on the seat rather than its middle.
+	for i in upper_bays:
+		var node: Node3D = bay_scene.instantiate()
+		node.transform = Transform3D(Basis().scaled(Vector3(s_bay, s_bay, s_bay)),
+			Vector3(-beam * 0.5 + bay_w * (float(i) + 0.5),
+				top - BAY_NATIVE.y * s_bay,
+				aft - bay_d * 0.5) * WORLD_SCALE)
+		node.name = "UpperBay%d" % i
+		_edge_kit.add_child(node)
+
+	## b · THE POSTS, one under each bay, standing on the apron at y = 0 and
+	## carrying the beam. Scaled by the SOFFIT rather than by the platform floor:
+	## the post's flared head takes the beam, and a post scaled to the floor would
+	## push its bracket up through the planking it is holding.
+	var s_post: float = soffit / POST_NATIVE.y
+	for i in upper_bays:
+		var node: Node3D = post_scene.instantiate()
+		node.transform = Transform3D(Basis().scaled(Vector3(s_post, s_post, s_post)),
+			Vector3(-beam * 0.5 + bay_w * (float(i) + 0.5), 0.0,
+				aft - POST_NATIVE.z * s_post * 0.5) * WORLD_SCALE)
+		node.name = "UpperPost%d" % i
+		_edge_kit.add_child(node)
+
+	## c · THE STAIR, on the open apron between the bow line and the platform,
+	## climbing FORWARD. The model already climbs toward -Z (its mesh top falls
+	## monotonically from +0.86 to -0.16 along z), so nothing turns it; the seat is
+	## stated as "foot on the bow line, top tread on the platform" and both follow
+	## from `upper_stair_scale()`.
+	##
+	## To PORT, and aligned on the second bay from port rather than on a
+	## coordinate, so it stays under the structure it lands on at any bay count.
+	var s_stair := upper_stair_scale()
+	var stair: Node3D = stair_scene.instantiate()
+	stair.transform = Transform3D(Basis().scaled(Vector3(s_stair, s_stair, s_stair)),
+		Vector3(-beam * 0.5 + bay_w * 1.5, 0.0,
+			SkyGearGame.DECK_RECT.position.y - UPPER_STAIR_CLEAR
+				- upper_stair_run() * 0.5) * WORLD_SCALE)
+	stair.name = "UpperStair"
+	_edge_kit.add_child(stair)
+
+	## d · THE RAIL — HIS OWN MODULE, at the scale the deck already ships it at,
+	## laid ACROSS the beam instead of along the side. The module is symmetric
+	## about its long axis and its long axis is already +X, so unlike the deck run
+	## this one takes no yaw at all.
+	var s_rail := edge_rail_scale()
+	var run := upper_rail_run()
+	var step: float = 2.0 * RAIL_PITCH_NATIVE * s_rail
+	## Standing at the platform's aft edge, its outboard face flush with the
+	## platform's aft face — a rail belongs on the edge it guards.
+	var rail_z: float = aft - RAIL_DEPTH_NATIVE * s_rail * 0.5
+	var count := upper_rail_count()
+	for i in count:
+		var node: Node3D = rail_scene_instance(s_rail)
+		node.position = Vector3(
+			-run * 0.5 + RAIL_MODULE_NATIVE * s_rail * 0.5 + step * float(i),
+			top, rail_z) * WORLD_SCALE
+		node.name = "UpperRail%d" % i
+		_edge_kit.add_child(node)
+
+	## e · THE CORNER POSTS, one at each end of the RAIL RUN — that is what §4
+	## asks them to terminate, and putting them at the platform's ends instead
+	## would leave the rail stopping in mid-air with bare planking beyond it.
+	##
+	## THE LANTERN POINTS OUTBOARD, WHICH IS WHY THERE IS A YAW HERE AT ALL. The
+	## wrapper turns the piece so its lantern faces +X; that is outboard to
+	## STARBOARD and inboard to port, so the port copy takes a half turn. §4 wants
+	## the lantern found by the eye at the end of a long dark run, and a lantern
+	## aimed up-deck is behind its own post from every camera this game has.
+	var s_corner := upper_corner_scale()
+	for side in [-1.0, 1.0]:
+		var node: Node3D = corner_scene.instantiate()
+		var basis := Basis(Vector3.UP, PI if side < 0.0 else 0.0) \
+			.scaled(Vector3(s_corner, s_corner, s_corner))
+		node.transform = Transform3D(basis, Vector3(
+			side * (run * 0.5 + CORNER_NATIVE.x * s_corner * 0.5), top, rail_z)
+			* WORLD_SCALE)
+		node.name = "UpperCorner%s" % ["P" if side < 0.0 else "S"]
+		_edge_kit.add_child(node)
+
+
+## One rail module at a given scale, unrotated. Its own scene, loaded once per
+## call the way every other kit piece is — kept as a function only so the tiling
+## loop above reads as arithmetic rather than as scene plumbing.
+func rail_scene_instance(s: float) -> Node3D:
+	var scene: PackedScene = load(EDGE_RAIL_SCENE)
+	var node: Node3D = scene.instantiate()
+	node.transform = Transform3D(Basis().scaled(Vector3(s, s, s)), Vector3.ZERO)
+	return node
 
 
 ## THE STERN IS CUT AGAIN, AND THIS TIME THE MODEL IS NOT THE PROBLEM.

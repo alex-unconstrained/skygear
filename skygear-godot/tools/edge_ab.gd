@@ -101,6 +101,24 @@ const STERN_V2_POSES := [
 		"note": "same pose, zoomed in, so the seat against the strake can be seen"},
 ]
 
+## --- SG-178, THE UPPER DECK -----------------------------------------------------
+##
+## FOUR POSES, AND THE TWO AT `mid` ARE THE HONEST HALF OF THE STORY. SG-176
+## measured this arrangement at 49.31% of the frame from the stem and **1.24%
+## from mid-deck at the shipped zoom** — the pose the player is actually in for
+## the whole run. A sheet that showed only the bow frames would be a sheet about
+## a place the game is not played, so both are taken and both go to the owner.
+const UPPER_POSES := [
+	{"tag": "upper-1-stem", "spot": "stem", "zoom": 1.0,
+		"note": "the stem pose at the shipped zoom — hard against the bow line, the closest she ever gets"},
+	{"tag": "upper-2-stem-close", "spot": "stem", "zoom": 1.55,
+		"note": "same pose, zoomed out, where the platform floor, the rail and both corner posts come back into frame"},
+	{"tag": "upper-3-mid", "spot": "mid", "zoom": 1.0,
+		"note": "MID-DECK AT THE SHIPPED ZOOM — where the run is actually played, and where SG-176 measured 1.24%"},
+	{"tag": "upper-4-mid-close", "spot": "mid", "zoom": 1.55,
+		"note": "mid-deck zoomed out — the widest view the game ever gives of the deck she fights on"},
+]
+
 const MAST_POSES := [
 	{"tag": "mast-mid", "spot": "mid", "zoom": 1.0},
 	{"tag": "mast-mid-close", "spot": "mid", "zoom": 1.55},
@@ -138,6 +156,13 @@ func _run() -> void:
 	## arriving through a default nobody re-read.
 	view.edge_prow = false
 	view.edge_stern_v2 = false
+	## AND THE UPPER DECK IS OFF IN THE BASE STATE FOR THE SAME REASON THE PROW IS
+	## (SG-178). It ships ON, so "the deck as it ships" is not the control any of
+	## these sheets wants — the SG-157 bow pairs would start photographing a deck
+	## with a forecastle over the bow line in BOTH plates, which is the sixth
+	## failure mode arriving through a default nobody re-read. It happened once
+	## already, to this exact line, when the prow shipped.
+	view.upper_deck = false
 	view.rebuild_edge_kit(view.edge_rail_tiles)
 	await process_frame
 
@@ -164,6 +189,24 @@ func _run() -> void:
 					% view.edge_stern_v2_width,
 				str(pose.note), _stern_v2_on, _stern_v2_off,
 				"no-stern", "with-stern_counter_v2")
+	if mode == "upper":
+		## THE PROW IS ON IN BOTH PLATES. It ships, it stands 100 units forward of
+		## the platform's own front edge, and a control without it would be an A/B
+		## of two changes. The one thing that differs between the plates is the
+		## upper deck.
+		view.edge_prow = true
+		view.rebuild_edge_kit(view.edge_rail_tiles)
+		await process_frame
+		for t in UPPER_POSES:
+			var pose: Dictionary = t
+			await _pair(str(pose.tag), str(pose.spot), float(pose.zoom),
+				"THE UPPER DECK",
+				"WITHOUT it (the bow apron and the prow alone)",
+				"WITH the kit — %d bays over %.0f of beam, %d posts, one stair, %d rails, 2 corner posts"
+					% [view.upper_bays, view.upper_deck_beam(), view.upper_bays,
+						view.upper_rail_count()],
+				str(pose.note), _upper_on, _upper_off,
+				"no-upper-deck", "with-upper-deck")
 	if mode == "all" or mode == "mast":
 		for pose in MAST_POSES:
 			await _pair(str(pose.tag), str(pose.spot), float(pose.zoom),
@@ -286,6 +329,22 @@ func _stern_v2_on():
 
 func _stern_v2_off(_built) -> void:
 	view.edge_stern_v2 = false
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+
+
+## SG-178. Same shape as the prow's pair: drive the RENDERER's own switch and
+## rebuild, so what is photographed is the shipped placement rather than a second
+## copy of it. Returns null deliberately — the kit is eleven nodes and `_report_box`
+## takes one; where each piece lands is `edge_place.gd -- where`'s job and it
+## prints all of them.
+func _upper_on():
+	view.upper_deck = true
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	return null
+
+
+func _upper_off(_built) -> void:
+	view.upper_deck = false
 	view.rebuild_edge_kit(view.edge_rail_tiles)
 
 

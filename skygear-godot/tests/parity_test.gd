@@ -14228,6 +14228,151 @@ func _deck_shape() -> void:
 		"off by default; built, its top is at y %.1f (apron plane %.1f) and its transom at z %.0f (aft limit %.0f)"
 			% [stern_top, view.edge_stern_v2_top, stern_aft, aft_limit])
 
+	## ---- THE UPPER DECK (SG-178) --------------------------------------------
+	##
+	## Four modules the owner made, tiled by the renderer. These pin the three
+	## things a screenshot cannot: that the height is DERIVED from the rail rather
+	## than typed, that the flight lands on the platform at both ends, and that
+	## the whole assembly stays forward of the bow line.
+	## THE KIT IS RE-FETCHED HERE AND THAT IS NOT TIDINESS. The stern check above
+	## rebuilds twice, and `rebuild_edge_kit` REPLACES the node: the `kit` gathered
+	## at the top of this block is by now an orphan waiting on `queue_free`, and
+	## `global_transform` on a node outside the tree returns its LOCAL one. Read
+	## through the stale handle, every piece below measures at its model origin —
+	## the stair's foot came back at y -86.3 and its z at +95, both of which are
+	## the mesh's own bounding box rather than anything on this ship.
+	var upper_kit: Node3D = view.get_node_or_null("EdgeKit")
+	var upper_pieces: Array = []
+	for c in (upper_kit.get_children() if upper_kit != null else []):
+		if str(c.name).begins_with("Upper"):
+			upper_pieces.append(c)
+
+	## THE PLATFORM'S HEIGHT TRACKS THE SHIPPED RAIL, AND THAT IS ASSERTED FROM
+	## BOTH SIDES IN ONE FIXTURE — a check that only reads the shipped default
+	## cannot tell a derivation from a coincidence, which is SG-146's lesson.
+	## `edge_rail_tiles` is a live variable (`edge_place.gd -- scales` drives it
+	## through 8, 10 and 12) and the rail's top is 156.7 at N = 8 against 125.3 at
+	## N = 10. So this rebuilds at 8, reads the BUILT bays' plank tops out of the
+	## tree, and requires them to have moved with the rail. A literal 250 in
+	## `view3d.gd` passes the first half of this check and fails the second.
+	var rail_top_10: float = SkyGearView3D.RAIL_TOP_NATIVE * view.edge_rail_scale()
+	var top_10: float = view.upper_platform_top()
+	var built_10 := 0.0
+	for c in upper_pieces:
+		if str(c.name).begins_with("UpperBay"):
+			built_10 = _kit_aabb(c as Node3D).end.y / SkyGearView3D.WORLD_SCALE
+	view.rebuild_edge_kit(8)
+	var rail_top_8: float = SkyGearView3D.RAIL_TOP_NATIVE * view.edge_rail_scale()
+	var top_8: float = view.upper_platform_top()
+	var built_8 := 0.0
+	for c in view.get_node("EdgeKit").get_children():
+		if str(c.name).begins_with("UpperBay"):
+			built_8 = _kit_aabb(c as Node3D).end.y / SkyGearView3D.WORLD_SCALE
+	view.rebuild_edge_kit(10)
+	upper_kit = view.get_node_or_null("EdgeKit")
+	upper_pieces = []
+	for c in (upper_kit.get_children() if upper_kit != null else []):
+		if str(c.name).begins_with("Upper"):
+			upper_pieces.append(c)
+	_check("edge", "the upper deck's floor is two of the SHIPPED rail's own heights, and it moves when the rail does",
+		absf(top_10 - rail_top_10 * 2.0) < 0.01 and absf(built_10 - top_10) < 1.0
+			and absf(top_8 - rail_top_8 * 2.0) < 0.01 and absf(built_8 - top_8) < 1.0
+			and absf(top_8 - top_10) > 40.0,
+		"N=10: rail top %.1f, floor %.1f, built %.1f;  N=8: rail top %.1f, floor %.1f, built %.1f"
+			% [rail_top_10, top_10, built_10, rail_top_8, top_8, built_8])
+
+	## THE STAIR LANDS AT BOTH ENDS, WHICH IS THE ONE THING THE KIT DOC SAID WOULD
+	## DECIDE WHETHER THE PIECE WORKS: *"build it to that and it lands; build it to
+	## anything else and it either floats or buries its top tread."* Measured off
+	## the BUILT node — its foot on the deck plane, its forward face on the
+	## platform's own aft face, and its top tread one riser under the platform
+	## floor, which is what `STAIR_RISE_NATIVE` is measured to deliver.
+	var stair_node: Node3D = null
+	var bay_aft := 0.0
+	var bay_top := 0.0
+	for c in upper_pieces:
+		if str(c.name) == "UpperStair":
+			stair_node = c as Node3D
+		if str(c.name).begins_with("UpperBay"):
+			var bb := _kit_aabb(c as Node3D)
+			bay_aft = bb.end.z / SkyGearView3D.WORLD_SCALE
+			bay_top = bb.end.y / SkyGearView3D.WORLD_SCALE
+	var stair_box := _kit_aabb(stair_node) if stair_node != null else AABB()
+	var stair_foot: float = stair_box.position.y / SkyGearView3D.WORLD_SCALE
+	var stair_fwd: float = stair_box.position.z / SkyGearView3D.WORLD_SCALE
+	## The top tread, off the same measurement `STAIR_RISE_NATIVE` is derived from:
+	## the flight delivers her one riser above it, so the tread sits one riser
+	## under the platform floor.
+	var riser: float = 12.4 * view.upper_stair_scale()
+	var tread: float = view.upper_platform_top() - riser
+	_check("edge", "the upper deck's stair climbs from the deck plane to the platform's own floor, and lands at both ends",
+		stair_node != null and absf(stair_foot) < 1.0
+			and absf(stair_fwd - view.upper_deck_aft_z()) < 1.0
+			and absf(bay_aft - view.upper_deck_aft_z()) < 1.0
+			and absf(bay_top - view.upper_platform_top()) < 1.0
+			and tread > 0.0 and absf(view.upper_platform_top() - tread - riser) < 0.01,
+		"foot at y %.1f, forward face z %.0f against the platform's aft face z %.0f; top tread %.1f, one %.1f riser under the floor at %.1f"
+			% [stair_foot, stair_fwd, bay_aft, tread, riser, view.upper_platform_top()])
+
+	## AND THE WHOLE THING IS FORWARD OF THE BOW LINE WITH A MARGIN. The kit-wide
+	## plan-rectangle check above is the property; this is the MARGIN, and it is a
+	## separate check because the two fail differently. `intersects` excludes
+	## borders, so a piece whose aft face is at exactly `DECK_RECT.position.y`
+	## passes or fails on the last bit of a float — `UPPER_STAIR_CLEAR` exists so
+	## that never has to be true, and this is what says so.
+	var nearest := -9e9
+	var nearest_name := ""
+	for c in upper_pieces:
+		var z: float = _kit_aabb(c as Node3D).end.z / SkyGearView3D.WORLD_SCALE
+		if z > nearest:
+			nearest = z
+			nearest_name = str(c.name)
+	_check("edge", "the whole upper deck stands forward of the bow line, by a margin rather than by a rounding",
+		upper_pieces.size() >= 11
+			and nearest <= rect.position.y - SkyGearView3D.UPPER_STAIR_CLEAR + 0.5,
+		"%d pieces; the aft-most is %s, %.1f units forward of the bow line"
+			% [upper_pieces.size(), nearest_name, rect.position.y - nearest])
+
+	## THE SEAM THE CORNER POST EXISTS FOR. §4: the piece finishes the edge run
+	## "so the rail and the beam do not just stop in mid-air". That is only true if
+	## the rail's cap ENDS where the post's inboard face BEGINS — a gap reads as a
+	## missing module and an overlap reads as two objects in one place. The count
+	## is chosen by `upper_rail_count()` for exactly this, and this measures the
+	## two joints off the built tree rather than trusting the arithmetic that made
+	## them. It also asserts the assembly fits the platform, which is the
+	## constraint that made the count 3 rather than 4.
+	var rail_lo := 9e9
+	var rail_hi := -9e9
+	var rails := 0
+	var corner_in := {}
+	for c in upper_pieces:
+		var nm := str(c.name)
+		var bx := _kit_aabb(c as Node3D)
+		if nm.begins_with("UpperRail"):
+			rails += 1
+			rail_lo = minf(rail_lo, bx.position.x / SkyGearView3D.WORLD_SCALE)
+			rail_hi = maxf(rail_hi, bx.end.x / SkyGearView3D.WORLD_SCALE)
+		if nm == "UpperCornerP":
+			corner_in["P"] = bx.end.x / SkyGearView3D.WORLD_SCALE
+		if nm == "UpperCornerS":
+			corner_in["S"] = bx.position.x / SkyGearView3D.WORLD_SCALE
+	var corner_out: float = 0.0
+	for c in upper_pieces:
+		if str(c.name).begins_with("UpperCorner"):
+			corner_out = maxf(corner_out,
+				absf(_kit_aabb(c as Node3D).position.x / SkyGearView3D.WORLD_SCALE))
+			corner_out = maxf(corner_out,
+				absf(_kit_aabb(c as Node3D).end.x / SkyGearView3D.WORLD_SCALE))
+	_check("edge", "the rail run across the platform ends in the corner posts, and the whole run fits the platform's beam",
+		rails == view.upper_rail_count() and rails >= 1
+			and corner_in.has("P") and corner_in.has("S")
+			and absf(float(corner_in["P"]) - rail_lo) < 1.0
+			and absf(float(corner_in["S"]) - rail_hi) < 1.0
+			and corner_out <= view.upper_deck_beam() * 0.5 + 0.5,
+		"%d modules span x %.1f..%.1f; the posts' inboard faces are at %.1f and %.1f, their outboard at +/-%.1f against a %.0f beam"
+			% [rails, rail_lo, rail_hi, float(corner_in.get("P", 0.0)),
+				float(corner_in.get("S", 0.0)), corner_out, view.upper_deck_beam()])
+
 	## ---- THE TRIANGLE CEILING (SG-152a) -------------------------------------
 	##
 	## Written out in full in the SG-152 row and left for whoever could touch this
