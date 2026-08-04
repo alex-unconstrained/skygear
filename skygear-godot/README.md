@@ -1,11 +1,11 @@
-# SkyGear: Godot port
+﻿# SkyGear: Godot port
 
 This folder is an isolated Godot 4 project rebuilding SkyGear from the latest
 shipped browser build, v11. It does not import from, write to, or require any
-file outside this directory. **This is the active project** — the browser build
+file outside this directory. **This is the active project** â€” the browser build
 at the repo root is frozen and serves as the reference target.
 
-**Start at [STATUS.md](STATUS.md)**, then [docs/BOARD.md](docs/BOARD.md) — the
+**Start at [STATUS.md](STATUS.md)**, then [docs/BOARD.md](docs/BOARD.md) â€” the
 work queue: claim an item before working, close it with evidence.
 [docs/OUTSTANDING.md](docs/OUTSTANDING.md) is the ledger of what the owner
 asked for; [DESIGN.md](DESIGN.md) is the running design record.
@@ -16,22 +16,22 @@ Playable end to end: twelve waves and the Colossus, two classes (the Sky-Corsair
 and the Boilerwright), the full 41-card draft with reroll and seeded rolls,
 persistent progression (the Workshop, the Articles, Heat), a difficulty ladder,
 a run log, rebindable keys, a cutscene system with all five cues filled, two rigged boarders that walk and die, and the
-browser's painted sky sampled by view direction. Verified by the harness —
-1117 checks — and a text audit across 25 screens at 4 widths.
+browser's painted sky sampled by view direction. Verified by the harness â€”
+1128 checks â€” and a text audit across 25 screens at 4 widths.
 
 **That count goes stale the moment anybody adds a check, so do not trust it: run
 the harness and read what it prints.** `tools/hub.gd` deliberately carries no
 count for exactly this reason, and STATUS.md's sixth failure mode is a fact known
 in one place and contradicted in another. A number in prose here is a convenience,
-never evidence — evidence is a named check string (board SG-11).
+never evidence â€” evidence is a named check string (board SG-11).
 
 Build 62 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
 
 ## Run
 
 1. Install Godot 4.7 or later. The shipped builds are exported with 4.7.1,
-   Forward+ — Windows first, hardware accelerated, no web export (the
-   reasoning is DESIGN.md §12).
+   Forward+ â€” Windows first, hardware accelerated, no web export (the
+   reasoning is DESIGN.md Â§12).
 2. Import this directory by selecting `project.godot`.
 3. Press F5, or run:
 
@@ -48,7 +48,7 @@ layout editor, F11 toggles fullscreen. Mousewheel zooms out.
 
 Everything is behind `SkyGear Tools.bat` at the repo root (or
 `godot --path . --headless --script tools/hub.gd -- <name>`). The ones you will
-reach for: `harness` (1117 checks at 2026-08-04 — green before anything ships, and
+reach for: `harness` (1128 checks at 2026-08-04 â€” green before anything ships, and
 the printed number is the authority, not this line), `text`
 (the audit), `screens` (every screen at every width as one reviewable page),
 `parity` (browser against Godot, same seed, stitched side by side), and `all`

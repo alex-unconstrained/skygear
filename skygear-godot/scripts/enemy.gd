@@ -26,6 +26,13 @@ const ARRIVAL_TIME := 0.8
 var state_time := ARRIVAL_TIME
 var attack_direction := Vector2.DOWN
 var dead := false
+
+## THE LAST MELEE SWING THIS BOARDER RESOLVED (board SG-193), as
+## `{"aimed": who, "landed": who-or-empty}` over `victim()`'s four names. Empty
+## until the first swing resolves; written by the resolve and read by nothing in
+## the simulation, which is the point — it is the ledger a rig reads instead of
+## re-deriving the victim chain for itself.
+var last_swing: Dictionary = {}
 ## HOW HARD A SHOVE CAN EVER BE.
 ##
 ## `knock_velocity` ACCUMULATED with nothing bounding it, and decays at only
@@ -596,6 +603,68 @@ func _resolve_stomp() -> Dictionary:
 		hit.boiler = true
 	return hit
 
+## --- WHO THIS BOARDER IS WALKING AT (board SG-193) --------------------------
+##
+## The owner, after build 62: *"Do enemies fight and kill crew members? Furnace
+## knights dont seem to do any damage to me or attack crew members."* The second
+## half of that sentence is a question about THIS chain, and it could not be
+## answered from outside the file: the four locals it used to be written in
+## (`targets_player`, `target_turret`, `target_crew`, and the implied Boiler) are
+## born and die inside one frame of `_physics_process`, so nothing — not a probe,
+## not the harness — could ask a live boarder what it was aiming at.
+##
+## The two ways out of that were to give the answer a name here, or to let a rig
+## re-derive the chain from `global_position` and `game.turret_in_lane`. The
+## second is the failure STATUS lists second and board SG-119 paid for: two
+## derivations of one rule, and the copy is always the one that lies. So the rule
+## has a name, exactly the way `chases_captain()` and `stomp_hits()` do, and the
+## probe calls it instead of reimplementing it.
+##
+## BEHAVIOUR IS UNCHANGED AND IS MEANT TO BE. This is the same four-branch
+## priority order written as early returns: the captain if she is close enough to
+## be the problem, the deck cannon gating this lane while it still stands, a
+## crewman in the way, otherwise the Boiler. The cannon matters most — without it
+## a lane is a stripe on the floor and boarders stroll past the thing that is
+## supposed to be stopping them.
+##
+## AND THE THREE NUMBERS ARE CONSTANTS NOW BECAUSE THEY ARE THE TUNING SURFACE.
+## Every candidate fix for the owner's sentence is one of these three literals,
+## and a literal buried mid-expression is a number nobody can quote an interval
+## for. Naming them does not move them: SG-193 measured the chain and changed
+## none of the three — see the board row for why.
+
+## How close the captain has to be before a boarder breaks off for her.
+const CAPTAIN_NOTICE := 280.0
+
+## How far PAST its lane cannon a boarder must have walked before the cannon
+## stops being the thing it is walking at. Positive, so the gun keeps the
+## boarder's attention for a little after it is passed rather than losing it the
+## instant the two are level.
+const TURRET_GATE_SLACK := 40.0
+
+## How close a crewman has to be to be noticed at all — and the smallest of the
+## three, which is most of SG-193's answer.
+const CREW_NOTICE := 220.0
+
+
+## Returns `{"who": one of "player"/"turret"/"crew"/"boiler", "position", "radius"}`
+## plus the victim's own dictionary under `"turret"` or `"crew"` when there is
+## one, because the damage call needs the row and not just its geometry.
+func victim() -> Dictionary:
+	if chases_captain() and global_position.distance_to(game.player.global_position) < CAPTAIN_NOTICE:
+		return {"who": "player", "position": game.player.global_position, "radius": 17.0}
+	var gate: Dictionary = game.turret_in_lane(lane)
+	if not gate.is_empty() and global_position.y < float(gate.position.y) + TURRET_GATE_SLACK:
+		return {"who": "turret", "position": gate.position,
+			"radius": float(gate.radius), "turret": gate}
+	var hand: Dictionary = game.nearest_crew(global_position, CREW_NOTICE)
+	if not hand.is_empty():
+		return {"who": "crew", "position": hand.position,
+			"radius": float(hand.radius), "crew": hand}
+	return {"who": "boiler", "position": game.boiler_position,
+		"radius": float(game.boiler_radius)}
+
+
 func swing_wedge_reach() -> float:
 	var wedge: float = float(config.reach)
 	if kind == "BOSS" and beat == 1:
@@ -668,34 +737,15 @@ func _physics_process(delta: float) -> void:
 			knock_velocity.length() > OVERBOARD_SPEED)
 		return
 
-	## What this boarder is walking at, in priority order:
-	##   the captain if she is close enough to be the problem,
-	##   the deck cannon gating this lane while it still stands,
-	##   a crewman in the way,
-	##   otherwise the Boiler.
-	## The cannon matters most: without it a lane is a stripe on the floor, and
-	## boarders stroll past the thing that is supposed to be stopping them.
-	var target_position: Vector2 = game.boiler_position
-	var target_radius: float = float(game.boiler_radius)
-	var targets_player := false
-	var target_turret: Dictionary = {}
-	var target_crew: Dictionary = {}
-	if chases_captain() and global_position.distance_to(game.player.global_position) < 280.0:
-		target_position = game.player.global_position
-		target_radius = 17.0
-		targets_player = true
-	else:
-		var gate: Dictionary = game.turret_in_lane(lane)
-		if not gate.is_empty() and global_position.y < float(gate.position.y) + 40.0:
-			target_position = gate.position
-			target_radius = float(gate.radius)
-			target_turret = gate
-		else:
-			var nearest_crew: Dictionary = game.nearest_crew(global_position, 220.0)
-			if not nearest_crew.is_empty():
-				target_position = nearest_crew.position
-				target_radius = float(nearest_crew.radius)
-				target_crew = nearest_crew
+	## What this boarder is walking at, in priority order — the whole rule is
+	## `victim()` above, so that a probe and the harness can ask it (board SG-193).
+	## It is RE-ASKED every frame, windup frames included, which is why the swing
+	## below resolves against the CURRENT answer and not the one that was true
+	## when the wedge appeared.
+	var aim: Dictionary = victim()
+	var aim_who: String = str(aim.who)
+	var target_position: Vector2 = aim.position
+	var target_radius: float = float(aim.radius)
 	var to_target := target_position - global_position
 	var distance := to_target.length()
 	var direction := to_target.normalized() if distance > 0.001 else Vector2.DOWN
@@ -760,14 +810,27 @@ func _physics_process(delta: float) -> void:
 				## (STATUS failure mode two; board SG-119 is what happens when they
 				## do).
 				var swing_reach: float = swing_wedge_reach() + target_radius
-				if targets_player and _swing_hits(game.player.global_position, swing_reach, 17.0):
+				## AND THE LEDGER (SG-193). `last_swing` is written on EVERY melee
+				## resolve, including the ones that connect with nothing, because
+				## "how many swings were aimed at a crewman" and "how many landed on
+				## one" are different questions and the gap between them is the
+				## SG-156 finding — the swing aims once and never re-aims, so a
+				## moving target is swung at far more often than it is hit.
+				## `_resolve_stomp` returning what it touched is the precedent: a
+				## damage total answers "how much" and hides "on whom".
+				last_swing = {"aimed": aim_who, "landed": ""}
+				if aim_who == "player" and _swing_hits(game.player.global_position, swing_reach, 17.0):
 					game.damage_player(float(config.damage), kind)
-				elif not target_turret.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
-					game.damage_turret(target_turret, float(config.damage))
-				elif not target_crew.is_empty() and _swing_hits(target_position, swing_reach, target_radius):
-					game.hurt_crew(target_crew, float(config.damage))
-				elif not targets_player and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
+					last_swing.landed = "player"
+				elif aim_who == "turret" and _swing_hits(target_position, swing_reach, target_radius):
+					game.damage_turret(aim.turret, float(config.damage))
+					last_swing.landed = "turret"
+				elif aim_who == "crew" and _swing_hits(target_position, swing_reach, target_radius):
+					game.hurt_crew(aim.crew, float(config.damage))
+					last_swing.landed = "crew"
+				elif aim_who != "player" and _swing_hits(game.boiler_position, swing_reach, float(game.boiler_radius)):
 					game.damage_boiler(float(config.damage))
+					last_swing.landed = "boiler"
 			stomp_struck = false
 			state = "recover"
 			state_time = float(config.recover)

@@ -1,13 +1,13 @@
-# SkyGear on Steam — page live, demo playable, wishlists accumulating
+﻿# SkyGear on Steam â€” page live, demo playable, wishlists accumulating
 
 Written 2026-08-03. Every factual claim below carries a source; claims I could
 not verify against Valve's own documentation are marked **[unverified]** and
-collected again in §10. Nothing here is asserted from memory — that is this
+collected again in Â§10. Nothing here is asserted from memory â€” that is this
 project's standing rule and it applies to research as much as to code.
 
 Primary sources are `partner.steamgames.com/doc/...` (Steamworks Documentation).
 Some Steamworks pages require a partner login and could not be reached at all;
-those are named in §10 with a description of what he will find behind them.
+those are named in Â§10 with a description of what he will find behind them.
 
 ---
 
@@ -20,14 +20,14 @@ and conflating them is what makes this take three months instead of six weeks.
 
 | The thing you said | What Steam calls it | What it costs | What it waits on |
 |---|---|---|---|
-| "share it with some friends" | **not a Steam problem** — use itch.io, which already works | $0, 0 days | nothing |
+| "share it with some friends" | **not a Steam problem** â€” use itch.io, which already works | $0, 0 days | nothing |
 | "playtest with a wider community" | **Steam Playtest** (free child app) or a **demo** | $0 on top of the base fee | the base store page being public |
-| "strangers can wishlist it" | **Coming Soon store page** on a paid app ID | $100 USD once | ~2–5 weeks of paperwork + 3–5 business days review |
+| "strangers can wishlist it" | **Coming Soon store page** on a paid app ID | $100 USD once | ~2â€“5 weeks of paperwork + 3â€“5 business days review |
 
 ### The shortest path, in order
 
-1. **Today — friends play the game.** Send them the itch.io build you already
-   ship (`tools/pack_itch.py` → butler → `alex-unconstrained.itch.io/skygear-godot-test`).
+1. **Today â€” friends play the game.** Send them the itch.io build you already
+   ship (`tools/pack_itch.py` â†’ butler â†’ `alex-unconstrained.itch.io/skygear-godot-test`).
    Every Steam mechanism for "a few friends" is *slower* than the one you have:
    Steam keys require a three-week wait after AppID creation for a first-time
    developer ([Steam Keys](https://partner.steamgames.com/doc/features/keys)),
@@ -35,33 +35,33 @@ and conflating them is what makes this take three months instead of six weeks.
    app (which for an unreleased paid game means a key), and Steam Playtest
    requires your base store page to be public first. **Do not put the friends
    round behind Steam.** This is the single biggest time saving in this document.
-2. **Today — start the Steamworks paperwork.** It is pure waiting and it is
-   entirely yours (§1). Nothing else can start until the app ID exists.
-3. **Week 1–3, in parallel — the loop builds the asset manifest** (§4). Capsules,
+2. **Today â€” start the Steamworks paperwork.** It is pure waiting and it is
+   entirely yours (Â§1). Nothing else can start until the app ID exists.
+3. **Week 1â€“3, in parallel â€” the loop builds the asset manifest** (Â§4). Capsules,
    screenshots, trailer, copy. None of this needs a Steamworks account.
-4. **Once the account clears — pay $100, create ONE app: "SkyGear."** Not a
+4. **Once the account clears â€” pay $100, create ONE app: "SkyGear."** Not a
    demo app, not a playtest app. One paid app ID; the demo and playtest hang off
-   it for free (§2).
+   it for free (Â§2).
 5. **Submit the store page for review**, get it approved, hit **Post as Coming
    Soon**. Wishlists start here, and only here. This is the moment "strangers can
    wishlist it" becomes true.
-6. **Then add the demo** — a free child app ID created from the base game's page
-   — upload its build via SteamPipe, get it reviewed, release it. Now the wider
+6. **Then add the demo** â€” a free child app ID created from the base game's page
+   â€” upload its build via SteamPipe, get it reviewed, release it. Now the wider
    community can play, and each demo install is a chance at a wishlist.
 7. **Steam Playtest is the fallback, not the plan.** Use it only if you want a
-   gated build with *no* store presence of its own — e.g. testing a Heat-6 build
+   gated build with *no* store presence of its own â€” e.g. testing a Heat-6 build
    or a class rework after the demo is out. It doesn't drive wishlists at all
    (Valve: "A customer's wishlist for your game won't be impacted when they join
-   or leave your playtest" — [Playtest](https://partner.steamgames.com/doc/features/playtest)).
+   or leave your playtest" â€” [Playtest](https://partner.steamgames.com/doc/features/playtest)).
 
 ### The Next Fest fork, and it is time-critical
 
 Steam Next Fest **October 2026** has a **registration deadline of August 31,
 2026 at 11:59pm PDT**, demo builds due **September 21**, all required items due
-**October 5**, and the fest itself runs **October 19–26, 2026**
+**October 5**, and the fest itself runs **October 19â€“26, 2026**
 ([Next Fest: October 2026](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest/2026october)).
 Today is August 3. To register you need a **published, public store page** by
-August 31 — which means paperwork, fee, assets, and a 3–5 business day store
+August 31 â€” which means paperwork, fee, assets, and a 3â€“5 business day store
 review all completed in four weeks, with zero slack.
 
 **It is possible and I would not plan on it.** A game may only ever join
@@ -73,38 +73,38 @@ approved by roughly August 24.
 
 ---
 
-## 1. Your checklist — the things nobody can do for you
+## 1. Your checklist â€” the things nobody can do for you
 
 Anything touching money, identity, a legal agreement, or a Valve login is
 yours. The loop cannot and must not touch these.
 
 | # | Step | Where | Time it actually takes |
 |---|---|---|---|
-| 1.1 | Create/choose the Steam account that will own the partner group. Enable Steam Guard Mobile Authenticator — a build account needs a phone or the mobile app attached to publish ([Uploading](https://partner.steamgames.com/doc/sdk/uploading)) | store.steampowered.com | minutes |
+| 1.1 | Create/choose the Steam account that will own the partner group. Enable Steam Guard Mobile Authenticator â€” a build account needs a phone or the mobile app attached to publish ([Uploading](https://partner.steamgames.com/doc/sdk/uploading)) | store.steampowered.com | minutes |
 | 1.2 | Sign up as a Steamworks partner; sign the Steam Distribution Agreement (electronic) | partner.steamgames.com | same day |
-| 1.3 | Legal name / entity. "Enter your legal first and last name. Do not enter an alias or nickname." If you are a sole proprietor, use your legal name, **not** a DBA ([Onboarding](https://partner.steamgames.com/doc/gettingstarted/onboarding)) | Steamworks | minutes — but get it right, it must match the bank and tax records |
-| 1.4 | **Tax interview.** As a Canadian individual you complete a **W-8BEN**, not a W-9. Claiming the Canada–US treaty requires a TIN: "In order to exercise the benefits under the tax treaty, you will need to complete a Form W-8BEN and that requires either a **foreign TIN or a US TIN**" ([Taxes FAQ](https://partner.steamgames.com/doc/finance/taxfaq)). Your Canadian SIN is normally the foreign TIN. **[unverified]** that Valve accepts a SIN specifically — the doc says "foreign TIN" and does not enumerate. Withholding "may range from 0% to 30%"; a correctly-claimed treaty position on copyright royalties should land at 0%, but **[unverified]** — Valve does not state the Canadian rate and I am not your accountant | Steamworks | interview is 5–10 min; Valve's processing is **"2-7 business days"**, with possible requests for more documents |
+| 1.3 | Legal name / entity. "Enter your legal first and last name. Do not enter an alias or nickname." If you are a sole proprietor, use your legal name, **not** a DBA ([Onboarding](https://partner.steamgames.com/doc/gettingstarted/onboarding)) | Steamworks | minutes â€” but get it right, it must match the bank and tax records |
+| 1.4 | **Tax interview.** As a Canadian individual you complete a **W-8BEN**, not a W-9. Claiming the Canadaâ€“US treaty requires a TIN: "In order to exercise the benefits under the tax treaty, you will need to complete a Form W-8BEN and that requires either a **foreign TIN or a US TIN**" ([Taxes FAQ](https://partner.steamgames.com/doc/finance/taxfaq)). Your Canadian SIN is normally the foreign TIN. **[unverified]** that Valve accepts a SIN specifically â€” the doc says "foreign TIN" and does not enumerate. Withholding "may range from 0% to 30%"; a correctly-claimed treaty position on copyright royalties should land at 0%, but **[unverified]** â€” Valve does not state the Canadian rate and I am not your accountant | Steamworks | interview is 5â€“10 min; Valve's processing is **"2-7 business days"**, with possible requests for more documents |
 | 1.5 | **Banking.** "We'll need accurate bank information, such as routing number, bank account number, and bank address." Critically: **"The account holder name on your bank account must match the name you provide when onboarding"** ([Onboarding](https://partner.steamgames.com/doc/gettingstarted/onboarding)). A CAD account at a Canadian bank is fine | Steamworks | see the warning below |
-| 1.6 | Identity verification. Valve's docs mention "identity verification" as part of onboarding without detailing it **[unverified]** — expect to upload government photo ID | Steamworks | **[unverified]**, commonly days |
+| 1.6 | Identity verification. Valve's docs mention "identity verification" as part of onboarding without detailing it **[unverified]** â€” expect to upload government photo ID | Steamworks | **[unverified]**, commonly days |
 | 1.7 | **Pay the $100 USD Steam Direct fee.** "The Steam Direct Fee is not refundable" but is "recoupable in the payment made after your product has at least $1,000.00 Adjusted Gross Revenue" ([Steam Direct Fee](https://partner.steamgames.com/doc/gettingstarted/appfee)). You cannot pay it until "bank, tax and company information has been verified" ([Getting Started](https://partner.steamgames.com/doc/gettingstarted)) | Steamworks | instant, once unblocked |
 | 1.8 | Create the app. Name it **SkyGear** | Steamworks | minutes |
-| 1.9 | **Complete the Content Survey** — three mandatory sections: General Content, Mature Content, and **Generative AI Content** ([Content Survey](https://partner.steamgames.com/doc/gettingstarted/contentsurvey)). See §4.6 — the AI section is a real decision for this project, not a formality |
+| 1.9 | **Complete the Content Survey** â€” three mandatory sections: General Content, Mature Content, and **Generative AI Content** ([Content Survey](https://partner.steamgames.com/doc/gettingstarted/contentsurvey)). See Â§4.6 â€” the AI section is a real decision for this project, not a formality |
 | 1.10 | Set price. SkyGear's *demo* is free; the base game needs a price set before the page can go live. You are not committing to a launch date |
-| 1.11 | Hit **"Mark As Ready For Review"**, then after approval **"Post as Coming Soon"** | Steamworks | see §5 |
+| 1.11 | Hit **"Mark As Ready For Review"**, then after approval **"Post as Coming Soon"** | Steamworks | see Â§5 |
 
 ### The two waits that catch people out
 
 - **Verification gates the fee, and the fee gates everything.** You cannot
   create an app until bank/tax/identity are verified. This is the front-loaded
-  wait and there is nothing to do but start it early. Valve documents **2–7
+  wait and there is nothing to do but start it early. Valve documents **2â€“7
   business days** for the tax questionnaire alone. The commonly-reported bank
   micro-deposit verification adds more; Valve does not document a duration and
-  I could not find a primary source, so treat **1–3 weeks end to end** as the
+  I could not find a primary source, so treat **1â€“3 weeks end to end** as the
   planning figure and **[unverified]** as its status.
 - **The 30-day rule.** "There is a **30-day waiting period between when you paid
   the app fee and when you can release your game**"
   ([Onboarding](https://partner.steamgames.com/doc/gettingstarted/onboarding)).
-  **[unverified]** whether this also gates *releasing a free demo* — Valve's
+  **[unverified]** whether this also gates *releasing a free demo* â€” Valve's
   demo documentation does not mention it. Assume it does; it is the safe
   assumption and it is the one that would break an October Next Fest run.
 - **The 2-week Coming Soon rule.** "You must have a Coming Soon page up for at
@@ -114,7 +114,7 @@ yours. The loop cannot and must not touch these.
 
 ### What the loop can do without your account
 
-Everything in §4 (art, copy, screenshots, trailer capture), everything in §6
+Everything in Â§4 (art, copy, screenshots, trailer capture), everything in Â§6
 (`tools/pack_steam.py`, depot layout, VDF), and all of the wording drafts. The
 handoff points where it needs you are exactly: uploading assets into Steamworks,
 pressing review/publish buttons, and the build account credentials.
@@ -125,12 +125,12 @@ pressing review/publish buttons, and the build account credentials.
 
 | | **Steam Playtest** | **Demo** | **Beta branch** | **Steam keys** |
 |---|---|---|---|---|
-| Own app ID? | Yes — a "child appID" | Yes — a separate App ID associated with the full game | No — a branch of the main app | No |
-| Extra $100? | **No** — "completely free feature for both customers and Steam developers" | **No** per multiple secondary sources; Valve's demo doc mentions no fee **[unverified — not stated either way in primary docs]** | No | No |
-| Needs review? | Yes, simplified: "The store review checklist for a Playtest only consists of capsule images and icons" | **Yes** — store presence review + a build review | Not documented; builds go to a branch without the default-branch gate | Requests are reviewed case-by-case |
+| Own app ID? | Yes â€” a "child appID" | Yes â€” a separate App ID associated with the full game | No â€” a branch of the main app | No |
+| Extra $100? | **No** â€” "completely free feature for both customers and Steam developers" | **No** per multiple secondary sources; Valve's demo doc mentions no fee **[unverified â€” not stated either way in primary docs]** | No | No |
+| Needs review? | Yes, simplified: "The store review checklist for a Playtest only consists of capsule images and icons" | **Yes** â€” store presence review + a build review | Not documented; builds go to a branch without the default-branch gate | Requests are reviewed case-by-case |
 | Own store page? | **No.** "Instead of having its own separate store page, your Steam Playtest signup will live right on your main game" | **Optional.** You may "configure an entire store page for your demo, or just provide some assets for your demo to appear on your base game's store page" | No | No |
-| Public discoverability | Signup button on your page only | **Yes, and this is the 2024 change** — demos now behave like free products: they appear in New & Trending, tag and category lists, and can be featured | None | None |
-| Drives wishlists? | **No.** "A customer's wishlist for your game won't be impacted when they join or leave your playtest" | **Yes** — shares the base game's wishlist funnel, and you get a one-time notification blast (see below) | No | No |
+| Public discoverability | Signup button on your page only | **Yes, and this is the 2024 change** â€” demos now behave like free products: they appear in New & Trending, tag and category lists, and can be featured | None | None |
+| Drives wishlists? | **No.** "A customer's wishlist for your game won't be impacted when they join or leave your playtest" | **Yes** â€” shares the base game's wishlist funnel, and you get a one-time notification blast (see below) | No | No |
 | Access model | Request-and-approve in batches, or open signup | Anyone, free, forever | Password-protectable | Manual distribution |
 | Gotcha | Requires the base store page to be public | Needs its own depots and builds | Player must already own the app | **Three-week wait after AppID creation for a first-time developer**; Release-State-Override keys capped around 2,500 |
 
@@ -148,13 +148,13 @@ demo App ID stopped being a hidden appendage. Demos now show in the store's
 regular surfaces like free games, get their own optional store page and reviews,
 and the "Demo" state is surfaced on wishlists.
 
-I could not fetch the announcement body itself — both the Steam Community and
-Steam News copies returned only chrome — so the discoverability specifics above
+I could not fetch the announcement body itself â€” both the Steam Community and
+Steam News copies returned only chrome â€” so the discoverability specifics above
 rest on **secondary summaries** and are marked accordingly. What *is* from
 Valve's own docs:
 
 - Demos are created from the base game: "All associated packages, DLC, demos and
-  tools" → **"Add Demo"**. Application type must be set to **Demo** and the base
+  tools" â†’ **"Add Demo"**. Application type must be set to **Demo** and the base
   game's App ID entered in General Application Settings.
 - **"Demos are a separate App ID... The demo will need to be configured with
   depots, and builds must be created just like a full app."**
@@ -164,7 +164,7 @@ Valve's own docs:
   sending notifications (emails and mobile app notifications) to players who
   have the associated full game on their wishlist... available... for two weeks
   following the initial launch of your demo. **You can only take this action
-  once.**" — meaning it is worthless if you fire it at 40 wishlists. Bank it.
+  once.**" â€” meaning it is worthless if you fire it at 40 wishlists. Bank it.
 - **The step everyone forgets:** "After releasing the demo, you need to manually
   re-publish the base game's store page for the Download Demo button to appear."
 
@@ -184,34 +184,34 @@ Valve's own docs:
 ## 3. What SkyGear is, for store-facing copy
 
 Grounded in `DESIGN.md` and `STATUS.md`, not invented. **Do not publish any of
-this without reading it back against the current build** — `STATUS.md` moves
+this without reading it back against the current build** â€” `STATUS.md` moves
 weekly and store copy that overstates is a review-rejection and a refund risk.
 
 Facts that are true as of 2026-08-02 (`STATUS.md`):
 
 - Single-player, top-down steampunk **hero defense**. A sky-pirate captain
   defends her airship's **Boiler** across **twelve boarding waves**.
-- Skills are a **9 shapes × 4 elements** matrix (Cleave, Lance, Gale, Mortar,
-  Whip, Beam, Field, Pulse, Sentry × Ember, Frost, Arc, Steam) — 36 cells, all
+- Skills are a **9 shapes Ã— 4 elements** matrix (Cleave, Lance, Gale, Mortar,
+  Whip, Beam, Field, Pulse, Sentry Ã— Ember, Frost, Arc, Steam) â€” 36 cells, all
   live.
 - **A draft between waves**: 41 cards across seven scopes, with reroll and
   seeded rolls.
 - **Two classes** that do not play alike: the Captain (two dashes, ranged) and
   the Boilerwright (no dash; banks Head off the Boiler and spends it).
-- A **close-quarters pressure loop** — fight close, build pressure, vent.
+- A **close-quarters pressure loop** â€” fight close, build pressure, vent.
 - **Every fourth wave is not a wave** (events), and a **Colossus** boss.
 - Between runs: a **difficulty ladder (Heat)**, persistent progression gated
   behind a first victory, and **six ship fittings chosen into six berths**.
 - A **reactive deck**: powder kegs with fuses that chain, crates, lanterns,
   lane cannons you can repair.
-- Rendered in real 3D at a locked 41° camera, with a cutscene system and a
+- Rendered in real 3D at a locked 41Â° camera, with a cutscene system and a
   run report.
 
 Things that are **not** true and must not appear in copy: multiplayer, controller
 support (unverified in the repo), Steam Deck verification, achievements, cloud
 saves, Linux/Mac builds, or a release date.
 
-### Draft short description (300 characters — see §4.5 for the limit caveat)
+### Draft short description (300 characters â€” see Â§4.5 for the limit caveat)
 
 > Hold the Boiler. A sky-pirate captain defends her airship across twelve
 > boarding waves, drafting skills from a matrix of nine shapes and four
@@ -222,69 +222,69 @@ saves, Linux/Mac builds, or a release date.
 
 ---
 
-## 4. The asset manifest — this is the work queue
+## 4. The asset manifest â€” this is the work queue
 
 **Every dimension below is pixel-exact.** Wrong dimensions are among the most
-common causes of a bounced review, and each bounce costs another 3–5 business
+common causes of a bounced review, and each bounce costs another 3â€“5 business
 day cycle. Valve updated the accepted sizes in **August 2024** and states plainly
 that **"Old dimensions are no longer accepted"**
 ([Graphical Assets Overview](https://partner.steamgames.com/doc/store/assets)).
 
-### 4.1 Store capsules — all four REQUIRED
+### 4.1 Store capsules â€” all four REQUIRED
 
 | Asset | Exact size | Format | Where it shows |
 |---|---|---|---|
-| **Header capsule** | **920 × 430** | PNG/JPG **[unverified — Valve's page does not state a format for store capsules]** | Top of the store page, recommended sections, Big Picture |
-| **Small capsule** | **462 × 174** | as above | Search results, top sellers, new releases. Valve auto-generates 120×45 and 184×69 from it — **your logo must survive 120×45** |
-| **Main capsule** | **1232 × 706** | as above | Front-page carousels and featured sections |
-| **Vertical capsule** | **748 × 896** | as above | Seasonal sales and sale pages |
-| Page background *(optional)* | **1438 × 810** | | Auto-generated from your last screenshot if omitted |
+| **Header capsule** | **920 Ã— 430** | PNG/JPG **[unverified â€” Valve's page does not state a format for store capsules]** | Top of the store page, recommended sections, Big Picture |
+| **Small capsule** | **462 Ã— 174** | as above | Search results, top sellers, new releases. Valve auto-generates 120Ã—45 and 184Ã—69 from it â€” **your logo must survive 120Ã—45** |
+| **Main capsule** | **1232 Ã— 706** | as above | Front-page carousels and featured sections |
+| **Vertical capsule** | **748 Ã— 896** | as above | Seasonal sales and sale pages |
+| Page background *(optional)* | **1438 Ã— 810** | | Auto-generated from your last screenshot if omitted |
 
 Source: [Store Graphical Assets](https://partner.steamgames.com/doc/store/assets/standard).
 
-### 4.2 Library assets — all four REQUIRED
+### 4.2 Library assets â€” all four REQUIRED
 
 | Asset | Exact size | Format | Notes |
 |---|---|---|---|
-| **Library capsule** | **600 × 900** | PNG | Vertical. "Graphically-centric" |
-| **Library header** | **920 × 430** | PNG | Falls back to the store header capsule if omitted |
-| **Library hero** | **3840 × 1240** | PNG | Safe area **860 × 380** stays uncropped. **"This image cannot include any text"** |
+| **Library capsule** | **600 Ã— 900** | PNG | Vertical. "Graphically-centric" |
+| **Library header** | **920 Ã— 430** | PNG | Falls back to the store header capsule if omitted |
+| **Library hero** | **3840 Ã— 1240** | PNG | Safe area **860 Ã— 380** stays uncropped. **"This image cannot include any text"** |
 | **Library logo** | **1280 wide and/or 720 tall** | PNG, **transparent background** | Overlaid on the hero. Choose an anchor: left-bottom, centered-top, centered-middle, or centered-bottom |
 
 Source: [Library Assets](https://partner.steamgames.com/doc/store/assets/libraryassets).
 Note: "Library Assets are only visible for applications that have a published
-store page" — so they can't be previewed until step 1.11 lands.
+store page" â€” so they can't be previewed until step 1.11 lands.
 
-### 4.3 Icons — both REQUIRED
+### 4.3 Icons â€” both REQUIRED
 
 | Asset | Exact size | Format |
 |---|---|---|
-| **Shortcut icon** | **256 × 256** or **512 × 512** | .ico or .png (Valve generates the .ico from a png) |
-| **App icon** | **184 × 184** | **.jpg** |
+| **Shortcut icon** | **256 Ã— 256** or **512 Ã— 512** | .ico or .png (Valve generates the .ico from a png) |
+| **App icon** | **184 Ã— 184** | **.jpg** |
 
 Source: [Community and Client Icons](https://partner.steamgames.com/doc/store/assets/community).
 The app icon "will not appear properly on your store page until your app is
-published as 'Coming Soon' or as fully released" — don't debug a missing icon
+published as 'Coming Soon' or as fully released" â€” don't debug a missing icon
 before then.
 
 ### 4.4 Screenshots and trailer
 
-- **Screenshots: minimum 5, minimum 1920 × 1080, 16:9.** Valve requires
-  **gameplay footage only** — "no concept art or cinematics." This matters for
+- **Screenshots: minimum 5, minimum 1920 Ã— 1080, 16:9.** Valve requires
+  **gameplay footage only** â€” "no concept art or cinematics." This matters for
   SkyGear: **do not use the cutscene shots** as store screenshots. The `screens`
   tool (`SkyGear Tools.bat screens`) already photographs 25 screens at 4 widths;
-  the 1920-wide fight frames are the source. Plan on **8–10**, ordered so the
+  the 1920-wide fight frames are the source. Plan on **8â€“10**, ordered so the
   first three read as: a full deck under boarding pressure, the draft, and a
   vent/keg chain.
 - **Trailer: MANDATORY.** "As part of the release process on Steam, you will be
   required to upload a trailer for your product"
   ([Trailers](https://partner.steamgames.com/doc/store/trailer)).
-  - Up to **1920 × 1080**, **30/29.97 or 60/59.94 fps**
+  - Up to **1920 Ã— 1080**, **30/29.97 or 60/59.94 fps**
   - **16:9 preferred**, 4:3 accepted
   - **5,000+ Kbps**, **H.264 video + AAC audio preferred**
   - **.mov, .wmv, or .mp4**
-  - Poster image **600 × 380**, thumbnail **232 × 130** — auto-generated, but a
-    custom one must be **1920 × 1080** .jpg/.png **and must be an actual frame
+  - Poster image **600 Ã— 380**, thumbnail **232 Ã— 130** â€” auto-generated, but a
+    custom one must be **1920 Ã— 1080** .jpg/.png **and must be an actual frame
     from the video**
   - Practical: lead with gameplay in the first five seconds. **[secondary source]**
 - **Total embedded images/GIFs in the description must stay under 15 MB**
@@ -294,15 +294,15 @@ before then.
 
 | Field | Limit | Status |
 |---|---|---|
-| **Short description** | Valve says only "limited to a few hundred characters." Widely reported as **300** | **[unverified against a primary source]** — the editor enforces it; write to 300 and check |
+| **Short description** | Valve says only "limited to a few hundred characters." Widely reported as **300** | **[unverified against a primary source]** â€” the editor enforces it; write to 300 and check |
 | **About This Game** | No character limit documented. 15 MB cap on all embedded media | Verified: the 15 MB figure is Valve's |
-| Developer / Publisher | — | Your legal name from §1.3 |
+| Developer / Publisher | â€” | Your legal name from Â§1.3 |
 | Release date | "Coming Soon" is a valid answer, and you can give a quarter or year | |
-| Genres / Tags | Choose from Valve's lists in the editor. For SkyGear: Action, Indie; tags like Roguelike, Twin Stick Shooter, Tower Defense, Steampunk, Bullet Hell, Singleplayer, Deckbuilding | Tag lists are login-gated; §10 |
-| **System requirements** | Free text per OS. Windows only. State Windows 10 64-bit, a **Vulkan-capable GPU** (the Forward+ requirement from `DESIGN.md` §12), ~250 MB disk (build is ~216 MB unpacked), and note the D3D12 fallback measured under SG-25 | |
+| Genres / Tags | Choose from Valve's lists in the editor. For SkyGear: Action, Indie; tags like Roguelike, Twin Stick Shooter, Tower Defense, Steampunk, Bullet Hell, Singleplayer, Deckbuilding | Tag lists are login-gated; Â§10 |
+| **System requirements** | Free text per OS. Windows only. State Windows 10 64-bit, a **Vulkan-capable GPU** (the Forward+ requirement from `DESIGN.md` Â§12), ~250 MB disk (build is ~216 MB unpacked), and note the D3D12 fallback measured under SG-25 | |
 | Languages | English only | |
 
-**Valve announced changes to store page written descriptions** — I found the
+**Valve announced changes to store page written descriptions** â€” I found the
 announcement in search but **could not fetch its body** ([announcement
 4201376568915048836](https://steamcommunity.com/groups/steamworks/announcements/detail/4201376568915048836)).
 Read it before writing final copy; it may have changed the limits above.
@@ -311,21 +311,21 @@ Read it before writing final copy; it may have changed the limits above.
 
 Three mandatory sections ([Content Survey](https://partner.steamgames.com/doc/gettingstarted/contentsurvey)):
 
-1. **General Content** — generates regional age ratings shown on the page.
+1. **General Content** â€” generates regional age ratings shown on the page.
    SkyGear is fantasy violence against boarders, no gore claims to make.
    Germany has a **mandatory USK rating** requirement with its own doc.
-2. **Mature Content** — "You must disclose all the adult content you've uploaded
+2. **Mature Content** â€” "You must disclose all the adult content you've uploaded
    in your builds, even if it's not accessible or presented in your product."
    Nothing applies here.
-3. **Generative AI Content** — **this one is a real decision for SkyGear.** The
+3. **Generative AI Content** â€” **this one is a real decision for SkyGear.** The
    survey distinguishes **Pre-Generated** (AI-created content shipped at launch)
    from **Live-Generated** (created during play). SkyGear's art comes from
-   `tools/forge.py` and its 3D models from Meshy — that is **pre-generated AI
+   `tools/forge.py` and its 3D models from Meshy â€” that is **pre-generated AI
    content and must be disclosed.** Disclose it accurately and specifically
    (which assets, which tools); Valve permits it, and a false negative here is
    a genuine takedown risk rather than a rejection you can patch.
 
-### 4.7 Capsule content rules — the ones that get art rejected
+### 4.7 Capsule content rules â€” the ones that get art rejected
 
 In force since **September 1, 2022** ([Graphical Asset Rules](https://partner.steamgames.com/doc/store/assets/rules)).
 Base capsules are limited to **"game artwork, the game name, and any official
@@ -333,15 +333,15 @@ subtitle."** Explicitly prohibited:
 
 - Review scores of any kind, including Steam's own
 - Award names, symbols, or logos
-- Discount or promotional copy — no "On Sale Now", no "% off"
+- Discount or promotional copy â€” no "On Sale Now", no "% off"
 - Text or imagery promoting a different product
-- **"Any other miscellaneous text"** — this is the one that catches indies.
+- **"Any other miscellaneous text"** â€” this is the one that catches indies.
   **No "DEMO OUT NOW" on the capsule.** **[secondary sources report Valve
   actively rejecting exactly that string since 2024.]**
 
 Requirements: **"a readable product logo/name"** and **"accurate dimensions."**
 Non-compliance risks reduced store visibility and ineligibility for Steam sales
-and events — so this is not merely a review gate.
+and events â€” so this is not merely a review gate.
 
 Library capsule: logo and optional subtitle, **no other text**. Library hero:
 **no text at all**.
@@ -373,7 +373,7 @@ vertical capsule.
 If a demo gets its **own** store page (optional), it needs its own copy of the
 capsule set, and Valve requires the content be "specific to the demo and not the
 full game." **Recommendation: skip the separate demo page initially.** Take the
-minimal-presence option — the demo appears as a button on the SkyGear page —
+minimal-presence option â€” the demo appears as a button on the SkyGear page â€”
 and add a demo page later if it earns one. That halves this manifest.
 
 ---
@@ -391,7 +391,7 @@ and add a demo page later if it earns one. That halves this manifest.
   can submit your build for review."**
 - **"Once your game has been reviewed and approved, there is no need to go
   through review again. You are free to update your game as much as you need
-  to."** — this is the good news for the loop: after the demo is approved,
+  to."** â€” this is the good news for the loop: after the demo is approved,
   SteamPipe pushes are as frictionless as butler pushes.
 - Approved titles do not release themselves; you press the button.
 
@@ -403,20 +403,20 @@ Sources: [Review Process](https://partner.steamgames.com/doc/store/review_proces
 Valve does not publish a rejection list. From the rules that *are* published,
 plus **[secondary sources]**:
 
-- **Wrong pixel dimensions** — pixel-exact or bounced. Cheapest failure to avoid.
-- **Text on capsules** beyond logo and subtitle (§4.7).
-- **Illegible logo at 120 × 45.**
-- **Non-gameplay screenshots** — cutscenes and concept art are disallowed by the
+- **Wrong pixel dimensions** â€” pixel-exact or bounced. Cheapest failure to avoid.
+- **Text on capsules** beyond logo and subtitle (Â§4.7).
+- **Illegible logo at 120 Ã— 45.**
+- **Non-gameplay screenshots** â€” cutscenes and concept art are disallowed by the
   screenshot requirement.
 - Store copy that describes features the build does not have. Given how fast
   `STATUS.md` moves, re-read the copy against the shipping build before
   submitting.
-- Build review checks the game "starts up properly" — a Vulkan-only Forward+
+- Build review checks the game "starts up properly" â€” a Vulkan-only Forward+
   build on a reviewer's machine is a real risk. `scripts/renderer_check.gd`
   already reports the driver; make sure the D3D12 path (verified working under
   SG-25) is reachable and that the Compatibility warning is legible, because a
   reviewer who lands on Compatibility gets a game with the Decal telegraphs
-  missing (`DESIGN.md` §13m).
+  missing (`DESIGN.md` Â§13m).
 
 ### Calendar from nothing, starting 2026-08-03
 
@@ -426,18 +426,18 @@ is the only real unknown.
 | Phase | Optimistic | Realistic | Blocking on |
 |---|---|---|---|
 | Steamworks signup, agreement | Aug 3 | Aug 3 | you |
-| Tax + bank + identity verification | Aug 10 | **Aug 24** | **Valve — 2–7 business days documented for tax alone; bank verification undocumented** |
+| Tax + bank + identity verification | Aug 10 | **Aug 24** | **Valve â€” 2â€“7 business days documented for tax alone; bank verification undocumented** |
 | Pay $100, create app "SkyGear" | Aug 10 | Aug 24 | you. **Starts the 30-day clock** |
-| Asset manifest built (§4) | Aug 17 | Aug 28 | the loop — **runs in parallel from Aug 3, do not serialize this** |
+| Asset manifest built (Â§4) | Aug 17 | Aug 28 | the loop â€” **runs in parallel from Aug 3, do not serialize this** |
 | Store page filled, marked ready for review | Aug 18 | Aug 31 | you upload, loop supplies |
-| **Store review** | Aug 25 | **Sep 9** | Valve, 3–5 business days, plan 7 |
-| **Post as Coming Soon → wishlists begin** | **Aug 25** | **Sep 9** | you |
+| **Store review** | Aug 25 | **Sep 9** | Valve, 3â€“5 business days, plan 7 |
+| **Post as Coming Soon â†’ wishlists begin** | **Aug 25** | **Sep 9** | you |
 | Demo app created, depots configured, build uploaded | Aug 27 | Sep 11 | loop (`pack_steam.py`) |
 | Demo store presence marked ready | Aug 28 | Sep 14 | you |
 | **Demo review (store + build)** | Sep 4 | **Sep 23** | Valve |
 | 30 days from fee payment elapses | Sep 9 | **Sep 23** | calendar |
 | **Demo released, wider community playing** | **Sep 9** | **Sep 24** | you press it |
-| Full game release earliest | — | any time ≥2 weeks after Coming Soon and ≥30 days after fee | |
+| Full game release earliest | â€” | any time â‰¥2 weeks after Coming Soon and â‰¥30 days after fee | |
 
 **Read across:** "page live with a demo" is **five to seven weeks** from a
 standing start, of which roughly three weeks is pure waiting. The loop's work
@@ -449,7 +449,7 @@ the optimistic column to hold at every step.** February 2027 is the sane target.
 
 ---
 
-## 6. Build upload — SteamPipe vs. the butler flow you have
+## 6. Build upload â€” SteamPipe vs. the butler flow you have
 
 ### What is the same
 
@@ -460,29 +460,29 @@ changed. Both want a *directory*, not a zip. Both are scriptable.
 
 | | **butler (itch)** | **SteamPipe (Steam)** |
 |---|---|---|
-| Artifact | you push `SkyGear-Windows.zip` | you push a **directory** — Steam does its own compression and delta-chunking at ~1 MB granularity. **Do not zip.** This is the single biggest change to `pack_itch.py`'s logic |
+| Artifact | you push `SkyGear-Windows.zip` | you push a **directory** â€” Steam does its own compression and delta-chunking at ~1 MB granularity. **Do not zip.** This is the single biggest change to `pack_itch.py`'s logic |
 | Destination | a *channel* (`user/game:windows`) | a **depot** (a numeric ID under your App ID) |
-| Config | none, flags on the command line | **`.vdf` script files** — an app-build VDF and optionally per-depot VDFs |
+| Config | none, flags on the command line | **`.vdf` script files** â€” an app-build VDF and optionally per-depot VDFs |
 | Credentials | butler API key | a **dedicated build Steam account** with "Edit App Metadata" and "Publish App Changes To Steam", plus a phone or Steam Mobile App attached to set a build live |
 | Going live | immediate | build lands, then you **manually** set it live on the default branch in App Admin. `"SetLive" "branchname"` works for **beta branches only** |
 | First push | just works | needs **build review** the first time |
-| Dry run | — | **`"Preview" "1"`** generates logs and manifests without uploading. Use it |
+| Dry run | â€” | **`"Preview" "1"`** generates logs and manifests without uploading. Use it |
 
 Source: [Uploading to Steam](https://partner.steamgames.com/doc/sdk/uploading).
 
 ### Depot layout for SkyGear
 
 Simple, because the game is one file. The demo is a *separate App ID with its
-own depot* — it does not share the base game's depot.
+own depot* â€” it does not share the base game's depot.
 
 ```
 App 0000000  SkyGear            depot 0000001  windows content
 App 0000002  SkyGear Demo       depot 0000003  windows demo content
 ```
 
-### `tools/pack_steam.py` — concrete sketch
+### `tools/pack_steam.py` â€” concrete sketch
 
-Parallel to `pack_itch.py`, sharing its export step. **Not written yet — this is
+Parallel to `pack_itch.py`, sharing its export step. **Not written yet â€” this is
 the spec, not the code.**
 
 ```
@@ -499,19 +499,19 @@ What it does, in order:
    function; do not fork it.
 2. **Stage a directory**, not a zip:
    `builds/steam/<app>/content/SkyGear-Godot.exe` plus `README.txt`. Wipe the
-   directory first — SteamPipe ships what is in `content/`, so a stale file from
+   directory first â€” SteamPipe ships what is in `content/`, so a stale file from
    a previous build silently ships forever.
 3. **Refuse to ship a dirty tree.** `STATUS.md` records this being bitten three
    times in one day: build from a clean `git worktree` of HEAD or you ship a
    half-written file. Make this a hard failure, not a warning, and record the
    commit SHA into the staged `README.txt` so a bug report names a build.
-4. **Gate on the harness.** `SkyGear Tools.bat harness` must be green — ~~926~~
-   **1117 checks as of 2026-08-04, and the number in this line is not the gate:
+4. **Gate on the harness.** `SkyGear Tools.bat harness` must be green â€” ~~926~~
+   **1128 checks as of 2026-08-04, and the number in this line is not the gate:
    the gate is "green", whatever it prints.** A store build is exactly the
    artifact that should never ship red. (Corrected under board SG-191; the 926
    had been stale by ~190 checks.)
 5. **Generate the VDFs** from `tools/steam.json` (app IDs, depot IDs, branch
-   names — App IDs are *not* secret, but keep the build account password out of
+   names â€” App IDs are *not* secret, but keep the build account password out of
    the repo the way `MESHY_API_KEY` already is; read from `STEAM_BUILD_PASSWORD`
    or a gitignored `tools/.steam_key`, and add `steamcmd` credentials to the
    `git grep` pre-commit habit).
@@ -520,7 +520,7 @@ What it does, in order:
    "AppBuild"
    {
      "AppID"       "0000002"
-     "Desc"        "SkyGear Demo — <git sha> — <n> harness checks"
+     "Desc"        "SkyGear Demo â€” <git sha> â€” <n> harness checks"
      "ContentRoot" "..\\..\\builds\\steam\\demo\\content\\"
      "BuildOutput" "..\\..\\builds\\steam\\demo\\output\\"
      "Preview"     "0"
@@ -538,7 +538,7 @@ What it does, in order:
 6. **Upload**:
    `steamcmd.exe +login <build_account> <password> +run_app_build <path>.vdf +quit`
 7. **Report, and refuse to lie.** Print the BuildID, the depot manifest ID, the
-   staged byte count, and — critically — **"this is NOT live; set it live in App
+   staged byte count, and â€” critically â€” **"this is NOT live; set it live in App
    Admin"**, mirroring the way `pack_itch.py` prints its "do NOT tick 'played in
    the browser'" reminder. A script that implies it shipped when it staged is the
    *data with no reader* failure mode wearing a different hat.
@@ -556,7 +556,7 @@ re-upload.
 **No, not for this.** Nothing in the store-page or demo path requires calling
 Steam's API. Achievements, cloud saves, the overlay's rich presence and the
 Steam Input layer all do, and Godot needs the third-party **GodotSteam** module
-for any of it. **Keep that out of scope until the demo is live** — it is a
+for any of it. **Keep that out of scope until the demo is live** â€” it is a
 native module that changes how the project builds, and it is not on the critical
 path to a single wishlist.
 
@@ -566,8 +566,8 @@ path to a single wishlist.
 
 ### How wishlists actually work
 
-I **could not reach Valve's wishlist documentation** — the marketing doc index
-resolved but not the page body (§10). So this section is deliberately thin on
+I **could not reach Valve's wishlist documentation** â€” the marketing doc index
+resolved but not the page body (Â§10). So this section is deliberately thin on
 Valve-sourced mechanics, and what follows is what the *demo* doc supports plus
 clearly-labelled general knowledge.
 
@@ -578,8 +578,8 @@ From primary sources:
   "Allows players to add your game to their Wishlist").
 - Valve: **"there's not a strong downside to having a store page up for a long
   time ahead of release,"** provided the game does not change significantly.
-  This is an explicit endorsement of putting the page up early — do it.
-- The demo's **one-time wishlist notification** (§2), available for two weeks
+  This is an explicit endorsement of putting the page up early â€” do it.
+- The demo's **one-time wishlist notification** (Â§2), available for two weeks
   after the demo first goes live, once ever.
 - Valve rate-limits notifications: a **two-week cooldown between wishlist
   notifications per App ID**, to avoid oversaturation.
@@ -591,14 +591,14 @@ mechanical case for a demo since 2024 is strong: demos get independent store
 surfaces, appear in New & Trending, and are the entry requirement for Next Fest.
 The counter-argument circulating among developers is that a satisfying demo can
 substitute for the purchase. I found no Valve data either way. For SkyGear
-specifically — a run-based game where the loop *is* the pitch — a demo that ends
+specifically â€” a run-based game where the loop *is* the pitch â€” a demo that ends
 at wave 4 or 6, or caps at Heat 0 and one class, is the obvious shape: it shows
-the shape×element matrix and the draft, and stops before the Colossus.
+the shapeÃ—element matrix and the draft, and stops before the Colossus.
 
-**Concretely, the demo cut I would propose:** waves 1–6, Captain only, Heat 0,
+**Concretely, the demo cut I would propose:** waves 1â€“6, Captain only, Heat 0,
 no fittings/berths, results screen intact, and an end card that says what the
 full game has. That withholds the second class, the boss, and all of the
-between-run meta — the three things that make someone want the rest.
+between-run meta â€” the three things that make someone want the rest.
 
 ### Practical playtest feedback from friends
 
@@ -611,13 +611,13 @@ build and does not touch Steam:
   and it is the thing `STATUS.md` says the telemetry was built for: *"one run is
   an anecdote; the reason v11 tracks damage per skill and time at each range is
   so ten of them read as a shape."*
-- **The results screen is already a copyable run report** — tell them the copy
+- **The results screen is already a copyable run report** â€” tell them the copy
   key exists, because a screenshot loses the numbers.
 - Three questions, not a form: *what wave did you die on, what did you not
   understand, and when were you bored.*
 - Once the demo is public, Steam gives you the **Community Hub** on the Coming
   Soon page (Valve names this as a Coming Soon benefit) and demo playtime
-  statistics — but a Steam demo has no built-in feedback channel beyond
+  statistics â€” but a Steam demo has no built-in feedback channel beyond
   discussions and reviews.
 
 ### Next Fest, in one paragraph
@@ -671,10 +671,10 @@ LATER          Next Fest, February 2027.  One shot, ever.
 ## 9. Risks specific to this project
 
 1. **Vulkan-only is a review risk and a player risk.** Forward+ is a deliberate
-   choice (`DESIGN.md` §12) and the right one, but the store page must state a
+   choice (`DESIGN.md` Â§12) and the right one, but the store page must state a
    Vulkan-capable GPU in system requirements, and a reviewer who lands on the
    Compatibility fallback gets a game **missing every telegraph** because
-   Compatibility cannot draw `Decal` (`DESIGN.md` §13m). Verify
+   Compatibility cannot draw `Decal` (`DESIGN.md` Â§13m). Verify
    `scripts/renderer_check.gd`'s warning is impossible to miss before submitting.
 2. **Store copy drifting ahead of the build.** `STATUS.md` changes weekly and
    several sections record features that were later cut (the stowage spine,
@@ -684,7 +684,7 @@ LATER          Next Fest, February 2027.  One shot, ever.
    models and `forge.py` art are pre-generated AI content. Disclose precisely.
 4. **The one-time levers.** The demo wishlist notification (once, ever) and Next
    Fest (once, ever). Both are easy to waste early.
-5. **Legal name consistency.** §1.3 and §1.5 must match, and the store page's
+5. **Legal name consistency.** Â§1.3 and Â§1.5 must match, and the store page's
    Developer field will show it. Decide now whether that is "Alex R" or a
    business name, because changing it later touches banking.
 6. **A build-account password in the repo.** `pack_steam.py` introduces exactly
@@ -698,7 +698,7 @@ LATER          Next Fest, February 2027.  One shot, ever.
 Stated plainly, per this project's rule that a claim is measured or sourced.
 
 **Pages that require a Steamworks partner login and that I could not reach.**
-Everything behind `partner.steamgames.com` that is not public documentation —
+Everything behind `partner.steamgames.com` that is not public documentation â€”
 the app landing page, the release checklist itself, the tag and genre pickers,
 the pricing matrix, the key request form, the build upload page, and the
 Playtest configuration. **What he will find there:** the release checklist is a
@@ -723,20 +723,20 @@ promoted to a branch.
 - **File formats for the store capsules.** Valve's standard-assets page states
   dimensions but not formats. Library assets and icons *are* format-specified.
 - **The bank verification duration.** Not documented by Valve anywhere I could
-  reach. The 1–3 week planning figure is inference from the documented 2–7
+  reach. The 1â€“3 week planning figure is inference from the documented 2â€“7
   business day tax step plus community reports.
 - **Whether Valve accepts a Canadian SIN as the "foreign TIN"** for W-8BEN
   treaty benefits, and **whether Canadian copyright royalties land at 0%**. The
-  doc gives a 0–30% range and says a foreign or US TIN is required, nothing more.
+  doc gives a 0â€“30% range and says a foreign or US TIN is required, nothing more.
   This is an accountant question, not a research question.
 - **The body of "The Great Steam Demo Update, 2024."** Both the Community and
   Steam News copies returned page chrome only across repeated attempts. The
-  discoverability claims in §2 rest on secondary summaries; the demo mechanics
-  in §2 are from Valve's demo documentation and are solid.
+  discoverability claims in Â§2 rest on secondary summaries; the demo mechanics
+  in Â§2 are from Valve's demo documentation and are solid.
 - **The body of "Changes Coming to Store Page Written Descriptions."** Same
-  problem. Read it before finalising copy — it may supersede §4.5.
+  problem. Read it before finalising copy â€” it may supersede Â§4.5.
 - **Valve's wishlist documentation.** The marketing index resolved, the page did
-  not. §7's mechanics are thinner than they should be as a result.
+  not. Â§7's mechanics are thinner than they should be as a result.
 - **Whether SkyGear currently has controller support.** Not established from the
   repo in this pass; `scripts/keybinds.gd` covers keyboard rebinding only. Do
   not tick "Full Controller Support" without checking.
@@ -763,7 +763,7 @@ promoted to a branch.
 - [Review Process](https://partner.steamgames.com/doc/store/review_process)
 - [Store Page, Building and Editing](https://partner.steamgames.com/doc/store/editing)
 - [Store Page Written Description](https://partner.steamgames.com/doc/store/page/description)
-- [Graphical Assets — Overview](https://partner.steamgames.com/doc/store/assets)
+- [Graphical Assets â€” Overview](https://partner.steamgames.com/doc/store/assets)
 - [Store Graphical Assets](https://partner.steamgames.com/doc/store/assets/standard)
 - [Library Assets](https://partner.steamgames.com/doc/store/assets/libraryassets)
 - [Community and Client Icons](https://partner.steamgames.com/doc/store/assets/community)
@@ -772,5 +772,5 @@ promoted to a branch.
 - [Uploading to Steam (SteamPipe)](https://partner.steamgames.com/doc/sdk/uploading)
 - [Steam Next Fest](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest)
 - [Steam Next Fest: October 2026](https://partner.steamgames.com/doc/marketing/upcoming_events/nextfest/2026october)
-- [The Great Steam Demo Update, 2024](https://steamcommunity.com/groups/steamworks/announcements/detail/4155211502162971563) — body unreachable
-- [Changes Coming to Store Page Written Descriptions](https://steamcommunity.com/groups/steamworks/announcements/detail/4201376568915048836) — body unreachable
+- [The Great Steam Demo Update, 2024](https://steamcommunity.com/groups/steamworks/announcements/detail/4155211502162971563) â€” body unreachable
+- [Changes Coming to Store Page Written Descriptions](https://steamcommunity.com/groups/steamworks/announcements/detail/4201376568915048836) â€” body unreachable

@@ -159,6 +159,37 @@ func _summarise(kind: String, mode: String, rows: Array) -> void:
 	var n := maxf(1.0, float(resolved))
 	print("  %-8s %-6s  resolved %3d  aimed %3d  LANDED %3d  swallowed %3d  elsewhere %3d   taken %6.1f   dist %5.1f  off-axis %5.1f deg"
 		% [kind, mode, resolved, aimed, landed, swallowed, elsewhere, taken, dists / n, offaxis / n])
+	## THE WALK, UNDER THE SWING (SG-194). Printed for every arm and not only the
+	## one with zeroes in it, because "he closed and missed" and "he never closed"
+	## are the two explanations of the same empty ledger and they want opposite
+	## fixes — the first is a hitbox or an arc, the second is a speed.
+	var near := 1.0e9
+	var dmean := 0.0
+	var in_trip := 0.0
+	var trip := 0.0
+	var clock := 0.0
+	for r in mine:
+		near = minf(near, float(r.get("near", 1.0e9)))
+		dmean += float(r.get("dist_mean", 0.0))
+		in_trip += float(r.get("t_in_trip", 0.0))
+		trip = float(r.get("trip", 0.0))
+		clock += float(r.get("clock", 0.0))
+	var runs := maxf(1.0, float(mine.size()))
+	var window := 0.0
+	for r in mine:
+		window += float(r.get("seconds", 0.0))
+	## `no sample` RATHER THAN `0.0000`, because they mean opposite things. The
+	## identity is only sampled on frames where the subject was walking with room
+	## around it, and in STAND and CROWD it is pressed against the captain for the
+	## whole window — so those arms legitimately contribute no frames, and a
+	## printed 0.0000 reads as the loudest possible failure of a check that was
+	## never run. The arms that DO walk read 1.00.
+	var q := clock / runs
+	print("           %-6s  CLOSED to %5.0f at best (a swing trips at %.0f), mean gap %5.0f, %4.1f%% of the window inside it   [rig clock %s]"
+		% ["", near, trip, dmean / runs, 100.0 * in_trip / maxf(0.001, window),
+			"no sample — it never walked in the clear" if q <= 0.0001
+			else ("%.4f" % q if absf(q - 1.0) <= 0.02
+				else "%.4f REFUSED" % q)])
 	for r in mine:
 		if not str(r.get("note", "")).is_empty():
 			print("        %s" % str(r.get("note", "")))
@@ -432,6 +463,18 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 	var elsewhere := 0
 	var dist_sum := 0.0
 	var offaxis_sum := 0.0
+	## THE CLOSING CENSUS (SG-194) and the rig's own floor. `trip` is the distance
+	## at which this subject's `move` state flips to `windup` — `attack_range` plus
+	## the captain's 17-unit body, read off the same table the simulation reads,
+	## because a swing that never trips is the outcome under investigation and a
+	## typed constant here would be the third derivation of it.
+	var trip: float = float(SkyGearData.ENEMIES[kind].attack_range) + 17.0
+	var near := 1.0e9
+	var dist_all := 0.0
+	var dist_frames := 0
+	var t_in_trip := 0.0
+	var move_ground := 0.0
+	var move_expect := 0.0
 	var steps := 0
 	var total := int(seconds / DT)
 
@@ -488,6 +531,7 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 		## `attack_direction` standing at this instant, before `move_and_slide`
 		## touches either. Reading them afterwards would report the recovery frame.
 		var pre_state := str(subject.state)
+		var pre_pos: Vector2 = subject.global_position
 		var to_player: Vector2 = game.player.global_position - subject.global_position
 		var pre_dist := to_player.length()
 		var pre_reach: float = subject.swing_wedge_reach() + 17.0
@@ -525,6 +569,47 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 			break
 
 		var post_state := str(subject.state)
+		## --- THE CLOSING CENSUS (board SG-194) ------------------------------
+		## The owner: *"Furnace knights dont seem to do any damage to me."* The
+		## ledger above can only describe swings that HAPPENED, and against a
+		## captain who moves the knight's answer turned out to be that none do —
+		## a column of zeroes that says nothing about why. These four numbers are
+		## the why, and they are about the WALK rather than the swing: how close
+		## he ever got, how close he was on average, and how much of the window he
+		## spent inside the distance at which a swing would trip at all.
+		near = minf(near, pre_dist)
+		dist_all += pre_dist
+		dist_frames += 1
+		if pre_dist <= trip:
+			t_in_trip += DT
+		## AND THE RIG'S OWN FLOOR, WHICH THIS FILE DID NOT HAVE (SG-190, and one
+		## frame deeper — see `tools/crew_probe.gd`). SG-190 put an
+		## `await physics_frame` at the top of every hand-stepping rig so that
+		## `move_and_slide` would integrate the PHYSICS delta rather than an idle
+		## one. What it did not do is check that the physics delta is the `DT` this
+		## loop counts: measured in `crew_probe`, a tree can report
+		## `physics_ticks_per_second` 20 and `is_in_physics_frame()` true while
+		## `get_physics_process_delta_time()` still returns 1/60. A rig that asks
+		## for a clock and is told it has one is not a rig that has one. So the
+		## identity is measured here and printed above the result: after
+		## `move_and_slide`, the boarder's `velocity` is back to the `walk` it was
+		## moved with (the SG-62 line), so the ground it covered this step must be
+		## exactly `|velocity| * DT`.
+		##
+		## AND THE SAMPLE IS RESTRICTED TO A BOARDER WITH ROOM TO WALK, which the
+		## first draft of this line was not and which made it unreadable. In STAND
+		## the subject is pressed against the captain's body: `move_and_slide`
+		## slides it along her collider, so it covers less ground than `|v| * DT`
+		## for a reason that has nothing to do with any clock, and the quotient
+		## came back **0.33** — which is exactly the ratio a genuine clock fault
+		## would produce, and would have been read as one. `trip + 40` is clear of
+		## every body in the fixture. In the arms where the subject actually walks
+		## the identity reads **1.00**, so `melee_probe`'s 0.05 step and the delta
+		## `move_and_slide` integrates ARE one clock — which is the thing SG-190
+		## fixed the first half of and nothing had ever checked the second half of.
+		if pre_state == "move" and post_state == "move" and pre_dist > trip + 40.0:
+			move_ground += pre_pos.distance_to(subject.global_position)
+			move_expect += subject.velocity.length() * DT
 		if pre_state == "move" and post_state == "windup":
 			started += 1
 		if pre_state == "windup" and post_state == "recover":
@@ -535,7 +620,15 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 			## only the captain branch tests her, so a swing aimed at a cannon or a
 			## crewman can never hit her however close she stands. Counting that as
 			## a MISS would blame the wedge for a decision made three lines earlier.
-			if subject.chases_captain() and pre_dist < 280.0:
+			##
+			## THIS LINE USED TO BE `chases_captain() and pre_dist < 280.0` — the
+			## victim chain's first branch, re-derived here off a literal 280 typed
+			## in a second file (board SG-193). It agreed with the simulation right
+			## up until the day somebody moved the radius, which is the whole of
+			## STATUS's second failure mode. `enemy.last_swing` is written BY the
+			## resolve, at the resolve, out of the answer the resolve used — so it
+			## is not a better copy of the rule, it is the rule's own record.
+			if not subject.last_swing.is_empty() and str(subject.last_swing.aimed) == "player":
 				aimed += 1
 			if _by_hand(game, kind) > pre_taken:
 				landed += 1
@@ -565,6 +658,9 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 		"swallowed": swallowed, "elsewhere": elsewhere,
 		"taken": _by_hand(game, kind), "dist_sum": dist_sum, "offaxis_sum": offaxis_sum,
 		"seconds": float(steps) * DT, "note": note,
+		"trip": trip, "near": near, "dist_mean": dist_all / maxf(1.0, float(dist_frames)),
+		"t_in_trip": t_in_trip, "clock": move_ground / maxf(0.001, move_expect),
+		"move_secs": move_expect,
 	}
 	bot.release()
 	game.queue_free()
