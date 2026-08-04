@@ -182,6 +182,10 @@ var target_facing := 0.0              ## radians, wanted
 var state := "idle"
 var _clip := ""
 var _one_shot_until := 0.0
+## The playback rate a one-shot was STARTED at, held for its whole life. See the
+## rate branch in `want()` — board SG-188. A rate recomputed every frame from a
+## window that is counting down is a swing that speeds up as it swings.
+var _one_shot_rate := 1.0
 var _clock := 0.0
 var _flash := 0.0
 var _squash := 0.0
@@ -576,7 +580,16 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 			## animation block a 0.36 second attack.
 			_one_shot_until = _clock + (window if window > 0.0
 				else anim.get_animation(clip).length)
-	elif not anim.is_playing():
+	elif not anim.is_playing() and not ONE_SHOT.get(next, false):
+		## THIS ARM IS FOR A CYCLE THE BLEND DROPPED, NOT FOR A ONE-SHOT THAT
+		## FINISHED (board SG-188). A run or an idle that has stopped playing is
+		## a bug and restarting it is the repair. A one-shot that has stopped
+		## playing has DONE ITS JOB, and restarting it is how the furnace knight
+		## came to play his swing **2.50 times per attack**: the clip was fitted
+		## to less than the state it was held in, ran out, and this line dealt it
+		## again — read by the player as one swing at several times the speed.
+		## A finished one-shot holds its last pose now, which for a swing is the
+		## follow-through, and is exactly what a recovery should look like.
 		anim.play(clip)
 	## Speed-matched playback. A run authored for 210 units a second played by
 	## someone moving at 300 is a figure skating; the cycle has to keep up with
@@ -606,9 +619,25 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 		var authored: float = AUTHORED_WALK_SPEED if _clip.begins_with("walk") \
 			else AUTHORED_RUN_SPEED
 		anim.speed_scale = clampf(speed / (authored * stride), 0.55, 1.9)
-	elif ONE_SHOT.get(next, false) and window > 0.0 and has_clip(clip):
-		anim.speed_scale = clampf(anim.get_animation(clip).length / window,
-			ATTACK_RATE_MIN, ATTACK_RATE_MAX)
+	elif ONE_SHOT.get(next, false) and has_clip(clip):
+		## SET ONCE, ON THE FRAME THE ONE-SHOT STARTS, AND HELD FOR ITS LIFE
+		## (board SG-188). This used to be recomputed on EVERY frame the state
+		## was held, from whatever `window` the caller happened to pass that
+		## frame — and `_sync_rig` passes an attacking boarder's `state_time`,
+		## which COUNTS DOWN. So the divisor shrank toward zero and the rate rose
+		## with it: the furnace knight's swing entered at 2.03x and accelerated
+		## into the 4.00x clamp, twice per attack, once through the windup and
+		## again through the recovery.
+		##
+		## The comment beside the crossing in `view3d.gd` already asserted this
+		## was how it worked — *"`want` re-reads the window only on the frame the
+		## state changes, so this is the value the clip is fitted to for the
+		## entire leap"* — and it was true of the CLIP and false of the RATE.
+		## Two places knowing one thing differently; it is one place now.
+		if starting:
+			_one_shot_rate = clampf(anim.get_animation(clip).length / window,
+				ATTACK_RATE_MIN, ATTACK_RATE_MAX) if window > 0.0 else 1.0
+		anim.speed_scale = _one_shot_rate
 	else:
 		anim.speed_scale = 1.0
 
@@ -643,6 +672,28 @@ func _variant_of(next: String, window: float = 0.0) -> String:
 				if anim.get_animation(name).length < anim.get_animation(best).length:
 					best = name
 			return best
+		## AND WHEN SOME OF THEM FIT AT THE SPEED THEY WERE AUTHORED AT, THOSE
+		## ARE THE ONES (board SG-188). The filter above is the "can it physically
+		## be got through" gate and 4.00x is the rate past which a swing stops
+		## reading at all; it says nothing about whether the beat is the same
+		## twice running. The knight's pack delivers six swing variants and one of
+		## them, `swing2`, is 3.53 s against a next-longest of 1.87 — a longer
+		## MOVE, not a variation of the same one — so rotating it into a 1.90 s
+		## attack fast-forwarded it at 1.86x while its five neighbours played at
+		## 0.75x to 0.98x. That is the tempo changing shot to shot, which is half
+		## of what "it looks too fast" is.
+		##
+		## THERE IS NO NEW CONSTANT HERE, and that is deliberate: the bar is 1.0x,
+		## the speed the animator authored. And the rule can only ever bite where
+		## there is a choice — for the captain, whose skill windows are 0.24 to
+		## 0.62 s, NOTHING in her pack fits at 1.0x, `natural` comes back empty
+		## and her rotation is byte-for-byte the one she has always had.
+		var natural: Array[String] = []
+		for name in live:
+			if anim.get_animation(name).length <= window:
+				natural.append(name)
+		if not natural.is_empty():
+			live = natural
 	_variant = (_variant + 1) % live.size()
 	return live[_variant]
 

@@ -155,6 +155,36 @@ func _windup_scale() -> float:
 	return SkyGearWorkshop.windup_for(int(game.heat))
 
 
+## HOW LONG ONE ATTACK LASTS — which is NOT what `state_time` answers, because
+## `state_time` is a COUNTDOWN and this is a duration (board SG-188).
+##
+## `view3d.gd` holds a rig in its `swing` state for the windup AND the recovery,
+## because that is what one attack looks like from outside the simulation: the
+## tell, the hit, the follow-through. So the clip has to be fitted to the whole
+## of that, ONCE, and the number to fit it to is the beat's own length. Handing
+## the countdown instead fitted the clip to whatever was LEFT of the beat on
+## every frame, which made the swing ACCELERATE into `ATTACK_RATE_MAX` twice per
+## attack — and that is the exact defect `view3d.gd` already names beside the
+## half-health turn ("a window that shrinks every frame is a one-shot that
+## accelerates as it plays"). The turn was written against it, the crossing was
+## written against it, and the attack was the one that was not.
+##
+## ASKED OF THE ENEMY RATHER THAN RECOMPUTED IN THE RENDERER, because the wind is
+## shortened by `_windup_scale()` at Heat 2 and a renderer restating that would
+## be two functions disagreeing about one number with a difficulty ladder
+## attached — STATUS failure mode two, which is where three visual bugs came
+## from. It reads the table and changes nothing: no state, no timer, no damage.
+func attack_beat() -> float:
+	## A stomp winds on its OWN telegraph and resolves into the same `recover`
+	## the swing does, so the beat is a different length for it — and the
+	## recovery has to keep answering for the blow it is recovering from, which
+	## `stomp_struck` is already the simulation's word for.
+	var wind: float = stomp_wind if (state == "stomp"
+			or (state == "recover" and stomp_struck)) \
+		else float(config.get("windup", 0.4)) * _windup_scale()
+	return maxf(0.01, wind + float(config.get("recover", 0.4)))
+
+
 ## DOES THE SWING LAND — and the answer is the shape that was DRAWN.
 ##
 ## Board SG-3 made the reach one number instead of two: the wedge is drawn at

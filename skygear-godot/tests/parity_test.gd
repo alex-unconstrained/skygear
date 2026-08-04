@@ -282,6 +282,10 @@ func _run() -> void:
 	## un-awaited coroutine here reports a clean pass for checks that never ran.
 	await _xray_silhouette()
 	await process_frame
+	## SG-188. Builds a real deck and drives the real `_sync_rig` across a whole
+	## attack, so it gets a frame either side like its neighbours.
+	await _swing_tempo_live()
+	await process_frame
 	## SG-170. `_armed_hands` is arithmetic and needs no frame; the live one
 	## builds a real deck, so it gets one on either side like its neighbours.
 	_armed_hands()
@@ -2902,6 +2906,100 @@ func _crit_source_extra(game: SkyGearGame, at: Vector2) -> SkyGearEnemy:
 			fresh.hp = 4000.0
 			return fresh
 	return null
+
+
+## THE KNIGHT'S SWING, DRIVEN THROUGH THE RENDERER RATHER THAN MODELLED BESIDE IT
+## (board SG-188). The sibling checks in the figure block ask `SkyGearRig3D` the
+## question directly and are worth having, but they can only ever prove the RIG
+## behaves — they hand it the window themselves, so they would go on passing if
+## `view3d.gd` went back to handing it `state_time`. That is the failure mode
+## STATUS calls "a check written from the same misunderstanding as the code".
+##
+## So this one poses a real boarder on a real deck, walks the SIMULATION's own
+## state machine through a whole attack, and reads the playback rate off the rig
+## the renderer built. It fails if the window regresses to the countdown, and it
+## fails if the rate stops being latched — the two halves of what the owner saw.
+func _swing_tempo_live() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	if game.impact != null:
+		game.impact.enabled = false
+	view.sway = false
+	_begin(game, "SG188")
+	game.player.global_position = Vector2(0, 200)
+	view._process(0.05)
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	game.spawn_queue.clear()
+	game.spawn_enemy("ARMORED", 0)
+	var knight: SkyGearEnemy = null
+	for e in game.get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(e) and not e.dead and str(e.kind) == "ARMORED":
+			knight = _landed(e)
+	if knight == null:
+		_check("figure", "a furnace knight spawns to be timed", false)
+		world.queue_free()
+		return
+	knight.global_position = game.player.global_position + Vector2(0.0, -70.0)
+	knight.attack_direction = Vector2.DOWN
+	var key := "e%d" % knight.get_instance_id()
+	var beat: float = knight.attack_beat()
+
+	## THE WHOLE ATTACK, posed one step at a time the way the simulation runs it:
+	## the windup counting down, then the recovery counting down, with the
+	## renderer driven on every step. `state_time` is set by hand rather than let
+	## run, because this is a measurement of the RATE and a boarder free to be
+	## interrupted is a boarder whose beat has a stun in it.
+	var step := 0.05
+	var rates: Array[float] = []
+	var clips: Array[String] = []
+	for phase in [["windup", float(knight.config.windup)],
+			["recover", float(knight.config.recover)]]:
+		var elapsed := 0.0
+		var span: float = float(phase[1])
+		while elapsed < span:
+			knight.state = str(phase[0])
+			knight.state_time = maxf(0.001, span - elapsed)
+			knight.stun_time = 0.0
+			view._process(step)
+			var rig: SkyGearRig3D = view._rigs.get(key)
+			if rig != null and rig.state == "swing" and rig._clip != "":
+				rates.append(rig.anim.speed_scale)
+				if not clips.has(rig._clip):
+					clips.append(rig._clip)
+			elapsed += step
+
+	var lo := 99.0
+	var hi := 0.0
+	for r in rates:
+		lo = minf(lo, r)
+		hi = maxf(hi, r)
+	_check("figure", "the renderer fits a boarder's swing to the WHOLE attack and never re-fits it mid-swing — SG-188",
+		rates.size() > 20 and clips.size() == 1 and absf(hi - lo) < 0.001
+			and hi <= 1.0,
+		"'%s' at %.2fx..%.2fx across %d frames of a %.2fs attack (it read 1.83x rising to the 4.00x clamp)"
+			% ["/".join(clips), lo, hi, rates.size(), beat])
+
+	## AND THE CLIP FILLS THE ATTACK. The rate being steady is worth nothing on
+	## its own — a steady rate that empties the clip in half the beat leaves the
+	## figure frozen for the other half, which is what the pre-SG-188 build did
+	## before it dealt the swing again. The number is the authored seconds the
+	## latched rate gets through against the seconds the attack lasts.
+	var shown := 0.0
+	if clips.size() == 1 and hi > 0.0:
+		var rig2: SkyGearRig3D = view._rigs.get(key)
+		if rig2 != null:
+			shown = (rig2.anim.get_animation(clips[0]).length / hi) / beat
+	_check("figure", "and the clip it picked lasts the attack, so nothing is frozen waiting for the recovery to end",
+		shown >= 0.88 and shown <= 1.001,
+		"the swing covers %.0f%% of its %.2fs attack" % [shown * 100.0, beat])
+	world.queue_free()
+	await process_frame
 
 
 func _xray_silhouette() -> void:
@@ -8838,6 +8936,36 @@ func _view() -> void:
 				"clip '%s' at %.2fx shows %.0f%% of the kneel in %.2fs"
 					% [bwrig._clip, plant_rate, plant_shown * 100.0,
 						SkyGearRig3D.PLANT_WINDOW])
+			## AND THE BOARDER'S FIX DOES NOT REACH A HERO (board SG-188, the
+			## control). SG-188 added a second gate to `_variant_of`: a variant
+			## that fits its window at 1.0x is preferred over one that has to be
+			## fast-forwarded. That gate is what stopped the knight's 3.53 s
+			## `swing2` being rotated into a 1.90 s attack — and it is only
+			## allowed to bite where there IS a choice.
+			##
+			## A hero's attack window is `clampf(cooldown * 0.85, 0.24, 0.62)`,
+			## so 0.62 s is the longest one the game can ever hand a swing.
+			## NOTHING in a hero pack is that short: the gate finds nothing,
+			## falls through, and her rotation is the one she has always had.
+			## This asserts the premise rather than the conclusion, because a
+			## conclusion measured off today's clip lengths would go on passing if
+			## someone ingested a half-second swing and silently narrowed her
+			## rotation to it.
+			var hero_window := 0.62
+			var hero_swings := 0
+			var hero_short := PackedStringArray()
+			for name in SkyGearRig3D.VARIANTS["swing"]:
+				if not bwrig.has_clip(str(name)):
+					continue
+				hero_swings += 1
+				if bwrig.anim.get_animation(str(name)).length <= hero_window:
+					hero_short.append(str(name))
+			_check("figure", "and a hero's swing rotation is untouched by the boarder's tempo gate — nothing in her pack fits a 0.62s cast at authored speed",
+				hero_swings >= 2 and hero_short.is_empty(),
+				"%d swing variants, %d of them short enough for the gate to prefer%s"
+					% [hero_swings, hero_short.size(),
+						"" if hero_short.is_empty()
+						else " (" + ", ".join(hero_short) + ")"])
 			## Remeshed to ~3000 before rigging, so he is NOT the captain's SG-13
 			## (30,634 triangles, a rigged mesh no remesh can safely decimate) again.
 			var bwtris := 0
@@ -9146,6 +9274,106 @@ func _view() -> void:
 			"held %.2fs (%.2fs of death, %.2fs of sinking); drops %.2f m mid-death, %.2f m by the end"
 				% [SkyGearView3D.corpse_life(), SkyGearView3D.DEATH_WINDOW,
 					SkyGearView3D.DEATH_SINK, drop_mid, drop_end])
+		## ═══ THE SWING'S TEMPO (board SG-188) ════════════════════════════════
+		##
+		## The owner, after a full twelve-wave run: *"Slow down the attack
+		## animations on furnace knights it looks too fast now."* The word "now"
+		## was the clue and it was right — SG-165 doubled his health, so he lives
+		## 5.79 s instead of 2.70 and lands 2.49 swings instead of 0.83, and the
+		## swing became a thing you SEE more than once.
+		##
+		## What he was seeing: `_sync_rig` handed the swing `enemy.state_time` as
+		## its window, and `state_time` is a COUNTDOWN. `want()` recomputed the
+		## playback rate from it on EVERY frame, so the divisor shrank toward zero
+		## and the clip accelerated — measured live at 1.83x rising into the 4.00x
+		## clamp, in every one of six consecutive attacks. And because the rig is
+		## held in `swing` for the windup AND the recovery, it did that twice per
+		## attack and the finished one-shot was dealt again in between:
+		## **2.50 full plays of the swing clip per single 34-damage hit.**
+		##
+		## These four checks pin the three things that fixed it. They are written
+		## against the SIMULATION's own numbers — `attack_beat()`, the table's
+		## windup and recover — rather than against literals, so a tuning pass
+		## that moves the beat moves the checks with it.
+		var kbeat := SkyGearEnemy.new()
+		kbeat.kind = "ARMORED"
+		kbeat.config = SkyGearData.ENEMIES.ARMORED
+		kbeat.state = "windup"
+		var beat: float = kbeat.attack_beat()
+		var kwind: float = float(SkyGearData.ENEMIES.ARMORED.windup)
+		var krec: float = float(SkyGearData.ENEMIES.ARMORED.recover)
+		_check("figure", "a boarder's swing is fitted to the WHOLE attack, not to the windup it happens to start in",
+			absf(beat - (kwind + krec)) < 0.001 and beat > kwind,
+			"beat %.2fs = windup %.2fs + recover %.2fs, against the %.2fs the clip used to be crammed into"
+				% [beat, kwind, krec, kwind])
+
+		## THE ONE THAT CARRIES THE ARGUMENT. Start a swing at the beat, then keep
+		## asking for it with the window COUNTING DOWN, exactly as the renderer
+		## used to. The rate must not move a hair. Revert the latch in `want()`
+		## and this reports the acceleration it was written to catch.
+		krig.state = "idle"
+		krig.want("swing", 0.0, beat)
+		var opened: String = krig._clip
+		var open_rate: float = krig.anim.speed_scale
+		var top_rate: float = open_rate
+		var ticking: float = beat
+		while ticking > 0.02:
+			ticking -= beat / 32.0
+			krig.want("swing", 0.0, maxf(0.01, ticking))
+			top_rate = maxf(top_rate, krig.anim.speed_scale)
+		_check("figure", "and the rate a swing opens at is the rate it ends at — a window that counts down is a swing that speeds up",
+			absf(top_rate - open_rate) < 0.001 and krig._clip == opened,
+			"'%s' held %.2fx across 32 frames of a shrinking window (was %.2fx rising to the %.2fx clamp)"
+				% [opened, top_rate, open_rate, SkyGearRig3D.ATTACK_RATE_MAX])
+
+		## AND A FINISHED ONE-SHOT IS NOT DEALT AGAIN. `want`'s "the clip stopped,
+		## play it" arm is the repair for a CYCLE the blend dropped; applied to a
+		## one-shot it is what ran the swing 2.50 times per attack. The control is
+		## in the same check on purpose: a run that has stopped must still restart,
+		## or this would be a fix that broke the thing it was borrowed from.
+		krig.state = "idle"
+		krig.want("swing", 0.0, beat)
+		krig.anim.stop()
+		krig.want("swing", 0.0, beat)
+		var one_shot_held: bool = not krig.anim.is_playing()
+		krig.state = "idle"
+		krig.want("walk", float(SkyGearData.ENEMIES.ARMORED.speed))
+		krig.anim.stop()
+		krig.want("walk", float(SkyGearData.ENEMIES.ARMORED.speed))
+		var cycle_restarts: bool = krig.anim.is_playing()
+		_check("figure", "a finished swing holds its follow-through instead of being dealt again, and a dropped walk cycle still restarts",
+			one_shot_held and cycle_restarts,
+			"swing held: %s · walk restarted: %s" % [one_shot_held, cycle_restarts])
+
+		## EVERY VARIANT THE ROTATION CAN LAND ON, at the beat — because one
+		## sample says what this swing looked like and the spread says whether the
+		## next one will look like it. His pack ships six swings between 1.27 s and
+		## 3.53 s; `swing2` is a longer MOVE rather than a variation of the same
+		## one, and rotating it in fast-forwarded it at 1.86x beside neighbours at
+		## 0.75x. Nothing in the rotation may need to be sped up past the speed it
+		## was authored at — 1.0x, which is not a constant anyone picked.
+		var rotated: Array[String] = []
+		var rot_lo := 99.0
+		var rot_hi := 0.0
+		for _i in SkyGearRig3D.VARIANTS["swing"].size() * 2:
+			krig.state = "idle"
+			krig.want("swing", 0.0, beat)
+			if not rotated.has(krig._clip):
+				rotated.append(krig._clip)
+			rot_lo = minf(rot_lo, krig.anim.speed_scale)
+			rot_hi = maxf(rot_hi, krig.anim.speed_scale)
+		var over := PackedStringArray()
+		for name in rotated:
+			if krig.anim.get_animation(name).length > beat:
+				over.append(name)
+		_check("figure", "and every swing he can rotate up fits the beat at the speed it was authored at, so the tempo is the same twice running",
+			over.is_empty() and rotated.size() >= 2 and rot_hi <= 1.0
+				and rot_lo >= SkyGearRig3D.ATTACK_RATE_MIN,
+			"%d variants, %.2fx..%.2fx in a %.2fs beat (excluded for being longer than the attack: %s)"
+				% [rotated.size(), rot_lo, rot_hi, beat,
+					"none" if over.is_empty() else ", ".join(over)])
+		kbeat.free()
+
 		## THE STRIDE LAW, RUNNING THE OTHER WAY (SG-65 pinned the small case).
 		## He is TALLER than the 1.76 m the cycles were measured at, so the same
 		## ground speed has to drive his cycle SLOWER — his stride sweeps more
