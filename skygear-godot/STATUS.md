@@ -33,6 +33,7 @@ FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
 board SG-56). **1092 harness checks**; the text audit covers 25 screens at
+board SG-56). **1095 harness checks**; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -41,6 +42,55 @@ rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE COLOSSUS COULD BARELY SCRATCH THE SHIP AND THE BOARDING HULK OUTLASTED THE
+WAVE IT BELONGS TO — both from the owner's first full twelve-wave run, Heat 2,
+seed YBWDW5, won 6:23 (SG-185 and SG-186, 2026-08-04).** *"Collosus didnt seem
+to be able to damage turrets."* He was right about the outcome and the mechanism
+is worth knowing: the STOMP sits at the head of the Colossus's move state and
+PREEMPTS his swing, and the swing was the only beat that carried a victim other
+than the captain. He was not unable — he was at **32% of the rate**, which at
+23–31 s of life is the same thing: **8 swings and 208 HP off a 760 cannon in 60
+seconds, against 25 swings and 650 with the stomp off**, so the cannon needs 219
+s and he never once destroys one. The stomp is an area now and it hits
+everything standing in it — captain, cannons, crew, Boiler, one circle, no
+priority order, `stomp_hits` asked per candidate so nothing derives a second
+shape. **442 after.** **And the Boiler statistic COLOSSUS-DESIGN §2 has been
+arguing about since July is now settled the other way: 0.00, sd 0.00, over 181
+wave-12 runs. He does not reach it.** The lever is his ARRIVAL, not his damage.
+*"Boarding hulk took a long time to kill."* Also right, and it was a missing
+line: `_resolve_cast` has ended in `hulk_splash` since it was written, under a
+comment saying every shape must be able to bite the hulk — and the BASIC ATTACK,
+36% of his own run's damage, never got it and **would not even swing at a hull
+with the lane clear (2 auto swings in 28 seconds)**. Now 47, and the hull breaks
+in **16.7 s** against a floor of 28.3. A boarder still wins the aim every time
+one is in reach; the hull is a target of last resort.
+
+**EVERY SIMULATED VERDICT IN THIS LEDGER WAS TAKEN WITH THE BOARDERS WALKING AT
+ABOUT A SEVENTH OF THEIR SPEED, AND THE NUMBER CHANGED WITH HOW BUSY THE MACHINE
+WAS (SG-190, 2026-08-04).** `CharacterBody2D.move_and_slide()` does not
+integrate against the delta you hand `_physics_process`. It asks
+`Engine.is_in_physics_frame()` and takes `get_physics_process_delta_time()` if
+the answer is yes and **`get_process_delta_time()` — the idle frame's WALL-CLOCK
+duration — if it is no.** A `_run` reached by `call_deferred` from
+`_initialize` has never been inside a physics frame, and neither has anything
+resumed after `await process_frame`. **So `Engine.physics_ticks_per_second = 20`
+— written in `balance.gd`, `boss_probe.gd`, `melee_probe.gd` and `critx_probe.gd`,
+correct, and load-bearing — was read by NOTHING.** Measured in a six-line probe:
+that delta is **0.0000** before any await, **0.0500** after `await
+physics_frame`, and the idle frame it was actually using was **0.0069**.
+**This is most of the "still not deterministic" residual `balance.gd`'s own
+header blames on the physics server, and that header was wrong** — the proof is
+the fix: with the rigs stepping inside a physics frame, **twenty reps of one
+seed now return bit-identical rows, across separate processes.** **The rig being
+deterministic costs something that must be said out loud: `reps` BUYS NOTHING.**
+`6 seeds x 20 reps` is n=6 printed 120 times, not n=120, and an interval off
+that 120 is ~4.5x too narrow — SG-128's exact sin in a new hat. Buy n with
+SEEDS; `boss_probe`'s list is 32 now and it prints a refusal in words when a
+seed's reps come back identical. **Whether a given historical verdict survives
+is a question per row, and re-running is cheap now** — start with anything that
+turned on a boarder ARRIVING somewhere. One `bot ·` check pins the rule for the
+next rig, and it reads the `tools/` roster rather than a list of names.
 
 **ONE HARNESS CHECK WAS TESTING WHETHER THE OWNER HAD THE GAME OPEN (SG-181,
 2026-08-04).** `audio · volume survives the session` wrote 0.42 into the
@@ -450,6 +500,9 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `harness` (1092 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
 `harness` (1092 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1095 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+photograph all 25 screens at all 4 widths as one page — for auditing everything
+`harness` (1095 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -572,6 +625,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
 | `tests/parity_test.gd` | 1092 checks; the closest thing to a specification |
 | `tests/parity_test.gd` | 1092 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1095 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1095 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -602,6 +657,9 @@ poses the four places sky is actually visible; judge it from those.
 | `harness` | 1092 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `harness` | 1092 checks. Green before anything ships |
+| `harness` | 1095 checks. Green before anything ships |
+| `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
+| `harness` | 1095 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

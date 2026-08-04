@@ -1024,6 +1024,28 @@ to average wave 10.2, and held Heat 5 none, dying on wave 4 every run.
 
 ## Done
 
+- **DONE 2026-08-04 — the Colossus could barely damage the ship.** From his
+  first full twelve-wave run (Heat 2, seed YBWDW5, won 6:23): *"Collosus didnt
+  seem to be able to damage turrets."* He was right about the outcome and the
+  cause was not the one anyone would have guessed: the stomp SG-166 gave him
+  sits at the head of his move state and preempts his swing, and the swing was
+  the only beat that carried the victim chain. Measured, Heat 2, 60 s in lane 1:
+  **8 swings and 208 HP off a 760 cannon, against 25 swings and 650 with the
+  stomp off** — a cannon he could never finish inside the ~27 s he lives. The
+  stomp is now a circle that hits everything standing in it: the captain, the
+  cannons, the crew and the Boiler. **442 HP off the same cannon after.** Board
+  SG-185.
+
+- **DONE 2026-08-04 — the boarding hulk took too long to kill.** Same run:
+  *"Boarding hulk took a long time to kill."* Also right, and the cause was a
+  missing line rather than a number: `_resolve_cast` has ended in `hulk_splash`
+  since it was written, under a comment saying every shape must be able to bite
+  the hulk — and the BASIC ATTACK, which was 36% of his own run's damage, never
+  got it, and would not even swing at a hull with the lane momentarily clear.
+  Measured with a captain parked on the hull doing everything right: she swung
+  her auto **2 times in 28 seconds**. Now 47, and the hull breaks in **16.7 s**
+  against a floor of **28.3** (Boilerwright 28.4 → 21.8). Board SG-186.
+
 - **DONE 2026-08-03 — jump straight to any Heat, for testing.** Asked the same
   day: *"to be fair, I've only ever played the game on heat 1, so I don't have a
   lot of information to share. For me, if you're able to just unlock it so I can

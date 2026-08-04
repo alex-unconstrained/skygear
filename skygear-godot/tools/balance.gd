@@ -182,6 +182,23 @@ func _run() -> void:
 	## SG-118: the hand-step and the physics step must be the same number, or the
 	## captain integrates velocity on one clock and commits ground on another.
 	Engine.physics_ticks_per_second = 20
+	## AND INTO A PHYSICS FRAME BEFORE ANYTHING IS STEPPED (board SG-190). This
+	## line is not housekeeping; without it every number this tool has ever
+	## printed was taken with the boarders walking at a speed nobody chose.
+	##
+	## `CharacterBody2D.move_and_slide()` does not integrate against the delta you
+	## hand `_physics_process`. It asks `Engine.is_in_physics_frame()` and takes
+	## `get_physics_process_delta_time()` if the answer is yes and
+	## `get_process_delta_time()` — THE IDLE FRAME'S WALL-CLOCK DURATION — if it is
+	## no. A `_run` reached by `call_deferred` from `_initialize` has never been
+	## inside a physics frame: measured, `get_physics_process_delta_time()` returns
+	## 0.0000 there and `is_in_physics_frame()` is false. So the line above set a
+	## clock that nothing was reading, and every boarder moved by the wall clock —
+	## 0.0069 s on the machine this was found on, against the 0.05 the loop counts,
+	## and DIFFERENT on a busier one. That is the "still not deterministic"
+	## residual this file's own header blames on the physics server, most of it,
+	## and it is a rig measuring a game nobody plays.
+	await physics_frame
 	print("  BOT   steers to a %.0f-unit band, strafes in it, leaves fire, dashes under %.0f"
 		% [BotScript.BAND, BotScript.DASH_AT])
 	## SG-130. Set SKYGEAR_PASSIVE_PROBE and she prefers the passives instead —
@@ -512,7 +529,7 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 						break
 		steps += 1
 		if steps % 200 == 0:
-			await process_frame
+			await physics_frame
 		if steps > 40000:
 			break
 
@@ -579,5 +596,5 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 	## press left down here would open the following run mid-stride.
 	bot.release()
 	game.queue_free()
-	await process_frame
+	await physics_frame
 	return out

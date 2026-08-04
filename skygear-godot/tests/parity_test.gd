@@ -2086,6 +2086,92 @@ func _lanes() -> void:
 	_check("hulk", "and every state the simulation can be in has a face to wear",
 		face_faults.is_empty() and SkyGearView3D.HULK_MODELS.size() == 3,
 		"clean" if face_faults.is_empty() else ", ".join(face_faults))
+
+	## --- board SG-186: THE BASIC ATTACK CAN BITE IT ---------------------------
+	## The owner, off his first full twelve-wave run: *"Boarding hulk took a long
+	## time to kill."* `_resolve_cast` has ended in `hulk_splash` since it was
+	## written, under a comment saying every shape must be able to bite the hulk
+	## or breaking one becomes the job of whichever weapon happens to be shaped
+	## like a structure-killer. The BASIC ATTACK never got that line — and it is
+	## the single largest damage source in the game (36% of the owner's own run).
+	##
+	## IT IS DRIVEN OVER THE CLASS TABLE, NOT OVER A HAND-TYPED LIST. STATUS's
+	## last failure mode is a roster check that loops three names, where the one
+	## row missing from the list was the only row that could have failed it. A
+	## class added tomorrow is covered by this the day it is added.
+	var mute := PackedStringArray()
+	var swung := PackedStringArray()
+	var aimed := PackedStringArray()
+	for cls in SkyGearData.CLASSES:
+		if not SkyGearData.CLASSES[cls].has("auto"):
+			continue
+		var swing := _new_game()
+		swing.class_id = str(cls)
+		_begin(swing)
+		swing._begin_push(4)
+		_advance(swing, SkyGearGame.HULK_GRAPPLE_TIME + 0.2)
+		for e in swing.get_tree().get_nodes_in_group("enemies"):
+			e.dead = true
+			e.queue_free()
+		swing.spawn_queue.clear()
+		## Parked on the hull with the lane EMPTY. Before SG-186 this was a
+		## captain who could not swing at all — `_process_basic_attack` returned
+		## the moment `nearest_enemy` came back null — and `tools/hulk_probe.gd`
+		## measured exactly that: 2 auto swings in 28 seconds of standing on it.
+		swing.player.global_position = Vector2(swing.hulk.position) \
+			+ Vector2(0.0, float(swing.hulk.radius) + 60.0)
+		swing.basic_cooldown = 0.0
+		var hull_before: float = float(swing.hulk.hp)
+		swing._process_basic_attack(0.016)
+		## A swing is a cooldown that got SET. Reading `<= 0.0` here would be
+		## asserting she did not swing, which is what the first draft did.
+		if swing.basic_cooldown > 0.0:
+			swung.append(str(cls))
+		if float(swing.hulk.hp) >= hull_before:
+			mute.append("%s took %.0f off it" % [cls, hull_before - float(swing.hulk.hp)])
+		## AND A BOARDER STILL WINS THE AIM. Without this the fix reads as "she now
+		## ignores the lane to hit the hull", which would be a worse bug than the
+		## one it replaces: the hull is a target of LAST resort.
+		swing.spawn_enemy(str(SkyGearData.WAVES[0].batches[0][1]), 1)
+		var mark: SkyGearEnemy = null
+		for e in swing.get_tree().get_nodes_in_group("enemies"):
+			mark = _landed(e)
+		if mark != null:
+			mark.global_position = swing.player.global_position + Vector2(60.0, 0.0)
+			var mark_hp: float = mark.hp
+			swing.basic_cooldown = 0.0
+			swing._process_basic_attack(0.016)
+			if not is_instance_valid(mark) or mark.hp < mark_hp:
+				aimed.append(str(cls))
+		swing.queue_free()
+	_check("hulk", "every class's own swing bites the hull — the SG-186 zero",
+		mute.is_empty() and swung.size() >= 2,
+		"%d classes swung with the lane empty; %s"
+			% [swung.size(), "all of them bit it" if mute.is_empty() else ", ".join(mute)])
+	_check("hulk", "and a boarder still wins the aim — the hull is the last resort, not the first",
+		aimed.size() == swung.size() and aimed.size() >= 2,
+		"%d of %d classes swung at the boarder standing beside the hull"
+			% [aimed.size(), swung.size()])
+	## ONE BAND. The swing's decision to turn on the hull and the splash that pays
+	## for it must be the same number, or she cleaves through a hull for nothing:
+	## `auto.range` measured to the hull's edge is 380 on the captain against a
+	## splash band of 340, and picking that one would have been failure mode two
+	## with a boarding craft bolted to it.
+	var auto_src := _function_body("res://scripts/game.gd", "_process_basic_attack")
+	var auto_bare := PackedStringArray()
+	for line in auto_src.split("\n"):
+		var t := str(line).strip_edges()
+		if not t.begins_with("#"):
+			auto_bare.append(t)
+	var auto_body := "\n".join(auto_bare)
+	_check("hulk", "and the reach it swings at the hull from is the splash band, asked rather than re-derived",
+		auto_body.contains("hulk_splash_reaches(") and auto_body.contains("hulk_splash(")
+			and not auto_body.contains("%.1f" % SkyGearGame.HULK_SPLASH_BAND)
+			and not auto_body.contains(str(int(SkyGearGame.HULK_SPLASH_BAND))),
+		"asks the band %s · pays the splash %s · carries the literal %s"
+			% [str(auto_body.contains("hulk_splash_reaches(")),
+				str(auto_body.contains("hulk_splash(")),
+				str(auto_body.contains(str(int(SkyGearGame.HULK_SPLASH_BAND))))])
 	## The bar is the objective's, and it tracks the hulk through all three
 	## (SG-61 read across the states it could not reach before): full while the
 	## plate is shut, draining while the door is open, gone with the wreck.
@@ -3594,6 +3680,131 @@ func _boss_stomps() -> void:
 		stomp_survived and swing_cancelled,
 		"stomp survived: %s, swing cancelled: %s"
 			% [str(stomp_survived), str(swing_cancelled)])
+
+	## ---- (7) THE CIRCLE IS A CIRCLE ON THE DECK (board SG-185) ---------------
+	## THE CHECK THAT WOULD HAVE CAUGHT IT. For a whole day the Colossus resolved
+	## his only attack against the captain and nothing else, so a lane cannon
+	## standing inside his 240-unit circle took nothing from it — and 1,085 checks
+	## noticed nothing, because every one of them asked about HER. The owner
+	## found it by playing: *"Collosus didnt seem to be able to damage turrets."*
+	##
+	## Every arm below plants him at the ORIGIN with a fresh anchor and resolves
+	## the beat by hand, so what is asserted is the geometry at the frame it
+	## lands rather than a total that four other things also drain.
+	var deck := _new_game()
+	_begin(deck)
+	for e in deck.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	deck.spawn_queue.clear()
+	deck.spawn_enemy("BOSS", 1)
+	var walker: SkyGearEnemy = null
+	for e in deck.get_tree().get_nodes_in_group("enemies"):
+		if e.kind == "BOSS":
+			walker = e
+	if walker == null:
+		_check("boss", "a Colossus is on the deck for the SG-185 circle fixture", false)
+		deck.queue_free()
+		return
+	_landed(walker)
+	walker.walks_the_lane = true
+	walker.stomps = true
+	walker.max_hp = 1.0e9
+	walker.hp = 1.0e9
+	walker.global_position = Vector2.ZERO
+	walker.stomp_origin = Vector2.ZERO
+	var blow: float = float(walker.config.damage)
+	var edge: float = walker.stomp_radius()
+
+	## A CANNON UNDER HIS FOOT. Moved onto the anchor rather than him onto the
+	## cannon, because `correct_enemy_position` owns where a boarder may stand and
+	## a fixture that fights it is a fixture measuring the clamp.
+	var gun: Dictionary = deck.turrets[0]
+	gun.dead = false
+	gun.hp = float(gun.max_hp)
+	gun.position = Vector2(0.0, edge - 40.0)
+	var gun_before: float = float(gun.hp)
+	## The crew and the Boiler in the same circle, so one resolve answers for all
+	## three victim sets — the point being that a circle has no priority order and
+	## an `if/elif` chain would show up here as two of the three going untouched.
+	## A sailor mustered by hand, because the deck musters them as a wave runs and
+	## `begin_run` leaves `crew` empty — a fixture that read `crew[0]` here would
+	## quietly assert nothing at all.
+	if deck.crew.is_empty():
+		deck.crew.append(SkyGearLanes.make_crew(1, SkyGearGame.LANE_CENTERS,
+			SkyGearGame.BASE_Y, deck.rng))
+	var hand: Dictionary = deck.crew[0]
+	hand.dead = false
+	hand.hp = float(hand.max_hp)
+	hand.position = Vector2(40.0, 40.0)
+	var hand_before: float = float(hand.hp)
+	deck.boiler_position = Vector2(0.0, edge - 10.0)
+	var boiler_before: float = deck.boiler_hp
+	deck.player.global_position = Vector2(-30.0, 0.0)
+	deck.player.hp = deck.player.max_hp
+	deck.player.invulnerability_left = 0.0
+	var her_before: float = deck.player.hp
+	var landed: Dictionary = walker._resolve_stomp()
+
+	## THE ROW THIS WHOLE ITEM EXISTS FOR.
+	_check("boss", "the stomp takes a lane cannon apart — the SG-185 regression",
+		float(gun.hp) < gun_before and is_equal_approx(gun_before - float(gun.hp), blow),
+		"a cannon %.0f from his anchor, inside a %.0f rim, lost %.0f of his %.0f"
+			% [gun.position.length(), edge, gun_before - float(gun.hp), blow])
+	_check("boss", "and a crewman standing under him takes the same weight",
+		is_equal_approx(hand_before - float(hand.hp), blow),
+		"a sailor %.0f out lost %.0f of his %.0f"
+			% [Vector2(hand.position).length(), hand_before - float(hand.hp), blow])
+	_check("boss", "and the Boiler, on the day he finally reaches it",
+		is_equal_approx(boiler_before - deck.boiler_hp, blow),
+		"the Boiler %.0f out lost %.0f of his %.0f"
+			% [deck.boiler_position.length(), boiler_before - deck.boiler_hp, blow])
+	## AND ALL OF THEM AT ONCE, which is the half an `if/elif` chain fails. Four
+	## victims stood in one circle and four took it; the swing above would have
+	## paid exactly one of them.
+	_check("boss", "everything in the circle takes it — a stomp has no priority order",
+		bool(landed.player) and int(landed.turrets) == 1 and int(landed.crew) == 1
+			and bool(landed.boiler) and deck.player.hp < her_before,
+		"captain %s · cannons %d · crew %d · boiler %s"
+			% [str(landed.player), int(landed.turrets), int(landed.crew), str(landed.boiler)])
+
+	## THE OTHER SIDE, and without it the four rows above are satisfied by a
+	## Colossus who simply damages the whole deck from anywhere.
+	gun.hp = float(gun.max_hp)
+	gun.position = Vector2(0.0, edge + float(gun.radius) + 60.0)
+	if not hand.is_empty():
+		hand.hp = float(hand.max_hp)
+		hand.position = Vector2(0.0, edge + float(hand.radius) + 60.0)
+	deck.boiler_position = Vector2(0.0, edge + float(deck.boiler_radius) + 60.0)
+	var clear_boiler: float = deck.boiler_hp
+	var missed: Dictionary = walker._resolve_stomp()
+	_check("boss", "and a cannon outside the rim is a cannon he missed",
+		int(missed.turrets) == 0 and int(missed.crew) == 0 and not bool(missed.boiler)
+			and is_equal_approx(float(gun.hp), float(gun.max_hp))
+			and is_equal_approx(deck.boiler_hp, clear_boiler),
+		"cannons %d · crew %d · boiler %s, all stood 60 past the rim"
+			% [int(missed.turrets), int(missed.crew), str(missed.boiler)])
+
+	## ONE SHAPE, ASKED — SG-119's rule applied to the victims rather than to the
+	## renderer. `_resolve_stomp` must reach every candidate through `stomp_hits`
+	## and must carry no distance of its own, or the thing that is drawn and the
+	## thing that is paid drift apart again.
+	## Comment lines are stripped before it looks, because SG-152 already found a
+	## check satisfiable by a COMMENT.
+	var stripped := PackedStringArray()
+	for line in _function_body("res://scripts/enemy.gd", "_resolve_stomp").split("\n"):
+		var bare := str(line).strip_edges()
+		if not bare.begins_with("#"):
+			stripped.append(bare)
+	var body := "\n".join(stripped)
+	var asks := body.count("stomp_hits(")
+	_check("boss", "the stomp's victims are found with the stomp's own circle, not a second one",
+		asks >= 4 and not body.contains("distance_to")
+			and not body.contains("%.0f" % SkyGearEnemy.STOMP_RADIUS),
+		"%d calls to stomp_hits, carries its own distance test %s, carries the literal %s"
+			% [asks, str(body.contains("distance_to")),
+				str(body.contains("%.0f" % SkyGearEnemy.STOMP_RADIUS))])
+	deck.queue_free()
 	game2.queue_free()
 	await process_frame
 
@@ -13152,6 +13363,74 @@ func _bot() -> void:
 		out.y < -0.5, "steer %.2f,%.2f" % [out.x, out.y])
 	burner.queue_free()
 	await process_frame
+
+	## --- board SG-190: EVERY HAND-STEPPING RIG STEPS INSIDE A PHYSICS FRAME ---
+	##
+	## `CharacterBody2D.move_and_slide()` does not integrate against the delta it
+	## is handed. It asks `Engine.is_in_physics_frame()`, and takes
+	## `get_physics_process_delta_time()` if the answer is yes and
+	## `get_process_delta_time()` — the IDLE frame's wall-clock duration — if it is
+	## no. A `_run` reached by `call_deferred` from `_initialize` has never been in
+	## a physics frame, and neither has anything resumed after
+	## `await process_frame`.
+	##
+	## SO A RIG THAT NEVER AWAITS `physics_frame` MOVES EVERY BOARDER BY THE WALL
+	## CLOCK. Measured on the machine this was found on: 0.0069 s against the 0.05
+	## the loops count, and DIFFERENT under load. `Engine.physics_ticks_per_second
+	## = 20` was set in all three rigs and read by nothing, because nothing was
+	## ever inside the frame that reads it. That is most of the "still not
+	## deterministic" residual `balance.gd`'s header blames on the physics server,
+	## and it means the walk speed of every boarder in every simulated verdict in
+	## this ledger was a property of how busy the machine was.
+	##
+	## THIS CHECK IS A SOURCE CHECK ON PURPOSE, and it reads the ROSTER rather than
+	## a hand-typed list of tools — STATUS's last failure mode is a roster loop
+	## where the one row missing from the list was the only row that could have
+	## failed it. Every `.gd` in `tools/` that steps something by hand
+	## (`._physics_process(`) is in scope, and the scope is found by looking.
+	##
+	## ONE EXCLUSION, STRUCTURAL AND NAMED: a tool that CAPTURES FRAMES has to
+	## await idle frames, because that is when the viewport has drawn. It is
+	## detected by `save_png` rather than by its filename, so the exemption cannot
+	## be inherited by a measuring rig that happens to be added beside it. The one
+	## tool this exempts today (`demo_reel.gd`) does step boarders on a wall clock
+	## and that IS a defect — it is a recording rather than a verdict, so it is
+	## filed on SG-190 rather than fixed under a bug about the Colossus.
+	##
+	## THE SECOND HALF IS POSITIONAL, not a flat ban. What breaks the clock is an
+	## idle await BETWEEN steps — the `if steps % 200 == 0: await process_frame`
+	## that three rigs carried — so what is forbidden is `await process_frame`
+	## anywhere inside the span of a file where the stepping happens. Awaiting one
+	## before any stepping, or after all of it, costs nothing and is allowed.
+	var rig_faults := PackedStringArray()
+	var rigs := 0
+	var dir := DirAccess.open("res://tools")
+	for file in (dir.get_files() if dir != null else PackedStringArray()):
+		if not str(file).ends_with(".gd"):
+			continue
+		var src := FileAccess.get_file_as_string("res://tools/%s" % file).replace("\r", "")
+		if not src.contains("._physics_process(") or src.contains("save_png"):
+			continue
+		rigs += 1
+		## Comments are stripped first: SG-152 found a check satisfiable by one.
+		var live := PackedStringArray()
+		for line in src.split("\n"):
+			var bare := str(line).strip_edges()
+			if not bare.begins_with("#"):
+				live.append(bare)
+		var code := "\n".join(live)
+		if not code.contains("await physics_frame"):
+			rig_faults.append("%s never enters a physics frame" % file)
+		var first := code.find("._physics_process(")
+		var last := code.rfind("._physics_process(")
+		var idle := code.find("await process_frame")
+		if idle >= 0 and idle > first and idle < last:
+			rig_faults.append("%s resumes in an idle frame mid-step" % file)
+	_check("bot", "a rig that steps a boarder by hand does it inside a physics frame — the SG-190 clock",
+		rig_faults.is_empty() and rigs >= 3,
+		"%d hand-stepping tools; %s"
+			% [rigs, "all of them hold the clock" if rig_faults.is_empty()
+				else ", ".join(rig_faults)])
 
 	## HOW SHE DRAFTS (SG-130), and the reason these five are structural rather
 	## than statistical.

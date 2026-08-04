@@ -448,11 +448,63 @@ func chases_captain() -> bool:
 ## opening ring for free — so the beat the player is invited to attack into is
 ## marked identically whichever attack he just spent.
 ##
-## AND IT HITS THE CAPTAIN ONLY, WHICH IS A SCOPE DECISION AND NOT AN OVERSIGHT.
-## His structural damage — the lane cannon, a crewman, the Boiler — is what the
-## lane walk above is FOR, and it goes through his swing exactly as it always
-## has. Giving the stomp a second victim set would have moved two things at once
-## and made the Boiler statistic on SG-166 unreadable.
+## IT HITS EVERYTHING STANDING IN THE CIRCLE (board SG-185, and it did NOT until
+## 2026-08-04). The owner, off his first full twelve-wave run: *"Collosus didnt
+## seem to be able to damage turrets."*
+##
+## SG-166 shipped this resolve asking ONE question, of the captain, and calling
+## ONE function, on the argument quoted above these lines: his structural damage
+## was the swing's job and the stomp was not to move two things at once. That
+## argument was sound when it was written and it was WRONG ABOUT THE SWING, for a
+## reason nothing measured until SG-185 did — the stomp check sits at the head of
+## `state == "move"` and PREEMPTS the swing whenever both are ready, so the beat
+## that carried the whole victim chain almost never comes round. Measured with
+## `tools/lane_probe.gd`, a Colossus walking lane 1 at Heat 2 for 60 s: with the
+## stomp on he resolved **8 swings** and took **208** off a **760** cannon; with
+## it off, **25 swings** and **650**. He was not unable to hurt the ship — he was
+## slowed to 32% of the rate, against a cannon he must break in the ~23 s he
+## lives, and 208 of 760 is a cannon he never once destroys. The owner reported
+## the OUTCOME correctly.
+##
+## THE FIX IS NOT TO GIVE THE SWING ITS BEAT BACK. It is that a stomp is a circle
+## on the planking and a cannon bolted inside that circle is standing in it. So
+## the resolve asks `stomp_hits` — the SAME circle, no second shape, because
+## board SG-119 was paid for by a drawn shape and a hit shape disagreeing — of
+## every body on the deck: the captain, every live cannon, every live crewman,
+## and the Boiler.
+##
+## AND THE STRUCTURAL ZERO IT WAS BUILT TO REPAIR IS UNTOUCHED. The point of the
+## bypass was never "only the captain": it was that the victim chain above is
+## `if/elif` and a boss walking at the ship is never `targets_player`, so the
+## chain can never test her. This resolve still does not go through that chain.
+## It goes through NONE of it — it is an area, and an area has no priority order.
+##
+## THREE CALLS THAT ARE BALANCE DECISIONS, MADE HERE AND MEASURED ON SG-185:
+##
+##   THE CANNONS: full damage, every one inside the rim, not the nearest. His
+##       whole design is that he marches at the lane cannon and takes it away,
+##       and a 240-unit circle centred on a 70-unit body reaches one cannon in
+##       practice — the lanes are 560 apart. "Everything in the circle" is a
+##       simpler rule than "the nearest one in the circle" and here they are the
+##       same rule, so the simpler one is written.
+##   THE CREW: full damage. A crewman is 68 HP against his 26, so a stomp is
+##       three beats to put a sailor down and not a wipe; halving it would be a
+##       special case earning nothing. And a crewman standing under the biggest
+##       figure on the deck while it plants is a mistake the game already draws a
+##       240-unit ring around.
+##   THE BOILER: YES, and this is the one that changes a number the ledger has
+##       been arguing about since COLOSSUS-DESIGN §2. He reaches the Boiler at
+##       the END of a 1,965-unit walk with seconds to live, so this is not a new
+##       tax on ignoring him — it is the first build in which arriving MEANS
+##       anything. SG-166's Finding 4 recorded Boiler HP lost in wave 12 going
+##       11.08 -> 6.00 and put it down to him spending 43% of his life planted;
+##       that reading was half the story and the other half is that he could not
+##       hurt the Boiler at all. The re-measurement is on SG-185.
+##
+## WHAT IS DELIBERATELY NOT IN THE CIRCLE: deployed SENTRIES. Nothing he has has
+## ever damaged one — not the swing, not the chase build — so adding them here
+## would be a second change wearing this one's clothes, which is the exact
+## mistake the paragraph this replaces was trying to avoid.
 const COLOSSUS_STOMPS := true
 
 const STOMP_WINDUP := 0.80
@@ -507,6 +559,42 @@ func stomp_period() -> float:
 ## takes it and only getting clear does not.
 func stomp_hits(point: Vector2, body: float) -> bool:
 	return stomp_origin.distance_to(point) <= stomp_radius() + body
+
+
+## EVERY BODY IN THE CIRCLE, ONE SHAPE, NO PRIORITY ORDER (board SG-185).
+##
+## The swing above is an `if/elif` chain that picks ONE victim, because a swing
+## is a wedge pointed at the thing it was aimed at. A stomp is not aimed at
+## anything — it is his weight arriving on the planking — so it has no nearest
+## and no first. Everything standing on the ground it takes, takes it.
+##
+## `stomp_hits` is the only geometry in here, called once per candidate against
+## that candidate's own body radius, which is `_swing_hits`'s convention and
+## SG-119's rule: one function owns the shape, and the renderer asks the same
+## one. Nothing in this function may grow a radius of its own.
+##
+## Returns what it touched, so a caller — the harness, a probe — can assert on
+## the victims rather than on a health bar that has three other things draining
+## it (SG-166's `landed` column is contaminated for exactly that reason, and
+## SG-167 had to write the caveat down).
+func _resolve_stomp() -> Dictionary:
+	var hit := {"player": false, "turrets": 0, "crew": 0, "boiler": false}
+	var damage := float(config.damage)
+	if stomp_hits(game.player.global_position, 17.0):
+		game.damage_player(damage, kind)
+		hit.player = true
+	for t in game.turrets:
+		if not bool(t.dead) and stomp_hits(Vector2(t.position), float(t.radius)):
+			game.damage_turret(t, damage)
+			hit.turrets += 1
+	for c in game.crew:
+		if not bool(c.dead) and stomp_hits(Vector2(c.position), float(c.radius)):
+			game.hurt_crew(c, damage)
+			hit.crew += 1
+	if stomp_hits(game.boiler_position, float(game.boiler_radius)):
+		game.damage_boiler(damage)
+		hit.boiler = true
+	return hit
 
 func swing_wedge_reach() -> float:
 	var wedge: float = float(config.reach)
@@ -684,16 +772,17 @@ func _physics_process(delta: float) -> void:
 			state = "recover"
 			state_time = float(config.recover)
 	elif state == "stomp":
-		## THE STOMP RESOLVE (SG-166). One question, asked of the captain directly
-		## and NOT through the victim chain above — which is the whole repair to the
-		## structural zero that kept `COLOSSUS_WALKS_THE_LANE` off. A boss walking at
-		## the ship is never `targets_player`, so his swing can never test her; this
-		## does not care what he is walking at.
+		## THE STOMP RESOLVE (SG-166, widened to the whole circle by SG-185). Asked
+		## of every body on the deck directly and NOT through the victim chain
+		## above — which is the whole repair to the structural zero that kept
+		## `COLOSSUS_WALKS_THE_LANE` off. A boss walking at the ship is never
+		## `targets_player`, so his swing can never test her; this does not care
+		## what he is walking at, and since SG-185 it does not care who is standing
+		## there either.
 		state_time -= delta
 		velocity = Vector2.ZERO
 		if state_time <= 0.0:
-			if stomp_hits(game.player.global_position, 17.0):
-				game.damage_player(float(config.damage), kind)
+			_resolve_stomp()
 			stomp_struck = true
 			stomp_cooldown = stomp_period()
 			## The same stationary punish window a whiffed swing leaves, so the beat

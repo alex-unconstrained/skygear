@@ -78,6 +78,12 @@ func _run() -> void:
 		quit(1)
 		return
 	Engine.physics_ticks_per_second = 20
+	## INTO A PHYSICS FRAME BEFORE ANYTHING IS STEPPED (board SG-190).
+	## `move_and_slide()` takes the IDLE frame's wall-clock delta unless
+	## `Engine.is_in_physics_frame()` is true, and a `_run` reached by
+	## `call_deferred` from `_initialize` never is — so without this line every
+	## boarder this probe steps moves by however long the last frame took.
+	await physics_frame
 	print("  CRITX PROBE (crit_explode FORCED to 1.0 in every run)")
 	print("  BOSS PROBE · wave %d · HEAT %d · %d seeds x %d reps%s"
 		% [bw, heat, mini(count, SEEDS.size()), reps,
@@ -244,7 +250,7 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 				boss_dead = steps
 		steps += 1
 		if steps % 200 == 0:
-			await process_frame
+			await physics_frame
 		if steps > 40000:
 			break
 	if in_wave == bw and wave12_end < 0:
@@ -284,5 +290,5 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 	}
 	bot.release()
 	game.queue_free()
-	await process_frame
+	await physics_frame
 	return out
