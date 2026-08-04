@@ -992,15 +992,81 @@ func _dial_mount(which: String, way: float) -> void:
 		return
 	var o := _v3(_fit.offset)
 	match which:
-		"mx": o.x += NUDGE * way; _set_v("offset", o)
-		"my": o.y += NUDGE * way; _set_v("offset", o)
-		"mz": o.z += NUDGE * way; _set_v("offset", o)
+		"mx": _set_v("offset", o + _slide_axis(0) * (NUDGE * way))
+		"my": _set_v("offset", o + _slide_axis(1) * (NUDGE * way))
+		"mz": _set_v("offset", o + _slide_axis(2) * (NUDGE * way))
 		"rx": _rotate_weapon(0, TURN * way)
 		"ry": _rotate_weapon(1, TURN * way)
 		"rz": _rotate_weapon(2, TURN * way)
 		"len": _fit.length = maxf(0.15, float(_fit.length) + GROW * way)
 	_apply_mount()
 	_show()
+
+
+## WHICH WAY IS "ALONG", IN THE OFFSET'S OWN SPACE — SG-173.
+##
+## The three offset rows are labelled ACROSS / UP / ALONG-toward-hilt-or-tip, and
+## for as long as they existed they nudged `offset.x/y/z` RAW. `offset` is in
+## BONE space (`rig3d.hold()` writes it to `holder.position`, whose parent is the
+## bone attachment, and only then rotates the weapon inside it). So the labels
+## described the weapon and the numbers moved the hand: on the crew pike at
+## rotation (-180, -135, 0) there was no row at all that slid the spear along its
+## own shaft, which is the one adjustment a polearm actually needs. The owner hit
+## exactly that and reported he could not move the point away from his hands "no
+## matter which controls I tried". He was right; the tool could not do it.
+##
+## This is the same bug the ROTATION rows were already fixed for — see
+## `_rotate_weapon`, which turns about the weapon's live local axis instead of
+## incrementing an Euler field. Translation was left linear when that landed.
+##
+## `_rot_basis` maps weapon-local to bone space, so a nudge along a weapon axis
+## is `_rot_basis * axis * step` and lands in the bone-space offset the file
+## stores. The FILE FORMAT DOES NOT CHANGE — this is about which direction the
+## button pushes, not about what is written down.
+##
+## AND THE LONG AXIS IS MEASURED, NOT ASSUMED, because it is not the same axis
+## twice: the pike and the wrench run 1.90 along X, the axe runs 1.90 along Y.
+## A tool that hardcoded "Z is along the blade" would be wrong for all three.
+func _slide_axis(row: int) -> Vector3:
+	var local := Vector3.ZERO
+	local[_axis_order()[row]] = 1.0
+	return _rot_basis * local
+
+
+## The weapon's own axes, longest first, so row 2 (ALONG) always runs the length
+## of the blade whatever the generator exported. Cached per model: it is a mesh
+## walk and the answer cannot change while one model is selected.
+var _axis_cache := {}
+
+func _axis_order() -> Array:
+	var path := _path_for(_models[_at])
+	if _axis_cache.has(path):
+		return _axis_cache[path]
+	var order := [0, 1, 2]                     ## x, y, z — the honest fallback
+	var packed := load(path) as PackedScene
+	if packed != null:
+		var probe := packed.instantiate()
+		var box := AABB()
+		var first := true
+		for child in probe.find_children("*", "MeshInstance3D", true, false):
+			var b: AABB = (child as MeshInstance3D).get_aabb()
+			box = b if first else box.merge(b)
+			first = false
+		probe.free()
+		if not first:
+			var size := box.size
+			## Longest last in the UI (row 2 is ALONG), the other two in their
+			## natural order, so ACROSS and UP stay stable as you nudge.
+			var rest := [0, 1, 2]
+			var long_at := 0
+			if size.y > size[long_at]:
+				long_at = 1
+			if size.z > size[long_at]:
+				long_at = 2
+			rest.erase(long_at)
+			order = [rest[0], rest[1], long_at]
+	_axis_cache[path] = order
+	return order
 
 
 ## Compose a rotation about the weapon's live local axis onto `_rot_basis`, keep
@@ -2033,7 +2099,12 @@ func _show() -> void:
 				% [str(_fit.bone).replace("mixamorig_", ""), o.x, o.y, o.z, r.x, r.y, r.z,
 					float(_fit.length),
 					"UNSAVED" if str(_fit) != str(_saved) else "saved to weapons.json"])
-			lines.append("Click a value to type it - wheel a row to nudge - each PITCH/YAW/ROLL spins the blade's OWN axis.   %s"
+			## The six nudge rows all move the BLADE's own axes now (SG-173), but
+			## the numbers beside ACROSS/UP/ALONG are the bone-space offset the
+			## file stores, so a nudge along a rotated blade changes more than one
+			## of them. Said out loud, because a number that moves when you did
+			## not touch its row reads as a bug otherwise.
+			lines.append("Wheel a row to nudge - ALONG slides the blade down its OWN length, PITCH/YAW/ROLL spin its OWN axes - the three offset NUMBERS are bone-space, so more than one moves.   %s"
 				% _step_hint())
 		else:
 			lines.append("Drag to orbit, wheel to dolly - click a value to type it - grid squares are 25 ground units, the post 176.   %s"
