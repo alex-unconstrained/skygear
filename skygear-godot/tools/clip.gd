@@ -326,6 +326,112 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 				walker.lane = int(stand.lane)
 				walker.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
+		"crewassist":
+			## THE OWNER'S CREW ASK, POSED SO THAT BOTH HALVES OF IT ARE IN ONE
+			## FRAME (SG-187): *"Dont have crew standing around and auto
+			## attacking at the end of their lane - we can improve their AI to
+			## run towards available enemies if their lane is clear."*
+			##
+			## A FULL WATCH — two bells is 2 per lane per bell, so twelve, which
+			## is the number that is actually on the deck in a run and the number
+			## the anti-clump rules exist for. They are then PLACED at the head
+			## of their own lanes rather than left to walk up from the muster
+			## point at the stern, because a crewman still crossing the deck is
+			## not the thing the owner was looking at; the thing he was looking
+			## at is a man who has ARRIVED and has nothing to do.
+			##
+			## The placement is written in literals rather than through the new
+			## `SkyGearLanes.station()` ON PURPOSE: this scenario has to stage
+			## the BEFORE build and the AFTER build identically or the pair of
+			## clips is not a comparison, and the before build has no station
+			## function to call. They are set a little aft of the crew line so
+			## the first second of either clip shows them closing the last
+			## stretch — the same opening in both.
+			##
+			## FIVE BOARDERS, ALL IN LANE 1, SPREAD ACROSS ITS FULL BAND, AND
+			## NOTHING IN LANES 0 AND 2. The spread is what makes the leash
+			## visible: at +-180 the outermost of them is 740 units from the
+			## far flank's station and 380 from the near one, so each flank can
+			## reach the boarders on its own side of the middle lane and cannot
+			## reach the ones on the other. A viewer sees men step across and
+			## men stay put, which is the rule, rather than twelve sailors
+			## converging on one gremlin, which is what this feature looks like
+			## when it is built without one.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(1)
+			_hold_wave_open(game)
+			## AND THE WAVE'S OWN BOARDERS OFF THE DECK. `_hold_wave_open` stops
+			## the queue but leaves what wave 1 has already landed, and this
+			## scenario's whole claim is about what a man does when his lane is
+			## EMPTY — one stray scrapper in lane 0 gives the port watch a target
+			## of its own and the clip quietly films nothing.
+			for stray in game.get_tree().get_nodes_in_group("enemies"):
+				if is_instance_valid(stray):
+					stray.dead = true
+					stray.queue_free()
+			for _bell in 2:
+				game.crew_timer = 0.0
+				game._update_crew(0.05)
+			var hands := 0
+			for c in game.crew:
+				var lane_of: int = int(c.lane)
+				var seat: int = hands % 4
+				c.position = Vector2(
+					float(SkyGearGame.LANE_CENTERS[lane_of]) + (float(seat) - 1.5) * 78.0,
+					SkyGearGame.BOW_Y + 400.0)
+				c.state = "move"
+				c.state_time = 0.0
+				hands += 1
+			for band in [-180.0, -90.0, 0.0, 90.0, 180.0]:
+				game.spawn_enemy("SCRAPPER", 1)
+				var wall := game.get_tree().get_nodes_in_group("enemies")
+				var boarder = wall[wall.size() - 1]
+				boarder.global_position = Vector2(float(band), SkyGearGame.BOW_Y + 250.0)
+				boarder.lane = 1
+				boarder.state = "move"
+				## STOUTER THAN THE TABLE, and it is the only ENEMY number this
+				## scenario alters. A scrapper carries 60 health and the
+				## captain's own auto-attack alone resolves five of them inside
+				## three seconds, which turns a nine-second clip into six
+				## seconds of empty planking — the fight would be over before the
+				## outer watch had finished crossing, so the clip would film the
+				## feature failing to happen rather than the feature. Their
+				## damage, reach, speed and AI are the shipped ones.
+				boarder.hp = 2000.0
+				boarder.max_hp = 2000.0
+			## THE CAPTAIN STANDS ON THE MIDDLE LANE'S OWN STATION, and she is
+			## here as an ANVIL rather than as the subject.
+			##
+			## Two facts about the simulation make this the only staging that
+			## works. The camera rides her, so where she stands IS the framing;
+			## and a boarder with nothing else to do walks at the BOILER, which
+			## is at the stern — so a fight staged at the bow migrates down-deck
+			## out of frame within two seconds whatever the crew do. Standing
+			## her on the crew line pins the fight to the crew line: the five
+			## scrappers converge on the one thing they prefer to everything
+			## else, the middle watch fights around her, and both flanks are
+			## exactly one lane spacing away — the leash, on screen, to scale.
+			##
+			## She is held INVULNERABLE for the length of the clip, through the
+			## simulation's own i-frame field and on the tick strip below rather
+			## than by inflating her health — five scrappers at 12 damage resolve
+			## a 100-health captain in about two seconds and the run goes to
+			## GAMEOVER mid-clip, and a staged health total would have put a
+			## nonsense number across the HUD in every frame of the evidence.
+			## The literal again rather than `SkyGearLanes.station()`, for the
+			## reason given above the crew placement: this scenario has to stage
+			## the before build and the after build identically.
+			game.player.global_position = Vector2(0.0, SkyGearGame.BOW_Y + 260.0)
+			## FULL MOUSEWHEEL ZOOM-OUT, through the renderer's own control
+			## (`zoom_by`, the same call the wheel makes — `vfx_shot.gd`'s
+			## `cannon-zoomed` is the precedent). This clip's subject is 1120
+			## units wide and 300 deep — the whole crew line across all three
+			## lanes — and at the default zoom the outer watches sit on the
+			## frame edges. Set before the settle so the smoothing has arrived
+			## by the time the shutter opens.
+			world.zoom_by(99.0)
+			await _settle(game, world, SETTLE_TICKS)
 		"swarm":
 			## THE GOBLIN, SIX AT ONCE (SG-89) — which is the number the late
 			## waves actually send and the only number worth filming, because
@@ -518,6 +624,18 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 									and str(foe.kind) == "SWARM":
 								foe.kill()
 								break
+				"crewassist":
+					## THE ANVIL DOES NOT DIE. `invulnerability_left` is the
+					## simulation's own i-frame field and it is topped up every
+					## tick, so the captain the five scrappers are converging on
+					## survives the nine seconds without her health bar being
+					## staged into a nonsense number across the evidence. She
+					## does nothing else: no cast is issued for this scenario,
+					## and what she still does on her own — the class's automatic
+					## swing at whatever is inside its reach — is why the
+					## boarders are staged stout.
+					game.player.invulnerability_left = maxf(
+						game.player.invulnerability_left, 1.0)
 				"drone":
 					## Nothing is staged. The drones hover, bob and shoot on the
 					## simulation's own clock — the point of the strip is that

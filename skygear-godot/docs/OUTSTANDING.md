@@ -708,6 +708,38 @@ derivation of the radius now (`fire_pool_radius()`), read by the tick, by the
 hidden 2D draw and by the renderer. `tools/pool_shot.gd` is the witness and it
 measures the burn from the damage path rather than drawing a ring at the constant.
 
+### ~~Crew stand around auto-attacking at the end of a cleared lane~~ — DONE 2026-08-04 (board SG-187)
+Asked after a full twelve-wave run: *"Dont have crew standing around and auto
+attacking at the end of their lane - we can improve their AI to run towards
+available enemies if their lane is clear."*
+
+Two faults, one line. A crewman with nothing to fight was sent to a fixed point
+at the head of his lane and the arrival test was `distance <= reach` — a test
+that asks how far away his GOAL is and never asks whether anything is standing
+in it. So he arrived, wound up, swung at bare planking, recovered, and did it
+again for the rest of the wave. He STANDS now, watching the bow; and if his lane
+is clear he crosses into the next one, under four rules written at
+`SkyGearLanes.ASSIST_LEASH`: his own lane outranks everything and is re-asked
+every tick (so the recall is the order of two loops, not a timer); the leash is
+exactly one lane spacing measured from his own station; one man per boarder, so
+a fight next door cannot collect a mob; and every lane keeps an anchor, so no
+arrangement of boarders can empty a lane of its crew.
+
+**And the measured cost of the whole row turned out to be a line nobody asked
+for.** Standing still made it visible that every hand in a lane holds the same
+station — four sailors inside one another — so the first version fanned them out
+by +-120 units. Against a 240-run Heat 0 baseline that ONE cosmetic line took
+crew damage share from **6.02% to 4.55%** and damage taken from **346 to 406**,
+and it cost the same fanned across the lane as fanned down it, which is what
+identifies the mechanism: a stacked watch is four swings on one boarder with no
+walking, and 120 units of separation is a second of not swinging per man per
+boarder. The fan is refused and the constant deleted rather than zeroed. **The
+roaming the ask is actually about costs nothing resolvable** — crew 6.31%
+against 6.02%, taken 360 against 346, held 80.4% against 80.0%. Fifteen
+`crew ·` checks; `.shots/clips/sg187-before.gif` against `sg187-after.gif`. If
+he wants the watch to look like a watch, the honest ways to buy it are a
+renderer-side nudge or paying for it somewhere — not that line, quietly.
+
 ### Enemy attack telegraphs are missing or much weaker
 The browser draws a large teal ellipse on the deck when a boarder winds up. In
 the same posed moment Godot draws nothing comparable. Pillar 6 of the design is

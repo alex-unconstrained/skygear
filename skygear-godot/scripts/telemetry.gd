@@ -31,6 +31,20 @@ static func fresh(slots: int = 4) -> Dictionary:
 		# The crew and the deck cannons fight too, and on a lane map they do
 		# real work — a third of a run's damage in one measured browser case.
 		"allies": {"damage": 0.0, "kills": 0},
+		# ...AND WHICH OF THE TWO (SG-187). A SUBSET of `allies`, never a
+		# sibling of it: every unit of crew damage is counted in both, so the
+		# ally share every existing reader prints is byte-for-byte what it was
+		# and the "allies should hold rather than clear, want under 30%" target
+		# in `tools/balance.gd` still means the same thing.
+		#
+		# It exists because the owner's crew ask (SG-187) is a question about
+		# the CREW and the only number the rig could answer with was "crew and
+		# cannons together". A change that doubles a crewman's uptime moves an
+		# ally share that is mostly gunnery by a couple of points and hides
+		# itself, which is the "measured the wrong total" half of the SG-119
+		# lesson. `src_slot = -4` is a crew swing; `-3` is everything else
+		# allied.
+		"crew": {"damage": 0.0, "kills": 0},
 		# Engagement distance, sampled every frame against the nearest live
 		# boarder. Three buckets rather than a mean: a captain who alternates
 		# between point blank and the far rail has the same mean as one who never
@@ -76,7 +90,17 @@ static func note_cast(tel: Dictionary, slot: int, skill: Dictionary) -> void:
 
 static func note_damage(tel: Dictionary, slot: int, amount: float, killed: bool) -> void:
 	var bucket: Dictionary
-	if slot == -3:
+	if slot == -4:
+		## A CREWMAN'S SWING (SG-187). Counted twice on purpose — see `fresh`.
+		## The crew row is written first and then the ally row is written by
+		## falling through, so there is no path that can record one without the
+		## other and no arithmetic anywhere that has to remember to add them up.
+		if tel.has("crew"):
+			tel.crew.damage += amount
+			if killed:
+				tel.crew.kills += 1
+		bucket = tel.allies
+	elif slot == -3:
 		bucket = tel.allies
 	elif slot == -2:
 		bucket = tel.deck

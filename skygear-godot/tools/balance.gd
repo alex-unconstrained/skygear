@@ -159,6 +159,17 @@ func _run() -> void:
 	var count: int = int(args[0]) if args.size() > 0 else 3
 	var heat: int = int(args[1]) if args.size() > 1 else 0
 	var vow: String = str(args[2]) if args.size() > 2 else ""
+	## `none` IS THE EMPTY VOW, spelled (SG-187). The vow argument is the THIRD
+	## positional and `reps` is the fourth, so asking for an unvowed batch of a
+	## given size means passing an empty third argument — and Windows PowerShell
+	## DROPS an empty native-command argument rather than forwarding it, so
+	## `-- 6 0 "" 20` arrives as `[6, 0, 20]` and the rig refuses to start with
+	## "no such article: 20". Nothing here was broken; the shell ate the
+	## argument. Found running the SG-187 before-and-after, and worth a line
+	## because the next person measuring an unvowed arm on this machine hits it
+	## in their first minute.
+	if vow == "none" or vow == "-":
+		vow = ""
 	## REPS (SG-118, fourth argument): play the whole seed list this many times.
 	## The rig is not deterministic — see the header — so the seed list is a
 	## sample, not a measurement, and a comparison needs the sample to be big
@@ -224,10 +235,11 @@ func _run() -> void:
 			player_share += float(r.player)
 			waves_reached += float(r.wave)
 			wins += 1 if bool(r.won) else 0
-			print("  %-6s%-4s wave %2d %-10s  player %3.0f%%  allies %3.0f%%  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%  taken %4.0f  wave-sd %5.1f"
+			print("  %-6s%-4s wave %2d %-10s  player %3.0f%%  allies %3.0f%% (crew %3.0f%%)  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%  taken %4.0f  wave-sd %5.1f"
 				% [SEEDS[i], "" if reps == 1 else "#%d" % (rep + 1),
 					int(r.wave), "HELD" if bool(r.won) else "lost",
-					float(r.player), float(r.ally), float(r.passive), int(r.vents),
+					float(r.player), float(r.ally), float(r.crew),
+					float(r.passive), int(r.vents),
 					float(r.close), float(r.far), float(r.taken), float(r.taken_sd)])
 	var n := float(results.size())
 	print("")
@@ -243,6 +255,24 @@ func _run() -> void:
 			SkyGearBalStat.held_resolution(int(n))])
 	print("  %s" % SkyGearBalStat.verdict(int(n)))
 	print("  player %.0f%%   allies %.0f%%" % [player_share / n, ally_share / n])
+	## AND THE CREW ON THEIR OWN, WITH AN INTERVAL (SG-187). The ally column is
+	## twelve sailors plus three deck cannons, and the owner's crew ask is about
+	## the sailors: a change that moves a crewman's uptime by half moves that
+	## column by a point or two and vanishes into it. This is a mean of per-run
+	## shares, so its spread is the run-to-run spread and the interval is the
+	## ordinary t-free normal one at 1.96 — the same convention `resolvable_at`
+	## is written in, and honest at the n this rig is run at.
+	var crew_sum := 0.0
+	for r in results:
+		crew_sum += float(r.crew)
+	var crew_mean := crew_sum / n
+	var crew_var := 0.0
+	for r in results:
+		crew_var += pow(float(r.crew) - crew_mean, 2.0)
+	var crew_sd := sqrt(crew_var / maxf(1.0, n - 1.0))
+	print("  crew alone %.2f%% of all damage   sd %.2f   95%% interval %.2f%%..%.2f%%   (a SUBSET of allies, not a sibling)"
+		% [crew_mean, crew_sd, crew_mean - 1.96 * crew_sd / sqrt(n),
+			crew_mean + 1.96 * crew_sd / sqrt(n)])
 	## SG-130's STATISTIC, printed under every batch and not only when somebody
 	## goes looking. The bug it exists to catch was that two arms were played by
 	## different draft policies, and this is the line on which that is visible:
@@ -309,9 +339,15 @@ func _run() -> void:
 	var taken_list := PackedStringArray()
 	for r in results:
 		taken_list.append("%.1f" % float(r.taken))
-	print("SAMPLES n=%d held=%d wave_mean=%.3f taken_mean=%.3f taken_sd=%.3f taken=%s"
+	## And the crew shares individually, for the same reason (SG-187): a crew
+	## mean with no sample behind it cannot be re-tested, and the SG-187 A/B is
+	## a Welch test on exactly these two lists.
+	var crew_list := PackedStringArray()
+	for r in results:
+		crew_list.append("%.2f" % float(r.crew))
+	print("SAMPLES n=%d held=%d wave_mean=%.3f taken_mean=%.3f taken_sd=%.3f taken=%s crew_mean=%.3f crew_sd=%.3f crew=%s"
 		% [int(n), wins, waves_reached / n, taken_mean, taken_sd,
-			",".join(taken_list)])
+			",".join(taken_list), crew_mean, crew_sd, ",".join(crew_list)])
 	print("")
 	## The target the balance pass is aiming at, stated so a later run can be
 	## judged against it rather than against a feeling.
@@ -582,6 +618,10 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 		"taken_sd": taken_spread,
 		"player": player_dmg / total * 100.0,
 		"ally": float(tel.allies.damage) / total * 100.0,
+		## The sailors on their own (SG-187), out of the same denominator as
+		## every other share on this row so the columns can be read against one
+		## another. `crew` <= `ally` by construction.
+		"crew": float(tel.crew.damage) / total * 100.0,
 		"deck": float(tel.deck.damage) / total * 100.0,
 		"vents": int(tel.vents),
 		"close": float(seconds.close) / lived * 100.0,
