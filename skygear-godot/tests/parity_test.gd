@@ -14065,9 +14065,18 @@ func _deck_shape() -> void:
 	## figure — camera x is clamped to +/-369.6, figures never pass +/-750, and
 	## the rail's inner face is on 840 — and this measures the last of those three
 	## against the built geometry instead of repeating it.
+	##
+	## SCOPED TO THE RAIL, WHICH IS WHAT THE NAME ALWAYS SAID. Until SG-174 the
+	## loop read every child of the kit and the kit only ever held rail modules,
+	## so the two were the same set; the prow is inboard in X by construction (it
+	## is on the centreline) and would have failed a check that never meant to
+	## have an opinion about it. The whole-kit property is the plan-rectangle
+	## check below, which is strictly stronger.
 	var inboard := ""
 	var checked := 0
 	for c in (kit.get_children() if kit != null else []):
+		if not str(c.name).begins_with("Rail"):
+			continue
 		var box := _kit_aabb(c as Node3D)
 		if box.size == Vector3.ZERO:
 			continue
@@ -14102,6 +14111,122 @@ func _deck_shape() -> void:
 	_check("edge", "nothing in the edge kit can stop her either",
 		kit != null and kit_solid == "", "%d nodes%s"
 			% [kit_nodes, "" if kit_solid == "" else " EXCEPT a " + kit_solid])
+
+	## ---- THE SECOND PAIR (SG-174) -------------------------------------------
+	##
+	## The owner remade the bow and the stern after SG-157 refused the first pair.
+	## `prow_ram` is placed; `stern_counter_v2` is a refusal and these pin BOTH,
+	## because a refusal that nothing asserts is a flag one edit away from being
+	## silently reversed.
+	##
+	## IT IS THE PIECE HE REMADE, NOT THE ONE THAT WAS REFUSED, and the way that
+	## is told apart is the PROPORTION rather than a path string — the whole of
+	## SG-157's bow verdict is that `bow_ram` is a fore-and-aft spike and this
+	## ship's bow is wider than it is long. Both aspect ratios are measured off
+	## the meshes here, in this run, so the check fails if either file is swapped
+	## for the other.
+	var prow: Node3D = null
+	for c in (kit.get_children() if kit != null else []):
+		if str(c.name) == "Prow":
+			prow = c as Node3D
+	var prow_box := _kit_aabb(prow) if prow != null else AABB()
+	var prow_w: float = prow_box.size.x / SkyGearView3D.WORLD_SCALE
+	var prow_d: float = prow_box.size.z / SkyGearView3D.WORLD_SCALE
+	##
+	## Measured WITHOUT putting the refused piece in the tree — the wrapper
+	## `static_model.gd` writes only translates, so the union of the mesh AABBs is
+	## the piece's own size whatever frame it is read in.
+	var refused_aspect := 0.0
+	var refused: PackedScene = load("res://assets/models/bow_ram/bow_ram.tscn")
+	if refused != null:
+		var inst: Node3D = refused.instantiate()
+		var rbox := AABB()
+		var rfirst := true
+		var rstack: Array = [inst]
+		while not rstack.is_empty():
+			var n: Node = rstack.pop_back()
+			for c in n.get_children():
+				rstack.append(c)
+			var mi := n as MeshInstance3D
+			if mi == null or mi.mesh == null:
+				continue
+			var a: AABB = mi.get_aabb()
+			rbox = a if rfirst else rbox.merge(a)
+			rfirst = false
+		if rbox.size.z > 0.0:
+			refused_aspect = rbox.size.x / rbox.size.z
+		inst.free()
+	_check("edge", "the prow on the deck is the piece he remade, not the 3.6:1 spike SG-157 refused",
+		prow != null and prow_d > 0.0 and absf(prow_w / prow_d - 2.27) < 0.1
+			and refused_aspect > 3.0,
+		"prow %.0f x %.0f = %.2f:1 wide; the refused bow_ram is %.2f:1"
+			% [prow_w, prow_d, prow_w / maxf(1.0, prow_d), refused_aspect])
+
+	## THE SEAT IS THE WHOLE PLACEMENT AND IT IS ARITHMETIC, NOT A COORDINATE.
+	## The prow is scaled so its beam equals the apron's own beam at its aft edge,
+	## which is what puts its two aft corners ON the strake lines — SG-157's bow
+	## read as a separate object because nothing made it touch the bulwarks it was
+	## supposed to finish. Measured off the built node against `hull_beam()`, so
+	## moving the seat cannot break the join and changing the taper cannot either.
+	var seat_beam: float = rect.size.x * SkyGearView3D.hull_beam(view.edge_prow_aft_z)
+	var prow_aft: float = prow_box.end.z / SkyGearView3D.WORLD_SCALE
+	_check("edge", "the prow's beam is the hull's own beam where it seats, so its corners land on the strakes",
+		prow != null and absf(prow_w - seat_beam) < 2.0
+			and absf(prow_aft - view.edge_prow_aft_z) < 2.0,
+		"seat z %.0f: apron is %.0f wide, the prow is %.0f, aft face at %.0f"
+			% [view.edge_prow_aft_z, seat_beam, prow_w, prow_aft])
+
+	## AND NOTHING IN THE KIT STANDS WHERE SHE FIGHTS. This is the superset
+	## property for the WHOLE kit rather than for the rail alone: the rail keeps
+	## it in x (inner face on 840) and the prow keeps it in z (540 forward of the
+	## bow line), and a piece added later has to keep it somehow or fail here.
+	## Tested as a PLAN-RECTANGLE overlap, which is the only form that does not
+	## care which axis a given piece uses to stay out of the way.
+	var kit_intruder := ""
+	var plan_checked := 0
+	for c in (kit.get_children() if kit != null else []):
+		var box := _kit_aabb(c as Node3D)
+		if box.size == Vector3.ZERO:
+			continue
+		plan_checked += 1
+		var foot := Rect2(box.position.x, box.position.z, box.size.x, box.size.z)
+		foot.position /= SkyGearView3D.WORLD_SCALE
+		foot.size /= SkyGearView3D.WORLD_SCALE
+		if foot.intersects(rect):
+			kit_intruder = "%s over x %.0f..%.0f z %.0f..%.0f" % [str(c.name),
+				foot.position.x, foot.end.x, foot.position.y, foot.end.y]
+	_check("edge", "nothing in the edge kit stands in the rectangle she walks",
+		plan_checked > 0 and kit_intruder == "", "%d pieces in plan%s"
+			% [plan_checked, "" if kit_intruder == "" else "; INTRUDER: " + kit_intruder])
+
+	## THE STERN IS OFF, AND THE REFUSAL IS ASSERTED FROM BOTH SIDES IN ONE
+	## FIXTURE. A check that only read the shipped default would be vacuous — that
+	## is SG-146's recorded lesson — so this turns the flag ON, rebuilds, and
+	## measures the seating rule the SG-157 stern failed: the top face lands on
+	## the apron plane and the transom face lands on the hull's own aft limit,
+	## with no gap and no overlap. It then puts the flag back.
+	##
+	## The seating is CORRECT and the piece is still cut. That is the finding, and
+	## it is why this check pins the rule rather than the picture.
+	view.edge_stern_v2 = true
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	var stern: Node3D = null
+	for c in view.get_node("EdgeKit").get_children():
+		if str(c.name) == "SternCounter":
+			stern = c as Node3D
+	var stern_box := _kit_aabb(stern) if stern != null else AABB()
+	var stern_top: float = stern_box.end.y / SkyGearView3D.WORLD_SCALE
+	var stern_aft: float = stern_box.end.z / SkyGearView3D.WORLD_SCALE
+	var aft_limit: float = rect.end.y + SkyGearView3D.STERN_LENGTH
+	view.edge_stern_v2 = false
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	var still_off: bool = view.get_node("EdgeKit").find_child("SternCounter", true, false) == null
+	_check("edge", "the stern is cut, and seating it butts its top on the apron plane and its transom on the hull's aft limit",
+		still_off and stern != null
+			and absf(stern_top - view.edge_stern_v2_top) < 1.0
+			and absf(stern_aft - aft_limit) < 2.0,
+		"off by default; built, its top is at y %.1f (apron plane %.1f) and its transom at z %.0f (aft limit %.0f)"
+			% [stern_top, view.edge_stern_v2_top, stern_aft, aft_limit])
 
 	## ---- THE TRIANGLE CEILING (SG-152a) -------------------------------------
 	##

@@ -76,6 +76,31 @@ const STERN_TRIALS := [
 		"z": 1380.0, "s": 2.5, "note": "sized toward the 874-unit transom"},
 ]
 
+## --- SG-174, THE SECOND PAIR ---------------------------------------------------
+##
+## Same tool, same freeze, same poses, and deliberately the SAME CONTROL: plate A
+## is still the deck with no bow and no stern model on it, so these sheets are
+## directly comparable to the ones that got the first pair rejected.
+##
+## The difference is that these drive the SHIPPED placement (`view.edge_prow`,
+## `view.edge_stern_v2`) instead of instantiating a trial copy here. The first
+## pair had to be mocked up in this file because `_build_edge_kit()` refused to
+## build them; these two are built by the renderer, and a tool that photographed
+## its own second copy of a shipped placement would be failure mode two.
+const PROW_POSES := [
+	{"tag": "prow-1-stem", "spot": "stem", "zoom": 1.0,
+		"note": "the stem pose at the shipped zoom — the pose the first bow was cut on"},
+	{"tag": "prow-2-stem-close", "spot": "stem", "zoom": 1.55,
+		"note": "same pose, zoomed in, so the nose can be judged against her head"},
+]
+
+const STERN_V2_POSES := [
+	{"tag": "sternv2-1-transom", "spot": "transom", "zoom": 1.0,
+		"note": "hard against the aft limit — the pose the first stern floated in"},
+	{"tag": "sternv2-2-transom-close", "spot": "transom", "zoom": 1.55,
+		"note": "same pose, zoomed in, so the seat against the strake can be seen"},
+]
+
 const MAST_POSES := [
 	{"tag": "mast-mid", "spot": "mid", "zoom": 1.0},
 	{"tag": "mast-mid-close", "spot": "mid", "zoom": 1.55},
@@ -105,6 +130,40 @@ func _run() -> void:
 	await _boot()
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT_DIR))
 
+	## THE BASE STATE IS THE DECK WITHOUT EITHER NEW PIECE, and it is set here
+	## rather than assumed. SG-174 turned `edge_prow` and `edge_stern_v2` ON in
+	## the renderer, so "the deck as it ships" is no longer the control these
+	## sheets need — and the SG-157 pairs below would silently have started
+	## photographing a deck with a prow on it, which is the sixth failure mode
+	## arriving through a default nobody re-read.
+	view.edge_prow = false
+	view.edge_stern_v2 = false
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	await process_frame
+
+	## SG-174 first, and on its own switch, because `all` is the SG-157 sheet set
+	## and re-running it must keep producing the frames its verdicts name.
+	if mode == "redo" or mode == "prow":
+		for t in PROW_POSES:
+			var pose: Dictionary = t
+			await _pair(str(pose.tag), str(pose.spot), float(pose.zoom),
+				"THE BOW — REMADE",
+				"WITHOUT the new prow (the hull apron alone)",
+				"WITH prow_ram — %.0f across, %.0f deep, its aft corners on the strakes"
+					% [SkyGearView3D.PROW_NATIVE.x * view.edge_prow_scale(),
+						SkyGearView3D.PROW_NATIVE.z * view.edge_prow_scale()],
+				str(pose.note), _prow_on, _prow_off,
+				"no-prow", "with-prow_ram")
+	if mode == "redo" or mode == "sternv2":
+		for t in STERN_V2_POSES:
+			var pose: Dictionary = t
+			await _pair(str(pose.tag), str(pose.spot), float(pose.zoom),
+				"THE STERN — REMADE",
+				"WITHOUT the new stern (the hull counter alone)",
+				"WITH stern_counter_v2 — %.0f across the transom, seated on the deck edge"
+					% view.edge_stern_v2_width,
+				str(pose.note), _stern_v2_on, _stern_v2_off,
+				"no-stern", "with-stern_counter_v2")
 	if mode == "all" or mode == "mast":
 		for pose in MAST_POSES:
 			await _pair(str(pose.tag), str(pose.spot), float(pose.zoom),
@@ -146,7 +205,8 @@ func _run() -> void:
 ## position, and it is the arrangement SG-108 was paid for.
 func _pair(tag: String, spot: String, zoom: float, title: String,
 		label_a: String, label_b: String, note: String,
-		turn_on: Callable, turn_off: Callable) -> void:
+		turn_on: Callable, turn_off: Callable,
+		short_a: String = "", short_b: String = "") -> void:
 	await _pose(spot, zoom)
 	await SkyGearStill.freeze(self, view, game)
 
@@ -172,10 +232,14 @@ func _pair(tag: String, spot: String, zoom: float, title: String,
 	await _flush()
 	await SkyGearStill.thaw(self, view, game)
 
-	manifest.append({"tag": tag, "title": title, "note": note,
+	var entry := {"tag": tag, "title": title, "note": note,
 		"spot": spot, "zoom": zoom,
 		"a": a_path.replace("res://", ""), "b": b_path.replace("res://", ""),
-		"label_a": label_a, "label_b": label_b})
+		"label_a": label_a, "label_b": label_b}
+	if short_a != "":
+		entry["short_a"] = short_a
+		entry["short_b"] = short_b
+	manifest.append(entry)
 	print("  %s  %s vs %s" % [tag, label_a, label_b])
 
 
@@ -192,6 +256,38 @@ func _grab(path: String) -> void:
 
 
 ## --- the pieces ----------------------------------------------------------------
+
+## SG-174. Both of these drive the RENDERER's own switch and then rebuild the
+## kit, so what is photographed is the shipped placement and not a copy of it.
+## `rebuild_edge_kit` takes the tile count it already has, which leaves the rail
+## byte-identical between the two plates — the piece is the only difference.
+func _prow_on():
+	view.edge_prow = true
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	for child in view._edge_kit.get_children():
+		if str(child.name) == "Prow":
+			return child as Node3D
+	return null
+
+
+func _prow_off(_built) -> void:
+	view.edge_prow = false
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+
+
+func _stern_v2_on():
+	view.edge_stern_v2 = true
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+	for child in view._edge_kit.get_children():
+		if str(child.name) == "SternCounter":
+			return child as Node3D
+	return null
+
+
+func _stern_v2_off(_built) -> void:
+	view.edge_stern_v2 = false
+	view.rebuild_edge_kit(view.edge_rail_tiles)
+
 
 func _mast_on():
 	view.rig_model_masts = true

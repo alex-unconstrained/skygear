@@ -6436,6 +6436,106 @@ var edge_stern_z := 1380.0
 var edge_rail_legacy := false
 
 
+## --- THE SECOND PAIR, SG-174 ---------------------------------------------------
+##
+## `bow_ram` and `stern_counter` were REFUSED by SG-157 on proportion and the
+## owner remade both. The new pieces are `prow_ram` and `stern_counter_v2`, and
+## the rejected pair is still in `assets/models/` untouched so the comparison
+## survives — nothing below reads them.
+##
+## EVERY NUMBER HERE IS MEASURED OFF THE TRIMMED MESH THAT SHIPS, in ground
+## units at model scale 1, and the measurement is the one thing that decides the
+## HEADING for each piece rather than a filename or a delivery note:
+##
+##   prow_ram          189.6 x  93.2 x  83.4    3,000 tris
+##   stern_counter_v2  189.3 x  40.1 x  89.8    3,000 tris
+##
+## THE PROW'S HEADING DOES NOT MATTER AND THAT IS A MEASUREMENT. Its plan is a
+## rounded RECTANGLE — no point, no taper, symmetric in both horizontal axes —
+## and the only taper in it runs DOWNWARD (1.896 across the top narrowing to
+## 0.554 at the keel). That is a hull section, so the long axis is the beam and
+## the piece is placed unrotated.
+##
+## THE STERN'S HEADING IS FORCED BY ITS SYMMETRY AND IT IS NOT THE LONG AXIS.
+## The delivery was measured 1.898 x 0.402 x 0.896 and read as "width on the
+## long axis"; the mesh says otherwise. It is a lens in plan, blunt at +X and
+## drawn to a point at -X, and it is MIRROR-SYMMETRIC ABOUT ITS OWN XY PLANE.
+## A ship's piece is symmetric about the centreline, so the centreline is the
+## X axis: 189.3 of it runs FORE-AND-AFT and 89.8 goes across. The blunt end is
+## the transom — `.shots/sg148/sg174-id/stern_counter_v2-y270.png` is that end
+## seen square on, a framed arch with a centre post over a squared lower band —
+## so the placement turns +X to +Z and everything forward of the transom is hull
+## under the deck, which is exactly where a counter's length is supposed to go.
+const EDGE_PROW_SCENE := "res://assets/models/prow_ram/prow_ram.tscn"
+const EDGE_STERN_V2_SCENE := "res://assets/models/stern_counter_v2/stern_counter_v2.tscn"
+
+const PROW_NATIVE := Vector3(189.6, 93.2, 83.4)
+const STERN_V2_NATIVE := Vector3(189.3, 40.1, 89.8)
+
+## THE PROW IS ON. THE STERN IS OFF, AND IT IS A REFUSAL WITH A NUMBER RATHER
+## THAN A PREFERENCE — the verdict is written out under `_build_edge_stern_v2()`
+## and it is the same camera fact SG-157 measured, now confirmed against a piece
+## that has no proportion problem at all. Both switches exist so
+## `tools/edge_ab.gd` can take the control plate in the SAME freeze and so the
+## refusal's frames stay reproducible from one flag.
+var edge_prow := true
+var edge_stern_v2 := false
+
+## THE PROW IS SEATED BY ITS AFT EDGE AND ITS SCALE IS DERIVED, NOT TYPED.
+##
+## The first placement fixed a scale and a forward face and it read exactly like
+## the piece SG-157 refused: a dark slab hanging in the sky forward of the stem,
+## with a wedge of unlit apron visible BETWEEN it and the two brass strakes
+## (`.shots/sg157/sg174-prow-z-1500/`). The gap was the whole failure — a nose that
+## does not touch the bulwarks it is supposed to finish is a separate object.
+##
+## So the free variable is WHERE THE PIECE ENDS, and the scale follows from it:
+## the piece is scaled so its beam equals the apron's own beam at that z, which
+## puts its two aft corners exactly on the strake lines by construction. There is
+## no value of `edge_prow_aft_z` that leaves a gap, and that is the point of
+## writing it this way rather than as a scale plus a hope.
+## -1620 is chosen from frames and not from arithmetic: it is where the piece is
+## 638 across against a 638-wide apron, which is big enough to be a nose and
+## small enough not to reach the sky at the top of the frame.
+## `.shots/sg157/sg174-prow-z*` is the sweep it was picked out of — four seats
+## from -1160 to -1750 crossed with three heights.
+var edge_prow_aft_z := -1620.0
+## HOW FAR PROUD OF THE APRON, and this one is the whole argument.
+##
+## At +3 the piece's top face is coplanar with the apron and it VANISHES: the
+## apron is a flat plane at y = 0 too, so the only difference the frame gets is a
+## brass line (`.shots/sg157/sg174-prow-z-1500-t3/`). At +160 it clears the stem
+## entirely and reads as a separate object hanging in the sky, cropped by the top
+## of the frame — which is exactly what `bow_ram` was cut for
+## (`sg174-prow-z-1680-t160/`). +110 is the seat where its aft corners are still
+## on the strakes and its brass underframe is what the camera gets.
+var edge_prow_top := 110.0
+
+
+## The uniform scale that makes the prow exactly as wide as the hull it caps.
+func edge_prow_scale() -> float:
+	return (SkyGearGame.DECK_RECT.size.x * hull_beam(edge_prow_aft_z)) / PROW_NATIVE.x
+
+## THE STERN, seated by its TRANSOM. `edge_stern_v2_width` is the across-ship
+## beam the piece is scaled to, and 874 is not a taste: it is `STERN_BEAM * 1680`,
+## the width the hull's own counter tapers to, so the transom face lands exactly
+## as wide as the hull it closes.
+var edge_stern_v2_aft_z := 1540.0
+var edge_stern_v2_width := 874.0
+## The top face against the deck edge. SG-157's stern FAILED ON SEATING — it
+## floated in the void with a visible gap under the strake — so this is the
+## number that row is really about, and it is measured off the same `sheer_lift`
+## the strake is built on rather than typed in beside it.
+var edge_stern_v2_top := 0.0
+## THE HEADING, IN DEGREES, AND IT IS A TRIAL VARIABLE BECAUSE THE MESH ARGUES
+## WITH THE DELIVERY NOTE. -90 turns the model's +X aft, which is what its own
+## mirror plane asks for; 0 lays the long axis ACROSS the ship, which is what the
+## delivery note said and what the spec asked for. Both were photographed —
+## `.shots/sg157/sg174-stern-*` — because the verdict is about which one READS,
+## not about which one is nominally correct.
+var edge_stern_v2_yaw := -90.0
+
+
 ## The uniform scale that makes `edge_rail_tiles` modules tile the deck exactly.
 func edge_rail_scale() -> float:
 	var spacing: float = SkyGearGame.DECK_RECT.size.y / float(edge_rail_tiles)
@@ -6449,7 +6549,12 @@ func _build_edge_kit() -> void:
 	_build_edge_rail()
 	if edge_stern_trial > 0.0:
 		_build_edge_stern_trial()
-	## THE BOW IS NOT BUILT — see the verdict below.
+	## `bow_ram` IS STILL NOT BUILT — SG-157's verdict below stands and the model
+	## is kept only for the comparison. Its replacement is the two calls under it.
+	if edge_prow:
+		_build_edge_prow()
+	if edge_stern_v2:
+		_build_edge_stern_v2()
 
 
 ## Rebuild at a different tile count, for the scale comparison. The probe drives
@@ -6521,6 +6626,117 @@ func _build_edge_rail() -> void:
 			node.name = "RailModule%s%d" % ["P" if side < 0.0 else "S", i]
 
 
+## THE PROW — a nose on the bow the apron already draws, SG-174.
+##
+## `_hull_apron()` carries real planking 620 units forward of the bow line and
+## narrows it to NOTHING on `hull_beam()`, so the ship already reads as having a
+## bow: two bulwarks converging on a stem. What it does not have is a stem — the
+## convergence runs out to a paper edge. This is the block that edge lands on.
+##
+## THE SEAT IS THE AFT EDGE, at `edge_prow_aft_z`, and the scale comes from the
+## hull there — see the note on `edge_prow_scale()`. The `.tscn` wrapper stands
+## the mesh on its own floor and centres it over its footprint, so the node's
+## origin is the BASE and the middle of the plan: the y below drops it until its
+## TOP is `edge_prow_top` above the apron, and the z below pushes it FORWARD by
+## half its own depth so its aft face lands on the seat rather than its middle.
+##
+## NOTHING HERE COLLIDES AND NOTHING HERE IS INBOARD. The piece lives entirely
+## forward of `DECK_RECT.position.y` — 540 units forward of the bow line at the
+## shipped seat — so it cannot reach the rectangle the captain walks, and like
+## every other kit piece it is a MeshInstance3D with no body. Both are harness
+## checks rather than paragraphs.
+func _build_edge_prow() -> void:
+	var scene: PackedScene = load(EDGE_PROW_SCENE)
+	if scene == null:
+		push_warning("edge kit: no prow at %s" % EDGE_PROW_SCENE)
+		return
+	var s := edge_prow_scale()
+	var node: Node3D = scene.instantiate()
+	node.transform = Transform3D(Basis().scaled(Vector3(s, s, s)), Vector3(
+		0.0,
+		edge_prow_top - PROW_NATIVE.y * s,
+		edge_prow_aft_z - PROW_NATIVE.z * s * 0.5) * WORLD_SCALE)
+	node.name = "Prow"
+	_edge_kit.add_child(node)
+
+
+## THE STERN — the transom the counter was missing, SG-174.
+##
+## SG-157's stern did not fail on size, it failed on SEATING: it hung in the
+## black below the deck edge with a gap between it and the strake, so it read as
+## a crate parked near the ship rather than as the end of it. The seat here is
+## therefore stated as a rule and not as a coordinate — the piece's TOP FACE goes
+## at `edge_stern_v2_top` above the apron plane and its TRANSOM FACE goes at
+## `edge_stern_v2_aft_z`, which defaults to `DECK_RECT.end.y + STERN_LENGTH`: the
+## exact z where `_hull_apron` stops drawing planking. Top face and apron plane
+## are then the same plane at the same z, which is what "butts with no gap and no
+## overlap" means when it is written as arithmetic.
+##
+## `Basis(UP, -PI/2)` carries the model's +X to world +Z, putting the blunt
+## transom end aft — see the heading note above, which measures it rather than
+## reading it off the delivery.
+func _build_edge_stern_v2() -> void:
+	var scene: PackedScene = load(EDGE_STERN_V2_SCENE)
+	if scene == null:
+		push_warning("edge kit: no stern at %s" % EDGE_STERN_V2_SCENE)
+		return
+	## Which of the model's two horizontal extents ends up ACROSS the ship follows
+	## from the heading, so the scale and the aft offset are read out of the same
+	## turn rather than typed twice.
+	var turned: bool = absf(sin(deg_to_rad(edge_stern_v2_yaw))) > 0.5
+	var across: float = STERN_V2_NATIVE.z if turned else STERN_V2_NATIVE.x
+	var along: float = STERN_V2_NATIVE.x if turned else STERN_V2_NATIVE.z
+	var s: float = edge_stern_v2_width / across
+	var node: Node3D = scene.instantiate()
+	var basis := Basis(Vector3.UP, deg_to_rad(edge_stern_v2_yaw)).scaled(Vector3(s, s, s))
+	node.transform = Transform3D(basis, Vector3(
+		0.0,
+		edge_stern_v2_top - STERN_V2_NATIVE.y * s,
+		edge_stern_v2_aft_z - along * s * 0.5) * WORLD_SCALE)
+	node.name = "SternCounter"
+	_edge_kit.add_child(node)
+
+
+## THE STERN IS CUT AGAIN, AND THIS TIME THE MODEL IS NOT THE PROBLEM.
+##
+## `stern_counter_v2` is built by the function above and `edge_stern_v2` is OFF.
+## SG-157 refused the first stern on SEATING — it hung in the black with a gap
+## under the strake. That is fixed here by construction: the seat is stated as
+## "top face on the apron plane, transom face at the apron's own aft limit", so
+## there is no value of either variable that leaves a gap. **And seating it
+## correctly makes it INVISIBLE.**
+##
+## MEASURED, not judged by eye. The A/B pair at the transom pose, both plates
+## inside one freeze, differs on **0.000% of its pixels at a threshold of 2/255,
+## with a maximum single-channel delta of 1** — under the tool's own noise floor,
+## which is 0.00% at that pose. At zoom 1.55 it is 0.019%.
+## `.shots/owner-review/2-bow-stern-redo/sternv2-*` is the pair, and the two
+## plates are the same picture.
+##
+## THE CAUSE IS THE CAMERA AND IT IS THE SAME 209-UNIT BAND SG-157 MEASURED.
+## A piece whose top is at or below the apron plane is under an opaque two-sided
+## apron everywhere the apron exists, and aft of that it is in a part of the
+## frame that carries no lamp; there is nothing down there for the moon to catch.
+## Raising it is the only way to make it visible and raising it puts it BETWEEN
+## THE LENS AND THE CAPTAIN, which is measured too:
+##
+##   * `.shots/sg157/sg174-stern-z1540-t110-y0/` — 110 up, long axis across the
+##     ship. She is cut off at the chest.
+##   * `.shots/sg157/sg174-stern-z1300-t110-y0/` — 100 further forward. She is
+##     gone; only her hair shows.
+##   * `.shots/sg157/sg174-stern-z1540-t90/` and `z1340-t140/` — the mesh's own
+##     heading (long axis fore-and-aft). At the beam-matched scale that heading
+##     is 1,842 units long, so lifting it at all lays a brass tub over the whole
+##     aft third of the deck.
+##
+## SO THE FINDING IS NOT ABOUT EITHER MODEL. Two hand-made sterns of completely
+## different proportion have now failed the same way, and the reason is that this
+## camera never sees the outside of the hull: it sits 460 units astern of a focus
+## that clamps at 1360 and looks DOWN at 41 degrees, so everything a transom is
+## made of is either behind the deck it closes or below the bottom of the frame.
+## A stern that shows on this deck is a stern standing ON it. Filed for the owner
+## rather than shipped dark: turning it on is one flag, and `edge_stern_v2_top`
+## is the dial that decides how much of her it costs.
 func _build_edge_stern_trial() -> void:
 	var scene: PackedScene = load("res://assets/models/stern_counter/stern_counter.tscn")
 	if scene == null:
@@ -6582,6 +6798,13 @@ func _build_legacy_gunwale() -> void:
 ## in front of her. `edge_place.gd -- where` prints the bottom-edge number now;
 ## nothing had ever printed it, so "the aft half is off screen" had been an
 ## assertion since the day it was written.
+##
+## **CONFIRMED AGAINST A SECOND, BETTER STERN — SG-174.** The owner remade this
+## piece and the remake fixes the seating completely; it is still cut, and the
+## A/B says so with a zero rather than an opinion. The verdict on
+## `_build_edge_stern_v2()` has the numbers. What that adds to this paragraph is
+## that the band is not a fact about `stern_counter`: it is a fact about the
+## camera, and no model answers it.
 
 
 ## THE MAST STAYS AS IT IS — the owner's model neither replaces the casters nor
@@ -6652,6 +6875,11 @@ func _build_legacy_gunwale() -> void:
 ## not need this model to have a bow. It needs a bow-shaped model, and this is a
 ## torpedo boat. Filed for the owner: a prow re-modelled at roughly 3:1 WIDE
 ## rather than 3.6:1 LONG would drop straight into `_build_edge_kit()`.
+##
+## **ANSWERED, SG-174.** He remade it at 2.27:1 wide and it did drop straight in:
+## `prow_ram` is on the deck, seated by `_build_edge_prow()` above. This
+## paragraph stays because `bow_ram` is still in `assets/models/` for the
+## comparison and the reason it is not placed has not changed.
 
 
 ## --- THE DECK REMEMBERS THE FIGHT ---------------------------------------------

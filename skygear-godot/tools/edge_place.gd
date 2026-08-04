@@ -88,6 +88,62 @@ func _run() -> void:
 		quit(0)
 		return
 
+	## SG-174. THE SEAT SWEEP FOR THE SECOND PAIR, and it exists for the same
+	## reason `scales` exists: the question is which seat ships, and a comparison
+	## of anything other than the shipped placement answers a different question.
+	## Both drive `view3d.gd`'s own switches and rebuild the kit, so nothing here
+	## carries a second copy of the placement.
+	##
+	##   ... -- prow -1550,-1650,-1700,-1740        aft-edge candidates, in z
+	##   ... -- sternv2 1540,1440,1340              transom-face candidates, in z
+	if mode == "prow":
+		var seats: PackedStringArray = (str(argv[1]) if argv.size() > 1
+			else "-1550,-1650,-1700,-1740").split(",")
+		var tops: PackedStringArray = (str(argv[2]) if argv.size() > 2
+			else "3").split(",")
+		view.edge_stern_v2 = false
+		for seat in seats:
+			for top in tops:
+				view.edge_prow_aft_z = float(seat)
+				view.edge_prow_top = float(top)
+				view.rebuild_edge_kit(view.edge_rail_tiles)
+				await process_frame
+				print("  aft edge z %.0f  top %+.0f  ->  %.0f across, %.0f deep, %.0f tall"
+					% [view.edge_prow_aft_z, view.edge_prow_top,
+						SkyGearView3D.PROW_NATIVE.x * view.edge_prow_scale(),
+						SkyGearView3D.PROW_NATIVE.z * view.edge_prow_scale(),
+						SkyGearView3D.PROW_NATIVE.y * view.edge_prow_scale()])
+				await _sweep("sg174-prow-z%.0f-t%.0f"
+					% [view.edge_prow_aft_z, view.edge_prow_top],
+					["stem"], [1.0])
+		quit(0)
+		return
+
+	if mode == "sternv2":
+		var seats: PackedStringArray = (str(argv[1]) if argv.size() > 1
+			else "1540,1440,1340").split(",")
+		var tops: PackedStringArray = (str(argv[2]) if argv.size() > 2
+			else "0").split(",")
+		var yaws: PackedStringArray = (str(argv[3]) if argv.size() > 3
+			else "-90").split(",")
+		view.edge_prow = false
+		for seat in seats:
+			for top in tops:
+				for yaw in yaws:
+					view.edge_stern_v2_aft_z = float(seat)
+					view.edge_stern_v2_top = float(top)
+					view.edge_stern_v2_yaw = float(yaw)
+					view.rebuild_edge_kit(view.edge_rail_tiles)
+					await process_frame
+					print("  transom z %.0f  top %+.0f  yaw %+.0f"
+						% [seat.to_float(), top.to_float(), yaw.to_float()])
+					await _sweep("sg174-stern-z%.0f-t%.0f-y%.0f"
+						% [view.edge_stern_v2_aft_z, view.edge_stern_v2_top,
+							view.edge_stern_v2_yaw],
+						["transom"], [1.0])
+		quit(0)
+		return
+
 	if mode == "mast":
 		## The rig is built in `_ready`, so this rebuilds it rather than setting a
 		## flag nobody will read again.

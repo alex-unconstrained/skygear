@@ -306,6 +306,30 @@ const MODELS := {
 	"mast_crowned": 0.0,
 	"bow_ram": 0.0,
 	"stern_counter": 0.0,
+	## THE SECOND PAIR (SG-174). `bow_ram` and `stern_counter` above were REFUSED
+	## by SG-157 on proportion — the bow a 3.64:1 fore-and-aft spike, the stern a
+	## 1.25:1 near-cube that floated near the deck edge instead of meeting it —
+	## and the owner remade both. They are kept side by side rather than
+	## overwritten so the comparison stays available, which is the whole reason
+	## these two carry new keys.
+	##
+	## MEASURED off the delivered files, before any trim:
+	##   prow_ram          1.897 x 0.930 x 0.832   9,770 tris   2.28:1 WIDE
+	##   stern_counter_v2  1.898 x 0.402 x 0.896   9,816 tris   4.72:1 WIDE
+	##
+	## Both trimmed to 3,000 by `tools/deck_trim.py` — the FLOOR, and the right
+	## target for the same reason `rail_stanchion` shipped at 3,060 off the
+	## owner's hand: same kit, same 190-unit width, same camera. Open boundary
+	## edges 0 -> 0 on both, deviation 0.13% and 0.11% of the diagonal.
+	##
+	## Facing 0.0 for both, and for these two it is measured rather than
+	## inherited: `prow_ram` is symmetric in X and very nearly so in Z (a broad
+	## blunt block that tapers DOWNWARD, which is a hull section, not a plan
+	## taper), so no yaw can be wrong about which end is the point; and
+	## `stern_counter_v2`'s asymmetry is along X, which is the axis that faces
+	## aft. See the placement note in `view3d.gd`.
+	"prow_ram": 0.0,
+	"stern_counter_v2": 0.0,
 	## "hatch_cargo" is absent because it was GENERATED THREE TIMES AND
 	## REJECTED — the first entry here that lost on its own merits rather than
 	## on budget, and the reason is geometric rather than a prompt that can be

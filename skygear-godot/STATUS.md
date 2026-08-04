@@ -32,8 +32,8 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1069 harness checks**; the text audit covers 25 screens at
-board SG-56). **1069 harness checks**; the text audit covers 24 screens at
+board SG-56). **1073 harness checks**; the text audit covers 25 screens at
+board SG-56). **1073 harness checks**; the text audit covers 24 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -229,6 +229,27 @@ resolution* rather than as a finding, and why the fix's real evidence is the
 direct probe instead. Three `bot ·` checks; the one that matters is `bot · the
 bot actually moves the captain — the SG-118 regression`.
 
+**THE SHIP HAS A BOW ON IT NOW, AND THE STERN IS A REFUSAL WITH A ZERO IN IT
+(SG-174, 2026-08-03).** The owner remade both pieces after SG-157 refused the
+first pair (*"Bow and Stern look horrible here"*). `prow_ram` is **placed**, and
+the placement is arithmetic rather than a coordinate: the free variable is where
+the piece ENDS and its scale is derived from `hull_beam()` there, so its two aft
+corners land on the strake lines by construction and there is no setting that
+leaves the gap the old bow read as. It changes **9.1% of the frame** and does not
+touch her. **`stern_counter_v2` is CUT, and the interesting half is that the
+model is not the problem**: its seating — the exact thing SG-157 refused the
+first stern for — is fixed by construction, and seated correctly the A/B pair
+differs on **0.000% of its pixels, maximum single-channel delta 1**. Raising it
+until it can be seen puts it between the lens and the captain, with frames.
+**Two hand-made sterns of completely different proportion have now failed
+identically, because this camera never sees the outside of the hull** — it sits
+460 astern of a focus clamped at 1360 and looks DOWN at 41 degrees, so a transom
+is either behind the deck it closes or below the bottom of the frame. **And the
+delivery note was wrong about one heading**: Meshy normalises to 1.9 on the
+longest axis, so "both are 1.9 wide" is not a statement about the ship — the
+stern's mirror plane says 189 of it runs FORE-AND-AFT and only 90 goes across.
+Four `edge ·` checks; the sheets are `.shots/owner-review/2-bow-stern-redo/`.
+
 **THE MODELS CAN BE LIT NOW, AND THE LIGHTS ARE DATA (SG-81, owner ask:
 "the models don't have baked lighting").** `assets/models/lights.json` is a
 per-MODEL-KEY table — omni or spot, colour, strength, reach, falloff, offset in
@@ -371,9 +392,9 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1069 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1073 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1069 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1073 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -479,8 +500,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1069 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1069 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1073 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1073 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -508,9 +529,9 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1069 checks. Green before anything ships |
+| `harness` | 1073 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1069 checks. Green before anything ships |
+| `harness` | 1073 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
