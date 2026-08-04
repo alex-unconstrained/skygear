@@ -174,9 +174,13 @@ func _run() -> void:
 		quit(_run_all())
 		return
 
+	## Everything after the tool's own name belongs to the tool.
+	var extra := PackedStringArray()
+	for i in range(1, argv.size()):
+		extra.append(str(argv[i]))
 	for tool in TOOLS:
 		if str(tool.id) == want:
-			quit(_launch(tool))
+			quit(_launch(tool, extra))
 			return
 	for tool in SCRIPTS:
 		if str(tool.id) == want:
@@ -260,7 +264,7 @@ func _run_all() -> int:
 ## Godot cannot run a second SceneTree script inside this one, so each tool is a
 ## child process. Blocking on purpose — `all` is a sequence, and interleaved
 ## output from six tools would be unreadable.
-func _launch(tool: Dictionary) -> int:
+func _launch(tool: Dictionary, extra: PackedStringArray = []) -> int:
 	var args: PackedStringArray = ["--path", ".", "--script", str(tool.script)]
 	## Some checkers rasterise. `--headless` is faster where it is allowed and
 	## fatal where it is not, so the tool says which it is.
@@ -268,6 +272,20 @@ func _launch(tool: Dictionary) -> int:
 		args.append("--headless")
 	else:
 		args.append_array(["--resolution", "1600x900"])
+	## AND ANYTHING THE CALLER TYPED AFTER THE TOOL'S NAME GOES THROUGH.
+	##
+	## This file's whole claim is that it is ONE DOOR to every tool, and it was
+	## not: `_launch` built a fixed argument list and silently dropped the rest,
+	## so `SkyGear Tools.bat lab --mount --fit crew` opened the lab on nothing in
+	## particular and the owner could not reach a tool through the front door
+	## that the tool's own header documents. A dispatcher that quietly discards
+	## half of what you typed is worse than one that refuses it.
+	##
+	## `OS.get_cmdline_user_args()` is what the tool reads, and the engine fills
+	## it from everything after a bare `--`, so that separator has to be here.
+	if not extra.is_empty():
+		args.append("--")
+		args.append_array(extra)
 	var out: Array = []
 	var code := OS.execute(_godot_path(), args, out, true)
 	var raised := 0
