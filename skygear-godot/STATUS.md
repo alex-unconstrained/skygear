@@ -32,7 +32,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1080 harness checks**; the text audit covers 25 screens at
+board SG-56). **1082 harness checks**; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -41,6 +41,28 @@ rather than four. Build 38 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**ONE HARNESS CHECK WAS TESTING WHETHER THE OWNER HAD THE GAME OPEN (SG-181,
+2026-08-04).** `audio · volume survives the session` wrote 0.42 into the
+player's REAL `user://settings.cfg` and read it straight back — and the itch
+build was running on this machine, rewriting that same file several times a
+second, so the check reported the OTHER process's master volume and went red
+about one run in six. Measured rather than reasoned: 200 save-then-read
+iterations lost **53–79** of 200 on `user://settings.cfg` and **0 of 200** on
+every other filename in the same directory, the write never became visible even
+after 500 ms of polling, and the file's mtime advanced on its own with no Godot
+of ours running. **`SkyGearAudio.store` is the SG-83 pointer**, diverted to a
+scratch file before the first check and asserted byte-for-byte restored after
+the last one. **The two lessons are bigger than the check.** A harness that
+reads or writes real `user://` state is not testing the game, it is testing the
+machine — and this one was also quietly writing the owner's volume down to 0.42
+on every run. **The sweep for others found two more and one of them is
+destroying data**: the harness wipes `user://runs.json` on every invocation
+(his run log on this machine is now five harness fixtures) and overwrites
+`user://keys.cfg` — **SG-182**, unfixed. And the reason the collision was
+constant rather than rare is a shipped bug of its own: the pause and settings
+screens call `set_volume` from their DRAW, so either screen saves the config
+file every frame (**SG-183**).
 
 **THE OWNER HAS ONLY EVER PLAYED HEAT 1, AND THAT IS NOW A SETTING RATHER THAN A
 RUN OF WINS (SG-160, 2026-08-03, owner: *"if you're able to just unlock it so I
@@ -415,9 +437,9 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1077 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1082 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1077 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1082 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -523,8 +545,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1077 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1077 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1082 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1082 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -552,9 +574,9 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1077 checks. Green before anything ships |
+| `harness` | 1082 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1077 checks. Green before anything ships |
+| `harness` | 1082 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

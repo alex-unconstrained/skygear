@@ -20,6 +20,24 @@ const BUS_MASTER := "Master"
 const BUSES := ["Music", "SFX", "UI", "Voice"]
 const SETTINGS_PATH := "user://settings.cfg"
 
+## THE FILE EVERY READER AND WRITER HERE ACTUALLY GOES THROUGH. `SETTINGS_PATH`
+## is where a PLAYER's volumes, fullscreen and OPEN ALL HEATS live; `store` is
+## the pointer, so a TEST RUN can be sent somewhere else. Exactly the shape and
+## exactly the reason `SkyGearHudLayout.store` exists (SG-83).
+##
+## It is a var because of board SG-181. `tests/parity_test.gd` wrote 0.42 into
+## the player's real `settings.cfg` and read it straight back, which was wrong
+## twice over. It MUTATED his settings — his volume and his OPEN ALL HEATS
+## toggle are in that file — and it made the check depend on machine state:
+## anything else with this game open rewrites that file several times a second
+## (the pause and settings screens call `set_volume` from their draw, and
+## `set_volume` saves), so the harness's 0.42 was being overwritten by a second
+## process before the harness could read it back. Measured on this machine with
+## the owner's build running: 53-79 of every 200 writes to `user://settings.cfg`
+## were gone by the next read, while the identical loop against any other
+## filename in the same directory lost 0 of 200.
+static var store := SETTINGS_PATH
+
 ## The music director. Same tiers as the browser: the fight escalates with the
 ## wave and the finale gets its own track, with a crossfade over the join
 ## because neither track is authored to loop.
@@ -187,12 +205,12 @@ func save_settings() -> void:
 	cfg.set_value("audio", "muted", muted)
 	cfg.set_value("display", "fullscreen", fullscreen)
 	cfg.set_value("playtest", "open_heats", open_heats)
-	cfg.save(SETTINGS_PATH)
+	cfg.save(store)
 
 
 func load_settings() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load(SETTINGS_PATH) != OK:
+	if cfg.load(store) != OK:
 		apply_volumes()
 		return
 	for key in volumes.keys():

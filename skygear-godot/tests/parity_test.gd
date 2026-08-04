@@ -169,6 +169,10 @@ func _passive_fixture(shape: String, passive_timer: float) -> Dictionary:
 ## and the proof, at the end, that the harness did not touch it (SG-83).
 var _owner_layout_before: Variant = null
 
+## The same, for the player's own `user://settings.cfg` — his volumes, his
+## fullscreen and his OPEN ALL HEATS switch (SG-181).
+var _owner_settings_before: Variant = null
+
 
 func _run() -> void:
 	print("\nSKYGEAR Godot port · parity harness\n")
@@ -186,6 +190,23 @@ func _run() -> void:
 		if FileAccess.file_exists(SkyGearHudLayout.USER_PATH) else null
 	SkyGearHudLayout.store = "user://hud_layout.harness.json"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearHudLayout.store))
+	## AND THE SAME FOR THE SETTINGS FILE, for the same reason and one worse
+	## symptom (SG-181). Every `_new_game()` builds a `SkyGearAudio`, whose
+	## `_ready` reads `user://settings.cfg`, and `_audio()` used to WRITE 0.42
+	## into it and read it straight back. That mutated the owner's own volumes
+	## and his OPEN ALL HEATS switch — and it made the check depend on machine
+	## state, because the file has other writers: any second process with this
+	## game open saves it several times a second (the pause and settings screens
+	## call `set_volume` from their draw and `set_volume` saves), so the
+	## harness's 0.42 was overwritten before the harness could read it back and
+	## the check reported the OTHER process's master volume. That is the whole
+	## of the "flaky audio check": 53-79 of every 200 writes to that one path
+	## were gone by the next read while the owner's build was running, against
+	## 0 of 200 for any other filename in the same directory.
+	_owner_settings_before = FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH) \
+		if FileAccess.file_exists(SkyGearAudio.SETTINGS_PATH) else null
+	SkyGearAudio.store = "user://settings.harness.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearAudio.store))
 	await process_frame
 	_boot()
 	await process_frame
@@ -809,6 +830,20 @@ func _owner_layout_untouched() -> void:
 		"was %d bytes, now %d" % [
 			(str(_owner_layout_before).length() if _owner_layout_before != null else -1),
 			(str(now).length() if now != null else -1)])
+
+	## THE SG-181 TWIN, and it guards more than a preference: the owner's OPEN
+	## ALL HEATS switch lives in this file, and before this row the harness wrote
+	## his master volume down to 0.42 on every run. Byte for byte, or it is not
+	## restored.
+	var cfg_now: Variant = FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH) \
+		if FileAccess.file_exists(SkyGearAudio.SETTINGS_PATH) else null
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearAudio.store))
+	SkyGearAudio.store = SkyGearAudio.SETTINGS_PATH
+	_check("editor", "and it never touches the player's own settings either",
+		str(cfg_now) == str(_owner_settings_before),
+		"was %d bytes, now %d" % [
+			(str(_owner_settings_before).length() if _owner_settings_before != null else -1),
+			(str(cfg_now).length() if cfg_now != null else -1)])
 
 
 func _boot() -> void:
@@ -3464,6 +3499,19 @@ func _audio() -> void:
 		ResourceLoader.exists(SkyGearAudio.TRACKS.combat_low)
 		and ResourceLoader.exists(SkyGearAudio.TRACKS.combat_high)
 		and ResourceLoader.exists(SkyGearAudio.TRACKS.boss))
+	## SG-181. THIS IS THE SAME ROUND TRIP THROUGH THE SAME SHIPPED CODE, and the
+	## only thing that changed is WHICH FILE it goes through: `SkyGearAudio.store`
+	## is pointed at a scratch path for the whole run (`_run`, top). It used to
+	## write into the player's own `user://settings.cfg`, which made this check
+	## FLAKY — a second process with the game open rewrites that file several
+	## times a second, so the 0.42 was gone before the fresh instance read it and
+	## the reported value was the OTHER process's master volume. A check that
+	## passes or fails on what else is running on the machine is not a check.
+	##
+	## The real file is watched from both ends: nothing here may reach it (the
+	## line below) and `editor · and it never touches the player's own settings
+	## either` compares it byte for byte at the end of the run.
+	var real_before := FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH)
 	game.audio.set_volume("master", 0.42)
 	game.audio.save_settings()
 	var fresh := SkyGearAudio.new()
@@ -3471,6 +3519,17 @@ func _audio() -> void:
 	_check("audio", "volume survives the session",
 		is_equal_approx(float(fresh.volumes.master), 0.42),
 		str(fresh.volumes.master))
+	## AND IT SURVIVED IT IN THE SCRATCH FILE. Two assertions, because "0.42 came
+	## back" alone would pass just as happily if `save_settings` had written the
+	## player's file: the write has to land where the harness sent it, and the
+	## player's own file has to be exactly as it was one write ago.
+	_check("audio", "and the write landed in the harness's own file, not the player's",
+		FileAccess.get_file_as_string(SkyGearAudio.store).contains("master=0.42")
+			and FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH) == real_before,
+		"scratch %s · player's file %d bytes, was %d" % [
+			SkyGearAudio.store,
+			FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH).length(),
+			real_before.length()])
 	game.audio.set_volume("master", 0.85)
 	fresh.queue_free()
 	game.queue_free()
