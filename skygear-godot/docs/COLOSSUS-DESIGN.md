@@ -1,10 +1,37 @@
 # COLOSSUS-DESIGN — making the wave-12 boss a fight
 
-Status: **DESIGN, part-built. READ §1a AND §1b BEFORE §1 — §1's central claim was
+Status: **DESIGN, part-built. READ THE TWO BANNERS BELOW, THEN §1a AND §1b, BEFORE
+§1 — §1's central claim was
 measured and is half wrong (SG-146), §2's root fix failed its own kill-test and
 shipped OFF (SG-146), and then the OWNER designed the missing half himself and it
 is SHIPPED (SG-166): the chase gate is ON and the Colossus has a telegraphed area
-STOMP. §1b is what that measured. None of the three options in §4–§6 was built.** Written 2026-08-03 against the owner's build report,
+STOMP. §1b is what that measured. None of the three options in §4–§6 was built.**
+
+> **§2's BOILER STATISTIC IS DEAD — 2026-08-04, SG-185. It has now failed FOUR
+> times, and the fourth failure is different in kind from the first three.** With
+> everything standing in the stomp circle, Boiler HP lost in wave 12 measures
+> **0.00 with sd 0.00, in every one of 181 wave-12 runs across both arms, at Heat
+> 0 and at Heat 2.** Not "small". Zero, with no variance. **He does not reach the
+> Boiler at all** — 1,965 units of walk against 23–31 s of life, with a cannon in
+> the way that now holds him. The first three failures were arguments about how
+> much damage he does once he arrives; this one says the arrival never happens, so
+> **THE LEVER IS HIS ARRIVAL, NOT HIS DAMAGE.** Any future proposal for this boss
+> that turns on *"he takes the ship away if you ignore him"* must first buy him
+> the time or the speed to get there — and must say which, with a number. §2's
+> amended statistic is retained below as the record of a pre-commitment honoured;
+> it is not a gate anything should be measured against again.
+
+> **AND EVERY "REPLAY NOISE FLOOR" INSTRUCTION IN THIS FILE IS DEAD — 2026-08-04,
+> SG-190.** §4, §5, §6 and §9 all open their measurement plans with *"measure the
+> replay noise floor first, two identical replays per seed"*, and §6 prescribes
+> *"6 seeds x 3 replays"* as a sample. **On a deterministic rig that floor is
+> identically zero and those replays are copies, not runs.** Two reps of one seed
+> now return bit-identical rows across separate processes, so a plan that spends
+> its budget on replays buys nothing at all: `6 seeds × 3 replays` is n=6 printed
+> eighteen times. **Buy n with SEEDS.** Where a section below says "replays" or
+> "reps", read "seeds" and re-price the sample against STATUS.md's SG-128
+> paragraph before running anything. The steps are struck in intent, not in text,
+> because the pre-commitments they sit inside are the record. Written 2026-08-03 against the owner's build report,
 verbatim: *"Collosus is way too easy - he needs to be scary the player."* This is
 about the fight, not the picture — his texture bug is fixed and tracked
 separately. Three designs were written independently and judged twice; both
@@ -19,6 +46,23 @@ modes", `docs/DECK-IDENTITY-DESIGN.md`, `scripts/enemy.gd`, `scripts/game.gd`,
 ---
 
 ## 1. Why he is easy today
+
+> **HALF OF THIS SECTION IS WRONG AND IT IS KEPT AS WRITTEN — §1a is the
+> measurement, 2026-08-03 (SG-146), and 2026-08-04 added a second correction
+> (SG-185).** Two claims below did not survive contact with an instrument. **(i)
+> "a swing that geometrically cannot land" is false against the bot that was
+> actually playing:** his second-beat swing reaches 253 units and `tools/bot.gd`
+> orbits at 210, so he cannot land on a captain who RETREATS and lands freely on
+> one who ORBITS — at hp 900 he was already dealing 66% of all wave-12 damage.
+> The sentence was true of a *retreating* captain and was written as though it
+> were true of a moving one. **(ii) "his only real throughput is 13.7 dps against
+> things that don't dodge — the Boiler, a cannon, a crewman" is now false in the
+> other direction (SG-185, 2026-08-04):** once the STOMP became his attack it
+> PREEMPTED the swing, and the swing was the only beat that carried a victim
+> other than the captain — so for a time his throughput against a cannon was
+> **32% of the rate quoted here**, and against the Boiler it was zero. The stomp
+> is an area now and reaches all of them. Read the numbers in §1 as a description
+> of the build of 2026-08-03 and nothing later.
 
 **His attack cycle is self-defeating against anything that moves, and he has
 nothing else in his kit.** He trips his windup at `attack_range 120 + target
@@ -133,7 +177,12 @@ still taking nothing at all in 88% of runs. The design's own rule for that
 outcome is written down and it is **CUT, not tune**.
 
 It fails in the other direction too, and worse: with the gate on **he deals the
-captain exactly zero, mean 0.00 with 0.00 spread over 214 runs.** Not "rarely" —
+captain exactly zero, mean 0.00 with 0.00 spread over ~~214 runs~~.** *(**Sample
+corrected 2026-08-04, SG-190:** that 214 is seeds × reps and the honest n is the
+seed count — but this particular claim is the one kind that survives the
+correction intact, because a STRUCTURAL zero is a property of the `if/elif` chain
+rather than a sampled mean. The zero is real at any n. Every other figure in §1a
+carries the SG-190 caveat at §1b.)* Not "rarely" —
 never, structurally. The victim chain in `enemy.gd` is if/elif and
 `target_turret`/`target_crew` are only populated in the `else` branch, so a boss
 who is not targeting the captain never tests her against his swing at all. §4's
@@ -186,7 +235,26 @@ frame and not only the last. The hue argument in §5 is dropped: gold is the tur
 ring's, and the SHAPE is what separates the circle from the fan.
 
 **THE NUMBERS.** `tools/boss_probe.gd`, wave-12 segment, Heat 0, four arms of
-**n = 480 runs each** off one base, 404–418 reaching wave 12:
+~~**n = 480 runs each**~~ off one base, 404–418 reaching wave 12:
+
+> **THE SAMPLE AND THE CLOCK ARE BOTH CORRECTED — 2026-08-04, SG-190. The table
+> survives as a RANKING; the absolute figures and every interval in this section
+> do not.** **(a) `reps` buy nothing.** The rigs are deterministic now, and were
+> intended to be then: `6 seeds × 20 reps` is n=6 printed 120 times. Those 480 are
+> seeds multiplied by reps, so the honest n is the number of distinct SEEDS in the
+> arm, and the 95% CIs and Wilson intervals quoted in Findings A, B and D below
+> are roughly **4.5x too narrow**. Buy n with seeds; `boss_probe`'s list is 32 now
+> and it prints a refusal in words when a seed's reps come back identical.
+> **(b) Worse, and it is the reason this table cannot be compared forward:** every
+> arm here was taken while `CharacterBody2D.move_and_slide()` was integrating
+> `get_process_delta_time()` — the idle frame's WALL-CLOCK duration — because a
+> `_run` reached by `call_deferred` has never been inside a physics frame. **The
+> boarders in these arms walked at roughly a seventh of their table speed, and how
+> much of a seventh depended on how busy the machine was.** All four arms were
+> measured the same way on the same base, so their ORDER is probably intact and
+> Findings A and C are reported as orderings. **Nothing in this table is
+> comparable to a number measured after 2026-08-04**, and the row that matters
+> most — Boiler HP lost — was re-measured and is answered at the top of this file.
 
 | | chase build (shipped) | cadence 5.0/4.0 | **4.2/3.2 (SHIPPED)** | 3.6/2.8 |
 |---|---|---|---|---|
@@ -234,6 +302,21 @@ not. **The danger in this build is entirely the circle.** Anyone reaching for
 read this line first: three independent attempts have now failed to make that
 clock bite, and the reason is always the same arithmetic — the walk barely fits
 inside the fight, and never fits once he stops to attack.
+
+> **FINDING D IS HALF RIGHT AND THE MISSING HALF IS BIGGER THAN THE HALF IT HAS
+> — corrected 2026-08-04 (SG-185).** It read 11.08 → 6.00 as him spending 43% of
+> his life planted. That was true and it was not the mechanism. **From the moment
+> the stomp became his attack he could not damage the Boiler — or a cannon, or a
+> crewman — AT ALL**, because the stomp preempts the swing and the swing was the
+> only beat carrying a victim other than the captain. SG-185 measured him at 32%
+> of the chase build's rate against a lane cannon and made the stomp an area that
+> hits everything standing in it. **Re-measured with the Boiler genuinely in the
+> circle, Boiler HP lost in wave 12 is 0.00, sd 0.00, over 181 runs.** So Finding
+> D reached the right conclusion for a reason it could not have known was wrong,
+> and the corrected answer is WORSE for the design than the one recorded here:
+> the fourth failure is not a damage shortfall that could be tuned away, it is an
+> arrival that never happens. This is a clean instance of STATUS.md's fifth
+> failure mode — a verdict published against a floor that was itself the finding.
 
 ---
 
@@ -287,6 +370,13 @@ in both arms and can never fall, and the design's own rule says (1)-passes-
 never gathered. The amendment, which keeps the pre-commitment honest and is
 readable from a stationary bot:
 
+> **RETIRED 2026-08-04 (SG-185) — do not measure anything against this again.**
+> It has failed four times; the fourth (0.00, sd 0.00, over 181 wave-12 runs,
+> with the Boiler genuinely inside the stomp circle) says he never arrives, so
+> the statistic is not a gate on his damage, it is a gate on a walk that does not
+> fit inside his life. Kept below because a pre-commitment that is quietly
+> deleted the moment it fails is worse than one that failed in public.
+>
 > **Amended statistic (2).** Median Boiler HP lost during wave 12 must rise by
 > ≥ 40 of 500 against a baseline of ~0 — the direct test of "you can no longer
 > ignore him", enabled by graft 1 — AND the four harness geometry rows must pass.

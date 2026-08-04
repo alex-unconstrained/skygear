@@ -90,7 +90,13 @@ Milestone 1 uses the shipped v11 contract:
 
 The copied source contains later unshipped tuning edits in the working tree.
 Milestone 1 uses the documented v11 values where the shipped plan and working
-source differ; a parity harness will settle exact numbers before release.
+source differ; ~~a parity harness will settle exact numbers before release.~~
+**STRUCK 2026-08-04 (SG-191): PARITY WAS RETIRED AS A GOAL ON 2026-08-01 by the
+owner and hardened to mechanics on 2026-08-03 — nothing will be "settled" against
+the browser before release.** `tests/parity_test.gd` keeps its name and is the
+port's own specification, not a diff against v11. Where the two differ the
+question is "which is better for THIS game", and the answer may legitimately be
+"ours". See §13's banner and STATUS.md's header.
 
 ## 7. Reactive deck
 
@@ -192,7 +198,9 @@ Consequences, stated so they are not rediscovered:
 > the goal changed. Do not treat anything below as a requirement, and do not
 > justify a change by it — see STATUS.md's header for the rule that replaced it.
 
-Verified by `tests/parity_test.gd` — **40 checks, all passing**:
+Verified by `tests/parity_test.gd` — **40 checks, all passing** *(as of
+2026-07-27; that harness is at 1117 checks today and the list below is a
+snapshot, not a live claim — SG-191, 2026-08-04)*:
 
 ```
 godot --path . --headless --script tests/parity_test.gd
@@ -230,7 +238,16 @@ primitives, HUD gauges with art). The browser build also still has 29 checks
 this harness does not: layout across resolutions, storage denial, slow-line
 loading, the frame budget, and the audio-node leak guard.
 
-## 13b. The camera — corrected 2026-07-27
+## 13b. The camera — corrected 2026-07-27 — HISTORICAL
+
+> **Retired 2026-08-01 with §13, same authority, same reason** (noted 2026-08-04,
+> SG-191 — this banner was missing, so a reader arriving at 13b or 13c got no
+> signal that parity is dead). Kept as the record of how the camera was solved.
+> The solve itself is LIVE and is the shipped projection; what is retired is the
+> idea that agreeing with the browser is the thing that makes it right. Since
+> 2026-08-01 that agreement is also MEASURED rather than asserted —
+> `tools/cam_measure.gd` projects known deck lengths through both builds' math
+> and they agree to the pixel (ratio 1.000).
 
 The port rendered the deck as a **flat overhead 2D scene**, and the game it is
 porting has never been that. The browser build hand-writes a perspective camera
@@ -257,11 +274,17 @@ the running simulation into a Node3D scene each frame:
   moon from the upper left, warm lantern fill from the lower right.
 
 **The simulation is untouched.** It still runs in ground-plane coordinates in the
-2D scene, which is still what all 44 parity checks drive; the 3D node only
+2D scene, which is still what all ~~44 parity checks~~ **1117 harness checks
+(2026-08-04)** drive; the 3D node only
 mirrors it. Ground (x, y) becomes world (x, 0, y), with y as depth exactly as the
 browser's TUNING comment says.
 
-## 13c. Screenshot parity — closed 2026-07-27
+## 13c. Screenshot parity — closed 2026-07-27 — HISTORICAL
+
+> **Retired 2026-08-01 with §13** (banner added 2026-08-04, SG-191). Screenshot
+> agreement with the browser is not a goal and is not a gate. `tools/parity.py`
+> survives only as a regression yardstick — *"did we lose something that was
+> good"* — never as an authority.
 
 Section 13b left the camera correct and the picture wrong: the framing was
 guessed at rather than solved, and the deck, cargo and Boiler were flat colour.

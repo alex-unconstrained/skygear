@@ -1,6 +1,6 @@
 # SkyGear Godot port -- where things stand
 
-Last updated 2026-08-02. **Read this first, then `docs/BOARD.md` — the work
+Last updated 2026-08-04. **Read this first, then `docs/BOARD.md` — the work
 queue agents claim items from and report evidence to. `docs/OUTSTANDING.md`
 stays the ledger of owner asks; an ask lands there first and is mirrored to
 the board as workable items.**
@@ -32,13 +32,12 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1092 harness checks**; the text audit covers 25 screens at
-board SG-56). **1095 harness checks**; the text audit covers 25 screens at
+board SG-56). **1117 harness checks**; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
 finished row. Board SG-92 has the whole of it, and the reason it was one finding
-rather than four. Build 38 is on itch at
+rather than four. Build 62 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
@@ -55,7 +54,10 @@ seconds, against 25 swings and 650 with the stomp off**, so the cannon needs 219
 s and he never once destroys one. The stomp is an area now and it hits
 everything standing in it — captain, cannons, crew, Boiler, one circle, no
 priority order, `stomp_hits` asked per candidate so nothing derives a second
-shape. **442 after.** **And the Boiler statistic COLOSSUS-DESIGN §2 has been
+shape. **Off the same cannon in the same 60 s, after: 390 at Heat 0 and 442 at
+Heat 2 — +114% and +112%**, which is 62–68% of the chase build's rate while
+keeping the telegraphed, escapable beat that earned the lane walk. **And the
+Boiler statistic COLOSSUS-DESIGN §2 has been
 arguing about since July is now settled the other way: 0.00, sd 0.00, over 181
 wave-12 runs. He does not reach it.** The lever is his ARRIVAL, not his damage.
 *"Boarding hulk took a long time to kill."* Also right, and it was a missing
@@ -92,6 +94,161 @@ is a question per row, and re-running is cheap now** — start with anything tha
 turned on a boarder ARRIVING somewhere. One `bot ·` check pins the rule for the
 next rig, and it reads the `tools/` roster rather than a list of names.
 
+**EVERY BOARDER'S SWING WAS SPEEDING UP WHILE IT PLAYED, AND THE FILE HAD
+WRITTEN THE RULE DOWN THREE TIMES (SG-188, 2026-08-04).** `_sync_rig` handed the
+swing `enemy.state_time` — a COUNTDOWN — as the window to fit the clip to, and
+`want()` recomputed `speed_scale` from it every frame, so as `state_time` ran
+0.90 → 0 the rate climbed with it. Because `swinging` holds the rig in `swing`
+for the windup AND the recovery, **the ramp ran twice per attack**, and `want`'s
+`elif not anim.is_playing()` arm — there to restart a CYCLE the blend dropped —
+dealt the finished one-shot a third time. Measured live over six consecutive
+attacks on a real deck (`tools/swing_beat.gd`): **1.83x rising to the 4.00x clamp
+in every one of them, and 2.50 full plays of the swing clip per single 34-damage
+hit.** Two and a half swings for one hit is read as one swing at two and a half
+times the speed, which is exactly what the owner reported. The second cause was
+real and smaller: his pack rotates six swing variants from 1.27 s to **3.53** s,
+and at the old window those played at 1.41x to 3.93x — a beat that changed by
+2.8x shot to shot. **Three renderer-only changes and nothing else**: the window
+is `SkyGearEnemy.attack_beat()`, asked of the SIMULATION rather than restated in
+the renderer (because `_windup_scale()` shortens the wind at Heat 2, and a
+renderer restating that is failure mode two with a difficulty ladder bolted on);
+a one-shot latches its rate on the frame it STARTS; and a finished one-shot holds
+its follow-through instead of being dealt again. **Worst rate 4.00x → 0.98x,
+plays per attack 2.50 → 0.13, the simulation untouched, the captain and the
+Boilerwright byte-identical.** The crew are NOT fixed and are filed rather than
+folded in — their swing is still fitted to a countdown and nothing has measured
+what it looks like (**SG-189**, open).
+
+**AND THE CREW LEAVE A CLEARED LANE NOW (SG-187, 2026-08-04)**, on the owner's
+own ask after his twelve-wave run: *"Dont have crew standing around and auto
+attacking at the end of their lane."* **Two faults, one line**: `_update_crew`
+sent a crewman with nothing to fight to a fixed point at the head of his lane and
+tested arrival with `distance <= reach` — a test that asks how far away his GOAL
+is and never asks whether anything is STANDING in it. So he arrived, wound up,
+swung at bare planking, recovered, and repeated for the rest of the wave. Four
+rules, written at `SkyGearLanes.ASSIST_LEASH`: his own lane outranks everything
+and is re-asked every tick, so the recall is THE ORDER OF TWO LOOPS rather than a
+timer that can run out; the leash is ONE adjacent lane, measured from his STATION
+rather than his feet, because a leash measured from the feet lets a man walk the
+deck one leash at a time (recall from the far edge is 4.7 s against 6.6 s for the
+fastest boarder in the game to reach the gun from the bow); one man per boarder,
+claimed in muster order, which makes the anti-clump guarantee arithmetic rather
+than a hope; and the longest-serving unengaged hand in each lane never leaves it,
+so no arrangement of boarders can empty a lane. **The roaming is free** — crew
+damage share 6.02% → 6.30%, taken 346.0 → 358.5, held 80.0% → 80.4%, none of it
+clearing what the sample resolves, and reported as *under the instrument* rather
+than as "no effect". **The expensive finding is the one nobody asked for.** Every
+hand in a lane holds the SAME station, so four sailors of radius 15 stand inside
+one another — invisible while they mill through a swing cycle, obvious the day
+they stand still. Fanning them out ±120 cost **crew damage −24% and damage taken
++17%**; fanned down the lane cost the same; holding station with no roaming cost
+it too. That rules out "a roadblock with a hole in it" and leaves the mechanism:
+**a stacked watch is four swings on one boarder with no walking, and 120 units of
+separation is about a second of not swinging per man per boarder for the whole
+run. Crew damage is a RATE, and a rate is what a walk costs.** So the fan is
+REFUSED and `POST_SPREAD` is deleted rather than set to zero — a knob whose only
+correct value is zero is a knob somebody turns.
+
+**HIS THREE HAND-MADE WEAPONS ARE IN HANDS (SG-170).** The boarding pike, the
+furnace axe and the scrap wrench were in `assets/models/`, loading through
+`ResourceLoader`, registered in `weapons.json` — and on nobody. **The gap was not
+a number, it was a call that did not exist**: the only `hold()` in the whole
+renderer was the hero's, so table rows alone would have moved nothing. That is
+the first failure mode in its largest coat — not a field with no reader, **a
+whole asset class with no reader** — and every green signal around it stayed
+green throughout. It is one function called from the one-time setup block of
+`_sync_rig`, and the hero's own block was MOVED onto it rather than left beside
+it so the 1.8 m-frame scaling exists once: `weapon · a weapon is scaled by the
+figure holding it, not by the captain` mounts one row on a 1 m body and a 2 m
+body and requires the reach to double (0.938 m against 1.875 m, ratio 2.000).
+**The deliverable is the live check** — `weapon · a live deck puts the pike, the
+axe and the wrench in the hands they were made for — the SG-170 regression` reads
+`_rigs[key].held` off a real simulation rather than calling `mount_weapon`
+itself, because a check that armed the deck would have passed every run of the
+week the deck stood empty-handed. Proved by negative control: comment the one
+line out and the run is 1067/1069. **The fits are the owner's**, finished by hand
+in the lab.
+
+**AND FOUR THINGS THAT WERE ALL THE SAME BUG — A PICTURE THAT DID NOT AGREE WITH
+WHAT IT COSTS YOU.** *(a)* **The danger wedge's boundary was a gradient**
+(SG-162), which is the one line in this game the player stands next to on
+purpose: it peaked at 88% of the reach and had fallen through half its brightness
+by 93.5%, so on the Colossus's 146 the brightest part of the kill zone was at 128
+and the picture was over nine units short of the deck that kills you. The target
+was `_ring_texture()`'s own principle, twenty lines up the same file and never
+applied here — *a fill you can see through and an edge you cannot miss*. Now the
+brightest pixel is at **99% of the reach**, fill 0.21 against an edge of 1.00.
+**And the feathers are in TEXELS rather than in fractions of the shape**, which
+fixed a second thing nobody had chosen: quoted as 16% of the half-arc, the
+Colossus's boundary was **three times softer than a gremlin's** (`telegraph · and
+the wide fan is no softer than the narrow one, which it used to be by 3x`). The
+size did not move and that is pinned twice, because a rim pushed outward to look
+bolder would have been SG-119's bug wearing this fix's clothes. *(b)* Beside it,
+**the strike flash and the recovery ring** (SG-158, the owner said go): the blow
+that LANDED gets its own mark over the first `STRIKE_FLASH_FRAC` 0.20 of the
+recovery window — 200 ms at the Colossus, 130 at the furnace knight — so the
+flash of one blow can never be read as the warning of the next. *(c)* **A fire
+pool burned you from outside its own picture, by up to 70%** (SG-163). Three
+numbers claimed to be one radius and the damage read none of them: the tick
+burned at a literal 78.0 written twice, the renderer sized the pool off
+`radius * 2.2` with per-site radii of 46, 62 and `62 + 22·residue`, and the
+hidden 2D `_draw` had a FOURTH. The Sear trail's ring drew at about 41 against a
+burn of 78 — **an 88% gap**, and the band of deck between them looked clear and
+was not. Owner's decision, verbatim: *"For the fire hitbox, match the burn size.
+Fix the picture to match the damage."* The picture moved and nothing else did:
+`fire_pool_radius()` is the only place the number is written, `_field()` STAMPS
+it so a caller cannot put a size into a pool the simulation will ignore, and the
+decal is sized through `ring_span_for()` rather than by a multiplier — because
+the ring's bright band peaks at 92% of its own half-size, so `burn * 2` would
+have shipped the same bug one order smaller. `tools/pool_shot.gd` REFUSES to draw
+a ring at `fire_pool_radius()`, since that photographs a number equalling itself;
+it walks the captain to 48×20 spots and runs one real tick at each. Furthest
+sample that burned 78.0, drawn line 78.0, **miss 0.0 units**. *(d)* **And every
+model in the game was shinier than the lamp it stands under.** Against the
+lamplit ceiling, **17 of 34 models were over on mean effective metallic and 0 are
+now** — the owner picked it off the A/B pairs (*"Cutlass clamped looks better"*),
+and the cutlass is the one in her hand every run: unclamped it was a black stick
+where the clamped version is a steel blade with an edge highlight. The clamp
+lowers the level rather than flattening the map, so the painted variation
+survives. The agent went looking for a case where staying shiny wins — it chose
+brass and two blades precisely because that is where such a case would live — and
+**there wasn't one**; the honest range was "clearly better clamped" to "no
+visible difference". **Then the deck's own boxes turned out never to have been in
+the audit at all (SG-179):** `tools/lamplit.py` walks `assets/models/*.glb` and
+nothing else, so the forty strake-capping boxes and the bow/stern end caps shipped
+at metallic **0.40, above the 0.34 ceiling every model had just been brought
+under** — literally shinier than everything standing on them, which is most of
+why the owner called them placeholder. They are retinted, roughened and under the
+ceiling, and the restatement in `view3d.gd` is held to its source by `deck · the
+procedural deck obeys the same lamplit ceiling the models do`, which parses the
+number out of `lamplit.py` and fails if the two drift. **It does NOT make them
+textured, and the frames say so.**
+
+**THE DECK EDGE IS PROTOTYPED HIS WAY AND IT IS WAITING ON HIS EYE (SG-180,
+2026-08-04) — the switches default OFF and nothing is decided.** His own rail
+module, reused at low profile in place of the flat brass capping, plus the
+capping deleted outright shot as a third state. **The strongest frame on the
+sheet is not the one the brief expected**: the brief ranked the strake capping
+"the louder of the two", but at the STEM pose — the one his build-60 screenshot
+is taken from — the capping is off both sides of the frame and the flat olive bar
+across the middle is the BREAST RAIL, so the object he was actually looking at is
+the one the brief ranked second. Restyled as 14 rail modules across the beam it
+stops being a wall: the boundary line is unbroken strake to strake and **you see
+the deck THROUGH it**, so DECK-IDENTITY §6's job is done better rather than
+deleted. **The geometry was the risk and it resolved the good way for a reason
+that is not luck**: the capping sits at `lift - 2.5` and the shipped rail stands
+at `lift - 8`, the SAME BAND, so there is no "under" to put a second rail in — it
+can only go outboard, which makes it a rail BESIDE a rail. What saves it from
+reading as two rails stacked is the PITCH: at `div` 1 every post of the low run
+stands directly under a post of the rail above and none falls between two. The
+sweep is on the sheet and **it is the pitch, not the height, that decides** — div
+2 reads busy, div 4 is under three pixels a post and has become a texture. Scale
+and pitch are decoupled on purpose and both derive from `edge_rail_scale()` with
+nothing typed. Sheets at `.shots/owner-review/5-deck-edge-rail/`.
+
+**Builds 59, 60, 61 and 62 went to itch across the two days**, and build 60 is
+the one the owner shot the deck-edge complaint from.
+
 **ONE HARNESS CHECK WAS TESTING WHETHER THE OWNER HAD THE GAME OPEN (SG-181,
 2026-08-04).** `audio · volume survives the session` wrote 0.42 into the
 player's REAL `user://settings.cfg` and read it straight back — and the itch
@@ -116,10 +273,14 @@ that filed it was not exhaustive.** Both go through a `store` now, and so does
 save to the real file twice and restored it from a string afterwards — his
 scrip, sigils, fittings and berths riding on nothing raising in between. **All
 five real `user://` files are diverted now** (`hud_layout.json`, `settings.cfg`,
-`runs.json`, `keys.cfg`, `workshop.json`), each with a byte-compare guard, and
-the standard of proof is the tree rather than the file: a recursive md5 manifest
-of the whole `user://` directory before and after a harness run `diff`s
-empty. And the reason the collision was
+`runs.json`, `keys.cfg`, `workshop.json`), **each with a named byte-compare guard
+as the last thing the run does** — `editor · the harness never touches the
+player's own saved layout`, `editor · and it never touches the player's own
+settings either`, `editor · and it never wipes the player's own run history — the
+SG-182 regression`, `editor · nor the keys he rebound`, and `editor · nor a byte
+of what he has earned` — and the standard of proof is the tree rather than the
+file: a recursive md5 manifest of the whole `user://` directory before and after
+a harness run `diff`s empty. And the reason the collision was
 constant rather than rare is a shipped bug of its own: the pause and settings
 screens call `set_volume` from their DRAW, so either screen saves the config
 file every frame (**SG-183**).
@@ -169,7 +330,16 @@ in it cannot hide. That gate had shipped OFF because it took his damage to the
 captain to a **structural zero**; the stomp does not go through the if/elif victim
 chain, so **0.00 → 150.21**, and the zero is a harness check now, asserted from
 both sides in one fixture. **THE FINDING THAT GENERALISES IS ABOUT VARIANCE.**
-Four arms of n=480 runs each: at the first cadence tried his damage FELL 15.5%
+Four arms of ~~n=480 runs each~~ — **and BOTH halves of that sample claim were
+corrected 2026-08-04 by SG-190.** *(a)* Those 480 are seeds multiplied by reps,
+and on a deterministic rig reps buy nothing, so the honest n is the number of
+distinct SEEDS in the arm and the intervals printed off 480 are roughly 4.5x too
+narrow. *(b)* Worse, every four-arm number on that row was taken while
+`move_and_slide()` was integrating the idle frame's wall clock, so **the
+boarders in those arms walked at about a seventh of their table speed**. All
+four arms were measured the same way, so their RANKING is probably intact and
+the finding below is reported as a ranking; the ABSOLUTE figures are not
+comparable to anything measured after the fix. At the
 while the hold-rate ROSE 17 points, because the chase build's mean was carried by
 a heavy tail of runs where he cornered a kiting captain, and **an anchored,
 escapable circle has no tail at all — sd 70.3 → 36.9.** The shipped arm deals
@@ -180,8 +350,13 @@ into fairness, it deletes the outlier runs that were doing the killing.** Puttin
 the hold-rate back is one line and `docs/COLOSSUS-DESIGN.md` §1b has three
 measured points to choose from. **What is still NOT true is the Boiler clock**:
 with the gate on, Boiler HP lost in wave 12 went 11.08 → **6.00**, DOWN, because
-he now spends 43% of his life planted — §2's amended statistic has failed three
-times and §1b says to stop reaching for it. **And two measuring tools were broken
+he now spends 43% of his life planted — ~~§2's amended statistic has failed three
+times~~ **FOUR times as of 2026-08-04, and that reading of WHY was half right:
+he was also unable to touch the Boiler at all, because the stomp preempted the
+swing that carried every victim but the captain. Re-measured with the Boiler
+genuinely inside the circle it is 0.00, sd 0.00, over 181 wave-12 runs. The
+statistic is retired at `docs/COLOSSUS-DESIGN.md` §2 and the lever is his
+ARRIVAL, not his damage.** **And two measuring tools were broken
 (SG-167, SG-168):** `melee_probe` read `game.wave` after `queue_free()`, and ONE
 malformed row silenced THREE whole reports — the LETHAL arm, the only thing that
 tool exists for, printed nothing at all in a run that exited 0; and
@@ -293,21 +468,39 @@ the rig's back and are fixed: the engine was stepping the **captain** on real
 frames (`set_process(false)` on the game never reached her — she is her own
 node), and nothing had ever disabled the **props**, so a lit keg's 0.45 s fuse
 burned on wall-clock time and a keg is 26 damage. **A moving captain is a
-different game**: Heat 0, n=120 — damage taken **34.6 → 241**, runs held
-**38% → 92%**, close-range time **3–5% → ~22%**. Every balance number in these
+different game**: Heat 0, ~~n=120~~ — damage taken **34.6 → 241**, runs held
+**38% → 92%**, close-range time **3–5% → ~22%**. **The SAMPLE was corrected
+2026-08-04 (SG-190): that "n=120" is SIX SEEDS at twenty reps, so it is n=6 on
+the axis that carries the variance you care about** — the reps differed only by
+how busy the machine was, because the rig was integrating against the wall
+clock. The DIRECTION here is not in doubt (a 7x change in damage taken is not a
+sampling artifact at any n) but the intervals printed off that 120 are roughly
+4.5x too narrow, and the same correction applies to every "n=120" in this file. Every balance number in these
 docs predating this is a number about a stationary captain, and **SG-57's
 held-rate observation — the one waiting on the owner's threshold — has flipped
 sign and is no longer significant**; its own row had wondered aloud whether it
 was "a bot fact", and it was.
 
-**The rig is STILL not deterministic, and it now says so where it used to claim
+~~**The rig is STILL not deterministic, and it now says so where it used to claim
 otherwise.** The residual is below the scene tree — `move_and_slide()` queries a
 physics space the server syncs on its own tick — so the header states plainly
 that this tool reports a DISTRIBUTION and that **its floor is not zero: 8% on
-damage-taken between two n=120 batches of identical code.** That floor is why
-SG-117's run-level result (−10%) was reported to the owner as *below the rig's
-resolution* rather than as a finding, and why the fix's real evidence is the
-direct probe instead. Three `bot ·` checks; the one that matters is `bot · the
+damage-taken between two n=120 batches of identical code.**~~ **SUPERSEDED
+TWICE — 2026-08-04.** Both halves of that paragraph are now known to be wrong,
+and it is kept because the reasoning it encodes is the reasoning to stop
+repeating. **The 8% was never a floor (SG-128):** it was sampling error at
+n=120 read as a property of the instrument, and a floor does not shrink when you
+run more runs. **And the residual was never the physics server (SG-190):**
+`move_and_slide()` takes `get_process_delta_time()` — the idle frame's
+WALL-CLOCK duration — whenever it is called outside a physics frame, which every
+`call_deferred` rig was. Stepped inside a physics frame the rigs are
+**bit-identical across separate processes**, so the "distribution" this header
+described was the machine's load, and the paragraph blamed a subsystem it had
+never measured. What survives is the *practice*: SG-117's run-level result
+(−10%) was reported to the owner as *below the rig's resolution* rather than as
+a finding — conservative, and by SG-128's later arithmetic it had actually
+cleared its bar (t=2.43, p=0.015) — and the fix's real evidence is the direct
+probe either way. Three `bot ·` checks; the one that matters is `bot · the
 bot actually moves the captain — the SG-118 regression`.
 
 **THE SHIP HAS A BOW ON IT NOW, AND THE STERN IS A REFUSAL WITH A ZERO IN IT
@@ -497,13 +690,8 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1092 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1117 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1092 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
-`harness` (1095 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
-photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1095 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
-photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
 the step that makes a hand-alignment pass real).
@@ -623,10 +811,7 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1092 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1092 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1095 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1095 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1117 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -654,13 +839,8 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1092 checks. Green before anything ships |
+| `harness` | 1117 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1092 checks. Green before anything ships |
-| `harness` | 1095 checks. Green before anything ships |
-| `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1095 checks. Green before anything ships |
-| `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
 | `lab` | any model: triangles, height in ground units, bones; mounts weapons |

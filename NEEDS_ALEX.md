@@ -1,43 +1,55 @@
 # NEEDS ALEX
 
-**Build 58 live · harness 1023/1023.** Detail lives in
-`skygear-godot/docs/NIGHT-LOG-2026-08-03.md` and `docs/BOARD.md`. This file is
-only your decisions.
+**Build 62 live · harness 1117/1117.** Detail lives in `skygear-godot/docs/BOARD.md`.
+This file is only your decisions.
 
-*Last cleaned 2026-08-03 after your review pass. Everything you answered has
-been taken off this list and is either done or being built right now.*
+*Last cleaned 2026-08-04. Everything you answered is off this list.*
 
 ---
 
-## Waiting on you — and two of them are just waiting on pictures
+## Waiting on you
 
-**1 · The bow, the stern and the mast.** You asked to see them, and to see them
-*against* the procedural shadow casters so there is something to judge. Being
-rendered now — same frame, same light, same pose, only the piece changing. When
-they land, the mast question is the real one: should yours **replace** the
-procedural casters, **feed** them, or **stand beside** them?
+**1 · The deck edge — pick one, it is built and switched off.**
+`skygear-godot/.shots/owner-review/5-deck-edge-rail/`. Your rail reused in place
+of the flat mustard boxes you photographed. Two halves, independently switchable:
 
-**2 · The shininess question — examples being rendered.** You asked what this
-actually looks like, which is fair. The short version: all 27 models ship with
-metalness unset, which the file format reads as *fully metallic*, and this deck
-is lamp-lit with almost nothing to reflect — so those surfaces return no light
-and read as a hole rather than an object. That was the Colossus's texture bug.
-Fourteen others are in the same state. You are being shown the same model
-clamped and unclamped so you can say whether brass and blades get to stay shiny.
+- **The breast rail** — the bar across the frame in your screenshot, as 14 of
+  your modules. **This is the one I would take.** The boundary runs unbroken and
+  you see the deck through it instead of over it. 85,680 tris.
+- **The strake capping** — the long run down both deck edges, as a low run under
+  the main rail. It works, and only at matched pitch (halve the pitch and it
+  reads busy). But it is **barely noticeable at mid-deck**, where you actually
+  play, and costs 61,200 tris. I would skip it.
 
-**3 · Heat 5 is a wall, not a rung** — Heats 0–4 sit in a 20-point band, then
-Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You said you have only
-ever played Heat 1, so **the ladder is being unlocked for you** — you will be
-able to jump straight to any Heat and answer this from the deck instead of from
-my table.
+Both default OFF. Say which and it is one word. Option A's retint already
+shipped, so what you have in 62 is the toned-down flat version.
+
+**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+it is wide against "about a fifth". It costs nothing (it is all over apron you
+cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
+bothers you when you look at it.
+
+**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
+yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
+rung banks nothing, and having the switch on never voids a normal run.
 
 ---
 
 ## Smaller calls, whenever
 
-- **Menus** — the title is rebuilt; Settings / How to Play / Controls / Pause are
-  untouched pending your verdict on the direction.
-- **Crew strafing** — four clips are wired up and unused on purpose. Want them?
+- **The crew look stacked.** They stand one man per lane on purpose: spreading
+  the idle watch ±120 apart cost **24% of their damage and 17% more damage
+  taken**, because a stacked watch is four swings landing on one boarder with no
+  walking between. Making it *look* like a watch is buyable renderer-side
+  without moving the simulation. Want it?
+- **RESIDUE buys nothing measurable.** A fire pool's `dps` has never been read by
+  anything — every pool burns at a hardcoded 7.5 while RESIDUE authors 13.0 per
+  stack. That is a damage rate and you were explicit about which side moves.
+- **Menus** — the title is rebuilt; Settings / How to Play / Controls / Pause
+  are untouched pending your verdict on the direction.
+- **Crew strafing** — four clips wired up and unused. The lane-assist work
+  created no case for them (travel and threat are still one vector). Want them?
 - **Enemy bolts** — size is fixed; the style proposal is a hard ink rim plus a
   hot leading spike. Yes?
 - **COLD DECK deals a draft with no weapon in it in ~31% of runs.** Intended?
@@ -46,61 +58,73 @@ my table.
 
 ## Only you can unblock
 
-- **The Aether Loom** — not on this machine. Either copy the server folder over
-  from your other device, **or paste an image-API key** and I will rewrite
-  `forge.py` to call the API directly and retire the dependency. Recommend the
-  key. Wanted for the four HUD pieces and a real bug: the Boilerwright wears the
-  Corsair's portrait.
-- **Your cutlass fit** — still uncommitted (29 lines in `weapons.json`),
-  preserved through every build. Re-fit and say the word.
-- **Steam** — start the Steamworks paperwork whenever you want the clock
-  running; it is the only critical path (the tax interview alone is 2–7 business
-  days). Full plan in `docs/STEAM-LAUNCH.md`. **Send friends the itch link, not a
-  Steam key** — keys need a three-week wait for a first-time dev.
+- **The Aether Loom** — not on this machine. Copy the server folder over, **or
+  paste an image-API key** and I will rewrite `forge.py` to call the API directly
+  and retire the dependency. Recommend the key. Wanted for the four HUD pieces
+  and a real bug: the Boilerwright wears the Corsair's portrait.
+- **Steam** — start the paperwork whenever you want the clock running; it is the
+  only critical path (the tax interview alone is 2–7 business days). Full plan in
+  `docs/STEAM-LAUNCH.md`. **Send friends the itch link, not a Steam key** — keys
+  need a three-week wait for a first-time dev.
 
 ---
 
-## What you decided today, and what it turned into
+## Things you should know, no action needed
 
-**CRIT STAYS. SG-148 is reverted — done, measured, landed.** You were right to stop it. It had taken
-crit away from six secondary damage sources — the kill explosion, the vent, fire
-pools, kegs, the lane cannon and the crew — and the *only* argument for it was
-that the browser build did it that way. That is not a good enough reason, and I
-have written the rule down so it does not come back: **browser fidelity is no
-longer a rationale for anything, mechanics included.** SG-147's real fix (a crit
-explosion could crit its own explosion, forever) survives it.
+**Your run history was destroyed by our own harness, and it is not
+recoverable.** Every harness run cleared `runs.json` and refilled it with test
+fixtures; your log is now five rows and all five are ours. `keys.cfg` and
+`workshop.json` were being written too. All four files are diverted to scratch
+copies now, proved by a full-tree checksum that comes back identical across a
+run. It will not happen again. I am sorry — it was happening while I was
+reporting clean runs at you.
 
-  Measured over 1,224 runs: a crit-built captain now kills the Colossus **7.8%
-  faster** and takes **13.9% less** damage in wave 12. The hold-rate half of
-  SG-148's original claim **did not replicate** and no one is claiming those
-  seven points back — the two arms overlap across five points, so the honest
-  answer is that the sample cannot tell them apart. The gate is *deleted*
-  rather than switched off, so the rejected rule is not sitting on a shelf.
+**Two numbers I gave you were overstated.** The measuring rigs turned out to be
+deterministic, so `reps` never bought sample size — "612 runs an arm" was n=6
+repeated. The *directions* of today's findings hold (they are large and
+independently measured); the decimal places do not. The tools now refuse to
+print a verdict their sample cannot support.
 
-**The Colossus keeps his health and stops being a meat shield.** Your design:
-he ignores the captain, walks for the middle, kills the cannon, then goes for the
-objective — and his damage becomes an area around him, so closing to kill him is
-what costs you. Being built. Worth knowing: the lane-walk half already existed,
-built and shipped **off**, because on its own it took his damage to the player to
-a structural zero. Your area-damage idea is exactly the missing half.
+**The pause and settings screens write your config file every frame** while you
+are on them. Disk thrash on every player's machine, and it is what made a flaky
+harness check hard to diagnose. Filed, not yet fixed.
 
-**The furnace knight gets his health.** Measured: he has 342 effective health at
-wave 11, lives 3.1 seconds, and his attack cycle is 1.9 — so across his whole
-life he lands **one** swing. Nothing is wrong with his hit; he simply dies before
-he can use it. Roughly doubling him buys three swings. Being built.
+---
 
-**The rail ships at N = 10.** "It looks great. I think size 10 is good." Done.
+## What you decided, and what it turned into
 
-**Fire: the picture moves, not the damage.** Drawn at 46, burns at 78 — the
-drawing grows to match. No balance change.
+**CRIT STAYS** — SG-148 reverted, the gate deleted rather than switched off.
+Crit-built captains kill the Colossus 7.8% faster and take 13.9% less in wave 12.
+The rule is written down: browser fidelity is not a rationale for anything.
 
-**Telegraphs: you liked them, and the edges are being hardened.** "The edge of
-that should be very clear to the player... lined with something a little harder,
-as opposed to that soft edge." Agreed and being done — the boundary of a danger
-zone is the most important line in the game, and a soft gradient makes "am I in
-it?" a guess. The rule being applied is one already written down for the rings in
-this codebase: *a fill you can see through and an edge you cannot miss.*
+**The Colossus walks the lane and stomps.** He ignores you, goes for the cannon,
+then the objective. Measured: **21% more dangerous and the run 12.7 points
+easier** — because an escapable circle has no tail of runs where he corners a
+kiting captain. Your run then caught that his stomp was preempting his own swing
+and leaving him at 32% of his swing rate, so he never actually destroyed a
+cannon. Fixed: 208 → 442 cannon damage a minute.
 
-**Your three weapon models are in.** The pike, the axe and the wrench are
-ingested from Downloads and being fitted — the crew, the furnace knight and the
-gremlin have had empty hands until now.
+**The furnace knight got his health**, and your "too fast" note found something
+much bigger: **every boarder's swing was accelerating mid-swing** to a 4× clamp
+and playing 2.5 times per hit. Now constant at 0.75–0.96×, simulation untouched.
+
+**The rail ships at N = 10. Your prow is on the ship.** Your stern is not, and
+that finding is worth more than the piece: **this camera never sees the outside
+of the hull.** Two sterns of completely different proportion failed identically.
+Nobody should model a hull, transom or counter for this game.
+
+**Clamp them all** — 17 models plus the procedural deck, which had never been in
+that audit and was shinier than every model standing on it.
+
+**Your mast shadows win**, over the analysis that recommended otherwise.
+
+**Your three weapons are in hands**, and the lab opens on the right figures now.
+
+**The upper deck is built** from your four pieces plus your rail — a forecastle,
+not a lid, because five posts carry it to lit brass foot plates and your stair
+cuts diagonally through the middle.
+
+**The hulk dies in 16.7 s** instead of 28.3: the cast path has always ended in a
+hull-splash call and the basic attack never got that line.
+
+**The crew leave a cleared lane** and no longer swing at bare planking.

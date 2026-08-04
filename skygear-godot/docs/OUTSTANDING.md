@@ -161,8 +161,15 @@ Three separate faults, and only one is a surprise:
    that he does just be damage around him so that it can hurt the player when
    the players try to kill him."* Both halves shipped — the lane walk is ON and
    his damage is a telegraphed area STOMP. **He deals 21% more than the chase
-   build he replaced (123.97 → 150.21 by his own hand, n=480 a side) and the
+   build he replaced (123.97 → 150.21 by his own hand, ~~n=480 a side~~) and the
    Heat 0 hold-rate ROSE 12.7 points**, because a readable threat has no tail;
+   **— SAMPLE AND CLOCK BOTH CORRECTED 2026-08-04 (SG-190): those 480 are seeds
+   × reps, and on a deterministic rig reps buy nothing, so the honest n is the
+   seed count and the intervals are ~4.5x too narrow; worse, every arm was taken
+   while the boarders were walking at about a seventh of their table speed. The
+   arms rank correctly against each other and the DIRECTION stands; the absolute
+   figures do not travel. And §1b's Boiler finding is superseded outright — see
+   the banner at the head of `docs/COLOSSUS-DESIGN.md`.**
    `docs/COLOSSUS-DESIGN.md` §1b is the whole measurement with a three-point
    curve if he wants the hold-rate back. **What he should judge by hand** is
    whether "he ignores you" reads as indifference — §4's own recorded risk — and
