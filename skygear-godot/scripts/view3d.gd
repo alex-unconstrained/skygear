@@ -1233,10 +1233,19 @@ func _build_world() -> void:
 
 	## The gunwale. Without it the deck is a rectangle that stops, and at
 	## altitude the thing you most need to read is where the edge is.
+	## THE BREAST RAIL, DARKENED AND TAKEN UNDER THE CEILING (SG-179). The owner:
+	## *"that lightish brown/yellow ... look out of place against our other
+	## models and seem very placeholder."* He is right, and it is two faults at
+	## once: a flat albedo with no maps beside models that carry four, and a
+	## metallic of 0.4 on a deck whose every MODEL was clamped to 0.34 the day
+	## before. This fixes the second and takes the edge off the first. It stays
+	## brass rather than becoming timber because this bar is not decoration —
+	## DECK-IDENTITY 6 gives it a job, drawing the play boundary, and a boundary
+	## the eye cannot find is worse than an ugly one.
 	var rail_mat := StandardMaterial3D.new()
-	rail_mat.albedo_color = Color("#b0813f")
-	rail_mat.roughness = 0.6
-	rail_mat.metallic = 0.4
+	rail_mat.albedo_color = Color("#7c5a2c")
+	rail_mat.roughness = 0.74
+	rail_mat.metallic = LAMPLIT_METALLIC_MAX
 	## THE TWO SOLID SIDE BARS ARE GONE (SG-157). DECK-IDENTITY item 4 asked for
 	## exactly this and said why in one sentence: *a rail reads as a rail because
 	## you see past it*, and a solid 14 x 40 x 2320 bar cannot produce the
@@ -5980,6 +5989,23 @@ func _flush_shadows() -> void:
 const SHEER_BOW := 96.0         ## peak lift forward, at the bow line
 const SHEER_STERN := 90.0       ## and aft
 const SHEER_BASE := 30.0        ## the strake's own depth below the lift
+
+## THE LAMPLIT CEILING, AND THE PROCEDURAL DECK HAD NEVER HEARD OF IT (SG-179).
+##
+## `tools/lamplit.py` owns this number and clamps every shipped MODEL to it — all
+## 17 that were over, on the owner's verdict of 2026-08-03. But that audit walks
+## `assets/models/*.glb` and nothing else, so the deck's own procedurally-built
+## boxes were never in it. The gunwale end caps and the sheer strake's brass
+## capping both shipped at `metallic = 0.4`, ABOVE the ceiling every model on the
+## deck had just been brought under — which is part of why the owner reported
+## them as reading like placeholder plastic against the textured pieces.
+##
+## Restated here rather than imported because a GDScript cannot read a Python
+## module, and held to that source by the harness check
+## `deck · the procedural deck obeys the same lamplit ceiling the models do`,
+## which parses the number out of `tools/lamplit.py` and fails if the two drift.
+## Same thread that holds `rune_read`'s prefixes to `_decal_class`.
+const LAMPLIT_METALLIC_MAX := 0.34
 const SHEER_WIDTH := 58.0       ## outboard of the deck edge, never inboard
 const SHEER_SEGMENTS := 20
 const BOW_LENGTH := 620.0       ## how far forward of the bow line the stem is
@@ -6218,10 +6244,14 @@ func _build_hull_shape() -> void:
 	timber.roughness = 0.88
 	## The capping along the top of the strake, in the gunwale's own brass so the
 	## new edge and the old one are visibly the same ship.
+	## Darkened and taken under the lamplit ceiling with the breast rail above
+	## (SG-179). This capping runs the whole length of both deck edges — forty
+	## boxes — so it is the largest untextured surface in the frame and it was
+	## the loudest of the two.
 	var brass := StandardMaterial3D.new()
-	brass.albedo_color = Color("#8f6a34")
-	brass.roughness = 0.62
-	brass.metallic = 0.4
+	brass.albedo_color = Color("#674c26")
+	brass.roughness = 0.80
+	brass.metallic = LAMPLIT_METALLIC_MAX
 
 	## a · THE SHEER STRAKE. Twenty boxes a side straddling the deck edge, inner
 	## face exactly on |x| = 840 and every millimetre of the rest of it OUTBOARD.

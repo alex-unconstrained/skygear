@@ -575,6 +575,25 @@ func _rune() -> void:
 		"%s" % str(drawn) if drawn == want
 			else "view3d draws %s, rune_read.gd hides %s" % [str(drawn), str(want)])
 
+	## AND THE SAME THREAD, FOR THE LAMPLIT CEILING (SG-179). `tools/lamplit.py`
+	## owns that number and clamps every shipped MODEL to it, but its audit walks
+	## `assets/models/*.glb` and nothing else — so the deck's own procedural boxes
+	## sat above the ceiling every model had been brought under, which is what the
+	## owner was seeing when he called them placeholder. `view3d.gd` has to restate
+	## the number because a GDScript cannot read a Python module; this is what
+	## stops the restatement going stale.
+	var lamplit_src := FileAccess.get_file_as_string("res://tools/lamplit.py")
+	var lamplit_at := lamplit_src.find("LAMPLIT_METALLIC_MAX = ")
+	var lamplit_py := -1.0
+	if lamplit_at >= 0:
+		var tail := lamplit_src.substr(lamplit_at + 23, 12).strip_edges()
+		lamplit_py = float(tail.get_slice("\n", 0).strip_edges())
+	_check("deck", "the procedural deck obeys the same lamplit ceiling the models do",
+		lamplit_py > 0.0
+			and absf(lamplit_py - SkyGearView3D.LAMPLIT_METALLIC_MAX) < 0.0001,
+		"lamplit.py says %.4f, view3d says %.4f" % [lamplit_py,
+			SkyGearView3D.LAMPLIT_METALLIC_MAX])
+
 	## 4. NOBODY ELSE KEEPS A COPY OF THE RETIRED WINDOW. `rune_probe.gd` does,
 	## on purpose and with its reason on the line above it, because a check that
 	## passes both before and after a fix is not evidence of a fix — it has to run
