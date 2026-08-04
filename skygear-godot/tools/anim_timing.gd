@@ -50,14 +50,30 @@ func _run() -> void:
 			"loop" if a.loop_mode != Animation.LOOP_NONE else "once"])
 
 	## A boarder's attack window is not a skill cooldown: `_sync_rig` calls
-	## `want("swing", …, state_time)` on the first windup frame, and on that
-	## frame `state_time` IS the kind's windup (enemy.gd sets it entering the
-	## state). So the window measured here is the one the renderer will pass.
-	## Extended for the first enemy rig (board SG-65); waiting for one was
-	## SG-55's call — a tool nothing can exercise is data with no reader.
+	## `want("swing", …)` for as long as the boarder is attacking, and the number
+	## it passes is the ATTACK'S OWN LENGTH — the windup plus the recovery, which
+	## is `SkyGearEnemy.attack_beat()`. Extended for the first enemy rig (board
+	## SG-65); waiting for one was SG-55's call — a tool nothing can exercise is
+	## data with no reader.
+	##
+	## THIS PARAGRAPH USED TO SAY `state_time`, AND SAYING IT IS WHAT HID SG-188
+	## FOR A DAY. The renderer did pass `state_time` — a COUNTDOWN — so the window
+	## this tool measured was only the value on the FIRST frame of the windup, and
+	## the tool reported 3.93x while the shipping game accelerated to the 4.00x
+	## clamp and dealt the clip 2.50 times per attack. A tool that samples the
+	## opening frame of a window that moves is not measuring the window. The
+	## number comes off the simulation now, so this cannot drift again: if the
+	## renderer's window and the enemy's beat ever disagree, they disagree in one
+	## place and `figure · a boarder's swing is fitted to the whole attack…`
+	## fails.
 	if is_boarder:
 		var config: Dictionary = SkyGearData.ENEMIES[ekind]
-		var ewindow: float = float(config.get("windup", 0.4))
+		var probe := SkyGearEnemy.new()
+		probe.kind = ekind
+		probe.config = config
+		probe.state = "windup"
+		var ewindow: float = probe.attack_beat()
+		probe.free()
 		rig.state = "idle"
 		rig.want("swing", 0.0, ewindow)
 		var eclip: String = rig._clip
@@ -65,14 +81,41 @@ func _run() -> void:
 		var eshown: float = ewindow * erate / rig.anim.get_animation(eclip).length
 		print("\nWHAT THE PLAYER ACTUALLY SEES")
 		print("  %-12s %8s %10s %7s %8s  %s"
-			% ["attack", "windup", "window", "clip", "rate", "shown"])
+			% ["attack", "windup", "beat", "clip", "rate", "shown"])
 		var enote := "ok"
 		if erate >= TOO_FAST:
 			enote = "TOO FAST"
 		elif eshown < TOO_SLOW_FRACTION:
 			enote = "only %.0f%% of the clip" % (eshown * 100.0)
 		print("  %-12s %7.2fs %9.2fs %6s %7.2fx  %s"
-			% [which, ewindow, ewindow, eclip, erate, enote])
+			% [which, float(config.get("windup", 0.4)), ewindow, eclip, erate,
+				enote])
+		## EVERY VARIANT THE ROTATION CAN LAND ON, not only the one that came up
+		## (board SG-188). One sample says what this cast looked like; the spread
+		## says whether the NEXT one will look like it, which is the half of "it
+		## looks too fast" that a single row cannot carry. The knight rotates six
+		## swings between 1.27 s and 3.53 s, and at the pre-SG-188 window those
+		## played at 1.41x to 3.93x — a beat that changed shot to shot by 2.8x.
+		var lo := 99.0
+		var hi := 0.0
+		var rotated: Array[String] = []
+		for name in SkyGearRig3D.VARIANTS["swing"]:
+			if not rig.has_clip(str(name)):
+				continue
+			rig.state = "idle"
+			rig.want("swing", 0.0, ewindow)
+			if not rotated.has(rig._clip):
+				rotated.append(rig._clip)
+		for name in rotated:
+			var vlen: float = rig.anim.get_animation(name).length
+			var vrate: float = clampf(vlen / ewindow,
+				SkyGearRig3D.ATTACK_RATE_MIN, SkyGearRig3D.ATTACK_RATE_MAX)
+			lo = minf(lo, vrate)
+			hi = maxf(hi, vrate)
+		print("  %-12s %7s %9s %6s %7s  %d variants in the rotation, %.2fx..%.2fx"
+			% ["  rotation", "-", "-", "-", "-", rotated.size(), lo, hi])
+		if hi >= TOO_FAST:
+			enote = "TOO FAST"
 		## THE GAIT AND THE DEATH (board SG-85). Two more windows a boarder now
 		## has, and both are functions of the kind's own numbers rather than of
 		## a skill: the walk/run choice comes from the simulated speed, and the

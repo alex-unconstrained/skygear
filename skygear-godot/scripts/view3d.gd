@@ -8016,7 +8016,7 @@ func _sync_all(delta: float) -> void:
 		if not _sync_rig(key, enemy.kind, draw_at, heading, height,
 				swinging, enemy.state == "move", enemy.velocity.length(),
 				maxf(0.0, enemy.state_time), delta, enemy.stun_time,
-				enemy.state == "turn", arcing):
+				enemy.state == "turn", arcing, enemy.attack_beat()):
 			_draw_figure(key, enemy.kind, draw_at, heading, height, swinging,
 				enemy.state == "move", game.run_time + phase,
 				maxf(0.0, enemy.state_time), lift)
@@ -8970,7 +8970,8 @@ static func mount_weapon(rig: SkyGearRig3D, who: String,
 func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		height: float, attacking: bool, moving: bool, speed: float,
 		attack_clock: float, delta: float, stun: float = 0.0,
-		turning: bool = false, airborne: bool = false) -> bool:
+		turning: bool = false, airborne: bool = false,
+		attack_beat: float = 0.0) -> bool:
 	if _no_model.has(kind):
 		return false
 	var rig: SkyGearRig3D = _rigs.get(key)
@@ -9081,7 +9082,28 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		## one-shot that accelerates as it plays.
 		window = SkyGearEnemy.TURN_TIME
 	elif attacking:
-		window = attack_clock
+		## THE BEAT'S OWN LENGTH, exactly like the turn above it and the crossing
+		## above that — and the attack is the one that was NOT written that way
+		## (board SG-188, owner: *"Slow down the attack animations on furnace
+		## knights it looks too fast now"*).
+		##
+		## `attack_clock` is `enemy.state_time`, a COUNTDOWN, so fitting the clip
+		## to it fitted the swing to whatever was LEFT of the beat and the swing
+		## accelerated frame by frame into the 4.00x clamp; and because
+		## `swinging` holds this state through the windup AND the recovery, it
+		## did it twice per attack. Measured before the change, six consecutive
+		## attacks: rate 1.83x rising to the 4.00x clamp in every one of them,
+		## and **2.50 full plays of the swing clip per single 34-damage hit**.
+		##
+		## `attack_beat()` is the SIMULATION's own arithmetic — the windup times
+		## the Heat scale, plus the recovery — asked of the enemy rather than
+		## restated here, because a renderer that restated `_windup_scale()`
+		## would be two functions disagreeing about one number with a difficulty
+		## ladder attached. Nothing about the attack's TIMING moves: this changes
+		## the number the CLIP is divided by and no number the simulation swings
+		## on. The fallback keeps every caller that has no beat to offer — the
+		## crew — on exactly the behaviour it had.
+		window = attack_beat if attack_beat > 0.0 else attack_clock
 	elif doing == "hurt":
 		window = maxf(0.12, stun)
 	rig.want(doing, speed, window)
