@@ -2792,17 +2792,52 @@ func _process_basic_attack(delta: float) -> void:
 	if auto.is_empty():
 		return
 	var reach := float(auto.range)
+	## THE HULL IS A THING SHE CAN SWING AT (board SG-186, the owner: *"Boarding
+	## hulk took a long time to kill."*).
+	##
+	## `_resolve_cast` has ended in `hulk_splash` since it was written, under the
+	## comment *"every shape must be able to bite the hulk, or breaking one is the
+	## job of whichever weapon happens to be shaped like a structure-killer"*. The
+	## BASIC ATTACK is the one shape that never got that line, and it is between a
+	## third and a half of a run's damage — 36% of the owner's own twelve-wave
+	## run. So the single largest damage source in the game could not touch the
+	## one target the game asks you to break on a clock.
+	##
+	## IT IS TWO DEFECTS AND THE SECOND IS THE BIGGER ONE. Even with the splash
+	## line added, this function returns early when no BOARDER is inside reach —
+	## so a captain standing on the hull with the lane momentarily clear cannot
+	## swing at all. Measured with `tools/hulk_probe.gd` before this change: a
+	## captain parked at the hull for the whole fight swung her auto **2 times in
+	## 28 seconds**. The hull is now a target of last resort: a boarder still wins
+	## the aim every time one is in reach, so nothing about fighting boarders
+	## changes, and the swing only turns on the hull when there is nothing else to
+	## hit.
+	##
+	## THE REACH IT USES IS `hulk_splash_reaches`, NOT `auto.range` measured to the
+	## hull's edge. Those are different numbers (190 + 190 = 380 against a splash
+	## band of 340) and picking the wrong one would have drawn a cleave through a
+	## hull that took nothing.
 	var target := nearest_enemy(player.global_position, reach)
-	if target == null:
+	var aim_at: Vector2 = Vector2.ZERO
+	if target != null:
+		aim_at = target.global_position
+	elif hulk_splash_reaches(player.global_position):
+		aim_at = Vector2(hulk.position)
+	else:
 		return
-	var direction := (target.global_position - player.global_position).normalized()
+	var direction := (aim_at - player.global_position).normalized()
 	## The ELEMENT is the run's, not the table's (SG-99). Everything else about
 	## the swing — reach, arc, damage, period, knock, sound — is still the class's
 	## own, because the ask was to change what it is made of and not what it is.
 	var element := auto_element_id()
+	var swing: float = float(auto.damage) * damage_multiplier * overpressure_multiplier()
 	_damage_cone(player.global_position, direction, reach, float(auto.arc),
-		float(auto.damage) * damage_multiplier * overpressure_multiplier(),
-		element, float(auto.knock), true)
+		swing, element, float(auto.knock), true)
+	## THE LINE `_resolve_cast` HAS ALWAYS HAD (board SG-186). Unconditional, like
+	## its twin: a cleave that catches a boarder standing against the hull bites
+	## the hull too, which is what "every shape must be able to bite it" means and
+	## what every skill in the game already does.
+	hulk_splash(player.global_position, swing)
 	basic_cooldown = float(auto.period)
 	_fx({"kind": str(auto.kind), "position": player.global_position,
 		"direction": direction.angle(), "radius": reach, "arc": float(auto.arc),
@@ -4523,10 +4558,27 @@ func damage_hulk(amount: float) -> void:
 ## A shape that lands on or near the hulk hurts it, so every weapon can bite it
 ## rather than only the ones that happen to target structures.
 func hulk_splash(at: Vector2, amount: float) -> void:
-	if hulk.is_empty() or bool(hulk.dead) or not bool(hulk.vulnerable):
-		return
-	if Vector2(hulk.position).distance_to(at) < float(hulk.radius) + 150.0:
+	if hulk_splash_reaches(at):
 		damage_hulk(amount)
+
+
+## HOW FAR OFF THE HULL A SHAPE STILL BITES IT — one band, asked rather than
+## re-derived (board SG-186, and SG-119's rule one deck over).
+##
+## This was a literal inside `hulk_splash` and nothing else could see it. The
+## moment the basic attack needed to know whether the hull was worth swinging at,
+## the choice was between asking this question and inventing a second reach out
+## of `auto.range` — which is STATUS failure mode two with a boarding craft
+## bolted to it: the swing would have connected at one distance and the damage
+## landed at another, and the player would have watched a cleave pass through a
+## hull for nothing.
+const HULK_SPLASH_BAND := 150.0
+
+
+func hulk_splash_reaches(at: Vector2) -> bool:
+	if hulk.is_empty() or bool(hulk.dead) or not bool(hulk.vulnerable):
+		return false
+	return Vector2(hulk.position).distance_to(at) < float(hulk.radius) + HULK_SPLASH_BAND
 
 
 ## THE HULL'S FOOTPRINT, or `{}` when nothing is grappled to the bow (board

@@ -88,6 +88,23 @@ func _run() -> void:
 	var reps: int = maxi(1, int(args[1])) if args.size() > 1 else 4
 	var heat: int = int(args[2]) if args.size() > 2 else 0
 	Engine.physics_ticks_per_second = 20
+	## AND INTO A PHYSICS FRAME BEFORE ANYTHING IS STEPPED (board SG-187). This
+	## line is not housekeeping; without it every number this tool has ever
+	## printed was taken with the boarders walking at a speed nobody chose.
+	##
+	## `CharacterBody2D.move_and_slide()` does not integrate against the delta you
+	## hand `_physics_process`. It asks `Engine.is_in_physics_frame()` and takes
+	## `get_physics_process_delta_time()` if the answer is yes and
+	## `get_process_delta_time()` — THE IDLE FRAME'S WALL-CLOCK DURATION — if it is
+	## no. A `_run` reached by `call_deferred` from `_initialize` has never been
+	## inside a physics frame: measured, `get_physics_process_delta_time()` returns
+	## 0.0000 there and `is_in_physics_frame()` is false. So the line above set a
+	## clock that nothing was reading, and every boarder moved by the wall clock —
+	## 0.0069 s on the machine this was found on, against the 0.05 the loop counts,
+	## and DIFFERENT on a busier one. That is the "still not deterministic"
+	## residual this file's own header blames on the physics server, most of it,
+	## and it is a rig measuring a game nobody plays.
+	await physics_frame
 	print("  MELEE PROBE · %.0fs window · %d reps · HEAT %d" % [seconds, reps, heat])
 	print("  STAND: the captain is pinned and never moves. She still swings —")
 	print("         `_process_basic_attack` needs no input, which is the owner's")
@@ -353,7 +370,7 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 							break
 			guard += 1
 			if guard % 200 == 0:
-				await process_frame
+				await physics_frame
 		if game.state_name != "PLAY" and game.state_name != "DRAFT":
 			## READ BEFORE THE FREE (SG-166). This line used to format `game.wave`
 			## AFTER `queue_free()` and an awaited frame, so the run that failed to
@@ -370,7 +387,7 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 			var died_on := int(game.wave)
 			bot.release()
 			game.queue_free()
-			await process_frame
+			await physics_frame
 			return _blank("died on wave %d before reaching wave %d" % [died_on, target_wave])
 
 	## THE CAPTAIN'S SPOT: lane 1's centre line, mid-deck, well clear of the rail
@@ -391,7 +408,7 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 	if subject == null:
 		bot.release()
 		game.queue_free()
-		await process_frame
+		await physics_frame
 		return {"started": 0, "resolved": 0, "aimed": 0, "landed": 0, "taken": 0.0,
 			"swallowed": 0, "elsewhere": 0, "seconds": 0.0,
 			"pool": 0.0, "subject_hp": 0.0, "wave": 0,
@@ -537,7 +554,7 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 				elsewhere += 1
 		steps += 1
 		if steps % 200 == 0:
-			await process_frame
+			await physics_frame
 
 	var note := ""
 	if steps < total:
@@ -551,5 +568,5 @@ func _one(kind: String, mode: String, seconds: float, heat: int, seed_text: Stri
 	}
 	bot.release()
 	game.queue_free()
-	await process_frame
+	await physics_frame
 	return out

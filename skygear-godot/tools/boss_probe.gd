@@ -52,7 +52,25 @@ extends SceneTree
 const BotScript := preload("res://tools/bot.gd")
 var bot := BotScript.new()
 
-const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6"]
+## THE SEED LIST, WIDENED FROM SIX TO THIRTY-TWO (board SG-187), because with
+## the clock fixed this rig is DETERMINISTIC and the six were never the sample —
+## they were the whole population.
+##
+## Before SG-187 the `reps` argument bought real independent runs, because the
+## wall-clock delta differed on every one. It does not any more: measured
+## immediately after the fix, twenty reps of one seed returned BIT-IDENTICAL
+## rows — `A0BAL3` came back `ttk 30.6s taken 208 boiler 0 dur 32.3s` twenty
+## times out of twenty. So `6 seeds x 20 reps` is not n=120, it is n=6 printed a
+## hundred and twenty times, and every interval computed off that 120 is about
+## 4.5x too narrow. That is SG-128's exact mistake wearing a new hat, and this
+## tool now refuses it out loud (see `_run`).
+##
+## The way to buy n on a deterministic rig is SEEDS, and they are cheap.
+const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6",
+	"BAL7", "BAL8", "BAL9", "BAL10", "BAL11", "BAL12", "BAL13", "BAL14",
+	"BAL15", "BAL16", "BAL17", "BAL18", "BAL19", "BAL20", "BAL21", "BAL22",
+	"BAL23", "BAL24", "BAL25", "BAL26", "BAL27", "BAL28", "BAL29", "BAL30",
+	"BAL31", "BAL32"]
 
 ## The wave the Colossus is on. Read from the table rather than typed, so this
 ## tool cannot outlive a change to `WAVES` the way a hardcoded 12 would.
@@ -78,6 +96,23 @@ func _run() -> void:
 		quit(1)
 		return
 	Engine.physics_ticks_per_second = 20
+	## AND INTO A PHYSICS FRAME BEFORE ANYTHING IS STEPPED (board SG-187). This
+	## line is not housekeeping; without it every number this tool has ever
+	## printed was taken with the boarders walking at a speed nobody chose.
+	##
+	## `CharacterBody2D.move_and_slide()` does not integrate against the delta you
+	## hand `_physics_process`. It asks `Engine.is_in_physics_frame()` and takes
+	## `get_physics_process_delta_time()` if the answer is yes and
+	## `get_process_delta_time()` — THE IDLE FRAME'S WALL-CLOCK DURATION — if it is
+	## no. A `_run` reached by `call_deferred` from `_initialize` has never been
+	## inside a physics frame: measured, `get_physics_process_delta_time()` returns
+	## 0.0000 there and `is_in_physics_frame()` is false. So the line above set a
+	## clock that nothing was reading, and every boarder moved by the wall clock —
+	## 0.0069 s on the machine this was found on, against the 0.05 the loop counts,
+	## and DIFFERENT on a busier one. That is the "still not deterministic"
+	## residual this file's own header blames on the physics server, most of it,
+	## and it is a rig measuring a game nobody plays.
+	await physics_frame
 	print("  BOSS PROBE · wave %d · HEAT %d · %d seeds x %d reps%s"
 		% [bw, heat, mini(count, SEEDS.size()), reps,
 			"  · salt %s" % salt if salt != "" else ""])
@@ -91,6 +126,12 @@ func _run() -> void:
 	for rep in reps:
 		for i in mini(count, SEEDS.size()):
 			var r := await _one(salt + SEEDS[i], heat, bw)
+			r["seed"] = salt + SEEDS[i]
+			## Everything this tool reports, as one string. Two reps of a seed that
+			## agree on all of it are one run counted twice.
+			r["fingerprint"] = "%.3f|%.3f|%.3f|%.3f|%.3f|%s" % [
+				float(r.ttk), float(r.taken), float(r.boiler), float(r.turret),
+				float(r.dur), str(r.reached)]
 			rows.append(r)
 			print("  %-10s%-5s %s"
 				% [salt + SEEDS[i], "" if reps == 1 else "#%d" % (rep + 1),
@@ -100,6 +141,28 @@ func _run() -> void:
 						% [float(r.ttk), float(r.taken), float(r.taken_boss),
 							float(r.boiler),
 							float(r.dur), "HELD" if bool(r.won) else "lost"])])
+
+	## AND THE REFUSAL, IN WORDS, UNDER THE RESULT (SG-128's rule, SG-187's
+	## reason). If every rep of a seed came back identical then `reps` bought
+	## nothing at all and the honest n is the number of SEEDS — printing an
+	## interval off the rep count would be this ledger's oldest mistake.
+	var per_seed := {}
+	for r in rows:
+		var key := str(r.get("seed", ""))
+		if not per_seed.has(key):
+			per_seed[key] = {}
+		per_seed[key][str(r.get("fingerprint", ""))] = true
+	var duplicated := 0
+	for key in per_seed:
+		if per_seed[key].size() <= 1:
+			duplicated += 1
+	if reps > 1 and duplicated > 0:
+		print("")
+		print("  REFUSED as a sample of %d: %d of %d seeds returned the SAME row on every"
+			% [rows.size(), duplicated, per_seed.size()])
+		print("  rep, so those reps are copies rather than runs. THE HONEST n IS %d — the"
+			% per_seed.size())
+		print("  number of distinct SEEDS. Buy n with seeds, not with reps (board SG-187).")
 
 	var runs := rows.size()
 	var reached: Array = []
@@ -119,6 +182,7 @@ func _run() -> void:
 	_report("  ...of that, by everything else", reached, "taken_other")
 	_report("taken per second of wave %d" % bw, reached, "rate")
 	_report("boiler HP lost in wave %d" % bw, reached, "boiler")
+	_report("cannon HP lost in wave %d" % bw, reached, "turret")
 	_report("wave %d duration, s" % bw, reached, "dur")
 	## Boss killed at all? A run can reach wave 12, lose, and never resolve him —
 	## in which case its ttk is censored and the mean is biased DOWN by however
@@ -133,7 +197,7 @@ func _run() -> void:
 			else "  <- ttk is CENSORED in the rest; read it as a lower bound"])
 	## One machine-readable line per statistic, so a pooled analysis across
 	## parallel processes never has to retype a number off the prose.
-	for key in ["ttk", "taken", "taken_boss", "taken_other", "rate", "boiler", "dur"]:
+	for key in ["ttk", "taken", "taken_boss", "taken_other", "rate", "boiler", "turret", "dur"]:
 		var vals := PackedStringArray()
 		for r in reached:
 			vals.append("%.2f" % float(r[key]))
@@ -159,6 +223,16 @@ func _report(label: String, rows: Array, key: String) -> void:
 	print("  %-28s mean %7.1f   sd %6.1f   CV %3.0f%%   THIS n RESOLVES %.0f%% OR LARGER"
 		% [label, mean, sd, cv * 100.0,
 			SkyGearBalStat.resolvable_at(n, cv) * 100.0])
+
+
+## Every live cannon's health, summed. A dead one contributes nothing rather
+## than dropping out of the sum, so the total can only fall — a denominator that
+## shrinks would make a destroyed cannon look like a repaired deck.
+func _turret_hp(game: SkyGearGame) -> float:
+	var total := 0.0
+	for t in game.turrets:
+		total += maxf(0.0, float(t.hp))
+	return total
 
 
 func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
@@ -188,6 +262,12 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 	var wave12_end := -1
 	var boiler_at_12 := 0.0
 	var boiler_low := 0.0
+	## THE CANNONS, ADDED BY SG-185. The owner's report was about a TURRET, and a
+	## probe that reports the Boiler and not the cannons cannot answer him. Summed
+	## over all live cannons, because the Colossus walks one lane but the wave
+	## around him does not.
+	var turret_at_12 := 0.0
+	var turret_low := 0.0
 	var boss: SkyGearEnemy = null
 	var boss_spawn := -1
 	var boss_dead := -1
@@ -222,8 +302,11 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 				wave12_start = steps
 				boiler_at_12 = game.boiler_hp
 				boiler_low = game.boiler_hp
+				turret_at_12 = _turret_hp(game)
+				turret_low = turret_at_12
 		if in_wave == bw:
 			boiler_low = minf(boiler_low, game.boiler_hp)
+			turret_low = minf(turret_low, _turret_hp(game))
 			if boss == null:
 				for e in game.get_tree().get_nodes_in_group("enemies"):
 					if is_instance_valid(e) and str(e.kind) == "BOSS":
@@ -234,7 +317,7 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 				boss_dead = steps
 		steps += 1
 		if steps % 200 == 0:
-			await process_frame
+			await physics_frame
 		if steps > 40000:
 			break
 	if in_wave == bw and wave12_end < 0:
@@ -270,9 +353,10 @@ func _one(seed_text: String, heat: int, bw: int) -> Dictionary:
 		"taken_other": taken_total - taken_boss,
 		"rate": taken_total / maxf(0.001, dur),
 		"boiler": maxf(0.0, boiler_at_12 - boiler_low),
+		"turret": maxf(0.0, turret_at_12 - turret_low),
 		"dur": dur,
 	}
 	bot.release()
 	game.queue_free()
-	await process_frame
+	await physics_frame
 	return out
