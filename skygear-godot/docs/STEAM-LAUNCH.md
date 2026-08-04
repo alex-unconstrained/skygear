@@ -506,7 +506,7 @@ What it does, in order:
    half-written file. Make this a hard failure, not a warning, and record the
    commit SHA into the staged `README.txt` so a bug report names a build.
 4. **Gate on the harness.** `SkyGear Tools.bat harness` must be green — ~~926~~
-   **1117 checks as of 2026-08-04, and the number in this line is not the gate:
+   **1128 checks as of 2026-08-04, and the number in this line is not the gate:
    the gate is "green", whatever it prints.** A store build is exactly the
    artifact that should never ship red. (Corrected under board SG-191; the 926
    had been stale by ~190 checks.)

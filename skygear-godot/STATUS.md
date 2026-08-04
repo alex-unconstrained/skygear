@@ -32,7 +32,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1117 harness checks**; the text audit covers 25 screens at
+board SG-56). **1128 harness checks**; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -41,6 +41,39 @@ rather than four. Build 62 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
+
+**THE CREW ARE BEING SLAUGHTERED AND NOBODY IS SWINGING AT THE CAPTAIN (SG-193
+and SG-194, 2026-08-04, owner after build 62: *"Do enemies fight and kill crew
+members? Furnace knights dont seem to do any damage to me or attack crew
+members."*). Both halves of that sentence were measured and NEITHER was tuned.**
+The crew half is FALSE and loudly so: over twelve full runs and **4,062 resolved
+boarder swings**, **36.6% were aimed at a crewman**, 34.0% landed on one, and
+**21.6 sailors are killed per run** out of 47.4 mustered — 1,714 crew HP, better
+than 25 whole hands. The captain half is TRUE and is the same finding from the
+other end: **0.2% of every swing on the deck is aimed at her.** The priority
+chain in `enemy.gd` reads captain-inside-280, then the lane cannon while the
+boarder is still ahead of it, then a crewman inside 220, then the Boiler — and
+the cannon really does suppress crew targeting (destroy all three and the crew
+share goes **36.6% → 89.1%**, kills **21.6 → 71.4**, intervals not touching) —
+but only partially, because a boarder that walks PAST its gun is released. **And
+the furnace knight is not broken, he is never in range**: against a pinned
+captain he lands **180 of 180** resolved swings at 17.00 dps and kills her in
+5.9 s; against `tools/bot.gd` he resolved **ZERO swings in six minutes** and
+**closed to 100 units against a swing that trips at 99** — one unit short, for
+the whole window, because the bot breaks contact at 90 and he walks at 75 against
+her 260. **Two rig lessons came out of it.** SG-165's headline that the health
+buff took his orbit arm to "10 resolved and 9 landed" is WITHDRAWN — it predates
+SG-190 and on the corrected clock that arm is 0. And **SG-190 is not finished**:
+a rig can set `physics_ticks_per_second = 20`, read back 20, sit inside a physics
+frame, and STILL be handed 1/60 by `get_physics_process_delta_time()` while
+`move_and_slide` integrates 0.05. `tools/crew_probe.gd` asks for no clock at all,
+steps at the engine's own delta, and prints `ground / (|v| × DT)` above every
+result — **1.011 and 0.988**. The one code change is a refactor with no behaviour
+in it: the victim chain is `enemy.victim()` now and the swing writes
+`enemy.last_swing`, so a rig reads the simulation's own answer instead of keeping
+a second copy of 280/220/40 — proven neutral by `tools/balance.gd` coming back
+**byte-identical on all six seeds**. Twelve `victim ·` checks, and the one that
+had never existed in any form is `victim · and enough of them KILL him`.
 
 **THE COLOSSUS COULD BARELY SCRATCH THE SHIP AND THE BOARDING HULK OUTLASTED THE
 WAVE IT BELONGS TO — both from the owner's first full twelve-wave run, Heat 2,
@@ -690,7 +723,7 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1117 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1128 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -811,7 +844,7 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1117 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1128 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -839,7 +872,7 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1117 checks. Green before anything ships |
+| `harness` | 1128 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |

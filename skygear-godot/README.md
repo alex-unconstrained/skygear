@@ -17,7 +17,7 @@ and the Boilerwright), the full 41-card draft with reroll and seeded rolls,
 persistent progression (the Workshop, the Articles, Heat), a difficulty ladder,
 a run log, rebindable keys, a cutscene system with all five cues filled, two rigged boarders that walk and die, and the
 browser's painted sky sampled by view direction. Verified by the harness —
-1117 checks — and a text audit across 25 screens at 4 widths.
+1128 checks — and a text audit across 25 screens at 4 widths.
 
 **That count goes stale the moment anybody adds a check, so do not trust it: run
 the harness and read what it prints.** `tools/hub.gd` deliberately carries no
@@ -48,7 +48,7 @@ layout editor, F11 toggles fullscreen. Mousewheel zooms out.
 
 Everything is behind `SkyGear Tools.bat` at the repo root (or
 `godot --path . --headless --script tools/hub.gd -- <name>`). The ones you will
-reach for: `harness` (1117 checks at 2026-08-04 — green before anything ships, and
+reach for: `harness` (1128 checks at 2026-08-04 — green before anything ships, and
 the printed number is the authority, not this line), `text`
 (the audit), `screens` (every screen at every width as one reviewable page),
 `parity` (browser against Godot, same seed, stitched side by side), and `all`

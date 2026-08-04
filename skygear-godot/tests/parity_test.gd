@@ -268,6 +268,8 @@ func _run() -> void:
 	await process_frame
 	_crew_assist()
 	await process_frame
+	_victim_chain()
+	await process_frame
 	_sg62()
 	await process_frame
 	_draft()
@@ -1915,6 +1917,157 @@ func _prop_count(game: SkyGearGame, kind: String) -> int:
 ## in his own lane is still his, whatever is happening next door` is that check,
 ## and it is pre-committed as the one that must fail if the ordering of the two
 ## passes in `crew_orders` is ever swapped.
+## --- WHO A BOARDER IS WALKING AT, AND WHETHER CREW CAN DIE (board SG-193) ----
+##
+## The owner, after build 62: *"Do enemies fight and kill crew members? Furnace
+## knights dont seem to do any damage to me or attack crew members."*
+##
+## NOTHING IN THIS HARNESS HAS EVER ASSERTED THAT A CREWMAN CAN DIE. `hurt_crew`
+## is the only place crew damage lands, it has been in the file since the lane
+## map was written, and the whole of its behaviour — including the branch that
+## sets `dead` — was unpinned. That is the first check below and it is the one
+## the owner's question is literally about.
+##
+## THE REST PIN THE PRIORITY ORDER, which is what makes the answer surprising.
+## `enemy.victim()` is asked directly rather than inferred from where a boarder
+## ends up walking: the thing under test is a DECISION, and a check written on
+## positions passes or fails on walking speed and tick count (the `crew ·` block
+## above says the same thing, and it is right).
+##
+## THE PRE-COMMITTED ONE is `victim · a live lane cannon outranks a crewman
+## standing right in front of it`. That single line is the whole of why the
+## measured crew-swing share moves from 42% to 85% when the guns come down, and
+## if the two branches in `enemy.victim()` are ever swapped it must go red.
+func _victim_chain() -> void:
+	## 1. CAN A CREWMAN BE KILLED AT ALL. Off the table's own numbers, not typed:
+	## a hand is `CREW.hp` and a furnace knight swings for `ARMORED.damage`, so
+	## the swings-to-kill arithmetic moves if either row moves.
+	var game := _new_game()
+	_begin(game)
+	_clear_boarders(game)
+	_muster_watch(game)
+	var hand: Dictionary = game.crew[0]
+	var pool: float = float(hand.hp)
+	var blow: float = float(SkyGearData.ENEMIES.ARMORED.damage)
+	game.hurt_crew(hand, blow)
+	_check("victim", "a crewman takes damage from a boarder's swing",
+		is_equal_approx(float(hand.hp), pool - blow) and not bool(hand.dead),
+		"%.0f of %.0f left after one %.0f-damage swing" % [float(hand.hp), pool, blow])
+	var swings := 1
+	while not bool(hand.dead) and swings < 99:
+		game.hurt_crew(hand, blow)
+		swings += 1
+	_check("victim", "and enough of them KILL him — the thing nothing in this harness has ever said",
+		bool(hand.dead) and float(hand.hp) <= 0.0,
+		"down in %d swings of %.0f against a %.0f pool" % [swings, blow, pool])
+	_check("victim", "and a dead hand takes no more, so a corpse cannot soak a lane",
+		not _crew_takes_more(game, hand),
+		"hp %.1f unchanged by a further blow" % float(hand.hp))
+
+	## 2. THE PRIORITY ORDER. One boarder, moved through the four cases, with the
+	## deck rearranged around it — so every check below is the SAME boarder
+	## answering a different deck rather than four fixtures that might differ.
+	game = _new_game()
+	_begin(game)
+	_clear_boarders(game)
+	_muster_watch(game)
+	## The captain is parked out of `CAPTAIN_NOTICE` for the first three cases.
+	game.player.global_position = Vector2(-1400.0, 1200.0)
+	var line: float = SkyGearGame.BOW_Y + SkyGearLanes.POST_AFT
+	var sailor: Dictionary = {}
+	for c in game.crew:
+		if int(c.lane) == 1:
+			sailor = c
+			break
+	sailor.position = Vector2(SkyGearGame.LANE_CENTERS[1], line)
+	## Shoulder to shoulder with the sailor — well inside `CREW_NOTICE`, and far
+	## ahead of the lane cannon, which is the whole point of the fixture.
+	var boarder := _boarder_at(game, "SCRAPPER", 1,
+		Vector2(SkyGearGame.LANE_CENTERS[1], line - 40.0))
+	var gate: Dictionary = game.turret_in_lane(1)
+	var to_hand: float = boarder.global_position.distance_to(Vector2(sailor.position))
+	_check("victim", "the fixture is honest: the crewman is inside the radius that would notice him",
+		to_hand < SkyGearEnemy.CREW_NOTICE and not gate.is_empty()
+			and boarder.global_position.y < float(gate.position.y) + SkyGearEnemy.TURRET_GATE_SLACK,
+		"crewman %.0f away against a %.0f radius, and the lane gun is %.0f further down"
+			% [to_hand, SkyGearEnemy.CREW_NOTICE,
+				float(gate.position.y) - boarder.global_position.y])
+	## THE PRE-COMMITTED CHECK.
+	_check("victim", "a live lane cannon outranks a crewman standing right in front of it",
+		str(boarder.victim().who) == "turret",
+		"walking at the %s" % str(boarder.victim().who))
+	## 3. AND WITH THE GUN DOWN THE SAME BOARDER TURNS ON THE SAILOR. This is the
+	## measured 42% -> 85% stated as a decision, and it is the reason `gunsdown`
+	## is an arm in `tools/crew_probe.gd` rather than a hypothesis in a comment.
+	gate.dead = true
+	gate.hp = 0.0
+	_check("victim", "and with that gun down the same boarder turns on the same crewman — the SG-193 finding",
+		str(boarder.victim().who) == "crew",
+		"walking at the %s" % str(boarder.victim().who))
+	## 4. A HAND FURTHER OFF THAN `CREW_NOTICE` IS A HAND NOBODY IS WALKING AT.
+	for c in game.crew:
+		c.position = Vector2(float(c.position.x), line + SkyGearEnemy.CREW_NOTICE + 200.0)
+	_check("victim", "a crewman past the notice radius is a crewman nobody is walking at",
+		str(boarder.victim().who) == "boiler",
+		"walking at the %s" % str(boarder.victim().who))
+	## 5. AND THE CAPTAIN OUTRANKS ALL OF IT.
+	game.player.global_position = boarder.global_position + Vector2(0.0, 60.0)
+	_check("victim", "and the captain inside the chase radius outranks every one of them",
+		str(boarder.victim().who) == "player",
+		"walking at the %s" % str(boarder.victim().who))
+
+	## 6. THE LEDGER. `enemy.last_swing` is what `tools/melee_probe.gd` and
+	## `tools/crew_probe.gd` both read instead of re-deriving the chain, so a
+	## resolve that forgets to write it would leave two rigs measuring nothing and
+	## saying so in percentages. Pinned on a real resolve rather than on the field
+	## existing — a field that is never written is the first failure mode.
+	_check("victim", "a resolved swing writes down what it aimed at and what it landed on",
+		_swing_ledger(game, boarder) == "player/player",
+		"aimed/landed = %s" % _swing_ledger(game, boarder))
+
+	## 7. THE SG-194 ARITHMETIC, and it is a table fact rather than a simulation.
+	## A furnace knight trips his windup at `attack_range + 17` and `tools/bot.gd`
+	## holds the captain at `BAND`. While the first is smaller than the second, a
+	## captain who holds the band is a captain he cannot swing at AT ALL — which
+	## is what the probe measured (0 swings resolved in 6 minutes of orbit) and
+	## what the owner reported feeling. This check is the claim, not the feeling.
+	var trip: float = float(SkyGearData.ENEMIES.ARMORED.attack_range) + 17.0
+	_check("victim", "a furnace knight's swing trips well inside the band the bot holds — the SG-194 arithmetic",
+		trip < BOT_SCRIPT.BAND,
+		"trips at %.0f against a %.0f band, so he must close %.0f units to swing at all"
+			% [trip, BOT_SCRIPT.BAND, BOT_SCRIPT.BAND - trip])
+	## AND HE IS SLOWER THAN SHE IS, which is the other half of why he never
+	## closes it. Read off both tables so that changing either one moves this.
+	_check("victim", "and he is slower than the captain, so closing that gap is not something he can simply do",
+		float(SkyGearData.ENEMIES.ARMORED.speed) < SkyGearPlayer.SPEED,
+		"knight %.0f against a captain's %.0f walk (and a %.0f dash)"
+			% [float(SkyGearData.ENEMIES.ARMORED.speed), SkyGearPlayer.SPEED,
+				SkyGearPlayer.DASH_SPEED])
+	game.queue_free()
+
+
+## A further blow on a body already down. Returns whether anything moved.
+func _crew_takes_more(game: SkyGearGame, hand: Dictionary) -> bool:
+	var before: float = float(hand.hp)
+	game.hurt_crew(hand, 999.0)
+	return not is_equal_approx(float(hand.hp), before)
+
+
+## Drives one boarder through a real windup->recover resolve and returns the
+## ledger it wrote, as `aimed/landed`. The state is set rather than waited for:
+## the thing under test is what the RESOLVE records, not how long the wind takes.
+func _swing_ledger(game: SkyGearGame, boarder: SkyGearEnemy) -> String:
+	boarder.last_swing = {}
+	boarder.state = "windup"
+	boarder.state_time = 0.0
+	boarder.attack_direction = (game.player.global_position
+		- boarder.global_position).normalized()
+	boarder._physics_process(0.05)
+	if boarder.last_swing.is_empty():
+		return "nothing written"
+	return "%s/%s" % [str(boarder.last_swing.aimed), str(boarder.last_swing.landed)]
+
+
 func _crew_assist() -> void:
 	## THE LEASH IS THE DECK'S OWN NUMBER, not a second copy of it. Read off
 	## `LANE_CENTERS` so that moving the lanes moves the leash, rather than
