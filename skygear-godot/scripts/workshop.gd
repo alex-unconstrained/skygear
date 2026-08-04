@@ -31,6 +31,26 @@ extends RefCounted
 
 const PATH := "user://workshop.json"
 
+## THE FILE EVERY READER AND WRITER HERE ACTUALLY GOES THROUGH. `PATH` is where
+## a PLAYER's earned progression lives; `store` is the pointer, so a TEST RUN
+## can be sent somewhere else. The fourth application of `SkyGearHudLayout.store`
+## (SG-83), after `SkyGearAudio.store` (SG-181) and the two SG-182 fixed.
+##
+## FOUND BY SG-182'S SWEEP, AND IT CONTRADICTS WHAT THE SWEEP THAT FILED SG-182
+## WROTE DOWN. That row recorded `workshop.json` as CLEAN — "`_new_game` already
+## keeps the workshop in memory" — which is true of `_new_game` and false of the
+## harness. `_fittings()` §4 writes a fixture save straight to this path twice
+## (a round-trip state, then a hand-built legacy row), reads it back, and puts
+## the owner's file back from a string it took first. It is the *most* precious
+## file in `user://` — scrip, sigils, fittings, berths, best_heat — and the
+## restore is not a guarantee: anything that ends the run between the write and
+## the restore (a check that raises, a crash, Ctrl+C) leaves his earned
+## progression as a test fixture with 120 scrip.
+##
+## The backup/restore is left in place under the divert. It costs nothing, and
+## it is what keeps that block honest if someone ever repoints the store back.
+static var store := PATH
+
 ## SCRIP comes from four fields `runlog.gd` already writes, so this adds no new
 ## tracking whatsoever. Quartered on a seed you have already played, because a
 ## currency you can farm by replaying your best seed is a currency that makes
@@ -428,9 +448,9 @@ static func fresh(ephemeral: bool = false) -> Dictionary:
 
 
 static func load_state() -> Dictionary:
-	if not FileAccess.file_exists(PATH):
+	if not FileAccess.file_exists(store):
 		return fresh()
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(store, FileAccess.READ)
 	if f == null:
 		return fresh()
 	var parsed = JSON.parse_string(f.get_as_text())
@@ -465,7 +485,7 @@ static func load_state() -> Dictionary:
 static func save_state(state: Dictionary) -> bool:
 	if bool(state.get("ephemeral", false)):
 		return true
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(store, FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(state))

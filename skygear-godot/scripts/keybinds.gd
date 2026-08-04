@@ -32,6 +32,20 @@ const REBINDABLE := [
 	["pause", "PAUSE"],
 ]
 
+## THE FILE EVERY READER AND WRITER HERE ACTUALLY GOES THROUGH. `PATH` is where
+## a PLAYER's rebinds live; `store` is the pointer, so a TEST RUN can be sent
+## somewhere else. The third application of `SkyGearHudLayout.store` (SG-83) and
+## `SkyGearAudio.store` (SG-181), and the reason is board SG-182.
+##
+## `_persistence()` rebinds `dash` to F, calls `save()`, reloads, then `reset()`s
+## and saves again — all against the real file. So every
+## `SkyGear Tools.bat harness` flattened the owner's bindings back to project
+## defaults, and a run that died between the two saves left his dash bound to F.
+## The reason it was invisible is the same reason a wiped file looks stable: an
+## earlier harness run had already flattened it, so the before/after hashes
+## agreed while the damage had already been done.
+static var store := PATH
+
 ## What the project ships with, captured the first time this runs so `reset()`
 ## has something true to go back to rather than a second hard-coded copy that
 ## can drift out of step with `project.godot`.
@@ -118,7 +132,7 @@ static func save() -> bool:
 			elif event is InputEventMouseButton:
 				codes.append({"kind": "mouse", "code": int(event.button_index)})
 		cfg.set_value("keys", action, codes)
-	return cfg.save(PATH) == OK
+	return cfg.save(store) == OK
 
 
 ## Total, like everything else that touches the disk here. A profile that cannot
@@ -126,7 +140,7 @@ static func save() -> bool:
 static func load_saved() -> void:
 	capture_defaults()
 	var cfg := ConfigFile.new()
-	if cfg.load(PATH) != OK:
+	if cfg.load(store) != OK:
 		return
 	for row in REBINDABLE:
 		var action: String = row[0]

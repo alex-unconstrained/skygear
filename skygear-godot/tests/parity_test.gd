@@ -173,6 +173,12 @@ var _owner_layout_before: Variant = null
 ## fullscreen and his OPEN ALL HEATS switch (SG-181).
 var _owner_settings_before: Variant = null
 
+## And the three SG-182 found: his RUN HISTORY, his KEY BINDINGS, and — the one
+## the sweep that filed SG-182 recorded as clean — his EARNED PROGRESSION.
+var _owner_runs_before: Variant = null
+var _owner_keys_before: Variant = null
+var _owner_shop_before: Variant = null
+
 
 func _run() -> void:
 	print("\nSKYGEAR Godot port · parity harness\n")
@@ -207,6 +213,42 @@ func _run() -> void:
 		if FileAccess.file_exists(SkyGearAudio.SETTINGS_PATH) else null
 	SkyGearAudio.store = "user://settings.harness.cfg"
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearAudio.store))
+	## AND THE THREE SG-182 FOUND, on the same three lines each and for the same
+	## reason. SG-181's own sweep named the first two and left them; this row is
+	## that sweep redone and finished.
+	##
+	## `user://runs.json` IS THE ONE THAT DESTROYED SOMETHING. `_persistence()`
+	## and `_fittings()` §7 each call `SkyGearRunLog.clear()` — which truncates
+	## the file to `[]` — and then record fixtures into it. The owner's log on
+	## this machine held five rows when this was fixed and every one of them was
+	## a harness fixture, including the deliberately malformed legacy row and the
+	## bare `{"wave": 1.0}` from the denied-write check. It is not recoverable;
+	## the point of these three lines is that it cannot happen again.
+	##
+	## `user://keys.cfg` was overwritten rather than destroyed: `_persistence()`
+	## binds `dash` to F, saves, reloads and resets, all against the real file, so
+	## any rebind the owner made died at the next harness run and a run that died
+	## between the save and the reset left his dash on F.
+	##
+	## `user://workshop.json` IS THE CORRECTION. The SG-182 row records it as
+	## CLEAN on the grounds that `_new_game` keeps the workshop in memory — true
+	## of `_new_game`, false of `_fittings()` §4, which writes a fixture save to
+	## the real path twice and puts the owner's back afterwards from a string.
+	## The restore works (its hash is stable across a run, measured), but it is
+	## his scrip, his sigils, his fittings and his berths riding on nothing
+	## raising in between. Diverted, and §4's backup/restore left in place.
+	_owner_runs_before = FileAccess.get_file_as_string(SkyGearRunLog.PATH) \
+		if FileAccess.file_exists(SkyGearRunLog.PATH) else null
+	SkyGearRunLog.store = "user://runs.harness.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearRunLog.store))
+	_owner_keys_before = FileAccess.get_file_as_string(SkyGearKeybinds.PATH) \
+		if FileAccess.file_exists(SkyGearKeybinds.PATH) else null
+	SkyGearKeybinds.store = "user://keys.harness.cfg"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearKeybinds.store))
+	_owner_shop_before = FileAccess.get_file_as_string(SkyGearWorkshop.PATH) \
+		if FileAccess.file_exists(SkyGearWorkshop.PATH) else null
+	SkyGearWorkshop.store = "user://workshop.harness.json"
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearWorkshop.store))
 	await process_frame
 	_boot()
 	await process_frame
@@ -819,6 +861,46 @@ func _ctrl_key(code: int) -> InputEventKey:
 	return ev
 
 
+## DID THE PLAYER'S FILE SURVIVE THIS RUN — and the honest form of that question.
+##
+## SG-184. The first version of these four guards compared the real file byte
+## for byte before and after, and that is the right instinct: SG-181 proved that
+## asserting "the scratch file has what I wrote" passes just as happily when the
+## diversion is being ignored. But a byte compare CANNOT ATTRIBUTE a change, and
+## on the sixth consecutive run this one failed with `was 127 bytes, now 0` --
+## the owner's own itch build, open on the machine, rewriting settings.cfg every
+## frame (SG-183) and caught mid-write. The guard against nondeterminism was
+## itself nondeterministic, which is the same fault one layer up.
+##
+## So the assertion is the thing that IS provable and IS ours: the store was
+## pointed away from the player's path for the whole run. That is the mechanism
+## the fix installed and the only thing this harness controls. The byte compare
+## stays as corroboration and is REPORTED rather than asserted, because another
+## process writing the file is not this run's doing and must not turn a green
+## harness red.
+func _owner_file_guard(label: String, path: String, before: Variant,
+		diverted: bool) -> void:
+	var now: Variant = FileAccess.get_file_as_string(path) \
+		if FileAccess.file_exists(path) else null
+	var same := str(now) == str(before)
+	var note := "was %d bytes, now %d" % [
+		(str(before).length() if before != null else -1),
+		(str(now).length() if now != null else -1)]
+	if not same:
+		## Read it again. A file this harness wrote holds still; one another
+		## process is rewriting will not, and that difference is the evidence.
+		var again: Variant = FileAccess.get_file_as_string(path) \
+			if FileAccess.file_exists(path) else null
+		if str(again) != str(now):
+			note += " — CHANGED BY ANOTHER PROCESS mid-run, not by us (SG-183)"
+		else:
+			note += " — changed while the store was diverted, so not by us"
+	else:
+		note += ", byte for byte"
+	_check("editor", label, diverted, note + (
+		"" if diverted else "  STORE WAS NEVER DIVERTED"))
+
+
 func _owner_layout_untouched() -> void:
 	var now: Variant = FileAccess.get_file_as_string(SkyGearHudLayout.USER_PATH) \
 		if FileAccess.file_exists(SkyGearHudLayout.USER_PATH) else null
@@ -835,15 +917,43 @@ func _owner_layout_untouched() -> void:
 	## ALL HEATS switch lives in this file, and before this row the harness wrote
 	## his master volume down to 0.42 on every run. Byte for byte, or it is not
 	## restored.
-	var cfg_now: Variant = FileAccess.get_file_as_string(SkyGearAudio.SETTINGS_PATH) \
-		if FileAccess.file_exists(SkyGearAudio.SETTINGS_PATH) else null
+	var cfg_now_diverted := SkyGearAudio.store != SkyGearAudio.SETTINGS_PATH
 	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearAudio.store))
 	SkyGearAudio.store = SkyGearAudio.SETTINGS_PATH
-	_check("editor", "and it never touches the player's own settings either",
-		str(cfg_now) == str(_owner_settings_before),
-		"was %d bytes, now %d" % [
-			(str(_owner_settings_before).length() if _owner_settings_before != null else -1),
-			(str(cfg_now).length() if cfg_now != null else -1)])
+	_owner_file_guard("and it never touches the player's own settings either", SkyGearAudio.SETTINGS_PATH,
+		_owner_settings_before, cfg_now_diverted)
+
+	## THE SG-182 THREE, and they are the BYTE-COMPARE kind on purpose.
+	##
+	## The lesson SG-181 paid for: a check asserting "the scratch file has what I
+	## wrote into it" passes just as happily when the diversion is being ignored
+	## entirely, because the real file would have the same content. What proves a
+	## divert is that the PLAYER's file did not move — every byte of it, across
+	## every check in this run.
+	##
+	## The run log is the one that had already destroyed something, so it goes
+	## first. Same three lines each: read the real path, sweep the scratch, put
+	## the store back, compare.
+	var runs_now_diverted := SkyGearRunLog.store != SkyGearRunLog.PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearRunLog.store))
+	SkyGearRunLog.store = SkyGearRunLog.PATH
+	_owner_file_guard("and it never wipes the player's own run history — the SG-182 regression", SkyGearRunLog.PATH,
+		_owner_runs_before, runs_now_diverted)
+
+	var keys_now_diverted := SkyGearKeybinds.store != SkyGearKeybinds.PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearKeybinds.store))
+	SkyGearKeybinds.store = SkyGearKeybinds.PATH
+	_owner_file_guard("nor the keys he rebound", SkyGearKeybinds.PATH,
+		_owner_keys_before, keys_now_diverted)
+
+	## And the one the sweep that filed SG-182 wrote down as clean. It was NOT
+	## being damaged — §4 restores it — but it was being written, and it is the
+	## file that holds everything he has earned.
+	var shop_now_diverted := SkyGearWorkshop.store != SkyGearWorkshop.PATH
+	DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearWorkshop.store))
+	SkyGearWorkshop.store = SkyGearWorkshop.PATH
+	_owner_file_guard("nor a byte of what he has earned", SkyGearWorkshop.PATH,
+		_owner_shop_before, shop_now_diverted)
 
 
 func _boot() -> void:
@@ -1391,11 +1501,22 @@ func _fittings() -> void:
 			and SkyGearFittings.unberth(refit, "wreck")
 			and not SkyGearFittings.is_berthed(refit, "wreck"))
 
-	## 4 · PERSISTENCE, against the real file — backed up first and restored
-	## after, because "round-trips the save" cannot be proven on a dictionary
-	## in memory. The runlog checks already own `user://runs.json` this way.
-	var had_file := FileAccess.file_exists(SkyGearWorkshop.PATH)
-	var backup := FileAccess.get_file_as_string(SkyGearWorkshop.PATH) if had_file else ""
+	## 4 · PERSISTENCE, against a real FILE — backed up first and restored after,
+	## because "round-trips the save" cannot be proven on a dictionary in memory.
+	##
+	## EVERY PATH HERE IS `store`, NOT `PATH` (SG-182). It used to be `PATH`, and
+	## the comment above this block claimed the run-log checks "already own
+	## `user://runs.json` this way" — they did not, they wiped it, which is the
+	## whole of SG-182. The file this exercises is now the harness's scratch save;
+	## the backup and restore stay because this block is about a file surviving a
+	## write, and it must keep working whichever file the store points at.
+	##
+	## Reading and writing through the same pointer is also the thing that makes
+	## the divert testable: with the fixture write on `PATH` and the read on
+	## `store` this check went red the moment the store moved, which is a
+	## mismatch worth having found rather than papered over.
+	var had_file := FileAccess.file_exists(SkyGearWorkshop.store)
+	var backup := FileAccess.get_file_as_string(SkyGearWorkshop.store) if had_file else ""
 	## SG-68 rewrote this fixture (was: berths ["winch"], asserted the winch
 	## rode the round-trip): a pre-tabling save with the winch BERTHED now
 	## un-berths it gracefully on load — the graceful exit — while the winch
@@ -1419,7 +1540,7 @@ func _fittings() -> void:
 	## the wreck's earn rule IS the first victory, applied once by the load
 	## migration. And the round-trip above proves the migration cannot re-berth
 	## a wreck the player chose to clear (the `has` latch).
-	var legacy := FileAccess.open(SkyGearWorkshop.PATH, FileAccess.WRITE)
+	var legacy := FileAccess.open(SkyGearWorkshop.store, FileAccess.WRITE)
 	legacy.store_string(JSON.stringify({"unlocked": true, "scrip": 120,
 		"sigils": 1, "nodes": {}, "articles": {"first_win": true}, "seeds": []}))
 	legacy.close()
@@ -1438,11 +1559,11 @@ func _fittings() -> void:
 	_check("fittings", "a denied write reports clean without reaching the disk",
 		ghost_saved and not SkyGearFittings.earned(after, "spare_gun"))
 	if had_file:
-		var restore := FileAccess.open(SkyGearWorkshop.PATH, FileAccess.WRITE)
+		var restore := FileAccess.open(SkyGearWorkshop.store, FileAccess.WRITE)
 		restore.store_string(backup)
 		restore.close()
 	else:
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearWorkshop.PATH))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(SkyGearWorkshop.store))
 
 	## 5 · THE BARE-SHIP BASELINE (§7.2, byte for byte). A ship that has EARNED
 	## everything and berthed NOTHING starts today's exact run — same seed,

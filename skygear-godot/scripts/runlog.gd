@@ -20,11 +20,30 @@ extends RefCounted
 const PATH := "user://runs.json"
 const KEEP := 60
 
+## THE FILE EVERY READER AND WRITER HERE ACTUALLY GOES THROUGH. `PATH` is where
+## a PLAYER's run history lives; `store` is the pointer, so a TEST RUN can be
+## sent somewhere else. Exactly the shape and exactly the reason
+## `SkyGearHudLayout.store` (SG-83) and `SkyGearAudio.store` (SG-181) exist.
+##
+## It is a var because of board SG-182, and this one is the worst of the three
+## because it DESTROYED rather than merely mutated. `tests/parity_test.gd` calls
+## `clear()` twice a run and then records fixtures, so every
+## `SkyGear Tools.bat harness` on this machine truncated the owner's log to `[]`
+## and refilled it with test rows. Measured: the file on this machine when the
+## bug was fixed held five rows and every one of them was a harness fixture —
+## the PARITY wave-6 row, the SECOND wave-11 row, the deliberately malformed
+## legacy row used to test parsing, and the bare `{"wave": 1.0}` from the
+## denied-write check. His real history was not recoverable.
+##
+## SG-49 fixed exactly this shape once already ("a posed ending writes no fake
+## row to the run log"); it reached the poser and not the harness itself.
+static var store := PATH
+
 
 static func load_all() -> Array:
-	if not FileAccess.file_exists(PATH):
+	if not FileAccess.file_exists(store):
 		return []
-	var f := FileAccess.open(PATH, FileAccess.READ)
+	var f := FileAccess.open(store, FileAccess.READ)
 	if f == null:
 		return []
 	var parsed: Variant = JSON.parse_string(f.get_as_text())
@@ -42,7 +61,7 @@ static func record(entry: Dictionary) -> bool:
 	all.append(entry)
 	while all.size() > KEEP:
 		all.remove_at(0)
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(store, FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(all))
@@ -51,7 +70,7 @@ static func record(entry: Dictionary) -> bool:
 
 
 static func clear() -> void:
-	var f := FileAccess.open(PATH, FileAccess.WRITE)
+	var f := FileAccess.open(store, FileAccess.WRITE)
 	if f != null:
 		f.store_string("[]")
 		f.close()

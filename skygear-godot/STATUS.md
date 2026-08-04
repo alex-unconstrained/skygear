@@ -32,7 +32,7 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1082 harness checks**; the text audit covers 25 screens at
+board SG-56). **1085 harness checks**; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
@@ -57,9 +57,19 @@ the last one. **The two lessons are bigger than the check.** A harness that
 reads or writes real `user://` state is not testing the game, it is testing the
 machine — and this one was also quietly writing the owner's volume down to 0.42
 on every run. **The sweep for others found two more and one of them is
-destroying data**: the harness wipes `user://runs.json` on every invocation
-(his run log on this machine is now five harness fixtures) and overwrites
-`user://keys.cfg` — **SG-182**, unfixed. And the reason the collision was
+destroying data**: the harness wiped `user://runs.json` on every invocation
+(his run log on this machine is five harness fixtures and is not recoverable)
+and overwrote `user://keys.cfg` — **SG-182, FIXED 2026-08-04, and the sweep
+that filed it was not exhaustive.** Both go through a `store` now, and so does
+`user://workshop.json`, which that sweep recorded as CLEAN and which is not:
+`_new_game` keeps the workshop in memory, but `_fittings()` §4 wrote a fixture
+save to the real file twice and restored it from a string afterwards — his
+scrip, sigils, fittings and berths riding on nothing raising in between. **All
+five real `user://` files are diverted now** (`hud_layout.json`, `settings.cfg`,
+`runs.json`, `keys.cfg`, `workshop.json`), each with a byte-compare guard, and
+the standard of proof is the tree rather than the file: a recursive md5 manifest
+of the whole `user://` directory before and after a harness run `diff`s
+empty. And the reason the collision was
 constant rather than rare is a shipped bug of its own: the pause and settings
 screens call `set_volume` from their DRAW, so either screen saves the config
 file every frame (**SG-183**).
@@ -437,9 +447,9 @@ included (`editor · and leaving the pose hands the run back exactly`).
 `docs/HUD-LAYOUT.md` is the how-to.
 
 **The four tools you will reach for**, all behind `SkyGear Tools.bat`:
-`harness` (1082 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1085 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 25 screens at all 4 widths as one page — for auditing everything
-`harness` (1082 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
+`harness` (1085 checks), `text` (the audit), `screens` (the BATCH-evidence mode:
 photograph all 24 screens at all 4 widths as one page — for auditing everything
 at once; fixing is F4), and `layout` (promote the F4 alignment — plates, items
 and per-screen element offsets — out of `user://` and into the repo, which is
@@ -545,8 +555,8 @@ worth +-40 points on a held-count and is not a measurement at all.
 | `scripts/deckwork.gd` | a verb table for acting on the deck. One live verb: repair (held); the crate shove/winch family is TABLED behind one flag (SG-68, owner: "boring") |
 | `scripts/coach.gd` | one hint at a time, and mostly silence |
 | `scripts/sky.gdshader` | the browser's painted sky, sampled by view direction |
-| `tests/parity_test.gd` | 1082 checks; the closest thing to a specification |
-| `tests/parity_test.gd` | 1082 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1085 checks; the closest thing to a specification |
+| `tests/parity_test.gd` | 1085 checks; the closest thing to a specification |
 
 A hidden 2D scene runs the simulation and `view3d.gd` mirrors it into 3D at
 `WORLD_SCALE = 0.01`. The camera is the browser's `CAM.recompute()` solve locked
@@ -574,9 +584,9 @@ poses the four places sky is actually visible; judge it from those.
 
 | | |
 |---|---|
-| `harness` | 1082 checks. Green before anything ships |
+| `harness` | 1085 checks. Green before anything ships |
 | `text` | every string on 25 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
-| `harness` | 1082 checks. Green before anything ships |
+| `harness` | 1085 checks. Green before anything ships |
 | `text` | every string on 24 screens x 4 sizes: containment, overlap, overprint, drift, contrast |
 | `parity` | browser against Godot, same seed and tick count, stitched |
 | `sky` | the sky, from the four places on the deck it is actually visible |
