@@ -1254,16 +1254,8 @@ func _build_world() -> void:
 	## different object doing a different job (DECK-IDENTITY 6: the breast rail
 	## that draws the play boundary in brass) and nothing asked for them to go.
 	_build_edge_kit()
-	for end_z in [SkyGearGame.DECK_RECT.position.y, SkyGearGame.DECK_RECT.end.y]:
-		var cap := MeshInstance3D.new()
-		var cm := BoxMesh.new()
-		cm.size = Vector3(SkyGearGame.DECK_RECT.size.x, 40.0, 14.0) * WORLD_SCALE
-		cap.mesh = cm
-		cap.material_override = rail_mat
-		cap.position = Vector3(
-			(SkyGearGame.DECK_RECT.position.x + SkyGearGame.DECK_RECT.size.x * 0.5) * WORLD_SCALE,
-			20.0 * WORLD_SCALE, end_z * WORLD_SCALE)
-		add_child(cap)
+	_end_cap_mat = rail_mat
+	_build_end_caps()
 
 	## The hull below the deck, so the ship has a bottom and the frame does not
 	## end in void where the planking stops.
@@ -6232,6 +6224,144 @@ func _rig_piece(node: MeshInstance3D) -> void:
 	_rigging.add_child(node)
 
 
+## --- THE DECK EDGE, TRIED THREE WAYS (SG-180) ---------------------------------
+##
+## The owner on build 60: *"We need to either REMOVE the 'wall' made up of that
+## lightish brown/yellow rectangular prisms or TEXTURE them, they look out of
+## place against our other models and seem very placeholder."* SG-179 took the
+## cheap half of "texture" — retint, roughen, clamp to the lamplit ceiling — and
+## it helped without solving it: they are still flat colour beside models that
+## carry four maps each.
+##
+## His second suggestion is what these switches exist to photograph: *"try
+## reusing the rail at low profile."* `rail_stanchion` is his own hand-made
+## tiling module, already on the deck edge at N = 10 (SG-157) and already reused
+## on the upper deck (SG-178). This puts a SHORTER run of it where the brass
+## capping is, and it also builds the state he named FIRST — the capping simply
+## deleted, leaving the dark timber strake to read on its own.
+##
+## ALL THREE DEFAULT TO THE SHIPPED DECK. `strake_cap_mode` 0 and `end_cap_mode`
+## 0 build exactly what SG-179 committed, and `deck · the deck edge's three SG-180
+## states default to the one that ships` pins that from the built tree.
+##
+##   0  the SG-179 brass capping / breast rail, as it ships
+##   1  the owner's rail module, at low profile, in its place
+##   2  deleted (strake capping only — the END CAPS may be restyled but never
+##      removed: DECK-IDENTITY 6 gives them a job, drawing the play boundary,
+##      and there is no mode 2 for them on purpose)
+var strake_cap_mode := 0
+var end_cap_mode := 0
+
+## THE LOW RUN'S SCALE IS THE SHIPPED RAIL'S, DIVIDED BY AN INTEGER, AND THE
+## INTEGER IS THE WHOLE DESIGN.
+##
+## Two rails whose posts do not line up read as a mistake even when each is fine
+## alone, so the pitch is not a free number here. The low run is tiled at
+## `edge_rail_tiles * div` tiles across the same deck, which makes its pitch
+## exactly `1/div` of the shipped run's — so every stanchion of the main rail has
+## a stanchion of the low one directly under it, at every seam, for any `div`.
+## The scale follows from the tiling the same way `edge_rail_scale()` does, so
+## the two runs cannot drift apart: change `edge_rail_tiles` and both move.
+##
+##   div = 2   pitch  58.0   low rail top 62.6 above the strake  (half the main)
+##   div = 3   pitch  38.7   low rail top 41.8                   (a third)
+##   div = 4   pitch  29.0   low rail top 31.3                   (a quarter)
+var strake_cap_rail_div := 2
+## And the one dial that DECOUPLES height from pitch, because the brief asked
+## whether the pitch should match/double/halve independently of how tall the low
+## run is: 0 means uniform (the honest 1/div in all three axes), anything else is
+## the vertical scale as a fraction of the SHIPPED rail's height, which squashes
+## the module rather than shrinking it.
+var strake_cap_rail_height := 0.0
+
+## The breast rails at the bow and stern lines, and the material `_ready` built
+## for them. Held so `rebuild_deck_edge()` can put them back in another state
+## without re-running `_ready`; the material is the SAME instance the shipped
+## deck uses, never a second copy of #7c5a2c that could drift from it.
+var _end_caps: Array[Node3D] = []
+var _end_cap_mat: StandardMaterial3D
+
+
+## THE BREAST RAIL AT EACH END OF THE RECTANGLE — the play boundary, drawn.
+##
+## Mode 0 is SG-179's box, built here rather than inline in `_ready` so that the
+## alternative can be photographed in the same process (the SG-108 rule: an A/B
+## across two invocations is partly an A/B of the weather). Mode 1 lays the
+## owner's rail module ACROSS the ship instead, unrotated — the module's +X is
+## its length, so an athwartships run needs no yaw at all, where the deck-edge
+## run needs -90°.
+##
+## The count is the nearest whole number of modules that spans the beam and the
+## scale is then solved to make that count fit EXACTLY, so the run ends on the
+## strake lines at both ends and the boundary is drawn all the way across. It is
+## derived from `edge_rail_scale()` — never typed — so it tracks the shipped rail.
+func _build_end_caps() -> void:
+	for old in _end_caps:
+		if is_instance_valid(old):
+			remove_child(old)
+			old.queue_free()
+	_end_caps.clear()
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var mid_x: float = rect.position.x + rect.size.x * 0.5
+	for i in 2:
+		var end_z: float = rect.position.y if i == 0 else rect.end.y
+		var label: String = "BreastRailFore" if i == 0 else "BreastRailAft"
+		if end_cap_mode == 0:
+			var cap := MeshInstance3D.new()
+			var cm := BoxMesh.new()
+			cm.size = Vector3(rect.size.x, 40.0, 14.0) * WORLD_SCALE
+			cap.mesh = cm
+			cap.material_override = _end_cap_mat
+			cap.position = Vector3(mid_x * WORLD_SCALE, 20.0 * WORLD_SCALE,
+				end_z * WORLD_SCALE)
+			cap.name = label
+			add_child(cap)
+			_end_caps.append(cap)
+			continue
+		var scene: PackedScene = load(EDGE_RAIL_SCENE)
+		if scene == null:
+			push_warning("edge kit: no rail module at %s" % EDGE_RAIL_SCENE)
+			return
+		var run := Node3D.new()
+		run.name = label
+		add_child(run)
+		_end_caps.append(run)
+		var want: float = 2.0 * RAIL_PITCH_NATIVE * edge_rail_scale() \
+			/ float(strake_cap_rail_div)
+		var count: int = maxi(1, int(round(rect.size.x / want)))
+		var s: float = rect.size.x / (float(count) * 2.0 * RAIL_PITCH_NATIVE)
+		var s_y: float = s if strake_cap_rail_height <= 0.0 \
+			else edge_rail_scale() * strake_cap_rail_height
+		for k in count:
+			var node: Node3D = scene.instantiate()
+			## Unrotated here, so this vector IS the model's own order: length
+			## across the beam, height, depth fore-and-aft — and the depth takes
+			## the height factor for the same reason the strake run's does.
+			node.transform = Transform3D(
+				Basis().scaled(Vector3(s, s_y, s_y)),
+				Vector3(rect.position.x + rect.size.x * (float(k) + 0.5) / float(count),
+					0.0, end_z) * WORLD_SCALE)
+			node.name = "%sModule%d" % [label, k]
+			run.add_child(node)
+
+
+## Put the deck edge back in another state without re-running `_ready`.
+##
+## The capping is built by `_build_hull_shape` and the low run by the EDGE KIT,
+## which are two different nodes with two different lifetimes — so a tool that
+## flipped `strake_cap_mode` and called `rebuild_edge_kit()` alone would get a
+## low rail standing on a capping that is still there. This is the one entry
+## point, and `tools/edge_place.gd` uses nothing else.
+func rebuild_deck_edge() -> void:
+	if _hull_shape != null:
+		remove_child(_hull_shape)
+		_hull_shape.queue_free()
+		_hull_shape = null
+	_build_hull_shape()
+	rebuild_edge_kit(edge_rail_tiles)
+	_build_end_caps()
+
+
 func _build_hull_shape() -> void:
 	var rect: Rect2 = SkyGearGame.DECK_RECT
 	var half: float = rect.size.x * 0.5
@@ -6295,6 +6425,18 @@ func _strake_box(timber: StandardMaterial3D, brass: StandardMaterial3D,
 	strip.rotation.y = yaw
 	_hull_shape.add_child(strip)
 	if lift < 12.0:
+		return
+	## SG-180. Both non-default states drop the brass box: mode 1 puts the low
+	## rail run in its place along the RECTANGLE (`_build_strake_rail`, in the
+	## edge kit, where the rebuild lives), mode 2 leaves the timber bare. The
+	## APRON cappings — the curved runs forward of the bow line and aft of the
+	## stern line — go in both states rather than only in mode 2, and that is a
+	## decision rather than an oversight: the aprons are yawed, tapering segments
+	## of unequal length, and a tiling module cannot follow them without a
+	## per-segment stretch that would break the one property the low run is FOR,
+	## a pitch that lines up with the rail above it. So mode 1's bow is bare
+	## timber and the frames show it.
+	if strake_cap_mode != 0:
 		return
 	var cap := MeshInstance3D.new()
 	var cm := BoxMesh.new()
@@ -6577,6 +6719,8 @@ func _build_edge_kit() -> void:
 	_edge_kit.name = "EdgeKit"
 	add_child(_edge_kit)
 	_build_edge_rail()
+	if strake_cap_mode == 1:
+		_build_strake_rail()
 	if edge_stern_trial > 0.0:
 		_build_edge_stern_trial()
 	## `bow_ram` IS STILL NOT BUILT — SG-157's verdict below stands and the model
@@ -6656,6 +6800,74 @@ func _build_edge_rail() -> void:
 			## `@Node3D@246` — so a harness check that counts rail modules by name
 			## counted ONE of twenty until this line existed.
 			node.name = "RailModule%s%d" % ["P" if side < 0.0 else "S", i]
+
+
+## THE LOW RUN ON THE STRAKE — SG-180, and the owner's own suggestion.
+##
+## Where it goes is forced, and the forcing is the risk in this whole idea. The
+## shipped rail already stands on the strake's top edge at `lift - 8`, and the
+## brass capping this replaces sits at `lift - 2.5` — five and a half units above
+## the same plane. The two occupy the SAME BAND. So a low run cannot go under the
+## main rail; there is nothing under it but the timber face of the strake. It
+## goes OUTBOARD of it instead, on the outboard half of the strake's top, which
+## is the only room there is: the main rail's outer face is at 871.2 at the
+## shipped scale and the strake's own outboard edge is at 898.
+##
+## That makes this a rail BESIDE a rail rather than a rail beneath one, and
+## whether it reads as a double bulwark or as two rails stacked is a question for
+## the frames and not for this comment.
+##
+## EVERYTHING IS DERIVED FROM `edge_rail_scale()`. The tile count is the shipped
+## count times `strake_cap_rail_div`, so the low pitch divides the main pitch
+## exactly and every main stanchion has one under it; the x offset is the main
+## rail's own outer face plus half the low module's depth, so the low run cannot
+## be inboard of the main one at any div; and the seat is the same
+## `sheer_lift()`, tilted per tile, so it rides the sheer with everything else.
+func _build_strake_rail() -> void:
+	var scene: PackedScene = load(EDGE_RAIL_SCENE)
+	if scene == null:
+		push_warning("edge kit: no rail module at %s" % EDGE_RAIL_SCENE)
+		return
+	var rect: Rect2 = SkyGearGame.DECK_RECT
+	var s_main := edge_rail_scale()
+	var tiles: int = edge_rail_tiles * maxi(1, strake_cap_rail_div)
+	var s: float = s_main / float(maxi(1, strake_cap_rail_div))
+	var s_y: float = s if strake_cap_rail_height <= 0.0 \
+		else s_main * strake_cap_rail_height
+	var spacing: float = rect.size.y / float(tiles)
+	## THE HEIGHT DIAL TAKES THE SECTION WITH IT, and that is not cosmetic. The
+	## module's DEPTH is scaled by the same factor as its height, never by the
+	## pitch factor, so squashing the run keeps it on the strake: at div 1 with a
+	## full-depth module the run's outer face lands at 902.4 against a strake that
+	## ends at 898, i.e. four units of rail hanging over open air. Height and
+	## depth are the SECTION; the pitch factor is the LENGTH; they are different
+	## questions and the frames asked both.
+	var x_off: float = rect.size.x * 0.5 + RAIL_DEPTH_NATIVE * s_main \
+		+ RAIL_DEPTH_NATIVE * s_y * 0.5
+	for side in [-1.0, 1.0]:
+		for i in tiles:
+			var z0: float = rect.position.y + spacing * float(i)
+			var z1: float = z0 + spacing
+			var y0: float = sheer_lift(z0) - 8.0
+			var y1: float = sheer_lift(z1) - 8.0
+			var run := Vector2(y1 - y0, z1 - z0)
+			var tilt: float = -asin(run.x / maxf(1.0, run.length()))
+			var basis := Basis(Vector3.RIGHT, tilt) * Basis(Vector3.UP, -PI * 0.5)
+			var node: Node3D = scene.instantiate()
+			## `Basis.scaled` applies in the PARENT frame, after the -90° yaw —
+			## so world X is the module's depth, world Z its length. That is why
+			## the vector is not the model's own (length, height, depth) order.
+			node.transform = Transform3D(basis.scaled(Vector3(s_y, s_y, s)),
+				Vector3(side * x_off, (y0 + y1) * 0.5, (z0 + z1) * 0.5) * WORLD_SCALE)
+			## NOT `Rail...`, and the name is load-bearing: `edge · the deck rail
+			## is the tiling module, not the solid bar it replaced` counts kit
+			## children whose name begins with "Rail" and requires exactly
+			## `edge_rail_tiles * 2` of them. These are a second run of the same
+			## module and would break that count while being perfectly correct.
+			## The whole-kit properties (nothing inboard, nothing solid, nothing
+			## in the rectangle she walks) are name-blind and still cover them.
+			node.name = "StrakeRail%s%d" % ["P" if side < 0.0 else "S", i]
+			_edge_kit.add_child(node)
 
 
 ## THE PROW — a nose on the bow the apron already draws, SG-174.

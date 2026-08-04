@@ -14392,6 +14392,150 @@ func _deck_shape() -> void:
 			% [rails, rail_lo, rail_hi, float(corner_in.get("P", 0.0)),
 				float(corner_in.get("S", 0.0)), corner_out, view.upper_deck_beam()])
 
+	## ---- THE DECK EDGE, TRIED THREE WAYS (SG-180) ---------------------------
+	##
+	## SG-180 is a PROTOTYPE behind a switch: the owner asked to see his own rail
+	## reused at low profile where the flat brass capping is, and to see the
+	## capping simply gone. Neither ships until he says so, and the thing that has
+	## to be true until then is that the switches change NOTHING at their
+	## defaults — which is exactly the kind of claim that rots silently.
+	##
+	## ASSERTED FROM BOTH SIDES IN ONE FIXTURE (SG-146's rule): the shipped state
+	## is measured, then both alternatives are BUILT and measured, then the deck is
+	## put back and measured again. A check that can only read the default is
+	## vacuous — it would pass just as happily if `strake_cap_mode` were ignored.
+	var _cap_boxes := func(v) -> int:
+		var n := 0
+		var hull_node: Node3D = v.get_node_or_null("HullShape")
+		for c in (hull_node.get_children() if hull_node != null else []):
+			var mi := c as MeshInstance3D
+			var bm := (mi.mesh as BoxMesh) if mi != null else null
+			if bm != null and absf(bm.size.y / SkyGearView3D.WORLD_SCALE - 11.0) < 0.01:
+				n += 1
+		return n
+	var _low_rails := func(v) -> int:
+		var n := 0
+		var k: Node3D = v.get_node_or_null("EdgeKit")
+		for c in (k.get_children() if k != null else []):
+			if str(c.name).begins_with("StrakeRail"):
+				n += 1
+		return n
+	var _breast := func(v, nm: String) -> Node:
+		return v.get_node_or_null(nm)
+	var ship_caps: int = _cap_boxes.call(view)
+	var ship_low: int = _low_rails.call(view)
+	var ship_fore := _breast.call(view, "BreastRailFore") as MeshInstance3D
+	var ship_box: BoxMesh = (ship_fore.mesh as BoxMesh) if ship_fore != null else null
+	var ship_beam: bool = ship_box != null \
+		and absf(ship_box.size.x / SkyGearView3D.WORLD_SCALE - rect.size.x) < 0.01 \
+		and absf(ship_box.size.y / SkyGearView3D.WORLD_SCALE - 40.0) < 0.01
+
+	## State 1 — the low run, and the geometry that decides whether it can work.
+	view.strake_cap_mode = 1
+	view.end_cap_mode = 1
+	view.rebuild_deck_edge()
+	var one_caps: int = _cap_boxes.call(view)
+	var one_low: int = _low_rails.call(view)
+	var low_lo := 9e9
+	var low_hi := -9e9
+	var low_top := -9e9
+	var main_top := -9e9
+	for c in view.get_node("EdgeKit").get_children():
+		if str(c.name).begins_with("RailModule"):
+			main_top = maxf(main_top,
+				_kit_aabb(c as Node3D).end.y / SkyGearView3D.WORLD_SCALE)
+		if not str(c.name).begins_with("StrakeRail"):
+			continue
+		var bx := _kit_aabb(c as Node3D)
+		low_lo = minf(low_lo, absf(bx.position.x) / SkyGearView3D.WORLD_SCALE)
+		low_hi = maxf(low_hi, absf(bx.end.x) / SkyGearView3D.WORLD_SCALE)
+		low_top = maxf(low_top, bx.end.y / SkyGearView3D.WORLD_SCALE)
+	var main_out: float = rect.size.x * 0.5 \
+		+ SkyGearView3D.RAIL_DEPTH_NATIVE * view.edge_rail_scale()
+	var strake_out: float = rect.size.x * 0.5 + SkyGearView3D.SHEER_WIDTH
+	var breast_run := _breast.call(view, "BreastRailFore") as Node3D
+	var breast_kids: int = breast_run.get_child_count() if breast_run != null else 0
+	var breast_box: AABB = _kit_aabb(breast_run) if breast_run != null else AABB()
+	var breast_span: float = breast_box.size.x / SkyGearView3D.WORLD_SCALE
+
+	## AND THE SQUASHED CASE, WHICH IS WHERE THE BUG WAS. The height dial exists so
+	## the pitch can match the shipped rail's exactly (div 1) while the run stays
+	## low — and a module at div 1 keeps its FULL depth, so scaling only its height
+	## put the run's outer face at 902.4 against a strake that ends at 898: four
+	## units of rail over open air, invisible at the shipped camera and wrong. The
+	## depth follows the height factor now, and this is what says so.
+	view.strake_cap_rail_div = 1
+	view.strake_cap_rail_height = 0.5
+	view.rebuild_deck_edge()
+	var squashed_hi := -9e9
+	var squashed := 0
+	for c in view.get_node("EdgeKit").get_children():
+		if not str(c.name).begins_with("StrakeRail"):
+			continue
+		squashed += 1
+		squashed_hi = maxf(squashed_hi,
+			absf(_kit_aabb(c as Node3D).end.x) / SkyGearView3D.WORLD_SCALE)
+	view.strake_cap_rail_div = 2
+	view.strake_cap_rail_height = 0.0
+
+	## State 2 — deleted outright, which is the option he named FIRST.
+	view.strake_cap_mode = 2
+	view.end_cap_mode = 0
+	view.rebuild_deck_edge()
+	var two_caps: int = _cap_boxes.call(view)
+	var two_low: int = _low_rails.call(view)
+
+	## And back. This half is the one that matters for shipping.
+	view.strake_cap_mode = 0
+	view.end_cap_mode = 0
+	view.rebuild_deck_edge()
+	var back_caps: int = _cap_boxes.call(view)
+	var back_low: int = _low_rails.call(view)
+	var back_fore := _breast.call(view, "BreastRailFore") as MeshInstance3D
+	var back_box: BoxMesh = (back_fore.mesh as BoxMesh) if back_fore != null else null
+	_check("deck", "the deck edge's three SG-180 states default to the one that ships, and going and coming back rebuilds it",
+		ship_caps > 0 and ship_low == 0 and ship_beam
+			and one_caps == 0 and one_low > 0
+			and two_caps == 0 and two_low == 0
+			and back_caps == ship_caps and back_low == 0
+			and back_box != null and back_box.size == ship_box.size,
+		"shipped %d brass cappings + a %.0f x %.0f breast rail, 0 low modules; mode 1 -> %d caps, %d low modules; mode 2 -> %d, %d; back -> %d, %d"
+			% [ship_caps, ship_box.size.x / SkyGearView3D.WORLD_SCALE if ship_box != null else 0.0,
+				ship_box.size.y / SkyGearView3D.WORLD_SCALE if ship_box != null else 0.0,
+				one_caps, one_low, two_caps, two_low, back_caps, back_low])
+
+	## THE PITCH IS THE WHOLE RISK AND IT IS ARITHMETIC RATHER THAN A HOPE. Two
+	## rails whose posts do not line up read as a mistake even when each is fine
+	## alone, so the low run is tiled at a whole MULTIPLE of the shipped count —
+	## its pitch therefore divides the main pitch exactly and every main stanchion
+	## has one under it. And it must be OUTBOARD of the rail above it and still ON
+	## the strake: the capping band it replaces is only 58 units wide and the main
+	## rail already occupies the inboard half of it.
+	var div: int = view.strake_cap_rail_div
+	var low_pitch: float = rect.size.y / float(view.edge_rail_tiles * div) * 0.5
+	var main_pitch: float = rect.size.y / float(view.edge_rail_tiles) * 0.5
+	_check("deck", "the low run on the strake keeps a pitch that divides the shipped rail's, and stands outboard of it, on the strake",
+		one_low == view.edge_rail_tiles * div * 2
+			and absf(main_pitch / low_pitch - float(div)) < 0.0001
+			and low_lo >= main_out - 0.5 and low_hi <= strake_out + 0.5
+			and low_top < main_top - 20.0
+			and squashed == view.edge_rail_tiles * 2
+			and squashed_hi <= strake_out + 0.5
+			## The breast run COVERS the beam and overhangs it rather than landing
+			## on it exactly: the module's cap runs 11.45 units past its own end
+			## stanchion (measured, `edge_place -- measure`), so a run tiled to
+			## the beam is two overhangs wider than the beam. That is the same
+			## property the upper deck's rail is seated by (SG-178) and it is
+			## what makes the boundary line unbroken from strake to strake — so
+			## this asserts the covering, with a ceiling of one stanchion pitch
+			## rather than pretending the number should be 1680.
+			and breast_kids > 0 and breast_span >= rect.size.x
+			and breast_span <= rect.size.x + low_pitch,
+		"%d modules a side at div %d: pitch %.1f against the rail's %.1f, spanning |x| %.1f..%.1f between the rail's outer face %.1f and the strake's edge %.1f, topping out at %.1f under the rail's %.1f; squashed to div 1 x 0.5 it is %d modules reaching %.1f; %d breast modules span %.0f of a %.0f beam"
+			% [one_low / 2, div, low_pitch, main_pitch, low_lo, low_hi,
+				main_out, strake_out, low_top, main_top, squashed, squashed_hi,
+				breast_kids, breast_span, rect.size.x])
+
 	## ---- THE TRIANGLE CEILING (SG-152a) -------------------------------------
 	##
 	## Written out in full in the SG-152 row and left for whoever could touch this

@@ -144,6 +144,51 @@ func _run() -> void:
 		quit(0)
 		return
 
+	## SG-180. THE DECK EDGE, ONE STATE PER INVOCATION.
+	##
+	##   ... -- capping shipped              <spot> <zoom>
+	##   ... -- capping low[,div[,height]]   <spot> <zoom>
+	##   ... -- capping gone                 <spot> <zoom>
+	##   ... -- capping ends                 <spot> <zoom>   (breast rails only)
+	##   ... -- capping both[,div]          <spot> <zoom>   (strake AND breast)
+	##
+	## `low` and `ends` are kept apart on purpose: the strake capping and the two
+	## breast rails are different objects doing different jobs (the second draws
+	## the play boundary, DECK-IDENTITY 6), and a sheet that changed both at once
+	## could not say which one the owner is reacting to.
+	##
+	## It drives `view3d.gd`'s own switches through `rebuild_deck_edge()` and
+	## carries no copy of the placement — the whole question is which of the three
+	## the owner wants SHIPPED, and a comparison of anything but the shipped
+	## builder answers a different question (failure mode two, and `scales` and
+	## `prow` above exist under the same rule).
+	if mode == "capping":
+		var spec: PackedStringArray = (str(argv[1]) if argv.size() > 1
+			else "shipped").split(",")
+		var state := str(spec[0])
+		if spec.size() > 1: view.strake_cap_rail_div = int(spec[1])
+		if spec.size() > 2: view.strake_cap_rail_height = float(spec[2])
+		view.strake_cap_mode = {"shipped": 0, "low": 1, "gone": 2,
+			"ends": 0, "both": 1}.get(state, 0)
+		view.end_cap_mode = 1 if state in ["ends", "both"] else 0
+		view.rebuild_deck_edge()
+		await process_frame
+		var cap_spots: Array = SPOTS.keys()
+		var cap_zooms: Array = [1.0, 1.55]
+		## Comma-separated, because the three poses SG-179 judged the deck edge at
+		## belong in ONE freeze: three invocations of a shot tool never land their
+		## flicker, particles and cloud drift at the same point twice (SG-108).
+		if argv.size() > 2:
+			cap_spots = []
+			for one in str(argv[2]).split(","):
+				if SPOTS.has(str(one)): cap_spots.append(str(one))
+		if argv.size() > 3: cap_zooms = [float(argv[3])]
+		print("  capping %s  div %d  height %.2f"
+			% [state, view.strake_cap_rail_div, view.strake_cap_rail_height])
+		await _sweep("sg180-%s" % str(argv[1]).replace(",", "-"), cap_spots, cap_zooms)
+		quit(0)
+		return
+
 	if mode == "mast":
 		## The rig is built in `_ready`, so this rebuilds it rather than setting a
 		## flag nobody will read again.
