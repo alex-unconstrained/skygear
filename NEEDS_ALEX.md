@@ -1,7 +1,7 @@
 # NEEDS ALEX
 
-**Build 68 live · Field G5 pending · harness 1174/1174.** Detail lives in
-`skygear-godot/docs/BOARD.md`.
+**Build 69 live · Field and Pulse G5 pending · harness 1187/1187.** Detail lives
+in `skygear-godot/docs/BOARD.md`.
 This file is only your decisions.
 
 *Last cleaned 2026-08-05. Everything you answered is off this list.*
@@ -20,13 +20,20 @@ Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
 
-**3 · Does Field feel good when it claims ground?** On itch build 68, draft a
+**3 · Does Field feel good when it claims ground?** On itch build 69, draft a
 Field plus any active. Before the first active cast of a wave, Field follows
 you. Cast once, then move away: its ring should stay at that landing and keep
 working there; your next active cast should move it. A completed Beam moves it
 to the Beam midpoint, while dash-cancelling Beam should leave it where it was.
 Please judge whether leaving a useful Field behind feels deliberate and
 readable, rather than like the passive stopped following by mistake.
+
+**4 · Does Pulse make active timing feel deliberate?** On itch build 69, draft
+Pulse plus any active. Watch Pulse's timer, then cast when it has less than
+about 0.35 seconds left: it should jump to 0.0 and discharge early. Please judge
+whether spending an active to pull that discharge into a nearby group feels
+clear and satisfying, while Pulse still reads as one keyless passive rather
+than another button.
 
 ---
 
