@@ -281,6 +281,8 @@ func _run() -> void:
 	await process_frame
 	_beam()
 	await process_frame
+	_field_anchor()
+	await process_frame
 	_status_attribution()
 	await process_frame
 	_crit_explode()
@@ -715,6 +717,254 @@ func _drive_beam(game: SkyGearGame, step: float) -> void:
 	while not game.active_channel.is_empty() and guard < 100:
 		game._update_active_channel(step)
 		guard += 1
+
+
+## AB-02. A Field is still a passive, but the last accepted active landing owns
+## its ground for the rest of the wave. The red-first names are the packet's
+## complete contract; the behavior fixtures replace this guard with the seam.
+func _field_anchor() -> void:
+	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var data_source := FileAccess.get_file_as_string("res://scripts/game_data.gd")
+	var exact_names: Array[String] = [
+		"Field remains passive with frozen damage, radius and tick rate",
+		"initial center follows the captain live until first accepted active landing",
+		"arc, line and cone publish their existing land results",
+		"Mortar publishes its clamped target and Whip its final reached target",
+		"manual Sentry relocates at its clamped placement and automatic placement does not",
+		"Beam completion publishes its midpoint and cancellation publishes nothing",
+		"multi-shot publishes final resolved land exactly once after all shots",
+		"wave start unsets anchors while pause and draft preserve initialized ground",
+		"tick damage is centered on the anchored Field",
+		"renderer and simulation read the same field_center",
+		"a passive-only build follows the captain for the full wave",
+		"deleting field_center from the damage tick is observable",
+	]
+	var ready := game_source.contains("func field_center(skill: Dictionary) -> Vector2") \
+		and game_source.contains("func relocate_fields(land: Vector2) -> void") \
+		and game_source.contains("func reset_field_anchors() -> void") \
+		and data_source.contains("field_anchor_set")
+	if not ready:
+		for check_name in exact_names:
+			_check("field", check_name, false,
+				"AB-02 Field anchor seam is not implemented")
+		return
+
+	var shape: Dictionary = SkyGearData.SHAPES.AURA
+	_check("field", exact_names[0], bool(shape.passive)
+		and is_equal_approx(float(shape.damage), 4.0)
+		and is_equal_approx(float(shape.radius), 150.0)
+		and is_equal_approx(float(shape.tick_rate), 1.8),
+		"passive %s, damage %.1f, radius %.1f, rate %.1f"
+			% [shape.passive, shape.damage, shape.radius, shape.tick_rate])
+
+	var initial := _field_game()
+	var initial_skill: Dictionary = initial.skills[0]
+	initial.player.global_position = Vector2(40, 80)
+	var first_center: Vector2 = initial.call("field_center", initial_skill)
+	initial.player.global_position = Vector2(-120, 210)
+	var second_center: Vector2 = initial.call("field_center", initial_skill)
+	_check("field", exact_names[1], initial_skill.has("field_anchor")
+		and initial_skill.has("field_anchor_set")
+		and not bool(initial_skill.field_anchor_set)
+		and first_center == Vector2(40, 80) and second_center == Vector2(-120, 210),
+		"owned %s/%s, centers %s -> %s" % [initial_skill.has("field_anchor"),
+			initial_skill.has("field_anchor_set"), first_center, second_center])
+	initial.queue_free()
+
+	var shape_results := {}
+	for row in [["CLOSEHIT", 0.62], ["LINE_BURST", 0.50], ["CONE", 0.55]]:
+		var rig := _field_game(str(row[0]))
+		var st: Dictionary = rig.skill_stats(rig.skills[1])
+		rig.cast_skill(1, Vector2(900, 0))
+		var got: Vector2 = rig.call("field_center", rig.skills[0])
+		var want := Vector2.RIGHT * float(st.range) * float(row[1])
+		shape_results[str(row[0])] = got.is_equal_approx(want)
+		rig.queue_free()
+	_check("field", exact_names[2], bool(shape_results.get("CLOSEHIT", false))
+		and bool(shape_results.get("LINE_BURST", false))
+		and bool(shape_results.get("CONE", false)), str(shape_results))
+
+	var mortar := _field_game("RANGED_AOE")
+	mortar.cast_skill(1, Vector2(1000, 0))
+	var mortar_center: Vector2 = mortar.call("field_center", mortar.skills[0])
+	var mortar_want := Vector2.RIGHT * float(mortar.skill_stats(mortar.skills[1]).range)
+	var mortar_ok := mortar_center.is_equal_approx(mortar_want)
+	mortar.queue_free()
+	var whip := _field_game("CHAIN")
+	var whip_target := _beam_target(whip, Vector2(250, 0), 1000.0)
+	whip.cast_skill(1, Vector2(250, 0))
+	var whip_center: Vector2 = whip.call("field_center", whip.skills[0])
+	_check("field", exact_names[3], mortar_ok
+		and whip_center.is_equal_approx(whip_target.global_position),
+		"Mortar %s/%s, Whip %s/%s" % [mortar_center, mortar_want,
+			whip_center, whip_target.global_position])
+	whip.queue_free()
+
+	var sentry := _field_game("SENTRY")
+	sentry.cast_skill(1, Vector2(1000, 0))
+	var manual_center: Vector2 = sentry.call("field_center", sentry.skills[0])
+	var manual_ok := bool(sentry.skills[0].field_anchor_set) \
+		and manual_center.is_equal_approx(Vector2(520, 0))
+	sentry.call("reset_field_anchors")
+	sentry.player.global_position = Vector2(80, 90)
+	sentry.deploy_sentry(sentry.skills[1], sentry.player.global_position, false)
+	var auto_center: Vector2 = sentry.call("field_center", sentry.skills[0])
+	var refused := _field_game("SENTRY")
+	refused.call("relocate_fields", Vector2(-300, -300))
+	for _ally in SkyGearGame.ALLY_CAP:
+		refused.crew.append(SkyGearLanes.make_crew(_ally % 3,
+			SkyGearGame.LANE_CENTERS, SkyGearGame.BASE_Y))
+	var refused_anchor_before: Vector2 = refused.call("field_center", refused.skills[0])
+	var refused_cooldown_before := float(refused.skills[1].cooldown_left)
+	refused.cast_skill(1, Vector2(500, 0))
+	var refused_ok := refused.sentries.is_empty() \
+		and Vector2(refused.call("field_center", refused.skills[0])) == refused_anchor_before \
+		and is_equal_approx(float(refused.skills[1].cooldown_left), refused_cooldown_before)
+	_check("field", exact_names[4], manual_ok
+		and not bool(sentry.skills[0].field_anchor_set)
+		and auto_center == sentry.player.global_position and refused_ok,
+		"manual %s set %s, auto %s set %s, refused %s at %s cooldown %.1f/%.1f"
+			% [manual_center, manual_ok, auto_center, sentry.skills[0].field_anchor_set,
+				refused_ok, refused.call("field_center", refused.skills[0]),
+				refused.skills[1].cooldown_left, refused_cooldown_before])
+	sentry.queue_free()
+	refused.queue_free()
+
+	var cancelled := _field_game("RAY")
+	cancelled.cast_skill(1, Vector2(0, -480))
+	cancelled.player.global_position = Vector2(70, 50)
+	cancelled._cancel_active_channel()
+	var cancelled_ok := not bool(cancelled.skills[0].field_anchor_set) \
+		and Vector2(cancelled.call("field_center", cancelled.skills[0])) == Vector2(70, 50)
+	cancelled.queue_free()
+	var completed := _field_game("RAY")
+	completed.cast_skill(1, Vector2(0, -480))
+	_drive_beam(completed, 0.40)
+	var completed_center: Vector2 = completed.call("field_center", completed.skills[0])
+	_check("field", exact_names[5], cancelled_ok
+		and bool(completed.skills[0].field_anchor_set)
+		and completed_center.is_equal_approx(Vector2(0, -240)),
+		"cancel %s, completed %s set %s" % [cancelled_ok, completed_center,
+			completed.skills[0].field_anchor_set])
+	completed.queue_free()
+
+	var multi := _field_game("LINE_BURST")
+	multi.skills[1].mods.multi = 3
+	multi.cast_skill(1, Vector2(900, 0))
+	var cast_begin := game_source.find("func cast_skill(")
+	var cast_end := game_source.find("func combat_move_scale", cast_begin)
+	var cast_body := game_source.substr(cast_begin, cast_end - cast_begin)
+	var shots_begin := cast_body.find("for _shot in shots:")
+	var shots_end := cast_body.find("hulk_splash", shots_begin)
+	var shot_loop := cast_body.substr(shots_begin, shots_end - shots_begin)
+	var multi_want := Vector2.RIGHT \
+		* float(multi.skill_stats(multi.skills[1]).range) * 0.5
+	var autofire := _field_game("LINE_BURST")
+	var autofire_active: Dictionary = autofire.skills[1]
+	var autofire_field: Dictionary = autofire.skills[0]
+	autofire.skills = [autofire_active, autofire_field]
+	autofire.tel = SkyGearTelemetry.fresh(2)
+	autofire.mods.kill_autofire = 1.0
+	var killed := _beam_target(autofire, Vector2(400, 0), 100.0)
+	autofire.on_enemy_killed(killed)
+	var autofire_want := Vector2.RIGHT \
+		* float(autofire.skill_stats(autofire.skills[0]).range) * 0.5
+	var autofire_ok := int(autofire.skills[0].casts) == 1 \
+		and bool(autofire.skills[1].field_anchor_set) \
+		and Vector2(autofire.call("field_center", autofire.skills[1])).is_equal_approx(autofire_want)
+	_check("field", exact_names[6], Vector2(multi.call("field_center", multi.skills[0])).is_equal_approx(multi_want)
+		and cast_body.count("relocate_fields(land)") == 1
+		and not shot_loop.contains("relocate_fields") and autofire_ok,
+		"center %s/%s, cast calls %d, inside loop %s, kill-autofire %s at %s/%s" % [
+			multi.call("field_center", multi.skills[0]), multi_want,
+			cast_body.count("relocate_fields(land)"), shot_loop.contains("relocate_fields"),
+			autofire_ok, autofire.call("field_center", autofire.skills[1]), autofire_want])
+	multi.queue_free()
+	autofire.queue_free()
+
+	var lifecycle := _field_game()
+	lifecycle.call("relocate_fields", Vector2(300, -200))
+	lifecycle._set_state(SkyGearGame.State.PAUSE)
+	lifecycle.player.global_position = Vector2(-80, 70)
+	var pause_kept: Vector2 = lifecycle.call("field_center", lifecycle.skills[0])
+	lifecycle._set_state(SkyGearGame.State.DRAFT)
+	var draft_kept: Vector2 = lifecycle.call("field_center", lifecycle.skills[0])
+	lifecycle.start_wave(1)
+	var wave_center: Vector2 = lifecycle.call("field_center", lifecycle.skills[0])
+	_check("field", exact_names[7], pause_kept == Vector2(300, -200)
+		and draft_kept == pause_kept and not bool(lifecycle.skills[0].field_anchor_set)
+		and Vector2(lifecycle.skills[0].field_anchor) == lifecycle.player.global_position
+		and wave_center == lifecycle.player.global_position,
+		"pause %s, draft %s, wave %s set %s" % [pause_kept, draft_kept,
+			wave_center, lifecycle.skills[0].field_anchor_set])
+	lifecycle.queue_free()
+
+	var damage := _field_game()
+	damage.call("relocate_fields", Vector2(400, 0))
+	var at_anchor := _beam_target(damage, Vector2(400, 0), 100.0)
+	var at_captain := _beam_target(damage, Vector2.ZERO, 100.0)
+	damage.skills[0].passive_timer = 0.0
+	damage._update_passives(0.05)
+	var damage_centered := is_equal_approx(at_anchor.hp, 96.0) \
+		and is_equal_approx(at_captain.hp, 100.0)
+	_check("field", exact_names[8], damage_centered,
+		"anchor hp %.1f, captain hp %.1f" % [at_anchor.hp, at_captain.hp])
+	damage.queue_free()
+
+	var view_source := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	_check("field", exact_names[9],
+		game_source.contains("_damage_circle(field_center(skill)")
+			and view_source.contains("var at: Vector2 = game.field_center(skill)"),
+		"simulation reader %s, renderer reader %s" % [
+			game_source.contains("_damage_circle(field_center(skill)"),
+			view_source.contains("var at: Vector2 = game.field_center(skill)")])
+
+	var passive := _field_game()
+	var first_follow := _beam_target(passive, Vector2(300, 0), 100.0)
+	var second_follow := _beam_target(passive, Vector2(-300, 0), 100.0)
+	passive.player.global_position = Vector2(300, 0)
+	passive.skills[0].passive_timer = 0.0
+	passive._update_passives(0.05)
+	passive.player.global_position = Vector2(-300, 0)
+	passive.skills[0].passive_timer = 0.0
+	passive._update_passives(0.05)
+	_check("field", exact_names[10], not bool(passive.skills[0].field_anchor_set)
+		and is_equal_approx(first_follow.hp, 96.0)
+		and is_equal_approx(second_follow.hp, 96.0),
+		"set %s, followed hp %.1f/%.1f" % [passive.skills[0].field_anchor_set,
+			first_follow.hp, second_follow.hp])
+	passive.queue_free()
+
+	var anchored_call := "_damage_circle(field_center(skill), float(st.radius), float(st.damage), skill.element, 0.0, true, false)"
+	var deleted_call := "_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, 0.0, true, false)"
+	_check("field", exact_names[11],
+		damage_centered and game_source.count(anchored_call) == 1
+			and not game_source.contains(deleted_call),
+		"behavior %s, anchored calls %d, deleted call %s" % [damage_centered,
+			game_source.count(anchored_call), game_source.contains(deleted_call)])
+
+
+func _field_game(active_shape: String = "") -> SkyGearGame:
+	var game := _new_game()
+	_begin(game, "AB02")
+	for enemy in game.enemies():
+		enemy.dead = true
+		enemy.queue_free()
+	game.spawn_queue.clear()
+	game.hulk = {}
+	game.skills = [SkyGearData.make_skill("AURA", "ARC")]
+	if active_shape != "":
+		game.skills.append(SkyGearData.make_skill(active_shape, "FROST"))
+	game.tel = SkyGearTelemetry.fresh(game.skills.size())
+	game.player.global_position = Vector2.ZERO
+	game.player.aim_direction = Vector2.RIGHT
+	game.mods.crit_chance = 0.0
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	game.active_channel = {}
+	game._set_state(SkyGearGame.State.PLAY)
+	return game
 
 
 ## EL-00. The status path is an attribution boundary, not a new reaction. These

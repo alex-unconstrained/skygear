@@ -501,7 +501,7 @@ static func make_skill(shape: String, element: String) -> Dictionary:
 	## Per-skill modifiers live on the instance, exactly as they do in the
 	## browser build: a card that says "+30% range on Frost Mortar" has to be
 	## able to say it about ONE of your skills, not about the shape table.
-	return {
+	var skill := {
 		"shape": shape, "element": element, "cooldown_left": 0.0, "level": 1,
 		"casts": 0,
 		"mods": {
@@ -510,6 +510,13 @@ static func make_skill(shape: String, element: String) -> Dictionary:
 			"wide_cone": false,
 		},
 	}
+	## AB-02. Only a Field owns an anchor. It starts unset so a build with no
+	## active skill keeps following the captain until an accepted landing says
+	## otherwise; the vector is still present for diagnostics and wave resets.
+	if shape == "AURA":
+		skill["field_anchor"] = Vector2.ZERO
+		skill["field_anchor_set"] = false
+	return skill
 
 
 ## Base tuning for the close-quarters loop and the draft, matching browser

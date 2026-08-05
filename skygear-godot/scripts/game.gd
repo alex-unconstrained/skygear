@@ -2364,6 +2364,7 @@ func _begin_push(wave_number: int) -> void:
 
 func start_wave(next_wave: int) -> void:
 	_cancel_active_channel()
+	reset_field_anchors()
 	wave = next_wave
 	## A posed sandbox starts no music (SG-44) — the live game's own track is
 	## already playing, and a second combat loop under a posed GAMEOVER is the
@@ -3008,6 +3009,34 @@ static func stats_with(skill: Dictionary, mods: Dictionary,
 	return out
 
 
+## AB-02 · FIELD CLAIMS GROUND. These are the only readers/writers of the
+## per-skill anchor. While unset, the answer is deliberately live: a Field-only
+## hand preserves the shipped follow behavior for the entire wave.
+func field_center(skill: Dictionary) -> Vector2:
+	if bool(skill.get("field_anchor_set", false)):
+		return Vector2(skill.get("field_anchor", player.global_position))
+	return player.global_position
+
+
+func relocate_fields(land: Vector2) -> void:
+	for skill in skills:
+		var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
+		if str(shape.get("kind", "")) != "aura":
+			continue
+		skill.field_anchor = land
+		skill.field_anchor_set = true
+
+
+func reset_field_anchors() -> void:
+	var diagnostic := player.global_position if player != null else Vector2.ZERO
+	for skill in skills:
+		var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
+		if str(shape.get("kind", "")) != "aura":
+			continue
+		skill.field_anchor = diagnostic
+		skill.field_anchor_set = false
+
+
 func cast_skill(index: int, aim_at = null) -> void:
 	if index < 0 or index >= skills.size():
 		return
@@ -3093,6 +3122,9 @@ func cast_skill(index: int, aim_at = null) -> void:
 		## and the owner decides those: board SG-164.
 		_field({"position": land,
 			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
+	## All shots, hulk splash and Residue are resolved before the one public
+	## landing. A multi-shot cast therefore claims ground once, at its final land.
+	relocate_fields(land)
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
 	## How long the swing is allowed to last, from the SKILL. It was a flat 0.26
 	## for everything, so a Beam at a 0.48 cooldown and a Mortar at 2.08 got the
@@ -3169,6 +3201,9 @@ func _finish_active_channel() -> void:
 	if float(snap.residue) > 0.0:
 		_field({"position": Vector2(row.last_land),
 			"dps": 13.0 * float(snap.residue), "time": 2.0, "tick": 0.0})
+	## Completion publishes the inherited Ray midpoint. Cancellation clears the
+	## channel without reaching this function, so it publishes nothing.
+	relocate_fields(Vector2(row.last_land))
 
 
 func _cancel_active_channel() -> void:
@@ -3309,7 +3344,7 @@ func _update_passives(delta: float) -> void:
 		while timer <= 0.0 and fired < PASSIVE_CATCHUP_MAX:
 			match str(st.kind):
 				"aura":
-					_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, 0.0, true, false)
+					_damage_circle(field_center(skill), float(st.radius), float(st.damage), skill.element, 0.0, true, false)
 				"pulse":
 					_damage_circle(player.global_position, float(st.radius), float(st.damage), skill.element, float(st.knock), true, false)
 					_fx({"kind": "circle", "follow": true, "position": player.global_position, "radius": float(st.radius), "element": skill.element, "color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.3})
@@ -5194,6 +5229,11 @@ func deploy_sentry(skill: Dictionary, at: Vector2, manual: bool) -> void:
 	_fx({"kind": "circle", "position": at, "radius": 90.0,
 		"element": skill.element,
 		"color": SkyGearData.ELEMENTS[skill.element].color, "time": 0.0, "life": 0.34})
+	## An auto-placement is a fallback, not a player commitment. This line is
+	## after every refusal and after append, so a failed manual placement cannot
+	## claim ground either.
+	if manual:
+		relocate_fields(at)
 
 
 func _update_sentries(delta: float) -> void:

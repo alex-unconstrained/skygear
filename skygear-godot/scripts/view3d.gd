@@ -7832,7 +7832,9 @@ func _sync_auras() -> void:
 		var st: Dictionary = game.skill_stats(skill)
 		var radius := float(st.radius)
 		var tint: Color = SkyGearData.ELEMENTS[skill.element].color
-		var at: Vector2 = game.player.global_position
+		## The same query the passive damage tick uses. Presentation never owns or
+		## mutates the anchor, and an unset Field still follows the captain live.
+		var at: Vector2 = game.field_center(skill)
 		# the edge, on the deck
 		## The widest gameplay-scaled ring in the game — a card that widens
 		## the Field widens this — so it is the one that most needed the
