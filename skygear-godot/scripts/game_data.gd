@@ -15,7 +15,8 @@ const SHAPES := {
 	"RANGED_AOE": {"name": "Mortar", "kind": "aoe", "damage": 40.0, "cooldown": 2.6, "range": 420.0, "radius": 110.0, "knock": 260.0},
 	"CHAIN": {"name": "Whip", "kind": "chain", "damage": 26.0, "cooldown": 2.0, "range": 480.0, "jumps": 3, "jump_range": 200.0, "knock": 90.0},
 	"AURA": {"name": "Field", "kind": "aura", "damage": 4.0, "cooldown": 0.0, "radius": 150.0, "tick_rate": 1.8, "passive": true},
-	"PULSE": {"name": "Pulse", "kind": "pulse", "damage": 34.0, "cooldown": 4.4, "radius": 210.0, "knock": 220.0, "passive": true},
+	"PULSE": {"name": "Pulse", "kind": "pulse", "damage": 34.0, "cooldown": 4.4,
+		"radius": 210.0, "knock": 220.0, "passive": true, "cast_advance": 0.35},
 	## Deployable, not passive. It was marked `passive: true`, which routed it to
 	## `_update_passives`, where "sentry" fired a beam out of the PLAYER at the
 	## nearest boarder. Nothing was ever placed on the deck — you drafted a turret

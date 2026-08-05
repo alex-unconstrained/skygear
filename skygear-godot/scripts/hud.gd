@@ -2538,15 +2538,20 @@ func _draw_game_hud() -> void:
 		if icon != null:
 			draw_texture_rect_region(icon, icon_at, Rect2(Vector2.ZERO, icon.get_size()),
 				element)
+		var pulse_clock := str(SkyGearData.SHAPES[skill.shape].kind) == "pulse"
 		var ready: bool = float(skill.cooldown_left) <= 0.0
-		if not ready:
+		var clock_left: float = game.pulse_time_left(skill) if pulse_clock \
+			else float(skill.cooldown_left)
+		if pulse_clock or not ready:
 			var st: Dictionary = game.skill_stats(skill)
-			var frac: float = clampf(float(skill.cooldown_left) / maxf(0.01, float(st.cooldown)),
+			var clock_period: float = game.pulse_period(skill) if pulse_clock \
+				else float(st.cooldown)
+			var frac: float = clampf(clock_left / maxf(0.01, clock_period),
 				0.0, 1.0)
 			_cooldown(icon_at.grow(4.0), frac)
 			## The number, not just the wedge. "Can I press this in time" is a
 			## question an angle cannot answer.
-			_value("%.1f" % float(skill.cooldown_left),
+			_value("%.1f" % clock_left,
 				Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
 				icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
 		if armed:

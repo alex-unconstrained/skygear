@@ -283,6 +283,8 @@ func _run() -> void:
 	await process_frame
 	_field_anchor()
 	await process_frame
+	_pulse_cadence()
+	await process_frame
 	_status_attribution()
 	await process_frame
 	_crit_explode()
@@ -965,6 +967,311 @@ func _field_game(active_shape: String = "") -> SkyGearGame:
 	game.active_channel = {}
 	game._set_state(SkyGearGame.State.PLAY)
 	return game
+
+
+## AB-03. The red-first names cover the complete accepted-cast and timer
+## matrix; behavior fixtures replace this seam guard after the first run.
+func _pulse_cadence() -> void:
+	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var data_source := FileAccess.get_file_as_string("res://scripts/game_data.gd")
+	var exact_names: Array[String] = [
+		"Pulse keeps its authored damage radius and raw period while adding a 0.35 cast advance",
+		"an accepted regular cast advances every equipped Pulse once after Field and cooldown",
+		"rejected casts passives and the class basic advance no Pulse",
+		"Beam advances once at start while completion and cancellation add nothing",
+		"a multi-shot cast advances once after its final landing",
+		"successful manual Sentry advances after placement while automatic and refused Sentry do not",
+		"kill-autofire is one real cast and advances Pulse once",
+		"accumulated advance floors above one derived period and the public due-now read is zero",
+		"the derived Pulse timer carries remainder at 1/60 and 0.05",
+		"multi-tick catch-up remains the sole Pulse firing scheduler",
+		"pause and hit-stop freeze the Pulse timer",
+		"reset and death own no orphan Pulse advance or discharge",
+		"Second Hand keeps a fifth keyless Pulse with one visible scheduler-owned timer",
+	]
+	var ready := data_source.contains('"cast_advance": 0.35') \
+		and game_source.contains("func pulse_time_left(skill: Dictionary) -> float") \
+		and game_source.contains("func pulse_period(skill: Dictionary) -> float") \
+		and game_source.contains("func advance_pulses() -> void")
+	if not ready:
+		for check_name in exact_names:
+			_check("pulse", check_name, false,
+				"AB-03 cast-advance and public timer seam is not implemented")
+		return
+
+	var shape: Dictionary = SkyGearData.SHAPES.PULSE
+	var frozen := _pulse_game("")
+	var frozen_period := frozen.pulse_period(frozen.skills[0])
+	_check("pulse", exact_names[0], bool(shape.passive)
+		and is_equal_approx(float(shape.damage), 34.0)
+		and is_equal_approx(float(shape.radius), 210.0)
+		and is_equal_approx(float(shape.cooldown), 4.4)
+		and is_equal_approx(float(shape.cast_advance), 0.35)
+		and is_equal_approx(frozen_period, float(frozen.skill_stats(frozen.skills[0]).cooldown)),
+		"passive %s damage %.1f radius %.1f raw %.1f advance %.2f derived %.2f"
+			% [shape.passive, shape.damage, shape.radius, shape.cooldown,
+				shape.cast_advance, frozen_period])
+	frozen.queue_free()
+
+	var regular := _pulse_game("LINE_BURST", 2, true)
+	var active_slot := regular.skills.size() - 1
+	for pulse in regular.skills:
+		if str(pulse.shape) == "PULSE":
+			pulse.passive_timer = 2.0
+	regular.cast_skill(active_slot, Vector2(900, 0))
+	var regular_pulses := []
+	for pulse in regular.skills:
+		if str(pulse.shape) == "PULSE":
+			regular_pulses.append(float(pulse.passive_timer))
+	var cast_begin := game_source.find("func cast_skill(")
+	var cast_end := game_source.find("func combat_move_scale", cast_begin)
+	var cast_body := game_source.substr(cast_begin, cast_end - cast_begin)
+	var final_section := cast_body.substr(cast_body.find("relocate_fields(land)"))
+	var regular_order := final_section.find("relocate_fields(land)") \
+		< final_section.find("skill.cooldown_left") \
+		and final_section.find("skill.cooldown_left") < final_section.find("advance_pulses()")
+	_check("pulse", exact_names[1], regular_pulses == [1.65, 1.65]
+		and bool(regular.skills[0].field_anchor_set)
+		and float(regular.skills[active_slot].cooldown_left) > 0.0 and regular_order,
+		"timers %s field %s cooldown %.2f ordering %s" % [regular_pulses,
+			regular.skills[0].field_anchor_set,
+			regular.skills[active_slot].cooldown_left, regular_order])
+	regular.queue_free()
+
+	var rejected := _pulse_game("LINE_BURST")
+	var rejected_pulse: Dictionary = rejected.skills[0]
+	var rejected_active: Dictionary = rejected.skills[1]
+	rejected_pulse.passive_timer = 2.0
+	rejected_active.cooldown_left = 1.0
+	rejected.cast_skill(1, Vector2(900, 0))
+	var cooldown_reject_ok := is_equal_approx(float(rejected_pulse.passive_timer), 2.0)
+	rejected.cast_skill(0, Vector2(900, 0))
+	var passive_reject_ok := is_equal_approx(float(rejected_pulse.passive_timer), 2.0)
+	var basic_target := _beam_target(rejected, Vector2(0, -100), 1000.0)
+	rejected._process_basic_attack(0.01)
+	var basic_ok := rejected.basic_cooldown > 0.0 and basic_target.hp < 1000.0 \
+		and is_equal_approx(float(rejected_pulse.passive_timer), 2.0)
+	_check("pulse", exact_names[2], cooldown_reject_ok and passive_reject_ok and basic_ok,
+		"cooldown reject %s passive %s basic %s timer %.2f" % [
+			cooldown_reject_ok, passive_reject_ok, basic_ok, rejected_pulse.passive_timer])
+	rejected.queue_free()
+
+	var beam := _pulse_game("RAY")
+	beam.skills[0].passive_timer = 2.0
+	beam.cast_skill(1, Vector2(0, -480))
+	var beam_start := float(beam.skills[0].passive_timer)
+	_drive_beam(beam, 0.40)
+	var beam_finish := float(beam.skills[0].passive_timer)
+	beam.skills[1].cooldown_left = 0.0
+	beam.cast_skill(1, Vector2(0, -480))
+	var before_cancel := float(beam.skills[0].passive_timer)
+	beam._cancel_active_channel()
+	var after_cancel := float(beam.skills[0].passive_timer)
+	_check("pulse", exact_names[3], is_equal_approx(beam_start, 1.65)
+		and is_equal_approx(beam_finish, beam_start)
+		and is_equal_approx(before_cancel, 1.30)
+		and is_equal_approx(after_cancel, before_cancel),
+		"start %.2f finish %.2f second start %.2f cancel %.2f" % [
+			beam_start, beam_finish, before_cancel, after_cancel])
+	beam.queue_free()
+
+	var multi := _pulse_game("LINE_BURST")
+	multi.skills[0].passive_timer = 2.0
+	multi.skills[1].mods.multi = 4
+	multi.cast_skill(1, Vector2(900, 0))
+	var shot_loop_begin := cast_body.find("for _shot in shots:")
+	var shot_loop_end := cast_body.find("hulk_splash", shot_loop_begin)
+	var shot_loop := cast_body.substr(shot_loop_begin, shot_loop_end - shot_loop_begin)
+	_check("pulse", exact_names[4], is_equal_approx(float(multi.skills[0].passive_timer), 1.65)
+		and not shot_loop.contains("advance_pulses"),
+		"four shots left %.2f, advance in loop %s" % [multi.skills[0].passive_timer,
+			shot_loop.contains("advance_pulses")])
+	multi.queue_free()
+
+	var sentry := _pulse_game("SENTRY")
+	sentry.skills[0].passive_timer = 2.0
+	sentry.cast_skill(1, Vector2(500, 0))
+	var manual_ok := is_equal_approx(float(sentry.skills[0].passive_timer), 1.65) \
+		and not sentry.sentries.is_empty()
+	sentry.skills[0].passive_timer = 2.0
+	sentry.deploy_sentry(sentry.skills[1], sentry.player.global_position, false)
+	var auto_ok := is_equal_approx(float(sentry.skills[0].passive_timer), 2.0)
+	var refused := _pulse_game("SENTRY")
+	refused.skills[0].passive_timer = 2.0
+	for _ally in SkyGearGame.ALLY_CAP:
+		refused.crew.append(SkyGearLanes.make_crew(_ally % 3,
+			SkyGearGame.LANE_CENTERS, SkyGearGame.BASE_Y))
+	refused.cast_skill(1, Vector2(500, 0))
+	var refused_ok := refused.sentries.is_empty() \
+		and is_equal_approx(float(refused.skills[0].passive_timer), 2.0) \
+		and is_equal_approx(float(refused.skills[1].cooldown_left), 0.0)
+	_check("pulse", exact_names[5], manual_ok and auto_ok and refused_ok,
+		"manual %s auto %s refused %s timers %.2f/%.2f/%.2f" % [manual_ok,
+			auto_ok, refused_ok, sentry.skills[0].passive_timer,
+			sentry.skills[0].passive_timer, refused.skills[0].passive_timer])
+	sentry.queue_free()
+	refused.queue_free()
+
+	var autofire := _pulse_game("LINE_BURST")
+	var pulse_row: Dictionary = autofire.skills[0]
+	var active_row: Dictionary = autofire.skills[1]
+	autofire.skills = [active_row, pulse_row]
+	pulse_row.passive_timer = 2.0
+	autofire.tel = SkyGearTelemetry.fresh(2)
+	autofire.mods.kill_autofire = 1.0
+	var killed := _beam_target(autofire, Vector2(400, 0), 1000.0)
+	autofire.on_enemy_killed(killed)
+	_check("pulse", exact_names[6], int(active_row.casts) == 1
+		and is_equal_approx(float(pulse_row.passive_timer), 1.65),
+		"casts %d timer %.2f" % [active_row.casts, pulse_row.passive_timer])
+	autofire.queue_free()
+
+	var floor_game := _pulse_game("")
+	var floor_pulse: Dictionary = floor_game.skills[0]
+	floor_pulse.passive_timer = 0.0
+	var floor_period := floor_game.pulse_period(floor_pulse)
+	for _cast in 40:
+		floor_game.advance_pulses()
+	var raw_floor := float(floor_pulse.passive_timer)
+	_check("pulse", exact_names[7],
+		is_equal_approx(raw_floor, -floor_period + 0.001)
+			and is_equal_approx(floor_game.pulse_time_left(floor_pulse), 0.0)
+			and raw_floor < 0.0,
+		"raw %.4f floor %.4f public %.4f" % [raw_floor, -floor_period + 0.001,
+			floor_game.pulse_time_left(floor_pulse)])
+	floor_game.queue_free()
+
+	var timer_results := []
+	for step in [1.0 / 60.0, 0.05]:
+		timer_results.append(_pulse_timed(float(step)))
+	var expected_left := float(timer_results[0].period) - 0.9
+	_check("pulse", exact_names[8], timer_results.size() == 2
+		and is_equal_approx(float(timer_results[0].damage), 34.0)
+		and is_equal_approx(float(timer_results[1].damage), 34.0)
+		and absf(float(timer_results[0].left) - expected_left) < 0.0001
+		and absf(float(timer_results[1].left) - expected_left) < 0.0001,
+		"1/60 damage %.1f left %.4f, 0.05 damage %.1f left %.4f, want %.4f"
+			% [timer_results[0].damage, timer_results[0].left,
+				timer_results[1].damage, timer_results[1].left, expected_left])
+
+	var catchup := _pulse_game("")
+	var catch_target := _beam_target(catchup, Vector2.ZERO, 1000.0)
+	var catch_period := catchup.pulse_period(catchup.skills[0])
+	catchup.skills[0].passive_timer = 0.1
+	catchup._update_passives(catch_period * 2.0 + 0.2)
+	var catch_row: Dictionary = catchup.tel.per[0]
+	_check("pulse", exact_names[9], is_equal_approx(1000.0 - catch_target.hp, 102.0)
+		and int(catch_row.hits) == 3
+		and absf(float(catchup.skills[0].passive_timer) - (catch_period - 0.1)) < 0.0001,
+		"damage %.1f hits %d left %.4f/%4f" % [1000.0 - catch_target.hp,
+			catch_row.hits, catchup.skills[0].passive_timer, catch_period - 0.1])
+	catchup.queue_free()
+
+	var frozen_clock := _pulse_game("")
+	frozen_clock.skills[0].passive_timer = 2.0
+	frozen_clock._set_state(SkyGearGame.State.PAUSE)
+	frozen_clock._process(0.5)
+	var pause_ok := is_equal_approx(float(frozen_clock.skills[0].passive_timer), 2.0)
+	frozen_clock._set_state(SkyGearGame.State.PLAY)
+	frozen_clock.impact.enabled = true
+	frozen_clock.impact.hit_stop(0.10)
+	frozen_clock._process(0.05)
+	var stop_ok := is_equal_approx(float(frozen_clock.skills[0].passive_timer), 2.0)
+	_check("pulse", exact_names[10], pause_ok and stop_ok,
+		"pause %s hit-stop %s timer %.3f" % [pause_ok, stop_ok,
+			frozen_clock.skills[0].passive_timer])
+	frozen_clock.queue_free()
+
+	var dying := _pulse_game("")
+	dying.skills[0].passive_timer = 0.1
+	var death_target := _beam_target(dying, Vector2.ZERO, 1000.0)
+	dying._set_state(SkyGearGame.State.GAMEOVER)
+	dying._process(1.0)
+	var death_ok := is_equal_approx(float(dying.skills[0].passive_timer), 0.1) \
+		and is_equal_approx(death_target.hp, 1000.0)
+	dying.queue_free()
+	var resetting := _pulse_game("")
+	resetting.skills[0].passive_timer = -1.0
+	resetting.begin_run()
+	var reset_ok := resetting.skills.is_empty()
+	_check("pulse", exact_names[11], death_ok and reset_ok,
+		"death %s timer/target held, reset skills %d" % [death_ok,
+			resetting.skills.size()])
+	resetting.queue_free()
+
+	var second_hand := _pulse_game("")
+	var fifth: Dictionary = second_hand.skills[0]
+	second_hand.skills = [
+		SkyGearData.make_skill("LINE_BURST", "EMBER"),
+		SkyGearData.make_skill("CONE", "FROST"),
+		SkyGearData.make_skill("RANGED_AOE", "ARC"),
+		SkyGearData.make_skill("CHAIN", "STEAM"), fifth]
+	fifth.passive_timer = 1.25
+	second_hand.cast_skill(4, Vector2(900, 0))
+	var sampled := true
+	for step in [0.0, 1.0 / 60.0, 0.05, 0.11]:
+		if float(step) > 0.0:
+			second_hand._update_passives(float(step))
+		if not is_equal_approx(second_hand.pulse_time_left(fifth),
+			maxf(0.0, float(fifth.passive_timer))):
+			sampled = false
+	var hud_source := FileAccess.get_file_as_string("res://scripts/hud.gd")
+	_check("pulse", exact_names[12], second_hand.skills.size() == 5
+		and bool(SkyGearData.SHAPES[fifth.shape].passive)
+		and int(fifth.casts) == 0 and sampled
+		and hud_source.contains("game.pulse_time_left(skill)")
+		and hud_source.contains("game.pulse_period(skill)"),
+		"slots %d passive %s casts %d sampled %s HUD %s/%s left %.3f" % [
+			second_hand.skills.size(), SkyGearData.SHAPES[fifth.shape].passive,
+			fifth.casts, sampled, hud_source.contains("game.pulse_time_left(skill)"),
+			hud_source.contains("game.pulse_period(skill)"),
+			second_hand.pulse_time_left(fifth)])
+	second_hand.queue_free()
+
+
+func _pulse_game(active_shape: String = "LINE_BURST", pulse_count: int = 1,
+		with_field: bool = false) -> SkyGearGame:
+	var game := _new_game()
+	_begin(game, "AB03")
+	for enemy in game.enemies():
+		enemy.dead = true
+		enemy.queue_free()
+	game.spawn_queue.clear()
+	game.hulk = {}
+	game.skills = []
+	if with_field:
+		game.skills.append(SkyGearData.make_skill("AURA", "ARC"))
+	for _pulse in pulse_count:
+		var pulse := SkyGearData.make_skill("PULSE", "STEAM")
+		pulse.passive_timer = 2.0
+		game.skills.append(pulse)
+	if active_shape != "":
+		game.skills.append(SkyGearData.make_skill(active_shape, "FROST"))
+	game.tel = SkyGearTelemetry.fresh(game.skills.size())
+	game.player.global_position = Vector2.ZERO
+	game.player.aim_direction = Vector2.RIGHT
+	game.mods.crit_chance = 0.0
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	game.active_channel = {}
+	game._set_state(SkyGearGame.State.PLAY)
+	return game
+
+
+func _pulse_timed(step: float) -> Dictionary:
+	var game := _pulse_game("")
+	var target := _beam_target(game, Vector2.ZERO, 1000.0)
+	var pulse: Dictionary = game.skills[0]
+	var period := game.pulse_period(pulse)
+	pulse.passive_timer = 0.1
+	var frames := roundi(1.0 / step)
+	for _frame in frames:
+		game._update_passives(step)
+	var result := {"damage": 1000.0 - target.hp,
+		"left": float(pulse.passive_timer), "period": period}
+	game.queue_free()
+	return result
 
 
 ## EL-00. The status path is an attribution boundary, not a new reaction. These

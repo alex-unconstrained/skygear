@@ -3037,6 +3037,28 @@ func reset_field_anchors() -> void:
 		skill.field_anchor_set = false
 
 
+## AB-03 · PULSE REWARDS CASTING CADENCE. The period is derived through the
+## same stats path the firing scheduler uses; the public clock hides a carried
+## negative remainder as due-now without rewriting simulation state.
+func pulse_period(skill: Dictionary) -> float:
+	return float(skill_stats(skill).cooldown)
+
+
+func pulse_time_left(skill: Dictionary) -> float:
+	return maxf(0.0, float(skill.get("passive_timer", 0.0)))
+
+
+func advance_pulses() -> void:
+	for pulse in skills:
+		var shape: Dictionary = SkyGearData.SHAPES[pulse.shape]
+		if str(shape.get("kind", "")) != "pulse":
+			continue
+		var period := pulse_period(pulse)
+		var floor := -period + 0.001
+		pulse.passive_timer = maxf(float(pulse.get("passive_timer", 0.0))
+			- float(shape.cast_advance), floor)
+
+
 func cast_skill(index: int, aim_at = null) -> void:
 	if index < 0 or index >= skills.size():
 		return
@@ -3102,6 +3124,9 @@ func cast_skill(index: int, aim_at = null) -> void:
 			"element_applied_serials": {},
 		}
 		skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
+		## Beam pays and advances at channel start. Completion and cancellation
+		## never reach another advance call.
+		advance_pulses()
 		player.attack_time = maxf(channel_time,
 			clampf(float(st.cooldown) * 0.85, 0.24, 0.62))
 		play_sfx(_shape_sound(skill.shape), -5.0)
@@ -3126,6 +3151,9 @@ func cast_skill(index: int, aim_at = null) -> void:
 	## landing. A multi-shot cast therefore claims ground once, at its final land.
 	relocate_fields(land)
 	skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
+	## Regular and multi-shot casts publish their final Field landing and pay
+	## cooldown before advancing Pulse once.
+	advance_pulses()
 	## How long the swing is allowed to last, from the SKILL. It was a flat 0.26
 	## for everything, so a Beam at a 0.48 cooldown and a Mortar at 2.08 got the
 	## same animation window and neither matched. Floored so a fast skill still
@@ -5234,6 +5262,9 @@ func deploy_sentry(skill: Dictionary, at: Vector2, manual: bool) -> void:
 	## claim ground either.
 	if manual:
 		relocate_fields(at)
+		## This point is after successful append, Field relocation and cooldown.
+		## Automatic and refused placements return without reaching it.
+		advance_pulses()
 
 
 func _update_sentries(delta: float) -> void:
