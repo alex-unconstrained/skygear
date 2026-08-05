@@ -6,14 +6,15 @@ extends SceneTree
 ## they should soak and hold rather than kill. That is a tuning question, and a
 ## tuning question answered by playing three runs is answered by noise.
 ##
-## This plays the whole twelve waves headless, several times, on fixed seeds, and
+## This plays the whole twelve waves headless on distinct fixed seeds and
 ## reports the damage split. Same numbers as the run report, so a change here can
 ## be checked against a real run afterwards.
 ##
 ##   godot --path . --headless --script tools/balance.gd
-##   godot --path . --headless --script tools/balance.gd -- 5     (runs)
-##   godot --path . --headless --script tools/balance.gd -- 6 5   (runs, HEAT)
-##   godot --path . --headless --script tools/balance.gd -- 6 0 opening_bid
+##   godot --path . --headless --script tools/balance.gd -- 120 0 none 1
+##   godot --path . --headless --script tools/balance.gd -- 120 5 none 1
+##   godot --path . --headless --script tools/balance.gd -- 120 0 opening_bid 1
+##   godot --path . --headless --script tools/balance.gd -- 12 0 none 2  # audit
 ##
 ## The second argument is a HEAT level (SG-14). It opens the whole ladder on an
 ## ephemeral workshop and starts every run at that rung, so the difficulty claim
@@ -75,18 +76,17 @@ extends SceneTree
 ## — see the note at that loop; a lit keg's fuse was burning on the engine clock
 ## and a keg is 26 damage.
 ##
-## IT IS STILL NOT DETERMINISTIC, AND THIS FILE WILL NOT CLAIM OTHERWISE. Two
-## real contamination sources are gone and the same seed still comes back
-## different: BAL1's damage-taken over three invocations of the repaired rig was
-## 180 / 170 / 221. The remaining source is one level below the scene tree — the
-## captain is a `CharacterBody2D` and `move_and_slide()` queries the PHYSICS
-## SPACE, whose body transforms are synced by the physics server on ITS tick,
-## not on this loop's hand-step, so what she collides with depends on how the
-## awaited frames fell. Chasing that means driving `PhysicsServer2D` by hand and
-## it is a project rather than a fix.
+## THE CORRECTED CLOCK MAKES ONE SEED DETERMINISTIC (SG-190). Twenty repetitions
+## of one seed returned the same complete row across processes. That repaired a
+## real contaminant and invalidated the old sampling instruction at the same
+## time: twenty copies of BAL1 are one observation, not twenty.
 ##
-## SO: THIS RIG REPORTS A DISTRIBUTION, NEVER A RUN. Per STATUS's fifth failure
-## mode, a tool that reports a difference must first report its own noise floor.
+## SO: THIS RIG REPORTS A DISTRIBUTION ACROSS DISTINCT SEEDS. The fourth
+## positional argument is a determinism audit only. Repetitions are fingerprinted
+## per seed, variation fails the instrument, and statistics consume one row per
+## distinct seed. One explicitly printed `BAL-WARMUP` run establishes the fresh
+## process's physics/resource state and is never sampled. Buy resolution with
+## more generated BAL seeds, never with reps.
 ##
 ## ---------------------------------------------------------------------------
 ## AND HOW BIG THE SAMPLE HAS TO BE. READ THIS BEFORE WRITING A NUMBER DOWN.
@@ -100,9 +100,9 @@ extends SceneTree
 ##    EXISTED — not in this tree, not in any commit. The one instruction the
 ##    header gave a reader who wanted to check a difference properly pointed at
 ##    nothing, which is STATUS's sixth failure mode written into the very
-##    paragraph warning about instruments. The instruction is now: pass `reps`
-##    (the fourth argument), read the resolution line this tool prints, and do
-##    not record anything the sample cannot resolve.
+##    paragraph warning about instruments. The instruction is now: request the
+##    required number of distinct seeds, read the resolution line this tool
+##    prints, and do not record anything the sample cannot resolve.
 ##
 ## 2. THE "8% FLOOR" WAS NOT A FLOOR. It was measured honestly — two n=120
 ##    batches of identical code came back 8% apart on damage-taken — but the
@@ -136,13 +136,10 @@ extends SceneTree
 ## that 2x2 is p=0.55 — and n=6 could never have told them apart. That is what a
 ## +-40-point resolution looks like from the inside.
 ##
-## THE SEEDS ARE ALMOST NOT DOING ANYTHING, which is worth knowing before you
-## design a comparison around them. Over 240 Heat 0 runs the six seeds' mean
-## damage-taken spans 192..238 while the WITHIN-seed spread is sd 50-76. Seeds
-## account for a few percent of the variance; the rest is the residual described
-## above. Repeating fixed seeds grows the sample honestly, but it does not buy a
-## paired design — treat the runs as independent draws, because they behave like
-## independent draws.
+## HISTORICAL WITHIN-SEED SPREAD WAS INSTRUMENT CONTAMINATION, not independent
+## sampling. The corrected rig's unit is the seed. Before/after arms use the same
+## generated seed names, one observation from each, and state the printed
+## resolution rather than treating a repeated fingerprint as more evidence.
 ## ---------------------------------------------------------------------------
 func _initialize() -> void: call_deferred("_run")
 
@@ -152,31 +149,100 @@ func _initialize() -> void: call_deferred("_run")
 const BotScript := preload("res://tools/bot.gd")
 var bot := BotScript.new()
 
-const SEEDS := ["BAL1", "BAL2", "BAL3", "BAL4", "BAL5", "BAL6"]
+## SG-195 / OPS-BAL-00. The instrument's population is generated rather than
+## clamped to a six-name constant. These helpers are pure so the harness can
+## prove the sample contract without playing 120 full runs.
+static func seed_names(count: int) -> Array[String]:
+	var out: Array[String] = []
+	for i in maxi(0, count):
+		out.append("BAL%d" % (i + 1))
+	return out
+
+
+static func parse_cli(args: PackedStringArray) -> Dictionary:
+	var vow := str(args[2]) if args.size() > 2 else ""
+	if vow == "none" or vow == "-":
+		vow = ""
+	return {
+		"count": int(args[0]) if args.size() > 0 else 3,
+		"heat": int(args[1]) if args.size() > 1 else 0,
+		"vow": vow,
+		"reps": maxi(1, int(args[3])) if args.size() > 3 else 1,
+	}
+
+
+static func result_fingerprint(row: Dictionary) -> String:
+	var keys := row.keys()
+	keys.erase("seed")
+	keys.erase("rep")
+	keys.sort()
+	var parts := PackedStringArray()
+	for key in keys:
+		parts.append("%s=%s" % [str(key), var_to_str(row[key])])
+	return "|".join(parts)
+
+
+static func audit_sample(rows: Array, requested_seeds: Array[String],
+		reps: int) -> Dictionary:
+	var counts: Dictionary = {}
+	var first: Dictionary = {}
+	var fingerprints: Dictionary = {}
+	var failures: Array[String] = []
+	for raw in rows:
+		var row: Dictionary = raw
+		var seed := str(row.get("seed", ""))
+		if not requested_seeds.has(seed):
+			failures.append("unexpected seed %s" % seed)
+			continue
+		counts[seed] = int(counts.get(seed, 0)) + 1
+		var fingerprint := result_fingerprint(row)
+		if not first.has(seed):
+			first[seed] = row
+			fingerprints[seed] = fingerprint
+		elif str(fingerprints[seed]) != fingerprint:
+			var message := "seed %s produced differing fingerprints" % seed
+			if not failures.has(message):
+				failures.append(message)
+
+	var observations: Array = []
+	for seed in requested_seeds:
+		var got := int(counts.get(seed, 0))
+		if got != reps:
+			failures.append("seed %s produced %d of %d requested reps"
+				% [seed, got, reps])
+		if first.has(seed):
+			observations.append(first[seed])
+	return {
+		"ok": failures.is_empty(),
+		"failures": failures,
+		"observations": observations,
+		"requested": requested_seeds.size(),
+		"distinct": first.size(),
+		"reps": reps,
+		"effective_n": observations.size(),
+	}
 
 func _run() -> void:
-	var args := OS.get_cmdline_user_args()
-	var count: int = int(args[0]) if args.size() > 0 else 3
-	var heat: int = int(args[1]) if args.size() > 1 else 0
-	var vow: String = str(args[2]) if args.size() > 2 else ""
+	var cli := parse_cli(OS.get_cmdline_user_args())
+	var count: int = int(cli.count)
+	var heat: int = int(cli.heat)
+	var vow: String = str(cli.vow)
+	var reps: int = int(cli.reps)
 	## `none` IS THE EMPTY VOW, spelled (SG-187). The vow argument is the THIRD
 	## positional and `reps` is the fourth, so asking for an unvowed batch of a
 	## given size means passing an empty third argument — and Windows PowerShell
 	## DROPS an empty native-command argument rather than forwarding it, so
-	## `-- 6 0 "" 20` arrives as `[6, 0, 20]` and the rig refuses to start with
-	## "no such article: 20". Nothing here was broken; the shell ate the
+	## `-- 120 0 "" 1` arrives as `[120, 0, 1]` and the rig refuses to start with
+	## "no such article: 1". Nothing here was broken; the shell ate the
 	## argument. Found running the SG-187 before-and-after, and worth a line
 	## because the next person measuring an unvowed arm on this machine hits it
 	## in their first minute.
-	if vow == "none" or vow == "-":
-		vow = ""
-	## REPS (SG-118, fourth argument): play the whole seed list this many times.
-	## The rig is not deterministic — see the header — so the seed list is a
-	## sample, not a measurement, and a comparison needs the sample to be big
-	## enough that the floor is smaller than the effect. Repeating fixed seeds is
-	## the right way to grow it: the seeds stay comparable between arms while the
-	## residual engine noise averages down.
-	var reps: int = maxi(1, int(args[3])) if args.size() > 3 else 1
+	## REPS (SG-195, fourth argument) repeats each seed only to audit its complete
+	## fingerprint. Statistics always receive the first agreed row for each seed.
+	if count < 1:
+		print("  seed count must be at least one")
+		quit(1)
+		return
 	if vow != "" and not SkyGearWorkshop.ARTICLES.has(vow):
 		print("  no such article: %s — the seals are %s" % [vow,
 			", ".join(SkyGearWorkshop.ARTICLES.keys())])
@@ -222,28 +288,54 @@ func _run() -> void:
 		if bot.passive_probe
 		else "takes the best card offered by %s, passives last — SG-130"
 			% ", ".join(BotScript.DRAFT_ORDER.slice(0, 3) + ["..."])))
-	var ally_share := 0.0
-	var player_share := 0.0
-	var waves_reached := 0.0
-	var wins := 0
-	var results: Array = []
+	var seeds := seed_names(count)
+	## One discarded run establishes the process-wide physics/resource state.
+	## SG-195's live audit found the first run of a fresh process differed while
+	## repetitions two and three were byte-identical. The warm-up uses the same
+	## arm configuration but an ID outside BAL1..BALn, is printed, and never enters
+	## `raw_results`, an interval or effective n.
+	print("  WARM-UP BAL-WARMUP · excluded from every statistic")
+	await _one("BAL-WARMUP", heat, vow)
+	var raw_results: Array = []
 	for rep in reps:
-		for i in mini(count, SEEDS.size()):
-			var r := await _one(SEEDS[i], heat, vow)
-			results.append(r)
-			ally_share += float(r.ally)
-			player_share += float(r.player)
-			waves_reached += float(r.wave)
-			wins += 1 if bool(r.won) else 0
-			print("  %-6s%-4s wave %2d %-10s  player %3.0f%%  allies %3.0f%% (crew %3.0f%%)  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%  taken %4.0f  wave-sd %5.1f"
-				% [SEEDS[i], "" if reps == 1 else "#%d" % (rep + 1),
+		for seed in seeds:
+			var r := await _one(seed, heat, vow)
+			r["seed"] = seed
+			r["rep"] = rep + 1
+			raw_results.append(r)
+			print("  %-8s%-4s wave %2d %-10s  player %3.0f%%  allies %3.0f%% (crew %3.0f%%)  passive %2.0f%%  vents %2d  close %2.0f%%  far %2.0f%%  taken %4.0f  wave-sd %5.1f"
+				% [seed, "" if reps == 1 else "#%d" % (rep + 1),
 					int(r.wave), "HELD" if bool(r.won) else "lost",
 					float(r.player), float(r.ally), float(r.crew),
 					float(r.passive), int(r.vents),
 					float(r.close), float(r.far), float(r.taken), float(r.taken_sd)])
-	var n := float(results.size())
+	var audit := audit_sample(raw_results, seeds, reps)
 	print("")
-	print("  across %d runs: %d held, average wave %.1f" % [int(n), wins, waves_reached / n])
+	print("  SAMPLE requested seeds %d · distinct seeds %d · repetitions %d · effective n %d"
+		% [int(audit.requested), int(audit.distinct), int(audit.reps),
+			int(audit.effective_n)])
+	if not bool(audit.ok):
+		for failure in audit.failures:
+			print("  INSTRUMENT FAILURE · %s" % failure)
+		quit(2)
+		return
+	if reps > 1:
+		print("  DETERMINISM AUDIT PASS · every seed returned one fingerprint")
+
+	var results: Array = audit.observations
+	var n := float(audit.effective_n)
+	var ally_share := 0.0
+	var player_share := 0.0
+	var waves_reached := 0.0
+	var wins := 0
+	for r in results:
+		ally_share += float(r.ally)
+		player_share += float(r.player)
+		waves_reached += float(r.wave)
+		wins += 1 if bool(r.won) else 0
+	print("")
+	print("  across %d distinct seeds: %d held, average wave %.1f"
+		% [int(n), wins, waves_reached / n])
 	## WITH ITS INTERVAL, ALWAYS (SG-128). A held-count printed bare is what put
 	## "5/6" in one board row and "3/6" in another for the same configuration —
 	## both true, both meaningless, and neither carrying the one number that would
@@ -345,8 +437,9 @@ func _run() -> void:
 	var crew_list := PackedStringArray()
 	for r in results:
 		crew_list.append("%.2f" % float(r.crew))
-	print("SAMPLES n=%d held=%d wave_mean=%.3f taken_mean=%.3f taken_sd=%.3f taken=%s crew_mean=%.3f crew_sd=%.3f crew=%s"
-		% [int(n), wins, waves_reached / n, taken_mean, taken_sd,
+	print("SAMPLES n=%d requested=%d distinct=%d reps=%d held=%d wave_mean=%.3f taken_mean=%.3f taken_sd=%.3f taken=%s crew_mean=%.3f crew_sd=%.3f crew=%s"
+		% [int(n), int(audit.requested), int(audit.distinct), int(audit.reps),
+			wins, waves_reached / n, taken_mean, taken_sd,
 			",".join(taken_list), crew_mean, crew_sd, ",".join(crew_list)])
 	print("")
 	## The target the balance pass is aiming at, stated so a later run can be
@@ -452,23 +545,15 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 	## already handled this way inside the loop; she was not.
 	game.player.set_physics_process(false)
 	game.player.set_process(false)
-	## AND IT IS STILL NOT DETERMINISTIC, which is worth saying plainly rather
-	## than leaving for the next person to rediscover. With the double-step gone
-	## the same seed still returns different runs — the captain, the boarders,
-	## the crew and the cannons are separate nodes and the engine keeps ticking
-	## them on the frames this loop awaits.
-	##
-	## `game.process_mode = PROCESS_MODE_DISABLED` is the obvious fix and it does
-	## NOT work: it is inherited by the whole subtree, which stops the timers the
-	## wave loop waits on, and the run never terminates. I tried it and killed it
-	## after ten minutes.
-	##
-	## The real fix is to stop awaiting real frames at all, which means finding
-	## another way to keep the process responsive across a twelve-wave sim.
-	## Until then, read these numbers as a DISTRIBUTION across seeds and not as
-	## a measurement of one — and run more seeds than you think you need.
 	if game.impact != null:
 		game.impact.enabled = false
+	## SG-195 found one remaining first-run contaminant by making repetitions an
+	## audit: BAL1's first row differed, then rows two and three were identical.
+	## Give every newly added, disabled pre-run tree the same physics-server sync
+	## point before seed/run state exists. This frame alone did not remove the
+	## process's first-run difference; the explicit excluded warm-up in `_run`
+	## does. Keeping the boundary here makes that starting condition deliberate.
+	await physics_frame
 	game.set_seed_text(seed_text)
 	game.begin_run()
 	game.choose_draft(bot.draft_pick(game.draft_options))

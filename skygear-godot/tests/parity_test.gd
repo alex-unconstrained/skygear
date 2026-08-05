@@ -70,6 +70,7 @@ func _initialize() -> void:
 
 
 const BOT_SCRIPT := preload("res://tools/bot.gd")
+const BALANCE_SCRIPT := preload("res://tools/balance.gd")
 
 
 func _check(group: String, name: String, condition: bool, detail: String = "") -> void:
@@ -14234,6 +14235,80 @@ func _bal() -> void:
 	_check("bal", "and a trend resolves as n^1.5 where a mean resolves as n^0.5, which is why 480 runs can price a slope (REGRESSION GUARD — arithmetic identity)",
 		absf(ratio - 2.828) < 0.01,
 		"doubling n buys %.3fx on a slope against 1.414x on a mean" % ratio)
+
+	## SG-195 / OPS-BAL-00. The corrected physics clock made repetitions of one
+	## seed copies. These exercise the pure helpers `_run` uses before any
+	## interval is printed, so the 120-run expansion evidence buys 120 seeds.
+	var generated: Array[String] = BALANCE_SCRIPT.seed_names(120)
+	var unique := {}
+	for seed in generated:
+		unique[seed] = true
+	_check("balance instrument", "one hundred twenty requested samples are BAL1 through BAL120",
+		generated.size() == 120 and unique.size() == 120
+			and generated[0] == "BAL1" and generated[-1] == "BAL120",
+		"%d generated, %d distinct, %s through %s"
+			% [generated.size(), unique.size(), generated[0], generated[-1]])
+
+	var two_seeds := BALANCE_SCRIPT.seed_names(2)
+	var repeated: Array = []
+	for rep in 2:
+		for seed in two_seeds:
+			repeated.append({
+				"seed": seed,
+				"rep": rep + 1,
+				"won": seed == "BAL1",
+				"taken": 10.0 if seed == "BAL1" else 20.0,
+			})
+	var repeated_audit: Dictionary = BALANCE_SCRIPT.audit_sample(
+		repeated, two_seeds, 2)
+	_check("balance instrument", "repeated fingerprints never inflate effective n",
+		bool(repeated_audit.ok) and int(repeated_audit.effective_n) == 2
+			and (repeated_audit.observations as Array).size() == 2,
+		"4 rows, %d distinct, effective n %d"
+			% [int(repeated_audit.distinct), int(repeated_audit.effective_n)])
+
+	var varied := repeated.duplicate(true)
+	(varied[1] as Dictionary)["taken"] = 11.0
+	var varied_audit: Dictionary = BALANCE_SCRIPT.audit_sample(varied, two_seeds, 2)
+	_check("balance instrument", "variation within one seed fails the instrument",
+		not bool(varied_audit.ok)
+			and "; ".join(varied_audit.failures).contains(
+				"BAL2 produced differing fingerprints"),
+		"ok=%s · %s" % [str(varied_audit.ok), "; ".join(varied_audit.failures)])
+
+	var parsed: Dictionary = BALANCE_SCRIPT.parse_cli(PackedStringArray(
+		["120", "4", "none", "2"]))
+	var article: Dictionary = BALANCE_SCRIPT.parse_cli(PackedStringArray(
+		["31", "3", "opening_bid", "1"]))
+	var dash: Dictionary = BALANCE_SCRIPT.parse_cli(PackedStringArray(
+		["12", "0", "-", "7"]))
+	_check("balance instrument", "positional heat article and reps arguments remain compatible",
+		int(parsed.count) == 120 and int(parsed.heat) == 4
+			and str(parsed.vow) == "" and int(parsed.reps) == 2
+			and int(article.count) == 31 and int(article.heat) == 3
+			and str(article.vow) == "opening_bid" and int(article.reps) == 1
+			and str(dash.vow) == "" and int(dash.reps) == 7,
+		"120/%d/%s/%d · 31/%d/%s/%d · dash %s/%d"
+			% [int(parsed.heat), str(parsed.vow), int(parsed.reps),
+				int(article.heat), str(article.vow), int(article.reps),
+				str(dash.vow), int(dash.reps)])
+
+	var balance_source := FileAccess.get_file_as_string("res://tools/balance.gd")
+	var distinct_ci := SkyGearBalStat.wilson(1, int(repeated_audit.effective_n))
+	_check("balance instrument", "every reported interval reads the distinct-seed count",
+		int(repeated_audit.effective_n) == 2
+			and distinct_ci.is_equal_approx(SkyGearBalStat.wilson(1, 2))
+			and balance_source.contains("var seeds := seed_names(count)")
+			and balance_source.contains("audit_sample(raw_results, seeds, reps)")
+			and balance_source.contains("var n := float(audit.effective_n)")
+			and balance_source.contains("SkyGearBalStat.wilson(wins, int(n))")
+			and balance_source.contains("SkyGearBalStat.wilson(passive_runs, int(n))")
+			and balance_source.contains("SkyGearBalStat.held_resolution(int(n))")
+			and balance_source.contains("SkyGearBalStat.resolvable_at(int(n), cv)"),
+		"effective n %d · Wilson %s · production readers %s"
+			% [int(repeated_audit.effective_n), str(distinct_ci),
+				"present" if balance_source.contains(
+					"var n := float(audit.effective_n)") else "MISSING"])
 
 
 func _mobility() -> void:
