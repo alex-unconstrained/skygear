@@ -475,6 +475,11 @@ const BOW_Y := -1000.0
 var turrets: Array[Dictionary] = []
 var crew: Array[Dictionary] = []
 var hulk: Dictionary = {}
+## AB-01: one simulation-owned Beam channel. Rendering reads this row; it owns
+## no second clock. Every production spawn receives a nonzero serial before the
+## per-channel element guard can observe it.
+var active_channel: Dictionary = {}
+var _next_enemy_spawn_serial := 1
 ## How long the boarding hulk hangs on the hull SEALED before its door opens
 ## (board SG-76). It is not decoration: `damage_hulk` already refuses a hulk
 ## that is not `vulnerable`, so this is the beat where the thing is bolted to
@@ -1656,6 +1661,7 @@ func _process(delta: float) -> void:
 	event_banner_left = maxf(0.0, event_banner_left - delta)
 	coach_line = coach.advise(self, delta)
 	_update_cooldowns(delta)
+	_update_active_channel(delta)
 	_update_wave(delta)
 	_update_projectiles(delta)
 	_update_passives(delta)
@@ -1859,6 +1865,7 @@ func begin_run() -> void:
 	article_used = {}
 	brace_cooldown = 0.0
 	brace_left = 0.0
+	_cancel_active_channel()
 	range_multiplier = 1.0 + talent("range")
 	## Never mid-run. A tree you can edit while being shot at is a fifth ability
 	## button, which is the one thing the design says it must not become.
@@ -2093,6 +2100,7 @@ func copy_run_report() -> void:
 
 
 func go_to_title() -> void:
+	_cancel_active_channel()
 	if audio != null:
 		audio.stop_music()
 	for enemy in enemies():
@@ -2109,6 +2117,8 @@ func _set_state(next_state: State) -> void:
 	state = next_state
 	state_name = State.keys()[state]
 	player.controls_enabled = state == State.PLAY
+	if next_state in [State.TITLE, State.DRAFT, State.GAMEOVER, State.VICTORY]:
+		_cancel_active_channel()
 	## A finished run goes on disk. One run is an anecdote; the reason v11 tracks
 	## damage per skill and time at each range is so ten of them can be read as a
 	## shape, and a report that dies when you press Enter cannot be.
@@ -2337,6 +2347,7 @@ func _begin_push(wave_number: int) -> void:
 
 
 func start_wave(next_wave: int) -> void:
+	_cancel_active_channel()
 	wave = next_wave
 	## A posed sandbox starts no music (SG-44) — the live game's own track is
 	## already playing, and a second combat loop under a posed GAMEOVER is the
@@ -2509,6 +2520,7 @@ func _update_wave(delta: float) -> void:
 		if is_push_wave(wave):
 			push_pending = hulk.is_empty() or not bool(hulk.get("dead", false))
 	if spawn_queue.is_empty() and enemy_count() == 0 and wave > 0 and not push_pending:
+		_cancel_active_channel()
 		wave_clear_time = WAVE_CLEAR_TIME
 		play_sfx("world/wave_clear.ogg", -4.0)
 		if voice != null:
@@ -2760,6 +2772,8 @@ func open_draft() -> void:
 func spawn_enemy(kind: String, lane: int) -> void:
 	var enemy: SkyGearEnemy = ENEMY_SCENE.instantiate()
 	add_child(enemy)
+	enemy.spawn_serial = _next_enemy_spawn_serial
+	_next_enemy_spawn_serial += 1
 	enemy.global_position = Vector2(LANE_CENTERS[lane] + rng.randf_range(-58.0, 58.0), -1115.0)
 	enemy.configure(self, kind, lane, wave)
 	play_sfx("enemy/climb.ogg", -12.0)
@@ -2786,6 +2800,8 @@ func enemy_count() -> int:
 
 func _process_basic_attack(delta: float) -> void:
 	basic_cooldown = maxf(0.0, basic_cooldown - delta)
+	if not active_channel.is_empty():
+		return
 	if basic_cooldown > 0.0:
 		return
 	var auto: Dictionary = class_data().get("auto", {})
@@ -2968,11 +2984,18 @@ static func stats_with(skill: Dictionary, mods: Dictionary,
 		out.arc = (1.658 if bool(m.get("wide_cone", false)) else out.arc) * (1.0 + (float(m.get("area", 1.0)) - 1.0) * 0.55)
 	elif out.kind == "arc":
 		out.arc = out.arc * (1.0 + (float(m.get("area", 1.0)) - 1.0) * 0.55)
+	elif out.kind == "ray":
+		out["channel_time"] = float(shape.channel_time)
+		out["channel_ticks"] = int(shape.channel_ticks)
+		out["channel_move_scale"] = float(shape.channel_move_scale)
+		out.cooldown = maxf(float(out.cooldown), float(out.channel_time))
 	return out
 
 
 func cast_skill(index: int, aim_at = null) -> void:
 	if index < 0 or index >= skills.size():
+		return
+	if not active_channel.is_empty():
 		return
 	var skill: Dictionary = skills[index]
 	var shape: Dictionary = SkyGearData.SHAPES[skill.shape]
@@ -3013,6 +3036,33 @@ func cast_skill(index: int, aim_at = null) -> void:
 	var shots: int = maxi(1, int(st.multi))
 	if shots > 1:
 		damage *= 0.7
+	if str(st.kind) == "ray":
+		var channel_time := float(st.channel_time)
+		var channel_ticks := int(st.channel_ticks)
+		active_channel = {
+			"slot": index, "elapsed": 0.0, "next_tick": 0,
+			"tick_interval": channel_time / float(maxi(1, channel_ticks - 1)),
+			"forced_target": aim_at if aim_at is Vector2 else null,
+			"snapshot": {
+				"damage": damage, "range": float(st.range), "width": float(st.width),
+				"knock": float(st.knock), "element": str(skill.element),
+				"shots": shots, "ticks": channel_ticks,
+				"channel_time": channel_time,
+				"channel_move_scale": float(st.channel_move_scale),
+				"residue": float(mods.residue),
+				"evolution": (skill.get("evolution", {}) as Dictionary).duplicate(true),
+				"free": free_cast,
+			},
+			"last_land": origin,
+			"element_applied_serials": {},
+		}
+		skill.cooldown_left = 0.0 if free_cast else float(st.cooldown)
+		player.attack_time = maxf(channel_time,
+			clampf(float(st.cooldown) * 0.85, 0.24, 0.62))
+		play_sfx(_shape_sound(skill.shape), -5.0)
+		_resolve_beam_tick()
+		src_slot = previous_src
+		return
 	var land := origin
 	for _shot in shots:
 		land = _resolve_cast(st, skill, origin, direction, target, damage)
@@ -3035,6 +3085,78 @@ func cast_skill(index: int, aim_at = null) -> void:
 	player.attack_time = clampf(float(st.cooldown) * 0.85, 0.24, 0.62)
 	play_sfx(_shape_sound(skill.shape), -5.0)
 	src_slot = previous_src
+
+
+func combat_move_scale() -> float:
+	return 1.0 if active_channel.is_empty() \
+		else float(active_channel.snapshot.channel_move_scale)
+
+
+## One endpoint query for damage and presentation. Explicit targets are fixed;
+## an ordinary cast re-reads the captain's current aim on every tick/frame.
+func active_channel_line() -> Dictionary:
+	if active_channel.is_empty():
+		return {}
+	var snap: Dictionary = active_channel.snapshot
+	var origin := player.global_position
+	var forced: Variant = active_channel.get("forced_target")
+	var target: Vector2 = forced if forced is Vector2 else aim_target()
+	var direction: Vector2 = (target - origin).normalized() if forced is Vector2 \
+		else player.aim_direction
+	if direction.length_squared() <= 0.000001:
+		direction = Vector2.UP
+	return {"from": origin, "to": origin + direction * float(snap.range),
+		"element": str(snap.element)}
+
+
+func _resolve_beam_tick() -> void:
+	if active_channel.is_empty():
+		return
+	var snap: Dictionary = active_channel.snapshot
+	var line := active_channel_line()
+	if line.is_empty():
+		return
+	var previous_src := src_slot
+	src_slot = int(active_channel.slot)
+	for _shot in int(snap.shots):
+		_damage_line(line.from, line.to, float(snap.width), float(snap.damage),
+			str(snap.element), float(snap.knock), true,
+			active_channel.element_applied_serials)
+	active_channel.last_land = Vector2(line.from).lerp(Vector2(line.to), 0.5)
+	active_channel.next_tick = int(active_channel.next_tick) + 1
+	src_slot = previous_src
+
+
+func _update_active_channel(delta: float) -> void:
+	if active_channel.is_empty():
+		return
+	active_channel.elapsed = float(active_channel.elapsed) + delta
+	var snap: Dictionary = active_channel.snapshot
+	var safety := 0
+	while int(active_channel.next_tick) < int(snap.ticks) \
+			and float(active_channel.elapsed) + 0.000001 \
+				>= float(active_channel.next_tick) * float(active_channel.tick_interval) \
+			and safety < 8:
+		_resolve_beam_tick()
+		safety += 1
+	if not active_channel.is_empty() and int(active_channel.next_tick) >= int(snap.ticks):
+		_finish_active_channel()
+
+
+func _finish_active_channel() -> void:
+	if active_channel.is_empty():
+		return
+	var row := active_channel
+	active_channel = {}
+	var snap: Dictionary = row.snapshot
+	hulk_splash(Vector2(row.last_land), float(snap.damage) * float(snap.shots))
+	if float(snap.residue) > 0.0:
+		_field({"position": Vector2(row.last_land),
+			"dps": 13.0 * float(snap.residue), "time": 2.0, "tick": 0.0})
+
+
+func _cancel_active_channel() -> void:
+	active_channel = {}
 
 
 func _resolve_cast(st: Dictionary, skill: Dictionary, origin: Vector2, direction: Vector2, target_in: Vector2, damage: float) -> Vector2:
@@ -3225,7 +3347,9 @@ func _update_passives(delta: float) -> void:
 ## own call site are what stop them coming back.
 
 
-func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float, origin: Vector2, grants_pressure: bool, can_crit: bool = true) -> float:
+func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float,
+		origin: Vector2, grants_pressure: bool, can_crit: bool = true,
+		element_once: Variant = null) -> float:
 	if not is_instance_valid(enemy) or enemy.dead:
 		return 0.0
 	var scaled := amount
@@ -3238,7 +3362,8 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 	if crit:
 		scaled *= 2.0
 	var hit_at := enemy.global_position
-	var dealt := enemy.take_damage(scaled, origin, element, knock * float(mods.knock_multiplier))
+	var dealt := enemy.take_damage(scaled, origin, element,
+		knock * float(mods.knock_multiplier), element_once)
 	var killed := enemy.dead or enemy.hp <= 0.0
 	if impact != null and dealt >= 1.0:
 		impact.note_hit(dealt, killed)
@@ -3270,7 +3395,8 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 		## the reason SG-159 left it standing while it put crit back everywhere
 		## else. Do not remove it and do not let a caller pass `true` here: the
 		## harness pins it as `crit · an explosion may not explode`.
-		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0, false, false, false)
+		_damage_circle(enemy.global_position, 70.0, 20.0, element, 60.0,
+			false, false, false, element_once)
 	if grants_pressure:
 		register_damage(dealt, enemy.global_position)
 	return dealt
@@ -3325,10 +3451,13 @@ func heal_player(amount: float, source: String) -> float:
 ## `can_crit` is forwarded and never re-raised, so a circle opened by a no-crit
 ## caller stays no-crit for every enemy it touches. That is what turns the
 ## depth-1 rule above into a property of the call graph rather than a habit.
-func _damage_circle(center: Vector2, radius: float, damage: float, element: String, knock: float, grants_pressure: bool, hits_props: bool, can_crit: bool = true) -> void:
+func _damage_circle(center: Vector2, radius: float, damage: float, element: String,
+		knock: float, grants_pressure: bool, hits_props: bool,
+		can_crit: bool = true, element_once: Variant = null) -> void:
 	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead and enemy.global_position.distance_to(center) <= radius + enemy.radius:
-			damage_enemy(enemy, damage, element, knock, center, grants_pressure, can_crit)
+			damage_enemy(enemy, damage, element, knock, center, grants_pressure,
+				can_crit, element_once)
 	if hits_props:
 		_damage_props_circle(center, radius, damage)
 
@@ -3346,10 +3475,12 @@ func _damage_cone(origin: Vector2, direction: Vector2, radius: float, arc: float
 				if prop_delta.length() <= radius + prop.radius and absf(direction.angle_to(prop_delta.normalized())) <= arc * 0.5:
 					prop.damage(damage)
 
-func _damage_line(start: Vector2, end: Vector2, width: float, damage: float, element: String, knock: float, hits_props: bool) -> void:
+func _damage_line(start: Vector2, end: Vector2, width: float, damage: float,
+		element: String, knock: float, hits_props: bool,
+		element_once: Variant = null) -> void:
 	for enemy in enemies():
 		if is_instance_valid(enemy) and not enemy.dead and _distance_to_segment(enemy.global_position, start, end) <= width + enemy.radius:
-			damage_enemy(enemy, damage, element, knock, start, true)
+			damage_enemy(enemy, damage, element, knock, start, true, true, element_once)
 	if hits_props:
 		for prop in props():
 			if is_instance_valid(prop) and prop.is_targetable() and _distance_to_segment(prop.global_position, start, end) <= width + prop.radius:
@@ -4226,6 +4357,7 @@ func _update_fire_fields(delta: float) -> void:
 			fire_fields.remove_at(i)
 
 func _on_dash_started() -> void:
+	_cancel_active_channel()
 	dash_hit_ids.clear()
 	play_sfx("player/dash.ogg", -4.0)
 	if voice != null:

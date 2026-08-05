@@ -124,7 +124,9 @@ func _physics_process(delta: float) -> void:
 			velocity = dash_direction * move_speed * DASH_EXIT
 	else:
 		var input_direction := Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		var target_velocity := input_direction * move_speed
+		var combat_scale: float = game.combat_move_scale() \
+			if game.has_method("combat_move_scale") else 1.0
+		var target_velocity: Vector2 = input_direction * move_speed * combat_scale
 		var rate := ACCEL if input_direction.length_squared() > 0.0 else FRICTION
 		velocity = velocity.move_toward(target_velocity, rate * delta)
 		if Input.is_action_just_pressed("dash"):

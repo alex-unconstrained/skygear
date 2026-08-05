@@ -24,7 +24,9 @@ const SHAPES := {
 	"SENTRY": {"name": "Sentry", "kind": "sentry", "damage": 14.0, "cooldown": 9.0,
 		"range": 420.0, "deploy_range": 520.0, "life": 14.0, "fire_rate": 1.4,
 		"knock": 70.0, "auto_after": 2.5, "max_live": 2},
-	"RAY": {"name": "Beam", "kind": "ray", "damage": 7.0, "cooldown": 0.6, "range": 480.0, "width": 24.0, "knock": 40.0},
+	"RAY": {"name": "Beam", "kind": "ray", "damage": 7.0, "cooldown": 0.6,
+		"range": 480.0, "width": 24.0, "knock": 40.0,
+		"channel_time": 0.36, "channel_ticks": 4, "channel_move_scale": 0.60},
 }
 
 ## `attack_range` is the distance that TRIPS a windup; `reach`/`swing` are how far

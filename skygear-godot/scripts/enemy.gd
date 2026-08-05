@@ -929,7 +929,8 @@ func _went_over() -> bool:
 	return true
 
 
-func take_damage(amount: float, origin: Vector2, element: String, knock: float) -> float:
+func take_damage(amount: float, origin: Vector2, element: String, knock: float,
+		element_once: Variant = null) -> float:
 	## ONE GATE, and it is `can_be_hit()` above. It carries the Colossus's turn
 	## (the second beat is the encounter's point and a phase you can skip is not
 	## one) AND the arriving boarder's flight, so this function has no opinion of
@@ -951,7 +952,7 @@ func take_damage(amount: float, origin: Vector2, element: String, knock: float) 
 	if not knock_live and knock_velocity.length() > 1.0:
 		knock_live = true
 		knock_anchor = global_position
-	_apply_element(element)
+	_apply_element(element, element_once)
 	if hp <= 0.0:
 		dead = true
 		game.on_enemy_killed(self)
@@ -969,7 +970,15 @@ func kill() -> void:
 	queue_free()
 
 
-func _apply_element(element: String) -> void:
+func _apply_element(element: String, element_once: Variant = null) -> void:
+	if element_once is Dictionary:
+		if spawn_serial <= 0:
+			push_error("Beam element-once received an enemy without a spawn serial")
+			return
+		if element_once.has(spawn_serial):
+			return
+		## Claim before mutation so the synchronous crit-explosion edge sees it.
+		element_once[spawn_serial] = true
 	match element:
 		"EMBER":
 			burn_stacks = mini(3, burn_stacks + 1)

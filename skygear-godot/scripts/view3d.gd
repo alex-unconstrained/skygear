@@ -5029,6 +5029,27 @@ func _sync_aim() -> void:
 
 
 func _sync_effects() -> void:
+	## AB-01: a held Beam is simulation state, not an effect with a second
+	## presentation lifetime. The same endpoint query feeds damage and picture.
+	var held := game.active_channel_line()
+	if not held.is_empty():
+		var held_element := str(held.element)
+		var held_colour: Color = SkyGearData.ELEMENTS[held_element].color
+		var held_span: Vector2 = Vector2(held.to) - Vector2(held.from)
+		## Pulse from accepted simulation elapsed only: no presentation timer.
+		var held_pulse := 0.78 + 0.22 * cos(float(game.active_channel.elapsed)
+			/ maxf(0.001, float(game.active_channel.tick_interval)) * TAU)
+		_decal("fxbeam_channel",
+			(Vector2(held.from) + Vector2(held.to)) * 0.5, held_span.angle(),
+			maxf(8.0, held_span.length()), 54.0, _streak_texture(),
+			Color(held_colour.r * 1.45, held_colour.g * 1.45,
+				held_colour.b * 1.45, 0.45 * held_pulse))
+		_beam_ribbon(Vector2(held.from), Vector2(held.to), held_element,
+			held_colour, held_pulse,
+			float(game.active_channel.elapsed) /
+				maxf(0.001, float(game.active_channel.snapshot.channel_time)),
+			float(game.active_channel.elapsed)
+				* float(ELEMENT_RIBBON[held_element].hz))
 	for i in game.effects.size():
 		var fx: Dictionary = game.effects[i]
 		## By ID, never by index. See `_fx()` in game.gd — these arrays compact

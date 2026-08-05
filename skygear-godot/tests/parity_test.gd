@@ -279,6 +279,8 @@ func _run() -> void:
 	await process_frame
 	_report()
 	await process_frame
+	_beam()
+	await process_frame
 	_crit_explode()
 	await process_frame
 	_crit_sources()
@@ -422,6 +424,295 @@ func _run() -> void:
 		print("%d/%d checks passed  —  %s" % [checks - failures.size(), checks,
 			", ".join(failures)])
 	quit(failures.size())
+
+
+## AB-01. Kept as one focused packet surface so a Beam change cannot quietly
+## satisfy only the happy-path tick count and miss the lifecycle around it.
+func _beam() -> void:
+	var totals: Array[float] = []
+	for step in [1.0 / 60.0, 0.05, 0.40]:
+		var timed := _beam_game("EMBER")
+		var timed_target := _beam_target(timed, Vector2(0, -220), 1000.0)
+		var before := timed_target.hp
+		timed.cast_skill(0, Vector2(0, -480))
+		_drive_beam(timed, step)
+		totals.append(before - timed_target.hp)
+		timed.queue_free()
+	_check("beam", "four scheduled ticks total twenty-eight base damage",
+		totals.size() == 3 and is_equal_approx(totals[0], 28.0)
+			and is_equal_approx(totals[1], 28.0)
+			and is_equal_approx(totals[2], 28.0),
+		"1/60 %.1f, 0.05 %.1f, 0.40 catch-up %.1f" % totals)
+
+	var paid := _beam_game("EMBER", "boilerwright")
+	var paid_target := _beam_target(paid, Vector2(0, -220), 1000.0)
+	paid.pressure = 50.0
+	paid.player.set_pressure(50.0)
+	paid.cast_skill(0, Vector2(0, -480))
+	var paid_cooldown := float(paid.skills[0].cooldown_left)
+	_drive_beam(paid, 0.05)
+	_check("beam", "cooldown and Overpressure are paid once on press",
+		is_equal_approx(paid.pressure, 40.0) and paid_cooldown > 0.36
+			and int(paid.skills[0].casts) == 1 and paid_target.hp < 1000.0,
+		"pressure %.1f, cooldown %.2f, casts %d" % [paid.pressure,
+			paid_cooldown, paid.skills[0].casts])
+	paid.queue_free()
+
+	var free := _beam_game("EMBER")
+	free.skills[0].mods.cooldown = 0.001
+	free.mods.fifth_gear = true
+	free.skills[0].casts = 4
+	var floor_cooldown := float(free.skill_stats(free.skills[0]).cooldown)
+	free.cast_skill(0, Vector2(0, -480))
+	free.cast_skill(0, Vector2(0, -480))
+	_check("beam", "maximum ordinary cooldown reduction cannot produce a cooldown below channel time; a free cast still cannot re-enter its live channel",
+		is_equal_approx(floor_cooldown, 0.36)
+			and is_equal_approx(float(free.skills[0].cooldown_left), 0.0)
+			and int(free.skills[0].casts) == 5 and not free.active_channel.is_empty(),
+		"floor %.2f, free %.2f, casts %d" % [floor_cooldown,
+			free.skills[0].cooldown_left, free.skills[0].casts])
+	free.queue_free()
+
+	var fixed := _beam_game("EMBER")
+	var fixed_up := _beam_target(fixed, Vector2(0, -220), 1000.0)
+	var fixed_right := _beam_target(fixed, Vector2(220, 0), 1000.0)
+	fixed.cast_skill(0, Vector2(0, -480))
+	fixed.player.aim_direction = Vector2.RIGHT
+	fixed._update_active_channel(0.12)
+	var fixed_ok := is_equal_approx(fixed_up.hp, 986.0) \
+		and is_equal_approx(fixed_right.hp, 1000.0)
+	fixed.queue_free()
+	var live := _beam_game("EMBER")
+	var live_up := _beam_target(live, Vector2(0, -220), 1000.0)
+	var live_right := _beam_target(live, Vector2(220, 0), 1000.0)
+	live.player.aim_direction = Vector2.UP
+	live.cast_skill(0)
+	live.player.aim_direction = Vector2.RIGHT
+	live._update_active_channel(0.12)
+	var live_ok := is_equal_approx(live_up.hp, 993.0) \
+		and is_equal_approx(live_right.hp, 993.0)
+	_check("beam", "an explicit target is stable and live aim can turn between ticks",
+		fixed_ok and live_ok, "fixed %s, live %s" % [fixed_ok, live_ok])
+	live.queue_free()
+
+	var moving := _beam_game("EMBER")
+	moving.cast_skill(0, Vector2(0, -480))
+	var walk_scale := moving.combat_move_scale()
+	var player_source := FileAccess.get_file_as_string("res://scripts/player.gd")
+	moving.player.dash_charges = 1
+	moving.player._try_dash(Vector2.RIGHT)
+	var dash_cancelled := moving.active_channel.is_empty()
+	moving.skills[0].cooldown_left = 0.0
+	moving.cast_skill(0, Vector2(0, -480))
+	moving.player.jet(Vector2.RIGHT, 220.0, 0.16)
+	_check("beam", "walking is sixty percent while dash and jet cancel",
+		is_equal_approx(walk_scale, 0.60) and dash_cancelled
+			and moving.active_channel.is_empty()
+			and player_source.contains("target_velocity: Vector2 = input_direction * move_speed * combat_scale"),
+		"scale %.2f, dash %s, jet %s" % [walk_scale, dash_cancelled,
+			moving.active_channel.is_empty()])
+	moving.queue_free()
+
+	var blocked := _beam_game("EMBER")
+	blocked.skills.append(SkyGearData.make_skill("LINE_BURST", "FROST"))
+	var close_target := _beam_target(blocked, Vector2(0, -100), 1000.0)
+	blocked.cast_skill(0, Vector2(0, -480))
+	blocked.cast_skill(1, Vector2(0, -480))
+	blocked._process_basic_attack(0.01)
+	var blocked_ok := int(blocked.skills[1].casts) == 0 \
+		and is_equal_approx(blocked.basic_cooldown, 0.0)
+	_drive_beam(blocked, 0.40)
+	blocked.cast_skill(1, Vector2(0, -480))
+	blocked._process_basic_attack(0.01)
+	_check("beam", "another cast and the basic wait for completion",
+		blocked_ok and int(blocked.skills[1].casts) == 1
+			and blocked.basic_cooldown > 0.0 and close_target.hp < 1000.0,
+		"blocked %s, later cast %d, basic %.2f" % [blocked_ok,
+			blocked.skills[1].casts, blocked.basic_cooldown])
+	blocked.queue_free()
+
+	var lifecycle := _beam_game("EMBER")
+	lifecycle.cast_skill(0, Vector2(0, -480))
+	lifecycle.player.hp = lifecycle.player.max_hp
+	lifecycle.player.invulnerability_left = 0.0
+	lifecycle.damage_player(1.0, "fixture")
+	var hurt_ok := not lifecycle.active_channel.is_empty()
+	lifecycle._set_state(SkyGearGame.State.PAUSE)
+	lifecycle._process(0.40)
+	var pause_ok := int(lifecycle.active_channel.next_tick) == 1
+	lifecycle._set_state(SkyGearGame.State.PLAY)
+	lifecycle.impact.enabled = true
+	lifecycle.impact.hit_stop(0.10)
+	lifecycle._process(0.05)
+	var stop_ok := int(lifecycle.active_channel.next_tick) == 1
+	lifecycle.begin_run()
+	var reset_ok := lifecycle.active_channel.is_empty()
+	lifecycle.queue_free()
+	var dying := _beam_game("EMBER")
+	dying.cast_skill(0, Vector2(0, -480))
+	dying.player.hp = 1.0
+	dying.player.invulnerability_left = 0.0
+	dying.damage_player(2.0, "fixture")
+	var death_ok := dying.active_channel.is_empty()
+	dying.queue_free()
+	var clearing := _beam_game("EMBER")
+	clearing.cast_skill(0, Vector2(0, -480))
+	clearing.spawn_queue.clear()
+	clearing.wave = 1
+	clearing._update_wave(0.0)
+	var wave_ok := clearing.active_channel.is_empty()
+	_check("beam", "pause, hit-stop, reset and death own no orphan tick",
+		hurt_ok and pause_ok and stop_ok and reset_ok and death_ok and wave_ok,
+		"hurt %s, pause %s, stop %s, reset %s, death %s, wave %s"
+			% [hurt_ok, pause_ok, stop_ok, reset_ok, death_ok, wave_ok])
+	clearing.queue_free()
+
+	var attribution := _beam_game("EMBER")
+	var attribution_target := _beam_target(attribution, Vector2(0, -220), 1000.0)
+	attribution.cast_skill(0, Vector2(0, -480))
+	_drive_beam(attribution, 0.40)
+	var row: Dictionary = attribution.tel.per[0]
+	_check("beam", "one cast and four hits share one slot attribution",
+		int(row.casts) == 1 and int(row.hits) == 4
+			and is_equal_approx(float(row.damage), 28.0)
+			and is_equal_approx(attribution_target.hp, 972.0),
+		"casts %d, hits %d, damage %.1f" % [row.casts, row.hits, row.damage])
+	attribution.queue_free()
+
+	var elements := _beam_game("EMBER")
+	var first := _beam_target(elements, Vector2(0, -220), 1000.0)
+	var swept := _beam_target(elements, Vector2(220, -220), 1000.0)
+	elements.cast_skill(0, Vector2(0, -480))
+	swept.global_position = Vector2(0, -320)
+	_drive_beam(elements, 0.05)
+	var first_serial := first.spawn_serial
+	var swept_serial := swept.spawn_serial
+	elements.skills[0].cooldown_left = 0.0
+	elements.cast_skill(0, Vector2(0, -480))
+	_drive_beam(elements, 0.40)
+	var immune := _beam_game("EMBER")
+	var arriving := _beam_target(immune, Vector2(0, -220), 1000.0)
+	arriving.state = "climb"
+	immune.cast_skill(0, Vector2(0, -480))
+	var immune_unclaimed: bool = arriving.burn_stacks == 0 \
+		and not immune.active_channel.element_applied_serials.has(arriving.spawn_serial)
+	_landed(arriving)
+	immune._update_active_channel(0.12)
+	var admitted_once: bool = arriving.burn_stacks == 1 \
+		and immune.active_channel.element_applied_serials.has(arriving.spawn_serial)
+	_check("beam", "one body receives one element application per channel while damage and crit remain per tick; a swept-in body receives one and the next cast resets",
+		first_serial > 0 and swept_serial > 0 and first_serial != swept_serial
+			and first.burn_stacks == 2 and swept.burn_stacks == 2
+			and int(elements.tel.per[0].hits) == 15
+			and immune_unclaimed and admitted_once,
+		"serials %d/%d, stacks %d/%d, hits %d, immune %s -> %s"
+			% [first_serial, swept_serial, first.burn_stacks, swept.burn_stacks,
+				elements.tel.per[0].hits, immune_unclaimed, admitted_once])
+	elements.queue_free()
+	immune.queue_free()
+
+	var explosion := _beam_game("EMBER")
+	var explosion_main := _beam_target(explosion, Vector2(0, -120), 1000.0)
+	var explosion_near := _beam_target(explosion, Vector2(60, -120), 1000.0)
+	explosion.mods.crit_chance = 1.0
+	explosion.mods.crit_explode = 1.0
+	explosion.cast_skill(0, Vector2(0, -480))
+	var crit_context_ok := explosion_main.burn_stacks == 1 \
+		and explosion_near.burn_stacks == 1
+	explosion.queue_free()
+	var kill_tree := _beam_game("EMBER")
+	var doomed := _beam_target(kill_tree, Vector2(0, -120), 1.0)
+	var kill_near := _beam_target(kill_tree, Vector2(60, -120), 1000.0)
+	kill_tree.mods.kill_explode = 10.0
+	kill_tree.cast_skill(0, Vector2(0, -480))
+	var kill_null_ok := doomed.dead and kill_near.burn_stacks == 1
+	_check("beam", "its crit explosion shares the element-once context while a kill explosion caused inside the same call tree receives null and applies normally",
+		crit_context_ok and kill_null_ok,
+		"crit context %s, kill null %s" % [crit_context_ok, kill_null_ok])
+	kill_tree.queue_free()
+
+	var midpoint := _beam_game("EMBER")
+	midpoint.player.global_position = Vector2(20, 40)
+	midpoint.cast_skill(0, Vector2(20, -440))
+	var endpoint: Dictionary = midpoint.active_channel_line()
+	var expected_mid := Vector2(endpoint.from).lerp(Vector2(endpoint.to), 0.5)
+	_check("beam", "last_land is the current ray midpoint, not the line endpoint",
+		Vector2(midpoint.active_channel.last_land).is_equal_approx(expected_mid)
+			and not Vector2(midpoint.active_channel.last_land).is_equal_approx(Vector2(endpoint.to)),
+		"land %s, midpoint %s, end %s" % [midpoint.active_channel.last_land,
+			expected_mid, endpoint.to])
+	midpoint.queue_free()
+
+	var completion := _beam_game("EMBER")
+	completion.mods.residue = 1.0
+	completion.hulk = {"position": Vector2(0, -240), "radius": 100.0,
+		"hp": 1000.0, "max_hp": 1000.0, "dead": false, "vulnerable": true,
+		"grapple": 0.0}
+	completion.cast_skill(0, Vector2(0, -480))
+	var hulk_before := float(completion.hulk.hp)
+	completion._update_active_channel(0.24)
+	var during_ok := is_equal_approx(float(completion.hulk.hp), hulk_before) \
+		and completion.fire_fields.is_empty()
+	completion._update_active_channel(0.12)
+	_check("beam", "hulk and Residue resolve once, never once per visual frame",
+		during_ok and is_equal_approx(float(completion.hulk.hp), hulk_before - 7.0)
+			and completion.fire_fields.size() == 1,
+		"during %s, hulk %.1f -> %.1f, fields %d" % [during_ok, hulk_before,
+			completion.hulk.hp, completion.fire_fields.size()])
+	completion.queue_free()
+
+	var view_source := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var probe_source := FileAccess.get_file_as_string("res://tools/beam_probe.gd")
+	_check("beam", "the forced clip shows a readable start, held line and release with zero probe noise",
+		view_source.contains("var held := game.active_channel_line()")
+			and view_source.contains("float(game.active_channel.elapsed)")
+			and not probe_source.is_empty()
+			and probe_source.contains("BEAM_PROBE"),
+		"simulation endpoint reader %s, forced probe %s" % [
+			view_source.contains("var held := game.active_channel_line()"),
+			not probe_source.is_empty()])
+
+
+func _beam_game(element: String, class_id: String = "captain") -> SkyGearGame:
+	var game := _new_game()
+	game.set_class(class_id)
+	_begin(game, "AB01")
+	for enemy in game.enemies():
+		enemy.dead = true
+		enemy.queue_free()
+	game.spawn_queue.clear()
+	game.hulk = {}
+	game.skills = [SkyGearData.make_skill("RAY", element)]
+	game.tel = SkyGearTelemetry.fresh()
+	game.player.global_position = Vector2.ZERO
+	game.player.aim_direction = Vector2.UP
+	game.mods.crit_chance = 0.0
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	game.active_channel = {}
+	game._set_state(SkyGearGame.State.PLAY)
+	return game
+
+
+func _beam_target(game: SkyGearGame, at: Vector2, hp: float) -> SkyGearEnemy:
+	game.spawn_enemy("SCRAPPER", 1)
+	var newest: SkyGearEnemy = null
+	for enemy in game.enemies():
+		if newest == null or enemy.spawn_serial > newest.spawn_serial:
+			newest = enemy
+	_landed(newest)
+	newest.global_position = at
+	newest.hp = hp
+	newest.max_hp = hp
+	return newest
+
+
+func _drive_beam(game: SkyGearGame, step: float) -> void:
+	var guard := 0
+	while not game.active_channel.is_empty() and guard < 100:
+		game._update_active_channel(step)
+		guard += 1
 
 
 ## SG-108: EVERY TOOL THAT PHOTOGRAPHS THIS DECK MUST FREEZE IT THROUGH THE ONE
@@ -1029,6 +1320,8 @@ func _matrix() -> void:
 				game.sentries.clear()
 			else:
 				game.cast_skill(0, enemy.global_position)
+				if str(SkyGearData.SHAPES[shape].kind) == "ray":
+					game._update_active_channel(0.40)
 			if enemy.hp >= before:
 				dead_cells.append(shape + "/" + element)
 			enemy.dead = true
@@ -6795,6 +7088,8 @@ func _view() -> void:
 	for slot in elemental.skills.size():
 		elemental.skills[slot].cooldown_left = 0.0
 		elemental.cast_skill(slot, elemental.player.global_position + Vector2(0, -260))
+		if str(SkyGearData.SHAPES[elemental.skills[slot].shape].kind) == "ray":
+			elemental._update_active_channel(0.40)
 	## Only the kinds that DRAW a trail. A `burst` is a body coming apart and a
 	## `banner` is a word across the middle of the deck; neither has an element and
 	## neither asks the ribbon table for a shape, so demanding one of them would be
