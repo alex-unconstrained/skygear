@@ -9,7 +9,15 @@ This file is only your decisions.
 
 ## Waiting on you
 
-**1 · The deck edge — pick one, it is built and switched off.**
+**1 · Pick EV-01's measurement contract before I build Muster.** The design
+requires a pre-declared *behavioral* distribution and an "accepted difficulty
+band," but names neither. I recommend: **wave-6 lateral travel, forced PINCER
+vs ASSAULT, must move at least 10% and clear the instrument's 95% resolution;
+live Muster vs flat may move held-rate by no more than 9 points.** Say "use the
+recommended Muster gate," or name the behavior/band you want. This blocks the
+first gameplay packet; full reasoning is under SG-197 in today's night log.
+
+**2 · The deck edge — pick one, it is built and switched off.**
 `skygear-godot/.shots/owner-review/5-deck-edge-rail/`. Your rail reused in place
 of the flat mustard boxes you photographed. Two halves, independently switchable:
 
@@ -24,12 +32,12 @@ of the flat mustard boxes you photographed. Two halves, independently switchable
 Both default OFF. Say which and it is one word. Option A's retint already
 shipped, so what you have in 62 is the toned-down flat version.
 
-**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+**3 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
 cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
 bothers you when you look at it.
 
-**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+**4 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
