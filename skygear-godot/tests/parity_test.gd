@@ -71,6 +71,7 @@ func _initialize() -> void:
 
 const BOT_SCRIPT := preload("res://tools/bot.gd")
 const BALANCE_SCRIPT := preload("res://tools/balance.gd")
+const MUSTER_SCRIPT := preload("res://scripts/muster.gd")
 
 
 func _check(group: String, name: String, condition: bool, detail: String = "") -> void:
@@ -262,6 +263,8 @@ func _run() -> void:
 	_stow()
 	await process_frame
 	_tempo()
+	await process_frame
+	_muster()
 	await process_frame
 	_fittings()
 	await process_frame
@@ -1269,6 +1272,7 @@ func _tempo() -> void:
 	## pins STEADY, and the queue must equal the old `time + i * 0.22` line
 	## exactly — reconstructed here with the original arithmetic.
 	OS.set_environment("SKYGEAR_TEMPO_FLAT", "1")
+	OS.set_environment("SKYGEAR_MUSTER_FLAT", "1")
 	game.set_seed_text("TEMPOFLAT")
 	var identical := true
 	var flat_note := ""
@@ -1285,6 +1289,7 @@ func _tempo() -> void:
 			identical = false
 			flat_note += " w%d" % w
 	OS.set_environment("SKYGEAR_TEMPO_FLAT", "")
+	OS.set_environment("SKYGEAR_MUSTER_FLAT", "")
 	_check("tempo", "STEADY deals today's queue byte-identically",
 		identical, flat_note if not identical else "12 waves under the flat lever")
 
@@ -1367,6 +1372,238 @@ func _tempo() -> void:
 		found_crescendo and monotone, cres_note)
 
 	game.queue_free()
+
+
+## --- MUSTER (EV-01, gameplay-expansion design §16.2) --------------------------
+## Plans are tested at their production reader. Queue checks do not call the
+## helper directly, so deleting the one integration call removes variation and
+## turns the explicit kill-test red.
+func _muster() -> void:
+	var game := _new_game()
+	game.heat = 0
+
+	## 1. FLAT is the full before arm: same Tempo deal, old authored expansion,
+	## same final dictionary shape and byte order for all twelve waves.
+	OS.set_environment("SKYGEAR_MUSTER_FLAT", "1")
+	game.set_seed_text("MUSTER-FLAT")
+	var flat_same := true
+	var flat_note := ""
+	for wave_number in range(1, 13):
+		var actual: Array[Dictionary] = game._build_spawn_queue(wave_number)
+		var expected := _authored_muster_queue(game, wave_number)
+		if var_to_str(actual) != var_to_str(expected):
+			flat_same = false
+			flat_note += " w%d" % wave_number
+	OS.set_environment("SKYGEAR_MUSTER_FLAT", "")
+	_check("muster", "feature-off deals every authored queue byte-for-byte",
+		flat_same, flat_note if not flat_same else "12 queues")
+
+	## 2. Cached run plans equal a second run and the tool-time on-demand path.
+	game.heat = 2
+	game.set_seed_text("MUSTER-SAME")
+	var on_demand: Array[Dictionary] = []
+	for wave_number in range(1, 13):
+		on_demand.append(game.muster_plan_for(wave_number))
+	game.begin_run()
+	var cached: Array[Dictionary] = game.wave_plans.duplicate(true)
+	var twin := _new_game()
+	twin.heat = 2
+	twin.set_seed_text("MUSTER-SAME")
+	twin.begin_run()
+	var same := (var_to_str(cached) == var_to_str(twin.wave_plans)
+		and var_to_str(cached) == var_to_str(on_demand))
+	var handed := game.muster_plan_for(3)
+	(handed.queue as Array).clear()
+	same = same and not (game.wave_plans[2].queue as Array).is_empty()
+	_check("muster", "the same seed and Heat deal the same twelve plans", same,
+		"cached, twin, on-demand, and deep-copy reader")
+	twin.queue_free()
+
+	## 3. Both live streams stay exactly where the caller left them.
+	game.set_seed_text("MUSTER-RNG")
+	game.heat = 0
+	var rng_before := game.rng.state
+	var visual_before := game.visual_rng.state
+	game._cache_wave_plans()
+	_check("muster", "planning consumes neither gameplay nor visual RNG",
+		game.rng.state == rng_before and game.visual_rng.state == visual_before,
+		"%d/%d and %d/%d" % [
+			rng_before, game.rng.state, visual_before, game.visual_rng.state])
+
+	## 4–5. Every hard pin is asserted through the live plan reader.
+	game.set_seed_text("MUSTER-PINS")
+	game.heat = 0
+	var authored_pins := true
+	var pin_note := ""
+	for wave_number in [4, 8, 12]:
+		var plan: Dictionary = game.muster_plan_for(wave_number)
+		var expected := MUSTER_SCRIPT.normalize(SkyGearData.WAVES[wave_number - 1].batches)
+		if str(plan.grammar) != "AUTHORED" or var_to_str(plan.batches) != var_to_str(expected):
+			authored_pins = false
+			pin_note += " w%d=%s" % [wave_number, str(plan.grammar)]
+	_check("muster", "events, pushes and the boss stay authored", authored_pins,
+		pin_note if not authored_pins else "4/8/12")
+
+	game.set_seed_text("MUSTER-ALOFT")
+	game.heat = 4
+	var heat_pins := true
+	for wave_number in [6, 10]:
+		var plan: Dictionary = game.muster_plan_for(wave_number)
+		var expected := MUSTER_SCRIPT.normalize(SkyGearData.WAVES[wave_number - 1].batches)
+		heat_pins = (heat_pins and str(plan.grammar) == "AUTHORED"
+			and var_to_str(plan.batches) == var_to_str(expected))
+	_check("muster", "Heat 4 closes waves 6 and 10 to mutation", heat_pins)
+
+	## 6–7. Audit the complete public plan and queue surface across 24 fixed
+	## seeds: valid roster/lane/schema, and the expanded-lane budget gate.
+	var emitted_valid := true
+	var budget_valid := true
+	var audit_note := ""
+	for seed_index in 24:
+		game.heat = 0
+		game.set_seed_text("MUSTER-AUDIT-%02d" % seed_index)
+		for wave_number in range(1, 13):
+			var plan: Dictionary = game.muster_plan_for(wave_number)
+			var before := float(plan.budget_before)
+			var after := float(plan.budget_after)
+			if absf(after - before) > before * 0.10 + 0.0001:
+				budget_valid = false
+				audit_note = "seed %d wave %d %.2f -> %.2f" % [
+					seed_index, wave_number, before, after]
+			for unit in plan.queue:
+				var keys: Array = unit.keys()
+				keys.sort()
+				if (str(unit.type) not in [
+						"SWARM", "SCRAPPER", "GUNNER", "ARMORED", "BOSS"]
+						or int(unit.lane) not in [0, 1, 2]
+						or var_to_str(keys) != var_to_str(["lane", "time", "type"])):
+					emitted_valid = false
+					audit_note = "seed %d wave %d: %s" % [
+						seed_index, wave_number, var_to_str(unit)]
+	_check("muster", "every emitted type and lane exists", emitted_valid,
+		audit_note if not emitted_valid else "288 plans; queue schema stripped")
+	_check("muster", "every changed wave stays inside the ten-percent budget",
+		budget_valid, audit_note if not budget_valid else "288 plans")
+
+	## 8. Force every named arm, require every one to be satisfiable somewhere,
+	## and ask the pure postcondition reader about the exact emitted batches.
+	var grammar_valid := true
+	var seen := {}
+	var grammar_note := ""
+	for grammar in MUSTER_SCRIPT.GRAMMARS:
+		OS.set_environment("SKYGEAR_MUSTER_FORCE", grammar)
+		game.heat = 0
+		game.set_seed_text("MUSTER-FORCE-" + grammar)
+		for wave_number in [3, 5, 6, 7, 9, 10, 11]:
+			var plan: Dictionary = game.muster_plan_for(wave_number)
+			if str(plan.grammar) != grammar:
+				continue
+			seen[grammar] = true
+			if not MUSTER_SCRIPT.satisfies(grammar, plan.batches, wave_number):
+				grammar_valid = false
+				grammar_note += " %s-w%d" % [grammar, wave_number]
+			break
+	OS.set_environment("SKYGEAR_MUSTER_FORCE", "")
+	grammar_valid = grammar_valid and seen.size() == MUSTER_SCRIPT.GRAMMARS.size()
+	_check("muster", "every named grammar satisfies its own postcondition",
+		grammar_valid, grammar_note if not grammar_valid else ", ".join(seen.keys()))
+
+	## SG-201. Wave 6 already satisfies PINCER before the planner moves anything.
+	## Ten of SG-198's twelve legal changed candidates were therefore type-only,
+	## diluting the forced lane arm. The repair may prefer a lane mutation but it
+	## may not buy that signal with a roster, time or threat change.
+	var authored_six: Array[Dictionary] = MUSTER_SCRIPT.normalize(
+		SkyGearData.WAVES[5].batches)
+	var authored_lane_signature: String = MUSTER_SCRIPT._source_lane_signature(
+		authored_six)
+	var _roster_time_signature := func(batches: Array) -> String:
+		var totals := {}
+		for batch in batches:
+			var key := "%d|%.6f|%s" % [
+				int(batch.get("source", 0)), float(batch.get("time", 0.0)),
+				str(batch.get("type", ""))]
+			totals[key] = int(totals.get(key, 0)) + int(batch.get("count", 0))
+		var rows: Array[String] = []
+		for key in totals:
+			rows.append("%s|%d" % [key, int(totals[key])])
+		rows.sort()
+		return "|".join(rows)
+	var authored_roster_time: String = _roster_time_signature.call(authored_six)
+	var pincer_prefers_lane := true
+	var pincer_repair_note := ""
+	for seed_index in 24:
+		var repaired: Dictionary = MUSTER_SCRIPT.plan(
+			"MUSTER-REPAIR-%02d" % seed_index, 6, 0, authored_six,
+			false, false, false, false, "PINCER")
+		if (str(repaired.grammar) != "PINCER"
+				or MUSTER_SCRIPT._source_lane_signature(repaired.batches)
+					== authored_lane_signature
+				or _roster_time_signature.call(repaired.batches)
+					!= authored_roster_time
+				or not is_equal_approx(float(repaired.budget_before), 24.75)
+				or not is_equal_approx(float(repaired.budget_after), 24.75)):
+			pincer_prefers_lane = false
+			pincer_repair_note += " seed %d: %s %.2f->%.2f" % [
+				seed_index, str(repaired.grammar), float(repaired.budget_before),
+				float(repaired.budget_after)]
+	_check("muster repair", "PINCER prefers a lane reassignment when one is legal",
+		pincer_prefers_lane, pincer_repair_note if not pincer_prefers_lane
+			else "24/24 moved lanes at threat 24.75 with roster and timing unchanged")
+
+	## 9–10. Variation is the plan, not Tempo: grammar plus diagnostic batches.
+	## FLAT collapses that signature to one, proving the test is capable of
+	## failing when the production planner call is deleted.
+	var live_signatures := {}
+	var flat_signatures := {}
+	for seed_index in 24:
+		game.heat = 0
+		game.set_seed_text("MUSTER-VARY-%02d" % seed_index)
+		var live: Dictionary = game.muster_plan_for(6)
+		live_signatures["%s|%s" % [str(live.grammar), var_to_str(live.batches)]] = true
+		OS.set_environment("SKYGEAR_MUSTER_FLAT", "1")
+		game.set_seed_text("MUSTER-VARY-%02d" % seed_index)
+		var flat: Dictionary = game.muster_plan_for(6)
+		flat_signatures["%s|%s" % [str(flat.grammar), var_to_str(flat.batches)]] = true
+		OS.set_environment("SKYGEAR_MUSTER_FLAT", "")
+	_check("muster", "at least two plans differ across twenty-four fixed seeds",
+		live_signatures.size() >= 2, "%d distinct wave-6 plans" % live_signatures.size())
+	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	_check("muster", "deleting the planner call makes the variation check fail",
+		(live_signatures.size() >= 2 and flat_signatures.size() == 1
+			and game_source.contains("Muster.plan(")),
+		"live %d, planner-deleted control %d, call %s" % [
+			live_signatures.size(), flat_signatures.size(),
+			str(game_source.contains("Muster.plan("))])
+	game.queue_free()
+
+
+func _authored_muster_queue(game: SkyGearGame, wave_number: int) -> Array[Dictionary]:
+	var definition: Dictionary = SkyGearData.WAVES[wave_number - 1]
+	var tempo: Dictionary = game.tempo_for(wave_number)
+	var wave_last := 0.0
+	for batch in definition.batches:
+		wave_last = maxf(wave_last, float(batch[0]))
+	var temporary: Array[Dictionary] = []
+	for source in definition.batches.size():
+		var batch: Array = definition.batches[source]
+		var lanes: Array = (
+			[0, 1, 2] if batch[3] is String and batch[3] == "all"
+			else [int(batch[3])])
+		for lane_value in lanes:
+			for member in int(batch[2]):
+				temporary.append({
+					"time": float(batch[0]) + SkyGearGame.tempo_offset(tempo,
+						float(batch[0]), int(batch[2]), member, wave_last),
+					"type": str(batch[1]), "source": source,
+					"lane": int(lane_value), "member": member,
+				})
+	temporary.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
+		return float(a.time) < float(b.time))
+	var queue: Array[Dictionary] = []
+	for unit in temporary:
+		queue.append({"time": float(unit.time), "type": str(unit.type),
+			"lane": int(unit.lane)})
+	return queue
 
 
 ## --- THE FITTINGS (board SG-56) ------------------------------------------------
