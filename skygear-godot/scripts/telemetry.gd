@@ -64,6 +64,9 @@ static func fresh(slots: int = 4) -> Dictionary:
 		# not answerable from a run total, and answering it wrongly is how a
 		# tuning change gets credited to the wrong mechanic.
 		"taken_by_source": {},
+		## Diagnostic labels around damage that is already in one ordinary
+		## source bucket. A reaction row never contributes to the aggregate.
+		"reactions": {},
 	}
 
 
@@ -115,6 +118,19 @@ static func note_damage(tel: Dictionary, slot: int, amount: float, killed: bool)
 		bucket.hits += 1
 	if killed:
 		bucket.kills += 1
+
+
+## Describe one damaging status/reaction application without counting its
+## damage a second time. The ordinary damage funnel owns totals and attribution.
+static func note_reaction(tel: Dictionary, id: String, amount: float) -> void:
+	if id == "" or amount <= 0.0:
+		return
+	if not tel.has("reactions"):
+		tel["reactions"] = {}
+	var row: Dictionary = tel.reactions.get(id, {"triggers": 0, "damage": 0.0})
+	row.triggers = int(row.triggers) + 1
+	row.damage = float(row.damage) + amount
+	tel.reactions[id] = row
 
 
 static func note_range(tel: Dictionary, delta: float, distance: float, close_range: float) -> void:

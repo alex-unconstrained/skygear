@@ -91,7 +91,9 @@ var slow_amount := 0.0
 var stun_time := 0.0
 var burn_time := 0.0
 var burn_stacks := 0
-var burn_tick := 0.25
+const BURN_TICK := 0.25
+var burn_tick := BURN_TICK
+var burn_source_slot := -1
 var spawn_serial := 0
 ## The Colossus fights in two beats and the turn between them is a real moment:
 ## it cannot be burst through, it clears what it called, and the second beat
@@ -930,7 +932,7 @@ func _went_over() -> bool:
 
 
 func take_damage(amount: float, origin: Vector2, element: String, knock: float,
-		element_once: Variant = null) -> float:
+		element_once: Variant = null, source_slot: int = -1) -> float:
 	## ONE GATE, and it is `can_be_hit()` above. It carries the Colossus's turn
 	## (the second beat is the encounter's point and a phase you can skip is not
 	## one) AND the arriving boarder's flight, so this function has no opinion of
@@ -952,7 +954,7 @@ func take_damage(amount: float, origin: Vector2, element: String, knock: float,
 	if not knock_live and knock_velocity.length() > 1.0:
 		knock_live = true
 		knock_anchor = global_position
-	_apply_element(element, element_once)
+	_apply_element(element, element_once, source_slot)
 	if hp <= 0.0:
 		dead = true
 		game.on_enemy_killed(self)
@@ -970,7 +972,8 @@ func kill() -> void:
 	queue_free()
 
 
-func _apply_element(element: String, element_once: Variant = null) -> void:
+func _apply_element(element: String, element_once: Variant = null,
+		source_slot: int = -1) -> void:
 	if element_once is Dictionary:
 		if spawn_serial <= 0:
 			push_error("Beam element-once received an enemy without a spawn serial")
@@ -981,13 +984,17 @@ func _apply_element(element: String, element_once: Variant = null) -> void:
 		element_once[spawn_serial] = true
 	match element:
 		"EMBER":
+			if burn_stacks <= 0:
+				burn_tick = BURN_TICK
 			burn_stacks = mini(3, burn_stacks + 1)
-			burn_time = 3.0
+			burn_time = 3.0 + float(game.mods.burn_duration)
+			burn_source_slot = source_slot
 		"FROST":
 			slow_time = 2.0
-			slow_amount = 0.40
+			slow_amount = float(game.mods.slow_amount)
 		"ARC":
-			if game.rng.randf() < 0.20:
+			var chance := float(game.mods.stun_chance)
+			if chance > 0.0 and game.rng.randf() < chance:
 				stun_time = maxf(stun_time, 0.45)
 		"STEAM":
 			## A STOMP ONCE BEGUN CANNOT BE CANCELLED BY STEAM — the named rule
@@ -1011,32 +1018,26 @@ func _update_statuses(delta: float) -> void:
 	slow_time = maxf(0.0, slow_time - delta)
 	stun_time = maxf(0.0, stun_time - delta)
 	if burn_time > 0.0:
-		burn_time -= delta
-		burn_tick -= delta
-		## THE ONE PATH THAT NEVER WENT THROUGH `take_damage`, and so the one
-		## path that has to ask the same question separately. It decrements `hp`
-		## in place — no crit, no funnel, no telemetry — which is why a rule
-		## written only inside `take_damage` would have a hole in it the size of
-		## every burning boarder.
-		if burn_tick <= 0.0:
-			## The SCHEDULE advances whatever happens, and only the DAMAGE is
-			## gated. Gating the whole branch would let the suppressed ticks pile
-			## up behind a negative `burn_tick` and all land on the frame the
-			## boarder became hittable again — an immunity window that pays
-			## itself back with interest is not an immunity window. Same reason
-			## SG-122 carries the overshoot rather than assigning it.
-			burn_tick += 0.25
+		## Only the live portion of a coarse step belongs to this burn. The
+		## carried quarter-second schedule then delivers every tick crossed.
+		var active_delta := minf(delta, burn_time)
+		burn_time = maxf(0.0, burn_time - delta)
+		burn_tick -= active_delta
+		while burn_tick <= 0.000001:
+			## The schedule advances whatever happens, and only damage is gated.
+			## Suppressed arrival/turn ticks are spent here, not stored.
+			burn_tick += BURN_TICK
 			if can_be_hit():
-				var amount := 5.0 * burn_stacks * 0.25
-				var dealt := minf(hp, amount)
-				hp -= amount
-				game.register_damage(dealt, global_position)
-				if hp <= 0.0 and not dead:
-					dead = true
-					game.on_enemy_killed(self)
-					queue_free()
+				var amount := 5.0 * burn_stacks * BURN_TICK \
+					* float(game.mods.burn_damage)
+				game.damage_status(self, amount, burn_source_slot, "BURN")
+				if dead:
+					break
 	if burn_time <= 0.0:
+		burn_time = 0.0
 		burn_stacks = 0
+		burn_source_slot = -1
+		burn_tick = BURN_TICK
 
 func _draw() -> void:
 	_draw_flat_ellipse(Vector2(0, 7), radius * 1.25, radius * 0.48, Color(0.01, 0.01, 0.02, 0.50))

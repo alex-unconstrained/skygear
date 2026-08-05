@@ -2074,6 +2074,22 @@ func run_report() -> String:
 			lines.append(_report_row("crew and cannons", float(tel.allies.damage), total, 0, 0))
 		if float(tel.deck.damage) > 0.0:
 			lines.append(_report_row("the deck", float(tel.deck.damage), total, 0, 0))
+	var reaction_rows: Array[String] = []
+	var reaction_ids: Array[String] = []
+	for reaction_id in tel.get("reactions", {}).keys():
+		reaction_ids.append(str(reaction_id))
+	reaction_ids.sort()
+	for reaction_id in reaction_ids:
+		var reaction: Dictionary = tel.reactions[reaction_id]
+		if int(reaction.get("triggers", 0)) <= 0:
+			continue
+		reaction_rows.append("  %-20s %7d  %d triggers" % [
+			reaction_id, roundi(float(reaction.get("damage", 0.0))),
+			int(reaction.get("triggers", 0))])
+	if not reaction_rows.is_empty():
+		lines.append("")
+		lines.append("reactions — damage · triggers")
+		lines.append_array(reaction_rows)
 	var rt: Dictionary = tel.range_time
 	var span: float = float(rt.close) + float(rt.mid) + float(rt.far) + float(rt.none)
 	if span > 1.0:
@@ -3341,19 +3357,21 @@ func _update_passives(delta: float) -> void:
 ## the difference between a terminating program and a lucky one, and it is the
 ## property to preserve if anyone edits this path.
 ##
-## SO THE ONLY `false` IN THIS FILE IS THE ONE RECURSIVE EDGE. Six other call
-## sites carried one between SG-148 and SG-159 and none of them do now; the
-## twelve `crit ·` checks in `tests/parity_test.gd` that name each source by its
-## own call site are what stop them coming back.
+## SO THE ONLY ORDINARY-DAMAGE `false` IS THE ONE RECURSIVE EDGE. Six other
+## call sites carried one between SG-148 and SG-159 and none of them do now;
+## the twelve `crit ·` checks in `tests/parity_test.gd` name those sources.
+## EL-00 adds the explicit status entrance below as a separate declared
+## exception: delayed status may never crit or consume the gameplay stream.
 
 
 func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: float,
 		origin: Vector2, grants_pressure: bool, can_crit: bool = true,
-		element_once: Variant = null) -> float:
+		element_once: Variant = null, applies_slow_bonus: bool = true,
+		extends_taps: bool = true) -> float:
 	if not is_instance_valid(enemy) or enemy.dead:
 		return 0.0
 	var scaled := amount
-	if enemy.slow_time > 0.0:
+	if applies_slow_bonus and enemy.slow_time > 0.0:
 		scaled *= 1.0 + float(mods.slow_damage)
 	## Short-circuited on `can_crit`, so the one hit that may not crit consumes
 	## nothing from the seeded stream and every other roll in the run lands where
@@ -3363,15 +3381,18 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 		scaled *= 2.0
 	var hit_at := enemy.global_position
 	var dealt := enemy.take_damage(scaled, origin, element,
-		knock * float(mods.knock_multiplier), element_once)
+		knock * float(mods.knock_multiplier), element_once, src_slot)
 	var killed := enemy.dead or enemy.hp <= 0.0
-	if impact != null and dealt >= 1.0:
+	## Status declines the same optional edge as Tap extension: a delayed tick
+	## owns no hit-stop/floater clock and consumes no visual RNG (that stream
+	## also places gameplay kegs, so cosmetic consumption is not physically free).
+	if extends_taps and impact != null and dealt >= 1.0:
 		impact.note_hit(dealt, killed)
 		## And the picture of it. The renderer owns the particles; the simulation
 		## only says a hit of this size, of this element, landed here.
 		if view != null:
 			view.impact_at(hit_at, element, dealt)
-	if dealt >= 1.0:
+	if extends_taps and dealt >= 1.0:
 		# a lane cannon fires no element, so this cannot assume the table has one
 		var tint: Color = Color("#eee5d5")
 		if SkyGearData.ELEMENTS.has(element):
@@ -3383,7 +3404,7 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 	## holds longer, so a main placed where the fight actually is pays for itself
 	## and one placed out of the way simply expires. Capped at `max_life`, or a
 	## good position becomes a permanent one.
-	if killed and not taps.is_empty():
+	if extends_taps and killed and not taps.is_empty():
 		for tap in taps:
 			if hit_at.distance_to(Vector2(tap.position)) <= float(tap.radius):
 				tap.life = minf(float(SkyGearData.TAP.max_life),
@@ -3399,6 +3420,21 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 			false, false, false, element_once)
 	if grants_pressure:
 		register_damage(dealt, enemy.global_position)
+	return dealt
+
+
+## The one non-recursive status/reaction entrance. It borrows the ordinary
+## funnel's hit, kill and attribution bookkeeping, while explicitly declining
+## the mechanics a delayed tick must never acquire.
+func damage_status(enemy: SkyGearEnemy, amount: float, source_slot: int,
+		reaction_id: String) -> float:
+	var previous_src := src_slot
+	src_slot = source_slot
+	var dealt := damage_enemy(enemy, amount, "", 0.0, Vector2.ZERO,
+		source_slot >= -1, false, null, false, false)
+	src_slot = previous_src
+	if dealt > 0.0:
+		SkyGearTelemetry.note_reaction(tel, reaction_id, dealt)
 	return dealt
 
 func register_damage(amount: float, hit_position: Vector2) -> void:

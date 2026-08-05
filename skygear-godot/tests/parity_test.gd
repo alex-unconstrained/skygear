@@ -281,6 +281,8 @@ func _run() -> void:
 	await process_frame
 	_beam()
 	await process_frame
+	_status_attribution()
+	await process_frame
 	_crit_explode()
 	await process_frame
 	_crit_sources()
@@ -713,6 +715,364 @@ func _drive_beam(game: SkyGearGame, step: float) -> void:
 	while not game.active_channel.is_empty() and guard < 100:
 		game._update_active_channel(step)
 		guard += 1
+
+
+## EL-00. The status path is an attribution boundary, not a new reaction. These
+## checks therefore pin both halves: the four values cards already promise must
+## finally be read, while the physical burn they modify stays the shipped five
+## DPS per stack and acquires none of the ordinary funnel's nonlinear riders.
+func _status_attribution() -> void:
+	var source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var enemy_source := FileAccess.get_file_as_string("res://scripts/enemy.gd")
+	var telemetry_source := FileAccess.get_file_as_string("res://scripts/telemetry.gd")
+	var ready := source.contains("func damage_status(") \
+		and enemy_source.contains("var burn_source_slot") \
+		and telemetry_source.contains("static func note_reaction(")
+	var exact_names: Array[String] = [
+		"Accelerant scales the shipped per-tick burn once",
+		"Slow Combustion extends Ember from the shipped three seconds",
+		"Deep Chill supplies the existing Frost slow amount",
+		"Overload supplies Arc stun chance and zero chance consumes no RNG",
+		"the quarter-second carried burn clock agrees at 1/60, 0.05 and catch-up steps",
+		"the latest Ember source owns later burn, including the fifth slot",
+		"primary attribution counts status once and reaction rows only describe it",
+		"burn cannot crit, recurse, knock, gain slow bonus or consume RNG",
+		"lethal burn uses one kill, salvage and report path without extending Tap Main",
+		"airborne and boss-turn immunity spend suppressed ticks instead of storing a burst",
+		"deck and allied status damage fund no hero gauge or lifesteal",
+		"damage-attribution v2 changes the Ember report but not its physical outcome or the non-Ember control",
+		"the burn loop has no direct HP subtraction and deleting the status funnel is observable",
+		"pause, expiry, reset and death leave no orphan status clock",
+		"immune and dead status targets deal zero, record no reaction and restore the source slot",
+	]
+	if not ready:
+		for check_name in exact_names:
+			_check("status", check_name, false,
+				"EL-00 damage_status/source/reaction seam is not implemented")
+		return
+
+	## Four promised card values, each through the existing production element
+	## application rather than by inspecting the modifier dictionary.
+	var accel := _status_game()
+	accel.mods.burn_damage = 1.5
+	var accel_target := _status_target(accel, Vector2(0, -100), 100.0)
+	accel_target.call("_apply_element", "EMBER", null, 0)
+	accel_target._update_statuses(0.25)
+	_check("status", exact_names[0],
+		is_equal_approx(accel_target.hp, 98.125),
+		"one stack dealt %.3f (want 1.875)" % (100.0 - accel_target.hp))
+	accel.queue_free()
+
+	var duration := _status_game()
+	duration.mods.burn_duration = 2.0
+	var duration_target := _status_target(duration, Vector2(0, -100), 100.0)
+	duration_target.call("_apply_element", "EMBER", null, 0)
+	_check("status", exact_names[1],
+		is_equal_approx(duration_target.burn_time, 5.0),
+		"burn time %.2f" % duration_target.burn_time)
+	duration.queue_free()
+
+	var chill := _status_game()
+	chill.mods.slow_amount = 0.55
+	var chill_target := _status_target(chill, Vector2(0, -100), 100.0)
+	chill_target.call("_apply_element", "FROST", null, 0)
+	_check("status", exact_names[2],
+		is_equal_approx(chill_target.slow_time, 2.0)
+			and is_equal_approx(chill_target.slow_amount, 0.55),
+		"slow %.2f for %.2f" % [chill_target.slow_amount, chill_target.slow_time])
+	chill.queue_free()
+
+	var arc := _status_game()
+	var arc_target := _status_target(arc, Vector2(0, -100), 100.0)
+	arc.mods.stun_chance = 0.0
+	var arc_rng_before: int = arc.rng.state
+	arc_target.call("_apply_element", "ARC", null, 0)
+	var zero_arc_ok := is_equal_approx(arc_target.stun_time, 0.0) \
+		and arc.rng.state == arc_rng_before
+	arc.mods.stun_chance = 1.0
+	arc_target.call("_apply_element", "ARC", null, 0)
+	_check("status", exact_names[3],
+		zero_arc_ok and is_equal_approx(arc_target.stun_time, 0.45),
+		"zero/rng %s, certain stun %.2f" % [zero_arc_ok, arc_target.stun_time])
+	arc.queue_free()
+
+	var totals: Array[float] = []
+	for step in [1.0 / 60.0, 0.05, 1.0]:
+		totals.append(_status_burn_second(float(step)))
+	_check("status", exact_names[4],
+		totals.size() == 3 and is_equal_approx(totals[0], 5.0)
+			and is_equal_approx(totals[1], 5.0)
+			and is_equal_approx(totals[2], 5.0),
+		"1/60 %.2f, 0.05 %.2f, catch-up %.2f" % totals)
+
+	## An intervening non-Ember hit may own its own direct damage, but it may not
+	## steal the delayed burn from the most recent Ember source.
+	var owner := _status_game(5)
+	var owner_target := _status_target(owner, Vector2(0, -100), 100.0)
+	owner.src_slot = 0
+	owner.damage_enemy(owner_target, 0.1, "EMBER", 0.0,
+		owner.player.global_position, true)
+	owner.src_slot = 4
+	owner.damage_enemy(owner_target, 0.1, "EMBER", 0.0,
+		owner.player.global_position, true)
+	owner.src_slot = 2
+	owner.damage_enemy(owner_target, 0.1, "FROST", 0.0,
+		owner.player.global_position, true)
+	owner.tel = SkyGearTelemetry.fresh(5)
+	owner_target.burn_tick = 0.25
+	owner_target._update_statuses(0.25)
+	var owner_row: Dictionary = owner.tel.per[4]
+	_check("status", exact_names[5],
+		int(owner_target.get("burn_source_slot")) == 4
+			and int(owner_row.hits) == 1
+			and is_equal_approx(float(owner_row.damage), 2.5),
+		"source %d, slot-four hits %d damage %.2f" % [
+			int(owner_target.get("burn_source_slot")), owner_row.hits, owner_row.damage])
+
+	owner.tel.per[4].shape = "RAY"
+	owner.tel.per[4].element = "EMBER"
+	var reaction: Dictionary = owner.tel.reactions.get("BURN", {})
+	var report := owner.run_report()
+	var silent := _status_game()
+	var silent_report := silent.run_report()
+	_check("status", exact_names[6],
+		is_equal_approx(float(owner_row.damage), 2.5)
+			and int(reaction.get("triggers", 0)) == 1
+			and is_equal_approx(float(reaction.get("damage", 0.0)), 2.5)
+			and report.contains("BURN")
+			and not silent_report.contains("reactions"),
+		"primary %.2f, reaction %s, row %s, silent %s" % [
+			owner_row.damage, reaction, report.contains("BURN"),
+			not silent_report.contains("reactions")])
+	owner.queue_free()
+	silent.queue_free()
+
+	var clean := _status_game()
+	var clean_target := _status_target(clean, Vector2(0, -100), 100.0)
+	clean_target.call("_apply_element", "EMBER", null, 0)
+	clean_target.slow_time = 1.0
+	clean.mods.slow_damage = 3.0
+	clean.mods.crit_chance = 1.0
+	clean.mods.crit_explode = 20.0
+	var clean_rng_before: int = clean.rng.state
+	var clean_visual_rng_before: int = clean.visual_rng.state
+	var clean_knock_before := clean_target.knock_velocity
+	clean_target._update_statuses(0.25)
+	_check("status", exact_names[7],
+		is_equal_approx(clean_target.hp, 98.75)
+			and clean_target.burn_stacks == 1
+			and clean_target.knock_velocity.is_equal_approx(clean_knock_before)
+			and clean.rng.state == clean_rng_before
+			and clean.visual_rng.state == clean_visual_rng_before,
+		"damage %.2f, stacks %d, knock %s, rng %s/%s" % [
+			100.0 - clean_target.hp, clean_target.burn_stacks,
+			clean_target.knock_velocity, clean.rng.state == clean_rng_before,
+			clean.visual_rng.state == clean_visual_rng_before])
+	clean.queue_free()
+
+	var lethal := _status_game(5)
+	lethal.player.global_position = Vector2.ZERO
+	lethal.mods.scrap_chance = 1.0
+	lethal.impact.enabled = true
+	var lethal_target := _status_target(lethal, Vector2(0, -800), 1.0)
+	lethal_target.call("_apply_element", "EMBER", null, 4)
+	lethal.tel = SkyGearTelemetry.fresh(5)
+	lethal.taps.append({"position": lethal_target.global_position,
+		"radius": 200.0, "life": 1.0, "max_life": 1.0, "tick": 999.0})
+	lethal_target._update_statuses(0.25)
+	lethal_target._update_statuses(0.25)
+	var lethal_row: Dictionary = lethal.tel.per[4]
+	_check("status", exact_names[8],
+		lethal_target.dead and int(lethal_row.kills) == 1
+			and int(lethal_row.hits) == 1
+			and is_equal_approx(float(lethal_row.damage), 1.0)
+			and int(lethal.tel.salvage) == 1
+			and is_equal_approx(float(lethal.taps[0].life), 1.0)
+			and is_equal_approx(float(lethal.impact.stop_left), 0.0),
+		"dead %s, %s, salvage %d, tap %.2f, stop %.3f" % [
+			lethal_target.dead, lethal_row, lethal.tel.salvage, lethal.taps[0].life,
+			lethal.impact.stop_left])
+	lethal.queue_free()
+
+	var immune := _status_game()
+	var air := _status_target(immune, Vector2(0, -100), 100.0)
+	air.call("_apply_element", "EMBER", null, 0)
+	air.state = "climb"
+	air._update_statuses(0.50)
+	var air_spent := is_equal_approx(air.hp, 100.0) \
+		and is_equal_approx(air.burn_tick, 0.25)
+	_landed(air)
+	air._update_statuses(0.24)
+	var no_burst := is_equal_approx(air.hp, 100.0)
+	air._update_statuses(0.01)
+	var air_later := is_equal_approx(air.hp, 98.75)
+	var turning := _status_target(immune, Vector2(100, -100), 100.0)
+	turning.call("_apply_element", "EMBER", null, 0)
+	turning.state = "turn"
+	turning._update_statuses(0.50)
+	var turn_spent := is_equal_approx(turning.hp, 100.0) \
+		and is_equal_approx(turning.burn_tick, 0.25)
+	turning.state = "move"
+	turning._update_statuses(0.25)
+	_check("status", exact_names[9],
+		air_spent and no_burst and air_later and turn_spent
+			and is_equal_approx(turning.hp, 98.75),
+		"air %s/%s/%s, turn %s -> %.2f" % [
+			air_spent, no_burst, air_later, turn_spent, turning.hp])
+	immune.queue_free()
+
+	var foreign := _status_game()
+	foreign.player.global_position = Vector2.ZERO
+	foreign.player.hp = foreign.player.max_hp - 20.0
+	foreign.pressure = 0.0
+	foreign.player.set_pressure(0.0)
+	foreign.mods.lifesteal = 1.0
+	var deck_target := _status_target(foreign, Vector2(0, -100), 100.0)
+	var ally_target := _status_target(foreign, Vector2(100, -100), 100.0)
+	var foreign_hp := foreign.player.hp
+	foreign.call("damage_status", deck_target, 2.0, -2, "DECK_TEST")
+	foreign.call("damage_status", ally_target, 3.0, -3, "ALLY_TEST")
+	_check("status", exact_names[10],
+		is_equal_approx(foreign.pressure, 0.0)
+			and is_equal_approx(foreign.player.hp, foreign_hp)
+			and is_equal_approx(float(foreign.tel.deck.damage), 2.0)
+			and is_equal_approx(float(foreign.tel.allies.damage), 3.0),
+		"pressure %.2f, hp %.2f, deck %.2f, allies %.2f" % [
+			foreign.pressure, foreign.player.hp, foreign.tel.deck.damage,
+			foreign.tel.allies.damage])
+	foreign.queue_free()
+
+	## The old physical burn was hp -= 1.25; register_damage(1.25, at).
+	## Reproduce that arithmetic as the immutable v1 arm, then require v2 to add
+	## only attribution/reaction rows around the same HP, Pressure and lifesteal.
+	var physical := _status_game()
+	physical.player.global_position = Vector2.ZERO
+	physical.player.hp = physical.player.max_hp - 20.0
+	physical.pressure = 0.0
+	physical.player.set_pressure(0.0)
+	physical.mods.lifesteal = 0.5
+	var physical_target := _status_target(physical, Vector2(0, -100), 100.0)
+	physical_target.call("_apply_element", "EMBER", null, 0)
+	var hp_before := physical.player.hp
+	var run_before := physical.run_time
+	var expected_pressure := 1.25 * float(SkyGearData.CLOSE.pressure_per_damage) \
+		* float(physical.mods.pressure_rate)
+	physical_target._update_statuses(0.25)
+	var ember_v2 := physical.run_report()
+	var non_ember := _status_game()
+	var frost_target := _status_target(non_ember, Vector2(0, -100), 100.0)
+	non_ember.src_slot = 0
+	non_ember.damage_enemy(frost_target, 2.0, "FROST", 0.0,
+		non_ember.player.global_position, true)
+	non_ember.tel.per[0].shape = "RANGED_AOE"
+	non_ember.tel.per[0].element = "FROST"
+	var frost_report := non_ember.run_report()
+	_check("status", exact_names[11],
+		is_equal_approx(physical_target.hp, 98.75)
+			and is_equal_approx(physical.pressure, expected_pressure)
+			and is_equal_approx(physical.player.hp, hp_before + 0.625)
+			and is_equal_approx(physical.run_time, run_before)
+			and ember_v2.contains("BURN")
+			and is_equal_approx(float(non_ember.tel.per[0].damage), 2.0)
+			and not frost_report.contains("reactions"),
+		"hp %.2f, pressure %.3f/%.3f, heal %.3f, ember row %s, frost stable %s" % [
+			physical_target.hp, physical.pressure, expected_pressure,
+			physical.player.hp - hp_before, ember_v2.contains("BURN"),
+			not frost_report.contains("reactions")])
+	physical.queue_free()
+	non_ember.queue_free()
+
+	var status_block := enemy_source.substr(enemy_source.find("func _update_statuses"))
+	_check("status", exact_names[12],
+		source.contains("func damage_status(")
+			and status_block.contains("game.damage_status(")
+			and not status_block.contains("hp -= amount"),
+		"helper %s, burn calls helper %s, direct subtraction %s" % [
+			source.contains("func damage_status("),
+			status_block.contains("game.damage_status("),
+			status_block.contains("hp -= amount")])
+
+	var lifecycle := _status_game()
+	var life_target := _status_target(lifecycle, Vector2(0, -100), 1000.0)
+	life_target.call("_apply_element", "EMBER", null, 0)
+	lifecycle._set_state(SkyGearGame.State.PAUSE)
+	life_target._physics_process(0.50)
+	var paused := is_equal_approx(life_target.burn_time, 3.0) \
+		and is_equal_approx(life_target.hp, 1000.0)
+	lifecycle._set_state(SkyGearGame.State.PLAY)
+	life_target._update_statuses(3.0)
+	var expired := life_target.burn_stacks == 0 \
+		and is_equal_approx(life_target.burn_time, 0.0) \
+		and int(life_target.get("burn_source_slot")) == -1
+	var reset := _status_game()
+	var reset_target := _status_target(reset, Vector2(0, -100), 100.0)
+	reset_target.call("_apply_element", "EMBER", null, 0)
+	reset.begin_run()
+	var reset_cleared := reset_target.is_queued_for_deletion()
+	_check("status", exact_names[13],
+		paused and expired and reset_cleared,
+		"pause %s, expiry %s, reset queued %s" % [
+			paused, expired, reset_cleared])
+	lifecycle.queue_free()
+	reset.queue_free()
+
+	var rejected := _status_game()
+	var rejected_target := _status_target(rejected, Vector2(0, -100), 100.0)
+	rejected.src_slot = 3
+	rejected_target.state = "climb"
+	var immune_dealt: float = rejected.call(
+		"damage_status", rejected_target, 3.0, 0, "IMMUNE")
+	rejected_target.state = "move"
+	rejected_target.dead = true
+	var dead_dealt: float = rejected.call(
+		"damage_status", rejected_target, 3.0, 0, "DEAD")
+	_check("status", exact_names[14],
+		is_equal_approx(immune_dealt, 0.0)
+			and is_equal_approx(dead_dealt, 0.0)
+			and rejected.tel.reactions.is_empty()
+			and rejected.src_slot == 3,
+		"immune %.2f, dead %.2f, reactions %s, source %d" % [
+			immune_dealt, dead_dealt, rejected.tel.reactions, rejected.src_slot])
+	rejected.queue_free()
+
+
+func _status_game(slots: int = 5) -> SkyGearGame:
+	var game := _new_game()
+	_begin(game, "EL00")
+	for enemy in game.enemies():
+		enemy.dead = true
+		enemy.queue_free()
+	game.spawn_queue.clear()
+	game.hulk = {}
+	game.skills.clear()
+	game.tel = SkyGearTelemetry.fresh(slots)
+	game.player.global_position = Vector2.ZERO
+	game.mods.crit_chance = 0.0
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.scrap_chance = 0.0
+	game.mods.slow_damage = 0.0
+	game.mods.lifesteal = 0.0
+	game._set_state(SkyGearGame.State.PLAY)
+	return game
+
+
+func _status_target(game: SkyGearGame, at: Vector2, hp: float) -> SkyGearEnemy:
+	return _beam_target(game, at, hp)
+
+
+func _status_burn_second(step: float) -> float:
+	var game := _status_game()
+	var target := _status_target(game, Vector2(0, -100), 100.0)
+	target.call("_apply_element", "EMBER", null, 0)
+	var elapsed := 0.0
+	while elapsed < 1.0 - 0.000001:
+		var tick := minf(step, 1.0 - elapsed)
+		target._update_statuses(tick)
+		elapsed += tick
+	var dealt := 100.0 - target.hp
+	game.queue_free()
+	return dealt
 
 
 ## SG-108: EVERY TOOL THAT PHOTOGRAPHS THIS DECK MUST FREEZE IT THROUGH THE ONE
@@ -16555,11 +16915,11 @@ func _arrival_structure() -> void:
 	_check("immunity", "nothing outside enemy.gd names the arrival state by its string",
 		names.is_empty(), "named in:%s" % _joined(names))
 
-	## (b) EVERY FUNCTION THAT LOWERS A BOARDER'S HP ASKS THE PREDICATE. Read out
+	## (b) THE ONE FUNCTION THAT LOWERS A BOARDER'S HP ASKS THE PREDICATE. Read out
 	## of `enemy.gd`'s own source, function by function, so the day somebody adds
-	## a third place that takes health off a boarder the harness says so instead
+	## a second place that takes health off a boarder the harness says so instead
 	## of the picture. This FAILS on the code it replaces: `take_damage` gated
-	## only on `state == "turn"`, and the burn tick gated on nothing at all.
+	## only on `state == "turn"`, and the old direct burn tick gated on nothing.
 	var unguarded: Array[String] = []
 	var lowering := 0
 	var here := ""
@@ -16585,7 +16945,7 @@ func _arrival_structure() -> void:
 		if code.contains("hp -="):
 			lowers = true
 	_check("immunity", "every function in enemy.gd that lowers a boarder's hp asks can_be_hit()",
-		unguarded.is_empty() and lowering >= 2,
+		unguarded.is_empty() and lowering == 1,
 		"%d lowering functions, unguarded:%s" % [lowering, _joined(unguarded)])
 
 	## (c) AND NOTHING ANYWHERE ELSE LOWERS ONE. A REGRESSION GUARD — it is true
