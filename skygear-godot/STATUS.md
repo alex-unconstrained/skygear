@@ -37,7 +37,7 @@ board SG-56). **1128 harness checks**; the text audit covers 25 screens at
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
 finished row. Board SG-92 has the whole of it, and the reason it was one finding
-rather than four. Build 62 is on itch at
+rather than four. Build 64 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear

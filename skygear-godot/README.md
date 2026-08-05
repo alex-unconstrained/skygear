@@ -25,7 +25,7 @@ count for exactly this reason, and STATUS.md's sixth failure mode is a fact know
 in one place and contradicted in another. A number in prose here is a convenience,
 never evidence — evidence is a named check string (board SG-11).
 
-Build 62 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
+Build 64 is on itch: https://alex-unconstrained.itch.io/skygear-godot-test
 
 ## Run
 
