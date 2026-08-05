@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 65 live · harness 1134/1134.** Detail lives in `skygear-godot/docs/BOARD.md`.
+**Build 66 live · harness 1147/1147.** Detail lives in `skygear-godot/docs/BOARD.md`.
 This file is only your decisions.
 
 *Last cleaned 2026-08-04. Everything you answered is off this list.*
@@ -9,12 +9,18 @@ This file is only your decisions.
 
 ## Waiting on you
 
-**1 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+**1 · Beam channel hands-on gate.** Itch build **66-beam-channel-candidate** is
+live. Take Beam: it now deals four ticks across a short held line, slows ordinary
+walking to 60%, tracks your live aim, and dash/Bleed Jet cancels what remains.
+After one run, tell me whether that reads as **aim commitment with a movement
+cost and a clear escape**, or name what feels wrong. “Beam passes G5” is enough.
+
+**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
 cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
 bothers you when you look at it.
 
-**2 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
