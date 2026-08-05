@@ -9,7 +9,6 @@ const PROP_SCENE := preload("res://scenes/prop.tscn")
 ## the text audit and the batch camera run, reached by the F4 picker. Preloaded,
 ## not `class_name`: see the note at the top of `scripts/screen_poser.gd`.
 const ScreenPoser := preload("res://scripts/screen_poser.gd")
-const Muster := preload("res://scripts/muster.gd")
 const GAME_SCENE_PATH := "res://scenes/main.tscn"
 
 const DECK_RECT := Rect2(-840, -1160, 1680, 2320)
@@ -154,10 +153,6 @@ var wave_time := 0.0
 const WAVE_CLEAR_TIME := 1.6
 var wave_clear_time := -1.0
 var spawn_queue: Array[Dictionary] = []
-## Twelve deep-owned deals, built once after seed and Heat resolve. The live
-## queue only ever receives a deep copy, so popping spawns cannot consume the
-## run-level plan that EV-02's manifest will read.
-var wave_plans: Array[Dictionary] = []
 var skills: Array[Dictionary] = []
 var draft_options: Array[Dictionary] = []
 var opening_draft := false
@@ -1742,9 +1737,6 @@ func set_seed_text(text: String) -> void:
 	seed_text = text.strip_edges().to_upper()
 	if seed_text == "":
 		seed_text = _random_seed_text()
-	## A tool may deal several seeds through one game instance. A cache belonging
-	## to the prior text is never a valid answer for the next one.
-	wave_plans.clear()
 	rng.seed = hash(seed_text)
 	## AND THE COSMETIC STREAM IS SEEDED TOO (board SG-120). It never was:
 	## `visual_rng` was a bare `RandomNumberGenerator.new()`, which Godot 4
@@ -1949,10 +1941,6 @@ func begin_run() -> void:
 	src_slot = -1
 	if seed_text == "":
 		set_seed_text("")
-	## PLANNING POINT. Heat was clamped at the first line of this function and
-	## seed text is now resolved. Nothing below may influence a wave deal, and
-	## nothing inside the deal may consume either live RNG stream.
-	_cache_wave_plans()
 	## WHAT THE WORKSHOP GRANTS, resolved once here and never again. A talent that
 	## could change mid-run would be a card, and cards are the draft's job.
 	##
@@ -2475,89 +2463,29 @@ static func tempo_offset(deal: Dictionary, batch_time: float, count: int,
 			return member * TEMPO_INTRA
 
 
-func _cache_wave_plans() -> void:
-	wave_plans.clear()
-	for wave_number in range(1, SkyGearData.WAVES.size() + 1):
-		wave_plans.append(_plan_wave(wave_number))
-
-
-## Public plan reader. Callers get their own deep copy; the cache is immutable
-## after begin_run and remains authoritative after spawn_queue starts popping.
-func muster_plan_for(wave_number: int) -> Dictionary:
-	if wave_number < 1 or wave_number > SkyGearData.WAVES.size():
-		return {}
-	if wave_plans.size() == SkyGearData.WAVES.size():
-		return wave_plans[wave_number - 1].duplicate(true)
-	## Headless tools often ask for one queue without beginning a run. Deal that
-	## one on demand from the same pure path and return the same bytes a cache
-	## would have held.
-	return _plan_wave(wave_number)
-
-
-func _plan_wave(wave_number: int) -> Dictionary:
+func _build_spawn_queue(wave_number: int) -> Array[Dictionary]:
+	var queue: Array[Dictionary] = []
 	var definition: Dictionary = SkyGearData.WAVES[wave_number - 1]
-	var normalized: Array[Dictionary] = Muster.normalize(definition.batches)
-	var muster_flat := OS.get_environment("SKYGEAR_MUSTER_FLAT") != ""
-	var plan: Dictionary = Muster.plan(seed_text, wave_number, int(heat), normalized,
-		event_for(wave_number) != "", is_push_wave(wave_number),
-		bool(definition.get("boss", false)),
-		muster_flat,
-		OS.get_environment("SKYGEAR_MUSTER_FORCE"))
 	var tempo := tempo_for(wave_number)
 	var wave_last := 0.0
-	for batch in plan.batches:
-		wave_last = maxf(wave_last, float(batch.time))
-
-	## A substitution can split one authored source into two type rows. Member is
-	## therefore counted across the whole source/lane slot: it remains unique for
-	## the required final tie-break and Tempo spaces the surviving bodies as one
-	## authored batch rather than restarting at zero for each type.
-	var group_counts := {}
-	for batch in plan.batches:
-		for lane_value in batch.lanes:
-			var key := "%d:%d" % [int(batch.source), int(lane_value)]
-			group_counts[key] = int(group_counts.get(key, 0)) + int(batch.count)
-	var group_members := {}
-	var temporary: Array[Dictionary] = []
-	for batch in plan.batches:
-		for lane_value in batch.lanes:
-			var lane := int(lane_value)
-			var key := "%d:%d" % [int(batch.source), lane]
-			for _i in int(batch.count):
-				var member := int(group_members.get(key, 0))
-				group_members[key] = member + 1
-				temporary.append({
-					"time": float(batch.time) + tempo_offset(tempo,
-						float(batch.time), int(group_counts[key]), member, wave_last),
-					"type": str(batch.type),
-					"source": int(batch.source),
-					"lane": lane,
-					"member": member,
+	for batch in definition.batches:
+		wave_last = maxf(wave_last, float(batch[0]))
+	for batch in definition.batches:
+		var lanes: Array = []
+		var lane_spec: Variant = batch[3] if batch.size() > 3 else rng.randi_range(0, 2)
+		if lane_spec is String and lane_spec == "all":
+			lanes = [0, 1, 2]
+		else:
+			lanes = [int(lane_spec)]
+		for lane_value in lanes:
+			for i in int(batch[2]):
+				queue.append({
+					"time": float(batch[0]) + tempo_offset(tempo, float(batch[0]), int(batch[2]), i, wave_last),
+					"type": str(batch[1]),
+					"lane": int(lane_value),
 				})
-	temporary.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
-		if float(a.time) != float(b.time):
-			return float(a.time) < float(b.time)
-		## SG-199. The rollback seam reproduces HEAD's time-only tie ordering
-		## byte-for-byte. Live Muster takes the stable order below; keeping the
-		## legacy permutation anywhere else would carry an accident forward.
-		if muster_flat:
-			return false
-		if int(a.source) != int(b.source):
-			return int(a.source) < int(b.source)
-		if int(a.lane) != int(b.lane):
-			return int(a.lane) < int(b.lane)
-		return int(a.member) < int(b.member))
-	var queue: Array[Dictionary] = []
-	for unit in temporary:
-		queue.append({"time": float(unit.time), "type": str(unit.type),
-			"lane": int(unit.lane)})
-	plan.queue = queue.duplicate(true)
-	return plan.duplicate(true)
-
-
-func _build_spawn_queue(wave_number: int) -> Array[Dictionary]:
-	var plan := muster_plan_for(wave_number)
-	return (plan.get("queue", []) as Array).duplicate(true)
+	queue.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a.time < b.time)
+	return queue
 
 func _update_wave(delta: float) -> void:
 	if wave_clear_time >= 0.0:
