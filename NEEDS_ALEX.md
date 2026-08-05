@@ -1,6 +1,6 @@
 # NEEDS ALEX
 
-**Build 67 live · Beam G5 passed · harness 1162/1162.** Detail lives in
+**Build 68 live · Field G5 pending · harness 1174/1174.** Detail lives in
 `skygear-godot/docs/BOARD.md`.
 This file is only your decisions.
 
@@ -19,6 +19,14 @@ bothers you when you look at it.
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
+
+**3 · Does Field feel good when it claims ground?** On itch build 68, draft a
+Field plus any active. Before the first active cast of a wave, Field follows
+you. Cast once, then move away: its ring should stay at that landing and keep
+working there; your next active cast should move it. A completed Beam moves it
+to the Beam midpoint, while dash-cancelling Beam should leave it where it was.
+Please judge whether leaving a useful Field behind feels deliberate and
+readable, rather than like the passive stopped following by mistake.
 
 ---
 
