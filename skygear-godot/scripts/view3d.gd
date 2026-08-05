@@ -6240,17 +6240,17 @@ func _rig_piece(node: MeshInstance3D) -> void:
 ## capping is, and it also builds the state he named FIRST — the capping simply
 ## deleted, leaving the dark timber strake to read on its own.
 ##
-## ALL THREE DEFAULT TO THE SHIPPED DECK. `strake_cap_mode` 0 and `end_cap_mode`
-## 0 build exactly what SG-179 committed, and `deck · the deck edge's three SG-180
-## states default to the one that ships` pins that from the built tree.
+## OWNER VERDICT, 2026-08-04 (SG-200): ship the modular breast rails and delete
+## the strake capping. The other states stay available to the comparison tool,
+## but 2/1 is the only startup path and the deck check pins its built geometry.
 ##
-##   0  the SG-179 brass capping / breast rail, as it ships
+##   0  the legacy SG-179 brass capping / flat breast rail
 ##   1  the owner's rail module, at low profile, in its place
 ##   2  deleted (strake capping only — the END CAPS may be restyled but never
 ##      removed: DECK-IDENTITY 6 gives them a job, drawing the play boundary,
 ##      and there is no mode 2 for them on purpose)
-var strake_cap_mode := 0
-var end_cap_mode := 0
+var strake_cap_mode := 2
+var end_cap_mode := 1
 
 ## THE LOW RUN'S SCALE IS THE SHIPPED RAIL'S, DIVIDED BY AN INTEGER, AND THE
 ## INTEGER IS THE WHOLE DESIGN.
@@ -6284,12 +6284,10 @@ var _end_cap_mat: StandardMaterial3D
 
 ## THE BREAST RAIL AT EACH END OF THE RECTANGLE — the play boundary, drawn.
 ##
-## Mode 0 is SG-179's box, built here rather than inline in `_ready` so that the
-## alternative can be photographed in the same process (the SG-108 rule: an A/B
-## across two invocations is partly an A/B of the weather). Mode 1 lays the
-## owner's rail module ACROSS the ship instead, unrotated — the module's +X is
-## its length, so an athwartships run needs no yaw at all, where the deck-edge
-## run needs -90°.
+## Mode 1 is the owner-approved shipping state (SG-200): his rail module laid
+## ACROSS the ship, unrotated — the module's +X is its length, so an
+## athwartships run needs no yaw at all, where the deck-edge run needs -90°.
+## Mode 0 keeps SG-179's flat box only for the recorded comparison.
 ##
 ## The count is the nearest whole number of modules that spans the beam and the
 ## scale is then solved to make that count fit EXACTLY, so the run ends on the
@@ -6426,7 +6424,7 @@ func _strake_box(timber: StandardMaterial3D, brass: StandardMaterial3D,
 	_hull_shape.add_child(strip)
 	if lift < 12.0:
 		return
-	## SG-180. Both non-default states drop the brass box: mode 1 puts the low
+	## SG-180. Both nonzero states drop the brass box: mode 1 puts the low
 	## rail run in its place along the RECTANGLE (`_build_strake_rail`, in the
 	## edge kit, where the rebuild lives), mode 2 leaves the timber bare. The
 	## APRON cappings — the curved runs forward of the bow line and aft of the

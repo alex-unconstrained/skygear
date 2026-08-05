@@ -15693,13 +15693,11 @@ func _deck_shape() -> void:
 			% [rails, rail_lo, rail_hi, float(corner_in.get("P", 0.0)),
 				float(corner_in.get("S", 0.0)), corner_out, view.upper_deck_beam()])
 
-	## ---- THE DECK EDGE, TRIED THREE WAYS (SG-180) ---------------------------
+	## ---- THE DECK EDGE, OWNER VERDICT (SG-180 / SG-200) ---------------------
 	##
-	## SG-180 is a PROTOTYPE behind a switch: the owner asked to see his own rail
-	## reused at low profile where the flat brass capping is, and to see the
-	## capping simply gone. Neither ships until he says so, and the thing that has
-	## to be true until then is that the switches change NOTHING at their
-	## defaults — which is exactly the kind of claim that rots silently.
+	## The owner chose the modular breast rails with the long strake capping
+	## deleted. The SG-180 comparison states remain buildable for rollback and
+	## evidence, but the startup state and the restored state must both be 2/1.
 	##
 	## ASSERTED FROM BOTH SIDES IN ONE FIXTURE (SG-146's rule): the shipped state
 	## is measured, then both alternatives are BUILT and measured, then the deck is
@@ -15725,11 +15723,14 @@ func _deck_shape() -> void:
 		return v.get_node_or_null(nm)
 	var ship_caps: int = _cap_boxes.call(view)
 	var ship_low: int = _low_rails.call(view)
-	var ship_fore := _breast.call(view, "BreastRailFore") as MeshInstance3D
-	var ship_box: BoxMesh = (ship_fore.mesh as BoxMesh) if ship_fore != null else null
-	var ship_beam: bool = ship_box != null \
-		and absf(ship_box.size.x / SkyGearView3D.WORLD_SCALE - rect.size.x) < 0.01 \
-		and absf(ship_box.size.y / SkyGearView3D.WORLD_SCALE - 40.0) < 0.01
+	var ship_fore := _breast.call(view, "BreastRailFore") as Node3D
+	var ship_aft := _breast.call(view, "BreastRailAft") as Node3D
+	var ship_fore_kids: int = ship_fore.get_child_count() if ship_fore != null else 0
+	var ship_aft_kids: int = ship_aft.get_child_count() if ship_aft != null else 0
+	var ship_fore_span: float = (_kit_aabb(ship_fore).size.x / SkyGearView3D.WORLD_SCALE
+		if ship_fore != null else 0.0)
+	var ship_aft_span: float = (_kit_aabb(ship_aft).size.x / SkyGearView3D.WORLD_SCALE
+		if ship_aft != null else 0.0)
 
 	## State 1 — the low run, and the geometry that decides whether it can work.
 	view.strake_cap_mode = 1
@@ -15779,31 +15780,55 @@ func _deck_shape() -> void:
 	view.strake_cap_rail_div = 2
 	view.strake_cap_rail_height = 0.0
 
-	## State 2 — deleted outright, which is the option he named FIRST.
-	view.strake_cap_mode = 2
-	view.end_cap_mode = 0
-	view.rebuild_deck_edge()
-	var two_caps: int = _cap_boxes.call(view)
-	var two_low: int = _low_rails.call(view)
-
-	## And back. This half is the one that matters for shipping.
+	## Legacy state — the flat capping and breast-rail boxes that SG-179 shipped.
 	view.strake_cap_mode = 0
 	view.end_cap_mode = 0
 	view.rebuild_deck_edge()
+	var legacy_caps: int = _cap_boxes.call(view)
+	var legacy_low: int = _low_rails.call(view)
+	var legacy_fore := _breast.call(view, "BreastRailFore") as MeshInstance3D
+	var legacy_box: BoxMesh = (legacy_fore.mesh as BoxMesh) if legacy_fore != null else null
+
+	## And back. This half is the one that matters for shipping.
+	view.strake_cap_mode = 2
+	view.end_cap_mode = 1
+	view.rebuild_deck_edge()
 	var back_caps: int = _cap_boxes.call(view)
 	var back_low: int = _low_rails.call(view)
-	var back_fore := _breast.call(view, "BreastRailFore") as MeshInstance3D
-	var back_box: BoxMesh = (back_fore.mesh as BoxMesh) if back_fore != null else null
-	_check("deck", "the deck edge's three SG-180 states default to the one that ships, and going and coming back rebuilds it",
-		ship_caps > 0 and ship_low == 0 and ship_beam
+	var back_fore := _breast.call(view, "BreastRailFore") as Node3D
+	var back_aft := _breast.call(view, "BreastRailAft") as Node3D
+	var back_fore_kids: int = back_fore.get_child_count() if back_fore != null else 0
+	var back_aft_kids: int = back_aft.get_child_count() if back_aft != null else 0
+	_check("deck", "the owner-approved breast rails ship with the strake capping deleted, and rebuilding keeps that verdict",
+		ship_caps == 0 and ship_low == 0
+			and ship_fore_kids == 14 and ship_aft_kids == 14
+			and ship_fore_span >= rect.size.x and ship_aft_span >= rect.size.x
 			and one_caps == 0 and one_low > 0
-			and two_caps == 0 and two_low == 0
-			and back_caps == ship_caps and back_low == 0
-			and back_box != null and back_box.size == ship_box.size,
-		"shipped %d brass cappings + a %.0f x %.0f breast rail, 0 low modules; mode 1 -> %d caps, %d low modules; mode 2 -> %d, %d; back -> %d, %d"
-			% [ship_caps, ship_box.size.x / SkyGearView3D.WORLD_SCALE if ship_box != null else 0.0,
-				ship_box.size.y / SkyGearView3D.WORLD_SCALE if ship_box != null else 0.0,
-				one_caps, one_low, two_caps, two_low, back_caps, back_low])
+			and legacy_caps > 0 and legacy_low == 0 and legacy_box != null
+			and back_caps == 0 and back_low == 0
+			and back_fore_kids == ship_fore_kids and back_aft_kids == ship_aft_kids,
+		"shipped %d caps + %d/%d breast modules spanning %.0f/%.0f; low prototype %d caps + %d modules; legacy %d caps + box=%s; back %d caps + %d/%d modules"
+			% [ship_caps, ship_fore_kids, ship_aft_kids, ship_fore_span, ship_aft_span,
+				one_caps, one_low, legacy_caps, legacy_box != null, back_caps,
+				back_fore_kids, back_aft_kids])
+
+	## The breast rails are direct children rather than members of EdgeKit, so
+	## the older collision walk above cannot cover them.
+	var breast_solid := ""
+	var breast_nodes := 0
+	var breast_walk: Array = [back_fore, back_aft]
+	while not breast_walk.is_empty():
+		var n: Node = breast_walk.pop_back()
+		if n == null:
+			continue
+		breast_nodes += 1
+		for c in n.get_children():
+			breast_walk.append(c)
+		if n is CollisionObject3D or n is CollisionShape3D:
+			breast_solid = n.get_class()
+	_check("deck", "the shipped breast rails cannot stop her",
+		breast_nodes > 2 and breast_solid == "", "%d nodes%s"
+			% [breast_nodes, "" if breast_solid == "" else " EXCEPT a " + breast_solid])
 
 	## THE PITCH IS THE WHOLE RISK AND IT IS ARITHMETIC RATHER THAN A HOPE. Two
 	## rails whose posts do not line up read as a mistake even when each is fine

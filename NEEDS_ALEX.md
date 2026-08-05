@@ -9,27 +9,12 @@ This file is only your decisions.
 
 ## Waiting on you
 
-**1 · The deck edge — pick one, it is built and switched off.**
-`skygear-godot/.shots/owner-review/5-deck-edge-rail/`. Your rail reused in place
-of the flat mustard boxes you photographed. Two halves, independently switchable:
-
-- **The breast rail** — the bar across the frame in your screenshot, as 14 of
-  your modules. **This is the one I would take.** The boundary runs unbroken and
-  you see the deck through it instead of over it. 85,680 tris.
-- **The strake capping** — the long run down both deck edges, as a low run under
-  the main rail. It works, and only at matched pitch (halve the pitch and it
-  reads busy). But it is **barely noticeable at mid-deck**, where you actually
-  play, and costs 61,200 tris. I would skip it.
-
-Both default OFF. Say which and it is one word. Option A's retint already
-shipped, so what you have in 62 is the toned-down flat version.
-
-**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+**1 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
 cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
 bothers you when you look at it.
 
-**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+**2 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.

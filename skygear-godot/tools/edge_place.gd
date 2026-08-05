@@ -147,6 +147,7 @@ func _run() -> void:
 	## SG-180. THE DECK EDGE, ONE STATE PER INVOCATION.
 	##
 	##   ... -- capping shipped              <spot> <zoom>
+	##   ... -- capping legacy               <spot> <zoom>
 	##   ... -- capping low[,div[,height]]   <spot> <zoom>
 	##   ... -- capping gone                 <spot> <zoom>
 	##   ... -- capping ends                 <spot> <zoom>   (breast rails only)
@@ -168,9 +169,9 @@ func _run() -> void:
 		var state := str(spec[0])
 		if spec.size() > 1: view.strake_cap_rail_div = int(spec[1])
 		if spec.size() > 2: view.strake_cap_rail_height = float(spec[2])
-		view.strake_cap_mode = {"shipped": 0, "low": 1, "gone": 2,
-			"ends": 0, "both": 1}.get(state, 0)
-		view.end_cap_mode = 1 if state in ["ends", "both"] else 0
+		view.strake_cap_mode = {"shipped": 2, "legacy": 0, "low": 1, "gone": 2,
+			"ends": 0, "both": 1}.get(state, 2)
+		view.end_cap_mode = 1 if state in ["shipped", "ends", "both"] else 0
 		view.rebuild_deck_edge()
 		await process_frame
 		var cap_spots: Array = SPOTS.keys()

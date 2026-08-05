@@ -257,27 +257,17 @@ procedural deck obeys the same lamplit ceiling the models do`, which parses the
 number out of `lamplit.py` and fails if the two drift. **It does NOT make them
 textured, and the frames say so.**
 
-**THE DECK EDGE IS PROTOTYPED HIS WAY AND IT IS WAITING ON HIS EYE (SG-180,
-2026-08-04) — the switches default OFF and nothing is decided.** His own rail
-module, reused at low profile in place of the flat brass capping, plus the
-capping deleted outright shot as a third state. **The strongest frame on the
-sheet is not the one the brief expected**: the brief ranked the strake capping
-"the louder of the two", but at the STEM pose — the one his build-60 screenshot
-is taken from — the capping is off both sides of the frame and the flat olive bar
-across the middle is the BREAST RAIL, so the object he was actually looking at is
-the one the brief ranked second. Restyled as 14 rail modules across the beam it
-stops being a wall: the boundary line is unbroken strake to strake and **you see
-the deck THROUGH it**, so DECK-IDENTITY §6's job is done better rather than
-deleted. **The geometry was the risk and it resolved the good way for a reason
-that is not luck**: the capping sits at `lift - 2.5` and the shipped rail stands
-at `lift - 8`, the SAME BAND, so there is no "under" to put a second rail in — it
-can only go outboard, which makes it a rail BESIDE a rail. What saves it from
-reading as two rails stacked is the PITCH: at `div` 1 every post of the low run
-stands directly under a post of the rail above and none falls between two. The
-sweep is on the sheet and **it is the pitch, not the height, that decides** — div
-2 reads busy, div 4 is under three pixels a post and has become a texture. Scale
-and pitch are decoupled on purpose and both derive from `edge_rail_scale()` with
-nothing typed. Sheets at `.shots/owner-review/5-deck-edge-rail/`.
+**THE DECK EDGE VERDICT IS SHIPPED IN CODE (SG-200, 2026-08-04): MODULAR
+BREAST RAILS, STRAKE CAPPING DELETED.** The owner chose the strongest SG-180
+frame: fourteen of his rail modules span each fore/aft boundary, so the line
+stays unbroken while the deck remains visible through it. The long mustard
+capping and the 61,200-triangle low-rail alternative do not ship; the dark
+timber strake reads on its own. The comparison modes remain available only for
+rollback evidence. The live 2/1 state is pinned from the built tree by
+`deck · the owner-approved breast rails ship with the strake capping deleted,
+and rebuilding keeps that verdict`; `deck · the shipped breast rails cannot
+stop her` covers the direct-child collision seam the older EdgeKit walk missed.
+Review sheet: `.shots/owner-review/5-deck-edge-rail/`.
 
 **Builds 59, 60, 61 and 62 went to itch across the two days**, and build 60 is
 the one the owner shot the deck-edge complaint from.
