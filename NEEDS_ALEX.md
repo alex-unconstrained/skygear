@@ -1,26 +1,21 @@
 # NEEDS ALEX
 
-**Build 66 live · harness 1147/1147.** Detail lives in `skygear-godot/docs/BOARD.md`.
+**Build 66 live · Beam G5 passed · harness 1147/1147.** Detail lives in
+`skygear-godot/docs/BOARD.md`.
 This file is only your decisions.
 
-*Last cleaned 2026-08-04. Everything you answered is off this list.*
+*Last cleaned 2026-08-05. Everything you answered is off this list.*
 
 ---
 
 ## Waiting on you
 
-**1 · Beam channel hands-on gate.** Itch build **66-beam-channel-candidate** is
-live. Take Beam: it now deals four ticks across a short held line, slows ordinary
-walking to 60%, tracks your live aim, and dash/Bleed Jet cancels what remains.
-After one run, tell me whether that reads as **aim commitment with a movement
-cost and a clear escape**, or name what feels wrong. “Beam passes G5” is enough.
-
-**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+**1 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
 cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
 bothers you when you look at it.
 
-**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+**2 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
@@ -83,6 +78,10 @@ harness check hard to diagnose. Filed, not yet fixed.
 ---
 
 ## What you decided, and what it turned into
+
+**Beam feels sweet.** The four-tick channel, 60% ordinary movement and
+dash/Bleed Jet escape passed your hands-on gate on itch build 66. AB-01 is
+accepted; later combat publication still waits for the combined IN-00 audit.
 
 **CRIT STAYS** — SG-148 reverted, the gate deleted rather than switched off.
 Crit-built captains kill the Colossus 7.8% faster and take 13.9% less in wave 12.
