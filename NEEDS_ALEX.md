@@ -9,16 +9,7 @@ This file is only your decisions.
 
 ## Waiting on you
 
-**1 · Pick EV-01's tie-order seam.** The old queue sorts only by time, so equal
-times have a stable but peculiar lane order; the new design also requires every
-plan to sort by time/source/lane/member. Those cannot both be true while the
-flat seam is byte-identical. I recommend: **flat keeps the legacy time-only
-order; live Muster uses the new stable order.** That keeps rollback genuinely
-identical without carrying the old tie behavior into the feature. Say **"use
-the recommended Muster sort seam"**, or say that flat may adopt the new stable
-order too. Exact wave-3 evidence is under SG-199 in today's night log.
-
-**2 · The deck edge — pick one, it is built and switched off.**
+**1 · The deck edge — pick one, it is built and switched off.**
 `skygear-godot/.shots/owner-review/5-deck-edge-rail/`. Your rail reused in place
 of the flat mustard boxes you photographed. Two halves, independently switchable:
 
@@ -33,12 +24,12 @@ of the flat mustard boxes you photographed. Two halves, independently switchable
 Both default OFF. Say which and it is one word. Option A's retint already
 shipped, so what you have in 62 is the toned-down flat version.
 
-**3 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
+**2 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
 cannot walk on) but a thinner bay would read taller. Only worth a reroll if it
 bothers you when you look at it.
 
-**4 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
+**3 · Heat 5 is a wall, not a rung.** Heats 0–4 sit in a 20-point band, then
 Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
