@@ -1,0 +1,36 @@
+# SHOT 06 — THE FIGHT (crew, cannons, cleave) — 141 frames (5.88 s) @ 24 fps, 1344x768
+# Grid check: (141 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R1b corsair_front_attack.png (flattened)
+# ref_images.ref_image_2 = refs R7  automaton_front_attack.png (flattened)
+# ref_images.ref_image_3 = refs R2  crew_front_attack.png (flattened)
+# ref_images.ref_image_4 = refs R8  cannon_deck.png (flattened)
+#   (+ optionally refs R5b staged deck frame as ref_image_5, for deck geography —
+#    subordinate to ref_image_0 for palette; see refs/README.md)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: mute. Game mix: combat_high.mp3, hit_*.ogg on swing beats,
+# cannon_fire_1.ogg on the muzzle flash. VO: crew_muster "With you, Captain!"
+# Apply the same proportion decision as shot 03.
+----
+Use ref_image_0 for the exact palette and painting style: ember-orange key
+light, violet shadow, silver moonlit rims, hand-painted brushwork. Use
+ref_image_1 for the exact character and costume of the hero — the same young
+captain: red brass-buckled greatcoat, brass goggles in spiked brown hair,
+ornate brass clockwork gauntlet, large curved cutlass with a glowing
+amber-edged blade. Same face, same proportions as the reference, no drifting
+features. Use ref_image_2 for the exact enemies — brass automatons with
+furnace eyes. Use ref_image_3 for the crew. Use ref_image_4 for the deck
+cannon — a carriage-mounted brass-and-iron gun.
+
+The video: battle on the airship's lantern-lit deck. In the foreground the
+captain swings his curved cutlass in a wide arc through two brass automatons —
+the blade trails a crescent of ember-orange fire, sparks and embers burst
+where it lands, and the automatons stagger back in pieces of brass. Behind
+him, crewmen from ref_image_3 charge up the deck lane shouting, and the deck
+cannon of ref_image_4 fires — a bright muzzle flash lighting the smoke and
+rigging. Embers drift through everything. The fight is fierce but every
+silhouette stays readable against the violet storm-dusk. The captain holds the
+centre of frame; the wave breaks against him.
+
+Dynamic action, one continuous camera move at most, no text, no watermark,
+no photorealism — painted fantasy style only.

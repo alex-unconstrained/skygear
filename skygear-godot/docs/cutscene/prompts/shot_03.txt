@@ -1,0 +1,32 @@
+# SHOT 03 — THE CAPTAIN — 141 frames (5.88 s) @ 24 fps, 1344x768
+# Grid check: (141 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R1a corsair_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: mute. No VO here — the captain is not a narrator.
+# OWNER DECISION GATE (README §6 q1): proportions. As written this keeps the
+# sprite's stylized proportions. If the owner picks naturalistic, append:
+# "Render him with naturalistic heroic proportions while keeping the exact same
+#  face, hair, costume and colors from the references."
+----
+Use ref_image_0 for the exact sky, palette and painting style: moonlight cool
+and silver from the upper left, ember-orange glow from the lower right, violet
+storm-dusk clouds between. Use ref_image_1 and ref_image_2 for the exact
+character and costume — the same young man in every detail: a red
+brass-buckled greatcoat with gold-starred hem, brass goggles pushed up into
+spiked brown hair, an ornate brass clockwork gauntlet on one arm, a large
+curved cutlass at his side, dark boots with brass fittings. Same face, same
+proportions as the references, no drifting features.
+
+The video: the young captain stands at his airship's bow rail, seen from
+slightly below and beside, the storm-dusk sky of ref_image_0 vast behind him.
+His greatcoat and hair stream in the wind; his brass gauntlet rests on the
+dark timber rail, lantern light warm on its gears; moonlight rims his shoulder
+cold and silver. He watches the ember horizon a long moment — then turns his
+head deliberately past the camera, toward the stern of his ship, eyes
+narrowing, and the camera eases around with the turn. Calm, resolute, unhurried.
+Hand-painted brushwork, exactly the style of ref_image_0.
+
+Subtle motion only — wind, coat, hair, the head turn. No walking, no fighting.
+No text, no watermark, no photorealism — painted fantasy style only.

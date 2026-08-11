@@ -1,0 +1,31 @@
+# SHOT 05 — THE HULK (the threat arrives) — 124 frames (5.17 s) @ 24 fps, 1344x768
+# Grid check: (124 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R6b boarding_hulk_open.png (flattened)
+# ref_images.ref_image_2 = refs R6a boarding_hulk_sealed.png (flattened)
+# ref_images.ref_image_3 = refs R7  automaton_front_attack.png (flattened)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# Frame 1 lands ON the cut from shot 4 — the edit puts hulk_grapple.ogg here.
+# H3 audio: audition the metal impact; duck to -18 dB under the game SFX, else mute.
+# VO in the edit: first_board "They're over the rail." — PENDING SG-228 recast.
+----
+Use ref_image_0 for the exact sky, palette and painting style: violet
+storm-dusk, ember-orange glow, moonlit silver rims, hand-painted brushwork.
+Use ref_image_1 and ref_image_2 for the exact machine — an armoured boarding
+hulk: a squat black-iron pod with riveted plating, brass strapping, twin
+smokestacks, and hinged armor plates that open to reveal a blazing furnace-red
+circular core with boarding ramps below. Use ref_image_3 for the exact
+boarders — brass-and-iron automatons, glowing furnace eyes, bladed arms.
+
+The video: the boarding hulk of ref_image_2 has just slammed onto the
+airship's timber rail — splinters still falling, chains taut, steam venting
+from its stacks against the storm-dusk sky. Its heavy front plates hinge open
+exactly as in ref_image_1, furnace-red light flooding out across the deck
+planking, and its ramps drop with a crash. Brass automatons from ref_image_3
+pour out and over the gunwale, climbing onto the deck one after another, their
+eyes and joints glowing ember-orange, blades unfolding, surging toward the
+camera. Menacing, mechanical, relentless. The deck's lantern light and the
+hulk's red core are the only warmth against the violet storm.
+
+Dynamic but readable action, no camera shake beyond the initial impact
+tremor, no text, no watermark, no photorealism — painted fantasy style only.

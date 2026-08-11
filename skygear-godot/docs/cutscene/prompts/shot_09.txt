@@ -1,0 +1,33 @@
+# SHOT 09 — THE STAND (bookend, into title) — 124 frames (5.17 s) @ 24 fps, 1344x768
+# Grid check: (124 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R1b corsair_front_attack.png (flattened)
+# ref_images.ref_image_2 = refs R1c corsair_back_idle.png (flattened)
+# ref_images.ref_image_3 = refs R10 colossus_front_idle.png (flattened)
+#   (+ optionally refs R5 staged boiler frame as ref_image_4 for the glow behind him)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: mute. Game mix: boss_loop.mp3 under; VO wave_start — "Hold the
+# deck." (PENDING SG-228 recast) as his answer to shot 08's "GIVE ME THE
+# ENGINE."; wave_start.ogg on the cut to black. The editor's SKYGEAR title
+# card follows on black. Apply the same proportion decision as shot 03.
+----
+Use ref_image_0 for the exact palette and painting style: ember-orange warmth
+against violet storm shadow, silver moonlit rims, hand-painted brushwork. Use
+ref_image_1 and ref_image_2 for the exact hero — the same young captain: red
+brass-buckled greatcoat, brass goggles in spiked brown hair, ornate brass
+clockwork gauntlet, large curved cutlass. Same face, same proportions as the
+references, no drifting features. Use ref_image_3 only for the shape looming
+at the frame's edges — the Brass Colossus, kept soft and out of focus.
+
+The video: the captain stands alone at the centre of his lantern-lit deck,
+feet planted, facing the camera. Behind him, deeper in frame, the warm orange
+glow of the ship's Boiler breathes slow light up his back; before him, out of
+focus at the top and edges of frame, the dark colossal silhouette of the
+Colossus blots the storm-dusk sky, its furnace chest a soft red smoulder. He
+raises the curved cutlass slowly in front of him — ember light running down
+the blade's edge — sets his jaw, and the camera pushes in steadily on his
+face: young, calm, unafraid. Wind takes his coat. Embers drift between him
+and the giant.
+
+One slow push-in, subtle motion only, held resolve. No text, no watermark,
+no photorealism — painted fantasy style only.

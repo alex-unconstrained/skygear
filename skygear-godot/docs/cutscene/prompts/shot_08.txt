@@ -1,0 +1,34 @@
+# SHOT 08 — THE COLOSSUS (the enemy speaks) — 141 frames (5.88 s) @ 24 fps, 1344x768
+# Grid check: (141 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R10 colossus_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R4  bow_prow.png (flattened)
+#   (+ optionally refs R5c staged colossus_arrival frame as ref_image_3 for the
+#    boss's real scale against the real bow — subordinate to ref_image_0 for palette)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: audition the rumble; duck to -18 dB under boss_loop.mp3, else mute.
+# The edit slams boss_loop.mp3 in on this cut, boss_roar.ogg as it crests, and
+# VO boss_arrive — "GIVE ME THE ENGINE." (audition voice/boss/arrive_1.ogg and
+# arrive_2.ogg for the take carrying that line; usable now, unaffected by SG-228).
+# The shot must END on the eye flaring — the cut to shot 09 lands on it.
+----
+Use ref_image_0 for the exact sky, palette and painting style: violet
+storm-dusk, moon behind churning cloud, ember horizon, hand-painted
+brushwork. Use ref_image_1 for the exact giant — the Brass Colossus: a
+colossal brass-and-iron automaton with a blazing furnace grate for a chest, a
+single glowing orange eye in a domed head, massive cannon barrels mounted on
+both shoulders, huge gauntleted fists, and anchor-clawed feet. Use
+ref_image_2 for the exact bow of the airship — the carved brass dragon
+figurehead on its dark riveted bulwark, lanterns lit.
+
+The video: seen from low on the airship's deck, the Brass Colossus of
+ref_image_1 rises over the bow — impossibly huge against the storm-dusk sky,
+steam pouring from its stacks, the furnace in its chest breathing orange
+light across the deck and the dragon figurehead below it. Storm clouds churn
+behind its shoulders and its cannon barrels rake slowly across the sky. It
+seizes the bow rail and plants one anchor-clawed foot down onto the deck —
+the whole frame shudders, lanterns swing, embers leap. Then its single orange
+eye flares bright, filling with light, staring straight into the camera.
+
+Immense scale, slow dreadful movement, the eye-flare as the final beat. No
+text, no watermark, no photorealism — painted fantasy style only.

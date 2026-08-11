@@ -1,0 +1,26 @@
+# SHOT 01 — THE SKY (cold open) — 124 frames (5.17 s) @ 24 fps, 1344x768
+# Grid check: (124 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  assets/art/env/sky_backdrop.png
+# ref_images.ref_image_1 = refs R3  airship_distant.png (flattened + cropped to content)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: audition the wind; duck to -18 dB under amb_storm.ogg if good, else mute.
+----
+Use ref_image_0 for the exact sky, palette and painting style — this shot IS
+that sky, brought to life: a full moon burning through a deep well of storm
+cloud in the upper left, silver-blue light spilling down its walls, a violet
+storm-dusk cloud field across the middle, and a low horizon of ember-orange
+fire in the lower right. Use ref_image_1 for the exact airship — a long
+steampunk vessel with a two-tone fabric envelope, a lamplit wooden hull slung
+beneath it, rigging lines, tiny warm lanterns along her deck.
+
+The video: a slow, majestic drift through the storm-dusk sky. Clouds churn
+gently; the moonlight pulses faintly as thin cloud crosses the moon. Far away
+and small, the airship from ref_image_1 crosses the frame from right to left
+beneath the moon, her lanterns the only warm points in the cold half of the
+sky, a faint trail of steam behind her. No land, no sea — only sky above and
+storm below. Hand-painted brushwork texture throughout, exactly the style of
+ref_image_0. Camera drifts almost imperceptibly forward and left, ending with
+the distant ship near frame centre.
+
+Slow cinematic pacing, no camera shake, no text, no watermark, no lens flare,
+no photorealism — painted fantasy style only.

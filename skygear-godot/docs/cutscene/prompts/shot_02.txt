@@ -1,0 +1,27 @@
+# SHOT 02 — THE SHIP — 141 frames (5.88 s) @ 24 fps, 1344x768
+# Grid check: (141 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R3  airship_distant.png (flattened + cropped)
+# ref_images.ref_image_2 = refs R4  bow_prow.png (flattened)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+# H3 audio: mute. Game mix: amb_ship.ogg + combat_low.mp3 fading in.
+----
+Use ref_image_0 for the exact sky, palette and painting style: moonlight cool
+and silver from the upper left, ember-orange glow from the lower right, violet
+storm-dusk clouds between. Use ref_image_1 for the exact airship — two-tone
+fabric envelope, lamplit wooden hull, rigging. Use ref_image_2 for the exact
+bow of the ship: a carved brass dragon figurehead with spread wings rising
+from a dark riveted-timber bulwark, brass trim, a glowing lantern on each
+side.
+
+The video: the camera glides forward along the airship's flank at deck-lantern
+height, close enough that riveted hull planking, brass fittings and taut
+rigging lines slide past in the foreground. Warm lantern light plays over the
+timber; the storm-dusk sky of ref_image_0 fills everything beyond her. The
+glide carries toward the bow and the brass dragon figurehead of ref_image_2
+passes majestically through frame, wings catching moonlight on one side and
+ember glow on the other, the fiery horizon opening up ahead of the ship. Wind
+streams a pennant. Hand-painted brushwork, exactly the style of ref_image_0.
+
+Smooth continuous camera glide, cinematic, no camera shake, no text, no
+watermark, no photorealism — painted fantasy style only.
