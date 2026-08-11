@@ -285,6 +285,8 @@ func _run() -> void:
 	await process_frame
 	_pulse_cadence()
 	await process_frame
+	_cleave_beat()
+	await process_frame
 	_status_attribution()
 	await process_frame
 	_crit_explode()
@@ -1272,6 +1274,500 @@ func _pulse_timed(step: float) -> Dictionary:
 		"left": float(pulse.passive_timer), "period": period}
 	game.queue_free()
 	return result
+
+
+## AB-04. The Captain's fixed arc asks her to remain close through a RETURN cut
+## rather than repeating one identical fan. The red-first names are the packet's
+## whole contract; the behavior fixtures replace this seam guard once the
+## successful-swing serial and the two-beat resolver land.
+##
+## Everything here drives `_process_basic_attack` — the real seam, on a real
+## deck — because the one thing a two-beat swing can get wrong is the beat
+## disagreeing with the damage, and only the live path can be caught doing that.
+func _cleave_beat() -> void:
+	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var data_source := FileAccess.get_file_as_string("res://scripts/game_data.gd")
+	var view_source := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var exact_names: Array[String] = [
+		"the Captain's arc keeps 0.36, 190, 2.443 and 150 while authoring 20/20, twelve degrees, 110 and 1.20",
+		"the Boilerwright's Scald and the drafted Cleave card carry no two-beat fields and no beat",
+		"the next beat reads port before any target exists and begin_run puts it back",
+		"odd cuts centre twelve degrees to port and even cuts twelve degrees to starboard",
+		"a swing that finds no body and no hull advances neither serial, beat nor cooldown",
+		"two connected close cuts total 44 and two cuts at the edge total 40",
+		"the 110 band is measured per body inside one latched return cone",
+		"one swing latches one beat however many bodies the cone catches",
+		"the hull takes the resolved 20 or 24 once through the ordinary splash",
+		"all four elements carry the same two-beat damage",
+		"crit, the global multipliers, knock, sound and basic attribution stay on the ordinary path",
+		"the basic seam consumes no burn and reacts to no Kindle",
+		"staying out for the first cut and closing for the telegraphed return pays 20 then 24",
+		"the deck shows the side that enters next before a target is acquired, on no presentation timer",
+		"the two cuts enter from opposite sides without moving the simulation arc",
+	]
+	var ready := data_source.contains('"combo_damage": [20.0, 20.0]') \
+		and game_source.contains("var basic_swing_serial") \
+		and game_source.contains("func cleave_next_beat() -> String") \
+		and view_source.contains("func _sync_cleave_tell() -> void") \
+		and view_source.contains("static func cleave_lead(")
+	if not ready:
+		for check_name in exact_names:
+			_check("cleave", check_name, false,
+				"AB-04 successful-swing serial, two-beat resolver and side tell are not implemented")
+		return
+
+	## 1. THE AUTHORED ROW. Every shipped number that must not move, and every
+	## new one, read off the table the swing itself reads.
+	var auto: Dictionary = SkyGearData.CLASSES.captain.auto
+	var combo: Array = auto.get("combo_damage", [])
+	var shipped_total: float = float(combo[0]) \
+		+ float(combo[1]) * float(auto.combo_return_scale)
+	_check("cleave", exact_names[0],
+		str(auto.kind) == "arc"
+			and is_equal_approx(float(auto.period), 0.36)
+			and is_equal_approx(float(auto.range), 190.0)
+			and is_equal_approx(float(auto.arc), 2.443)
+			and is_equal_approx(float(auto.knock), 150.0)
+			and combo.size() == 2
+			and is_equal_approx(float(combo[0]), 20.0)
+			and is_equal_approx(float(combo[1]), 20.0)
+			and absf(rad_to_deg(float(auto.combo_angle)) - 12.0) < 0.01
+			and is_equal_approx(float(auto.combo_close_range), 110.0)
+			and is_equal_approx(float(auto.combo_return_scale), 1.20)
+			and is_equal_approx(shipped_total, 44.0),
+		"%.2f/%.0f/%.3f/%.0f, %s at %.2f deg, close %.0f x %.2f = %.0f" % [
+			float(auto.period), float(auto.range), float(auto.arc),
+			float(auto.knock), str(combo), rad_to_deg(float(auto.combo_angle)),
+			float(auto.combo_close_range), float(auto.combo_return_scale),
+			shipped_total])
+
+	## 2. AND NOBODY ELSE. The Boilerwright's cone is a different shape with a
+	## different name; the drafted Cleave CARD is a card. Neither is the
+	## Captain's authored arc and neither may acquire a beat — the swing this
+	## packet changes is one row of one table, and a check that only read the
+	## Captain's row could not have caught the return leaking sideways.
+	var scald: Dictionary = SkyGearData.CLASSES.boilerwright.auto
+	var wright := _cleave_game("boilerwright")
+	var wright_mark := _beam_target(wright, Vector2(0, -60), 1000.0)
+	_cleave_swing(wright)
+	var wright_first: float = 1000.0 - wright_mark.hp
+	_cleave_swing(wright)
+	var wright_second: float = (1000.0 - wright_mark.hp) - wright_first
+	_check("cleave", exact_names[1],
+		str(scald.kind) == "cone"
+			and not scald.has("combo_damage") and not scald.has("combo_angle")
+			and not scald.has("combo_close_range")
+			and not scald.has("combo_return_scale")
+			and not SkyGearData.SHAPES.CLOSEHIT.has("combo_damage")
+			and is_equal_approx(wright_first, float(scald.damage))
+			and is_equal_approx(wright_second, float(scald.damage))
+			and wright.basic_swing_serial == 0
+			and wright.cleave_next_beat() == "port",
+		"Scald %.0f then %.0f (authored %.0f), serial %d" % [wright_first,
+			wright_second, float(scald.damage), wright.basic_swing_serial])
+	wright.queue_free()
+
+	## 3. THE READ EXISTS BEFORE CONTACT, and the run owns it. Read on an empty
+	## deck, so nothing about a target can be supplying the answer.
+	var fresh := _cleave_game()
+	var before_any := fresh.cleave_next_beat()
+	var serial_before: int = fresh.basic_swing_serial
+	var fresh_mark := _beam_target(fresh, Vector2(0, -60), 1000.0)
+	_cleave_swing(fresh)
+	var after_one := fresh.cleave_next_beat()
+	var hit_first: bool = fresh_mark.hp < 1000.0
+	fresh.begin_run()
+	_check("cleave", exact_names[2],
+		before_any == "port" and serial_before == 0 and hit_first
+			and after_one == "starboard"
+			and fresh.cleave_next_beat() == "port"
+			and fresh.basic_swing_serial == 0,
+		"empty deck reads %s at serial %d, then %s, begin_run %s at %d" % [
+			before_any, serial_before, after_one, fresh.cleave_next_beat(),
+			fresh.basic_swing_serial])
+	fresh.queue_free()
+
+	## 4. WHICH SIDE. Two wings 1.2 rad off the aim — inside the 2.443 fan when
+	## it is swung 12 degrees toward them and outside it when it is swung 12
+	## degrees away. A cut that ignored the offset would catch BOTH every time,
+	## which is exactly the regression this pins.
+	var sides := _cleave_game()
+	var sides_pin := _beam_target(sides, Vector2(0, -60), 1000.0)
+	var port_wing := _beam_target(sides, Vector2.UP.rotated(-1.2) * 150.0, 1000.0)
+	var star_wing := _beam_target(sides, Vector2.UP.rotated(1.2) * 150.0, 1000.0)
+	_cleave_swing(sides)
+	var odd_port: float = 1000.0 - port_wing.hp
+	var odd_star: float = 1000.0 - star_wing.hp
+	_cleave_swing(sides)
+	var even_port: float = (1000.0 - port_wing.hp) - odd_port
+	var even_star: float = (1000.0 - star_wing.hp) - odd_star
+	_check("cleave", exact_names[3],
+		odd_port > 0.0 and is_equal_approx(odd_star, 0.0)
+			and is_equal_approx(even_port, 0.0) and even_star > 0.0
+			and sides_pin.hp < 1000.0,
+		"odd port %.0f star %.0f, even port %.0f star %.0f" % [odd_port,
+			odd_star, even_port, even_star])
+	sides.queue_free()
+
+	## 5. A MISS IS NOT A BEAT. The whole reason the serial counts RESOLVED
+	## swings: if an empty swing advanced it, the tell and the next cut's damage
+	## would disagree for the rest of the fight.
+	var missed := _cleave_game()
+	var far := _beam_target(missed, Vector2(0, -600), 1000.0)
+	_cleave_swing(missed)
+	var miss_quiet: bool = missed.basic_swing_serial == 0 \
+		and missed.cleave_next_beat() == "port" \
+		and is_equal_approx(missed.basic_cooldown, 0.0) \
+		and missed.effects.is_empty() \
+		and is_equal_approx(far.hp, 1000.0)
+	## And a dead body in reach is no body at all.
+	far.global_position = Vector2(0, -60)
+	far.dead = true
+	_cleave_swing(missed)
+	var corpse_quiet: bool = missed.basic_swing_serial == 0 \
+		and missed.cleave_next_beat() == "port"
+	far.dead = false
+	_cleave_swing(missed)
+	_check("cleave", exact_names[4],
+		miss_quiet and corpse_quiet and missed.basic_swing_serial == 1
+			and missed.cleave_next_beat() == "starboard"
+			and missed.basic_cooldown > 0.0,
+		"miss quiet %s, corpse quiet %s, then serial %d reading %s" % [
+			miss_quiet, corpse_quiet, missed.basic_swing_serial,
+			missed.cleave_next_beat()])
+	missed.queue_free()
+
+	## 6. THE PRICE OF THE GROUND. Two connected close cuts are the shipped 44;
+	## playing the return at the edge of the fan loses four.
+	var close_pair := _cleave_pair(80.0)
+	var edge_pair := _cleave_pair(160.0)
+	_check("cleave", exact_names[5],
+		is_equal_approx(float(close_pair.first), 20.0)
+			and is_equal_approx(float(close_pair.second), 24.0)
+			and is_equal_approx(float(close_pair.total), 44.0)
+			and is_equal_approx(float(edge_pair.first), 20.0)
+			and is_equal_approx(float(edge_pair.second), 20.0)
+			and is_equal_approx(float(edge_pair.total), 40.0),
+		"close %.0f + %.0f = %.0f, edge %.0f + %.0f = %.0f" % [
+			float(close_pair.first), float(close_pair.second),
+			float(close_pair.total), float(edge_pair.first),
+			float(edge_pair.second), float(edge_pair.total)])
+
+	## 7. PER BODY, INSIDE ONE LATCHED BEAT. The beat is decided once for the
+	## swing; the 110 band is asked of every body the return catches. A single
+	## distance read taken off the aimed target would pay the far one 24 too.
+	var mixed := _cleave_game()
+	var near_body := _beam_target(mixed, Vector2(0, -60), 1000.0)
+	var far_body := _beam_target(mixed, Vector2.UP.rotated(1.2) * 150.0, 1000.0)
+	_cleave_swing(mixed)
+	_cleave_swing(mixed)
+	_check("cleave", exact_names[6],
+		is_equal_approx(1000.0 - near_body.hp, 44.0)
+			and is_equal_approx(1000.0 - far_body.hp, 20.0),
+		"near %.0f over two cuts, far %.0f on the return" % [
+			1000.0 - near_body.hp, 1000.0 - far_body.hp])
+	mixed.queue_free()
+
+	## 8. ONE BEAT PER SWING, NOT ONE PER TARGET. Three bodies in one fan; the
+	## serial moves by one. Incrementing inside the cone loop would put the next
+	## cut on the wrong side after every crowd.
+	var crowd := _cleave_game()
+	var crowd_bodies: Array[SkyGearEnemy] = [
+		_beam_target(crowd, Vector2(0, -60), 1000.0),
+		_beam_target(crowd, Vector2.UP.rotated(-0.5) * 90.0, 1000.0),
+		_beam_target(crowd, Vector2.UP.rotated(0.5) * 90.0, 1000.0),
+	]
+	_cleave_swing(crowd)
+	var crowd_first: int = crowd.basic_swing_serial
+	_cleave_swing(crowd)
+	var crowd_totals := PackedFloat32Array()
+	for body in crowd_bodies:
+		crowd_totals.append(1000.0 - body.hp)
+	var crowd_paid := true
+	for total in crowd_totals:
+		crowd_paid = crowd_paid and is_equal_approx(float(total), 44.0)
+	_check("cleave", exact_names[7],
+		crowd_first == 1 and crowd.basic_swing_serial == 2
+			and crowd.cleave_next_beat() == "port" and crowd_paid,
+		"serial %d then %d over %d bodies paying %s" % [crowd_first,
+			crowd.basic_swing_serial, crowd_bodies.size(), str(crowd_totals)])
+	crowd.queue_free()
+
+	## 9. THE HULL. `hulk_splash` is the line every shape already has; the
+	## return hands it the value it resolved and hands it once.
+	var hull := _cleave_game()
+	hull.hulk = SkyGearLanes.make_hulk(-80.0, 1.0)
+	hull.hulk.vulnerable = true
+	hull.hulk.hp = 5000.0
+	_cleave_swing(hull)
+	var hull_first: float = 5000.0 - float(hull.hulk.hp)
+	_cleave_swing(hull)
+	var hull_second: float = (5000.0 - float(hull.hulk.hp)) - hull_first
+	## The same return, taken from outside the band: the hull is a body and the
+	## 110 is asked of its centre like anybody else's.
+	var hull_far := _cleave_game()
+	hull_far.hulk = SkyGearLanes.make_hulk(-250.0, 1.0)
+	hull_far.hulk.vulnerable = true
+	hull_far.hulk.hp = 5000.0
+	_cleave_swing(hull_far)
+	_cleave_swing(hull_far)
+	var hull_far_total: float = 5000.0 - float(hull_far.hulk.hp)
+	_check("cleave", exact_names[8],
+		is_equal_approx(hull_first, 20.0) and is_equal_approx(hull_second, 24.0)
+			and hull.basic_swing_serial == 2
+			and is_equal_approx(hull_far_total, 40.0),
+		"hull close %.0f then %.0f at serial %d, hull far %.0f over two" % [
+			hull_first, hull_second, hull.basic_swing_serial, hull_far_total])
+	hull.queue_free()
+	hull_far.queue_free()
+
+	## 10. EVERY ELEMENT, driven over the table rather than a typed list of the
+	## ones somebody remembered. The element is the run's (SG-99) and the beat is
+	## the class's, and neither may reach into the other.
+	var element_faults := PackedStringArray()
+	for element in SkyGearData.ELEMENTS:
+		var elemental := _cleave_game()
+		elemental.auto_element = str(element)
+		var elemental_mark := _beam_target(elemental, Vector2(0, -80), 1000.0)
+		_cleave_swing(elemental)
+		var elemental_first: float = 1000.0 - elemental_mark.hp
+		_cleave_swing(elemental)
+		var elemental_total: float = 1000.0 - elemental_mark.hp
+		var drawn := str(elemental.effects[-1].get("element", ""))
+		if not is_equal_approx(elemental_first, 20.0) \
+				or not is_equal_approx(elemental_total, 44.0) \
+				or drawn != str(element):
+			element_faults.append("%s %.0f/%.0f drawn %s" % [str(element),
+				elemental_first, elemental_total, drawn])
+		elemental.queue_free()
+	_check("cleave", exact_names[9],
+		element_faults.is_empty() and SkyGearData.ELEMENTS.size() == 4,
+		"%d elements, faults %s" % [SkyGearData.ELEMENTS.size(),
+			str(element_faults)])
+
+	## 11. AND NOTHING ELSE FORKS. Crit still doubles the resolved cut, the
+	## global multipliers still land on it, knock is still dealt, the basic still
+	## makes its own noise and the damage still lands in the basic's own bucket.
+	var critical := _cleave_game()
+	critical.mods.crit_chance = 1.0
+	var crit_mark := _beam_target(critical, Vector2(0, -80), 1000.0)
+	_cleave_swing(critical)
+	var crit_first: float = 1000.0 - crit_mark.hp
+	_cleave_swing(critical)
+	var crit_total: float = 1000.0 - crit_mark.hp
+	var doubled := _cleave_game()
+	doubled.damage_multiplier = 2.0
+	var doubled_mark := _beam_target(doubled, Vector2(0, -80), 1000.0)
+	_cleave_swing(doubled)
+	_cleave_swing(doubled)
+	var doubled_total: float = 1000.0 - doubled_mark.hp
+	var shoved := _cleave_game()
+	shoved.mods.knock_multiplier = 1.0
+	var shoved_mark := _beam_target(shoved, Vector2(0, -80), 1000.0)
+	_cleave_swing(shoved)
+	var shoved_ok: bool = shoved_mark.knock_velocity.length() > 0.0
+	var booked := _cleave_game()
+	var booked_mark := _beam_target(booked, Vector2(0, -80), 1000.0)
+	_cleave_swing(booked)
+	_cleave_swing(booked)
+	var basic_body := _function_body("res://scripts/game.gd", "_process_basic_attack")
+	_check("cleave", exact_names[10],
+		is_equal_approx(crit_first, 40.0) and is_equal_approx(crit_total, 88.0)
+			and is_equal_approx(doubled_total, 88.0) and shoved_ok
+			and is_equal_approx(float(booked.tel.basic.damage), 44.0)
+			and int(booked.tel.basic.hits) == 2
+			and basic_body.count("overpressure_multiplier()") == 1
+			and basic_body.count("play_sfx(str(auto.sound), -7.0)") == 1
+			and basic_body.count("hulk_splash(") == 1
+			and is_equal_approx(1000.0 - booked_mark.hp, 44.0),
+		"crit %.0f/%.0f, x2 %.0f, knock %s, basic bucket %.0f over %d hits" % [
+			crit_first, crit_total, doubled_total, shoved_ok,
+			float(booked.tel.basic.damage), int(booked.tel.basic.hits)])
+	critical.queue_free()
+	doubled.queue_free()
+	shoved.queue_free()
+	booked.queue_free()
+
+	## 12. AND IT IS NOT EL-03. The return is a POSITION rule; a burning body
+	## pays exactly the same 44 as a fresh one and keeps its burn, because
+	## nothing in this seam consumes a stack.
+	var burning := _cleave_game()
+	burning.auto_element = "EMBER"
+	var burning_mark := _beam_target(burning, Vector2(0, -80), 1000.0)
+	_cleave_swing(burning)
+	var stacks_after_first: int = burning_mark.burn_stacks
+	_cleave_swing(burning)
+	var lowered := basic_body.to_lower()
+	_check("cleave", exact_names[11],
+		is_equal_approx(1000.0 - burning_mark.hp, 44.0)
+			and stacks_after_first > 0
+			and burning_mark.burn_stacks >= stacks_after_first
+			and burning_mark.burn_time > 0.0
+			and not lowered.contains("kindle")
+			and not lowered.contains("burn")
+			and not lowered.contains("consume"),
+		"burning body paid %.0f, stacks %d then %d" % [
+			1000.0 - burning_mark.hp, stacks_after_first,
+			burning_mark.burn_stacks])
+	burning.queue_free()
+
+	## 13. THE WHOLE ASK, PLAYED. Stand off for the first cut, read the tell,
+	## then commit to the ground for the return.
+	var played := _cleave_game()
+	var played_mark := _beam_target(played, Vector2(0, -160), 1000.0)
+	_cleave_swing(played)
+	var stood_off: float = 1000.0 - played_mark.hp
+	var telegraph := played.cleave_next_beat()
+	played.player.global_position = Vector2(0, -80)
+	_cleave_swing(played)
+	var committed: float = (1000.0 - played_mark.hp) - stood_off
+	_check("cleave", exact_names[12],
+		is_equal_approx(stood_off, 20.0) and telegraph == "starboard"
+			and is_equal_approx(committed, 24.0)
+			and is_equal_approx(1000.0 - played_mark.hp, 44.0),
+		"stood off %.0f, tell %s, closed for %.0f" % [stood_off, telegraph,
+			committed])
+	played.queue_free()
+
+	## 14. AND SHE CAN SEE IT COMING WITHOUT WATCHING THE NUMBERS. The tell is
+	## on the deck on a frame with NO enemy on it — a read that only appeared
+	## once a target was acquired would arrive after the decision it exists for —
+	## and it is derived, so `_sync_cleave_tell` is handed no delta and holds no
+	## clock of its own.
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var tell_game: SkyGearGame = world.get_node("SkyGear")
+	tell_game.workshop = SkyGearWorkshop.fresh(true)
+	tell_game.refresh_berthed()
+	if tell_game.impact != null:
+		tell_game.impact.enabled = false
+	view.sway = false
+	_begin(tell_game, "AB04")
+	for e in tell_game.get_tree().get_nodes_in_group("enemies"):
+		e.dead = true
+		e.queue_free()
+	tell_game.spawn_queue.clear()
+	tell_game.hulk = {}
+	tell_game.player.global_position = Vector2.ZERO
+	tell_game.player.aim_direction = Vector2.UP
+	view._process(0.05)
+	var port_angle: float = _cleave_tell_angle(view)
+	var port_side_ok: bool = is_finite(port_angle) \
+		and port_angle < Vector2.UP.angle()
+	var tell_mark := _beam_target(tell_game, Vector2(0, -80), 1000.0)
+	_cleave_swing(tell_game)
+	tell_mark.dead = true
+	tell_mark.queue_free()
+	view._process(0.05)
+	var star_angle: float = _cleave_tell_angle(view)
+	var tell_body := _function_body("res://scripts/view3d.gd", "_sync_cleave_tell")
+	_check("cleave", exact_names[13],
+		port_side_ok and is_finite(star_angle)
+			and star_angle > Vector2.UP.angle()
+			and absf(port_angle - star_angle) > 0.1
+			and view_source.contains("func _sync_cleave_tell() -> void")
+			and tell_body.contains("cleave_next_beat()")
+			and not tell_body.contains("delta")
+			and not tell_body.contains("_flicker"),
+		"empty deck tell at %.3f, after one cut %.3f (aim %.3f)" % [port_angle,
+			star_angle, Vector2.UP.angle()])
+
+	## 15. AND THE TWO CUTS ARRIVE FROM OPPOSITE SIDES. The effect carries the
+	## latched side and the presentation lead is read off the effect's OWN clock,
+	## so the picture can enter from port without the fan it draws being any
+	## wider, shorter or differently aimed than the one that connected.
+	var drawn_game := _cleave_game()
+	var drawn_mark := _beam_target(drawn_game, Vector2(0, -80), 1000.0)
+	_cleave_swing(drawn_game)
+	var first_fx: Dictionary = drawn_game.effects[-1]
+	_cleave_swing(drawn_game)
+	var second_fx: Dictionary = drawn_game.effects[-1]
+	var offset: float = float(auto.combo_angle)
+	var lead_in := SkyGearView3D.cleave_lead("port", 0.0)
+	var lead_out := SkyGearView3D.cleave_lead("starboard", 0.0)
+	var effects_body := _function_body("res://scripts/view3d.gd", "_sync_effects")
+	_check("cleave", exact_names[14],
+		str(first_fx.get("side", "")) == "port"
+			and str(second_fx.get("side", "")) == "starboard"
+			and absf(float(first_fx.direction) - Vector2.UP.rotated(-offset).angle()) < 0.001
+			and absf(float(second_fx.direction) - Vector2.UP.rotated(offset).angle()) < 0.001
+			and is_equal_approx(float(first_fx.arc), float(auto.arc))
+			and is_equal_approx(float(second_fx.arc), float(auto.arc))
+			and is_equal_approx(float(first_fx.radius), float(auto.range))
+			and is_equal_approx(float(second_fx.radius), float(auto.range))
+			and lead_in < 0.0 and lead_out > 0.0
+			and is_equal_approx(SkyGearView3D.cleave_lead("port", 1.0), 0.0)
+			and effects_body.contains("cleave_lead("),
+		"sides %s/%s, aims %.3f/%.3f, arc %.3f, reach %.0f, leads %.3f/%.3f" % [
+			str(first_fx.get("side", "")), str(second_fx.get("side", "")),
+			float(first_fx.direction), float(second_fx.direction),
+			float(first_fx.arc), float(first_fx.radius), lead_in, lead_out])
+	drawn_game.queue_free()
+	world.queue_free()
+
+
+## The Captain's deck, emptied of everything that is not the swing under test.
+## Props are put out of reach rather than left standing: a keg inside 190 would
+## be detonated by the cone and its blast would be counted as the cut's.
+func _cleave_game(who: String = "captain") -> SkyGearGame:
+	var game := _new_game()
+	game.class_id = who
+	_begin(game, "AB04")
+	for enemy in game.enemies():
+		enemy.dead = true
+		enemy.queue_free()
+	game.spawn_queue.clear()
+	for prop in game.props():
+		prop.dead = true
+		prop.queue_free()
+	game.hulk = {}
+	game.skills = []
+	game.tel = SkyGearTelemetry.fresh(0)
+	game.effects.clear()
+	game.player.global_position = Vector2.ZERO
+	game.player.aim_direction = Vector2.UP
+	game.mods.crit_chance = 0.0
+	game.mods.crit_explode = 0.0
+	game.mods.kill_explode = 0.0
+	game.mods.knock_multiplier = 0.0
+	game.damage_multiplier = 1.0
+	game.pressure = 0.0
+	game.active_channel = {}
+	game.basic_cooldown = 0.0
+	game._set_state(SkyGearGame.State.PLAY)
+	return game
+
+
+## One swing through the real seam, with the period cleared so the beat under
+## test is the one that resolves.
+func _cleave_swing(game: SkyGearGame) -> void:
+	game.basic_cooldown = 0.0
+	game._process_basic_attack(0.016)
+
+
+## Two connected cuts on one body standing `distance` from the captain.
+func _cleave_pair(distance: float) -> Dictionary:
+	var game := _cleave_game()
+	var mark := _beam_target(game, Vector2(0.0, -distance), 1000.0)
+	_cleave_swing(game)
+	var first: float = 1000.0 - mark.hp
+	_cleave_swing(game)
+	var total: float = 1000.0 - mark.hp
+	var out := {"first": first, "second": total - first, "total": total}
+	game.queue_free()
+	return out
+
+
+## Which way the side tell is pointing on the deck, in ground radians, or INF if
+## the renderer drew none. Read off the decal's own transform rather than off a
+## number the view was asked to publish.
+func _cleave_tell_angle(view: SkyGearView3D) -> float:
+	var node: Decal = view._decals.get("fxcleaveside")
+	if node == null or not is_instance_valid(node):
+		return INF
+	var forward: Vector3 = node.transform.basis.x
+	return atan2(forward.z, forward.x)
 
 
 ## EL-00. The status path is an attribution boundary, not a new reaction. These

@@ -4182,6 +4182,9 @@ func _process(delta: float) -> void:
 	_sync_all(delta)
 	_sync_auras()
 	_sync_aim()
+	## The side tell rides with the aim read, and for the same reason: it is a
+	## thing the deck says about the swing you are ABOUT to make (SG-208).
+	_sync_cleave_tell()
 	_sync_effects()
 	## The blade trail last, after `_sync_effects` has told it this swing's
 	## element — the samples were taken in `_sync_captain`, off the bone.
@@ -5028,6 +5031,82 @@ func _sync_aim() -> void:
 			0.45 if hot else 0.22), hot)
 
 
+## --- WHICH SIDE ENTERS NEXT (design §17.7, board SG-208) ----------------------
+##
+## The Captain's two cuts are worth different things on different ground, so the
+## CUT condition on that mechanic is that a player must not have to watch the
+## damage numbers to know which one is coming. This is the read: a compact notch
+## on the planking, standing off the aim on the side the next cut opens from.
+##
+## THREE PROPERTIES, EACH OF WHICH IS A WAY THIS COULD HAVE BEEN USELESS.
+##
+##   * It is drawn BEFORE A TARGET IS ACQUIRED. Nothing in here asks about an
+##     enemy, a cooldown or a swing in progress: a tell that appeared only once
+##     something was in reach would arrive after the decision it exists to
+##     inform, which is the decision to close.
+##   * It holds NO CLOCK. This function takes no delta and reads no `_flicker`.
+##     It is `game.cleave_next_beat()` and the aim, every frame, so a dropped
+##     frame, a pause or a hit-stop cannot desynchronise the picture from the
+##     beat — there is only one number and the simulation owns it.
+##   * It is a NOTCH, not a fan. `CLEAVE_TELL_SIDE` throws it well clear of the
+##     aim so port and starboard are told apart at a glance rather than by
+##     measuring twelve degrees; the SIMULATION's twelve degrees are untouched
+##     and live in `game_data.gd`.
+const CLEAVE_TELL_SIDE := 0.95     ## radians off the aim — a read, not the arc
+const CLEAVE_TELL_ARC := 0.34      ## the notch's own width
+const CLEAVE_TELL_REACH := 0.62    ## of the swing's reach, so it sits inside it
+
+
+func _sync_cleave_tell() -> void:
+	if game.state != SkyGearGame.State.PLAY \
+			or game.player == null or game.player.hp <= 0.0:
+		return
+	if _cutscene != null and _cutscene.active():
+		return
+	var auto: Dictionary = game.class_data().get("auto", {})
+	## No two-beat authoring, no side to show. The Boilerwright draws nothing
+	## here and is asked nothing about it.
+	if not auto.has("combo_damage"):
+		return
+	var beat := game.cleave_next_beat()
+	var aim: Vector2 = game.player.aim_direction
+	if aim.length_squared() == 0.0:
+		aim = Vector2.UP
+	var lean: float = CLEAVE_TELL_SIDE if beat == "starboard" else -CLEAVE_TELL_SIDE
+	var reach: float = float(auto.get("range", 190.0)) * CLEAVE_TELL_REACH
+	var element: String = game.auto_element_id()
+	var tint: Color = SkyGearData.ELEMENTS[element].color \
+		if SkyGearData.ELEMENTS.has(element) else PLAYER_TEAL
+	_decal("fxcleaveside", game.player.global_position,
+		aim.rotated(lean).angle(), reach * 2.0, reach * 2.0,
+		_fan_texture(CLEAVE_TELL_ARC, false),
+		Color(tint.r, tint.g, tint.b, 0.30))
+
+
+## HOW FAR AHEAD OF ITS OWN CUT THE PICTURE STARTS, in radians, for a swing of
+## `side` that is `progress` of the way through its life.
+##
+## The two cuts have to be seen ARRIVING from opposite sides, and a twelve-degree
+## difference in where the fan is centred is not something a player reads in a
+## fight. So the drawn fan leads its own cut: a port swing starts thrown further
+## to port and closes onto the simulation's angle as it lands, a starboard swing
+## does the mirror of it.
+##
+## IT IS PRESENTATION AND IT IS ON THE SIMULATION'S CLOCK. `progress` is the
+## effect's own `time / life`, which the game advances — no second timer, no
+## interpolation state — and the lead is ZERO by the time the effect ends, so
+## what is left on the screen is the fan that actually connected. The cone that
+## resolved was rotated in `game.gd` and nothing here can move it.
+const CLEAVE_SWEEP := 0.55
+
+
+static func cleave_lead(side: String, progress: float) -> float:
+	if side != "port" and side != "starboard":
+		return 0.0
+	var away: float = CLEAVE_SWEEP * (1.0 - clampf(progress, 0.0, 1.0))
+	return -away if side == "port" else away
+
+
 func _sync_effects() -> void:
 	## AB-01: a held Beam is simulation state, not an effect with a second
 	## presentation lifetime. The same endpoint query feeds damage and picture.
@@ -5084,7 +5163,14 @@ func _sync_effects() -> void:
 		match kind:
 			"arc":
 				var r: float = float(fx.get("radius", 120.0)) * (0.9 + progress * 0.2)
-				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0)),
+				## THE ENTRY (SG-208). The Captain's two cuts arrive from opposite
+				## sides; `side` is the beat the simulation latched and the lead is
+				## zero for every other arc in the game, so this line is a no-op for
+				## anything that does not carry one. The fan's WIDTH and REACH are
+				## the simulation's own, untouched — only where it is pointing on
+				## the way in moves, and only until it lands.
+				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0))
+						+ cleave_lead(str(fx.get("side", "")), progress),
 					r * 2.0, r * 2.0, _art("slash", _fan_texture(float(fx.get("arc", 1.7)), false)),
 					tint)
 				## A player swing tells the blade trail what colour it is — the fx

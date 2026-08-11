@@ -168,6 +168,17 @@ var boiler_position := BOILER_POSITION
 var boiler_radius := 62.0
 var end_reason := ""
 var basic_cooldown := 0.0
+## HOW MANY BASIC SWINGS HAVE ACTUALLY RESOLVED (design §17.7, board SG-208).
+##
+## Not how many times the swing came off cooldown, and not how many bodies were
+## standing in the fan: it counts the swings that FOUND something — a hittable
+## body or a vulnerable hull — and bit it. That is the whole of why it exists.
+## A miss that advanced it would leave the side tell on the deck pointing one
+## way and the next cut's damage resolving the other, for the rest of the fight;
+## an increment inside the cone loop would do the same after every crowd.
+##
+## Reset by `begin_run`, like every other thing about a run in progress.
+var basic_swing_serial := 0
 ## THE AUTO-ATTACK'S ELEMENT, AND WHERE THE CHOICE LIVES (board SG-99, from the
 ## build-44 playtest: *"Can we get a way to change the auto-attack to another
 ## element? So it's not always fire?"*).
@@ -1899,6 +1910,10 @@ func begin_run() -> void:
 	tap_cooldown = 0.0
 	vent_cooldown = 0.0
 	basic_cooldown = 0.0
+	## And the beat with it (SG-208): a run that opened on the return cut would
+	## be a run whose first swing pays for ground the player was never asked to
+	## take. Every run starts on the port cut.
+	basic_swing_serial = 0
 	end_reason = ""
 	opening_draft = true
 	## The establishing shot is owed for this run; the renderer spends it on wave 1.
@@ -2815,6 +2830,55 @@ func enemy_count() -> int:
 			count += 1
 	return count
 
+
+## --- THE CAPTAIN'S TWO BEATS (design §17.7, board SG-208) ---------------------
+##
+## The fixed arc repeated one identical fan forever, so there was never a
+## question inside it. It has one now: the ODD cut opens twelve degrees to port,
+## the EVEN cut is the RETURN twelve degrees to starboard, and the return pays
+## more to a body whose centre is inside 110. Standing on the ground through
+## both halves is the shipped 44; fanning at the edge of the reach is 40.
+##
+## THREE READS, AND THE SEAM BELOW USES ALL THREE. Nothing here stores a second
+## copy of the beat, and nothing outside this file may: `cleave_next_beat()` is
+## `basic_swing_serial` arithmetic, so the renderer's tell and the damage that
+## lands cannot drift apart, because there is only one number.
+
+
+## The row's own two-beat authoring, or `{}` for a basic that has none.
+##
+## ASKED, NOT NAME-MATCHED. The Boilerwright's `"kind": "cone"` Scald and the
+## drafted `CLOSEHIT` Cleave card are untouched by this packet because they
+## carry no `combo_damage` — not because a class id or a shape name was tested
+## against them somewhere. A row that wants the beat authors it.
+func cleave_combo() -> Dictionary:
+	var auto: Dictionary = class_data().get("auto", {})
+	return auto if auto.has("combo_damage") else {}
+
+
+## Which side the NEXT cut opens from. Read-only and DERIVED — the tell on the
+## deck, the harness and anything else that wants to know all ask this one
+## question of the one counter.
+func cleave_next_beat() -> String:
+	if cleave_combo().is_empty():
+		return "port"
+	return "starboard" if basic_swing_serial % 2 == 1 else "port"
+
+
+## What a body standing `distance` from the captain is paid by a cut worth
+## `base`, given the close band THIS swing latched (`close_range` is 0.0 on the
+## opening cut, which has no band at all).
+##
+## One place, because the cone asks it of every body it caught and the hull asks
+## it of its own centre. Two copies of the 110 would be two chances for the
+## crowd and the hull to disagree about the same swing.
+func cleave_close_damage(base: float, distance: float, close_range: float,
+		close_scale: float) -> float:
+	if close_range <= 0.0 or distance > close_range:
+		return base
+	return base * close_scale
+
+
 func _process_basic_attack(delta: float) -> void:
 	basic_cooldown = maxf(0.0, basic_cooldown - delta)
 	if not active_channel.is_empty():
@@ -2863,18 +2927,65 @@ func _process_basic_attack(delta: float) -> void:
 	## the swing — reach, arc, damage, period, knock, sound — is still the class's
 	## own, because the ask was to change what it is made of and not what it is.
 	var element := auto_element_id()
-	var swing: float = float(auto.damage) * damage_multiplier * overpressure_multiplier()
+	## THE BEAT, LATCHED (design §17.7, board SG-208).
+	##
+	## ONE decision for the whole swing — which side the fan opens from and what
+	## its cut is worth — taken HERE, above the cone, because the alternative is
+	## deciding it per target and a crowd would then be paid out of two different
+	## beats at once. What the cone still asks per body is the 110, and only the
+	## 110: distance is a fact about a body, the beat is a fact about the swing.
+	##
+	## AND THE SERIAL ADVANCES HERE, past the target gate above and before
+	## anything resolves — so the cut that is about to land is the one the deck
+	## has been telling the player about, and a swing that found nothing has
+	## already returned without touching it.
+	##
+	## A row with no `combo_damage` falls through every line of this untouched:
+	## `side` stays empty, `close_range` stays 0.0, `swing` stays the row's own
+	## `damage`, the direction is not rotated and the serial does not move.
+	var combo: Dictionary = cleave_combo()
+	var side := ""
+	var swing: float = float(auto.damage)
+	var close_range := 0.0
+	var close_scale := 1.0
+	if not combo.is_empty():
+		var is_return := basic_swing_serial % 2 == 1
+		side = "starboard" if is_return else "port"
+		var beats: Array = combo.combo_damage
+		swing = float(beats[1]) if is_return else float(beats[0])
+		## Port is a LEFT-HAND turn on this deck: +y runs down the screen, so a
+		## negative rotation carries the fan to the captain's port side.
+		direction = direction.rotated(
+			float(combo.combo_angle) * (1.0 if is_return else -1.0))
+		if is_return:
+			close_range = float(combo.combo_close_range)
+			close_scale = float(combo.combo_return_scale)
+		basic_swing_serial += 1
+	swing *= damage_multiplier * overpressure_multiplier()
 	_damage_cone(player.global_position, direction, reach, float(auto.arc),
-		swing, element, float(auto.knock), true)
+		swing, element, float(auto.knock), true, close_range, close_scale)
 	## THE LINE `_resolve_cast` HAS ALWAYS HAD (board SG-186). Unconditional, like
 	## its twin: a cleave that catches a boarder standing against the hull bites
 	## the hull too, which is what "every shape must be able to bite it" means and
 	## what every skill in the game already does.
-	hulk_splash(player.global_position, swing)
+	##
+	## The hull is a body with a centre, so the return asks the same 110 of it
+	## through the same function every other body is asked through, and hands the
+	## splash ONE already-resolved number.
+	var hull_swing := swing
+	if not hulk.is_empty():
+		hull_swing = cleave_close_damage(swing,
+			Vector2(hulk.position).distance_to(player.global_position),
+			close_range, close_scale)
+	hulk_splash(player.global_position, hull_swing)
 	basic_cooldown = float(auto.period)
+	## `side` rides along so the picture can enter from the side that connected.
+	## It carries no geometry: `direction`, `radius` and `arc` are the simulation's
+	## own, unchanged, and the renderer's lead-in is read off this effect's own
+	## clock rather than a second one — see `view3d.gd::cleave_lead`.
 	_fx({"kind": str(auto.kind), "position": player.global_position,
 		"direction": direction.angle(), "radius": reach, "arc": float(auto.arc),
-		"element": element,
+		"element": element, "side": side,
 		"color": SkyGearData.ELEMENTS[element].color,
 		"time": 0.0, "life": 0.16, "follow": true})
 	play_sfx(str(auto.sound), -7.0)
@@ -3560,13 +3671,20 @@ func _damage_circle(center: Vector2, radius: float, damage: float, element: Stri
 	if hits_props:
 		_damage_props_circle(center, radius, damage)
 
-func _damage_cone(origin: Vector2, direction: Vector2, radius: float, arc: float, damage: float, element: String, knock: float, hits_props: bool) -> void:
+## `close_range`/`close_scale` are the Captain's return cut and nothing else
+## (SG-208): at the default 0.0 band this function is byte-for-byte the cone
+## every other shape has always fired. The band is asked PER BODY, of the body's
+## own centre, which is the whole point — one swing, one beat, and the ground
+## each body chose to stand on decides what it is paid. Props are not bodies and
+## keep the latched cut.
+func _damage_cone(origin: Vector2, direction: Vector2, radius: float, arc: float, damage: float, element: String, knock: float, hits_props: bool, close_range: float = 0.0, close_scale: float = 1.0) -> void:
 	for enemy in enemies():
 		if not is_instance_valid(enemy) or enemy.dead:
 			continue
 		var target_delta: Vector2 = enemy.global_position - origin
 		if target_delta.length() <= radius + enemy.radius and absf(direction.angle_to(target_delta.normalized())) <= arc * 0.5:
-			damage_enemy(enemy, damage, element, knock, origin, true)
+			damage_enemy(enemy, cleave_close_damage(damage, target_delta.length(),
+				close_range, close_scale), element, knock, origin, true)
 	if hits_props:
 		for prop in props():
 			if is_instance_valid(prop) and prop.is_targetable():

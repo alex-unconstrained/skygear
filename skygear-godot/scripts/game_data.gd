@@ -256,9 +256,33 @@ const CLASSES := {
 		## player's to change (board SG-99) and the SHAPE is not: an Arc Cleave is
 		## still a Cleave. `element` here is the DEFAULT the pick starts from, not
 		## a law — read it through `game.auto_element_id()`, never directly.
+		##
+		## THE RETURN CUT (design §17.7, board SG-208). The shape repeated one
+		## identical fan forever; now it asks a question between the two halves of
+		## it. The ODD cut opens twelve degrees to port for 20; the EVEN cut is the
+		## RETURN, twelve degrees to starboard, and it pays 24 to a body whose
+		## centre is inside 110 and 20 to one that is not. Two connected close cuts
+		## are the shipped 44 (`combo_damage[0] + combo_damage[1] * 1.20`); playing
+		## the return at the edge of the fan loses four.
+		##
+		## `damage: 22.0` STAYS, and it is not a second copy of the number: it is
+		## what the swing is WORTH per cut on average when both halves connect
+		## close (20 and 24), which is what the nameplate, `hud.gd`'s kit row and
+		## `tools/hulk_probe.gd`'s dps figure are asking for. The resolver never
+		## reads it — see `_process_basic_attack`, which reads `combo_damage`
+		## whenever the row carries it.
+		##
+		## `period`, `range`, `arc` and `knock` are UNCHANGED. The two beats differ
+		## in where the fan is centred and what it pays, and in nothing else: a
+		## return that also swung faster or further would be a second ability
+		## wearing the basic's name.
 		"auto": {"kind": "arc", "name": "Cleave", "range": 190.0, "arc": 2.443,
 			"damage": 22.0, "period": 0.36, "element": "EMBER", "knock": 150.0,
-			"sound": "player/shape_cleave.ogg"},
+			"sound": "player/shape_cleave.ogg",
+			"combo_damage": [20.0, 20.0],
+			"combo_angle": 0.20944,
+			"combo_close_range": 110.0,
+			"combo_return_scale": 1.20},
 		## THE ROWS THE COMPARISON SCREEN LAYS SIDE BY SIDE. Parallel keys, so the
 		## screen is a table rather than two paragraphs — the player's question is
 		## never "what is this class", it is "what do I get instead of the other
