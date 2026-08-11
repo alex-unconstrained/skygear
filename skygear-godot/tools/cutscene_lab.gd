@@ -271,6 +271,13 @@ func _enter_world() -> bool:
 		print("main3d.tscn is not the shape this expects")
 		quit(1)
 		return false
+	## THE LAB OPENS RUNS, SO IT DIVERTS THE SAVE (board SG-222). `_stage` calls
+	## `begin_run` on two of its paths and can be driven to wave 12, which is a
+	## real ending away from banking scrip into the owner's workshop and writing
+	## a staged row into his run log. `fresh(true)` sets the `ephemeral` flag
+	## that `SkyGearWorkshop.save_state` early-returns on.
+	_game.workshop = SkyGearWorkshop.fresh(true)
+	_game.log_runs = false
 	## The title screen would sit over the frame and the menu would eat the
 	## clicks. Neither is what we came to look at.
 	if _game.hud != null:

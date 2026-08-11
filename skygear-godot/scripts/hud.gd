@@ -19,6 +19,22 @@ var view: SkyGearView3D
 ## to quit from a pause.
 var ui := SkyGearUI.new()
 
+## WHICH DESTRUCTIVE PAUSE BUTTON IS ARMED — "" , "restart" or "quit" (board
+## SG-218). Both RESTART RUN and QUIT TO TITLE used to fire on the first press,
+## and there is no mid-run save anywhere in the project (`autosave`, `save_run`
+## and `resume_run` return nothing), so a slip ended the run outright.
+##
+## TWO ROUTES REACHED THEM, NOT ONE, WHICH IS WHY A CONFIRM AND NOT A GAP.
+## `SkyGearUI` fires on mouse-DOWN rather than release, so a press that lands on
+## the wrong button cannot be dragged off and cancelled; and Space/Enter activate
+## whatever is focused while focus FOLLOWS HOVER, so resting the pointer on
+## RESTART RUN and tapping Space was a second unconfirmed route. HOW TO PLAY sits
+## six pixels above RESTART RUN at a 46-pixel pitch.
+##
+## Cleared whenever the game is not paused, so an armed button never survives
+## into a later pause.
+var _pause_confirm := ""
+
 func _ready() -> void:
 	font = ThemeDB.fallback_font
 	## The widget layer writes through the HUD's funnel rather than calling
@@ -31,12 +47,24 @@ func _ready() -> void:
 	## per-screen entry before it is drawn, declared or hit-tested, so moving a
 	## button moves the whole button.
 	ui.adjust = _widget_adjust
+	## `ui/hover.ogg`, NOT `ui/card_hover.ogg` — that file has never existed
+	## (board SG-212). `assets/audio/sfx/ui/` ships card_deal, card_pick, click,
+	## hover and slot_unlock, and `play_sfx` early-returns on a path that is not
+	## on disk, silently. So every hover in every menu in the game has been mute
+	## for the whole life of the port, and nothing could see it: a missing cue is
+	## indistinguishable from a cue nobody asked for. The check
+	## `audio · every cue the code asks for is on disk` now walks the literals.
 	ui.on_sound = func(kind: String) -> void:
 		if game != null:
-			game.play_sfx("ui/card_hover.ogg" if kind == "hover" else "ui/card_deal.ogg",
+			game.play_sfx("ui/hover.ogg" if kind == "hover" else "ui/card_deal.ogg",
 				-16.0 if kind == "hover" else -8.0)
 
 func _process(_delta: float) -> void:
+	## An armed RESTART/QUIT does not survive leaving the pause sheet (SG-218) —
+	## otherwise a player who armed it, resumed, and paused again two waves later
+	## would end the run on what looks to them like a first press.
+	if _pause_confirm != "" and (game == null or game.state != SkyGearGame.State.PAUSE):
+		_pause_confirm = ""
 	queue_redraw()
 
 ## The Shift drag-lock's ears (SG-58). The HUD OBSERVES input here — it never
@@ -500,7 +528,11 @@ func _draw_title() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 	_banner(size.x * 0.5, 104.0, 600.0)
 	_center_text("SKYGEAR", 150.0, 64, Color("#e8c376"))
-	_center_text("STORM-DUSK · GODOT PORT", 205.0, 24, Color("#37f0c8"))
+	## NOT "GODOT PORT" (board SG-211). This is the second line of the title
+	## screen — the first thing anyone who launches the game reads, and on a
+	## store page the first thing anyone who watches a capsule video reads. What
+	## engine it was built in is not the subtitle of the game.
+	_center_text("STORM-DUSK", 205.0, 24, Color("#37f0c8"))
 	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
 	## The last clause is the class's, not a constant. "Space dash" is a lie for
 	## the man with no dash, and it is the one line on this screen that tells a
@@ -679,8 +711,22 @@ func _draw_title() -> void:
 				line += " (best %s)" % str(history.best_time)
 		_center_text(line, y, 17, Color("#b0813f"))
 		y += 28.0
-	_center_text("Milestone 1 · v11 combat vertical slice", y + 14.0, 15,
-		Color("#8f8697"))
+	## THE MILESTONE FOOTER IS GONE, AND IT WAS TWO DEFECTS IN ONE LINE (board
+	## SG-211 and DR-13 in `docs/DEMO-READINESS-AUDIT-2026-08-11.md`).
+	##
+	## It read "Milestone 1 · v11 combat vertical slice" — a development label on
+	## the shipping title screen. AND, once a player had won a run and the
+	## history block above it existed, it was drawn at y ~= 1096 with its ink box
+	## reaching ~1100 on a 1080 canvas: entirely off the bottom, not clipped.
+	## That state is reached the moment the player wins for the first time, so
+	## the screen broke immediately after their best moment.
+	##
+	## Nothing saw it. `tools/text_audit.gd`'s OUTSIDE pass only fires while
+	## `_in_frame`, which is set false before this tail is drawn, and the only
+	## other off-canvas test in the project walks the eight gameplay plates.
+	## Deleting the line removes the label and the overrun together; the check
+	## `title · nothing the title draws falls off the bottom of the canvas`
+	## is what keeps the next row from re-creating it.
 
 
 ## A BRASS RULE ACROSS THE BOARD, with a collar at each end. The full stop
@@ -3925,14 +3971,33 @@ func _draw_pause() -> void:
 	var bw := 300.0
 	var bx: float = room.position.x
 	var by: float = room.position.y + 62.0
+	## `key` is pinned on the two confirming buttons because `SkyGearUI` derives
+	## a widget's layout-editor entry from its LABEL when no key is given
+	## (`opts.get("key", label)`), and these labels change when armed. Without
+	## the pin, arming a button would silently look up a different saved
+	## adjustment and the button would move under the pointer mid-confirm.
 	if ui.button(Rect2(bx, by, bw, 40.0), "RESUME", {"primary": true, "hint": "Esc"}):
+		_pause_confirm = ""
 		game.toggle_pause()
 	if ui.button(Rect2(bx, by + 46.0, bw, 40.0), "HOW TO PLAY", {"hint": "F1"}):
+		_pause_confirm = ""
 		game.how_open = true
-	if ui.button(Rect2(bx, by + 92.0, bw, 40.0), "RESTART RUN"):
-		game.restart_run()
-	if ui.button(Rect2(bx, by + 138.0, bw, 40.0), "QUIT TO TITLE"):
-		game.go_to_title()
+	if ui.button(Rect2(bx, by + 92.0, bw, 40.0),
+			"PRESS AGAIN TO END THE RUN" if _pause_confirm == "restart"
+			else "RESTART RUN", {"key": "RESTART RUN"}):
+		if _pause_confirm == "restart":
+			_pause_confirm = ""
+			game.restart_run()
+		else:
+			_pause_confirm = "restart"
+	if ui.button(Rect2(bx, by + 138.0, bw, 40.0),
+			"PRESS AGAIN TO LEAVE THE RUN" if _pause_confirm == "quit"
+			else "QUIT TO TITLE", {"key": "QUIT TO TITLE"}):
+		if _pause_confirm == "quit":
+			_pause_confirm = ""
+			game.go_to_title()
+		else:
+			_pause_confirm = "quit"
 	if game.audio != null:
 		game.audio.set_volume("master", ui.slider(
 			Rect2(bx, by + 194.0, bw, 30.0), "VOLUME", float(game.audio.volumes.master)))
@@ -3971,10 +4036,19 @@ func _draw_pause() -> void:
 	## Against the writing area rather than the interior: the interior's
 	## bottom edge is on the painted bevel, and the contrast pass measured
 	## this line at 1.59 against bright brass sitting exactly there.
-	_label("WASD move · mouse aim · %s · F7 classes · F4 layout · F3 stats"
-		% ("Space bleeds a jet" if not (game.class_data().get("jet", {}) as Dictionary).is_empty()
-			else "Space dash"),
-		Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
+	## THE DEVELOPER HALF IS ONLY PRINTED WHERE IT WORKS (board SG-214). This
+	## footer told every player in every shipped build to press F4 and F3 —
+	## which is a worse defect than the keys merely being live, because a
+	## player who follows the instruction lands in the layout editor with the
+	## simulation still running behind it. `dev_tools` is false in an exported
+	## release, so the line now ends after the class verb.
+	var keys := "WASD move · mouse aim · %s · F7 classes" % (
+		"Space bleeds a jet"
+		if not (game.class_data().get("jet", {}) as Dictionary).is_empty()
+		else "Space dash")
+	if game.dev_tools:
+		keys += " · F4 layout · F3 stats"
+	_label(keys, Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 

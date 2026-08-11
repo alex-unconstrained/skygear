@@ -152,6 +152,11 @@ func _run() -> void:
 	var game := (load("res://scenes/main.tscn") as PackedScene).instantiate()
 	root.add_child(game)
 	game.set_seed_text("TIMING")
+	## Same diversion as every other tool that opens a run (board SG-222).
+	## `fresh(true)` sets the `ephemeral` flag `save_state` early-returns on;
+	## `log_runs = false` keeps a measurement out of the owner's run history.
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.log_runs = false
 	game.begin_run()
 	game.choose_draft(0)
 

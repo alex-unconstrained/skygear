@@ -77,6 +77,14 @@ func _run() -> void:
 	var game: SkyGearGame = world.get_node("SkyGear")
 	var view: SkyGearView3D = world as SkyGearView3D
 	game.set_seed_text("PROFILE")
+	## THE OWNER'S SAVE IS NOT THIS TOOL'S TO TOUCH (board SG-222). Without
+	## these two lines `begin_run` runs against the workshop loaded off disk,
+	## and a profiling pass that reaches an ending banks scrip into it and
+	## writes a fixture row into the real run log. `fresh(true)` sets the
+	## `ephemeral` flag that `SkyGearWorkshop.save_state` early-returns on, so
+	## nothing reaches `user://` no matter how the run ends.
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.log_runs = false
 	game.begin_run()
 	game.choose_draft(0)
 	game.skills.append(SkyGearData.make_skill("AURA", "STEAM"))

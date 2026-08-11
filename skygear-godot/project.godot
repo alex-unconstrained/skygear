@@ -4,9 +4,28 @@ config_version=5
 
 [application]
 
+; DO NOT RENAME THIS WITHOUT MIGRATING `user://` IN THE SAME COMMIT (board
+; SG-223). It is the alt-tab label, and it is ALSO what Godot derives the save
+; directory from: `%APPDATA%/Godot/app_userdata/<sanitised name>`. Changing it
+; to "SkyGear" on 2026-08-11 silently pointed the game at a new empty folder —
+; `runs.json`, `workshop.json`, `keys.cfg` and `settings.cfg` were all still on
+; disk under the old name, and the game simply stopped being able to see them.
+; Caught in the same session and reverted. The exe's own identity — the name in
+; Explorer, Properties and Task Manager — is fixed where it belongs, in
+; `export_presets.cfg`, which has no such coupling.
 config/name="SkyGear: Godot Port"
-config/description="An isolated Godot 4 port of SkyGear v11."
+config/description="Keep the Boiler alive through twelve boarding waves."
 run/main_scene="res://scenes/main3d.tscn"
+; The window and alt-tab icon. `application/icon` in export_presets.cfg points
+; at the .ico beside it for the taskbar, the Explorer tile and Properties;
+; Windows needs the ICO and Godot needs the PNG. Both are drawn by
+; `tools/make_icon.py` from the game's own BRASS/BRASS_LIT/MENU_TEAL constants,
+; so the icon tracks the palette instead of drifting from it.
+config/icon="res://assets/art/ui/icon.png"
+; No Godot logo on launch. The splash was never authored, so it shipped the
+; engine's — the first thing a player saw was somebody else's brand.
+boot_splash/show_image=false
+boot_splash/bg_color=Color(0.051, 0.043, 0.071, 1)
 
 [display]
 

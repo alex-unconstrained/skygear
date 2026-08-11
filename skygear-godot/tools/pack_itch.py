@@ -30,7 +30,7 @@ EXE = os.path.join(PROJECT, "builds", "windows", "SkyGear-Godot.exe")
 OUT_DIR = os.path.join(PROJECT, "builds", "itch")
 OUT = os.path.join(OUT_DIR, "SkyGear-Windows.zip")
 
-README = """SKYGEAR — Godot port, Windows build
+README = """SKYGEAR — Windows build
 
 Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
 
@@ -38,13 +38,16 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
   mouse     aim
   LMB RMB   skills 1 and 2 (actives take these first)
   Q E       skills 3 and 4
+  F V       the Boilerwright's tap and blowdown. On the captain these are
+            her keyed Articles, if she is carrying any.
   Space     dash (two charges)
   R (hold)  work the deck — repair a dead cannon you are standing at.
             Holding is the point: it is a commitment, and walking away,
             casting or taking a hit all abandon it.
   wheel     zoom out (the shipped framing is as close as it gets)
-  1 2 3     pick a draft card
+  1 2 3 4   pick a draft card — four, because a talent can deal a fourth
   R         reroll the draft
+  F11       leave fullscreen
   Esc / P   pause
 
 Keep the Boiler alive through twelve boarding waves. Every skill is a shape
@@ -55,8 +58,7 @@ has no dash at all — she banks Head from the Boiler itself and spends it on
 jets, blowdowns and taps, and the pressure she is carrying is the resource the
 whole class turns on. They do not play alike; the class screen says how.
 
-Every fourth wave is not a wave. The browser version at
-https://alex-unconstrained.github.io/skygear/ is the original.
+Every fourth wave is not a wave.
 """
 
 

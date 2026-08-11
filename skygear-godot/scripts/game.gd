@@ -356,6 +356,23 @@ var _pose_controls := false          ## player.controls_enabled before the pose
 var log_runs := true
 
 
+## WHETHER THE DEVELOPER KEYS EXIST FOR WHOEVER IS HOLDING THIS BUILD (board
+## SG-214). F3 opens the profiler and F4 opens the LAYOUT EDITOR — which does
+## not stop the simulation, draws an absolute Windows path on screen, and names
+## `SkyGear Tools.bat` to the player. Both shipped live in the exported build,
+## and the pause sheet ADVERTISED F4 and F3 in its own footer, which is the half
+## that made this worth gating rather than merely worth hiding.
+##
+## `OS.has_feature("editor")` is false in an exported release and true in the
+## editor and in every `godot --path . --script` tool run, so the harness and the
+## probes keep the keys they were built around. It is a plain `var` rather than a
+## function so a check can force it false and drive the real `_unhandled_input`.
+##
+## F12 and P need no gate of their own: both are inside the layout editor and
+## unreachable until F4 has opened it.
+var dev_tools := OS.has_feature("editor")
+
+
 ## The game that owns the editor session — me, or whoever posed me. The sandbox's
 ## HUD asks this to draw the picker, which lives on the owner's side of the glass.
 func pose_master() -> SkyGearGame:
@@ -729,14 +746,14 @@ func _unhandled_input(event: InputEvent) -> void:
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
-	if event.keycode == KEY_F3:
+	if event.keycode == KEY_F3 and dev_tools:
 		show_profiler = not show_profiler
 		if show_profiler:
 			profiler.reset()
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
 		return
-	if event.keycode == KEY_F4:
+	if event.keycode == KEY_F4 and dev_tools:
 		layout_edit = not layout_edit
 		layout_saved = false
 		layout_typing = false
@@ -2044,7 +2061,10 @@ func _bid_matrix() -> Array[Dictionary]:
 func run_report() -> String:
 	var lines: Array[String] = []
 	var won := state == State.VICTORY
-	lines.append("SKYGEAR — Godot port")
+	## The first line COPY REPORT puts on a tester's clipboard, so it is the
+	## first line of every bug report and every balance conversation this game
+	## will ever have. It said "Godot port" (board SG-211).
+	lines.append("SKYGEAR")
 	lines.append(("DECK HELD" if won else "BOARDED") + " — " + end_reason)
 	var header := "wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
 		_format_time(run_time), seed_text]

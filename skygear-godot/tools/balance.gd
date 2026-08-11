@@ -518,6 +518,15 @@ func _one(seed_text: String, heat: int = 0, vow: String = "") -> Dictionary:
 	game.workshop = SkyGearWorkshop.fresh(true)
 	game.workshop.unlocked = true
 	game.workshop.best_heat = SkyGearWorkshop.HEAT.size() - 1
+	## AND THE RUN LOG, WHICH THIS TOOL HAS BEEN WRITING TO ALL ALONG (board
+	## SG-222). The line above diverts the WORKSHOP and stops there, but a
+	## balance sweep drives every run to a real VICTORY or GAMEOVER, and that
+	## ending calls `SkyGearRunLog.record` unless `log_runs` is off. `runlog.gd`
+	## keeps sixty rows and evicts from the front, so a 120-seed sweep does not
+	## merely add noise to the owner's history — it evicts all of it, twice over.
+	## This is the same failure as SG-182, which destroyed his log once already
+	## and after which he was told it could not happen again.
+	game.log_runs = false
 	## The vow under measurement (SG-26), signed before `begin_run` resolves it.
 	if vow != "":
 		game.workshop.sigils = 9
