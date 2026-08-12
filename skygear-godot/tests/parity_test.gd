@@ -353,6 +353,7 @@ func _run() -> void:
 	await _shipping_vocabulary()
 	await process_frame
 	_shipping_readme()
+	_shipping_version_stamp()
 	## AWAITED — it rebinds a key and reads the strings back off a real draw.
 	await _controls_truth()
 	await process_frame
@@ -14578,6 +14579,26 @@ func _shipping_readme() -> void:
 		readme_sins.is_empty() and packer.contains("{WAVES}"),
 		"offending phrases %s; wave count parameterised %s"
 			% [str(readme_sins), str(packer.contains("{WAVES}"))])
+
+
+func _shipping_version_stamp() -> void:
+	## SG-210 asked for this domain and it never got written, which is how the exe
+	## carried 0.70.0.0 through build 71. Four keys, two presets — counting them is
+	## half the check, because a third preset would otherwise slip past unstamped.
+	const SHIPPED_VERSION := "0.72.0.0"
+	var presets := FileAccess.get_file_as_string("res://export_presets.cfg")
+	var stamped := 0
+	var wrong: Array[String] = []
+	for raw in presets.split("\n"):
+		var line := raw.strip_edges()
+		if line.begins_with("application/file_version=") \
+				or line.begins_with("application/product_version="):
+			stamped += 1
+			if not line.ends_with("\"%s\"" % SHIPPED_VERSION):
+				wrong.append(line)
+	_check("shipping", "every stamped version key agrees with the build this commit ships",
+		stamped == 4 and wrong.is_empty(),
+		"%d version keys found (want 4), disagreeing: %s" % [stamped, str(wrong)])
 
 
 func _is_letter(c: String) -> bool:
