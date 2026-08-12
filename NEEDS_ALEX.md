@@ -1,7 +1,13 @@
 # NEEDS ALEX
 
-**Build 71 is a DEMO and a full build off one commit · harness 1227/1227 ·
-there is an opening film and it is nine chibi shots of your captain.** Detail
+**Build 71 IS LIVE ON ITCH, as two downloads off one commit · harness
+1227/1227 · there is an opening film and it is nine chibi shots of your
+captain.**
+
+- **`windows-demo`** build **#1876328** — the demo cut. First build on that
+  channel. Launched and photographed before it went up: it says *"six boarding
+  waves"* and has no class picker.
+- **`windows`** build **#1876329** — the full game, with everything below. Detail
 lives in `skygear-godot/docs/BOARD.md`, which is now **the open queue and
 nothing else** — you asked for that and it went from 758 KB and 233 rows to
 94 KB and 38, with all 198 resolved rows and their evidence in
