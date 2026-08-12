@@ -165,7 +165,7 @@ var run_opening := false
 var boiler_hp := 500.0
 ## The Boiler's own health. BOILER_BASE_HP is a const because `begin_run` has to
 ## be able to return to it: the talent below is `+=`, and without a reset every
-## run in a session compounded the last one's maximum (board SG-259).
+## run in a session compounded the last one's maximum (board SG-260).
 const BOILER_BASE_HP := 500.0
 var boiler_max_hp := BOILER_BASE_HP
 var boiler_position := BOILER_POSITION
@@ -2239,7 +2239,8 @@ func _set_state(next_state: State) -> void:
 	## damage per skill and time at each range is so ten of them can be read as a
 	## shape, and a report that dies when you press Enter cannot be.
 	## SG-67: the third ending had no sentence. Both defeats have always named
-	## themselves — "The captain fell on wave %d.", "The Boiler was destroyed on
+	## themselves — "%s fell on wave %d." (SG-261: the drawn class's own name,
+	## not a hardcoded "The captain"), "The Boiler was destroyed on
 	## wave %d." — and a win arrived with `end_reason` still empty, so the run
 	## report's second line read `DECK HELD — ` and the results screen printed
 	## nothing under the verdict. The browser's own line, verbatim. Written HERE
@@ -4338,7 +4339,7 @@ func damage_player(amount: float, source: String = "", grants_invuln: bool = tru
 			voice.say("hurt_low", 2)
 		_fx({"kind": "burst", "position": player.global_position, "radius": 65.0, "color": Color("#ff4d37"), "time": 0.0, "life": 0.18})
 		if player.hp <= 0.0:
-			end_reason = "The captain fell on wave %d." % wave
+			end_reason = "%s fell on wave %d." % [str(class_data().name).capitalize(), wave]
 			if voice != null:
 				voice.say("defeat", 4)
 			_set_state(State.GAMEOVER)

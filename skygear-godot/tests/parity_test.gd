@@ -14514,6 +14514,28 @@ func _results_fold() -> void:
 	game.queue_free()
 	await process_frame
 
+	## "The captain fell" is the other class's proper name. It is drawn under the
+	## verdict AND copied into the clipboard, so a Boilerwright player's own report
+	## named someone else.
+	for who in ["captain", "boilerwright"]:
+		var fell := _new_game()
+		fell.set_class(who)
+		fell.begin_run()
+		fell.choose_draft(0)
+		fell.wave = 4
+		## The defeat path is `damage_player` crossing zero (game.gd:4330-4334) —
+		## it is what sets `end_reason` and pushes State.GAMEOVER. One overkill
+		## blow rather than a loop, so nothing else in the run can intervene.
+		fell.damage_player(fell.player.max_hp * 2.0, "harness", false)
+		var mine: String = str(SkyGearData.CLASSES[who].name).to_lower().trim_prefix("the ")
+		var theirs: String = str(SkyGearData.CLASSES[
+			"boilerwright" if who == "captain" else "captain"].name).to_lower().trim_prefix("the ")
+		_check("results", "the defeat line names the class that actually fell",
+			fell.end_reason.to_lower().contains(mine)
+				and not fell.end_reason.to_lower().contains(theirs),
+			"%s died and the line read: %s" % [who, fell.end_reason])
+		fell.queue_free()
+
 
 ## --- S3 · no development vocabulary on a shipping surface --------------------
 ## THE WORST THING THE UI/UX AUDIT FOUND WAS NOT A LAYOUT BUG. It was that the

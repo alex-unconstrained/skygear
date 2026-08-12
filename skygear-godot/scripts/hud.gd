@@ -4499,7 +4499,7 @@ func _draw_draft() -> void:
 			_say(slot_note, Vector2(face.position.x, row_y + 15.0), face.size.x,
 				HORIZONTAL_ALIGNMENT_CENTER, 13, tint)
 		elif game.skills.is_empty() or hit.is_empty():
-			var label := "AFFECTS THE CAPTAIN"
+			var label := "AFFECTS %s" % str(game.class_data().name)
 			match str(card.get("scope", "captain")):
 				"ship": label = "AFFECTS THE BOILER"
 				"deck": label = "AFFECTS THE DECK"

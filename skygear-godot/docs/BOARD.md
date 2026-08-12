@@ -78,7 +78,7 @@ read because the file is six hundred lines long is the same as not writing it.
 
 ## Active
 
-**35 open rows. THE NEXT FREE ID IS SG-261.** Reconciled against commit `79b8841`
+**35 open rows. THE NEXT FREE ID IS SG-262.** Reconciled against commit `79b8841`
 on 2026-08-12 (the build-72 board reconciliation): the table had drifted 42 rows
 and twenty-one commits behind, with **thirteen IDs of dev work — SG-246 through
 SG-258 — living only in commit messages**. Ten of those were filed straight into
