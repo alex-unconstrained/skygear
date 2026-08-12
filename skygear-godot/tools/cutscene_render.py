@@ -105,6 +105,14 @@ SHOTS = {
     ## the 512px sprite could ever produce, and it is the same character in the
     ## same style as the film by construction.
     10: {"frames": 124, "refs": ["R0", "R1a", "R1b"]},
+    ## SHOT 11 IS THE SECOND HERO'S PLATE, and it is the one prompt in this
+    ## folder that uses the corsair references for STYLE rather than IDENTITY.
+    ## The Boilerwright has no 2D art anywhere in the project — three corsair
+    ## files and nothing else — so the only way to draw him in the same hand as
+    ## the captain is to show H3 the captain and tell it, twice, not to copy
+    ## him. `assert_identity_lock` deliberately does NOT list 11 as a captain
+    ## shot for that reason.
+    11: {"frames": 124, "refs": ["R0", "R1a", "R1b"]},
 }
 
 ## The film itself. `--all` means these nine and only these nine; a plate is

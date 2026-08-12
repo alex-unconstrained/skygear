@@ -671,28 +671,369 @@ func _menu_rung(box: Rect2, metal: Color, filled: bool, seated: bool,
 			lamp if (lit and not locked) else 0.0)
 
 
+## --- THE WORDMARK (SG-249) ----------------------------------------------------
+##
+## A GAME'S TITLE IS A LOGO, NOT A LINE OF TYPE, and the owner said so plainly:
+## *"I dont need the title written in the same lame font as everything else…
+## I wanted exciting stylized text that is unique to the game… a badass
+## 'skygear' steampunk title."* Setting SKYGEAR in the UI's display face at
+## 150pt is a bigger version of the same wrong thing — it is typeset, and every
+## reference the owner pointed at (Heroes of Newerth) is ILLUSTRATED: carved
+## letterforms with bevel, inner light, a cast shadow and ornament wrapped
+## round them.
+##
+## WHAT IS HONESTLY REACHABLE HERE. A hand-drawn logo is an art commission and
+## this is not one. What this is, is the way most game logos are actually made:
+## a characterful display face carried through a real metal treatment. **Rye**
+## (SIL OFL, `assets/fonts/OFL-Rye.txt`) is 19th-century American wood type —
+## the letterform of a Victorian showbill and a brass engine nameplate, which is
+## precisely this game's register and is nothing like the UI face.
+##
+## THE TREATMENT IS SEVEN PASSES, in this order, and the order is the effect:
+##   1  a soft ember bloom behind the whole word, so it sits IN light
+##   2  a cast shadow, down and right, offset by the bevel depth
+##   3  a heavy dark rim — eight offsets, which is what makes it a SOLID rather
+##      than a letterform sitting on a picture
+##   4  the deep brass body
+##   5  a lit brass face, offset UP by the bevel — the two together read as
+##      thickness, because the eye reads the seam between them as an edge
+##   6  a pale highlight on the top of the face only
+##   7  an ember under-glow catching the lower edge, from the deck's own fire
+##
+## SEVEN `draw_string` CALLS, DRAWN LIVE, and that is genuinely cheap: Godot
+## rasterises each glyph ONCE into the font's texture atlas and every later draw
+## is a textured quad. A cached SubViewport render was tried first and thrown
+## away — `_draw` cannot `await`, and a render-target lifecycle is a great deal
+## of machinery for seven quads.
+const WORDMARK_FACE := "res://assets/fonts/Rye-Regular.ttf"
+
+
+func _wordmark(text: String, at: Vector2, box_w: float, pt: int) -> void:
+	var face: Font = _load_face(WORDMARK_FACE)
+	var span := face.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, pt)
+	var x: float = at.x + (box_w - span.x) * 0.5
+	var bevel: float = maxf(2.0, float(pt) * 0.038)
+	var lamp: float = _lamp(1.7)
+
+	## 1 — the bloom it sits in. Concentric, so it has no edges (the lesson
+	## `_wash` taught this file one screen ago).
+	var mid := Vector2(at.x + box_w * 0.5, at.y - float(pt) * 0.30)
+	for ring in 5:
+		draw_circle(mid, float(pt) * (1.5 - 0.22 * float(ring)),
+			Color(POSTER_EMBER, 0.020 * lamp))
+
+	## 2 — the cast shadow.
+	draw_string(face, Vector2(x + bevel * 1.6, at.y + bevel * 1.9), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, pt, Color(0.0, 0.0, 0.0, 0.55))
+	## 3 — the dark rim, eight offsets. This is what makes it a SOLID rather than
+	## a letterform lying on a picture.
+	var rim: float = maxf(1.5, float(pt) * 0.026)
+	for a in 8:
+		var o := Vector2(cos(float(a) * PI * 0.25), sin(float(a) * PI * 0.25)) * rim
+		draw_string(face, Vector2(x, at.y) + o, text,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, pt, Color(0.055, 0.035, 0.020, 0.95))
+	## 4 — the deep body.
+	draw_string(face, Vector2(x, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, pt,
+		Color("#7a5320"))
+	## 5 — the lit face, offset UP by the bevel. The seam between 4 and 5 is the
+	## thickness; the eye reads it as an edge without either being an outline.
+	draw_string(face, Vector2(x, at.y - bevel), text, HORIZONTAL_ALIGNMENT_LEFT,
+		-1, pt, Color("#e8c376"))
+	## 6 — the highlight, on the top of the face only.
+	draw_string(face, Vector2(x, at.y - bevel * 1.7), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, pt, Color(1.0, 0.94, 0.78, 0.42))
+	## 7 — and the deck's own fire catching the lower edge.
+	draw_string(face, Vector2(x, at.y + bevel * 0.55), text,
+		HORIZONTAL_ALIGNMENT_LEFT, -1, pt,
+		Color(POSTER_EMBER.r, POSTER_EMBER.g, POSTER_EMBER.b, 0.30 * lamp))
+
+
+## --- THE POSTER'S OWN PRIMITIVES (SG-248) -------------------------------------
+
+## A painting laid into a rect at its own aspect, filling it, cropped rather than
+## squashed — CSS `background-size: cover`. `anchor` picks which part survives
+## the crop: (0.5, 0.34) keeps the moon and the upper cloud field and lets the
+## bottom go, which is where the prow and the captain stand anyway.
+func _poster_cover(tex: Texture2D, box: Rect2, anchor: Vector2) -> void:
+	if tex == null:
+		return
+	var src := Vector2(tex.get_width(), tex.get_height())
+	if src.x <= 0.0 or src.y <= 0.0:
+		return
+	var scale: float = maxf(box.size.x / src.x, box.size.y / src.y)
+	var shown := src * scale
+	var at := box.position - (shown - box.size) * anchor
+	draw_texture_rect(tex, Rect2(at, shown), false)
+
+
+## Motion that allocates nothing and never resolves into a loop you can count.
+## Same argument the gameplay camera's sway makes: periods that do not divide
+## into each other. `_lamp` already does this for light; these do it for travel.
+func _poster_swing(period: float, phase: float) -> float:
+	var t := float(Time.get_ticks_msec()) * 0.001
+	return sin(t * TAU / period + phase * TAU)
+
+
+## 0..1, sawtooth. For the one object that crosses the frame rather than sways.
+func _poster_cross(period: float, phase: float) -> float:
+	var t := float(Time.get_ticks_msec()) * 0.001
+	return fposmod(t / period + phase, 1.0)
+
+
+## --- THE POSTER (SG-248) ------------------------------------------------------
+##
+## THE TITLE SCREEN IS A PICTURE NOW, and the menu stands on it.
+##
+## What it was: a full-screen `Color(0.03,0.025,0.045,0.72)` rect — 72% opaque
+## near-black over the whole canvas — with a brass column of seven plates on it.
+## Tidy, and inert, and the owner asked twice for it to have presence.
+##
+## THE SCRIM IS DELETED, BUT NOT SO THE 3D DECK CAN SHOW THROUGH. That was the
+## obvious move and it is wrong: `_track_camera` pitches the gameplay camera
+## DOWN at the planking, so what is behind the scrim is brown deck and crates
+## seen from above — no sky, no horizon, no ship. Lifting the veil off it
+## produces a lit floor behind a menu. The design panel checked the actual
+## capture rather than assuming, and all three arrived there independently.
+##
+## So the picture is 2D, and it is built from three paintings this project
+## already owns and has never once put in front of the player:
+##
+##   `env/sky_backdrop.png`    2048x1024, fully opaque, the moon breaking cloud
+##                             upper-left and an ember rim lower-right. It has
+##                             only ever been a distant 3D backdrop plane.
+##   `env/bow_prow.png`        the brass griffin figurehead and its two lit
+##                             lanterns. RETIRED FROM THE 3D WORLD on
+##                             2026-08-02 (`view3d.gd:1280`) for a reason that
+##                             is purely a 3D-perspective reason: the bow has
+##                             65 units of vertical headroom and the painting is
+##                             900, so "the painting could only ever be a wall
+##                             across the top of the frame". ON A HEAD-ON 2D
+##                             POSTER, A WALL ACROSS THE FRAME IS EXACTLY WHAT A
+##                             FOREGROUND IS. That comment ends "THE PNG STAYS
+##                             ON DISK. The row that draws it is what went."
+##                             Its own rule — the painted prow and the drawn
+##                             hull must never share a screen — is satisfied
+##                             here by construction: the sky covers the canvas
+##                             opaquely, so no drawn hull is visible at all.
+##   `heroes/corsair_front_attack.png`   the captain, at 60% of canvas height,
+##                             bleeding off the left edge so the cutlass is
+##                             cropped by the frame rather than floating in it.
+##
+## AND IT SAYS WHAT THE GAME IS, which was the other half of the ask. Twenty-four
+## new words, and the load-bearing one is not a word at all: THE HAND is a drawn
+## grid of every shape crossed with every element, four rows by nine columns,
+## along the foot. A player does not read that skills are a matrix; they see
+## thirty-six of them.
+## Measured alpha bounding boxes. Every one read off the file rather than
+## estimated, because a source rect that guesses at the transparent margin puts
+## the figure somewhere other than where the arithmetic says it is.
+const PROW_SRC := Rect2(103, 9, 833, 600)
+const HERO_SRC := Rect2(57, 43, 384, 401)
+const CLOUD_FAR_SRC := Rect2(768, 0, 512, 512)
+const CLOUD_NEAR_SRC := Rect2(688, 0, 672, 512)
+const SHIP_FAR_SRC := Rect2(88, 6, 338, 143)
+## The prow's two lanterns, as fractions of its own box.
+const PROW_LAMPS := [Vector2(0.161, 0.522), Vector2(0.831, 0.522)]
+const POSTER_EMBER := Color("#ff9a4a")
+
+
+## THE PICTURE. Nine draws, back to front, and every one of them is a texture
+## this project has owned for months.
+func _draw_poster(board_x: float, rail_y: float) -> void:
+	var full := Rect2(Vector2.ZERO, size)
+	## 1 — the ground. Opaque, so nothing behind it can show through and the
+	## drawn hull and the painted prow can never share a screen (view3d.gd:1290).
+	_poster_cover(_tex("res://assets/art/env/sky_backdrop.png"), full,
+		Vector2(0.5, 0.34))
+
+	## 2, 3, 4 — weather, and the one ship that is not this one. Three periods
+	## that do not divide into each other.
+	var far := _tex("res://assets/art/env/clouds_far.png")
+	if far != null:
+		var fw: float = size.x * 0.66
+		draw_texture_rect_region(far, Rect2(
+			size.x * 0.17 + 38.0 * _poster_swing(74.0, 0.0),
+			size.y * 0.40 + 10.0 * _poster_swing(57.0, 0.31),
+			fw, fw * CLOUD_FAR_SRC.size.y / CLOUD_FAR_SRC.size.x),
+			CLOUD_FAR_SRC, Color(1, 1, 1, 0.68))
+	var ship := _tex("res://assets/art/env/airship_distant.png")
+	if ship != null:
+		var sw: float = size.y * 0.070
+		var sh: float = sw * SHIP_FAR_SRC.size.y / SHIP_FAR_SRC.size.x
+		draw_texture_rect_region(ship, Rect2(
+			-sw - 60.0 + _poster_cross(104.0, 0.0) * (size.x + sw * 2.0 + 120.0),
+			size.y * 0.115 + 15.0 * _poster_swing(41.0, 0.7), sw, sh),
+			SHIP_FAR_SRC, Color(1, 1, 1, 0.60))
+	var near := _tex("res://assets/art/env/clouds_near.png")
+	if near != null:
+		var nw: float = size.x * 0.90
+		draw_texture_rect_region(near, Rect2(
+			size.x * 0.04 + 56.0 * _poster_swing(49.0, 0.42),
+			size.y * 0.55 + 14.0 * _poster_swing(63.0, 0.18),
+			nw, nw * CLOUD_NEAR_SRC.size.y / CLOUD_NEAR_SRC.size.x),
+			CLOUD_NEAR_SRC, Color(1, 1, 1, 0.86))
+
+	## 5, 6, 7 — THE PROW, with the Boiler's light rising off the rail behind it
+	## and its own two lanterns lit. Its right third runs under the board on
+	## purpose: the menu is bolted to the ship, not floating beside it.
+	var prow_tex := _tex("res://assets/art/env/bow_prow.png")
+	if prow_tex != null:
+		var ph: float = clampf(size.y * 0.42, 210.0, 470.0)
+		var pw: float = ph * PROW_SRC.size.x / PROW_SRC.size.y
+		var prow := Rect2(board_x + 120.0 - pw * 0.72, rail_y + 62.0 - ph, pw, ph)
+		## The Boiler's light rising off the rail behind her. NOT `_wash` — that
+		## fades in six horizontal bands with HARD left and right edges, because
+		## it is built to sit inside a plate whose rim hides them. On open art it
+		## draws a visible translucent box, which is what the first capture
+		## showed. Concentric circles have no edges to show.
+		var glow := Vector2(prow.get_center().x, prow.end.y - 40.0)
+		var lit: float = _lamp(3.1)
+		for ring in 4:
+			draw_circle(glow, pw * (0.62 - 0.13 * float(ring)),
+				Color(POSTER_EMBER, 0.035 * lit))
+		draw_texture_rect_region(prow_tex, prow, PROW_SRC)
+		for i in PROW_LAMPS.size():
+			var c: Vector2 = prow.position + (PROW_LAMPS[i] as Vector2) * prow.size
+			var flame: float = _lamp(float(i) * 2.2)
+			draw_circle(c, pw * 0.052, Color(POSTER_EMBER, 0.16 * flame))
+			draw_circle(c, pw * 0.030, Color(POSTER_EMBER, 0.30 * flame))
+
+	## 8 — THE CAPTAIN. The dest rect IS the figure, because the source is the
+	## measured alpha box. Bleeding off the left so the cutlass is cropped by the
+	## frame rather than ending in mid-air.
+	var hero := _tex("res://assets/art/heroes/corsair_front_attack.png")
+	if hero != null:
+		var hh: float = size.y * 0.60
+		var hw: float = hh * HERO_SRC.size.x / HERO_SRC.size.y
+		draw_texture_rect_region(hero,
+			Rect2(-maxf(28.0, hw * 0.06), size.y - hh + 18.0, hw, hh), HERO_SRC)
+
+	## 9 — the vignette, so the corners fall away and the eye goes to the middle.
+	## The cached 96² texture the fight HUD already builds once.
+	draw_texture_rect(_vignette_texture(), full, false, Color(1, 1, 1, 0.62))
+
+
+## THE HAND — the explanation, drawn rather than written.
+##
+## The one thing a stranger could not learn from this screen was what a skill IS.
+## A sentence saying "every skill is a shape crossed with an element" is a claim;
+## thirty-six icons in four coloured rows is the thing itself. Nine shapes across,
+## four elements down, each cell the shape's own icon in the element's own
+## colour — the same two tables the draft deals from.
+func _draw_hand(rail: Rect2) -> void:
+	_stamp(rail, 0.62)
+	var shapes: Array = SLOT_ICONS.keys()
+	var elements: Array = SkyGearData.ELEMENTS.keys()
+	var cell: float = clampf(size.y * 0.0225, 17.0, 26.0)
+	var cgap: float = maxf(2.0, cell * 0.12)
+	var grid_w: float = shapes.size() * cell + (shapes.size() - 1) * cgap
+	var gx: float = rail.position.x + 40.0
+	var gy: float = rail.position.y + 44.0
+	_label("WHAT YOU DRAFT", Vector2(gx, rail.position.y + 28.0),
+		grid_w, HORIZONTAL_ALIGNMENT_LEFT, 15, BRASS_LIT)
+	for r in elements.size():
+		var tint: Color = SkyGearData.ELEMENTS[elements[r]].color
+		var ry: float = gy + r * (cell + cgap)
+		_label(str(elements[r]).to_upper(), Vector2(gx + grid_w + 14.0, ry + cell * 0.72),
+			92.0, HORIZONTAL_ALIGNMENT_LEFT, 12, tint)
+		for c in shapes.size():
+			var box := Rect2(gx + c * (cell + cgap), ry, cell, cell)
+			draw_rect(box, Color(0.055, 0.045, 0.085, 0.92))
+			draw_rect(box, Color(tint.r, tint.g, tint.b, 0.16))
+			draw_rect(box, Color(tint.r, tint.g, tint.b, 0.62), false, 1.2)
+			var icon := _tex(str(SLOT_ICONS[shapes[c]]))
+			if icon != null:
+				draw_texture_rect(icon, box.grow(-cell * 0.16), false,
+					Color(tint.r, tint.g, tint.b, 0.92))
+	_label("every skill is a shape crossed with an element — you pick one between waves",
+		Vector2(gx, gy + elements.size() * (cell + cgap) + 14.0),
+		rail.size.x - 80.0, HORIZONTAL_ALIGNMENT_LEFT, 13, Color("#b9afaa"))
+
+
 func _draw_title() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
-	_banner(size.x * 0.5, 104.0, 600.0)
-	_center_text("SKYGEAR", 150.0, 64, Color("#e8c376"))
-	## NOT "GODOT PORT" (board SG-211). This is the second line of the title
-	## screen — the first thing anyone who launches the game reads, and on a
-	## store page the first thing anyone who watches a capsule video reads. What
-	## engine it was built in is not the subtitle of the game.
-	_center_text("STORM-DUSK", 205.0, 24, Color("#37f0c8"))
-	## THE ONE SENTENCE THAT SAYS WHAT THE GAME IS, and until SG-213 it said
-	## "twelve" in a build that stops at six. A demo whose first screen
-	## overstates what it contains is not a demo, it is a broken promise on the
-	## line a player reads before anything else.
-	_center_text("Keep the Boiler alive through %s boarding waves."
+	## The picture's two anchors, decided before anything is drawn: where the
+	## board's left edge sits, and where the foot rail's top is.
+	var board_left: float = size.x - 40.0 - (MENU_W + MENU_PAD * 2.0)
+	var hand_h: float = clampf(size.y * 0.0225, 17.0, 26.0) * 4.0 + 6.0 * 3.0 + 78.0
+	var hand_rail := Rect2(0.0, size.y - hand_h, size.x, hand_h + 6.0)
+	_draw_poster(board_left, hand_rail.position.y)
+	_draw_hand(hand_rail)
+	## --- THE LOCKUP ---------------------------------------------------------
+	##
+	## THE BANNER IS RETIRED FROM THIS SCREEN. Its art (`frame_hud.png`'s
+	## 391x117 patch) has an aspect of 0.299, which caps any wordmark drawn
+	## inside it at about 17% of the frame's width — the reason SKYGEAR has
+	## always been 64pt on a 1920 canvas and has never looked like a wordmark.
+	## The lockup below is a plate of the menu's own vocabulary at heroic scale:
+	## the name is 150pt, 28% of the frame, and it is the first thing the eye
+	## lands on rather than the fourth.
+	## --- THE LOGO -----------------------------------------------------------
+	##
+	## IT IS A PAINTED EMBLEM NOW, NOT TYPE. The owner, twice: *"I dont need the
+	## title written in the same lame font as everything else"* and *"a badass
+	## 'skygear' steampunk title"*, pointing at Heroes of Newerth — an
+	## illustrated lockup, not a typeset line. Two attempts were made and thrown
+	## away before this one: SKYGEAR at 150pt in the UI's display face (a bigger
+	## version of the same wrong thing), then a seven-pass metal treatment on a
+	## Victorian wood face (closer, and still type). `assets/art/ui/logo_skygear.png`
+	## is the real answer — carved brass letterforms with rivets and engraved
+	## filigree, swept airship wings, a gear stack, a pressure gauge, steam, and
+	## ember light burning out from behind the metal. Generated with
+	## `tools/imageforge.py`, which is the door SG-105 has been blocked on: the
+	## Aether Loom is not on this machine and this needs nothing local.
+	##
+	## NO PLATE BEHIND IT. The brass lockup that held the typeset name is gone —
+	## the emblem carries its own ornament, and a riveted rectangle around a
+	## thing that already has wings is two frames fighting. What is behind it is
+	## light: concentric bloom, no edges (the `_wash` lesson, one screen ago).
+	var logo := _tex("res://assets/art/ui/logo_skygear.png")
+	var lock_w: float = minf(820.0, board_left - 76.0)
+	var lock_x: float = 56.0 + (board_left - 56.0 - lock_w) * 0.42
+	var logo_h: float = lock_w * 1024.0 / 1536.0
+	var lock := Rect2(lock_x, size.y * 0.055, lock_w, logo_h)
+	if logo != null:
+		var bloom := lock.get_center()
+		var lamp: float = _lamp(1.7)
+		for ring in 5:
+			draw_circle(bloom, lock_w * (0.46 - 0.075 * float(ring)),
+				Color(POSTER_EMBER, 0.026 * lamp))
+		draw_texture_rect(logo, lock, false)
+	else:
+		## The old typeset name, kept as the floor. A missing emblem must degrade
+		## to a readable title rather than to nothing.
+		_say("SKYGEAR", Vector2(lock.position.x, lock.get_center().y),
+			lock.size.x, HORIZONTAL_ALIGNMENT_CENTER, 96, Color("#e8c376"))
+
+	## STORM-DUSK IS RETIRED FROM EVERY MENU, on the owner's word: *"drop storm
+	## dusk from all menus. Just skygear is all we need."* It existed as a
+	## subtitle because the second line used to say "GODOT PORT" (board SG-211)
+	## and something had to replace it. The emblem carries the identity now, and
+	## a subtitle under a logo that already has wings is a caption on a sign.
+
+	## --- THE STRAPLINE ------------------------------------------------------
+	## The one sentence that says what the game is, on its own riveted strip
+	## under the lockup rather than floating on the picture. Until SG-213 it
+	## said "twelve" in a build that stops at six — a demo whose first screen
+	## overstates what it contains is a broken promise on the line a player
+	## reads before anything else.
+	var strip := Rect2(lock.position.x + 90.0, lock.end.y - logo_h * 0.04,
+		lock.size.x - 180.0, 44.0)
+	_stamp(strip, 0.62)
+	draw_rect(strip, Color(BRASS.r, BRASS.g, BRASS.b, 0.34), false, 1.4)
+	_say("Keep the Boiler alive through %s boarding waves."
 		% ("six" if SkyGearDemo.active() else "twelve"),
-		286.0, 22, Color("#eee5d5"))
+		Vector2(strip.position.x, strip.position.y + 30.0), strip.size.x,
+		HORIZONTAL_ALIGNMENT_CENTER, 21, Color("#eee5d5"))
 	## The last clause is the class's, not a constant. "Space dash" is a lie for
 	## the man with no dash, and it is the one line on this screen that tells a
 	## player what their hands do.
-	_center_text(SkyGearKeybinds.controls_line(
+	var keys := Rect2(strip.position.x + 40.0, strip.end.y + 6.0,
+		strip.size.x - 80.0, 30.0)
+	_stamp(keys, 0.46)
+	_say(SkyGearKeybinds.controls_line(
 		not (game.class_data().get("jet", {}) as Dictionary).is_empty()),
-		330.0, 18, Color("#b9afaa"))
+		Vector2(keys.position.x, keys.position.y + 20.0), keys.size.x,
+		HORIZONTAL_ALIGNMENT_CENTER, 16, Color("#c8bfb8"))
 	## ONE CURSOR DOWN THE PAGE, not six offsets from a shared anchor.
 	##
 	## Every row here was placed at `ty` plus or minus a magic number, and adding
@@ -708,7 +1049,12 @@ func _draw_title() -> void:
 	## predict (`docs/MENU-DESIGN.md` §4).
 	ui.begin("title", self, font, get_local_mouse_position())
 	var wide := MENU_W
-	var wx: float = size.x * 0.5 - wide * 0.5
+	## THE COLUMN MOVES TO THE RIGHT. It was centred, which is correct for a menu
+	## that IS the screen and wrong for one standing on a picture — a centred
+	## board cuts the poster in half and leaves the captain nowhere to be. The
+	## board is now flush right against a 40 px gutter, which is what gives the
+	## left two thirds to the art.
+	var wx: float = size.x - 40.0 - MENU_PAD - wide
 
 	## --- HOW DEEP THE BOARD WANTS TO BE, MEASURED BEFORE IT IS DRAWN ---------
 	##
@@ -746,13 +1092,28 @@ func _draw_title() -> void:
 	body += (MENU_PLATE_H + MENU_GAP) * 3.0            ## HOW / SETTINGS / CONTROLS
 	body -= MENU_GAP                                   ## no trailing gap
 
-	var board := Rect2(wx - MENU_PAD, MENU_TOP, wide + MENU_PAD * 2.0,
-		body + MENU_STILE * 2.0)
+	## AND ITS HEAD IS MEASURED FROM ITS FOOT, not from a constant. `MENU_TOP`
+	## was 352 — a number chosen when the banner above it was the tallest thing
+	## on the screen. The board now has to clear THE HAND at the bottom and sit
+	## under the lockup at the top, and the full post-victory column is 636 tall
+	## against 1080 of canvas with the grid taking 168 of it. So the foot is
+	## pinned above the rail and the head follows from the height.
+	##
+	## MEASURED, NOT ASSUMED: the canvas is ALWAYS 1920x1080 —
+	## `window/stretch/mode="canvas_items"` with a 1920x1080 base viewport, so
+	## `size` does not change with the window. Two of the three designs and one
+	## judge asserted this screen already overflows at 1280x720; it does not,
+	## and the arithmetic below is against 1080 because that is what it is
+	## always drawing into.
+	var board_h: float = body + MENU_STILE * 2.0
+	var board_top: float = clampf(hand_rail.position.y - 46.0 - 30.0 - 14.0 - board_h,
+		size.y * 0.20, size.y * 0.34)
+	var board := Rect2(wx - MENU_PAD, board_top, wide + MENU_PAD * 2.0, board_h)
 	_menu_board(board)
 	## Everything on the board is measured against the board — a detector the
 	## title screen has never had, because nothing on it was inside any frame.
 	_open_board(board)
-	var y: float = MENU_TOP + MENU_STILE
+	var y: float = board.position.y + MENU_STILE
 
 	## DIFFICULTY, as a ladder rather than a cycling row (SG-14). Only once the
 	## first victory has opened it — before that there is exactly one difficulty
@@ -853,10 +1214,13 @@ func _draw_title() -> void:
 	## SETTINGS is a misclick waiting to happen, and the fix is that it should
 	## not be the same object in a different colour.
 	var qw := 190.0
-	if _menu_plate(Rect2(size.x * 0.5 - qw * 0.5, y, qw, 30.0), "QUIT",
+	if _menu_plate(Rect2(board.get_center().x - qw * 0.5, y, qw, 30.0), "QUIT",
 			{"state": "hatch", "hint": "Alt+F4", "pt": 15}):
 		game.quit_game()
-	y += 30.0 + 22.0
+	## 30 of plate plus 26 of air. It was 22, and the history line below printed
+	## THROUGH the plate — the SG-161 shape again, two elements off one cursor
+	## with no frame between them for containment to measure.
+	y += 30.0 + 26.0
 
 	## What the machine remembers. A title screen with a best-wave on it is the
 	## cheapest possible reason to press Enter again.
@@ -872,7 +1236,14 @@ func _draw_title() -> void:
 			line += " · %d held" % int(history.wins)
 			if str(history.best_time) != "":
 				line += " (best %s)" % str(history.best_time)
-		_center_text(line, y, 17, Color("#b0813f"))
+		## On the board's own column now, not the screen's centre — the screen's
+		## centre is the captain — and in a field, because brass-on-ember-cloud
+		## is the lowest-contrast pairing this screen can produce.
+		var hist := Rect2(board.position.x + 20.0, y - 15.0,
+			board.size.x - 40.0, 24.0)
+		_stamp(hist, 0.52)
+		_say(line, Vector2(hist.position.x, hist.position.y + 17.0), hist.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 14, BRASS_LIT)
 		y += 28.0
 	## THE MILESTONE FOOTER IS GONE, AND IT WAS TWO DEFECTS IN ONE LINE (board
 	## SG-211 and DR-13 in `docs/DEMO-READINESS-AUDIT-2026-08-11.md`).

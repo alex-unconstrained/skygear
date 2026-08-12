@@ -13902,15 +13902,37 @@ func _screen_editor() -> void:
 	## Selected, because the handles are drawn on the SELECTION — and redrawn
 	## at the window size this block actually measures at.
 	game.layout_panel = 0
-	game.layout_key = "skygear"
+	## THE PROBE IS CHOSEN, NOT NAMED. This block used to grab the element keyed
+	## "skygear" — the typeset title. SG-249 replaced that string with a painted
+	## emblem, so the key stopped existing and five checks went red on a change
+	## that was not about the editor at all.
+	##
+	## What this is testing is the RESIZE MECHANISM: a saved delta narrows a box,
+	## rides a reflow, refuses the floor, and fires the live verdict. Any
+	## single-line text element on the title exercises all four. So it takes the
+	## widest one it can find, which keeps the test about the mechanism and
+	## immune to the copy changing again.
 	hud.queue_redraw()
 	await process_frame
-	if hud.edit_elements.has("skygear"):
-		var base0: Vector2 = hud.edit_elements["skygear"].base
-		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2(-400, 0))
+	var probe := ""
+	var probe_w := 0.0
+	for k in hud.edit_elements:
+		var e: Dictionary = hud.edit_elements[k]
+		if str(e.get("kind", "")) != "text":
+			continue
+		var bw: float = (e.base as Vector2).x
+		if bw > probe_w:
+			probe_w = bw
+			probe = str(k)
+	game.layout_key = probe
+	hud.queue_redraw()
+	await process_frame
+	if probe != "" and hud.edit_elements.has(probe):
+		var base0: Vector2 = hud.edit_elements[probe].base
+		SkyGearHUD.layout.set_screen_size("title", probe, Vector2(-400, 0))
 		hud.queue_redraw()
 		await process_frame
-		var field: Rect2 = hud.edit_elements["skygear"].field
+		var field: Rect2 = hud.edit_elements[probe].field
 		narrowed = is_equal_approx(field.size.x, base0.x - 400.0)
 		## Handles are the affordance: the east grip sits on the field's right
 		## edge, and a single-line string gets that one only — its height is
@@ -13923,24 +13945,24 @@ func _screen_editor() -> void:
 		hud.size = Vector2(1920, 1080)
 		hud.queue_redraw()
 		await process_frame
-		var wide: Vector2 = hud.edit_elements["skygear"].base
+		var wide: Vector2 = hud.edit_elements[probe].base
 		followed_size = not is_equal_approx(wide.x, base0.x) \
-			and is_equal_approx((hud.edit_elements["skygear"].field as Rect2).size.x,
+			and is_equal_approx((hud.edit_elements[probe].field as Rect2).size.x,
 				wide.x - 400.0)
 		hud.size = Vector2(1600, 900)
 		## Past the floor: a five-thousand-pixel shrink stops at MIN_PT.
-		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2(-5000, 0))
+		SkyGearHUD.layout.set_screen_size("title", probe, Vector2(-5000, 0))
 		hud.queue_redraw()
 		await process_frame
 		floor_held = is_equal_approx(
-			(hud.edit_elements["skygear"].field as Rect2).size.x,
+			(hud.edit_elements[probe].field as Rect2).size.x,
 			float(SkyGearInk.MIN_PT))
 		## And the verdict, from the audit's own OVERFLOW detector, attached
 		## live to this very frame.
 		for line in hud.edit_trouble:
 			if str(line).contains("escapes its width"):
 				verdict_fired = true
-		SkyGearHUD.layout.set_screen_size("title", "skygear", Vector2.ZERO)
+		SkyGearHUD.layout.set_screen_size("title", probe, Vector2.ZERO)
 		hud.queue_redraw()
 		await process_frame
 	game.layout_key = ""

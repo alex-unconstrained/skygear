@@ -361,32 +361,36 @@ def run(args: list[str]) -> None:
 
 
 def title_card(dst: Path, w: int, h: int) -> None:
-    """SKYGEAR in the game's own display face, brass on black."""
-    from PIL import Image, ImageDraw, ImageFont
+    """The film's last frame: the game's own emblem on black.
+
+    IT IS THE LOGO, NOT TYPE. The card used to set SKYGEAR and STORM-DUSK in a
+    font, which made the film end on a different object from the title screen it
+    cuts to. `assets/art/ui/logo_skygear.png` is the painted emblem the title now
+    wears, so the two are the same thing and the cut between them is continuous.
+
+    STORM-DUSK is gone with it — the owner retired it from every surface, and a
+    card that still carried it would be the one place it survived.
+    """
+    from PIL import Image
     im = Image.new("RGB", (w, h), (5, 4, 8))
-    d = ImageDraw.Draw(im)
-    face = ROOT / "assets" / "fonts" / "Oswald.ttf"
-    try:
-        big = ImageFont.truetype(str(face), int(h * 0.16))
-        small = ImageFont.truetype(str(face), int(h * 0.042))
-    except OSError:
-        big = ImageFont.load_default()
-        small = ImageFont.load_default()
-    ## `#e8c376` and `#37f0c8` — the same brass and teal `hud.gd` paints the
-    ## title screen's two lines in, so the card and the screen it cuts to are
-    ## the same object.
-    ##
-    ## STACKED FROM MEASURED HEIGHTS, not from two fractions of the canvas. The
-    ## first version placed them at 0.42h and 0.56h, and at a display size of
-    ## 0.16h the name is 0.16 tall — so STORM-DUSK was printed through the
-    ## bottom of SKYGEAR. The same class of bug as SG-161, in a different file,
-    ## caught the same way: by looking at it.
-    gap = h * 0.035
-    name_h = _height(d, "SKYGEAR", big)
-    sub_h = _height(d, "STORM-DUSK", small)
-    top = (h - (name_h + gap + sub_h)) * 0.5
-    _centre(d, im, "SKYGEAR", big, (0xE8, 0xC3, 0x76), top)
-    _centre(d, im, "STORM-DUSK", small, (0x37, 0xF0, 0xC8), top + name_h + gap)
+    logo = ROOT / "assets" / "art" / "ui" / "logo_skygear.png"
+    if logo.exists():
+        art = Image.open(logo).convert("RGBA")
+        scale = (w * 0.62) / art.width
+        art = art.resize((int(art.width * scale), int(art.height * scale)),
+                         Image.LANCZOS)
+        im.paste(art, ((w - art.width) // 2, (h - art.height) // 2), art)
+    else:
+        ## The floor: a missing emblem degrades to a readable name, never to an
+        ## empty black card.
+        from PIL import ImageDraw, ImageFont
+        d = ImageDraw.Draw(im)
+        face = ROOT / "assets" / "fonts" / "Oswald.ttf"
+        try:
+            big = ImageFont.truetype(str(face), int(h * 0.16))
+        except OSError:
+            big = ImageFont.load_default()
+        _centre(d, im, "SKYGEAR", big, (0xE8, 0xC3, 0x76), h * 0.42)
     im.save(dst)
 
 
