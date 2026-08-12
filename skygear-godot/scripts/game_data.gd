@@ -446,10 +446,20 @@ const TAP := {
 ## "deliberately shaped exactly like `fire_fields`" and pays `dps * TAP_TICK`.
 ## The shipped fire literal was 7.5 per tick at a 0.25 s tick, which is 30.0 per
 ## second, so `lantern` carries today's rate EXACTLY and nothing ambient moves.
+##
+## SG-164/SG-264, the owner's decision: `lantern` does not move — it is the
+## most common hazard in the game, and changing an ambient rate in the same
+## commit that differentiates the others would make a bad wave unattributable.
+## `scald_trail` is 18.0 — a retreat trail is worth less than a committed
+## skill. `residue` is 30.0 PER STACK: stack 1 is damage-neutral (it did not
+## already buy anything it does now), stack 2 doubles the rate, which is what
+## an epic's second copy should feel like — RESIDUE bought nothing measurable
+## before this. Measured with `tools/fire_bench.gd`, never `tools/balance.gd`
+## (see that tool's header for why a balance run cannot even reach this row).
 const FIRE_SOURCES := {
 	"lantern": {"dps": 30.0},
-	"scald_trail": {"dps": 30.0},
-	"residue": {"dps": 30.0},
+	"scald_trail": {"dps": 18.0},
+	"residue": {"dps": 30.0, "per_stack": true},
 }
 
 ## Blowdown. `vent_pressure` with the constants replaced by functions of Head —

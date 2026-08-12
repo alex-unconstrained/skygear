@@ -73,11 +73,14 @@ const BOT_SCRIPT := preload("res://tools/bot.gd")
 const BALANCE_SCRIPT := preload("res://tools/balance.gd")
 
 ## RESIDUE's stack ratio, measured on a body rather than read off the table
-## (board SG-164). This task's plumbing is neutral — every source authors
-## today's rate and stacks do not differ yet — so 1.0 is the correct answer
-## here. Task 13 raises this to 2.0, and that one-line change is what makes
-## the balance commit visible in the harness.
-const EXPECTED_STACK_RATIO := 1.0
+## (board SG-164/SG-264). Task 12's plumbing was neutral — every source
+## authored the same rate and stacks did not differ — so 1.0 was the correct
+## answer there. TASK 13 RAISED THIS TO 2.0: `residue` is now `30.0 per_stack`
+## in `FIRE_SOURCES` (`game_data.gd`), so a second stack doubles the rate —
+## stack 1 is damage-neutral, stack 2 is what an epic's second copy should
+## feel like. This one-line change is what makes the balance commit visible in
+## the harness.
+const EXPECTED_STACK_RATIO := 2.0
 
 
 func _check(group: String, name: String, condition: bool, detail: String = "") -> void:
@@ -16591,18 +16594,25 @@ func _fire_rates() -> void:
 		if line.begins_with("_damage_circle(field.position, fire_pool_radius()"):
 			tick_line = line
 	var tick_reads_stamp := tick_line.contains("field.dps")
-	## NAMED FOR WHAT IT PROVES, NOT FOR WHAT TASK 13 WILL LATER MAKE TRUE.
-	## The condition below asserts all three sources agree, exactly, to the
-	## tick — because this task is neutral and they are SUPPOSED to agree
-	## today. A name claiming "not the same fire" while the assertion proves
-	## they ARE would be a board-rule-2 inversion, a lie sitting in a green
-	## log. "Not the same fire" becomes true, and gets a check that says so,
-	## when the balance row gives them different authored rates. And the name
-	## says EVERY source, so the condition reads all three rows in
-	## `FIRE_SOURCES`, not two of them.
+	## TASK 13/SG-264 MADE THE THREE ROWS DIFFER, ON PURPOSE — that was this
+	## balance commit's entire job, and this check moved in the SAME commit as
+	## `FIRE_SOURCES` because a check asserting the old, neutral numbers would
+	## have shipped red the moment the table stopped agreeing with itself.
+	## Each row is pinned to an EXTERNAL LITERAL (30.0, 18.0, 30.0 per second —
+	## the owner's authored rates, restated here rather than derived) rather
+	## than to `FIRE_SOURCES` itself, because comparing the table with itself
+	## proves only that the number equals itself (`pool_shot.gd:17`'s fifth
+	## failure mode). `lantern` is UNCHANGED at 30.0/s = 7.5 per tick — the
+	## owner's rule that the most common hazard in the game does not move.
+	## `scald_trail` is 18.0/s = 4.5 per tick — a retreat trail is worth less
+	## than a committed skill. `residue` at one stack (the argument this scan
+	## uses) is still 30.0/s = 7.5 per tick — stack 1 is damage-neutral by
+	## design; its second stack is what `EXPECTED_STACK_RATIO` (now 2.0) and
+	## `RESIDUE's stacks are worth what they cost, measured on a body` below
+	## cover, not this check.
 	_check("hazard", "every fire source authors its rate in the table, and the tick reads the stamp, not a literal",
 		is_equal_approx(lantern_dps * SkyGearGame.FIRE_TICK, 7.5)
-			and is_equal_approx(trail_dps * SkyGearGame.FIRE_TICK, 7.5)
+			and is_equal_approx(trail_dps * SkyGearGame.FIRE_TICK, 4.5)
 			and is_equal_approx(residue_dps * SkyGearGame.FIRE_TICK, 7.5)
 			and tick_reads_stamp,
 		"lantern %.2f/s = %.2f per tick; scald trail %.2f/s = %.2f per tick; residue %.2f/s = %.2f per tick; tick reads field.dps: %s (line: %s)"
@@ -16660,16 +16670,19 @@ func _fire_rates() -> void:
 	var channelled_stacks: float = float(chan_field.get("stacks", -1.0))
 	channelled.queue_free()
 
-	## THE MAGNITUDE AGREEMENT ABOVE IS NOT ENOUGH ON ITS OWN. Every row in
-	## `FIRE_SOURCES` is 30.0 today with no `per_stack`, so `fire_pool_dps`
-	## returns the identical number for "residue", for "lantern", and for an
-	## unrecognised source falling back to the default — a wrong `source`
-	## string at either creator, or a missing `stacks` key, is numerically
-	## invisible until the balance task (which is the whole point of this
-	## check: it exists to still be red-worthy on the day the rows differ).
-	## So `source` and `stacks` are read directly off the stamped dictionary
-	## and asserted against what THIS RIG actually cast, independent of what
-	## the table currently says either row is worth.
+	## THE MAGNITUDE AGREEMENT ABOVE IS NOT ENOUGH ON ITS OWN. Before task 13/
+	## SG-264, every row in `FIRE_SOURCES` was 30.0 with no `per_stack`, so
+	## `fire_pool_dps` returned the identical number for "residue", for
+	## "lantern", and for an unrecognised source falling back to the default —
+	## a wrong `source` string at either creator, or a missing `stacks` key,
+	## was numerically invisible until the balance task landed (which was the
+	## whole point of this check: it exists to still be red-worthy on the day
+	## the rows differ, and now that they do, a swapped `source` string here
+	## would silently pay `lantern`'s 30.0 instead of `residue`'s per-stack
+	## rate at BOTH stacks — same magnitude at stack 1, wrong at stack 2). So
+	## `source` and `stacks` are read directly off the stamped dictionary and
+	## asserted against what THIS RIG actually cast, independent of what the
+	## table currently says either row is worth.
 	_check("hazard", "a channelled skill leaves the same pool an instant one does",
 		instant_dps > 0.0 and channelled_dps > 0.0
 			and is_equal_approx(instant_dps, channelled_dps)
