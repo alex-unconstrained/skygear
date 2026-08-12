@@ -534,8 +534,13 @@ func _ready() -> void:
 	add_child(audio)
 	## `add_child` runs `_ready`, which is where `settings.cfg` is read — so the
 	## bypass is live before the first title frame is drawn rather than one
-	## settings visit later (board SG-160).
-	open_heats = audio.open_heats
+	## settings visit later (board SG-160). Gated on `dev_tools`: a build-71
+	## tester who left OPEN ALL HEATS on has no way to switch it off in an
+	## exported build (the settings row is behind `dev_tools`, `toggle_open_heats`
+	## has no keybinding by design) — so a stored `true` surviving into a build
+	## with no control for it must not survive at all. `dev_tools` is a var
+	## initializer, assigned before `_ready` runs, so it is already set here.
+	open_heats = audio.open_heats and dev_tools
 	profiler = SkyGearProfiler.new()
 	profiler.name = "Profiler"
 	add_child(profiler)

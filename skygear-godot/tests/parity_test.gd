@@ -10122,6 +10122,38 @@ func _view() -> void:
 		jump.heat == 0, "started at %d" % jump.heat)
 	jump.queue_free()
 
+	## SETTINGS · A STORED PLAYTEST BYPASS CANNOT SURVIVE INTO A BUILD THAT HAS NO
+	## WAY TO TURN IT OFF (build-72 fix wave, 2026-08-12). Task 10 moved OPEN ALL
+	## HEATS's settings row behind `dev_tools`, so an exported build has no row and
+	## `toggle_open_heats` has no keybinding by design — but `game.gd`'s `_ready`
+	## restored `audio.open_heats` UNCONDITIONALLY at boot, so a build-71 tester who
+	## had switched the bypass on and left it there installs build 72, the switch
+	## is gone, and every run silently plays above the earned rung and banks
+	## nothing, forever, with no way back. Drive the real boot path rather than
+	## asserting the expression in isolation: write `true` into the harness's own
+	## diverted `settings.cfg`, then instantiate a fresh game with `dev_tools` set
+	## BEFORE it enters the tree — `_ready` reads the stored flag exactly once, at
+	## `add_child`, so the override has to land before that.
+	var bypass_cfg := ConfigFile.new()
+	bypass_cfg.set_value("playtest", "open_heats", true)
+	bypass_cfg.save(SkyGearAudio.store)
+	var boot_scene: PackedScene = load("res://scenes/main.tscn")
+
+	var shut: SkyGearGame = boot_scene.instantiate()
+	shut.dev_tools = false
+	root.add_child(shut)
+
+	var kept: SkyGearGame = boot_scene.instantiate()
+	kept.dev_tools = true
+	root.add_child(kept)
+
+	_check("settings", "a stored playtest bypass cannot survive into a build that has no way to turn it off",
+		not shut.open_heats and kept.open_heats,
+		"open_heats came back %s with dev_tools false, %s with dev_tools true"
+			% [str(shut.open_heats), str(kept.open_heats)])
+	shut.queue_free()
+	kept.queue_free()
+
 	## THE ARTICLES. The sigil side: commitments rather than experiments, no
 	## refund, and two of them fight over the same key.
 	var art := SkyGearWorkshop.fresh(true)

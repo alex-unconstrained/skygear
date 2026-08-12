@@ -4055,10 +4055,12 @@ func _streak_texture() -> ImageTexture:
 ## texels is what it takes to keep a hard step from stair-casing under the
 ## bilinear magnification a 128-texture gets at a 146-unit reach.
 ##
-## `filled` is still the difference between a cone and a cleave: a cone is a wedge
-## of ground you are about to cook, a cleave is the rim of one. Both are hard at
-## the boundary now — the unfilled variant is SG-158's strike flash, which is the
-## frame the blow lands and has even less business being vague.
+## `filled` now ships TRUE for the cleave too (SG-226, owner's word, 2026-08-12,
+## after a 120-frame A/B): a rim alone thinned to a bare line off-peak and
+## vanished outright over the PRESSURE ring, so the cleave decal is FILLED, not
+## the rim of a cone. Both are hard at the boundary now — the unfilled variant
+## is still SG-158's strike flash, the frame the blow lands, which has even less
+## business being vague and is still live at `:5669`.
 ## Cached per arc, because there are only ever a handful of distinct arcs.
 const FAN_RIM_W := 0.085       ## the rim line's width, as a fraction of the reach
 const FAN_RIM_A := 0.95        ## and its alpha at the boundary itself
