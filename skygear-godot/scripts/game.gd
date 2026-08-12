@@ -556,6 +556,12 @@ func _ready() -> void:
 	var win := get_window()
 	if win != null:
 		win.min_size = Vector2i(SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_WINDOW_H)
+	## THE LABEL, WITHOUT THE COUPLING. `config/name` stays "SkyGear: Godot Port"
+	## because Godot derives `%APPDATA%/Godot/app_userdata/<name>` from it and the
+	## player's runs.json, workshop.json, keys.cfg, settings.cfg and hud_layout.json
+	## all live under the old one (board SG-223). Renaming it is a migration, not a
+	## copyedit; setting the title is neither.
+	DisplayServer.window_set_title("SkyGear")
 	_maybe_play_opening()
 	queue_redraw()
 

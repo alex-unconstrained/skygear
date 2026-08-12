@@ -354,6 +354,7 @@ func _run() -> void:
 	await process_frame
 	_shipping_readme()
 	_shipping_version_stamp()
+	_shipping_window_title()
 	## AWAITED — it rebinds a key and reads the strings back off a real draw.
 	await _controls_truth()
 	await process_frame
@@ -14599,6 +14600,23 @@ func _shipping_version_stamp() -> void:
 	_check("shipping", "every stamped version key agrees with the build this commit ships",
 		stamped == 4 and wrong.is_empty(),
 		"%d version keys found (want 4), disagreeing: %s" % [stamped, str(wrong)])
+
+
+func _shipping_window_title() -> void:
+	## SG-223, THE CHEAP HALF. `config/name` is ALSO what Godot derives `user://`
+	## from, so renaming it orphans every save the player has — the rename was made
+	## and reverted inside an hour on 2026-08-11. Nothing in this codebase reads
+	## `config/name`; its only effects are the window title and that derivation. So
+	## the title is set at runtime and the setting is left alone ON PURPOSE, and
+	## this check asserts BOTH halves so a later agent cannot "tidy" one of them.
+	var proj := FileAccess.get_file_as_string("res://project.godot")
+	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	_check("shipping", "the window names the game, and the save path is left where the saves are",
+		game_src.contains("DisplayServer.window_set_title(\"SkyGear\")")
+			and proj.contains("config/name=\"SkyGear: Godot Port\""),
+		"title call %s; config/name untouched %s"
+			% [str(game_src.contains("DisplayServer.window_set_title(\"SkyGear\")")),
+				str(proj.contains("config/name=\"SkyGear: Godot Port\""))])
 
 
 func _is_letter(c: String) -> bool:
