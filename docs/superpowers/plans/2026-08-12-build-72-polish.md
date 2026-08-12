@@ -799,15 +799,28 @@ Require both halves, so neither can satisfy the check alone:
 
 Prove it red in **both** directions the review named: hardcode `"twelve"` into the template (scenario B) and confirm red; restore; delete the `.replace` call (scenario A) and confirm red; restore. Task 18 adds the end-to-end half — reading the actual `README.txt` out of the built zip — because a source scan can never prove what got packed.
 
-- [ ] **Step 4: Correct the false comment**
+- [ ] **Step 4: Make Task 6's save-path check cover what its name promises**
+
+Task 6 added `shipping · the window names the game, and the save path is left where the saves are`, and its review found the second clause asserts only that `config/name="SkyGear: Godot Port"` is still present. SG-223's own row documents a second route to the identical save-orphaning bug: *"`use_custom_user_dir` + `custom_user_dir_name` relocates the path too (to `%APPDATA%/<name>`), so it orphans the same saves by a different route."*
+
+Neither key exists in the repo today, so nothing is broken — but a check whose name claims the save path is guarded, while guarding one of its two doors, is the shape of claim board rule 2 exists to stop. Add the missing clause:
+
+```gdscript
+			and not proj.contains("use_custom_user_dir")
+			and not proj.contains("custom_user_dir_name")
+```
+
+Prove it red by adding `config/use_custom_user_dir=true` to `project.godot` temporarily, confirming the check fails, then restoring. That mutation is the only evidence that the new clause does anything.
+
+- [ ] **Step 5: Correct the false comment**
 
 `:2713` reads `## THE SG-182 THREE, and they are the BYTE-COMPARE kind on purpose.` Replace it with what `:2687` actually does — assert `diverted`, report the byte delta as corroboration — so the harness stops ratifying a claim about itself that is not true. The board sentence repeating it is fixed in Task 5.
 
-- [ ] **Step 5: Run the harness**
+- [ ] **Step 6: Run the harness**
 
 Expected: green at **54 engine errors against a pinned 54**, and the two `berths ·` checks now print headroom against the live text. **Record the new headroom figure** — if it is materially different from the old, that difference is the measure of how long the fixtures had been lying.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
 git add skygear-godot/tests/parity_test.gd
