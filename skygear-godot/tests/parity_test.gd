@@ -16583,6 +16583,7 @@ func _fire_rates() -> void:
 	## the SAME check or one direction is a check reading itself.
 	var lantern_dps := game.fire_pool_dps("lantern", 1.0)
 	var trail_dps := game.fire_pool_dps("scald_trail", 1.0)
+	var residue_dps := game.fire_pool_dps("residue", 1.0)
 	var sim_src := FileAccess.get_file_as_string("res://scripts/game.gd")
 	var tick_line := ""
 	for raw in sim_src.split("\n"):
@@ -16591,19 +16592,23 @@ func _fire_rates() -> void:
 			tick_line = line
 	var tick_reads_stamp := tick_line.contains("field.dps")
 	## NAMED FOR WHAT IT PROVES, NOT FOR WHAT TASK 13 WILL LATER MAKE TRUE.
-	## The condition below asserts lantern and scald trail agree, exactly, to
-	## the tick — because this task is neutral and they are SUPPOSED to agree
+	## The condition below asserts all three sources agree, exactly, to the
+	## tick — because this task is neutral and they are SUPPOSED to agree
 	## today. A name claiming "not the same fire" while the assertion proves
 	## they ARE would be a board-rule-2 inversion, a lie sitting in a green
 	## log. "Not the same fire" becomes true, and gets a check that says so,
-	## when the balance row gives them different authored rates.
+	## when the balance row gives them different authored rates. And the name
+	## says EVERY source, so the condition reads all three rows in
+	## `FIRE_SOURCES`, not two of them.
 	_check("hazard", "every fire source authors its rate in the table, and the tick reads the stamp, not a literal",
 		is_equal_approx(lantern_dps * SkyGearGame.FIRE_TICK, 7.5)
 			and is_equal_approx(trail_dps * SkyGearGame.FIRE_TICK, 7.5)
+			and is_equal_approx(residue_dps * SkyGearGame.FIRE_TICK, 7.5)
 			and tick_reads_stamp,
-		"lantern %.2f/s = %.2f per tick; scald trail %.2f/s = %.2f per tick; tick reads field.dps: %s (line: %s)"
+		"lantern %.2f/s = %.2f per tick; scald trail %.2f/s = %.2f per tick; residue %.2f/s = %.2f per tick; tick reads field.dps: %s (line: %s)"
 			% [lantern_dps, lantern_dps * SkyGearGame.FIRE_TICK,
-				trail_dps, trail_dps * SkyGearGame.FIRE_TICK, tick_reads_stamp, tick_line])
+				trail_dps, trail_dps * SkyGearGame.FIRE_TICK,
+				residue_dps, residue_dps * SkyGearGame.FIRE_TICK, tick_reads_stamp, tick_line])
 
 	## TWO RESIDUE CREATORS, NOT ONE. `game.gd`'s instant cast (inside
 	## `_resolve_cast`'s caller) and `_finish_active_channel`'s channelled one —
@@ -16633,8 +16638,11 @@ func _fire_rates() -> void:
 	instant.skills = [SkyGearData.make_skill("CONE", "EMBER")]
 	instant.mods.residue = 2.0
 	instant.cast_skill(0, Vector2(0, -480))
-	var instant_dps: float = float(instant.fire_fields[0].dps) if instant.fire_fields.size() > 0 else -1.0
-	var instant_radius: float = float(instant.fire_fields[0].radius) if instant.fire_fields.size() > 0 else -1.0
+	var inst_field: Dictionary = instant.fire_fields[0] if instant.fire_fields.size() > 0 else {}
+	var instant_dps: float = float(inst_field.get("dps", -1.0))
+	var instant_radius: float = float(inst_field.get("radius", -1.0))
+	var instant_source: String = str(inst_field.get("source", ""))
+	var instant_stacks: float = float(inst_field.get("stacks", -1.0))
 	instant.queue_free()
 
 	## The channel rig is lifted from `beam · hulk and Residue resolve once,
@@ -16645,16 +16653,32 @@ func _fire_rates() -> void:
 	channelled.cast_skill(0, Vector2(0, -480))
 	channelled._update_active_channel(0.24)
 	channelled._update_active_channel(0.12)
-	var channelled_dps: float = float(channelled.fire_fields[0].dps) if channelled.fire_fields.size() > 0 else -2.0
-	var channelled_radius: float = float(channelled.fire_fields[0].radius) if channelled.fire_fields.size() > 0 else -2.0
+	var chan_field: Dictionary = channelled.fire_fields[0] if channelled.fire_fields.size() > 0 else {}
+	var channelled_dps: float = float(chan_field.get("dps", -2.0))
+	var channelled_radius: float = float(chan_field.get("radius", -2.0))
+	var channelled_source: String = str(chan_field.get("source", ""))
+	var channelled_stacks: float = float(chan_field.get("stacks", -1.0))
 	channelled.queue_free()
 
+	## THE MAGNITUDE AGREEMENT ABOVE IS NOT ENOUGH ON ITS OWN. Every row in
+	## `FIRE_SOURCES` is 30.0 today with no `per_stack`, so `fire_pool_dps`
+	## returns the identical number for "residue", for "lantern", and for an
+	## unrecognised source falling back to the default — a wrong `source`
+	## string at either creator, or a missing `stacks` key, is numerically
+	## invisible until the balance task (which is the whole point of this
+	## check: it exists to still be red-worthy on the day the rows differ).
+	## So `source` and `stacks` are read directly off the stamped dictionary
+	## and asserted against what THIS RIG actually cast, independent of what
+	## the table currently says either row is worth.
 	_check("hazard", "a channelled skill leaves the same pool an instant one does",
 		instant_dps > 0.0 and channelled_dps > 0.0
 			and is_equal_approx(instant_dps, channelled_dps)
-			and is_equal_approx(instant_radius, channelled_radius),
-		"instant %.2f/%.1f, channelled %.2f/%.1f"
-			% [instant_dps, instant_radius, channelled_dps, channelled_radius])
+			and is_equal_approx(instant_radius, channelled_radius)
+			and instant_source == "residue" and channelled_source == "residue"
+			and is_equal_approx(instant_stacks, 2.0) and is_equal_approx(channelled_stacks, 2.0),
+		"instant %.2f/%.1f source=%s stacks=%.1f, channelled %.2f/%.1f source=%s stacks=%.1f"
+			% [instant_dps, instant_radius, instant_source, instant_stacks,
+				channelled_dps, channelled_radius, channelled_source, channelled_stacks])
 
 	## MEASURED ON A BODY, NOT READ OFF THE TABLE. Asserting dps(2) == 2 * dps(1)
 	## against `FIRE_SOURCES` compares the table with itself and proves the number
