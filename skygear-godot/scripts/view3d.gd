@@ -5288,7 +5288,7 @@ func _sync_effects() -> void:
 				## repaint later", and the repaint is filed separately.
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0))
 						+ cleave_lead(str(fx.get("side", "")), progress),
-					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), false),
+					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), true),
 					tint)
 				## A player swing tells the blade trail what colour it is — the fx
 				## carries the element, and the trail is drawn from the bone.

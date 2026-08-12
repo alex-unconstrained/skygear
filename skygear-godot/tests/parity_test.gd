@@ -15559,6 +15559,31 @@ func _ink() -> void:
 		SkyGearInk.CONTRAST_FLOOR_MUTED < SkyGearInk.CONTRAST_FLOOR
 			and SkyGearInk.CONTRAST_FLOOR_MUTED > 1.0)
 
+	## --- and the faces on screen are the faces we shipped --------------------
+	##
+	## SG-243 shipped two faces and the only gate was a text audit that cannot see
+	## which font drew anything. `tools/text_audit.gd` exits on a violation COUNT
+	## and its classes are OVERFLOW / OUTSIDE / SMALL / FAINT — none of them font
+	## identity. `hud.gd:2791`'s `_load_face` returns `ThemeDB.fallback_font` on a
+	## missing path with only a `push_warning`: a missing .ttf falls back silently
+	## BY DESIGN — good for the player, useless as evidence. So every string in the
+	## game could be drawing in the engine's fallback and the audit would still
+	## exit 0. This reads the LIVE hud, after `_ready` has run `_load_face` on the
+	## production path, rather than re-deriving what the loader should have done.
+	var face_game := _new_game()
+	var face_hud: SkyGearHUD = face_game.hud
+	_check("ink", "the shipped faces are the faces, not the engine's fallback",
+		ResourceLoader.exists(SkyGearHUD.DISPLAY_FACE)
+			and ResourceLoader.exists(SkyGearHUD.BODY_FACE)
+			and face_hud.font != ThemeDB.fallback_font
+			and face_hud.display != ThemeDB.fallback_font,
+		"display %s / body %s on disk; live faces fallback: %s / %s"
+			% [str(ResourceLoader.exists(SkyGearHUD.DISPLAY_FACE)),
+				str(ResourceLoader.exists(SkyGearHUD.BODY_FACE)),
+				str(face_hud.display == ThemeDB.fallback_font),
+				str(face_hud.font == ThemeDB.fallback_font)])
+	face_game.queue_free()
+
 	## --- and every field on a card is read by something ----------------------
 	##
 	## `rarity` was written onto every drafted card by `game.gd` and read by
