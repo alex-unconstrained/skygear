@@ -137,16 +137,32 @@ def title_card(dst: Path, w: int, h: int) -> None:
     except OSError:
         big = ImageFont.load_default()
         small = ImageFont.load_default()
-    ## `#e8c376` — the same brass `hud.gd` paints the title screen's name in, so
-    ## the card and the screen it cuts to are the same object.
-    _centre(d, im, "SKYGEAR", big, (0xE8, 0xC3, 0x76), h * 0.42)
-    _centre(d, im, "STORM-DUSK", small, (0x37, 0xF0, 0xC8), h * 0.56)
+    ## `#e8c376` and `#37f0c8` — the same brass and teal `hud.gd` paints the
+    ## title screen's two lines in, so the card and the screen it cuts to are
+    ## the same object.
+    ##
+    ## STACKED FROM MEASURED HEIGHTS, not from two fractions of the canvas. The
+    ## first version placed them at 0.42h and 0.56h, and at a display size of
+    ## 0.16h the name is 0.16 tall — so STORM-DUSK was printed through the
+    ## bottom of SKYGEAR. The same class of bug as SG-161, in a different file,
+    ## caught the same way: by looking at it.
+    gap = h * 0.035
+    name_h = _height(d, "SKYGEAR", big)
+    sub_h = _height(d, "STORM-DUSK", small)
+    top = (h - (name_h + gap + sub_h)) * 0.5
+    _centre(d, im, "SKYGEAR", big, (0xE8, 0xC3, 0x76), top)
+    _centre(d, im, "STORM-DUSK", small, (0x37, 0xF0, 0xC8), top + name_h + gap)
     im.save(dst)
+
+
+def _height(d, text: str, font) -> float:
+    box = d.textbbox((0, 0), text, font=font)
+    return box[3] - box[1]
 
 
 def _centre(d, im, text: str, font, fill, y: float) -> None:
     box = d.textbbox((0, 0), text, font=font)
-    d.text(((im.width - (box[2] - box[0])) * 0.5 - box[0], y), text,
+    d.text(((im.width - (box[2] - box[0])) * 0.5 - box[0], y - box[1]), text,
            font=font, fill=fill)
 
 
@@ -247,11 +263,18 @@ def stitch(take: int, preview: bool) -> Path:
         args += ["-c:v", "libx264", "-preset", "medium", "-crf", "20",
                  "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "160k"]
     else:
-        ## Theora, because that is what Godot plays. q:v 8 of 10 holds the
-        ## painted brushwork; the whole film is under 60 s so the file size this
-        ## buys is worth more than the bitrate it costs.
-        args += ["-c:v", "libtheora", "-q:v", "8",
-                 "-c:a", "libvorbis", "-q:a", "5"]
+        ## Theora, because that is what Godot plays.
+        ##
+        ## q:v 6, MEASURED rather than picked. Theora is a 2004 codec and it is
+        ## far less efficient than the h264 the preview uses: the same 53 s came
+        ## out at 59.6 MB on q:v 8, 30 MB on 6 and 23 MB on 5. Frame 780 — the
+        ## captain mid-swing against a firing cannon, the busiest frame in the
+        ## film — was compared against the source at 6 and holds the face, the
+        ## coat's gold trim and the muzzle flash. 30 MB on a ~234 MB exe is a
+        ## download people will finish; 60 MB for a difference nobody can see is
+        ## not a trade.
+        args += ["-c:v", "libtheora", "-q:v", "6",
+                 "-c:a", "libvorbis", "-q:a", "4"]
     args += [str(dst)]
     run(args)
     return dst
