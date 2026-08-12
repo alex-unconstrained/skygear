@@ -58,10 +58,22 @@ DISSOLVE_AFTER = {1: 12}
 ## floor; it came back with the storm seen from above, which is what the film
 ## needed all along.
 ##
+## SHOT 6 WENT THE SAME WAY, and it is the reason the audit method is written
+## down in docs/CUTSCENE-PIPELINE.md. The first water check cropped the BOTTOM
+## THIRD of ONE frame per shot; shot 6's sea is a breaking wave on the LEFT at
+## mid-height that does not appear until about frame 40, so that crop could not
+## have found it — the owner did. Re-audited at three full frames per shot
+## across all nine: 3 and 6 were the only two.
+##
+## Shot 6 needed more than the world rule. Its body now states positively what
+## is beyond the rails ("thousands of feet up... only violet storm cloud and
+## open sky"), because a negative alone did not stop the model reaching for the
+## most obvious thing to put beside a ship.
+##
 ## AN OVERRIDE RATHER THAN AN OVERWRITE. Copying take 2 over take 1 would erase
 ## the evidence of what was wrong and why, and the next person to re-roll a shot
 ## would have no example of how. One line per rolled shot, and the reason above.
-TAKE_OVERRIDE = {3: 2}
+TAKE_OVERRIDE = {3: 2, 6: 2}
 
 TITLE_CARD_S = 4.0
 
