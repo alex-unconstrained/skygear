@@ -1,49 +1,99 @@
 # NEEDS ALEX
 
-**Build 71 IS LIVE ON ITCH, as two downloads off one commit · harness
-1227/1227 · there is an opening film and it is nine chibi shots of your
-captain.**
+**BUILD 71 IS STILL THE LIVE BUILD. THERE IS A PILE OF WORK SITTING ON TOP OF IT
+THAT YOU HAVE NOT SEEN, AND NO BUILD 72 HAS BEEN CUT.**
+
+That is the whole headline. The tree is at commit `79b8841`, **harness 1229/1229,
+exit 0, 54 engine errors** — thirteen IDs of work since build 71 shipped, none of
+it in front of you, none of it packed. **Nothing below is a report on something
+you have played.**
+
+What is live, unchanged since 2026-08-11:
 
 - **`windows-demo`** build **#1876328** — the demo cut. First build on that
   channel. Launched and photographed before it went up: it says *"six boarding
   waves"* and has no class picker.
-- **`windows`** build **#1876329** — the full game, with everything below.
+- **`windows`** build **#1876329** — the full game.
 
-Detail lives in `skygear-godot/docs/BOARD.md`, which is now **the open queue and
-nothing else** — you asked for that and it went from 758 KB and 233 rows to
-94 KB and 39, with all 198 resolved rows and their evidence in
-`docs/BOARD-ARCHIVE.md`.
+Detail lives in `skygear-godot/docs/BOARD.md`, which is **the open queue and
+nothing else** — you asked for that. It is **35 open rows** now; every finished
+row and its evidence is in `docs/BOARD-ARCHIVE.md` (216 of them).
 
-*Last cleaned 2026-08-11. Everything you answered is off this list.*
+*Last cleaned 2026-08-12, against `79b8841`. Everything you answered is off this
+list.*
 
 ---
 
-## What changed, and what to look at
+## What changed since build 71 — all of it pending a fresh build and your eyes
 
-**THE OPENING FILM EXISTS.** Nine shots, 53.5 s with the title card, under your
-60 s ceiling. You ruled chibi and then sharpened it — *"I just want cutscenes to
-honor the reference images and assets created for the protagonist so it's
-consistent"* — so every shot the captain stands in carries **both** of his
-reference sprites rather than one, and the renderer now **refuses to run** if a
-captain shot loses its face reference. Shot 3 was auditioned before the other
-eight were committed: same face, same goggles, same gold-starred red coat, same
-gauntlet. It plays once at launch, is skippable from the first frame, and
-SETTINGS has a WATCH THE OPENING row for when you want it back.
+**None of this is in the build you have.** It is in the tree, it is green, and it
+needs a pack and a look.
 
-**THERE IS A DEMO BUILD NOW** — waves 1–6, Captain only, Heat 0, no fittings or
-berths, results screen intact, end card on the win. That is **your own written
-cut**, `docs/STEAM-LAUNCH.md:598`, built as written. It is an export feature
-tag, not a second source tree, so both exes come off one commit and one harness
-run. Seven checks prove every gate in both states.
+**THE FILM IS FINISHED, AND THE VERSION YOU HEARD WAS BROKEN.** You caught the
+sound: three fight tracks were playing at once. The cause was not a mix balance —
+the code unpacked a fade-out from every cue row and then never used it, so
+nothing ever stopped; `combat_low` and `combat_high` alone overlapped for 31.25
+seconds. Cues own a window now and hand over on named 0.8 s crossfades. There is
+a guard so you are not the detector next time: `assert_mix_sane` refuses a mix
+with an undeclared overlap **before** the four-minute encode, and it was
+demonstrated against the shipped mix first — it names the 31.25 s pile-up. You
+also found water in a shot; my audit had cropped one third of one frame per shot
+and could not have seen it. Re-audited on three full frames from all nine — shot
+6 was the only other offender, both are re-rolled, and the world rule is in every
+prompt. **Two new spoken lines**, at your invitation: *"She's the only thing
+holding us up."* at 18.2 s, because the film's WHY was previously stated only by
+the enemy at 41.7 s of a 53 s film; and *"Then come and take her."* at 44.9 s, so
+the ending is demand / refusal / order instead of demand / order. Final:
+**53.54 s, -19.9 LUFS, peak -1.8 dBFS, 39 cues, seven voice moments.**
 
-**Every string in the game is a real typeface for the first time** — Oswald over
-Lato, both OFL, licences in `assets/fonts/`. The four screens a new player opens
-in minute one are drawn in the title's own hardware now: plates, bevels, rivets
-and engraved channels instead of hairline rectangles.
+**THE TITLE SCREEN IS A POSTER NOW, AND THE LOGO IS A DRAWN EMBLEM.** You were
+right about the type — *"I dont need the title written in the same lame font as
+everything else"* — and my first two attempts were bigger versions of the wrong
+thing. `logo_skygear.png` is carved brass with rivets, filigree, airship wings, a
+gear stack, a gauge and ember light behind the metal; the plate that used to box
+the typeset name is gone. The screen behind it is built from three paintings this
+project already owned and had never shown you, including the prow that was
+retired from the 3D world for being *"a wall across the top of the frame"* —
+which on a head-on poster is exactly what a foreground is. **STORM-DUSK is off
+every surface**, on your word. And the title now says what the game *is*: THE
+HAND, thirty-six icons, nine shapes crossed with four elements.
 
-**A landed hit makes a sound and the body reacts.** Neither had ever happened:
-`damage_enemy` contained no `play_sfx` at all, and `react_hit` had two callers
-in the whole repo, neither of them an enemy.
+**THE MENU PASS YOU MARKED IN BLUE IS DONE, AND YOUR DIAGNOSIS WAS THE FIX.**
+*"This is a consistent issue across all menus. So fixing it here will help us
+everywhere."* It was one constant. Sheets laid content out in the least inset
+that keeps a string off the painted edge — a floor, not a margin — so every row
+ran rail to rail. Every sheet in the game takes its margin from one place now,
+and each grew by twice the breath so content keeps its width and only the gap is
+new. Your *"thin and poorly aligned"* was also one cause and it was a colour: the
+engraved channel was a cold near-black, which reads as a hole punched through the
+plate rather than metal cut into metal. It is the same hue in shadow now, so a
+label reads as stamped.
+
+**AND I HAVE TO RETRACT SOMETHING I TOLD YOU.** The last page said the four
+screens a new player opens were *"drawn in the title's own hardware"*. That was
+based on a chrome swap — I changed how buttons are **painted** and touched no
+layout, no density and no hierarchy on any sheet. **Calling that done was wrong.**
+What has actually been done since: **HOW TO PLAY is rebuilt** — it was eleven
+prose sections in one column at 15pt on the screen whose only job is to teach, and
+it is a two-column spread ending on THE HAND now; and **the objective plate — the
+Boiler gauge, the thing you lose by — was printing four strings on top of each
+other for the whole life of the build**, because the plate was 76 px holding 66 px
+of content in a 44 px budget. It is 118 px. Nobody had ever opened a screenshot of
+the actual playing screen. **Still not done, still named rather than claimed:**
+the Workshop is four columns of ~35 rows at 11pt, the Berths two of the same
+(both hidden in the demo), and SETTINGS is ten rows where the audit says four.
+
+**Every string in the game is a real typeface** — Oswald over Lato, both OFL,
+licences in `assets/fonts/`. Shipped in 71; still unverified by you (item 1).
+
+**THREE SHIPPING BUGS THAT WOULD HAVE COST A BUILD.** The README inside both itch
+zips taught the *losing* play — it said the CAPTAIN "fights at range" when range
+is the line she dies on, called both male classes "she", and told demo players to
+survive twelve waves of their six. `SkyGear Tools.bat pack --demo` silently threw
+away the `--demo` flag and built and zipped the **full game under the full game's
+filename** — a wrong-file push waiting for ship day. And the exe had stamped
+`0.70.0.0` into its Windows version info for two builds, including 71. All three
+now have checks; none of them had ever had one.
 
 ---
 
@@ -110,9 +160,14 @@ fight beside the Boiler?
 
 ## Only you can unblock
 
-- **The Aether Loom** — still not on this machine. Copy the server folder over,
-  **or paste an image-API key** and `forge.py` gets rewritten to call the API
-  directly. Recommend the key.
+- **The Aether Loom** — still not on this machine, **but it is no longer the
+  blocker it was.** `tools/imageforge.py` is a second, independent door: it calls
+  an image API directly, needs nothing local, and it has already drawn the logo
+  and the Boilerwright's first 2D art. What is left behind it is a **taste and a
+  money call, not a technical one**: the Boilerwright is still drawn wearing the
+  Captain's portrait in the HUD (one hardcoded path, no class branch), and since
+  that portrait was redrawn as one specific young man the mismatch is worse than
+  it was. **Say go and it gets drawn; it costs money to generate.**
 - **Steam** — the paperwork is the only critical path and it is entirely yours.
   The tax interview alone is 2–7 business days. **Send friends the itch link,
   not a Steam key** — keys need a three-week wait for a first-time dev.

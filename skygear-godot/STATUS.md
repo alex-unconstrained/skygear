@@ -1,9 +1,35 @@
 # SkyGear Godot port -- where things stand
 
-Last updated 2026-08-04. **Read this first, then `docs/BOARD.md` — the work
-queue agents claim items from and report evidence to. `docs/OUTSTANDING.md`
-stays the ledger of owner asks; an ask lands there first and is mirrored to
-the board as workable items.**
+Last updated **2026-08-12, against commit `79b8841`.** **Read this first, then
+`docs/BOARD.md` — the work queue agents claim items from and report evidence to.
+`docs/OUTSTANDING.md` stays the ledger of owner asks; an ask lands there first
+and is mirrored to the board as workable items.**
+
+**WHERE THE TREE STANDS AT HEAD (`79b8841`, 2026-08-12): 1229/1229 checks
+passed, exit 0, 54 engine errors.** The body of this file below is a ledger of
+findings and most of it is dated earlier than that; the paragraph you are reading
+is the only one reconciled to HEAD. Two things about that figure are worth
+stating plainly rather than inheriting:
+
+- **The engine-error count is 54 while `ENGINE_ERROR_BUDGET` is still pinned at
+  56.** Recent commit messages say *"56 against a pinned 56"* — **that phrasing
+  is no longer true and must not be copied forward.** The run is currently two
+  errors UNDER its own ceiling, which is a gap that has widened rather than a
+  budget being met, and a later task in this same build-72 pass lowers the pin to
+  close it. Until that lands, a green run proves ≤56, not 54, and any claim that
+  the budget is tight is unevidenced. The row for the errors themselves is
+  SG-153.
+- **The board caught up to the tree on 2026-08-12 and had been a long way behind
+  it.** `docs/BOARD.md`'s Active table had last been reconciled at `eb63995`,
+  twenty-one commits earlier, with thirteen IDs of shipped work (SG-246 through
+  SG-258) living only in commit messages. Active is **35 open rows** now and the
+  next free ID is **SG-259**; everything finished is in `docs/BOARD-ARCHIVE.md`.
+- **No build 72 has shipped.** The last build on itch is **71**
+  (`71-demo-cut-and-opening-film`, `windows` #1876329 / `windows-demo` #1876328),
+  and everything since — the film finalised, the title screen redone as a poster
+  with a painted emblem, the menu margin/heading/plate pass, HOW TO PLAY rebuilt,
+  the objective-plate collisions, and the README/pack/version-stamp fixes — is in
+  the tree and **has not been in front of the owner.**
 
 **THE GOAL CHANGED 2026-08-01, by the owner:** visual parity with browser v11
 is retired — *"we build the Godot version to be better than the web one ever
@@ -32,12 +58,16 @@ and defeat shots — and, since 2026-08-02, **the ship's own progression**: six
 FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
-board SG-56). **1128 harness checks**; the text audit covers 25 screens at
+board SG-56). **1128 harness checks** *(that count is the 2026-08-04 figure and
+is kept as the dated record of this paragraph; at HEAD it is **1229** — see the
+reconciliation block at the top)*; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
 finished row. Board SG-92 has the whole of it, and the reason it was one finding
-rather than four. Build 64 is on itch at
+rather than four. *(**The live build is 71** as of 2026-08-12 and no build 72
+exists; the sentence that follows is the 2026-08-04 record and the URLs in it are
+still correct.)* Build 64 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
