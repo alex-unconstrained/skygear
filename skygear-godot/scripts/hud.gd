@@ -3121,10 +3121,16 @@ func _draw_game_hud() -> void:
 	var top: Rect2 = plates.objective
 	_panel(top)
 	var ratio: float = game.boiler_hp / maxf(1.0, game.boiler_max_hp)
+	## `recessed`, which this bar has needed since it was written and never
+	## asked for. A bar's fill is a saturated mid-value colour and a label
+	## standing on it reads at about 1.5:1 — on the BOILER gauge that meant teal
+	## lettering on a teal fill, i.e. the name of the thing you lose by was the
+	## least legible string in the game. The captain's bar has passed this for
+	## months; the objective's never did.
 	_bar(l.item("objective", "boiler", top), ratio,
 		Color("#37f0c8") if ratio > 0.34 else Color("#ff6a3a"),
 		Color("#1c6f61") if ratio > 0.34 else Color("#8b2418"), "BOILER",
-		"%d / %d" % [game.boiler_hp, game.boiler_max_hp])
+		"%d / %d" % [game.boiler_hp, game.boiler_max_hp], {"recessed": true})
 	var wave_at := l.item("objective", "wave", top)
 	var wave_text := "WAVE %d / 12" % game.wave
 	_value(wave_text, wave_at.position + Vector2(0, wave_at.size.y - 4.0), wave_at.size.x,

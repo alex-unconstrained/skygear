@@ -114,12 +114,36 @@ const DEFAULT := {
 	## puts it and where an eye goes first — and it is a slim centred plate, so
 	## it costs almost none of the deck the boarders arrive across, which is why
 	## the rest of the HUD is still along the bottom.
+	## 96 TALL, NOT 76, AND THE TWO READOUTS LIFTED OFF THE RAIL.
+	##
+	## `bottom_left` with a zero offset anchors to the plate's bottom EDGE, which
+	## on a `_panel` is the painted brass rail — so WAVE and BOARDERS were both
+	## printed across the casting, and with only 76 px of plate they were also
+	## crowding the gauge above them. This is the most-looked-at object in the
+	## game: it is the thing you lose by, and it was a four-way collision.
+	##
+	## 20 px more plate and a 16 px lift puts the gauge, the two readouts and the
+	## rail in three bands that do not touch.
+	## 118 TALL, AND THE ARITHMETIC IS THE POINT.
+	##
+	## `item()` places against `interior(plate_rect)` and CLAMPS to it, so the
+	## plate's height minus twice its rail is the entire budget. At 76 that
+	## budget was about 44 px and it was being asked to hold a 26 px gauge AND
+	## two 20 px readouts — 66 px of content in 44 px of room, so the clamp piled
+	## WAVE and BOARDERS straight on top of the BOILER gauge. The most-looked-at
+	## object in the game, the thing you lose by, was a four-way collision.
+	##
+	## 118 leaves roughly 66 px of interior: 26 of gauge, 8 of air, 20 of
+	## readout, and slack at both ends. Nothing here is a lift off an edge —
+	## lifting was the first attempt and it made the pile-up worse, because a
+	## negative offset in a too-small interior moves an item INTO its neighbour.
+	## The plate grew instead.
 	"objective": {
-		"anchor": "top_centre", "offset": [0, 12], "size": [420, 76],
+		"anchor": "top_centre", "offset": [0, 12], "size": [420, 118],
 		"items": {
-			"boiler": {"anchor": "top_centre", "offset": [0, 8], "size": [340, 26]},
-			"wave": {"anchor": "bottom_left", "offset": [0, 0], "size": [150, 20]},
-			"boarders": {"anchor": "bottom_right", "offset": [0, 0], "size": [160, 20]},
+			"boiler": {"anchor": "top_centre", "offset": [0, 4], "size": [340, 26]},
+			"wave": {"anchor": "bottom_left", "offset": [0, -2], "size": [150, 20]},
+			"boarders": {"anchor": "bottom_right", "offset": [0, -2], "size": [160, 20]},
 		},
 	},
 	"ship": {
