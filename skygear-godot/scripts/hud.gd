@@ -572,15 +572,24 @@ func _draw_title() -> void:
 	## OPEN ALL HEATS on (board SG-160), is true from a fresh save. That is the
 	## point of the switch: the owner has never had a first victory on the build
 	## he is testing, and a ladder he cannot see is a ladder he cannot play.
-	var heat_on: bool = SkyGearWorkshop.heat_ceiling(game.workshop,
+	## THE DEMO CUT (board SG-213) IS THREE BOOLEANS ON THIS SCREEN, and they are
+	## the same three the height arithmetic below already runs on. A demo build
+	## has one class, one Heat and nothing between runs — so WHO IS ABOARD and
+	## COMPARE THE TWO answer a question it does not pose, and the ladder and the
+	## two between-run doors are the full game's.
+	var demo: bool = SkyGearDemo.active()
+	var heat_on: bool = not demo and SkyGearWorkshop.heat_ceiling(game.workshop,
 		game.open_heats) > 0
-	var shop_on: bool = bool(game.workshop.unlocked)
+	var shop_on: bool = not demo and bool(game.workshop.unlocked)
+	var classes_on: bool = not demo
 	var body: float = 0.0
 	if heat_on:
 		body += MENU_LADDER_H + MENU_GAP
-	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## WHO IS ABOARD + sentence
+	if classes_on:
+		body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP ## WHO IS ABOARD + sentence
 	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## THE CORE + sentence
-	body += MENU_PLATE_H + MENU_GAP                    ## COMPARE THE TWO
+	if classes_on:
+		body += MENU_PLATE_H + MENU_GAP                ## COMPARE THE TWO
 	if shop_on:
 		## THE WORKSHOP and THE BERTHS are HIDDEN, not shown locked, and that is
 		## deliberate: `scripts/workshop.gd`'s first hard constraint is "NONE OF
@@ -607,16 +616,17 @@ func _draw_title() -> void:
 	## WHO IS ABOARD. A cycling row rather than a screen of its own: two classes,
 	## one sentence of difference, and a separate screen for a binary choice is a
 	## click a player pays every single run.
-	var ids: Array = SkyGearData.CLASSES.keys()
-	var at: int = maxi(0, ids.find(game.class_id))
-	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
-			"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[ids[at]].name),
-			{"key": "WHO IS ABOARD", "pt": 17}):
-		game.set_class(str(ids[(at + 1) % ids.size()]))
-	y += MENU_PLATE_H + MENU_GAP
-	_says(str(game.class_data().get("blurb", "")), Vector2(wx + 10.0, y + 10.0),
-		wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
-	y += MENU_BLURB_H
+	if classes_on:
+		var ids: Array = SkyGearData.CLASSES.keys()
+		var at: int = maxi(0, ids.find(game.class_id))
+		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
+				"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[ids[at]].name),
+				{"key": "WHO IS ABOARD", "pt": 17}):
+			game.set_class(str(ids[(at + 1) % ids.size()]))
+		y += MENU_PLATE_H + MENU_GAP
+		_says(str(game.class_data().get("blurb", "")), Vector2(wx + 10.0, y + 10.0),
+			wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
+		y += MENU_BLURB_H
 	## THE CORE (board SG-99). Directly under WHO IS ABOARD because it is the
 	## other half of the same decision: the class already chose the auto-attack's
 	## element and never said so, and the ask was for a way to say otherwise.
@@ -641,10 +651,11 @@ func _draw_title() -> void:
 	## "Boilerwright feels slower — and I'm not sure I understand what the class
 	## actually does?" He is slower, deliberately, and nothing on this screen ever
 	## said what the 55 units of speed bought.
-	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "COMPARE THE TWO",
-			{"hint": "F7", "pt": 17}):
-		game.compare_open = true
-	y += MENU_PLATE_H + MENU_GAP
+	if classes_on:
+		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H), "COMPARE THE TWO",
+				{"hint": "F7", "pt": 17}):
+			game.compare_open = true
+		y += MENU_PLATE_H + MENU_GAP
 
 	if shop_on:
 		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
@@ -5375,8 +5386,17 @@ func _draw_settings() -> void:
 	## arithmetic, and added here rather than to the row count, because the caption
 	## is 24 tall and a row is 40. A sheet measured by a row count that lies is how
 	## the results screen once printed its footer across the bottom rail.
-	var rows := 10
-	var tall: float = 150.0 + rows * 40.0 + 58.0 + SETTINGS_CAPTION_H
+	##
+	## NINE IN A DEMO BUILD, AND NO CAPTION. OPEN ALL HEATS is the owner's own
+	## playtest bypass (SG-160) and its caption opens with the word "Playtest:" —
+	## on a shipping demo that is both a developer-facing string and a switch
+	## that unlocks a ladder the demo cut has already removed (SG-213). It is
+	## hidden wholesale rather than reworded, which is also why the S3 vocabulary
+	## check deliberately does not ban the word: this is the fix for it.
+	var demo: bool = SkyGearDemo.active()
+	var rows := 9 if demo else 10
+	var tall: float = 150.0 + rows * 40.0 + 58.0 \
+		+ (0.0 if demo else SETTINGS_CAPTION_H)
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
 	_panel(sheet)
@@ -5418,18 +5438,19 @@ func _draw_settings() -> void:
 	## because a bypass nobody can find is a bypass that gets replaced by deleting
 	## the gate. No key hint: there is no binding, deliberately. This is a switch
 	## you set once, not a thing to hit by accident mid-menu.
-	if ui.row(Rect2(x, y, w, 34.0), "OPEN ALL HEATS",
-			"ON" if game.open_heats else "OFF"):
-		game.toggle_open_heats()
-	y += 40.0
-	## The consequence, stated where the switch is. Every clause is load bearing:
-	## the ladder still exists, the run is the real run, and the save is untouched
-	## either way. `_says` rather than `_label`, because 12 is the ink floor and a
-	## sentence this long cannot be shrunk to fit — it has to be allowed to wrap.
-	_says("Playtest: pick any Heat at the title. A run above the rung you have earned still plays in full, and banks nothing — no scrip, no sigil, no record.",
-		Vector2(x + 14.0, y + 12.0), w - 28.0, HORIZONTAL_ALIGNMENT_LEFT, 12, 2,
-		Color("#b9afaa"))
-	y += SETTINGS_CAPTION_H
+	if not demo:
+		if ui.row(Rect2(x, y, w, 34.0), "OPEN ALL HEATS",
+				"ON" if game.open_heats else "OFF"):
+			game.toggle_open_heats()
+		y += 40.0
+		## The consequence, stated where the switch is. Every clause is load bearing:
+		## the ladder still exists, the run is the real run, and the save is untouched
+		## either way. `_says` rather than `_label`, because 12 is the ink floor and a
+		## sentence this long cannot be shrunk to fit — it has to be allowed to wrap.
+		_says("Playtest: pick any Heat at the title. A run above the rung you have earned still plays in full, and banks nothing — no scrip, no sigil, no record.",
+			Vector2(x + 14.0, y + 12.0), w - 28.0, HORIZONTAL_ALIGNMENT_LEFT, 12, 2,
+			Color("#b9afaa"))
+		y += SETTINGS_CAPTION_H
 	if ui.button(Rect2(x, y, w, 34.0), "REBIND CONTROLS", {"hint": "F2"}):
 		game.settings_open = false
 		game.keys_open = true
@@ -5517,6 +5538,18 @@ func _draw_results(title: String, tint: Color) -> void:
 	## The 50 over the old 360 is the fold control's own rail: 10 above the
 	## DETAILS plate, 30 of plate, 10 under it.
 	var chrome := 410.0
+	## THE DEMO'S END CARD (SG-213). It appears on the VICTORY sheet only: a
+	## player who died on wave 3 has not finished the demo and does not need to
+	## be told what they are missing — a "buy the full game" card over a defeat
+	## is the worst-timed sales pitch in games. On the win it is the one moment
+	## the player has just proved they like this, and the owner's cut asks for
+	## exactly this card. Measured into `chrome` before the sheet is sized,
+	## because a plate measured by a count that lies is how the footer once
+	## printed across the bottom rail.
+	var end_card: Array[String] = []
+	if SkyGearDemo.active() and game.state_name == "VICTORY":
+		end_card = SkyGearDemo.end_card()
+		chrome += 14.0 + end_card.size() * 20.0
 	if game.talent("show_ledger") > 0.0:
 		chrome += 18.0
 	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
@@ -5598,6 +5631,18 @@ func _draw_results(title: String, tint: Color) -> void:
 	## a player presses four times.
 	if game.copied_at > 0.0 and game.run_time - game.copied_at < 2.0:
 		_center_text("copied to the clipboard", y, 14, Color("#37f0c8"))
+	## ...and what the full game has, on the demo's win. The list comes from
+	## `SkyGearDemo.end_card()` so the promise and the gates that create it live
+	## in one file — every line of it names something this build withholds.
+	if not end_card.is_empty():
+		y += 14.0
+		_label(end_card[0], Vector2(page.position.x, y), page.size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 15, BRASS_LIT)
+		y += 22.0
+		for i in range(1, end_card.size()):
+			_label("· " + end_card[i], Vector2(page.position.x, y),
+				page.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, Color("#b9afaa"))
+			y += 19.0
 	## LEDGER. This run against your best three, which is the difference between
 	## "wave 9" and "wave 9, and your best is 12" — a number only means something
 	## next to another number.

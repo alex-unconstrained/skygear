@@ -358,6 +358,9 @@ func _run() -> void:
 	## AWAITED — it boots a mixer and reads back what is on the buses.
 	await _audio_cues()
 	await process_frame
+	## AWAITED — it draws every gated screen in BOTH builds off one tree.
+	await _demo_cut()
+	await process_frame
 	_dash()
 	await process_frame
 	await _hazard()
@@ -14533,6 +14536,151 @@ func _shipping_vocabulary() -> void:
 
 func _is_letter(c: String) -> bool:
 	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+
+
+## --- SG-213 · the demo cut, proved on the tree that ships both builds --------
+## The demo is an export FEATURE TAG, not a second source tree — one commit, one
+## harness run, two exes. The cost of that choice is that every gate is a live
+## branch in shipping code, so every gate is checked here in BOTH states, and
+## the full build's behaviour is asserted to be unchanged.
+##
+## WHAT THE CUT IS. The owner's own sentence, `docs/STEAM-LAUNCH.md:598`: waves
+## 1–6, Captain only, Heat 0, no fittings/berths, results screen intact, and an
+## end card that says what the full game has.
+func _demo_cut() -> void:
+	## Restored in every exit path below — a harness that left this latched would
+	## silently run every later check against a demo build.
+	var was := SkyGearDemo._forced
+
+	SkyGearDemo._forced = 0
+	var full_last := SkyGearDemo.last_wave()
+	SkyGearDemo._forced = 1
+	var demo_last := SkyGearDemo.last_wave()
+	_check("demo", "a demo run ends at wave 6 and the full game does not",
+		demo_last == 6 and demo_last == SkyGearDemo.LAST_WAVE
+			and full_last == SkyGearData.WAVES.size() and full_last > demo_last,
+		"demo %d, full %d, table %d" % [demo_last, full_last,
+			SkyGearData.WAVES.size()])
+
+	## ...and the TABLE is untouched, which is what keeps the manifest, the music
+	## director and the push-wave lookup working in a demo build.
+	_check("demo", "and it shortens the run, never the wave table",
+		SkyGearData.WAVES.size() == full_last and full_last >= 12,
+		"%d waves in the table" % SkyGearData.WAVES.size())
+
+	## THE CLASS LOCK IS AT THE SETTER, so a save written by the full game — which
+	## a friend running both builds will have — cannot smuggle the Boilerwright in.
+	var game := _new_game()
+	await process_frame
+	SkyGearDemo._forced = 1
+	game.set_class("boilerwright")
+	var locked := game.class_id
+	SkyGearDemo._forced = 0
+	game.set_class("boilerwright")
+	var free_choice := game.class_id
+	_check("demo", "a demo sails with one captain, whatever the save asked for",
+		locked == SkyGearDemo.CLASS_ID and free_choice == "boilerwright",
+		"demo gave %s, full gave %s" % [locked, free_choice])
+
+	## THE SCREENS. Drawn for real in both builds and read off `hud.ink`, because
+	## the failure that matters is a plate still on screen — not a boolean.
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1600, 900)
+	game.go_to_title()
+	## Worst case for every gate at once: the switch that opens the ladder from a
+	## fresh save, and a save that has won. If a plate survives THIS pose in a
+	## demo build, it survives all of them.
+	game.open_heats = true
+	game.workshop.unlocked = true
+
+	var said := func() -> String:
+		hud.ink = []
+		hud.queue_redraw()
+		await process_frame
+		var all := ""
+		for note in hud.ink:
+			all += str((note as Dictionary).text) + "\n"
+		return all
+
+	SkyGearDemo._forced = 1
+	var demo_title: String = await said.call()
+	SkyGearDemo._forced = 0
+	var full_title: String = await said.call()
+
+	var gated := ["WHO IS ABOARD", "COMPARE THE TWO", "THE WORKSHOP",
+		"THE BERTHS", "DIFFICULTY"]
+	var leaked := ""
+	var absent_from_full := ""
+	for plate in gated:
+		if demo_title.contains(plate):
+			leaked += plate + " "
+		if not full_title.contains(plate):
+			absent_from_full += plate + " "
+	## The second half is what makes the first half mean something: if none of
+	## these plates were on the full title either, "not in the demo" would be
+	## true of a screen that simply failed to draw.
+	_check("demo", "the title withholds the full game's doors, and still opens them without the tag",
+		leaked == "" and absent_from_full == "" and demo_title.contains("BEGIN RUN")
+			and demo_title.contains("THE CORE"),
+		"leaked into demo [%s]; missing from full [%s]" % [leaked, absent_from_full])
+
+	## SETTINGS: OPEN ALL HEATS and its "Playtest:" caption are the one developer
+	## string left on a shipping surface, and the demo hides the row wholesale
+	## rather than rewording it (which is why S3's vocabulary check does not ban
+	## the word).
+	game.settings_open = true
+	SkyGearDemo._forced = 1
+	var demo_settings: String = await said.call()
+	SkyGearDemo._forced = 0
+	var full_settings: String = await said.call()
+	game.settings_open = false
+	_check("demo", "and SETTINGS drops the playtest bypass with its caption",
+		not demo_settings.contains("OPEN ALL HEATS")
+			and not demo_settings.contains("Playtest")
+			and full_settings.contains("OPEN ALL HEATS")
+			and full_settings.contains("Playtest")
+			and demo_settings.contains("FULLSCREEN"),
+		"demo says heats %s / playtest %s; full says heats %s"
+			% [str(demo_settings.contains("OPEN ALL HEATS")),
+				str(demo_settings.contains("Playtest")),
+				str(full_settings.contains("OPEN ALL HEATS"))])
+
+	## THE END CARD, on the win only. A "there is more" card over a defeat is the
+	## worst-timed pitch in games, so the loss pose must NOT carry it.
+	game.log_runs = false
+	game.end_reason = "twelve waves repelled"
+	game._set_state(SkyGearGame.State.VICTORY)
+	SkyGearDemo._forced = 1
+	var demo_win: String = await said.call()
+	SkyGearDemo._forced = 0
+	var full_win: String = await said.call()
+	game.end_reason = "the Boiler went cold on wave 3"
+	game._set_state(SkyGearGame.State.GAMEOVER)
+	SkyGearDemo._forced = 1
+	var demo_loss: String = await said.call()
+	SkyGearDemo._forced = was
+
+	var headline: String = SkyGearDemo.end_card()[0]
+	_check("demo", "the end card names the full game on the win, and never on a defeat",
+		demo_win.contains(headline) and not demo_loss.contains(headline)
+			and not full_win.contains(headline)
+			and SkyGearDemo.end_card().size() >= 4,
+		"win %s, loss %s, full %s" % [str(demo_win.contains(headline)),
+			str(demo_loss.contains(headline)), str(full_win.contains(headline))])
+
+	## AND THE TAG IS THE ONLY DOOR. A player-reachable demo switch would be the
+	## OPEN ALL HEATS mistake in reverse — this asserts `active()` asks the build
+	## and nothing else, and that the harness put the latch back.
+	var src := FileAccess.get_file_as_string("res://scripts/demo.gd")
+	_check("demo", "the demo is switched by the export tag alone",
+		src.contains('OS.has_feature("demo")')
+			and SkyGearDemo._forced == was and not SkyGearDemo.active(),
+		"forced %d (was %d), active %s" % [SkyGearDemo._forced, was,
+			str(SkyGearDemo.active())])
+
+	hud.ink = null
+	game.queue_free()
+	await process_frame
 
 
 ## --- SG-212 · nothing the code asks for is missing, and the menus have a bed --

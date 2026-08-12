@@ -721,7 +721,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		if blowdown() or use_article_v():
 			get_viewport().set_input_as_handled()
 			return
-	if event.keycode == KEY_F6 and bool(workshop.unlocked):
+	## The three doors the demo cut closes also have keys, and a hidden plate
+	## with a live key is not hidden (SG-213).
+	if event.keycode == KEY_F6 and bool(workshop.unlocked) \
+			and not SkyGearDemo.active():
 		workshop_open = not workshop_open
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
@@ -734,7 +737,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	## The two of them, side by side. A key as well as the title-screen button,
 	## because it is also worth reading mid-run — "what does this class do" is a
 	## question a player has in wave three, not only at the picker.
-	if event.keycode == KEY_F7:
+	if event.keycode == KEY_F7 and not SkyGearDemo.active():
 		compare_open = not compare_open
 		hud.queue_redraw()
 		get_viewport().set_input_as_handled()
@@ -1806,6 +1809,13 @@ func class_data() -> Dictionary:
 
 
 func set_class(id: String) -> void:
+	## A DEMO SAILS WITH ONE CAPTAIN (SG-213). Enforced at the setter rather than
+	## only by hiding the picker, because a save written by the full game — which
+	## a friend running both builds will have — carries a `class_id` this build
+	## must not honour.
+	if SkyGearDemo.active():
+		class_id = SkyGearDemo.CLASS_ID
+		return
 	if SkyGearData.CLASSES.has(id):
 		class_id = id
 
@@ -2072,7 +2082,7 @@ func run_report() -> String:
 	## it is the half the player actually sees and because it is the true
 	## opposite of DECK HELD; BOARDED named the cause, not the outcome.
 	lines.append(("DECK HELD" if won else "DECK LOST") + " — " + end_reason)
-	var header := "wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
+	var header := "wave %d/%d · %s · seed %s" % [wave, SkyGearDemo.last_wave(),
 		_format_time(run_time), seed_text]
 	## A Heat run's seed replays the same waves against different enemy health,
 	## so a report line that hides its Heat is a report that cannot reproduce
@@ -2413,7 +2423,7 @@ func start_wave(next_wave: int) -> void:
 	if audio != null and pose_owner == null:
 		var is_boss := next_wave >= 1 and next_wave <= SkyGearData.WAVES.size() 			and bool(SkyGearData.WAVES[next_wave - 1].get("boss", false))
 		audio.play_music(audio.track_for(next_wave, is_boss))
-	if wave > SkyGearData.WAVES.size():
+	if wave > SkyGearDemo.last_wave():
 		if voice != null:
 			voice.say("victory", 4)
 		_set_state(State.VICTORY)
@@ -2560,7 +2570,9 @@ func _update_wave(delta: float) -> void:
 	if wave_clear_time >= 0.0:
 		wave_clear_time -= delta
 		if wave_clear_time <= 0.0:
-			if wave >= SkyGearData.WAVES.size():
+			## `SkyGearDemo.last_wave()`, not `WAVES.size()` — the demo cut ends
+			## the run at wave 6 (SG-213). The full build's answer is unchanged.
+			if wave >= SkyGearDemo.last_wave():
 				if voice != null:
 					voice.say("victory", 4)
 				_set_state(State.VICTORY)
