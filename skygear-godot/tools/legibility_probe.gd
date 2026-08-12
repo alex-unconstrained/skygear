@@ -105,14 +105,27 @@ func _run() -> void:
 		## `window/stretch/aspect="keep"` now pins) would show up here as a size that
 		## does not match SHIPPED_WIDTHS.
 		var win_size := DisplayServer.window_get_size()
+		## `CONTENT_SCALE_ASPECT_KEEP` scales by `min(w/BASE_W, h/BASE_H)` and
+		## pillar/letterboxes the remainder (`tools/text_audit.gd:94-96` documents
+		## the same letterbox). `physical_pt()` is a WIDTH-only formula, so on a
+		## window whose aspect is not 16:9 — exactly what a real fullscreen window
+		## on an arbitrary monitor can hand you — passing `win_size.x` straight in
+		## overstates the scale whenever the window is proportionally wider than
+		## tall (as an ultrawide is). Convert the window into the WIDTH an
+		## equivalent 16:9 window would need to produce the same keep-aspect scale,
+		## and feed that into the existing formula instead of re-deriving the
+		## downscale arithmetic a second time.
+		const BASE_H := 1080.0
+		var governing_w: float = minf(float(win_size.x),
+			float(win_size.y) * SkyGearInk.BASE_W / BASE_H)
 		var under := 0
 		for r in rows:
-			if SkyGearInk.physical_pt(int(r.pt), float(win_size.x)) < floor_px:
+			if SkyGearInk.physical_pt(int(r.pt), governing_w) < floor_px:
 				under += 1
 		print("")
 		print("LEGIBILITY PROBE --shipped  ·  content scale ON, real fullscreen window")
-		print("  declared floor %d wide · observed window %d x %d · mode %d"
-			% [SHIPPED_WIDTHS[0], win_size.x, win_size.y, DisplayServer.window_get_mode()])
+		print("  declared floor %d wide · observed window %d x %d · mode %d · governing width %.1f"
+			% [SHIPPED_WIDTHS[0], win_size.x, win_size.y, DisplayServer.window_get_mode(), governing_w])
 		print("  floor %.0f physical px" % floor_px)
 		print("")
 		print("  at the shipped path : %d of %d strings under %.0f px"
@@ -122,7 +135,7 @@ func _run() -> void:
 		var show_s: int = mini(28, rows.size())
 		for i in show_s:
 			var r: Dictionary = rows[i]
-			var phys := SkyGearInk.physical_pt(int(r.pt), float(win_size.x))
+			var phys := SkyGearInk.physical_pt(int(r.pt), governing_w)
 			var mark := " " if phys >= floor_px else "s"
 			var quoted: String = str(r.text).replace("\n", " ")
 			if quoted.length() > 24:

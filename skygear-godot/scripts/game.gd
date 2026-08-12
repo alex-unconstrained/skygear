@@ -563,10 +563,14 @@ func _ready() -> void:
 	## min_size governs a WINDOW and this game opens borderless fullscreen, so on a
 	## 1366-wide laptop 12 pt lands at 8.5 physical px against a floor of 10.0 and
 	## nothing stops it. Say so rather than shipping type nobody can read.
-	var screen_w: int = DisplayServer.screen_get_size().x
-	if screen_w < SkyGearInk.MIN_SUPPORTED_W:
-		push_warning("SkyGear supports %d wide and up; this display is %d — text will be below the legibility floor."
-			% [SkyGearInk.MIN_SUPPORTED_W, screen_w])
+	## A HEADLESS run has no screen to query — `screen_get_size()` returns (0, 0)
+	## — and the harness builds dozens of games, so unguarded this fires on every
+	## one of them. Same guard `_maybe_play_opening()` already uses two lines down.
+	if DisplayServer.get_name() != "headless":
+		var screen_w: int = DisplayServer.screen_get_size().x
+		if screen_w < SkyGearInk.MIN_SUPPORTED_W:
+			push_warning("SkyGear supports %d wide and up; this display is %d — text will be below the legibility floor."
+				% [SkyGearInk.MIN_SUPPORTED_W, screen_w])
 	## THE LABEL, WITHOUT THE COUPLING. `config/name` stays "SkyGear: Godot Port"
 	## because Godot derives `%APPDATA%/Godot/app_userdata/<name>` from it and the
 	## player's runs.json, workshop.json, keys.cfg, settings.cfg and hud_layout.json

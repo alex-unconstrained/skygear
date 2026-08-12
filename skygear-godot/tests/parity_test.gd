@@ -15446,14 +15446,23 @@ func _ink() -> void:
 	## land together or the key will not survive. Folds in the old "downscale base
 	## matches the project's design canvas" check rather than leaving it beside a
 	## near-duplicate.
+	## `stretch/aspect="keep"` IS the engine-compiled default, so reading it back
+	## through `ProjectSettings.get_setting()` cannot tell "the key is in the file"
+	## from "the key was dropped and the engine fell back to its own default" — the
+	## exact drift this pin exists to catch. `stretch/mode`, `window/size/mode` and
+	## `viewport_width` all differ from their engine defaults and are unaffected
+	## (a dropped key there falls back to something else and the check still
+	## catches it); `aspect` needs the file scanned for its literal text instead,
+	## the same idiom `_shipping_window_title` uses for `config/name`.
+	var proj_src := FileAccess.get_file_as_string("res://project.godot")
 	_check("ink", "the floor is measured against the scaling the game actually ships",
 		str(ProjectSettings.get_setting("display/window/stretch/mode")) == "canvas_items"
-			and str(ProjectSettings.get_setting("display/window/stretch/aspect")) == "keep"
+			and proj_src.contains("window/stretch/aspect=\"keep\"")
 			and int(ProjectSettings.get_setting("display/window/size/mode")) == 3
 			and int(ProjectSettings.get_setting("display/window/size/viewport_width")) == SkyGearInk.BASE_W,
-		"mode %s / aspect %s / window mode %s / canvas %s"
+		"mode %s / aspect pinned in file %s / window mode %s / canvas %s"
 			% [str(ProjectSettings.get_setting("display/window/stretch/mode")),
-				str(ProjectSettings.get_setting("display/window/stretch/aspect")),
+				str(proj_src.contains("window/stretch/aspect=\"keep\"")),
 				str(ProjectSettings.get_setting("display/window/size/mode")),
 				str(ProjectSettings.get_setting("display/window/size/viewport_width"))])
 
