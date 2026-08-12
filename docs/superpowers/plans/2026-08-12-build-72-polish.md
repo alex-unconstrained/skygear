@@ -1166,7 +1166,9 @@ A **superset scan that prints its count**, never `== 59`: the count went 121 →
 
 - [ ] **Step 3: Run the harness and watch the first fail**
 
-Expected: `59 of 59 still unmipped: [...]`. The sibling check should be green from the start — if it is not, the manifest was mistyped, and that is worth knowing before touching 59 files.
+Expected: `59 of 59 still unmipped: [...]`.
+
+The sibling coverage check is green from the start by construction, so **it earns its red separately**: temporarily delete one `art/props` entry from `MIPPED_IN_3D`, re-run, confirm it FAILs naming exactly that file, then restore. Without that demonstration it is an assertion nobody has ever seen fail, which the Global Constraints forbid.
 
 - [ ] **Step 4: Set the flag and re-import — EXCLUSIVE GODOT, NOTHING ELSE RUNNING**
 
