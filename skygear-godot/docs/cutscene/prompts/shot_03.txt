@@ -20,6 +20,9 @@ proportions as the references, no drifting features.
 
 The video: the young captain stands at his airship's bow rail, seen from
 slightly below and beside, the storm-dusk sky of ref_image_0 vast behind him.
+Past the rail and far below him lies a churning floor of moonlit cloud — the
+tops of a storm seen from above — and nothing else; the drop beyond the rail is
+thousands of feet of open air.
 His greatcoat and hair stream in the wind; his brass gauntlet rests on the
 dark timber rail, lantern light warm on its gears; moonlight rims his shoulder
 cold and silver. He watches the ember horizon a long moment — then turns his
@@ -31,3 +34,5 @@ Subtle motion only — wind, coat, hair, the head turn. No walking, no fighting.
 No text, no watermark, no photorealism — painted fantasy style only.
 
 Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.
+
+World rule, absolute: this is a SKY world and the ship is an AIRSHIP miles above the ground. There is NO sea, NO ocean, NO water, NO waves, NO shoreline and NO land anywhere in frame. Below and beyond the ship there is only open air, cloud and storm; any horizon is a bank of cloud, never a waterline.
