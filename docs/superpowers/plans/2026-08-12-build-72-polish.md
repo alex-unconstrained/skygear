@@ -20,7 +20,8 @@
 - **DONE needs evidence**: a named harness check string, a tool output, or a commit hash. Never "looks right".
 - **Every new check must be demonstrated RED before it is made green**, and the failing line pasted into the commit body. A check that has never failed is not a gate.
 - **The harness total is not pinned** — `parity_test.gd:450` prints `checks/checks`, so the number rises as checks are added. What *is* pinned: `ENGINE_ERROR_BUDGET := 56` (`parity_test.gd:429`, may fall, may not rise) and the floor `EXPECTED_AT_LEAST := 250` (`:443`). The gate is **exit code 0 with zero failures**, not a particular total.
-- **Baseline at `a1d7e3a`: `1227/1227 checks passed`, exit 0, 0 script errors, 56 engine errors.**
+- **Baseline, MEASURED at `d1d0125` in Task 1: `1227/1227 checks passed`, exit 0, 0 script errors, and *54* engine errors.**
+- **The engine-error count is 54, not the 56 every recent commit quotes.** The budget is a ceiling (`<=`), so the check passes green with the pin two above reality. Task 11 lowers it to 54. **Until then, expect 54 and treat any rise as a regression you caused.**
 - **Shipped version string for this build: `0.72.0.0`.** All four keys.
 - **Fire rate unit is damage-per-SECOND**, as for `SkyGearData.TAP.dps`. The shipped `7.5` is per-tick at `FIRE_TICK := 0.25` — that is `30.0` per second.
 
@@ -86,7 +87,7 @@ Expected: no output from `status`; `a1d7e3a` (or later, if earlier tasks have la
 cd skygear-godot && "$HOME/.local/bin/godot.exe" --path . --headless --script res://tests/parity_test.gd 2>&1 | tail -30
 ```
 
-Expected: a final line `1227/1227 checks passed`, and the line `... 56 engine errors against a pinned 56 (SG-153)`. Exit code 0.
+Expected: a final line `1227/1227 checks passed` and exit code 0. **MEASURED 2026-08-12: 1227/1227, exit 0, and 54 engine errors against a pin of 56** — the budget is a ceiling, so it passes green while sitting two above reality. Task 11 lowers the pin to 54.
 
 - [ ] **Step 3: Write the numbers down**
 
@@ -768,19 +769,27 @@ grep -n 'STOWED — not rigged for this voyage\|stowed below decks' scripts/hud.
 
 Replace `"tabled with the crate-verb family — nothing is lost"` at `:3574` with `"stowed below decks — nothing you have earned is lost"` (`hud.gd:6023`), and `"TABLED — an interaction pass will revisit"` at `:3581` with `"STOWED — not rigged for this voyage"` (`hud.gd:5995`).
 
-- [ ] **Step 2: Correct the false comment**
+- [ ] **Step 2: Lower the engine-error pin to what the harness actually raises**
+
+Task 1 measured **54** engine errors at `d1d0125`, while `ENGINE_ERROR_BUDGET := 56` (`parity_test.gd:429`) and every commit from `452578f` through `a1d7e3a` quote 56. The assertion at `:431` is `<=`, so the check passes green with the pin two above reality — and the constant's own comment is unambiguous about what to do: *"the count is PINNED: it may fall, it may not rise. The next agent who adds a 57th has to look at it, and whoever fixes SG-153 lowers this number and the check tightens itself."*
+
+Set it to `54`. Then run the harness and confirm it is still green — if it goes red, the count is not stable at 54 and that instability is a finding worth more than the tightening; report it instead of widening the pin back.
+
+**Do not investigate why it fell.** SG-153 stays open, and attributing the drop is its work, not this task's.
+
+- [ ] **Step 3: Correct the false comment**
 
 `:2713` reads `## THE SG-182 THREE, and they are the BYTE-COMPARE kind on purpose.` Replace it with what `:2687` actually does — assert `diverted`, report the byte delta as corroboration — so the harness stops ratifying a claim about itself that is not true. The board sentence repeating it is fixed in Task 5.
 
-- [ ] **Step 3: Run the harness**
+- [ ] **Step 4: Run the harness**
 
-Expected: green, and the two `berths ·` checks now print headroom against the live text. **Record the new headroom figure** — if it is materially different from the old, that difference is the measure of how long the fixtures had been lying.
+Expected: green at **54 engine errors against a pinned 54**, and the two `berths ·` checks now print headroom against the live text. **Record the new headroom figure** — if it is materially different from the old, that difference is the measure of how long the fixtures had been lying.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add skygear-godot/tests/parity_test.gd
-git commit -m "SG-263: two Berths fixtures measured text S3 deleted, and a comment asserted a byte-compare that is not one"
+git commit -m "SG-263: two Berths fixtures measured text S3 deleted, a comment asserted a byte-compare that is not one, and the engine-error pin sat two above reality"
 ```
 
 ---
@@ -976,7 +985,7 @@ Arithmetic check: `30.0 * 0.25 = 7.5` and `30.0 * 0.25 * 0.4 = 3.0` — exactly 
 
 - [ ] **Step 9: Run the harness and watch everything pass**
 
-Expected: green at `baseline + 3` checks or more, **56 engine errors**, exit 0. All three SG-163 radius checks (`parity_test.gd:7457`, `:7464`, `:7481`, `:7489`) untouched and green — if any of them moved, the radius was changed and it should not have been.
+Expected: green at `baseline + 3` checks or more, **54 engine errors**, exit 0. All three SG-163 radius checks (`parity_test.gd:7457`, `:7464`, `:7481`, `:7489`) untouched and green — if any of them moved, the radius was changed and it should not have been.
 
 - [ ] **Step 10: Prove the new checks non-vacuous in BOTH directions**
 
@@ -1393,7 +1402,7 @@ git status --short          # must be empty
 "./SkyGear Tools.bat" all
 ```
 
-Required: exit 0, **0 script errors**, **56 engine errors against the pinned 56**, zero failures. `hub.gd:314-317` counts a GDScript script error as a failure even at exit 0, which the bare harness does not.
+Required: exit 0, **0 script errors**, **54 engine errors against the pin Task 11 lowered to 54**, zero failures. `hub.gd:314-317` counts a GDScript script error as a failure even at exit 0, which the bare harness does not.
 
 - [ ] **Step 2: Export both, off one commit and one harness run**
 
