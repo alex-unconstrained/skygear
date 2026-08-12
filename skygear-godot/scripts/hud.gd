@@ -671,6 +671,49 @@ func _menu_rung(box: Rect2, metal: Color, filled: bool, seated: bool,
 			lamp if (lit and not locked) else 0.0)
 
 
+
+## --- WHAT EVERY MENU STANDS ON (SG-250) ---------------------------------------
+##
+## Every sheet in this game used to open with a flat near-black rect over the
+## whole canvas, so SETTINGS, CONTROLS, HOW TO PLAY, the Workshop and the Berths
+## all floated in a void. That was survivable while the title floated in one
+## too. It is not survivable now that the title is a painted poster: the first
+## screen is a ship in a storm and the second is a brass box on black, and the
+## join reads as two different games.
+##
+## The same sky, dimmed to whatever each sheet needs. `dim` is how much veil
+## goes over it — a reading screen wants more than a glance screen — and the
+## number each caller passes is the alpha its flat rect used to have, so no
+## sheet gets lighter than it was and every contrast floor it already passed
+## still holds.
+func _menu_ground(dim: float) -> void:
+	var full := Rect2(Vector2.ZERO, size)
+	var sky := _tex("res://assets/art/env/sky_backdrop.png")
+	if sky == null:
+		draw_rect(full, Color(0.02, 0.015, 0.028, dim))
+		return
+	_poster_cover(sky, full, Vector2(0.5, 0.42))
+	draw_rect(full, Color(0.02, 0.015, 0.028, dim))
+	draw_texture_rect(_vignette_texture(), full, false, Color(1, 1, 1, 0.5))
+
+
+## A SHEET'S TITLE, CENTRED IN ITS OWN HOUSING. Every heading in the game was
+## placed at a hand-picked offset from the plate below the banner, which put all
+## of them at the TOP of the banner art with its dark inner panel empty
+## underneath — visible on HOW TO PLAY, SETTINGS, CONTROLS, the Workshop and the
+## Berths in the same capture. `_banner` already records where it drew; this
+## uses that instead of guessing, so the heading cannot drift again when a
+## banner moves.
+func _banner_title(text: String, pt: int, tint: Color) -> void:
+	var box := _banner_rect
+	if box.size.y <= 0.0:
+		_center_text(text, 120.0, pt, tint)
+		return
+	## The lettering area is the middle of the ornament, and a cap sits about
+	## 0.36 of its point size above the baseline in both shipped faces.
+	_center_text(text, box.get_center().y + float(pt) * 0.36, pt, tint)
+
+
 ## --- THE WORDMARK (SG-249) ----------------------------------------------------
 ##
 ## A GAME'S TITLE IS A LOGO, NOT A LINE OF TYPE, and the owner said so plainly:
@@ -4447,7 +4490,7 @@ func _draw_bid_matrix() -> void:
 ## and the menu keys are deliberately not on the list — rebinding your way out of
 ## the rebind screen leaves no way back in.
 func _draw_keys() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.92))
+	_menu_ground(0.58)
 	var row_count: int = SkyGearKeybinds.REBINDABLE.size()
 	## +40 over the old tail: 16 of clearance under the banner, which the first
 	## row was drawn through, and 24 for the keyboard-and-mouse notice, which
@@ -4460,7 +4503,7 @@ func _draw_keys() -> void:
 		136.0 + row_count * 34.0 + 76.0 + 56.0)
 	_sheet(sheet)
 	_banner(size.x * 0.5, 84.0, 420.0)
-	_center_text("CONTROLS", 124.0, 38, BRASS_LIT)
+	_banner_title("CONTROLS", 38, BRASS_LIT)
 	## "press a number" stopped being true at row 11 — see `SkyGearKeybinds.SLOTS`.
 	## The subtitle points at the column instead, which stays true however many
 	## rows this sheet grows, and the column itself prints the exact character.
@@ -4528,7 +4571,7 @@ func _draw_keys() -> void:
 ## player can read what their build actually does without being shot at.
 func _draw_pause() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.88))
+	_menu_ground(0.52)
 	## Sized to what is in it. The buttons are a fixed stack and the build list
 	## is one row per skill, so the height is arithmetic rather than a guess —
 	## and a frame with three hundred empty pixels under the last button reads as
@@ -4545,7 +4588,7 @@ func _draw_pause() -> void:
 	## The banner rides the panel rather than a screen constant, or it lands on
 	## the first button the moment the panel moves.
 	_banner(size.x * 0.5, sheet.position.y - 10.0, 420.0)
-	_center_text("PAUSED", sheet.position.y + 48.0, 40, BRASS_LIT)
+	_banner_title("PAUSED", 40, BRASS_LIT)
 
 	ui.begin("pause", self, font, get_local_mouse_position())
 	## FROM THE INTERIOR, not from the sheet.
@@ -4687,7 +4730,7 @@ func _class_hue(id: String) -> Color:
 
 func _draw_compare() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.93))
+	_menu_ground(0.60)
 	var ids: Array = SkyGearData.CLASSES.keys()
 	var stats: Array = SkyGearData.class_stats()
 	## Row order comes from the first class's table and the second is read at the
@@ -4756,7 +4799,7 @@ func _draw_compare() -> void:
 		maxf(48.0, (size.y - page_h) * 0.42), page_w, page_h)
 	_sheet(page)
 	_banner(size.x * 0.5, page.position.y - 10.0, 470.0)
-	_center_text("WHO IS ABOARD", page.position.y + 48.0, 34, BRASS_LIT)
+	_banner_title("WHO IS ABOARD", 34, BRASS_LIT)
 	## THE HOLE IN THE BRASS, HONESTLY. `interior()` is where the nine-slice
 	## believes it cut and the painted corners curl further in than that — a SAIL
 	## AS button laid out to the interior's right edge sits on the ornament at
@@ -4873,7 +4916,7 @@ func _compare_rule(room: Rect2, y: float) -> void:
 ## drift away from the game.
 func _draw_how() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.93))
+	_menu_ground(0.60)
 	var close: Dictionary = SkyGearData.CLOSE
 	var kit: Dictionary = game.class_data()
 	## THE ONE THING IS NOT THE SAME THING FOR BOTH OF THEM.
@@ -4935,7 +4978,7 @@ func _draw_how() -> void:
 		maxf(56.0, (size.y - page_h) * 0.42), PAGE_W, page_h)
 	_sheet(page)
 	_banner(size.x * 0.5, page.position.y - 10.0, 460.0)
-	_center_text("HOW TO PLAY", page.position.y + 48.0, 36, BRASS_LIT)
+	_banner_title("HOW TO PLAY", 36, BRASS_LIT)
 	var room := interior(page)
 	var top: float = room.position.y + 74.0
 	var space: float = room.end.y - top - 52.0   ## less the BACK button
@@ -5225,7 +5268,7 @@ func _seal(centre: Vector2, radius: float, rim: Color, face: Color,
 
 func _draw_workshop() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
+	_menu_ground(0.62)
 	var w: Dictionary = game.workshop
 
 	## --- how deep the board wants to be -------------------------------------
@@ -5272,7 +5315,7 @@ func _draw_workshop() -> void:
 	## strip is being written and each one hands it back here.
 	var plate := _frame
 	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
-	_center_text("THE WORKSHOP", page.position.y + 48.0, 34, BRASS_LIT)
+	_banner_title("THE WORKSHOP", 34, BRASS_LIT)
 
 	var room := writing_area(page)
 	ui.begin("workshop", self, font, get_local_mouse_position())
@@ -5675,7 +5718,7 @@ static func berths_strip_budget(page: Rect2) -> float:
 
 func _draw_berths() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.94))
+	_menu_ground(0.62)
 	var w: Dictionary = game.workshop
 	var ids: Array = SkyGearFittings.FITTINGS.keys()
 	var berthed: Array = SkyGearFittings.berthed_ids(w)
@@ -5687,7 +5730,7 @@ func _draw_berths() -> void:
 	_sheet(page)
 	var plate := _frame
 	_banner(size.x * 0.5, page.position.y - 10.0, 480.0)
-	_center_text("THE BERTHS", page.position.y + 48.0, 34, BRASS_LIT)
+	_banner_title("THE BERTHS", 34, BRASS_LIT)
 
 	var room := writing_area(page)
 	ui.begin("berths", self, font, get_local_mouse_position())
@@ -5960,7 +6003,7 @@ func _draw_settings() -> void:
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
 	_panel(sheet)
 	_banner(size.x * 0.5, sheet.position.y - 10.0, 420.0)
-	_center_text("SETTINGS", sheet.position.y + 48.0, 38, BRASS_LIT)
+	_banner_title("SETTINGS", 38, BRASS_LIT)
 
 	ui.begin("settings", self, font, get_local_mouse_position())
 	## Against the plate's interior, like everything else. 40 in from a 660-wide
