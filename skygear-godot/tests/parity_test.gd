@@ -364,6 +364,8 @@ func _run() -> void:
 	## AWAITED — it draws SETTINGS and measures two rectangles against each other.
 	await _settings_footer_clear()
 	await process_frame
+	_durable_saves()
+	await process_frame
 	_dash()
 	await process_frame
 	await _hazard()
@@ -14539,6 +14541,80 @@ func _shipping_vocabulary() -> void:
 
 func _is_letter(c: String) -> bool:
 	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+
+
+## --- SG-220 + SG-183 · the two files the player cannot afford to lose --------
+## SG-220: `save_state` opened `workshop.json` with FileAccess.WRITE, which
+## truncates on the spot — so every byte the player had earned was gone before
+## the replacement existed. A truncated save does not announce itself either:
+## `load_state` cannot parse it, hands back a fresh profile, and the NEXT run
+## saves over it, so the wipe is silent on the first launch and permanent on the
+## second.
+##
+## SG-183: the settings and pause sheets are immediate mode, so they read every
+## slider back into `set_volume` on every frame they are drawn — and
+## `set_volume` wrote `settings.cfg`. Sixty file writes a second, on every
+## player's machine, for as long as the screen was open.
+func _durable_saves() -> void:
+	var keep_shop := SkyGearWorkshop.store
+	var keep_audio := SkyGearAudio.store
+	SkyGearWorkshop.store = "user://workshop.durable.json"
+	SkyGearAudio.store = "user://settings.durable.cfg"
+	var shop_abs := ProjectSettings.globalize_path(SkyGearWorkshop.store)
+	var audio_abs := ProjectSettings.globalize_path(SkyGearAudio.store)
+	DirAccess.remove_absolute(shop_abs)
+	DirAccess.remove_absolute(audio_abs)
+
+	## 1 · A SAVE ROUND-TRIPS, AND LEAVES NO RUBBLE. The rename lands, the
+	## sibling it was written to is gone, and what comes back is what went in.
+	var state := SkyGearWorkshop.load_state()
+	state["scrip"] = 4242
+	state["unlocked"] = true
+	SkyGearWorkshop.save_state(state)
+	var back := SkyGearWorkshop.load_state()
+	var stray := FileAccess.file_exists(SkyGearWorkshop.store + ".new")
+	_check("workshop", "a save round-trips and leaves no half-written sibling",
+		int(back.get("scrip", 0)) == 4242 and bool(back.get("unlocked", false))
+			and not stray,
+		"scrip %d, unlocked %s, stray sibling %s" % [int(back.get("scrip", 0)),
+			str(bool(back.get("unlocked", false))), str(stray)])
+
+	## 2 · AND THE LIVE FILE IS NEVER THE ONE BEING WRITTEN. Source-side,
+	## because the race it closes cannot be reproduced in-process: the whole
+	## point is what a crash between two syscalls would find on disk.
+	var src := _function_body("res://scripts/workshop.gd", "save_state")
+	_check("workshop", "the earned save is written beside itself and renamed, never truncated",
+		src.contains("FileAccess.open(tmp") and src.contains("rename(")
+			and not src.contains("FileAccess.open(store, FileAccess.WRITE)"),
+		"writes a sibling %s, renames %s, truncates the live file %s"
+			% [str(src.contains("FileAccess.open(tmp")), str(src.contains("rename(")),
+				str(src.contains("FileAccess.open(store, FileAccess.WRITE)"))])
+
+	## 3 · A SLIDER THAT DID NOT MOVE WRITES NOTHING. Proved by deleting the file
+	## and asserting sixty no-op calls do not bring it back — which is exactly
+	## what one frame-second on the settings screen used to do.
+	var audio := SkyGearAudio.new()
+	audio.volumes["master"] = 0.5
+	audio.save_settings()
+	var wrote_once := FileAccess.file_exists(SkyGearAudio.store)
+	DirAccess.remove_absolute(audio_abs)
+	for i in 60:
+		audio.set_volume("master", 0.5)
+	var rewrote := FileAccess.file_exists(SkyGearAudio.store)
+	## ...and a slider that DID move still writes, or the fix would be "never
+	## save the player's volume", which is a worse bug than the one it replaces.
+	audio.set_volume("master", 0.31)
+	var moved_wrote := FileAccess.file_exists(SkyGearAudio.store)
+	_check("audio", "an unmoved slider writes nothing, and a moved one still saves",
+		wrote_once and not rewrote and moved_wrote,
+		"first save %s, 60 no-ops rewrote %s, a real move saved %s"
+			% [str(wrote_once), str(rewrote), str(moved_wrote)])
+	audio.free()
+
+	DirAccess.remove_absolute(shop_abs)
+	DirAccess.remove_absolute(audio_abs)
+	SkyGearWorkshop.store = keep_shop
+	SkyGearAudio.store = keep_audio
 
 
 ## --- SG-161 · the settings footer never prints through BACK ------------------

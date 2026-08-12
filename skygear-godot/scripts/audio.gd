@@ -231,10 +231,25 @@ func _process(delta: float) -> void:
 
 
 ## --- settings --------------------------------------------------------------
+## THE SLIDERS ARE IMMEDIATE MODE, SO THIS IS CALLED FROM A DRAW (board SG-183).
+##
+## `hud.gd`'s settings and pause sheets read every slider back into `set_volume`
+## on every frame they are on screen — that is what an immediate-mode slider IS,
+## and it is correct. What was not correct is that `set_volume` then wrote
+## `settings.cfg` to disk. Sitting on the settings screen was **a file write per
+## frame, sixty a second, on every player's machine**, and it is also what made
+## a harness check flaky enough to need board SG-181 to explain it.
+##
+## So the write is deferred to the change, not the call. `apply_volumes()` still
+## runs every time — the mix must follow the slider under the mouse — and the
+## disk only hears about it when a number actually moved.
 func set_volume(which: String, value: float) -> void:
-	volumes[which] = clampf(value, 0.0, 1.0)
+	var clamped := clampf(value, 0.0, 1.0)
+	var moved: bool = not is_equal_approx(float(volumes.get(which, -1.0)), clamped)
+	volumes[which] = clamped
 	apply_volumes()
-	save_settings()
+	if moved:
+		save_settings()
 
 
 func toggle_mute() -> void:

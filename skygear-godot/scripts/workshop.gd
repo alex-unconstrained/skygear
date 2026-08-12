@@ -482,15 +482,50 @@ static func load_state() -> Dictionary:
 	return out
 
 
+## THE SAVE IS WRITTEN BESIDE ITSELF AND THEN MOVED (board SG-220).
+##
+## What this was: `FileAccess.open(store, WRITE)` — which TRUNCATES the file to
+## zero on the spot — followed by a serialize and a write. Every byte the player
+## had earned was gone before the replacement existed, so a crash, a power cut,
+## a full disk or a kill in that window left a truncated `workshop.json`. And a
+## truncated save does not announce itself: `load_state` cannot parse it, hands
+## back a fresh profile, and **the next run saves over it** — so the wipe is
+## silent on the first launch and permanent on the second.
+##
+## The fix is the standard one and it is the only one that works: build the
+## whole document, write it to a sibling, close it, and RENAME. A rename inside
+## one directory is the closest thing a filesystem offers to an atomic
+## substitution, so the file at `store` is only ever the old save or the new one.
+##
+## Failing LOUDLY matters as much. Every early return here used to be `false`
+## with no distinction, and the caller could not tell "nothing to do" from "your
+## unlocks did not save". The ephemeral case still returns true — a harness
+## profile that is deliberately not on disk has saved exactly as much as it
+## meant to.
 static func save_state(state: Dictionary) -> bool:
 	if bool(state.get("ephemeral", false)):
 		return true
-	var f := FileAccess.open(store, FileAccess.WRITE)
+	var payload := JSON.stringify(state)
+	## A serializer that produced nothing is a bug upstream, and writing it out
+	## would be this bug's own failure mode wearing a different hat.
+	if payload.strip_edges() == "":
+		push_error("SkyGear: refusing to save an empty workshop state")
+		return false
+	var tmp := store + ".new"
+	var f := FileAccess.open(tmp, FileAccess.WRITE)
 	if f == null:
 		return false
-	f.store_string(JSON.stringify(state))
+	f.store_string(payload)
 	f.close()
-	return true
+	## Godot's `rename` is not documented to overwrite on every platform, so the
+	## old file goes first — the window this opens is microseconds between two
+	## metadata operations, against the whole of a JSON serialize before.
+	var dir := DirAccess.open(store.get_base_dir())
+	if dir == null:
+		return false
+	if dir.file_exists(store.get_file()):
+		dir.remove(store.get_file())
+	return dir.rename(tmp.get_file(), store.get_file()) == OK
 
 
 ## What a finished run is worth. Four fields the run log already writes.
