@@ -777,15 +777,37 @@ Set it to `54`. Then run the harness and confirm it is still green — if it goe
 
 **Do not investigate why it fell.** SG-153 stays open, and attributing the drop is its work, not this task's.
 
-- [ ] **Step 3: Correct the false comment**
+- [ ] **Step 3: Harden the `{WAVES}` leg of Task 2's README check**
+
+Task 2's review found that `packer.contains("{WAVES}")` (`parity_test.gd:14578`) can be green while both zips still misinform, in two concrete ways:
+
+- **A** — line `102`'s `.replace(...)` is deleted or bypassed (`readme = README_TMPL`). The sentinel still sits in the template, so the check passes and both zips ship the literal `"Keep the Boiler alive through {WAVES} boarding waves."`
+- **B** — the template is re-hardcoded to `"twelve"` while the `.replace` call site remains. `contains()` is satisfied by the call site alone, and the demo README again promises twelve waves of its six — **the exact defect the check exists for**, green throughout.
+
+Require both halves, so neither can satisfy the check alone:
+
+```gdscript
+	var tmpl_start := packer.find("README_TMPL = ")
+	var tmpl_end := packer.find("\"\"\"", packer.find("\"\"\"", tmpl_start) + 3)
+	var template_body := packer.substr(tmpl_start, maxi(0, tmpl_end - tmpl_start))
+	_check("shipping", "the packed README's wave count is a sentinel in the template AND substituted at pack time",
+		template_body.contains("{WAVES}")
+			and packer.contains("README_TMPL.replace(\"{WAVES}\""),
+		"sentinel in template %s; substituted at pack time %s"
+			% [str(template_body.contains("{WAVES}")), str(packer.contains("README_TMPL.replace(\"{WAVES}\""))])
+```
+
+Prove it red in **both** directions the review named: hardcode `"twelve"` into the template (scenario B) and confirm red; restore; delete the `.replace` call (scenario A) and confirm red; restore. Task 18 adds the end-to-end half — reading the actual `README.txt` out of the built zip — because a source scan can never prove what got packed.
+
+- [ ] **Step 4: Correct the false comment**
 
 `:2713` reads `## THE SG-182 THREE, and they are the BYTE-COMPARE kind on purpose.` Replace it with what `:2687` actually does — assert `diverted`, report the byte delta as corroboration — so the harness stops ratifying a claim about itself that is not true. The board sentence repeating it is fixed in Task 5.
 
-- [ ] **Step 4: Run the harness**
+- [ ] **Step 5: Run the harness**
 
 Expected: green at **54 engine errors against a pinned 54**, and the two `berths ·` checks now print headroom against the live text. **Record the new headroom figure** — if it is materially different from the old, that difference is the measure of how long the fixtures had been lying.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add skygear-godot/tests/parity_test.gd
@@ -1423,11 +1445,32 @@ If the export fails with *"Prepare Template: The given export path doesn't exist
 
 Required: `SkyGear` / `0.72.0.0` and `SkyGear Demo` / `0.72.0.0`. **This is how the feature tag is proved applied rather than assumed** — it is the method build 71 used.
 
-- [ ] **Step 4: Launch the demo exe and photograph its title screen**
+- [ ] **Step 4: Read the README out of both zips — the end-to-end half**
+
+Every check on the packed README so far scans `pack_itch.py` **source**. No source scan can prove what actually got packed, and Task 2's review named two ways the source can look right while the zip misinforms. The zips exist now, so read them:
+
+```bash
+cd skygear-godot
+python -c "
+import zipfile
+for z, want in [('builds/itch/SkyGear-Windows.zip','twelve'),
+                ('builds/itch/SkyGear-Demo-Windows.zip','six')]:
+    t = zipfile.ZipFile(z).read('README.txt').decode('utf-8')
+    assert '{WAVES}' not in t, z + ': the sentinel shipped unsubstituted'
+    assert 'through ' + want + ' boarding waves' in t, z + ': wrong wave count'
+    for bad in ['fights at range','she banks Head','her keyed Articles']:
+        assert bad not in t, z + ': ' + bad
+    print(z, 'OK -', want)
+"
+```
+
+Required: both lines print OK. **A failure here blocks the push** — it means the two zips disagree with each other or with the game, and the demo README is the one that would be wrong.
+
+- [ ] **Step 5: Launch the demo exe and photograph its title screen**
 
 Build 71 did this and it is what caught the demo cut being real. Confirm the strapline says **six** waves, there is no class picker, and it survives a 20-second run.
 
-- [ ] **Step 5: Push both channels**
+- [ ] **Step 6: Push both channels**
 
 ```bash
 cd skygear-godot
@@ -1437,11 +1480,11 @@ butler push builds/itch/SkyGear-Demo-Windows.zip alex-unconstrained/skygear-godo
 
 Both channels ship. Leaving `windows-demo` stale at 71 puts a build-71 demo zip beside a build-72 full zip on one page, and the smaller-sounding file is the one strangers click.
 
-- [ ] **Step 6: Record it, with the rollback number**
+- [ ] **Step 7: Record it, with the rollback number**
 
 File a new SHIPPING row carrying: the commit hash, both butler build numbers, the harness total, and **the rollback build number** — a number written down by hand is the only rollback mechanism this project has. Rewrite NEEDS_ALEX's headline to build 72 and list what needs his eyes: the fonts, the ink pass, the film, cleave G5(b) and G5(c), and the two §4 questions from the spec (the Boilerwright's portrait, and what a pre-first-win tester is told).
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git add skygear-godot/docs/BOARD.md NEEDS_ALEX.md
