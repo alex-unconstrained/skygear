@@ -14844,6 +14844,23 @@ func _demo_cut() -> void:
 				str(demo_settings.contains("Playtest")),
 				str(full_settings.contains("OPEN ALL HEATS"))])
 
+	## THE OBJECTIVE PLATE is the one surface a demo player looks at for twelve
+	## waves' worth of a six-wave game. `game.gd:2124` and the title strapline at
+	## `hud.gd:1117` both ask `SkyGearDemo.last_wave()`; this one restated the
+	## number, and not one of the seven demo checks reads the fight HUD.
+	game.settings_open = false
+	game.how_open = false
+	game._set_state(game.State.PLAY)
+	game.wave = 3
+	SkyGearDemo._forced = 1
+	var demo_hud: String = await said.call()
+	SkyGearDemo._forced = 0
+	var full_hud: String = await said.call()
+	_check("demo", "the fight HUD counts to the demo's last wave",
+		demo_hud.contains("WAVE 3 / 6") and full_hud.contains("WAVE 3 / 12"),
+		"demo drew %s; full drew %s"
+			% [str(demo_hud.contains("WAVE 3 / 6")), str(full_hud.contains("WAVE 3 / 12"))])
+
 	## THE END CARD, on the win only. A "there is more" card over a defeat is the
 	## worst-timed pitch in games, so the loss pose must NOT carry it.
 	game.log_runs = false

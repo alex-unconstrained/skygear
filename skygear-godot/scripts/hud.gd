@@ -3134,7 +3134,7 @@ func _draw_game_hud() -> void:
 		Color("#1c6f61") if ratio > 0.34 else Color("#8b2418"), "BOILER",
 		"%d / %d" % [game.boiler_hp, game.boiler_max_hp])
 	var wave_at := l.item("objective", "wave", top)
-	var wave_text := "WAVE %d / 12" % game.wave
+	var wave_text := "WAVE %d / %d" % [game.wave, SkyGearDemo.last_wave()]
 	_value(wave_text, wave_at.position + Vector2(0, wave_at.size.y - 4.0), wave_at.size.x,
 		HORIZONTAL_ALIGNMENT_LEFT, _fits(wave_text, wave_at.size.x, 16, 11), BRASS_LIT)
 	var boarders_at := l.item("objective", "boarders", top)
