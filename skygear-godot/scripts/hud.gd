@@ -6126,14 +6126,15 @@ func _draw_settings() -> void:
 	## is 24 tall and a row is 40. A sheet measured by a row count that lies is how
 	## the results screen once printed its footer across the bottom rail.
 	##
-	## NINE IN A DEMO BUILD, AND NO CAPTION. OPEN ALL HEATS is the owner's own
-	## playtest bypass (SG-160) and its caption opens with the word "Playtest:" —
-	## on a shipping demo that is both a developer-facing string and a switch
-	## that unlocks a ladder the demo cut has already removed (SG-213). It is
-	## hidden wholesale rather than reworded, which is also why the S3 vocabulary
-	## check deliberately does not ban the word: this is the fix for it.
+	## THE PLAYTEST BYPASS IS AN EDITOR TOOL NOW, NOT A DEMO EXEMPTION. OPEN ALL
+	## HEATS is the owner's own switch (SG-160) and its caption opens with the word
+	## "Playtest:" — a developer-facing string. The demo tag used to hide it, which
+	## was enough while the demo was what strangers got. It is not: testers get the
+	## FULL build (owner, 2026-08-12), so the gate is the release predicate the F3
+	## and F4 tools already use, and the word can finally join S3's banned list.
 	var demo: bool = SkyGearDemo.active()
-	var rows := 9 if demo else 10
+	var bypass: bool = game.dev_tools and not demo
+	var rows := 10 if bypass else 9
 	## ...plus WATCH THE OPENING, when there is a film for it to open (SG-242).
 	## Counted, not assumed: a sheet measured by a row count that lies is how
 	## the footer came to print across the bottom rail in the first place.
@@ -6143,7 +6144,7 @@ func _draw_settings() -> void:
 	## 22 under the button rather than borrowing the sheet's floor, so the sheet
 	## grows by exactly what the line takes.
 	var tall: float = 150.0 + rows * 40.0 + 58.0 + 56.0 \
-		+ (0.0 if demo else SETTINGS_CAPTION_H)
+		+ (SETTINGS_CAPTION_H if bypass else 0.0)
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 355.0, top, 710.0, tall)
 	_panel(sheet)
@@ -6185,7 +6186,7 @@ func _draw_settings() -> void:
 	## because a bypass nobody can find is a bypass that gets replaced by deleting
 	## the gate. No key hint: there is no binding, deliberately. This is a switch
 	## you set once, not a thing to hit by accident mid-menu.
-	if not demo:
+	if bypass:
 		if ui.row(Rect2(x, y, w, 34.0), "OPEN ALL HEATS",
 				"ON" if game.open_heats else "OFF"):
 			game.toggle_open_heats()

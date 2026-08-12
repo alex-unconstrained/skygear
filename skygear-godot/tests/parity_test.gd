@@ -14557,14 +14557,14 @@ func _results_fold() -> void:
 ## (hud.gd:5209/5231/5237, fixed by S3), `a tree this small` (hud.gd:5038, the
 ## self-deprecating Workshop aside), `TABLED` in the sprint sense, plus the
 ## generic tells — TODO, FIXME, WIP, placeholder, milestone, godot port.
-## `playtest` is deliberately NOT here: SETTINGS carries "Playtest:" for the
-## owner's own OPEN ALL HEATS bypass (SG-160), and its fate is the demo-scope
-## decision (SG-213), not a copyedit — the demo gate hides that row wholesale.
+## `playtest` now joins them (SG-262): OPEN ALL HEATS moved behind
+## `game.dev_tools` rather than the demo tag, so its "Playtest:" caption is
+## absent from every shipped build and the word can finally be banned.
 func _shipping_vocabulary() -> void:
 	var poser := preload("res://scripts/screen_poser.gd")
 	var banned: Array[String] = ["interaction pass", "crate-verb",
 		"a tree this small", "todo", "fixme", "wip", "placeholder",
-		"milestone", "godot port", "tbd", "lorem", "tabled"]
+		"milestone", "godot port", "tbd", "lorem", "tabled", "playtest"]
 
 	var game := _new_game()
 	await process_frame
@@ -14588,7 +14588,15 @@ func _shipping_vocabulary() -> void:
 		## grows for ever. We are reading, not editing, so the flag comes off
 		## for the draw. Without this the walk hits a null on the three
 		## `playing` poses and reads nothing at all on the busiest surface.
+		##
+		## AND `OS.has_feature("editor")` IS TRUE FOR THIS WHOLE PROCESS — the
+		## walk runs under the editor binary, so `dev_tools` defaults true and
+		## the playtest bypass row would draw on SETTINGS here even though it
+		## is absent from a real export. Force it false on the posed game, the
+		## same as `layout_edit` above, so the walk reads what a shipped build
+		## actually shows.
 		game.pose_game.layout_edit = false
+		game.pose_game.dev_tools = false
 		posed.ink = []
 		posed.queue_redraw()
 		await process_frame
@@ -14891,26 +14899,27 @@ func _demo_cut() -> void:
 			and demo_title.contains("THE CORE"),
 		"leaked into demo [%s]; missing from full [%s]" % [leaked, absent_from_full])
 
-	## SETTINGS: OPEN ALL HEATS and its "Playtest:" caption are the one developer
-	## string left on a shipping surface, and the demo hides the row wholesale
-	## rather than rewording it (which is why S3's vocabulary check does not ban
-	## the word).
+	## SETTINGS: OPEN ALL HEATS and its "Playtest:" caption are now an editor
+	## tool, gated on game.dev_tools rather than the demo tag — testers get the
+	## FULL build (owner, 2026-08-12), so the row is absent from BOTH exported
+	## builds and present only when running from the editor.
 	game.settings_open = true
-	SkyGearDemo._forced = 1
-	var demo_settings: String = await said.call()
-	SkyGearDemo._forced = 0
-	var full_settings: String = await said.call()
+	game.dev_tools = false
+	var shipped_settings: String = await said.call()
+	game.dev_tools = true
+	var editor_settings: String = await said.call()
+	game.dev_tools = false
 	game.settings_open = false
-	_check("demo", "and SETTINGS drops the playtest bypass with its caption",
-		not demo_settings.contains("OPEN ALL HEATS")
-			and not demo_settings.contains("Playtest")
-			and full_settings.contains("OPEN ALL HEATS")
-			and full_settings.contains("Playtest")
-			and demo_settings.contains("FULLSCREEN"),
-		"demo says heats %s / playtest %s; full says heats %s"
-			% [str(demo_settings.contains("OPEN ALL HEATS")),
-				str(demo_settings.contains("Playtest")),
-				str(full_settings.contains("OPEN ALL HEATS"))])
+	_check("settings", "the playtest bypass is absent from an exported build and present in the editor",
+		not shipped_settings.contains("OPEN ALL HEATS")
+			and not shipped_settings.contains("Playtest")
+			and editor_settings.contains("OPEN ALL HEATS")
+			and editor_settings.contains("Playtest")
+			and shipped_settings.contains("FULLSCREEN"),
+		"shipped says heats %s / playtest %s; editor says heats %s"
+			% [str(shipped_settings.contains("OPEN ALL HEATS")),
+				str(shipped_settings.contains("Playtest")),
+				str(editor_settings.contains("OPEN ALL HEATS"))])
 
 	## THE OBJECTIVE PLATE is the one surface a demo player looks at for twelve
 	## waves' worth of a six-wave game. `game.gd:2124` and the title strapline at
