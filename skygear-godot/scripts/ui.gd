@@ -296,7 +296,12 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 		## 1.02 against the housing they are painted on, which is brass text on
 		## brass and the lowest contrast anywhere in the game. A hint is meant to
 		## be quiet, not absent.
-		_text(rect, Vector2(rect.end.x - 48.0, rect.position.y + 17.0), hint,
+		## 58, NOT 48 — the hint has to end INSIDE the channel, not on the rim.
+		## `_widget_chrome` insets its engraved channel by 6, so a hint ending 4
+		## from the widget's edge straddles the brass: the owner marked `M`,
+		## `F11`, `F2` and `Esc` sitting on the casting on SETTINGS. Ten pixels
+		## further in puts the whole hint on the field its label stands on.
+		_text(rect, Vector2(rect.end.x - 58.0, rect.position.y + 17.0), hint,
 			HORIZONTAL_ALIGNMENT_RIGHT, 44, 12, DIM if disabled else BRASS_LIT)
 
 	if disabled:
@@ -322,7 +327,7 @@ func row(rect: Rect2, label: String, value: String, opts: Dictionary = {}) -> bo
 	var tint: Color = DIM if bool(opts.get("disabled", false)) else BONE
 	## The hint owns the right edge when there is one, so the value steps left of
 	## it rather than printing on top of it.
-	var reserved: float = 14.0 + (48.0 if str(opts.get("hint", "")) != "" else 0.0)
+	var reserved: float = 14.0 + (58.0 if str(opts.get("hint", "")) != "" else 0.0)
 	_text(rect, rect.position + Vector2(14, rect.size.y * 0.5 + 6.0), label,
 		HORIZONTAL_ALIGNMENT_LEFT, rect.size.x - 28.0 - reserved, 16, tint)
 	_text(rect, rect.position + Vector2(-reserved, rect.size.y * 0.5 + 6.0), value,

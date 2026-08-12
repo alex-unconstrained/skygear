@@ -1734,6 +1734,30 @@ const RAIL_BREATH := 6.0
 ## from.
 const RAIL_MAX_FRACTION := 0.22
 
+
+## THE WRITING ROOM INSIDE A SHEET, AND WHY IT IS NOT `interior()`.
+##
+## `interior()` insets by `rail(rect) + RAIL_BREATH`, a fraction of the rect's
+## SHORT side. That models the nine-slice's rail well enough to keep a string
+## off the painted edge, and it is NOT a margin — content laid out flush to it
+## touches the brass. The owner marked exactly that in blue down both sides of
+## SETTINGS: every row ran rail to rail, and the key hints (`M`, `F11`, `F2`),
+## which `SkyGearUI.row` puts in the 44 px ending 4 px from the row's right
+## edge, ended up under the casting.
+##
+## The same mismatch put the settings footer on the bottom rail earlier in this
+## session: measured then, `writing_area().end.y` was 739 while the painted
+## panel ended near 710. `interior()` is a floor, not a layout.
+##
+## So sheets lay out in here instead, and each sheet grew by twice the breath so
+## the content KEEPS ITS WIDTH and only the margin is new.
+const SHEET_BREATH := 25.0
+
+
+static func sheet_room(rect: Rect2) -> Rect2:
+	return interior(rect).grow(-SHEET_BREATH)
+
+
 static func interior(rect: Rect2) -> Rect2:
 	var short: float = minf(rect.size.x, rect.size.y)
 	var inset: float = minf(rail(rect) + RAIL_BREATH, short * RAIL_MAX_FRACTION)
@@ -4016,8 +4040,17 @@ const PLATE_FOOT := 0.035
 
 ## The writing area of a plate: the hole in the brass, honestly, as opposed to
 ## `interior()`, which is the hole the nine-slice believes it cut.
+## THE SAME BREATH AS `sheet_room`, and for the same reason. This was
+## `interior(rect).grow(-PLATE_BREATH)` with PLATE_BREATH at 8, which is a
+## hairline: COMPARE, THE WORKSHOP and THE BERTHS all laid their columns out in
+## here and all three ran flush to the painted rail — the Workshop clipped "no
+## refund" off the right edge of THE ARTICLES. The owner marked the same fault
+## on SETTINGS and said it plainly: it is consistent across all menus, so fixing
+## it in one place fixes it everywhere. This IS that one place — every sheet in
+## the game now gets its margin from either `sheet_room` or this, and both are
+## SHEET_BREATH.
 static func writing_area(rect: Rect2) -> Rect2:
-	var face := interior(rect).grow(-PLATE_BREATH)
+	var face := sheet_room(rect)
 	face.size.y -= clampf(rect.size.y * PLATE_FOOT, 6.0, 22.0)
 	return face
 
@@ -4545,7 +4578,7 @@ func _draw_keys() -> void:
 	## and both were invisible to the containment audit for the same reason: two
 	## free strings share no frame, so nothing had an opinion about them
 	## overlapping. Found by looking at the capture.
-	var sheet := Rect2(size.x * 0.5 - 300.0, 70.0, 600.0,
+	var sheet := Rect2(size.x * 0.5 - 325.0, 70.0, 650.0,
 		136.0 + row_count * 34.0 + 76.0 + 56.0)
 	_sheet(sheet)
 	_banner(size.x * 0.5, 84.0, 420.0)
@@ -4560,7 +4593,7 @@ func _draw_keys() -> void:
 	## Against the plate's own interior. Thirty pixels in from a 600-wide sheet is
 	## inside the brass, so the row number and the key name were both drawn on the
 	## frame — the audit reported "1", "2", "W" and "S" every run.
-	var page := interior(sheet)
+	var page := sheet_room(sheet)
 	var y := page.position.y + 84.0
 	for i in SkyGearKeybinds.REBINDABLE.size():
 		var action: String = SkyGearKeybinds.REBINDABLE[i][0]
@@ -4629,7 +4662,7 @@ func _draw_pause() -> void:
 	## through the bottom of the PAUSED plaque.
 	var tall: float = maxf(body, 26.0 + rows * 40.0) + 154.0
 	var top: float = maxf(70.0, (size.y - tall) * 0.5)
-	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
+	var sheet := Rect2(size.x * 0.5 - 355.0, top, 710.0, tall)
 	_panel(sheet)
 	## The banner rides the panel rather than a screen constant, or it lands on
 	## the first button the moment the panel moves.
@@ -4646,7 +4679,7 @@ func _draw_pause() -> void:
 	## label was perfectly centred in its own button and the audit could not see
 	## it, because it had no way to ask whether the BUTTON was in the right place
 	## — it does now, and this was the first thing it found.
-	var room := interior(sheet)
+	var room := sheet_room(sheet)
 	var bw := 300.0
 	var bx: float = room.position.x
 	var by: float = room.position.y + 62.0
@@ -5025,7 +5058,7 @@ func _draw_how() -> void:
 	_sheet(page)
 	_banner(size.x * 0.5, page.position.y - 10.0, 460.0)
 	_banner_title("HOW TO PLAY", 36, BRASS_LIT)
-	var room := interior(page)
+	var room := sheet_room(page)
 	var top: float = room.position.y + 74.0
 	var space: float = room.end.y - top - 52.0   ## less the BACK button
 
@@ -5353,9 +5386,14 @@ func _draw_workshop() -> void:
 	## resolution, which is 120 pixels of empty desk either side at 1280 while the
 	## node names inside were being shrunk to fit, and a postage stamp adrift in
 	## the middle of a 2560 ultrawide.
-	var page_w: float = clampf(size.x - 96.0, 1040.0, 1420.0)
+	## +34 on every bound, twice the margin `writing_area` now takes, so the five
+	## columns keep the room they had and only the gap to the rail is new. The
+	## height matters as much as the width here: without it the first column's
+	## last slate ran into the foot strip, which containment cannot see because a
+	## column and a strip are two frames that each hold their own text perfectly.
+	var page_w: float = clampf(size.x - 96.0, 1074.0, 1454.0)
 	var page := Rect2(size.x * 0.5 - page_w * 0.5,
-		maxf(48.0, (size.y - tall) * 0.4), page_w, tall)
+		maxf(48.0, (size.y - tall - 34.0) * 0.4), page_w, tall + 34.0)
 	_sheet(page)
 	## The plate the audit measures every string on. `_stamp` moves it to whatever
 	## strip is being written and each one hands it back here.
@@ -5751,7 +5789,12 @@ static func berths_page(screen: Vector2, rows: int) -> Dictionary:
 	var tall: float = minf(screen.y - 116.0, wanted)
 	if wanted > tall:
 		step = clampf((tall - fixed) / float(maxi(1, rows)), 34.0, 54.0)
-	var page_w: float = clampf(screen.x - 96.0, 900.0, 1120.0)
+	## +34 on both bounds: exactly twice the extra margin `writing_area` now
+	## takes, so the strips keep the width they had and only the gap to the rail
+	## is new. Without this the tightest slate ("scupper grating") lost its
+	## headroom at 1280x720 and the harness caught it — which is the check doing
+	## its job, and the reason the page grew rather than the margin shrinking.
+	var page_w: float = clampf(screen.x - 96.0, 934.0, 1154.0)
 	return {"page": Rect2(screen.x * 0.5 - page_w * 0.5,
 		maxf(48.0, (screen.y - tall) * 0.4), page_w, tall), "step": step}
 
@@ -6046,7 +6089,7 @@ func _draw_settings() -> void:
 	var tall: float = 150.0 + rows * 40.0 + 58.0 + 56.0 \
 		+ (0.0 if demo else SETTINGS_CAPTION_H)
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
-	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
+	var sheet := Rect2(size.x * 0.5 - 355.0, top, 710.0, tall)
 	_panel(sheet)
 	_banner(size.x * 0.5, sheet.position.y - 10.0, 420.0)
 	_banner_title("SETTINGS", 38, BRASS_LIT)
@@ -6056,7 +6099,7 @@ func _draw_settings() -> void:
 	## sheet is fourteen pixels inside a fifty-four pixel rail, and 580 wide out
 	## of 552 of interior overhangs it at both ends — every slider and every row
 	## on this screen was drawn across the brass.
-	var room := interior(sheet)
+	var room := sheet_room(sheet)
 	var w: float = room.size.x
 	var x: float = room.position.x
 	var y: float = room.position.y + 62.0
@@ -6272,7 +6315,7 @@ func _draw_results(title: String, tint: Color) -> void:
 	## Against the plate's own interior. 680 inside an 800-wide sheet leaves 60 a
 	## side, and the rail is 48 plus breathing room — so the longest build line
 	## needed 712 and got clipped at 680.
-	var page := interior(sheet)
+	var page := sheet_room(sheet)
 	var body_x: float = page.position.x
 	var body_w: float = page.size.x
 	var y := 212.0
