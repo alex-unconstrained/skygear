@@ -16559,21 +16559,31 @@ func _hazard() -> void:
 	await process_frame
 
 
-## FIRE, PER SOURCE (board SG-164). Behaviour-neutral by construction: the
-## table carries today's rate for every source, so nothing a player can feel
-## moves yet. The balance change is a separate row with its own revert.
+## FIRE, PER SOURCE (board SG-164/SG-264). **THIS IS THE BALANCE ROW.** The
+## table no longer carries one rate for every source — Task 13/SG-264 gave
+## the three rows different authored rates, on the owner's decision:
+## `lantern` 30.0/s (unchanged — the most common hazard in the game does not
+## move), `scald_trail` 18.0/s (a retreat trail is worth less than a
+## committed skill), `residue` 30.0/s PER STACK (stack 1 damage-neutral,
+## stack 2 doubles it). See `game_data.gd:449`'s `FIRE_SOURCES` for the table
+## and its own rationale in full.
 func _fire_rates() -> void:
 	var game := _new_game()
 	_begin(game)
 
-	## Per source, so a lantern and a scald trail can differ. The rate is stamped
-	## by `_field` the way the radius is (SG-163), so a caller cannot put a
-	## number in the dictionary that the burn will ignore. This task is
-	## behaviour-neutral, so BOTH sources still author today's shipped rate —
-	## 30.0/s, 7.5 per 0.25 s tick — and both are pinned against that EXTERNAL
-	## literal rather than against each other, or a drift in either source's
-	## authored number alone would read the table against itself
-	## (`pool_shot.gd:17`'s fifth failure mode) instead of failing.
+	## Per source, so a lantern and a scald trail can differ — and now they DO.
+	## The rate is stamped by `_field` the way the radius is (SG-163), so a
+	## caller cannot put a number in the dictionary that the burn will ignore.
+	## Each assertion below is pinned to an EXTERNAL LITERAL — the owner's
+	## authored per-second rate times `FIRE_TICK`, restated here rather than
+	## read back off `FIRE_SOURCES` — never against the table itself or
+	## against another row, because comparing the table with itself proves
+	## only that a number equals itself (`pool_shot.gd:17`'s fifth failure
+	## mode). `lantern` is pinned to 7.5/tick (30.0/s, unmoved since before
+	## Task 12), `scald_trail` to 4.5/tick (18.0/s), `residue` — at the one
+	## stack this particular scan reads — to 7.5/tick (30.0/s, still
+	## damage-neutral by design; its second-stack rate is covered by
+	## `EXPECTED_STACK_RATIO` and the stack-ratio check below, not here).
 	##
 	## AND THE TICK ITSELF MUST STILL BE READING THE STAMP, which the runtime
 	## comparison above cannot see on its own: a hardcoded 7.5 left in

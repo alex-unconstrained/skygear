@@ -43,6 +43,14 @@ func _run() -> void:
 			stack_list.append(2.0)
 		for stacks in stack_list:
 			var measured := _measure(source, stacks)
+			## `quit()` only requests the tree stop AFTER this call stack
+			## returns to idle — it does not unwind execution here — so an
+			## empty dict (the failed-spawn sentinel `_measure` returns
+			## alongside its own `quit(1)`) has to be caught explicitly or
+			## the very next line nil-derefs on a missing key instead of the
+			## exit code this tool already asked for.
+			if measured.is_empty():
+				return
 			print("%-14s  %-6.1f   %-11.2f   %-11.2f"
 				% [source, stacks, measured.boarder, measured.captain])
 	quit(0)
@@ -66,6 +74,14 @@ func _measure(source: String, stacks: float) -> Dictionary:
 	for e in game.get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(e) and e.game == game and not e.dead:
 			boarder = e
+	## A FAILED SPAWN MUST DIE LOUD, NOT PRINT A PARTIAL TABLE. Without this,
+	## a `null` boarder nil-derefs on the next line mid-run, after some rows
+	## have already printed — output that reads like a result but is not one.
+	if boarder == null:
+		push_error("fire_bench: spawn_enemy(\"SCRAPPER\", 1) produced no live boarder for source=%s stacks=%s" % [source, stacks])
+		game.queue_free()
+		quit(1)
+		return {}
 	## A FRESH BOARDER CANNOT BE HIT (board SG-134): `spawn_enemy` lands him in
 	## `climb`, the arrival window, which is total immunity everywhere in the
 	## damage path. `state = "move"` is `_landed()`'s own fixture line, inlined
