@@ -73,6 +73,17 @@ var plate: Callable = Callable()
 ## it costs one `is_valid()` per widget and changes nothing.
 var adjust: Callable = Callable()
 
+## THE MENU VOCABULARY'S HOOK (SG-93 / S2). `(rect, state) -> void`, called in
+## place of this file's own fill-and-outline so a widget is drawn in the same
+## hardware the title screen is bolted together from. `state` carries
+## `disabled`, `primary` and `lit`; everything else — the palette, the bevel,
+## the rivets, the engraved channel — belongs to `hud.gd` and stays there.
+##
+## Deliberately NOT the full `_menu_plate`: that function also owns the label,
+## the key hint and the F4 adjustment, all three of which this file already
+## does. Chrome only, so there is exactly one implementation of each job.
+var chrome: Callable = Callable()
+
 
 func _adjusted(name: String, rect: Rect2) -> Rect2:
 	if adjust.is_valid():
@@ -236,19 +247,42 @@ func button(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 			return true
 		return false
 
-	var fill: Color = PANEL
-	if disabled:
-		fill = Color(0.06, 0.05, 0.08, 0.85)
-	elif shown:
-		fill = Color(TEAL.r, TEAL.g, TEAL.b, 0.16) if primary \
-			else Color(BRASS.r, BRASS.g, BRASS.b, 0.20)
-	elif primary:
-		fill = Color(TEAL.r, TEAL.g, TEAL.b, 0.09)
-	_canvas.draw_rect(rect, fill)
-	var edge: Color = DIM if disabled else (TEAL if primary else BRASS)
-	if shown:
-		edge = TEAL if primary else BRASS_LIT
-	_canvas.draw_rect(rect, edge, false, 2.0 if shown else 1.4)
+	## SG-93 / S2 · THE MENU VOCABULARY REACHES EVERY WIDGET, IN ONE PLACE.
+	##
+	## What was here was a filled rectangle and a 1.4px outline — the "hairline
+	## rectangle" the UI/UX audit named, and the reason SETTINGS, HOW TO PLAY,
+	## CONTROLS and PAUSE looked like they came from a different game than the
+	## title. SG-91 built the answer (`_menu_plate`: shadow, body, bevel, brass
+	## surround, rivets, engraved channel) and MENU-DESIGN §5 costs spreading it
+	## as "a call swap per row".
+	##
+	## IT IS ONE SWAP, NOT PER ROW, AND THAT IS THE POINT. The chrome is a
+	## callback the HUD supplies — the same shape as `scribe`, `plate` and
+	## `adjust` — so the vocabulary keeps living in `hud.gd` beside `_bevel`,
+	## `_rivet` and the palette, and EVERY widget in the game picks it up at
+	## once: the four sheets, the results buttons, the Workshop, the Berths.
+	## Geometry is untouched, so no measured layout moves and the containment
+	## audit has nothing new to say.
+	##
+	## An unset `chrome` keeps the old rectangle exactly, which is what the
+	## harness's own bare `SkyGearUI` fixtures draw with.
+	if chrome.is_valid():
+		chrome.call(rect, {"disabled": disabled, "primary": primary,
+			"lit": shown})
+	else:
+		var fill: Color = PANEL
+		if disabled:
+			fill = Color(0.06, 0.05, 0.08, 0.85)
+		elif shown:
+			fill = Color(TEAL.r, TEAL.g, TEAL.b, 0.16) if primary \
+				else Color(BRASS.r, BRASS.g, BRASS.b, 0.20)
+		elif primary:
+			fill = Color(TEAL.r, TEAL.g, TEAL.b, 0.09)
+		_canvas.draw_rect(rect, fill)
+		var edge: Color = DIM if disabled else (TEAL if primary else BRASS)
+		if shown:
+			edge = TEAL if primary else BRASS_LIT
+		_canvas.draw_rect(rect, edge, false, 2.0 if shown else 1.4)
 
 	var tint: Color = DIM if disabled else (TEAL if primary else BONE)
 	_text(rect, rect.position + Vector2(0, rect.size.y * 0.5 + 6.0), label,

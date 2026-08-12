@@ -6,7 +6,53 @@ extends Control
 const ScreenPoser := preload("res://scripts/screen_poser.gd")
 
 var game: Node
+## --- TYPOGRAPHY (board SG-209 / DR-17) ---------------------------------------
+##
+## EVERY STRING IN THE GAME WAS `ThemeDB.fallback_font` — Godot's built-in, the
+## same face every unstyled Godot project ships with, on hand-authored brass. It
+## is the single loudest "this was made in an engine and nobody chose anything"
+## tell a store page can have, and it was drawn over art that had been agonised
+## about for weeks.
+##
+## TWO FACES, SPLIT BY POINT SIZE, because this UI already has two registers and
+## has had since SG-91: ALL-CAPS headings on plates and lowercase captions under
+## them. One face for both is why the fallback survived so long — it is equally
+## unobjectionable at 52pt and at 12, and equally anonymous.
+##
+##   DISPLAY — **Oswald** (SIL OFL 1.1, `assets/fonts/OFL-Oswald.txt`). A
+##   condensed grotesque built for caps. It is the face of a pressed brass
+##   nameplate, and it is ~20% NARROWER than the fallback at the same point
+##   size, which is why it is safe: every heading in the game gets MORE room
+##   than it was measured with, never less.
+##
+##   BODY — **Lato** (SIL OFL 1.1, `assets/fonts/OFL-Lato.txt`). Humanist,
+##   warm, and legible down to the 12pt ink floor, which is what the captions,
+##   card prose and foot strips actually need.
+##
+## THE THRESHOLD IS 24pt, and it is chosen from the file rather than taste: the
+## sizes this UI draws are 11–17 (captions, plate labels, rows) and then 38–64
+## (screen headings and the title). Nothing sits between, so 24 separates the
+## two registers without splitting either.
+##
+## WHY MEASUREMENT STAYS ON THE BODY FACE. `_fits` shrinks a string until it
+## fits, and it measures with `font` — the WIDER of the two. Display text is
+## then drawn in the narrower face, so a string that measured as fitting cannot
+## fail to fit. The error is one-directional by construction: a heading may be
+## shrunk a point more than it strictly needed, and can never overflow. That is
+## the whole reason a font swap could be made at all without re-measuring every
+## heading in the game (DR-17's own warning).
+const DISPLAY_FACE := "res://assets/fonts/Oswald.ttf"
+const BODY_FACE := "res://assets/fonts/Lato-Regular.ttf"
+const DISPLAY_PT := 24
+
 var font: Font
+var display: Font
+
+## SG-161's two rectangles, published so the harness can measure the collision
+## rather than infer it from arithmetic that has already been wrong once. Written
+## by `_draw_settings` every time it draws; both are empty until it has.
+var _settings_footer := Rect2()
+var _settings_back := Rect2()
 ## Set by the 3D view when it takes over the frame. Everything the browser
 ## draws ON the fight — health over a boarder's head, the number that leaves a
 ## body, the arrow saying one is behind you — is screen-space work that needs a
@@ -36,13 +82,16 @@ var ui := SkyGearUI.new()
 var _pause_confirm := ""
 
 func _ready() -> void:
-	font = ThemeDB.fallback_font
+	font = _load_face(BODY_FACE)
+	display = _load_face(DISPLAY_FACE)
 	## The widget layer writes through the HUD's funnel rather than calling
 	## `draw_string` itself: one point-size floor, one outline, one recorder the
 	## legibility audit can attach to. Before this the button labels and the key
 	## hints were the only text in the game the audit could not see.
 	ui.scribe = _say_in
 	ui.plate = open_frame
+	## SG-93 / S2: every widget in the game is drawn in the title's hardware.
+	ui.chrome = _widget_chrome
 	## The screen editor's hook (SG-42): a widget is offset by its saved
 	## per-screen entry before it is drawn, declared or hit-tested, so moving a
 	## button moves the whole button.
@@ -93,7 +142,29 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and (event as InputEventKey).keycode == KEY_SHIFT:
 		SkyGearHudLayout.drag.set_shift((event as InputEventKey).pressed)
 
+## THE ONE PLACE THAT KNOWS WHETHER WE ARE INSIDE A DRAW PASS.
+##
+## Godot answers "is this node drawing?" only by raising an error when it is not,
+## and this file's widget layer is deliberately drivable OUTSIDE a draw — the
+## harness declares widgets to inspect their geometry and their plate membership
+## without ever painting a frame (`parity_test.gd::_ui_guard`), and the F4
+## editor's hit tests do the same.
+##
+## That was survivable while a widget drew two rectangles: two engine errors per
+## call, inside the 56 SG-153 pins. `_widget_chrome` draws eleven, and 25 more
+## errors a run is how a pinned count stops meaning anything. So the chrome asks
+## first, and every OTHER path is unchanged — a declared widget still declares,
+## still hit-tests, still returns the same bool.
+var _in_draw := false
+
+
 func _draw() -> void:
+	_in_draw = true
+	_draw_frame()
+	_in_draw = false
+
+
+func _draw_frame() -> void:
 	if game == null:
 		return
 	_in_frame = false
@@ -483,6 +554,72 @@ func _menu_plate(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 			44.0, HORIZONTAL_ALIGNMENT_RIGHT, 12,
 			MENU_MUTED if iron else BRASS_LIT)
 	return fired
+
+
+## THE CHROME UNDER EVERY WIDGET (SG-93 / S2), and the whole of the vocabulary
+## spread. `SkyGearUI` calls this in place of its fill-and-outline, so SETTINGS,
+## HOW TO PLAY, CONTROLS, PAUSE, the results buttons, the Workshop and the
+## Berths all stop being hairline rectangles in the same commit.
+##
+## The five layers of `_menu_plate`, minus the two jobs the widget layer already
+## owns (the label and the key hint) and minus the F4 adjustment (`ui.adjust`
+## has already applied it to the rect that arrives here). Sizes are read off the
+## rect rather than fixed, because a widget here is anything from a 30-tall
+## DETAILS control to a 42-tall PLAY AGAIN.
+##
+## PRIMARY IS THE DOOR. `{"primary": true}` is already what BEGIN RUN, PLAY
+## AGAIN and BACK pass, and it means exactly what the design doc's door means —
+## the way out — so it wears the door's teal and its corner brackets rather
+## than a brighter brass.
+func _widget_chrome(rect: Rect2, state: Dictionary) -> void:
+	if not _in_draw:
+		return
+	var disabled: bool = bool(state.get("disabled", false))
+	var door: bool = bool(state.get("primary", false))
+	var lit: bool = bool(state.get("lit", false)) and not disabled
+	var lamp: float = _lamp(rect.position.y * 0.03)
+	## A disabled control is COLD IRON, not a faded plate — the same material
+	## argument LOCKED makes on the title (MENU-DESIGN §3.5). It also fixes the
+	## one thing an alpha fade cannot: a disabled button still reads as solid.
+	var metal: Color = MENU_IRON if disabled \
+		else (MENU_TEAL if door else BRASS)
+	if lit and not disabled:
+		metal = metal.lerp(Color("#ffe6b0"), 0.30 if door else 0.55)
+
+	## 1 — the shadow, so it sits ON the sheet rather than in it.
+	if not disabled:
+		draw_rect(Rect2(rect.position + Vector2(0.0, 3.0), rect.size),
+			Color(0.0, 0.0, 0.0, 0.34))
+	## 2 — the body.
+	var body: Color = MENU_BODY_IRON if disabled \
+		else ((MENU_BODY_DOOR_LIT if lit else MENU_BODY_DOOR) if door
+			else (MENU_BODY_LIT if lit else MENU_BODY))
+	draw_rect(rect, body)
+	## the lamp, falling down the plate from its top edge
+	if lit:
+		_wash(rect, Color("#8ff5e0") if door else Color("#ffe2b4"), 0.20 * lamp)
+	## 3 — the bevel, raised.
+	_bevel(rect, Color(1.0, 0.92, 0.76, 0.22 + (0.24 if lit else 0.0)),
+		Color(0.0, 0.0, 0.0, 0.55))
+	## 4 — the rim and the ironwork.
+	draw_rect(rect, metal, false, 2.2 if (lit or door) else 1.6)
+	if door:
+		_brackets(rect, metal, mini(18, int(rect.size.y * 0.5)), 3.0)
+	elif rect.size.x >= 96.0:
+		## Two rivets in each short end — but only where there is metal to put
+		## them in. A 60-wide control is all channel and a rivet would land on
+		## the label.
+		for rx in [rect.position.x + 11.0, rect.end.x - 11.0]:
+			for ry in [rect.get_center().y - 8.0, rect.get_center().y + 8.0]:
+				_rivet(Vector2(rx, ry), metal, disabled, lamp * 0.5 if lit else 0.0)
+	## 5 — THE ENGRAVED CHANNEL, opaque and last, which is what mechanically
+	## keeps every light above off the pixels the label stands on (`_lamp`).
+	var inset: float = 22.0 if rect.size.x >= 96.0 else 8.0
+	var chan := Rect2(rect.position.x + inset, rect.position.y + 5.0,
+		maxf(8.0, rect.size.x - inset * 2.0), maxf(8.0, rect.size.y - 10.0))
+	draw_rect(chan, MENU_FIELD)
+	_bevel(chan, Color(1.0, 0.92, 0.76, 0.18), Color(0.0, 0.0, 0.0, 0.7), true)
+	SkyGearInk.recess(self, chan.grow(-3.0), 0.35)
 
 
 ## A RUNG. The Heat states already render distinctly (SG-14) — cleared, next,
@@ -1977,14 +2114,14 @@ func _say(text: String, at: Vector2, width: float, align: int, pt: int,
 					Vector2(SkyGearHudLayout.TEXT_MIN, line_h)),
 				"kind": "text"}
 	if not hide_text:
-		SkyGearInk.write(self, font, at, text, align, width, size_pt, tint)
+		SkyGearInk.write(self, face(size_pt), at, text, align, width, size_pt, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":
 		return
-	var measured: float = font.get_string_size(text, align, -1, size_pt).x
+	var measured: float = face(size_pt).get_string_size(text, align, -1, size_pt).x
 	## The box the string will actually occupy, given its alignment. A
 	## right-aligned string at x with width w ends at x + w and starts wherever
 	## it is long enough to start, which is not the same rectangle at all.
-	var box := SkyGearInk.box(font, text, at, width, align, size_pt)
+	var box := SkyGearInk.box(face(size_pt), text, at, width, align, size_pt)
 	_note(text, box, size_pt, tint)
 	if audit == null:
 		return
@@ -2094,7 +2231,7 @@ func _says(text: String, at: Vector2, width: float, align: int, requested: int,
 					Vector2(SkyGearHudLayout.TEXT_MIN, line_h)),
 				"kind": "block"}
 	if not hide_text:
-		SkyGearInk.write_lines(self, font, at, text, align, width, pt, lines, tint)
+		SkyGearInk.write_lines(self, face(pt), at, text, align, width, pt, lines, tint)
 	if (audit == null and ink == null) or text.strip_edges() == "":
 		return
 	## Longest line after wrapping, which is what decides whether the block fits.
@@ -2145,6 +2282,25 @@ func _says(text: String, at: Vector2, width: float, align: int, requested: int,
 ## painted brass. Containment is not the only thing that can fail. The floor is
 ## `SkyGearInk.MIN_PT` and a caller cannot argue it down — a caller who wants
 ## smaller text wants a shorter string or a wider box.
+## Which face a string of this size is drawn in. ONE answer, asked by the draw
+## funnel and by the box the audit reads, so the recorded rectangle is always
+## the rectangle the glyphs occupy.
+func face(pt: int) -> Font:
+	return display if pt >= DISPLAY_PT and display != null else font
+
+
+## A face off disk, with the old behaviour as the floor. A missing or unreadable
+## .ttf gives back exactly what the game drew before DR-17 rather than a null
+## that crashes the first draw — an absent font is a downgrade, not a failure.
+func _load_face(path: String) -> Font:
+	if ResourceLoader.exists(path):
+		var loaded := load(path)
+		if loaded is Font:
+			return loaded as Font
+	push_warning("SkyGear: font %s is missing; falling back to the engine face" % path)
+	return ThemeDB.fallback_font
+
+
 func _fits(text: String, width: float, pt: int, floor_pt: int = SkyGearInk.MIN_PT) -> int:
 	var size_pt: int = maxi(pt, SkyGearInk.MIN_PT)
 	var stop: int = maxi(floor_pt, SkyGearInk.MIN_PT)
@@ -5395,7 +5551,10 @@ func _draw_settings() -> void:
 	## check deliberately does not ban the word: this is the fix for it.
 	var demo: bool = SkyGearDemo.active()
 	var rows := 9 if demo else 10
-	var tall: float = 150.0 + rows * 40.0 + 58.0 \
+	## The 58 was the tail — BACK and nothing else. SG-161's footer needs its own
+	## 22 under the button rather than borrowing the sheet's floor, so the sheet
+	## grows by exactly what the line takes.
+	var tall: float = 150.0 + rows * 40.0 + 58.0 + 22.0 \
 		+ (0.0 if demo else SETTINGS_CAPTION_H)
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
@@ -5455,17 +5614,36 @@ func _draw_settings() -> void:
 		game.settings_open = false
 		game.keys_open = true
 	y += 46.0
-	if ui.button(Rect2(x + w * 0.5 - 110.0, y, 220.0, 38.0), "BACK",
-			{"primary": true, "hint": "Esc"}):
+	var back := Rect2(x + w * 0.5 - 110.0, y, 220.0, 38.0)
+	if ui.button(back, "BACK", {"primary": true, "hint": "Esc"}):
 		game.settings_open = false
 
 	## Settings are written on the way out, not on every drag of a slider — a save
 	## per mouse-move frame is a hundred file writes to move the volume.
-	## On the writing area's floor, not the interior's: the interior's bottom
-	## edge is the painted bevel, and this line was printed across it.
+	##
+	## SG-161: THIS LINE WAS PRINTED THROUGH THE BACK BUTTON, AT EVERY WIDTH.
+	## Its y came from `writing_area(sheet).end.y` — the sheet's own floor —
+	## while BACK's came from the content cursor, and the two have no reason to
+	## agree: `tall` is `150 + rows * 40 + 58 + caption`, so any change to the
+	## row count or the caption moves one and not the other. The demo cut, which
+	## drops a row AND the caption, would have moved them further apart again.
+	##
+	## Now it is measured from the button it was colliding with. The floor is
+	## kept as a minimum so the line never rises INTO the rows on a sheet with
+	## room to spare, and the two rects can no longer intersect by construction
+	## (`settings · the footer never prints through BACK`).
+	##
+	## The detector could not see it either, and that is the other half of
+	## SG-161: a free `_label` over a `ui.button` is two elements that never meet
+	## — the containment audit measures a string against its FRAME, and the
+	## button is not a frame. It took a rect-intersection check to find.
+	_settings_footer = Rect2(room.position.x,
+		maxf(writing_area(sheet).end.y, back.end.y + 20.0) - 12.0,
+		room.size.x, 16.0)
 	_label("changes are saved when you leave this screen",
-		Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
-		HORIZONTAL_ALIGNMENT_CENTER, 12)
+		Vector2(_settings_footer.position.x, _settings_footer.end.y),
+		_settings_footer.size.x, HORIZONTAL_ALIGNMENT_CENTER, 12)
+	_settings_back = back
 
 
 func _draw_overlay(title: String, subtitle: String) -> void:

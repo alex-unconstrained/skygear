@@ -361,6 +361,9 @@ func _run() -> void:
 	## AWAITED — it draws every gated screen in BOTH builds off one tree.
 	await _demo_cut()
 	await process_frame
+	## AWAITED — it draws SETTINGS and measures two rectangles against each other.
+	await _settings_footer_clear()
+	await process_frame
 	_dash()
 	await process_frame
 	await _hazard()
@@ -14536,6 +14539,46 @@ func _shipping_vocabulary() -> void:
 
 func _is_letter(c: String) -> bool:
 	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+
+
+## --- SG-161 · the settings footer never prints through BACK ------------------
+## THE TEXT AUDIT WAS CLEAN ON THIS SCREEN THE WHOLE TIME IT WAS BROKEN, and
+## that is the finding worth keeping. Containment measures a string against its
+## FRAME — the plate it was drawn into — and a free `_label` over a `ui.button`
+## are two elements that share no frame, so nothing in the audit had an opinion
+## about them overlapping. It took a rect-intersection to see it.
+##
+## Checked at all four shipped widths, because the collision came from two
+## y-coordinates computed different ways (`writing_area(sheet).end.y` against the
+## content cursor) and a single width could agree by luck.
+func _settings_footer_clear() -> void:
+	var poser := preload("res://scripts/screen_poser.gd")
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	game.settings_open = true
+
+	var worst := ""
+	var measured := 0
+	for pair in poser.SIZES:
+		hud.size = Vector2(float(pair[0]), float(pair[1]))
+		hud.queue_redraw()
+		await process_frame
+		var foot: Rect2 = hud._settings_footer
+		var back: Rect2 = hud._settings_back
+		if foot.size == Vector2.ZERO or back.size == Vector2.ZERO:
+			worst += "%dx%d drew neither; " % [int(pair[0]), int(pair[1])]
+			continue
+		measured += 1
+		if foot.intersects(back):
+			worst += "%dx%d overlaps by %.1f; " % [int(pair[0]), int(pair[1]),
+				back.end.y - foot.position.y]
+	game.settings_open = false
+	_check("settings", "the footer never prints through BACK",
+		worst == "" and measured == poser.SIZES.size() and measured >= 4,
+		"%d widths measured; %s" % [measured, "clear" if worst == "" else worst])
+	game.queue_free()
+	await process_frame
 
 
 ## --- SG-213 · the demo cut, proved on the tree that ships both builds --------
