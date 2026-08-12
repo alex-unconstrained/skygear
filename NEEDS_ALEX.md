@@ -1,35 +1,22 @@
 # NEEDS ALEX
 
-**BUILD 71 IS STILL THE LIVE BUILD ON ITCH. BUILD 72 IS GATED, EXPORTED AND
-VERIFIED — BOTH ZIPS EXIST ON THIS MACHINE — BUT IT HAS NOT BEEN PUSHED, BECAUSE
-IT CONTAINS ONE PLAYER-VISIBLE CHANGE YOU HAVEN'T SEEN.**
+**BUILD 72 IS LIVE ON ITCH, both channels, off one commit (`84dadd7`) and one
+harness run — 1245/1245, exit 0, 54 engine errors against a pinned 54.**
 
-That change: the captain's cleave swing effect (SG-226) had its `filled` flag
-flipped `true` mid-flight during the capture pass, folded in without asking
-first. It's reversible in one token (`view3d.gd:5291`, `true` → `false`), both
-variants are captured side by side for you to compare, and the push is being
-held on your word rather than pushed and asked about after.
+- **`windows`** build **#1878613** (from #1876329) — the full game.
+- **`windows-demo`** build **#1878614** (from #1876328) — the demo cut.
+- Version string on both: `72-polish-pass`. **Rollback is build 71: #1876329 and #1876328.**
 
-The tree Task 18 gated and exported is commit `0e515f7`, **harness 1244/1244,
-exit 0, 0 script errors, 54 engine errors against the pinned 54** — everything
-since build 71 shipped, now packed and verified end to end: both exes read back
-`0.72.0.0`, both zip READMEs verified (twelve waves full / six waves demo,
-nothing unsubstituted, none of the old losing-play phrasing), and the demo exe
-was launched and its title screen photographed fresh (`.shots/demo_title_build72.png`)
-— *"Keep the Boiler alive through six boarding waves,"* no class picker,
-survived a clean run.
+Both exes were made to read their own identity back before the push — `SkyGear`
+and `SkyGear Demo`, both 0.72.0.0 — and the `README.txt` was read out of both
+ZIPS rather than scanned in source, because for two builds it told your testers
+the CAPTAIN "fights at range" while the class screen says range is the losing
+line. It says the right thing now, and the demo copy says six waves, not twelve.
 
-What is still live, unchanged since 2026-08-11:
+Detail lives in `skygear-godot/docs/BOARD.md`. **38 open rows; next free ID is
+SG-273.**
 
-- **`windows-demo`** build **#1876328** — the demo cut, build 71.
-- **`windows`** build **#1876329** — the full game, build 71.
-
-Detail lives in `skygear-godot/docs/BOARD.md`, which is **the open queue and
-nothing else** — you asked for that. It is **36 open rows** now; every finished
-row and its evidence is in `docs/BOARD-ARCHIVE.md` (226 of them).
-
-*Last cleaned 2026-08-12, against `0e515f7`. Everything you answered is off this
-list.*
+*Last cleaned 2026-08-12, at the build-72 push.*
 
 ---
 
