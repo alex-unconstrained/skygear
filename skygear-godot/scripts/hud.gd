@@ -286,7 +286,12 @@ const MENU_W := 460.0
 ## down the outside of the column without touching it.
 const MENU_PAD := 26.0
 const MENU_STILE := 18.0             ## board head and foot, above/below content
-const MENU_PLATE_H := 38.0
+## 44, NOT 38. At 38 with a 26-tall channel there were six pixels of brass above
+## and below the hole, so the plate read as a thin gold border around a black box
+## rather than as a piece of metal with something stamped into it. The owner:
+## "They are thin". Six pixels more of body is the difference between a frame and
+## a casting.
+const MENU_PLATE_H := 44.0
 const MENU_DOOR_H := 54.0            ## BEGIN RUN is not a menu item
 const MENU_GAP := 8.0
 const MENU_BLURB_H := 30.0           ## a two-line sentence under a plate
@@ -307,7 +312,19 @@ const MENU_MUTED := Color("#8f8697")  ## on `SkyGearInk.MUTED`, floor 2.6
 ## THE ENGRAVED FIELD — the sunk centre of a plate, where the label stands. Drawn
 ## opaque and drawn LAST of the lit layers, which is mechanically how the lamp is
 ## kept off the words rather than a promise that it is.
-const MENU_FIELD := Color(0.046, 0.038, 0.068, 0.96)
+## THE ENGRAVED CHANNEL IS DARKENED BRASS, NOT A HOLE.
+##
+## This was `Color(0.046, 0.038, 0.068, 0.96)` — a cold near-black, and it is the
+## single value most responsible for the owner's "the text doesn't feel like it's
+## a part of the menu system but just sitting above the elements". You do not
+## engrave metal into BLACK. You engrave it into darker metal: the same hue, in
+## shadow. A near-black centre reads as a hole punched through the plate, and
+## anything written in a hole is floating in it.
+##
+## `#2b1e10` is MENU_BODY's own hue driven down in value. The channel now reads
+## as the same object as the brass around it, which is what makes a label look
+## STAMPED rather than superimposed.
+const MENU_FIELD := Color("#2b1e10")
 const MENU_BOARD_FIELD := Color(0.040, 0.034, 0.056, 0.90)
 ## THE BODY of a plate: real metal, a solid fill rather than a tint over the
 ## deck. Two per material because "lit" is a different metal, not a lighter
@@ -527,8 +544,12 @@ func _menu_plate(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	## is how the lamp is mechanically kept off the words rather than promised to
 	## be (see `_lamp`). The rivets go in the metal either side of it.
 	var pt: int = int(opts.get("pt", 18))
-	var chan := Rect2(rect.position.x + 24.0, rect.position.y + 6.0,
-		rect.size.x - 48.0, rect.size.y - 12.0)
+	## Nine, not six. The extra metal above and below the channel is what turns a
+	## border into a body — and the label's baseline is taken from the CHANNEL's
+	## centre below rather than the plate's, so it is centred in the thing it is
+	## actually engraved into.
+	var chan := Rect2(rect.position.x + 24.0, rect.position.y + 9.0,
+		rect.size.x - 48.0, rect.size.y - 18.0)
 	draw_rect(chan, MENU_FIELD)
 	_bevel(chan, Color(1.0, 0.92, 0.76, 0.18), Color(0.0, 0.0, 0.0, 0.7), true)
 	for rx in [rect.position.x + 12.0, rect.end.x - 12.0]:
@@ -544,7 +565,7 @@ func _menu_plate(rect: Rect2, label: String, opts: Dictionary = {}) -> bool:
 	var reserve: float = 46.0 if hint != "" else 0.0
 	var ink_tint: Color = MENU_MUTED if iron else (BONE if not door else Color("#d8fff4"))
 	_say_in(rect, label, Vector2(chan.position.x + reserve,
-		rect.get_center().y + float(pt) * 0.36),
+		chan.get_center().y + float(pt) * 0.36),
 		chan.size.x - reserve * 2.0, HORIZONTAL_ALIGNMENT_CENTER, pt, ink_tint)
 	if hint != "":
 		## BRASS_LIT rather than BRASS, for `SkyGearUI`'s own reason: the audit
@@ -618,12 +639,40 @@ func _widget_chrome(rect: Rect2, state: Dictionary) -> void:
 	## channel onto the rim, and two rivets sat under both — which is exactly
 	## what the first capture of SETTINGS showed. Chrome that eats the caller's
 	## layout is chrome that is wrong, however good it looks alone.
+	## The same argument as `_menu_plate`: metal above and below the channel is
+	## what stops a control reading as a thin frame round a hole. Scaled to the
+	## rect, because a widget here is anything from a 30-tall DETAILS control to
+	## a 44-tall row.
 	var inset := 6.0
-	var chan := Rect2(rect.position.x + inset, rect.position.y + 5.0,
-		maxf(8.0, rect.size.x - inset * 2.0), maxf(8.0, rect.size.y - 10.0))
+	var lid: float = clampf(rect.size.y * 0.20, 5.0, 9.0)
+	var chan := Rect2(rect.position.x + inset, rect.position.y + lid,
+		maxf(8.0, rect.size.x - inset * 2.0), maxf(8.0, rect.size.y - lid * 2.0))
 	draw_rect(chan, MENU_FIELD)
 	_bevel(chan, Color(1.0, 0.92, 0.76, 0.18), Color(0.0, 0.0, 0.0, 0.7), true)
 	SkyGearInk.recess(self, chan.grow(-3.0), 0.35)
+
+
+
+## THE CAPTION UNDER A PLATE, ATTACHED TO IT.
+##
+## These two sentences were `_says` free text: grey, centred on the board, with
+## nothing tying them to the plate they describe. That is precisely the owner's
+## "the text doesn't feel like it's a part of the menu system but just sitting
+## above the elements" — because it WAS sitting on the board, not on anything.
+##
+## A caption is now a shallow sunk strip, inset from the plate above it so it
+## reads as a smaller label screwed under a bigger one, with the same engraved
+## floor and a hairline of the same brass. Narrower than its plate on purpose:
+## a caption the same width as the thing it captions is a second plate.
+func _menu_caption(wx: float, y: float, wide: float, text: String) -> void:
+	var strip := Rect2(wx + 26.0, y - 1.0, wide - 52.0, MENU_BLURB_H - 4.0)
+	draw_rect(strip, Color(MENU_FIELD.r, MENU_FIELD.g, MENU_FIELD.b, 0.86))
+	_bevel(strip, Color(1.0, 0.92, 0.76, 0.10), Color(0.0, 0.0, 0.0, 0.55), true)
+	draw_rect(strip, Color(BRASS.r, BRASS.g, BRASS.b, 0.30), false, 1.0)
+	SkyGearInk.recess(self, strip.grow(-2.0), 0.22)
+	_says(text, Vector2(strip.position.x + 8.0, strip.position.y + 15.0),
+		strip.size.x - 16.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2,
+		Color("#c6bcb2"))
 
 
 ## A RUNG. The Heat states already render distinctly (SG-14) — cleared, next,
@@ -1174,10 +1223,9 @@ func _draw_title() -> void:
 				"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[ids[at]].name),
 				{"key": "WHO IS ABOARD", "pt": 17}):
 			game.set_class(str(ids[(at + 1) % ids.size()]))
-		y += MENU_PLATE_H + MENU_GAP
-		_says(str(game.class_data().get("blurb", "")), Vector2(wx + 10.0, y + 10.0),
-			wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER, 13, 2, Color("#b9afaa"))
-		y += MENU_BLURB_H
+		y += MENU_PLATE_H
+		_menu_caption(wx, y, wide, str(game.class_data().get("blurb", "")))
+		y += MENU_BLURB_H + MENU_GAP
 	## THE CORE (board SG-99). Directly under WHO IS ABOARD because it is the
 	## other half of the same decision: the class already chose the auto-attack's
 	## element and never said so, and the ask was for a way to say otherwise.
@@ -1189,12 +1237,10 @@ func _draw_title() -> void:
 			"THE CORE  ·  %s" % game.auto_name(),
 			{"key": "THE CORE", "pt": 17}):
 		game.cycle_auto_element()
-	y += MENU_PLATE_H + MENU_GAP
-	_says("His basic attack, and the only weapon every run has. %s."
-			% str(SkyGearData.ELEMENTS[game.auto_element_id()].blurb).capitalize(),
-		Vector2(wx + 10.0, y + 10.0), wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER,
-		13, 2, Color("#b9afaa"))
-	y += MENU_BLURB_H
+	y += MENU_PLATE_H
+	_menu_caption(wx, y, wide, "His basic attack, and the only weapon every run has. %s."
+		% str(SkyGearData.ELEMENTS[game.auto_element_id()].blurb).capitalize())
+	y += MENU_BLURB_H + MENU_GAP
 	## ...AND A WAY TO SEE WHAT THE OTHER ONE IS.
 	##
 	## A cycling row plus one sentence is enough to pick a class you already know
@@ -5971,7 +6017,7 @@ func _draw_berths() -> void:
 
 func _draw_settings() -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
+	_menu_ground(0.62)
 	## Nine rows of chrome rather than eight, and the extra one is the banner:
 	## its ornament hangs 115 below the top of the sheet and the first slider was
 	## starting at 86.
@@ -6152,7 +6198,7 @@ var _results_screen_was_up := false
 
 func _draw_results(title: String, tint: Color) -> void:
 	_in_frame = false
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
+	_menu_ground(0.66)
 	if not _results_screen_was_up:
 		results_details_open = RESULTS_DETAILS_OPEN_BY_DEFAULT
 		_results_screen_was_up = true
