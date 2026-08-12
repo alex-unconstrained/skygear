@@ -15570,18 +15570,34 @@ func _ink() -> void:
 	## game could be drawing in the engine's fallback and the audit would still
 	## exit 0. This reads the LIVE hud, after `_ready` has run `_load_face` on the
 	## production path, rather than re-deriving what the loader should have done.
+	##
+	## AND THE GAME SHIPS THREE FACES, NOT TWO — corrected 2026-08-12, build-72
+	## task 17 fix round 1. `hud.gd:802`'s `WORDMARK_FACE` (Rye-Regular) is the
+	## game's own name on the title screen, drawn by `_wordmark` (`hud.gd:806`)
+	## through this same silently-falling-back `_load_face`. The first version of
+	## this check asserted DISPLAY and BODY only, so deleting `Rye-Regular.ttf`
+	## left the harness green at 1244/1244 while the title wordmark rendered in
+	## `ThemeDB.fallback_font` — precisely the failure this check is named for.
+	## The wordmark has no cached field to read: `_wordmark` loads it per draw
+	## rather than in `_ready`, so the live half of the assertion calls that same
+	## loader on that same const, which is exactly what the title screen does.
 	var face_game := _new_game()
 	var face_hud: SkyGearHUD = face_game.hud
+	var face_mark: Font = face_hud._load_face(SkyGearHUD.WORDMARK_FACE)
 	_check("ink", "the shipped faces are the faces, not the engine's fallback",
 		ResourceLoader.exists(SkyGearHUD.DISPLAY_FACE)
 			and ResourceLoader.exists(SkyGearHUD.BODY_FACE)
+			and ResourceLoader.exists(SkyGearHUD.WORDMARK_FACE)
 			and face_hud.font != ThemeDB.fallback_font
-			and face_hud.display != ThemeDB.fallback_font,
-		"display %s / body %s on disk; live faces fallback: %s / %s"
+			and face_hud.display != ThemeDB.fallback_font
+			and face_mark != ThemeDB.fallback_font,
+		"display %s / body %s / wordmark %s on disk; live faces fallback: %s / %s / %s"
 			% [str(ResourceLoader.exists(SkyGearHUD.DISPLAY_FACE)),
 				str(ResourceLoader.exists(SkyGearHUD.BODY_FACE)),
+				str(ResourceLoader.exists(SkyGearHUD.WORDMARK_FACE)),
 				str(face_hud.display == ThemeDB.fallback_font),
-				str(face_hud.font == ThemeDB.fallback_font)])
+				str(face_hud.font == ThemeDB.fallback_font),
+				str(face_mark == ThemeDB.fallback_font)])
 	face_game.queue_free()
 
 	## --- and every field on a card is read by something ----------------------

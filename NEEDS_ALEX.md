@@ -183,38 +183,97 @@ fight beside the Boiler?
 - **Steam** — the paperwork is the only critical path and it is entirely yours.
   The tax interview alone is 2–7 business days. **Send friends the itch link,
   not a Steam key** — keys need a three-week wait for a first-time dev.
-- **SG-266: mipmapping the furnace knight (SG-265) genuinely dimmed his molten
-  grille, and the test that checks it has no margin left at all.**
-  **CORRECTED 2026-08-12, and the correction makes it worse rather than
-  better — please read this paragraph before deciding, the earlier version of
-  this ask is struck below it.** The first version of this finding compared
-  five fresh readings (0.18 / 0.19 / 0.18 / 0.19 / 0.20%, against a floor of
-  0.18%) to a 2026-08-03 baseline of 0.23–0.25%. That comparison spanned **two**
-  changes, not one: the ink pass landed 2026-08-11, in between, and the probe
-  runs in a window rather than headless, so it had been seeing the ink and the
-  baseline never had. **So it was re-measured properly — three runs at HEAD with
-  the ink pass switched off, one at a time on an idle machine: 0.14% / 0.15% /
-  0.14%.** The 2026-08-03 baseline was taken before the ink pass existed, so
-  that is the honest like-for-like comparison, and it reads **0.24% → 0.143%, a
-  40% fall.** **Two things follow.** (a) **The mipmaps really are the cause** —
-  the ink pass was not responsible, and taking it out of both sides makes the
-  drop bigger, not smaller. (b) **The ink pass had been holding the number up**
-  by about 0.045 points, which is the only reason the check was still scraping
-  past its floor. **With the ink off it does not pass: it failed all three
-  runs.** So this is now the same decision as the ink-pass guard bug (SG-267) —
-  that guard is backwards, and fixing it in either of the two sensible ways
-  turns this check permanently red on the same day. **Nothing was tuned to
-  produce any of this; `MOLTEN_FLOOR` is untouched.** This is still a published
-  tuning constant and still your call, same shape as SG-136. **My read has
-  shifted with the numbers: option (1) "just accept it" is harder to justify at
-  0.143% than it was at 0.188%** — the grille is still an order of magnitude
-  under its own ceiling and still reads as an emitter, but a check that only
-  passes because of an unrelated bug is not passing. I'd now lean toward **(3),
-  raise the knight's authored emissive a little** so the true measurement comes
-  back up, rather than lowering the bar — but it's your constant either way.
+- **SG-266: the furnace knight's molten grille really has dimmed, the ink pass
+  is NOT the reason, and I no longer claim to know for certain what IS.**
+  **CORRECTED TWICE, 2026-08-12. Please read the whole of this before deciding.
+  The second correction WITHDRAWS a cause I stated to you as confirmed, so the
+  bit that changed is flagged in bold rather than buried.**
+
+  **THE MEASUREMENTS, and these are not in dispute.** The first version of this
+  finding compared five fresh readings (0.18 / 0.19 / 0.18 / 0.19 / 0.20%,
+  against a floor of 0.18%) to a 2026-08-03 baseline of 0.23–0.25%. That
+  comparison spanned two changes, not one: the ink pass landed 2026-08-11, in
+  between, and the probe runs in a window rather than headless, so it had been
+  seeing the ink and the baseline never had. **So it was re-measured — three
+  runs at HEAD with the ink pass switched off, one at a time on an idle machine:
+  0.14% / 0.15% / 0.14%, mean 0.143%.** The 2026-08-03 baseline predates the ink
+  pass, so ink-off against ink-off is the honest like-for-like, and it reads
+  **0.24% → 0.143%, a 40% fall.**
+
+  **(a) THE INK PASS IS CLEARED, and it was hiding part of the problem.** It was
+  holding the number UP by about 0.045 points, which is the only reason the check
+  was still scraping past its floor. **With the ink off it does not pass: it
+  failed all three runs.** So this remains the same decision as the ink-pass
+  guard bug (SG-267) — that guard is backwards, and fixing it either sensible
+  way turns this check permanently red on the same day.
+
+  **(b) WHAT I AM WITHDRAWING: I told you "the mipmaps really are the cause."
+  That was overstated and I should not have said it.** It rested on a
+  before/after mipmap pair that does not exist — the task-15 report says in so
+  many words that a true "before" run was never captured, because it would have
+  cost a second exclusive re-import. **So the only comparison this number has
+  ever had is a CROSS-DATE one, 2026-08-03 to 2026-08-12**, and that span carries
+  well over a hundred commits: the gameplay work, the audio and hit-feedback
+  pass, the font swap, sixteen build-72 tasks. Taking the ink pass out of both
+  ends removed ONE variable out of that, not all of them. **And the probe's own
+  scene is documented as unpinned** — a different roster of boarders in
+  different facings has moved this same number from 0.24% to 0.81% before, and
+  the painting's own front-versus-back spread is 1.25% against 0.48%, which is a
+  bigger swing than the 1.68x I was attributing to mipmaps. The boarder-pixel
+  counts being close is a headcount, not a proof of composition. **The mipmaps
+  are still the LEADING theory** — the probe spawns the ARMORED knight, one of
+  the 59 files that got mipmapped, so the mechanism is available — but it is a
+  theory. **Settling it costs a specific, expensive thing:** revert the 59 import
+  flags, reimport, run the probe, reimport forward again. Two exclusive
+  re-imports, which is exactly the cost that got declined the first time.
+
+  **(c) THE THING THAT MAKES ME TAKE THE DROP SERIOUSLY ANYWAY.** The probe's own
+  comment (`tests/lit_probe.gd:124-130`) records that with Meshy's **empty**
+  emission map the deck scores **0.15 / 0.15 / 0.13** — "paint catching a warm
+  omni, and no emitter at all" — and with the **authored** map it scores
+  **0.22 / 0.24 / 0.24**. The floor was deliberately set between those two bands
+  "so it fails if the emission map is ever reverted, re-ingested from the Meshy
+  source, or overwritten by a remesh." **Our three ink-off readings — 0.14 /
+  0.15 / 0.14 — land inside the NO-EMITTER band.** Whatever the cause turns out
+  to be, the shipped grille is now measuring where a blank map measured. That is
+  the strongest corroboration in the file that something real degraded.
+
+  **(d) OPTION (2), lowering `MOLTEN_FLOOR` to accept the new number, is off the
+  table, and (c) is why.** Any floor low enough to pass 0.143% can no longer tell
+  an authored emission map from an empty one — and that is the only failure this
+  check exists to catch. Dropping the floor would not weaken the check; it would
+  delete it.
+
+  **(e) OPTION (3), raising the emissive energy, I recommended to you last time
+  and I was wrong about it.** There is a measured counter-example already in the
+  harness (`tests/parity_test.gd:2637-2644`): "if someone later turns the energy
+  up as well, the grille goes white and stops reading as molten at all —
+  measured, at gain 1.00 the molten count FALLS from 1229 to 700." The molten
+  test is a COLOUR window, not a brightness one, so brighter means whiter means
+  the pixels fall out of the window. **Raising the energy moves this number the
+  wrong way.** The energy is also already pinned by a live harness check at the
+  6.0 it was tuned at, and any map-side fix has to stay inside the
+  `GRILLE_LIT_MIN`/`GRILLE_LIT_MAX` window it was authored against.
+
+  **SO I HAVE NO CLEAN RECOMMENDATION, and I would rather say that than invent
+  one.** Nothing was tuned to produce any of this; `MOLTEN_FLOOR`,
+  `PAINTING_MOLTEN_FRONT/BACK` and the emissive energy are all untouched. It is
+  still a published tuning constant and still your call, same shape as SG-136.
+  The honest menu: **(1) accept the fragile margin** — harder to justify now
+  that the reading sits in the no-emitter band, though the grille is still an
+  order of magnitude under the painting's own ceiling; **(4) pay for the
+  isolating measurement** — the two re-imports in (b), the only thing that turns
+  the cause from theory into answer; **(5) re-author the emission MAP itself** —
+  more lit texels at the same 6.0 energy, staying inside the authored window,
+  which raises the true measurement without touching the bar or the pinned
+  energy. **Given the ambiguity I think this is a choose-and-tell-me, not a
+  recommend-and-confirm.**
   ~~*Was, before the isolating run: five readings of 0.18–0.20%, two of them
   exactly on the floor; "the check can start intermittently failing on ordinary
   GPU noise with nothing actually wrong"; recommendation (1), accept it.*~~
+  ~~*And after it, but before this correction: "the mipmaps really are the
+  cause", recommendation (3), raise the authored emissive. Both halves of that
+  are withdrawn above.*~~
 
 ---
 
