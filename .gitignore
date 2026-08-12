@@ -12,3 +12,8 @@ node_modules/
 
 # Rendered demo reels — deliverables, not source (SG-165)
 *.mp4
+
+# Cutscene working files. The manifest (docs/cutscene/refs/README.md) says the
+# repo keeps the manifest, not the prepped copies — every one is derivable from
+# an asset already tracked, by `tools/cutscene_render.py --shot N`.
+skygear-godot/docs/cutscene/refs/prepped/
