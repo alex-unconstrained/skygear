@@ -54,7 +54,7 @@ An opening film plays the first time you launch it. It is skippable from the
 first frame, and SETTINGS has a WATCH THE OPENING row if you want it back.
 """
 
-README = """SKYGEAR — Windows build
+README_TMPL = """SKYGEAR — Windows build
 
 Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
 
@@ -63,8 +63,9 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
   LMB RMB   skills 1 and 2 (actives take these first)
   Q E       skills 3 and 4
   F V       the Boilerwright's tap and blowdown. On the captain these are
-            her keyed Articles, if she is carrying any.
-  Space     dash (two charges)
+            his keyed Articles, if he is carrying any.
+  Space     dash, two charges — or the Boilerwright's bleed jet, which is
+            how he moves instead.
   R (hold)  work the deck — repair a dead cannon you are standing at.
             Holding is the point: it is a commitment, and walking away,
             casting or taking a hit all abandon it.
@@ -74,13 +75,14 @@ Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
   F11       leave fullscreen
   Esc / P   pause
 
-Keep the Boiler alive through twelve boarding waves. Every skill is a shape
+Keep the Boiler alive through {WAVES} boarding waves. Every skill is a shape
 crossed with an element, and the draft after each wave rewrites them.
 
-Two captains. The CAPTAIN dashes twice and fights at range. The BOILERWRIGHT
-has no dash at all — she banks Head from the Boiler itself and spends it on
-jets, blowdowns and taps, and the pressure she is carrying is the resource the
-whole class turns on. They do not play alike; the class screen says how.
+Two captains, and they do not play alike. The CAPTAIN dashes twice and has to
+fight CLOSE — his gauge fills from damage landed inside 210 units, and range is
+the losing line. The BOILERWRIGHT has no dash at all: he banks Head from the
+Boiler where he stands, and the pressure he is carrying is the resource the
+whole class turns on. The class screen says how, in numbers.
 
 Every fourth wave is not a wave.
 """
@@ -97,7 +99,9 @@ def main() -> int:
     exe = DEMO_EXE if a.demo else EXE
     out = DEMO_OUT if a.demo else OUT
     inside = "SkyGear-Demo.exe" if a.demo else "SkyGear-Godot.exe"
-    readme = (README + DEMO_TAIL) if a.demo else README
+    readme = README_TMPL.replace("{WAVES}", "six" if a.demo else "twelve")
+    if a.demo:
+        readme += DEMO_TAIL
 
     if not a.no_export:
         os.makedirs(os.path.dirname(exe), exist_ok=True)

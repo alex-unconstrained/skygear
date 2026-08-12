@@ -352,6 +352,7 @@ func _run() -> void:
 	## AWAITED — it poses every screen in the game and reads what each one said.
 	await _shipping_vocabulary()
 	await process_frame
+	_shipping_readme()
 	## AWAITED — it rebinds a key and reads the strings back off a real draw.
 	await _controls_truth()
 	await process_frame
@@ -14559,6 +14560,24 @@ func _shipping_vocabulary() -> void:
 
 	game.queue_free()
 	await process_frame
+
+
+func _shipping_readme() -> void:
+	## THE FIRST DOCUMENT A TESTER READS. It sat in the zip for two builds saying
+	## the CAPTAIN "fights at range" while `game_data.gd`'s own compare row says
+	## "you lose by: kiting. Range is the losing line and the gauge says so." — and
+	## calling both male classes "she". Nothing covered `pack_itch.py` at all,
+	## which is why it survived SG-228's text sweep.
+	var packer := FileAccess.get_file_as_string("res://tools/pack_itch.py")
+	var readme_sins: Array[String] = []
+	for phrase in ["fights at range", "her keyed Articles", "she banks Head",
+			"if she is carrying any", "the pressure she is carrying"]:
+		if packer.contains(phrase):
+			readme_sins.append(phrase)
+	_check("shipping", "the packed README names each class by the pronoun and the range the game gives it",
+		readme_sins.is_empty() and packer.contains("{WAVES}"),
+		"offending phrases %s; wave count parameterised %s"
+			% [str(readme_sins), str(packer.contains("{WAVES}"))])
 
 
 func _is_letter(c: String) -> bool:
