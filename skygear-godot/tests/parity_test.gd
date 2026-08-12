@@ -16590,7 +16590,14 @@ func _fire_rates() -> void:
 		if line.begins_with("_damage_circle(field.position, fire_pool_radius()"):
 			tick_line = line
 	var tick_reads_stamp := tick_line.contains("field.dps")
-	_check("hazard", "a pool burns at the rate its own source authored — a lantern and a scald trail are not the same fire",
+	## NAMED FOR WHAT IT PROVES, NOT FOR WHAT TASK 13 WILL LATER MAKE TRUE.
+	## The condition below asserts lantern and scald trail agree, exactly, to
+	## the tick — because this task is neutral and they are SUPPOSED to agree
+	## today. A name claiming "not the same fire" while the assertion proves
+	## they ARE would be a board-rule-2 inversion, a lie sitting in a green
+	## log. "Not the same fire" becomes true, and gets a check that says so,
+	## when the balance row gives them different authored rates.
+	_check("hazard", "every fire source authors its rate in the table, and the tick reads the stamp, not a literal",
 		is_equal_approx(lantern_dps * SkyGearGame.FIRE_TICK, 7.5)
 			and is_equal_approx(trail_dps * SkyGearGame.FIRE_TICK, 7.5)
 			and tick_reads_stamp,
@@ -16613,20 +16620,41 @@ func _fire_rates() -> void:
 		rate_writers.is_empty(),
 		"%d call sites still author a rate: %s" % [rate_writers.size(), str(rate_writers)])
 
-	var instant_field := _new_game()
-	instant_field._field({"position": Vector2.ZERO, "source": "residue",
-		"stacks": 2.0, "time": 2.0, "tick": 0.0})
-	instant_field._field({"position": Vector2(400.0, 0.0), "source": "residue",
-		"stacks": 2.0, "time": 2.0, "tick": 0.0})
+	## DRIVEN THROUGH THE REAL CASTS, NOT TWO HAND-WRITTEN `_field()` CALLS.
+	## Two byte-identical dictionaries handed straight to `_field()` prove that
+	## `_field()` agrees with itself, which it always will — it is one function.
+	## What actually has two authors is `cast_skill`: an instant shape resolves
+	## RESIDUE inline (`game.gd`'s multi-shot loop) and a channel resolves it in
+	## `_finish_active_channel`, and only driving BOTH of those real paths can
+	## catch one of them naming the wrong `source` or dropping `stacks` — which
+	## is invisible today (every row is 30.0) and becomes a real bug the day the
+	## balance row makes the rows differ.
+	var instant := _beam_game("EMBER")
+	instant.skills = [SkyGearData.make_skill("CONE", "EMBER")]
+	instant.mods.residue = 2.0
+	instant.cast_skill(0, Vector2(0, -480))
+	var instant_dps: float = float(instant.fire_fields[0].dps) if instant.fire_fields.size() > 0 else -1.0
+	var instant_radius: float = float(instant.fire_fields[0].radius) if instant.fire_fields.size() > 0 else -1.0
+	instant.queue_free()
+
+	## The channel rig is lifted from `beam · hulk and Residue resolve once,
+	## never once per visual frame` (`:697`-ish), which already drives this
+	## exact path to completion.
+	var channelled := _beam_game("EMBER")
+	channelled.mods.residue = 2.0
+	channelled.cast_skill(0, Vector2(0, -480))
+	channelled._update_active_channel(0.24)
+	channelled._update_active_channel(0.12)
+	var channelled_dps: float = float(channelled.fire_fields[0].dps) if channelled.fire_fields.size() > 0 else -2.0
+	var channelled_radius: float = float(channelled.fire_fields[0].radius) if channelled.fire_fields.size() > 0 else -2.0
+	channelled.queue_free()
+
 	_check("hazard", "a channelled skill leaves the same pool an instant one does",
-		is_equal_approx(float(instant_field.fire_fields[0].dps),
-				float(instant_field.fire_fields[1].dps))
-			and is_equal_approx(float(instant_field.fire_fields[0].radius),
-				float(instant_field.fire_fields[1].radius)),
-		"first %.2f/%.1f, second %.2f/%.1f"
-			% [float(instant_field.fire_fields[0].dps), float(instant_field.fire_fields[0].radius),
-				float(instant_field.fire_fields[1].dps), float(instant_field.fire_fields[1].radius)])
-	instant_field.queue_free()
+		instant_dps > 0.0 and channelled_dps > 0.0
+			and is_equal_approx(instant_dps, channelled_dps)
+			and is_equal_approx(instant_radius, channelled_radius),
+		"instant %.2f/%.1f, channelled %.2f/%.1f"
+			% [instant_dps, instant_radius, channelled_dps, channelled_radius])
 
 	## MEASURED ON A BODY, NOT READ OFF THE TABLE. Asserting dps(2) == 2 * dps(1)
 	## against `FIRE_SOURCES` compares the table with itself and proves the number

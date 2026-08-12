@@ -147,7 +147,15 @@ fight beside the Boiler?
   instead, that is a composition, not a setting.
 - **The crew look stacked** — buyable renderer-side without moving the
   simulation. Want it?
-- **RESIDUE buys nothing measurable** — a fire pool's `dps` has never been read.
+- ~~**RESIDUE buys nothing measurable** — a fire pool's `dps` has never been read.~~
+  **FIXED 2026-08-12 (SG-164)**: every fire pool now burns at a rate its own
+  source authors (`SkyGearData.FIRE_SOURCES`), read by the tick instead of a
+  flat hardcoded 7.5/tick. Plumbed at today's numbers only — lantern, the
+  scald trail and RESIDUE all still deal the same 30.0/s, so nothing a player
+  feels moved yet. The open question this row raised — "should pools differ
+  at all" — is still Alex's to answer whenever a balance pass wants to touch
+  `game_data.gd`'s `FIRE_SOURCES` table; it is now a one-file, one-line change
+  with its own revert instead of a data-cleanup-plus-balance-change bundle.
 - **Crew strafing** — four clips wired up and unused.
 - **Enemy bolts** — hard ink rim plus a hot leading spike. Yes?
 - **COLD DECK deals a draft with no weapon in it in ~31% of runs.** Intended?

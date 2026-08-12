@@ -5597,8 +5597,11 @@ func _field(d: Dictionary) -> void:
 	## 78. Stamped here so the dictionary cannot carry a size the simulation does
 	## not honour; the two `radius` arguments that used to be passed in are gone
 	## rather than silently overwritten. Whether a Sear trail's pool SHOULD be
-	## smaller than a residue pool is a live question and it is board SG-164 —
-	## the answer belongs in one place, and this is that place.
+	## smaller than a residue pool was board SG-164's open question and it is
+	## ANSWERED, in the rate table below rather than here: every pool burns at
+	## one radius, full stop — `FIRE_SOURCES` (`game_data.gd`) carries a rate
+	## per source and deliberately no radius, so a per-source size cannot
+	## re-open what SG-163 already closed.
 	d["radius"] = FIRE_RADIUS
 	## A POOL'S RATE IS THE TABLE'S, NOT THE CALLER'S (board SG-164), on the
 	## same principle as the radius stamp above: the four creators name a
