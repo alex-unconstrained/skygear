@@ -47,7 +47,7 @@ if /i "%~1"=="screens" (
   exit /b
 )
 if /i "%~1"=="pack" (
-  python tools/pack_itch.py
+  python tools/pack_itch.py %2 %3 %4 %5
   pause
   exit /b
 )
