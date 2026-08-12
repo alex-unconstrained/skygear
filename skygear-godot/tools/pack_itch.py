@@ -30,6 +30,30 @@ EXE = os.path.join(PROJECT, "builds", "windows", "SkyGear-Godot.exe")
 OUT_DIR = os.path.join(PROJECT, "builds", "itch")
 OUT = os.path.join(OUT_DIR, "SkyGear-Windows.zip")
 
+## THE DEMO BUILD (board SG-213). A second export preset, not a second source
+## tree: `Windows Desktop (Demo)` declares `custom_features="demo"` and that tag
+## is the ONLY thing `scripts/demo.gd` reads. Both artifacts come off the same
+## commit and the same harness run, which is what makes a demo-only bug
+## impossible rather than unlikely.
+DEMO_PRESET = "Windows Desktop (Demo)"
+DEMO_EXE = os.path.join(PROJECT, "builds", "windows-demo", "SkyGear-Demo.exe")
+DEMO_OUT = os.path.join(OUT_DIR, "SkyGear-Demo-Windows.zip")
+
+## What the demo's own README says instead of the full one's tail. The cut is
+## the owner's, `docs/STEAM-LAUNCH.md`: waves 1-6, Captain only, Heat 0, no
+## fittings or berths.
+DEMO_TAIL = """This is the DEMO. It is waves 1 to 6 with the Captain, and it
+stops before the Brass Colossus.
+
+The full game continues from there: twelve waves and the Colossus at the end of
+them, the Boilerwright as a second captain who holds ground instead of taking
+it, the Workshop, the Berths and the Articles between runs, and five rungs of
+Heat with a ladder that remembers.
+
+An opening film plays the first time you launch it. It is skippable from the
+first frame, and SETTINGS has a WATCH THE OPENING row if you want it back.
+"""
+
 README = """SKYGEAR — Windows build
 
 Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
@@ -65,31 +89,39 @@ Every fourth wave is not a wave.
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--no-export", action="store_true")
+    ap.add_argument("--demo", action="store_true",
+                    help="export and pack the demo cut (SG-213) instead")
     a = ap.parse_args()
 
+    preset = DEMO_PRESET if a.demo else "Windows Desktop"
+    exe = DEMO_EXE if a.demo else EXE
+    out = DEMO_OUT if a.demo else OUT
+    inside = "SkyGear-Demo.exe" if a.demo else "SkyGear-Godot.exe"
+    readme = (README + DEMO_TAIL) if a.demo else README
+
     if not a.no_export:
-        os.makedirs(os.path.dirname(EXE), exist_ok=True)
+        os.makedirs(os.path.dirname(exe), exist_ok=True)
         r = subprocess.run([GODOT, "--path", PROJECT, "--headless",
-                            "--export-release", "Windows Desktop", EXE],
+                            "--export-release", preset, exe],
                            capture_output=True, text=True)
-        if r.returncode != 0 or not os.path.exists(EXE):
+        if r.returncode != 0 or not os.path.exists(exe):
             sys.stderr.write(r.stdout[-2000:] + r.stderr[-2000:])
             print("export FAILED")
             return 1
 
-    if not os.path.exists(EXE):
-        print("no build at %s — run without --no-export" % EXE)
+    if not os.path.exists(exe):
+        print("no build at %s — run without --no-export" % exe)
         return 1
 
     os.makedirs(OUT_DIR, exist_ok=True)
-    with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(EXE, "SkyGear-Godot.exe")
-        z.writestr("README.txt", README)
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
+        z.write(exe, inside)
+        z.writestr("README.txt", readme)
 
-    names = zipfile.ZipFile(OUT).namelist()
+    names = zipfile.ZipFile(out).namelist()
     print("built %s — %d files, %.1f MB (from a %.1f MB exe)"
-          % (os.path.relpath(OUT, PROJECT), len(names),
-             os.path.getsize(OUT) / 1e6, os.path.getsize(EXE) / 1e6))
+          % (os.path.relpath(out, PROJECT), len(names),
+             os.path.getsize(out) / 1e6, os.path.getsize(exe) / 1e6))
     print("upload as a WINDOWS download; do NOT tick 'played in the browser'.")
     return 0
 

@@ -556,7 +556,46 @@ func _ready() -> void:
 	var win := get_window()
 	if win != null:
 		win.min_size = Vector2i(SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_WINDOW_H)
+	_maybe_play_opening()
 	queue_redraw()
+
+
+## THE OPENING CINEMATIC, ONCE (SG-242). Everything about when it does NOT play
+## is deliberate, and each clause is a real case:
+##
+##   * a POSED SANDBOX is a picture of a screen and must not start a film — the
+##     same rule `play_sfx` and the music director already obey (SG-44);
+##   * a HEADLESS run has no video decoder and no window to put one in, and the
+##     harness builds dozens of games;
+##   * a player who has SEEN it gets the title, which is rule 2 in
+##     `scripts/opening.gd` and the difference between an opening and an
+##     obstacle.
+##
+## The film is marked seen when it STARTS, not when it ends. A player who skips
+## it at second three has decided; asking them again next launch is asking them
+## to decide again.
+func _maybe_play_opening() -> void:
+	if pose_owner != null or DisplayServer.get_name() == "headless":
+		return
+	if not ResourceLoader.exists(SkyGearOpening.FILM) or SkyGearOpening.seen():
+		return
+	replay_opening()
+	SkyGearOpening.mark_seen()
+
+
+## SETTINGS → WATCH THE OPENING. The same door, without the once-only gate: a
+## player who skipped it at second three and then wondered what it was should
+## not have to delete a config file to find out.
+func replay_opening() -> void:
+	if pose_owner != null or DisplayServer.get_name() == "headless":
+		return
+	if not ResourceLoader.exists(SkyGearOpening.FILM):
+		return
+	if has_node("Opening"):
+		return
+	var film := SkyGearOpening.new()
+	film.name = "Opening"
+	add_child(film)
 
 func _unhandled_input(event: InputEvent) -> void:
 	## The layout editor, first and greedy. It is a mode, and a mode that lets

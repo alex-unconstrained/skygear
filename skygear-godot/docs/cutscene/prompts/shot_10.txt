@@ -1,0 +1,47 @@
+# PLATE 10 — THE CAPTAIN'S PORTRAIT — 124 frames (5.17 s) @ 24 fps, 1344x768
+# Grid check: (124 - 5) % 17 == 0  ✓
+# ref_images.ref_image_0 = refs R0  sky_backdrop.png
+# ref_images.ref_image_1 = refs R1a corsair_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
+# Settings: the confirmed block in ../README.md §0. Paste everything below the line.
+#
+# NOT PART OF THE FILM. This exists to be FROZEN: one frame is cropped out of it
+# as `assets/art/ui/portrait_corsair.png` by `tools/portrait_from_clip.py`.
+# Board SG-228 — casting, voice and text are done and the art is still a
+# red-haired woman in a blue coat, worn by BOTH captains because it is the only
+# portrait in the project.
+#
+# THREE THINGS THE FRAMING MUST DO, because they are what the porthole needs:
+# head and shoulders only (`hud.gd` draws it inside a circle and clips the rest),
+# the face at rest rather than mid-expression (it is on screen for a whole run),
+# and a plain dark background (the porthole's glass is #0e0b16 and a busy crop
+# reads as noise at 96 pixels across).
+#
+# H3 audio: unused.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
+----
+Use ref_image_0 for the exact palette and painting style: moonlight cool and
+silver from the upper left, ember-orange glow from the lower right, violet
+storm-dusk behind. Use ref_image_1 and ref_image_2 for the exact character —
+the same young man in every detail: a red brass-buckled greatcoat with a high
+collar and gold-starred trim, brass goggles with round lenses pushed up into
+spiked brown hair, a dark undershirt and neckcloth, an ornate brass clockwork
+gauntlet. Same face, same hair, same eyes, no drifting features.
+
+The video: a portrait. The young sky-corsair captain, head and shoulders only,
+filling the frame, turned very slightly three-quarters toward the camera and
+looking straight down the lens. Behind him nothing but deep violet storm shadow
+falling to near-black at the edges — no deck, no rigging, no horizon, no
+objects. Warm ember lantern light from the lower right catches the brass of his
+goggles and his collar; cool moonlight rims his hair and one shoulder. He
+breathes, his hair and collar stir faintly in the wind, and the camera pushes
+in very slowly and steadily. His expression holds throughout: calm, level,
+faintly defiant. He does not smile, does not speak, does not look away.
+
+A character portrait — still, centred, symmetrical lighting, painted like a
+plate in an illustrated book. No text, no watermark, no border, no frame, no
+photorealism, no motion blur, no camera shake.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

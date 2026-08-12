@@ -90,7 +90,26 @@ SHOTS = {
     7: {"frames": 124, "refs": ["R0", "R1a", "R1b", "R9", "R9b"]},
     8: {"frames": 141, "refs": ["R0", "R10", "R4"]},
     9: {"frames": 124, "refs": ["R0", "R1a", "R1b", "R1c", "R10"]},
+    ## --- NOT PART OF THE FILM ------------------------------------------------
+    ## SHOT 10 IS A PORTRAIT PLATE, not a shot: a slow push onto the captain's
+    ## face, generated so a single frame can be cropped out of it as
+    ## `assets/art/ui/portrait_corsair.png` (board SG-228 / SG-105).
+    ##
+    ## WHY A CLIP FOR A STILL. That portrait is the LAST piece of the gender fix
+    ## — casting, voice and text all shipped, and the art is still a red-haired
+    ## woman in a blue coat who matches neither the sprite, nor the model, nor
+    ## the owner's ruling — and it is the ONLY portrait in the project, which is
+    ## why the Boilerwright wears it too. The Loom is not on this machine, so
+    ## there is no image generator here; H3 is. A 124-frame push gives 124
+    ## candidate faces at full 1344x768, which is more head-pixels than cropping
+    ## the 512px sprite could ever produce, and it is the same character in the
+    ## same style as the film by construction.
+    10: {"frames": 124, "refs": ["R0", "R1a", "R1b"]},
 }
+
+## The film itself. `--all` means these nine and only these nine; a plate is
+## opt-in, because it is not in the edit and must not silently join it.
+FILM = tuple(range(1, 10))
 
 ## Which shots the captain stands in. `--all` refuses to run if any of these
 ## has lost its face reference, because a silent drop is exactly the failure
@@ -311,7 +330,7 @@ def main() -> None:
                     help="base seed; each shot adds its number so a take is reproducible")
     a = ap.parse_args()
 
-    shots = sorted(SHOTS) if a.all else sorted(a.shot or [])
+    shots = list(FILM) if a.all else sorted(a.shot or [])
     if not shots:
         sys.exit("nothing to do — pass --shot N or --all")
 

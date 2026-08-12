@@ -5551,6 +5551,11 @@ func _draw_settings() -> void:
 	## check deliberately does not ban the word: this is the fix for it.
 	var demo: bool = SkyGearDemo.active()
 	var rows := 9 if demo else 10
+	## ...plus WATCH THE OPENING, when there is a film for it to open (SG-242).
+	## Counted, not assumed: a sheet measured by a row count that lies is how
+	## the footer came to print across the bottom rail in the first place.
+	if ResourceLoader.exists(SkyGearOpening.FILM):
+		rows += 1
 	## The 58 was the tail — BACK and nothing else. SG-161's footer needs its own
 	## 22 under the button rather than borrowing the sheet's floor, so the sheet
 	## grows by exactly what the line takes.
@@ -5613,7 +5618,19 @@ func _draw_settings() -> void:
 	if ui.button(Rect2(x, y, w, 34.0), "REBIND CONTROLS", {"hint": "F2"}):
 		game.settings_open = false
 		game.keys_open = true
-	y += 46.0
+	y += 40.0
+	## WATCH THE OPENING (SG-242). The film plays once and is skippable from its
+	## first frame, which is the right default and also means a player can lose
+	## it in three seconds. This is the way back, and it is the only one — the
+	## alternative is deleting `settings.cfg`. Hidden when there is no film on
+	## disk rather than offered and inert: a button that does nothing is worse
+	## than a button that is not there.
+	if ResourceLoader.exists(SkyGearOpening.FILM):
+		if ui.button(Rect2(x, y, w, 34.0), "WATCH THE OPENING"):
+			game.settings_open = false
+			game.replay_opening()
+		y += 40.0
+	y += 6.0
 	var back := Rect2(x + w * 0.5 - 110.0, y, 220.0, 38.0)
 	if ui.button(back, "BACK", {"primary": true, "hint": "Esc"}):
 		game.settings_open = false

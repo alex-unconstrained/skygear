@@ -492,8 +492,41 @@ def prompt_for(a: dict) -> str:
     return a["subject"] + " " + a["frame"]
 
 
+## Where a manifest key lands in the GODOT tree, for the keys the browser's
+## `_render_assets.js` has never heard of.
+##
+## THIS IS THE OTHER HALF OF SG-239's FAILURE (board SG-240). `existing()` asked
+## the BROWSER build's asset manifest and only that, so the `hud` and `weapon`
+## batches — Godot-era assets the browser never had — could not report delivered
+## no matter what was on disk. `forge.py list` therefore said "0 delivered, 21
+## generations" for four HUD pieces whose target files have been in
+## `skygear-godot/assets/art/ui/` and in use since 2026-08-01, which is the
+## contradiction that stopped the owner ingesting 33 already-paid generations:
+## he was being asked to overwrite live art on the strength of a report that
+## could not be right.
+##
+## The tool now asks BOTH trees. Nothing about generation, cost or delivery
+## changes — only the sentence the tool prints about what is already there.
+GODOT_TARGETS = {
+    "ui_plate_wide":     "skygear-godot/assets/art/ui/plate_wide.png",
+    "ui_plate_slot":     "skygear-godot/assets/art/ui/plate_slot.png",
+    "ui_bar_housing":    "skygear-godot/assets/art/ui/bar_housing.png",
+    "ui_pressure_dial":  "skygear-godot/assets/art/ui/pressure_dial.png",
+    ## The three weapons landed as MODELS rather than paintings — the owner's
+    ## prompt-to-image-to-3D route (SG-170: "your three weapons are in hands").
+    ## A batch whose output took a different shape is still delivered, and a
+    ## report that says otherwise is asking someone to pay for it twice.
+    "weapon_cutlass":      "skygear-godot/assets/models/sword_cutlass",
+    "weapon_gearblade":    "skygear-godot/assets/models/sword_gearblade",
+    "weapon_boarding_axe": "skygear-godot/assets/models/axe_furnace",
+}
+
+
 def existing(key: str) -> bool:
-    """Is this manifest key already delivered?"""
+    """Is this manifest key already delivered — to EITHER shipping tree?"""
+    target = GODOT_TARGETS.get(key)
+    if target and (ROOT / target).exists():
+        return True
     src = (ROOT / "src" / "storm-dusk" / "_render_assets.js").read_text(encoding="utf-8")
     import re
     m = re.search(r"%s:\s*\{\s*file:'(assets/[^']+)'" % re.escape(key), src)
