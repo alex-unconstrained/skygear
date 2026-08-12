@@ -170,6 +170,16 @@ def mix_plan() -> list[Cue]:
                  "the crewman's shovel"),
         one_shot(f"{A}/sfx/player/vent.ogg", shot_start(4) + 4.3, -22.0,
                  "and again, slower — a pulse, like the grate"),
+        ## THE STAKES, SAID BY THE PERSON THEY BELONG TO (SG-247).
+        ## The storyboard's rule — "the captain is not a narrator" — is right
+        ## for the opening three shots and left shot 4, the WHY of the whole
+        ## film, silent. The only statement of motive in the cut was the
+        ## ENEMY'S, at 41 s, which is very late in a 53 s film. One line, on
+        ## the shot that is about the thing it names. Newly recorded in the
+        ## cast's pinned captain voice (`tools/vo_line.py`).
+        Cue(f"{A}/voice/captain/cine_boiler_1.ogg", shot_start(4) + 1.8,
+            shot_start(4) + 3.5, -1.0, 0.0, 0.15,
+            "VO: She's the only thing holding us up."),
 
         ## --- 5 · THE HULK · the loudest cut in the film ----------------------
         one_shot(f"{A}/sfx/lane/hulk_grapple.ogg", shot_start(5), -3.0,
@@ -239,12 +249,20 @@ def mix_plan() -> list[Cue]:
             shot_start(8) + 5.8, 0.0, 0.0, 0.2, "VO: GIVE ME THE ENGINE."),
 
         ## --- 9 · THE STAND --------------------------------------------------
-        one_shot(f"{A}/sfx/player/ready.ogg", shot_start(9) + 1.4, -9.0,
-                 "the cutlass comes up"),
-        ## VO 5 of 5, his answer. `wave_start_3` speaks "Hold the deck." — the
-        ## shipped mix used take 1, "Here they come.", which answers nothing.
-        Cue(f"{A}/voice/captain/wave_start_3.ogg", shot_start(9) + 2.4,
-            shot_start(9) + 4.2, -1.0, 0.0, 0.15, "VO: Hold the deck."),
+        ## THE ANSWER, ACROSS THE CUT (SG-247). The Colossus demands the engine
+        ## at 41.7 s and the film used to reply "Hold the deck." — which is a
+        ## fine order and is not a REPLY. This is: the demand lands on shot 8,
+        ## the refusal opens shot 9, and only then does he give the order. Three
+        ## beats where there were two, and the middle one is newly recorded.
+        Cue(f"{A}/voice/captain/cine_answer_1.ogg", shot_start(9) + 0.5,
+            shot_start(9) + 1.8, -1.0, 0.0, 0.12,
+            "VO: Then come and take her."),
+        one_shot(f"{A}/sfx/player/ready.ogg", shot_start(9) + 2.0, -9.0,
+                 "the cutlass comes up on the refusal"),
+        ## ...and the order, which is the game's own line for the start of a
+        ## wave — so the film ends on the sentence the player will hear again.
+        Cue(f"{A}/voice/captain/wave_start_3.ogg", shot_start(9) + 3.3,
+            shot_start(9) + 4.3, -1.0, 0.0, 0.12, "VO: Hold the deck."),
         one_shot(f"{A}/sfx/world/wave_start.ogg", shot_start(9) + 4.5, -7.0,
                  "and the cut to black"),
     ]

@@ -23,7 +23,9 @@ drifting features. Use ref_image_3 for the exact enemies — brass automatons
 with furnace eyes. Use ref_image_4 for the crew. Use ref_image_5 for the deck
 cannon — a carriage-mounted brass-and-iron gun.
 
-The video: battle on the airship's lantern-lit deck. In the foreground the
+The video: battle on the airship's lantern-lit deck, thousands of feet up.
+Beyond the rails on both sides there is only violet storm cloud and open sky —
+no sea, no waves, no water of any kind. In the foreground the
 captain swings his curved cutlass in a wide arc through two brass automatons —
 the blade trails a crescent of ember-orange fire, sparks and embers burst
 where it lands, and the automatons stagger back in pieces of brass. Behind
