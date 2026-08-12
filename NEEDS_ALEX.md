@@ -7,10 +7,11 @@ captain.**
 - **`windows-demo`** build **#1876328** — the demo cut. First build on that
   channel. Launched and photographed before it went up: it says *"six boarding
   waves"* and has no class picker.
-- **`windows`** build **#1876329** — the full game, with everything below. Detail
-lives in `skygear-godot/docs/BOARD.md`, which is now **the open queue and
+- **`windows`** build **#1876329** — the full game, with everything below.
+
+Detail lives in `skygear-godot/docs/BOARD.md`, which is now **the open queue and
 nothing else** — you asked for that and it went from 758 KB and 233 rows to
-94 KB and 38, with all 198 resolved rows and their evidence in
+94 KB and 39, with all 198 resolved rows and their evidence in
 `docs/BOARD-ARCHIVE.md`.
 
 *Last cleaned 2026-08-11. Everything you answered is off this list.*
@@ -57,12 +58,13 @@ your shader ask — a depth-and-normal edge plus a vignette over the deck) and
 to switch off: `view3d.set_deck_post(false)`, and `hud.gd`'s two face constants.
 If the edge is wrong, say so and it goes — it is not load-bearing.
 
-**2 · THE CAPTAIN'S PORTRAIT IS FINALLY BEING REDRAWN, AND YOU PICK THE FRAME.**
-`portrait_corsair.png` is still the red-haired woman in the blue coat, worn by
-both captains because it is the only portrait in the project. There is no image
-generator on this machine, so it is coming from a 124-frame push onto his face
-generated from the same two references the film uses. Run
-`python tools/portrait_from_clip.py --sheet`, look, then `--frame N`.
+**2 · THE CAPTAIN'S PORTRAIT IS REDRAWN AND IN THE BUILD — CHANGE THE FRAME IF
+YOU WANT A DIFFERENT ONE.** SG-228 is closed: he is male, chibi, spiked brown
+hair, goggles, gold-starred red coat, and he matches the sprite and the film
+because he came from the same two references. It is frame 91 of a 124-frame
+push onto his face, and picking another is two commands:
+`python tools/portrait_from_clip.py --sheet`, look, then `--frame N`. The file
+it replaced is kept beside it as `.pre-SG-228`.
 
 **3 · SG-240 WAS A REPORTING BUG AND YOUR DECISION IS SMALLER THAN IT LOOKED.**
 `forge.py list` said "0 delivered" for seven assets whose files have been on
