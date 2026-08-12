@@ -5042,64 +5042,94 @@ func _draw_how() -> void:
 	## before the plate exists — 860 less a 54px rail each side — and the height
 	## follows from how many lines that width produces. A plate with a third of
 	## itself empty reads as a screen that failed to load something.
-	const PAGE_W := 860.0
-	var text_w: float = PAGE_W - 2.0 * (rail(Rect2(0, 0, PAGE_W, 600.0)) + RAIL_BREATH)
-	var wanted := 0.0
+	## --- TWO COLUMNS AND A DIAGRAM (SG-253) ---------------------------------
+	##
+	## This was ONE column of eleven prose lines at 15pt on an 860-wide plate,
+	## with a third of the screen empty on each side — a wall of text on the one
+	## screen whose entire job is to teach, and the one a demo player opens when
+	## they do not understand something. The copy was never the problem; the copy
+	## is good. The SHAPE was: no hierarchy, no entry point, nothing to look at,
+	## and a reader who bounces off paragraph one learns nothing at all.
+	##
+	## Two columns halve the height and give the eye somewhere to land, and the
+	## page ends on THE HAND — the same shape x element grid the title screen
+	## uses — because the sentence "every weapon is a SHAPE crossed with an
+	## ELEMENT" is a claim, and thirty-six icons in four coloured rows is the
+	## thing itself.
+	const PAGE_W := 1180.0
+	const COL_GAP := 44.0
+	var col_w: float = (PAGE_W - 2.0 * (rail(Rect2(0, 0, PAGE_W, 600.0))
+		+ RAIL_BREATH + SHEET_BREATH) - COL_GAP) * 0.5
+
+	## Measure every row at the column width, then split the list where the
+	## running height first passes half — a balanced spread rather than a fixed
+	## count, so editing the copy cannot leave one column stubby.
+	var pt := 16
+	var line_h := 21.0
+	var heights: Array[float] = []
+	var total := 0.0
 	for row in lines:
-		if str(row[0]) != "":
-			wanted += 30.0
-		else:
-			wanted += _wrapped_lines(str(row[1]), text_w, 16) * 21.0 + 8.0
-	var page_h: float = minf(size.y - 112.0, wanted + 108.0 + 52.0 + 74.0)
-	## Slightly above centre. Dead centre puts a page of text lower than the eye
-	## expects to find it.
+		var h: float = 30.0 if str(row[0]) != "" 			else _wrapped_lines(str(row[1]), col_w, pt) * line_h + 10.0
+		heights.append(h)
+		total += h
+	var split := lines.size()
+	var run := 0.0
+	for i in heights.size():
+		if run >= total * 0.5:
+			split = i
+			break
+		run += heights[i]
+	## Never split a heading from the body it introduces.
+	if split > 0 and split < lines.size() and str(lines[split - 1][0]) != "":
+		split -= 1
+
+	var tallest: float = maxf(run, total - run)
+	var hand_h: float = clampf(size.y * 0.0225, 17.0, 26.0) * 4.0 + 6.0 * 3.0 + 74.0
+	## THE PAGE IS SIZED FROM ITS OWN ROOM, not from a guess plus a constant.
+	## The first version reserved `tallest + 118 + hand_h + 60` and then placed
+	## the grid at `room.end.y - hand_h - 44`, and the two disagreed: the grid
+	## landed ABOVE where the columns ended and printed over THE DECK FIGHTS.
+	## `sheet_room` is the only thing that knows how much a sheet loses to its
+	## rail and its margin, so it is asked rather than approximated.
+	var probe := sheet_room(Rect2(0.0, 0.0, PAGE_W, 700.0))
+	var edge: float = (PAGE_W - probe.size.x) * 0.5
+	var need: float = 68.0 + tallest + 18.0 + hand_h + 54.0
+	var page_h: float = minf(size.y - 96.0, need + edge * 2.0)
 	var page := Rect2(size.x * 0.5 - PAGE_W * 0.5,
-		maxf(56.0, (size.y - page_h) * 0.42), PAGE_W, page_h)
+		maxf(40.0, (size.y - page_h) * 0.44), PAGE_W, page_h)
 	_sheet(page)
 	_banner(size.x * 0.5, page.position.y - 10.0, 460.0)
 	_banner_title("HOW TO PLAY", 36, BRASS_LIT)
 	var room := sheet_room(page)
-	var top: float = room.position.y + 74.0
-	var space: float = room.end.y - top - 52.0   ## less the BACK button
+	var top: float = room.position.y + 68.0
 
-	## MEASURE, then draw. At 720p the page is 570 tall and this copy wants more,
-	## so the last section used to be written across the bottom rail — which is
-	## precisely the bug `tools/text_audit.gd` exists to catch, and it caught this
-	## one. The text yields rather than the page overflowing.
-	var pt := 16
-	var line_h := 21.0
-	## Stops at the floor rather than at a local 11, because `_says` clamps to the
-	## floor anyway — a loop that measures at 11 and a renderer that draws at 12
-	## is the two-functions-one-number bug in miniature.
-	while pt > SkyGearInk.MIN_PT:
-		var total := 0.0
-		for row in lines:
-			if str(row[0]) != "":
-				total += 30.0
-				continue
-			total += _wrapped_lines(str(row[1]), room.size.x, pt) * line_h + 8.0
-		if total <= space:
-			break
-		pt -= 1
-		line_h = float(pt) + 5.0
-
-	var y: float = top
-	for row in lines:
-		var heading := str(row[0])
-		var body := str(row[1])
+	var cx := [room.position.x, room.position.x + col_w + COL_GAP]
+	var cy := [top, top]
+	for i in lines.size():
+		var col: int = 0 if i < split else 1
+		var heading := str(lines[i][0])
+		var body := str(lines[i][1])
 		if heading != "":
-			y += 10.0
-			_label(heading, Vector2(room.position.x, y), room.size.x,
-				HORIZONTAL_ALIGNMENT_LEFT, maxi(11, pt - 3), Color("#37f0c8"))
-			y += 20.0
+			cy[col] += 10.0
+			_label(heading, Vector2(cx[col], cy[col]), col_w,
+				HORIZONTAL_ALIGNMENT_LEFT, pt - 3, Color("#37f0c8"))
+			cy[col] += 20.0
 			continue
-		var wrapped: int = _wrapped_lines(body, room.size.x, pt)
-		_says(body, Vector2(room.position.x, y), room.size.x,
-			HORIZONTAL_ALIGNMENT_LEFT, pt, 5, Color("#e6ddd0"))
-		y += wrapped * line_h + 8.0
+		_says(body, Vector2(cx[col], cy[col]), col_w,
+			HORIZONTAL_ALIGNMENT_LEFT, pt, 6, Color("#e6ddd0"))
+		cy[col] += _wrapped_lines(body, col_w, pt) * line_h + 10.0
+
+	## THE HAND, on the foot of the page — the diagram the prose was standing in
+	## for. `_draw_hand` is the title screen's, unchanged, so the two screens
+	## teach the same fact with the same object.
+	## Placed under whichever column ran longer, measured — never at a fixed
+	## offset from the page's floor, which is what put it on top of the text.
+	var hand := Rect2(room.position.x - 12.0, maxf(cy[0], cy[1]) + 18.0,
+		room.size.x + 24.0, hand_h)
+	_draw_hand(hand)
 
 	ui.begin("how", self, font, get_local_mouse_position())
-	if ui.button(Rect2(size.x * 0.5 - 110.0, room.end.y - 40.0, 220.0, 38.0),
+	if ui.button(Rect2(size.x * 0.5 - 110.0, room.end.y - 38.0, 220.0, 38.0),
 			"BACK", {"primary": true, "hint": "Esc"}):
 		game.how_open = false
 
