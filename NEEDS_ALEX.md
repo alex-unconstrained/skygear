@@ -106,7 +106,11 @@ capture pass and a ComfyUI render contend hard for the one card — the freeze o
 your shader ask — a depth-and-normal edge plus a vignette over the deck) and
 **the new fonts at four widths** are in the build unverified. Both are one line
 to switch off: `view3d.set_deck_post(false)`, and `hud.gd`'s two face constants.
-If the edge is wrong, say so and it goes — it is not load-bearing.
+If the edge is wrong, say so and it goes — it is not load-bearing. **(Correction,
+2026-08-12: `set_deck_post(false)` currently has no caller anywhere in the tree,
+so as written that switch cannot be reached — SG-267, one line to wire up. The
+same row has the guard that decides which runs get the ink backwards, and per the
+SG-266 item below the two are one decision.)**
 
 **2 · THE CAPTAIN'S PORTRAIT IS REDRAWN AND IN THE BUILD — CHANGE THE FRAME IF
 YOU WANT A DIFFERENT ONE.** SG-228 is closed: he is male, chibi, spiked brown
@@ -180,16 +184,37 @@ fight beside the Boiler?
   The tax interview alone is 2–7 business days. **Send friends the itch link,
   not a Steam key** — keys need a three-week wait for a first-time dev.
 - **SG-266: mipmapping the furnace knight (SG-265) genuinely dimmed his molten
-  grille, and the test that checks it now has almost no margin left.** Five
-  fresh readings: 0.18% / 0.19% / 0.18% / 0.19% / 0.20% against a floor of
-  0.18% — stable, not scatter, and down from the 0.23–0.25% unmodified builds
-  read. Two of five runs sat exactly on the floor with zero headroom, so the
-  check can start intermittently failing on ordinary GPU noise with nothing
-  actually wrong. This is a published tuning constant (`MOLTEN_FLOOR`), so
-  re-baselining it isn't an agent's call to make silently — same shape as
-  SG-136. My read: accept it (the grille still reads clearly as an emitter,
-  an order of magnitude under its own ceiling) rather than dim the shimmer
-  fix on the game's most-fought melee boarder — but it's your constant.
+  grille, and the test that checks it has no margin left at all.**
+  **CORRECTED 2026-08-12, and the correction makes it worse rather than
+  better — please read this paragraph before deciding, the earlier version of
+  this ask is struck below it.** The first version of this finding compared
+  five fresh readings (0.18 / 0.19 / 0.18 / 0.19 / 0.20%, against a floor of
+  0.18%) to a 2026-08-03 baseline of 0.23–0.25%. That comparison spanned **two**
+  changes, not one: the ink pass landed 2026-08-11, in between, and the probe
+  runs in a window rather than headless, so it had been seeing the ink and the
+  baseline never had. **So it was re-measured properly — three runs at HEAD with
+  the ink pass switched off, one at a time on an idle machine: 0.14% / 0.15% /
+  0.14%.** The 2026-08-03 baseline was taken before the ink pass existed, so
+  that is the honest like-for-like comparison, and it reads **0.24% → 0.143%, a
+  40% fall.** **Two things follow.** (a) **The mipmaps really are the cause** —
+  the ink pass was not responsible, and taking it out of both sides makes the
+  drop bigger, not smaller. (b) **The ink pass had been holding the number up**
+  by about 0.045 points, which is the only reason the check was still scraping
+  past its floor. **With the ink off it does not pass: it failed all three
+  runs.** So this is now the same decision as the ink-pass guard bug (SG-267) —
+  that guard is backwards, and fixing it in either of the two sensible ways
+  turns this check permanently red on the same day. **Nothing was tuned to
+  produce any of this; `MOLTEN_FLOOR` is untouched.** This is still a published
+  tuning constant and still your call, same shape as SG-136. **My read has
+  shifted with the numbers: option (1) "just accept it" is harder to justify at
+  0.143% than it was at 0.188%** — the grille is still an order of magnitude
+  under its own ceiling and still reads as an emitter, but a check that only
+  passes because of an unrelated bug is not passing. I'd now lean toward **(3),
+  raise the knight's authored emissive a little** so the true measurement comes
+  back up, rather than lowering the bar — but it's your constant either way.
+  ~~*Was, before the isolating run: five readings of 0.18–0.20%, two of them
+  exactly on the floor; "the check can start intermittently failing on ordinary
+  GPU noise with nothing actually wrong"; recommendation (1), accept it.*~~
 
 ---
 
