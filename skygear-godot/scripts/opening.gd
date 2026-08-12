@@ -60,16 +60,33 @@ func _ready() -> void:
 	back.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(back)
 
+	## THE ASPECT IS HELD BY THE CONTAINER, NOT THE PLAYER.
+	##
+	## `VideoStreamPlayer` has no `stretch_mode` — it is not a `TextureRect`, and
+	## its only sizing lever is `expand`, which fills its rect and distorts. The
+	## film is 1344x768 (7:4) and the game ships 16:9, so `expand` alone would
+	## stretch a painted face horizontally, which is the one thing that would
+	## undo the identity work the whole shoot was for.
+	##
+	## An `AspectRatioContainer` at ASPECT_FIT gives the player a correctly
+	## proportioned rect and letterboxes the rest onto the black behind it.
+	## (Caught by `tools/film_smoke.gd`, which boots the real scene in a real
+	## window — the harness is headless and this path is correctly invisible to
+	## it, so nothing else in the project could have seen this.)
+	var fit := AspectRatioContainer.new()
+	fit.set_anchors_preset(Control.PRESET_FULL_RECT)
+	fit.ratio = 1344.0 / 768.0
+	fit.stretch_mode = AspectRatioContainer.STRETCH_FIT
+	fit.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(fit)
+
 	_player = VideoStreamPlayer.new()
 	_player.stream = load(FILM)
-	_player.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_player.expand = true
-	## KEEP_ASPECT_CENTERED, never STRETCH: the film is 1344x768 (7:4) and the
-	## game ships 16:9. Stretching a painted face to fill the difference is the
-	## one thing that would undo the identity work the whole shoot was for.
-	_player.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_player.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_player.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_player.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(_player)
+	fit.add_child(_player)
 
 	_prompt = Label.new()
 	_prompt.text = "press any key to skip"

@@ -605,16 +605,20 @@ func _widget_chrome(rect: Rect2, state: Dictionary) -> void:
 	draw_rect(rect, metal, false, 2.2 if (lit or door) else 1.6)
 	if door:
 		_brackets(rect, metal, mini(18, int(rect.size.y * 0.5)), 3.0)
-	elif rect.size.x >= 96.0:
-		## Two rivets in each short end — but only where there is metal to put
-		## them in. A 60-wide control is all channel and a rivet would land on
-		## the label.
-		for rx in [rect.position.x + 11.0, rect.end.x - 11.0]:
-			for ry in [rect.get_center().y - 8.0, rect.get_center().y + 8.0]:
-				_rivet(Vector2(rx, ry), metal, disabled, lamp * 0.5 if lit else 0.0)
+
 	## 5 — THE ENGRAVED CHANNEL, opaque and last, which is what mechanically
 	## keeps every light above off the pixels the label stands on (`_lamp`).
-	var inset: float = 22.0 if rect.size.x >= 96.0 else 8.0
+	##
+	## SIX PIXELS, AND NO RIVETS — the one place this deliberately parts company
+	## with `_menu_plate`. That function owns its own label and centres it in a
+	## channel inset 24 a side, so it has 24 of metal to bolt through. The widget
+	## layer does not: `SkyGearUI.row` puts its label at `+14` and its key hint
+	## in the 44 px ending 4 from the right edge, and those are ITS numbers, not
+	## ours. Inset 22 and the label started on the brass, the hint ran off the
+	## channel onto the rim, and two rivets sat under both — which is exactly
+	## what the first capture of SETTINGS showed. Chrome that eats the caller's
+	## layout is chrome that is wrong, however good it looks alone.
+	var inset := 6.0
 	var chan := Rect2(rect.position.x + inset, rect.position.y + 5.0,
 		maxf(8.0, rect.size.x - inset * 2.0), maxf(8.0, rect.size.y - 10.0))
 	draw_rect(chan, MENU_FIELD)
@@ -676,7 +680,13 @@ func _draw_title() -> void:
 	## store page the first thing anyone who watches a capsule video reads. What
 	## engine it was built in is not the subtitle of the game.
 	_center_text("STORM-DUSK", 205.0, 24, Color("#37f0c8"))
-	_center_text("Keep the Boiler alive through twelve boarding waves.", 286.0, 22, Color("#eee5d5"))
+	## THE ONE SENTENCE THAT SAYS WHAT THE GAME IS, and until SG-213 it said
+	## "twelve" in a build that stops at six. A demo whose first screen
+	## overstates what it contains is not a demo, it is a broken promise on the
+	## line a player reads before anything else.
+	_center_text("Keep the Boiler alive through %s boarding waves."
+		% ("six" if SkyGearDemo.active() else "twelve"),
+		286.0, 22, Color("#eee5d5"))
 	## The last clause is the class's, not a constant. "Space dash" is a lie for
 	## the man with no dash, and it is the one line on this screen that tells a
 	## player what their hands do.
@@ -4068,21 +4078,30 @@ func _draw_bid_matrix() -> void:
 func _draw_keys() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.92))
 	var row_count: int = SkyGearKeybinds.REBINDABLE.size()
+	## +40 over the old tail: 16 of clearance under the banner, which the first
+	## row was drawn through, and 24 for the keyboard-and-mouse notice, which
+	## was printed on top of the footer. Both were mine, both were the SG-161
+	## shape — an element measured one way and its neighbour measured another —
+	## and both were invisible to the containment audit for the same reason: two
+	## free strings share no frame, so nothing had an opinion about them
+	## overlapping. Found by looking at the capture.
 	var sheet := Rect2(size.x * 0.5 - 300.0, 70.0, 600.0,
-		136.0 + row_count * 34.0 + 76.0)
+		136.0 + row_count * 34.0 + 76.0 + 56.0)
 	_sheet(sheet)
 	_banner(size.x * 0.5, 84.0, 420.0)
 	_center_text("CONTROLS", 124.0, 38, BRASS_LIT)
 	## "press a number" stopped being true at row 11 — see `SkyGearKeybinds.SLOTS`.
-	## The subtitle names the column instead, which stays true however many rows
-	## this sheet grows, and the column itself prints the exact character.
-	_center_text("press the key in the left column to rebind that row",
-		154.0, 15, Color("#8b8296"))
+	## The subtitle points at the column instead, which stays true however many
+	## rows this sheet grows, and the column itself prints the exact character.
+	## SHORTER THAN THE STRING IT REPLACED, deliberately: this line is drawn ON
+	## the banner, between its two ornaments, and the first attempt at it was
+	## long enough to run under both of them.
+	_center_text("press a row's key to rebind it", 154.0, 15, Color("#8b8296"))
 	## Against the plate's own interior. Thirty pixels in from a 600-wide sheet is
 	## inside the brass, so the row number and the key name were both drawn on the
 	## frame — the audit reported "1", "2", "W" and "S" every run.
 	var page := interior(sheet)
-	var y := page.position.y + 68.0
+	var y := page.position.y + 84.0
 	for i in SkyGearKeybinds.REBINDABLE.size():
 		var action: String = SkyGearKeybinds.REBINDABLE[i][0]
 		var name: String = SkyGearKeybinds.REBINDABLE[i][1]
@@ -4110,18 +4129,23 @@ func _draw_keys() -> void:
 			HORIZONTAL_ALIGNMENT_RIGHT, 17,
 			BRASS_LIT if listening else Color("#b9afaa"))
 		y += 34.0
+	var notice := y + 18.0
 	if game.rebind_conflict != "":
 		_center_text("that key already runs %s" % game.rebind_conflict.replace("_", " "),
-			y + 14.0, 15, Color("#ff9a5a"))
+			notice, 15, Color("#ff9a5a"))
 	else:
 		## SAY IT ONCE, HERE. There is no gamepad support and no screen in the
 		## game admitted it — a player who plugged a controller in had to
 		## discover that by pressing everything on it (DR-09). This is the sheet
 		## where the question is asked, so it is the sheet that answers.
 		_center_text("keyboard and mouse only — no controller support yet",
-			y + 14.0, 15, Color("#8b8296"))
+			notice, 15, Color("#8b8296"))
+	## Measured from the line above it, floored at the sheet's own writing floor.
+	## `writing_area(sheet).end.y` alone put this two pixels off the notice, for
+	## the same reason it put the settings footer through BACK: two y-values
+	## computed different ways have no reason to agree (SG-161).
 	_center_text("Backspace resets · Esc closes · F2 toggles",
-		writing_area(sheet).end.y, 15,
+		maxf(writing_area(sheet).end.y, notice + 24.0), 15,
 		Color("#37f0c8"))
 
 
@@ -5559,7 +5583,7 @@ func _draw_settings() -> void:
 	## The 58 was the tail — BACK and nothing else. SG-161's footer needs its own
 	## 22 under the button rather than borrowing the sheet's floor, so the sheet
 	## grows by exactly what the line takes.
-	var tall: float = 150.0 + rows * 40.0 + 58.0 + 22.0 \
+	var tall: float = 150.0 + rows * 40.0 + 58.0 + 56.0 \
 		+ (0.0 if demo else SETTINGS_CAPTION_H)
 	var top: float = maxf(60.0, (size.y - tall) * 0.5)
 	var sheet := Rect2(size.x * 0.5 - 330.0, top, 660.0, tall)
@@ -5654,8 +5678,19 @@ func _draw_settings() -> void:
 	## SG-161: a free `_label` over a `ui.button` is two elements that never meet
 	## — the containment audit measures a string against its FRAME, and the
 	## button is not a frame. It took a rect-intersection check to find.
-	_settings_footer = Rect2(room.position.x,
-		maxf(writing_area(sheet).end.y, back.end.y + 20.0) - 12.0,
+	##
+	## MEASURED FROM BACK, AND NOT FROM THE SHEET'S FLOOR — which is the third
+	## position this line has had today and the reason is worth writing down.
+	## `writing_area()` derives the floor from `rail(rect)`, a fraction of the
+	## sheet's SHORT side; the plate is a nine-slice, so on a 660x746 sheet the
+	## art's bottom casting is thicker than that fraction predicts. Measured on
+	## the real draw: `writing_area().end.y` is 739 and the painted panel ends
+	## near 710, so a line placed on the "floor" is printed on the brass.
+	##
+	## Both of this line's bugs came from taking a y from somewhere other than
+	## the thing it must not collide with. So it takes it from BACK, and the
+	## harness measures the two rectangles against each other.
+	_settings_footer = Rect2(room.position.x, back.end.y + 8.0,
 		room.size.x, 16.0)
 	_label("changes are saved when you leave this screen",
 		Vector2(_settings_footer.position.x, _settings_footer.end.y),
@@ -5755,16 +5790,29 @@ func _draw_results(title: String, tint: Color) -> void:
 		chrome += 18.0
 	if str((game.banked as Dictionary).get("fitting", "")) != "":
 		chrome += 18.0
-	_sheet(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0,
-		minf(size.y - 104.0, tall + chrome)))
+	## ONE RECT, DECLARED ONCE. It used to be written twice — the sheet drawn
+	## from the real height, and `page` measured off a hard-coded 400 — and
+	## `interior()` insets by a fraction of the SHORT side, so the two disagreed
+	## about where the writing hole starts. That is why "wave 7/12 · seed AUDIT"
+	## was printed on the brass rail rather than inside the plate.
+	var sheet := Rect2(size.x * 0.5 - 400.0, 52.0, 800.0,
+		minf(size.y - 104.0, tall + chrome))
+	_sheet(sheet)
 	_banner(size.x * 0.5, 62.0, 520.0)
-	_center_text(title, 110.0, 52, tint)
+	## 124, not 110. The banner's dark interior runs from about 78 to 150, and a
+	## 52 pt cap in the display face stands roughly 38 above its baseline — so
+	## the verdict was printed through the banner's top rail. It is the largest
+	## word on the screen a player sees at the end of every run; it belongs in
+	## the housing, not across it. (DR-17: the new face has a taller cap at the
+	## same point size, which is what made a placement that used to be adequate
+	## visibly wrong.)
+	_center_text(title, 124.0, 52, tint)
 	if game.end_reason != "":
-		_center_text(game.end_reason, 146.0, 18, Color("#b9afaa"))
+		_center_text(game.end_reason, 158.0, 18, Color("#b9afaa"))
 	## Against the plate's own interior. 680 inside an 800-wide sheet leaves 60 a
 	## side, and the rail is 48 plus breathing room — so the longest build line
 	## needed 712 and got clipped at 680.
-	var page := interior(Rect2(size.x * 0.5 - 400.0, 52.0, 800.0, 400.0))
+	var page := interior(sheet)
 	var body_x: float = page.position.x
 	var body_w: float = page.size.x
 	var y := 212.0
