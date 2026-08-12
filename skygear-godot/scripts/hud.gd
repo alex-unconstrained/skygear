@@ -52,6 +52,8 @@ var display: Font
 ## rather than infer it from arithmetic that has already been wrong once. Written
 ## by `_draw_settings` every time it draws; both are empty until it has.
 var _settings_footer := Rect2()
+## Where PAUSE's key line goes, published by the mute button that used to sit on it.
+var _pause_foot := 0.0
 var _settings_back := Rect2()
 ## Set by the 3D view when it takes over the frame. Everything the browser
 ## draws ON the fight — health over a boarder's head, the number that leaves a
@@ -3121,16 +3123,16 @@ func _draw_game_hud() -> void:
 	var top: Rect2 = plates.objective
 	_panel(top)
 	var ratio: float = game.boiler_hp / maxf(1.0, game.boiler_max_hp)
-	## `recessed`, which this bar has needed since it was written and never
-	## asked for. A bar's fill is a saturated mid-value colour and a label
-	## standing on it reads at about 1.5:1 — on the BOILER gauge that meant teal
-	## lettering on a teal fill, i.e. the name of the thing you lose by was the
-	## least legible string in the game. The captain's bar has passed this for
-	## months; the objective's never did.
+	## NO `recessed` HERE, and that is a correction of my own fix. SG-254 added
+	## it to make BOILER readable on the teal fill, and it worked — at the cost
+	## of stamping a dark patch across the band, so a FULL gauge read as a third
+	## full. On the thing you lose by, hiding the quantity to label it is the
+	## worse trade. The patches are glyph-tight now (below) and the label rides
+	## `ink.gd`'s outline, which is what it is for.
 	_bar(l.item("objective", "boiler", top), ratio,
 		Color("#37f0c8") if ratio > 0.34 else Color("#ff6a3a"),
 		Color("#1c6f61") if ratio > 0.34 else Color("#8b2418"), "BOILER",
-		"%d / %d" % [game.boiler_hp, game.boiler_max_hp], {"recessed": true})
+		"%d / %d" % [game.boiler_hp, game.boiler_max_hp])
 	var wave_at := l.item("objective", "wave", top)
 	var wave_text := "WAVE %d / 12" % game.wave
 	_value(wave_text, wave_at.position + Vector2(0, wave_at.size.y - 4.0), wave_at.size.x,
@@ -3440,8 +3442,11 @@ func _bar(rect: Rect2, ratio: float, top: Color, bottom: Color, label: String,
 	var lead := rect.position + Vector2(6, rect.size.y * 0.5 + 4.0)
 	var tail := rect.position + Vector2(-6, rect.size.y * 0.5 + 5.0)
 	if bool(opts.get("recessed", false)):
+		## MEASURED AT THE SIZE IT IS DRAWN AT. This asked for `MIN_PT` (12) and
+		## the glyphs go down at 11, so every patch was wider than the text it
+		## backs — and a patch on a gauge is band the player cannot see.
 		var lead_w: float = font.get_string_size(label, HORIZONTAL_ALIGNMENT_LEFT, -1,
-			SkyGearInk.MIN_PT).x
+			11).x
 		SkyGearInk.recess(self, Rect2(lead.x, lead.y - SkyGearInk.MIN_PT,
 			minf(lead_w, rect.size.x), float(SkyGearInk.MIN_PT) * 1.15), CHANNEL)
 		var tail_w: float = font.get_string_size(value, HORIZONTAL_ALIGNMENT_RIGHT, -1,
@@ -4595,7 +4600,13 @@ func _draw_keys() -> void:
 	## SHORTER THAN THE STRING IT REPLACED, deliberately: this line is drawn ON
 	## the banner, between its two ornaments, and the first attempt at it was
 	## long enough to run under both of them.
-	_center_text("press a row's key to rebind it", 154.0, 15, Color("#8b8296"))
+	## FROM THE BANNER, NOT FROM 154. SG-250 moved every sheet heading to its
+	## housing's centre and left this line on a constant chosen when the heading
+	## sat at the top of the art — so "press a row's key to rebind it" printed
+	## straight through CONTROLS. Two expressions for one position, introduced by
+	## the commit that fixed seven other instances of it.
+	_center_text("press a row's key to rebind it",
+		_banner_rect.end.y - 4.0, 15, Color("#8b8296"))
 	## Against the plate's own interior. Thirty pixels in from a 600-wide sheet is
 	## inside the brass, so the row number and the key name were both drawn on the
 	## frame — the audit reported "1", "2", "W" and "S" every run.
@@ -4662,7 +4673,12 @@ func _draw_pause() -> void:
 	## and a frame with three hundred empty pixels under the last button reads as
 	## a screen that failed to load.
 	var rows: int = maxi(game.skills.size(), 1)
-	var body := 272.0 + (66.0 if game.audio != null else 0.0)
+	## +88 rather than +66 for the audio block: the key line at the foot needs a
+	## band of its own. It was placed at `writing_area(sheet).end.y` while MUTE
+	## was placed off the button cursor, and the two met — "WASD move · mouse
+	## aim · Space dash · F7 classes" printed straight through the MUTE button
+	## and buried its `M` chip. Two expressions for one position, again.
+	var body := 272.0 + (88.0 if game.audio != null else 0.0)
 	## Plus the banner's overhang. The buttons used to start 82 below the top of
 	## the sheet and the banner ornament reaches 115 past it, so RESUME was drawn
 	## through the bottom of the PAUSED plaque.
@@ -4719,9 +4735,10 @@ func _draw_pause() -> void:
 	if game.audio != null:
 		game.audio.set_volume("master", ui.slider(
 			Rect2(bx, by + 194.0, bw, 30.0), "VOLUME", float(game.audio.volumes.master)))
-		if ui.button(Rect2(bx, by + 230.0, bw, 34.0),
-				"UNMUTE" if game.audio.muted else "MUTE", {"hint": "M"}):
+		var mute := Rect2(bx, by + 230.0, bw, 34.0)
+		if ui.button(mute, "UNMUTE" if game.audio.muted else "MUTE", {"hint": "M"}):
 			game.audio.toggle_mute()
+		_pause_foot = mute.end.y + 26.0
 
 	## The loadout. Reading what your own build does should not require being
 	## shot at while you do it.
@@ -4766,7 +4783,10 @@ func _draw_pause() -> void:
 		else "Space dash")
 	if game.dev_tools:
 		keys += " · F4 layout · F3 stats"
-	_label(keys, Vector2(room.position.x, writing_area(sheet).end.y), room.size.x,
+	## Measured from the button it was colliding with, floored at the sheet's own
+	## writing floor for the no-audio case where there is no button to measure.
+	_label(keys, Vector2(room.position.x,
+		maxf(writing_area(sheet).end.y, _pause_foot)), room.size.x,
 		HORIZONTAL_ALIGNMENT_CENTER, 12)
 
 
