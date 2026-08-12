@@ -8820,6 +8820,108 @@ func _view() -> void:
 	_check("render", "generated textures carry mipmaps",
 		view._ring_texture().get_image().has_mipmaps()
 			and view._planking_texture().get_image().has_mipmaps())
+	## SG-219/SG-265: every texture the 3D view samples must carry mipmaps,
+	## because `view3d.gd:9899` asks for LINEAR_WITH_MIPMAPS on every character
+	## billboard and that request is a no-op against a mip-less import. The
+	## generated half of this landed at SG-108; the imported half never did.
+	## THE MANIFEST IS AUTHORED, not scanned, because "every png under assets" is
+	## the wrong set: 21 `*_thumb.png` are pipeline artifacts bound by nothing,
+	## the whole of `art/ui` is drawn in 2D, the four `art/animations` sprite-sheet
+	## atlases are excluded because mipmapping them bleeds neighbouring frames at
+	## minified levels (drawn through `region_rect`, `sprites.gd:28-32` /
+	## `view3d.gd:9803-9805`), and several `art/ground` and `art/fx` keys are
+	## retired from the decal path (`view3d.gd`'s `PAINTED` table, ~3824-3845 —
+	## only "blob"/"scorch"/"steam"/"bolt" are ever read by `_art()`). What IS
+	## scanned is the directories, so a NEW texture arriving unmipped fails for
+	## the right reason — see the sibling check below.
+	const MIPPED_IN_3D: Array[String] = [
+		"res://assets/models/armored/armored_albedo.png",
+		"res://assets/models/armored/armored_emission.png",
+		"res://assets/models/armored/armored_metal.png",
+		"res://assets/models/armored/armored_normal.png",
+		"res://assets/models/armored/armored_rough.png",
+		"res://assets/models/boilerwright/boilerwright_albedo.png",
+		"res://assets/models/boilerwright/boilerwright_metal.png",
+		"res://assets/models/boilerwright/boilerwright_normal.png",
+		"res://assets/models/boilerwright/boilerwright_rough.png",
+		"res://assets/models/captain/captain_albedo.png",
+		"res://assets/models/crew/crew_albedo.png",
+		"res://assets/models/swarm/swarm_albedo.png",
+		"res://assets/art/props/barrel.png",
+		"res://assets/art/props/boarding_hulk_destroyed.png",
+		"res://assets/art/props/boarding_hulk_open.png",
+		"res://assets/art/props/boarding_hulk_sealed.png",
+		"res://assets/art/props/brazier.png",
+		"res://assets/art/props/cannon_deck.png",
+		"res://assets/art/props/cannon_deck_destroyed.png",
+		"res://assets/art/props/cargo_wall_module.png",
+		"res://assets/art/props/colossus_wreck.png",
+		"res://assets/art/props/crate_small.png",
+		"res://assets/art/props/crate_stack.png",
+		"res://assets/art/props/harpoon_ballista.png",
+		"res://assets/art/props/hatch_cargo.png",
+		"res://assets/art/props/lantern_post.png",
+		"res://assets/art/props/mast_section.png",
+		"res://assets/art/props/railing_segment.png",
+		"res://assets/art/props/rope_coil.png",
+		"res://assets/art/props/salvage_pile.png",
+		"res://assets/art/props/steam_vent.png",
+		"res://assets/art/enemies/automaton_back_idle.png",
+		"res://assets/art/enemies/automaton_front_attack.png",
+		"res://assets/art/enemies/automaton_front_idle.png",
+		"res://assets/art/enemies/colossus_back_idle.png",
+		"res://assets/art/enemies/colossus_front_attack.png",
+		"res://assets/art/enemies/colossus_front_idle.png",
+		"res://assets/art/enemies/drone_front_attack.png",
+		"res://assets/art/enemies/drone_front_idle.png",
+		"res://assets/art/enemies/furnace_knight_back_idle.png",
+		"res://assets/art/enemies/furnace_knight_front_attack.png",
+		"res://assets/art/enemies/furnace_knight_front_idle.png",
+		"res://assets/art/enemies/gremlin_front_attack.png",
+		"res://assets/art/enemies/gremlin_front_idle.png",
+		"res://assets/art/allies/crew_back_idle.png",
+		"res://assets/art/allies/crew_front_attack.png",
+		"res://assets/art/allies/crew_front_idle.png",
+		"res://assets/art/heroes/corsair_back_idle.png",
+		"res://assets/art/heroes/corsair_front_attack.png",
+		"res://assets/art/heroes/corsair_front_idle.png",
+		"res://assets/art/ground/shadow_blob.png",
+		"res://assets/art/ground/decal_scorch.png",
+		"res://assets/art/fx/puff_steam.png",
+		"res://assets/art/fx/bolt_tesla.png",
+		"res://assets/art/env/sky_backdrop.png",
+		"res://assets/art/env/envelope_top.png",
+		"res://assets/art/env/clouds_near.png",
+		"res://assets/art/env/clouds_far.png",
+		"res://assets/art/env/airship_distant.png",
+	]
+	var unmipped: Array[String] = []
+	for path in MIPPED_IN_3D:
+		var cfg := ConfigFile.new()
+		if cfg.load(path + ".import") != OK:
+			unmipped.append(path + " (no .import)")
+		elif not bool(cfg.get_value("params", "mipmaps/generate", false)):
+			unmipped.append(path)
+	_check("render", "every texture drawn in 3D carries the mipmaps its filter asks for",
+		unmipped.is_empty(),
+		"%d of %d still unmipped: %s" % [unmipped.size(), MIPPED_IN_3D.size(), str(unmipped)])
+
+	## AND THE MANIFEST DOES NOT SILENTLY FALL BEHIND THE DIRECTORY. A new prop or
+	## boarder texture arrives unmipped by default; without this, the check above
+	## stays green because the manifest never heard of it. Prints the counts rather
+	## than equality-testing them — this project watched the total go 121 -> 124 in
+	## one working day, and a literal would have gone red for arithmetic.
+	var uncovered: Array[String] = []
+	for dir in ["res://assets/art/props", "res://assets/art/enemies",
+			"res://assets/art/allies"]:
+		for f in DirAccess.get_files_at(dir):
+			if f.ends_with(".png") and not MIPPED_IN_3D.has(dir + "/" + f):
+				uncovered.append(dir + "/" + f)
+	_check("render", "and the mipmap manifest still covers every billboard directory",
+		uncovered.is_empty(),
+		"%d textures in the 3D directories are not in the %d-entry manifest: %s"
+			% [uncovered.size(), MIPPED_IN_3D.size(), str(uncovered)])
+
 	## Nothing that cannot cast a meaningful shadow should be in the shadow pass.
 	var casters := 0
 	for family in view._sparks.keys():
