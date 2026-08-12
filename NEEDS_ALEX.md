@@ -1,25 +1,34 @@
 # NEEDS ALEX
 
-**BUILD 71 IS STILL THE LIVE BUILD. THERE IS A PILE OF WORK SITTING ON TOP OF IT
-THAT YOU HAVE NOT SEEN, AND NO BUILD 72 HAS BEEN CUT.**
+**BUILD 71 IS STILL THE LIVE BUILD ON ITCH. BUILD 72 IS GATED, EXPORTED AND
+VERIFIED — BOTH ZIPS EXIST ON THIS MACHINE — BUT IT HAS NOT BEEN PUSHED, BECAUSE
+IT CONTAINS ONE PLAYER-VISIBLE CHANGE YOU HAVEN'T SEEN.**
 
-That is the whole headline. The tree is at commit `79b8841`, **harness 1229/1229,
-exit 0, 54 engine errors** — thirteen IDs of work since build 71 shipped, none of
-it in front of you, none of it packed. **Nothing below is a report on something
-you have played.**
+That change: the captain's cleave swing effect (SG-226) had its `filled` flag
+flipped `true` mid-flight during the capture pass, folded in without asking
+first. It's reversible in one token (`view3d.gd:5291`, `true` → `false`), both
+variants are captured side by side for you to compare, and the push is being
+held on your word rather than pushed and asked about after.
 
-What is live, unchanged since 2026-08-11:
+The tree Task 18 gated and exported is commit `0e515f7`, **harness 1244/1244,
+exit 0, 0 script errors, 54 engine errors against the pinned 54** — everything
+since build 71 shipped, now packed and verified end to end: both exes read back
+`0.72.0.0`, both zip READMEs verified (twelve waves full / six waves demo,
+nothing unsubstituted, none of the old losing-play phrasing), and the demo exe
+was launched and its title screen photographed fresh (`.shots/demo_title_build72.png`)
+— *"Keep the Boiler alive through six boarding waves,"* no class picker,
+survived a clean run.
 
-- **`windows-demo`** build **#1876328** — the demo cut. First build on that
-  channel. Launched and photographed before it went up: it says *"six boarding
-  waves"* and has no class picker.
-- **`windows`** build **#1876329** — the full game.
+What is still live, unchanged since 2026-08-11:
+
+- **`windows-demo`** build **#1876328** — the demo cut, build 71.
+- **`windows`** build **#1876329** — the full game, build 71.
 
 Detail lives in `skygear-godot/docs/BOARD.md`, which is **the open queue and
-nothing else** — you asked for that. It is **35 open rows** now; every finished
-row and its evidence is in `docs/BOARD-ARCHIVE.md` (216 of them).
+nothing else** — you asked for that. It is **36 open rows** now; every finished
+row and its evidence is in `docs/BOARD-ARCHIVE.md` (226 of them).
 
-*Last cleaned 2026-08-12, against `79b8841`. Everything you answered is off this
+*Last cleaned 2026-08-12, against `0e515f7`. Everything you answered is off this
 list.*
 
 ---
@@ -99,12 +108,14 @@ now have checks; none of them had ever had one.
 
 ## Waiting on you
 
-**1 · TWO THINGS ARE SHIPPED AND HAVE NOT BEEN LOOKED AT, AND THEY ARE BOTH
+**1 · THREE THINGS ARE SHIPPED AND HAVE NOT BEEN LOOKED AT, AND ALL THREE ARE
 VISUAL.** The GPU was rendering your film for the whole session, and a Godot
 capture pass and a ComfyUI render contend hard for the one card — the freeze on
-2026-08-11 is why that rule exists. So: **the ink pass** (`deck_post.gdshader`,
-your shader ask — a depth-and-normal edge plus a vignette over the deck) and
-**the new fonts at four widths** are in the build unverified. Both are one line
+2026-08-11 is why that rule exists. So: **the opening film itself** (53.54 s,
+the finished cut with the mix fixed and the two new spoken lines), **the ink
+pass** (`deck_post.gdshader`, your shader ask — a depth-and-normal edge plus a
+vignette over the deck) and **the new fonts at four widths** are all in the
+build unverified. The two renderer items are each one line
 to switch off: `view3d.set_deck_post(false)`, and `hud.gd`'s two face constants.
 If the edge is wrong, say so and it goes — it is not load-bearing. **(Correction,
 2026-08-12: `set_deck_post(false)` currently has no caller anywhere in the tree,
@@ -139,6 +150,14 @@ P1 you found with it (the swing drawing away from the bodies) is fixed. Still
 open when you next play: **(b)** is 24-versus-20 something you *feel*, or only
 something the floaters told you? **(c)** does anything hide the marker when you
 fight beside the Boiler?
+
+**6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
+Named but not built — a results sheet with every progression line skipped
+(no scrip, no sigil, no fitting, no `best_heat` moved) is strictly less closure
+than the demo cut gives a player who was never promised a win at all. Nobody
+has decided what that sheet should say instead. Deferred out of build-72's
+scope on purpose (task-18 brief §"deferred"); it needs your call before anyone
+writes it.
 
 ---
 
