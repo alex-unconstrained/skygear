@@ -179,6 +179,17 @@ fight beside the Boiler?
 - **Steam** — the paperwork is the only critical path and it is entirely yours.
   The tax interview alone is 2–7 business days. **Send friends the itch link,
   not a Steam key** — keys need a three-week wait for a first-time dev.
+- **SG-266: mipmapping the furnace knight (SG-265) genuinely dimmed his molten
+  grille, and the test that checks it now has almost no margin left.** Five
+  fresh readings: 0.18% / 0.19% / 0.18% / 0.19% / 0.20% against a floor of
+  0.18% — stable, not scatter, and down from the 0.23–0.25% unmodified builds
+  read. Two of five runs sat exactly on the floor with zero headroom, so the
+  check can start intermittently failing on ordinary GPU noise with nothing
+  actually wrong. This is a published tuning constant (`MOLTEN_FLOOR`), so
+  re-baselining it isn't an agent's call to make silently — same shape as
+  SG-136. My read: accept it (the grille still reads clearly as an emitter,
+  an order of magnitude under its own ceiling) rather than dim the shimmer
+  fix on the game's most-fought melee boarder — but it's your constant.
 
 ---
 
