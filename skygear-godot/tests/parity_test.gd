@@ -72,6 +72,13 @@ func _initialize() -> void:
 const BOT_SCRIPT := preload("res://tools/bot.gd")
 const BALANCE_SCRIPT := preload("res://tools/balance.gd")
 
+## RESIDUE's stack ratio, measured on a body rather than read off the table
+## (board SG-164). This task's plumbing is neutral — every source authors
+## today's rate and stacks do not differ yet — so 1.0 is the correct answer
+## here. Task 13 raises this to 2.0, and that one-line change is what makes
+## the balance commit visible in the harness.
+const EXPECTED_STACK_RATIO := 1.0
+
 
 func _check(group: String, name: String, condition: bool, detail: String = "") -> void:
 	checks += 1
@@ -372,6 +379,8 @@ func _run() -> void:
 	_dash()
 	await process_frame
 	await _hazard()
+	await process_frame
+	await _fire_rates()
 	await process_frame
 	## AWAITED — both build real worlds and spawn real enemies. See the note
 	## above `_view`; an un-awaited coroutine here reports a clean pass for
@@ -5205,7 +5214,7 @@ func _crit_source_arm(crit_chance: float) -> Array:
 	var before3 := t3.hp
 	game3._update_fire_fields(0.0)
 	out.append({"name": "a fire pool's tick", "dealt": before3 - t3.hp,
-		"authored": 7.5})
+		"authored": float(SkyGearData.FIRE_SOURCES["lantern"].dps) * SkyGearGame.FIRE_TICK})
 	game3.queue_free()
 
 	## 4. THE KEGS. A real prop off the real deck, so this goes through
@@ -16545,6 +16554,120 @@ func _hazard() -> void:
 
 	game.queue_free()
 	await process_frame
+
+
+## FIRE, PER SOURCE (board SG-164). Behaviour-neutral by construction: the
+## table carries today's rate for every source, so nothing a player can feel
+## moves yet. The balance change is a separate row with its own revert.
+func _fire_rates() -> void:
+	var game := _new_game()
+	_begin(game)
+
+	## Per source, so a lantern and a scald trail can differ. The rate is stamped
+	## by `_field` the way the radius is (SG-163), so a caller cannot put a
+	## number in the dictionary that the burn will ignore. This task is
+	## behaviour-neutral, so BOTH sources still author today's shipped rate —
+	## 30.0/s, 7.5 per 0.25 s tick — and both are pinned against that EXTERNAL
+	## literal rather than against each other, or a drift in either source's
+	## authored number alone would read the table against itself
+	## (`pool_shot.gd:17`'s fifth failure mode) instead of failing.
+	##
+	## AND THE TICK ITSELF MUST STILL BE READING THE STAMP, which the runtime
+	## comparison above cannot see on its own: a hardcoded 7.5 left in
+	## `_update_fire_fields` happens to equal today's authored rate for every
+	## source in this table, so restoring that literal would deal the identical
+	## damage and pass a check that only measures magnitude. The source-text
+	## scan is what actually distinguishes "reads the table" from "coincidentally
+	## agrees with it" — and it is folded into THIS check rather than a second
+	## one, because a table-drift and a consumer-drift must both be caught by
+	## the SAME check or one direction is a check reading itself.
+	var lantern_dps := game.fire_pool_dps("lantern", 1.0)
+	var trail_dps := game.fire_pool_dps("scald_trail", 1.0)
+	var sim_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var tick_line := ""
+	for raw in sim_src.split("\n"):
+		var line := raw.strip_edges()
+		if line.begins_with("_damage_circle(field.position, fire_pool_radius()"):
+			tick_line = line
+	var tick_reads_stamp := tick_line.contains("field.dps")
+	_check("hazard", "a pool burns at the rate its own source authored — a lantern and a scald trail are not the same fire",
+		is_equal_approx(lantern_dps * SkyGearGame.FIRE_TICK, 7.5)
+			and is_equal_approx(trail_dps * SkyGearGame.FIRE_TICK, 7.5)
+			and tick_reads_stamp,
+		"lantern %.2f/s = %.2f per tick; scald trail %.2f/s = %.2f per tick; tick reads field.dps: %s (line: %s)"
+			% [lantern_dps, lantern_dps * SkyGearGame.FIRE_TICK,
+				trail_dps, trail_dps * SkyGearGame.FIRE_TICK, tick_reads_stamp, tick_line])
+
+	## TWO RESIDUE CREATORS, NOT ONE. `game.gd`'s instant cast (inside
+	## `_resolve_cast`'s caller) and `_finish_active_channel`'s channelled one —
+	## no board row counts the second, so a grep-and-fix that stops at the first
+	## `13.0 *` ships instant and channelled casts leaving different fires. The
+	## structural half is the one that catches that, because it reads BOTH sites.
+	var rate_writers: Array[String] = []
+	for raw in sim_src.split("\n"):
+		var line := raw.strip_edges()
+		if line.begins_with("\"dps\":") or line.contains("\"dps\": 13.0") \
+				or line.contains("\"dps\": float(spec."):
+			rate_writers.append(line)
+	_check("hazard", "no pool creator writes its own rate — the table is the one place a fire's rate is decided",
+		rate_writers.is_empty(),
+		"%d call sites still author a rate: %s" % [rate_writers.size(), str(rate_writers)])
+
+	var instant_field := _new_game()
+	instant_field._field({"position": Vector2.ZERO, "source": "residue",
+		"stacks": 2.0, "time": 2.0, "tick": 0.0})
+	instant_field._field({"position": Vector2(400.0, 0.0), "source": "residue",
+		"stacks": 2.0, "time": 2.0, "tick": 0.0})
+	_check("hazard", "a channelled skill leaves the same pool an instant one does",
+		is_equal_approx(float(instant_field.fire_fields[0].dps),
+				float(instant_field.fire_fields[1].dps))
+			and is_equal_approx(float(instant_field.fire_fields[0].radius),
+				float(instant_field.fire_fields[1].radius)),
+		"first %.2f/%.1f, second %.2f/%.1f"
+			% [float(instant_field.fire_fields[0].dps), float(instant_field.fire_fields[0].radius),
+				float(instant_field.fire_fields[1].dps), float(instant_field.fire_fields[1].radius)])
+	instant_field.queue_free()
+
+	## MEASURED ON A BODY, NOT READ OFF THE TABLE. Asserting dps(2) == 2 * dps(1)
+	## against `FIRE_SOURCES` compares the table with itself and proves the number
+	## equals itself — `pool_shot.gd:17` names that as the fifth failure mode.
+	## The rig is the existing rate check's, lifted verbatim: stand a body in a
+	## pool, integrate 600 steps at the game's own 1/60 frame, read the HP delta.
+	var stack1_damage := _fire_stack_damage(1.0)
+	var stack2_damage := _fire_stack_damage(2.0)
+	_check("hazard", "RESIDUE's stacks are worth what they cost, measured on a body",
+		stack1_damage > 0.0 and stack2_damage > 0.0
+			and is_equal_approx(stack2_damage / stack1_damage, EXPECTED_STACK_RATIO),
+		"stack 1 dealt %.1f, stack 2 dealt %.1f, ratio %.3f (want %.3f)"
+			% [stack1_damage, stack2_damage, stack2_damage / stack1_damage, EXPECTED_STACK_RATIO])
+
+	game.queue_free()
+	await process_frame
+
+
+## The rig behind `RESIDUE's stacks are worth what they cost`, lifted from the
+## fire-rate check above: stand the captain in a residue pool of the given
+## stack count and integrate 600 real frames (10 s at 1/60), returning the HP
+## she lost. A body, not the table.
+func _fire_stack_damage(stacks: float) -> float:
+	var pool := _new_game()
+	_begin(pool)
+	pool.spawn_queue.clear()
+	pool.player.global_position = Vector2(0.0, 600.0)
+	pool.player.invulnerability_left = 0.0
+	pool.player.max_hp = 100000.0
+	pool.player.hp = 100000.0
+	pool.fire_fields.clear()
+	pool._field({"position": Vector2(0.0, 600.0), "source": "residue",
+		"stacks": stacks, "time": 999.0, "tick": 0.0})
+	var frame := 1.0 / 60.0
+	for _tick in 600:
+		pool.state = SkyGearGame.State.PLAY
+		pool._update_fire_fields(frame)
+		pool.player.invulnerability_left = maxf(0.0, pool.player.invulnerability_left - frame)
+	var dealt: float = 100000.0 - pool.player.hp
+	pool.queue_free()
+	return dealt
 
 
 ## THE BALANCE BOT (SG-118), and the reason these checks exist at all.

@@ -335,7 +335,7 @@ const CLASSES := {
 		## him. Every dodge is damage he did not do, which is the sharpest thing
 		## about the class and the reason the 25% anchored resist exists at all.
 		"jet": {"distance": 220.0, "time": 0.16, "cost": 12.0,
-			"trail": 5, "trail_radius": 46.0, "trail_dps": 9.0, "trail_life": 2.4},
+			"trail": 5, "trail_life": 2.4},
 		## He wants ground he can hold and hazards he can plant, not a rifle.
 		## Weights rather than a different matrix: the 36 cells stay 36 and the
 		## draft simply reaches for his shapes first.
@@ -434,6 +434,22 @@ const TAP := {
 	## reason to care the crew layer exists — his installation is what breaks a
 	## hulk while he holds the lane.
 	"crew_haste": 0.30,
+}
+
+## FIRE, PER SOURCE — THE RATE ONLY, AND THE RADIUS IS DELIBERATELY NOT HERE.
+## SG-163 settled that every pool burns at one radius and the picture follows the
+## damage ("Fix the picture to match the damage" — the owner, pinned by
+## `hazard · the burn radius did not move`). A per-source radius in this table,
+## even one equal to 78 everywhere, re-opens a closed question.
+##
+## THE UNIT IS DAMAGE PER SECOND, as it is for `TAP.dps` — the steam main is
+## "deliberately shaped exactly like `fire_fields`" and pays `dps * TAP_TICK`.
+## The shipped fire literal was 7.5 per tick at a 0.25 s tick, which is 30.0 per
+## second, so `lantern` carries today's rate EXACTLY and nothing ambient moves.
+const FIRE_SOURCES := {
+	"lantern": {"dps": 30.0},
+	"scald_trail": {"dps": 30.0},
+	"residue": {"dps": 30.0},
 }
 
 ## Blowdown. `vent_pressure` with the constants replaced by functions of Head —

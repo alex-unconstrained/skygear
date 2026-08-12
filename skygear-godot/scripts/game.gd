@@ -3341,11 +3341,11 @@ func cast_skill(index: int, aim_at = null) -> void:
 	# RESIDUE: a burning field wherever the shape landed.
 	if float(mods.residue) > 0.0:
 		## `radius` used to be `62.0 + 22.0 * mods.residue` here and nothing burned
-		## by it — the tick has always used one flat radius (SG-163). `dps` is in
-		## the same position and is deliberately LEFT, because it is a damage rate
-		## and the owner decides those: board SG-164.
-		_field({"position": land,
-			"dps": 13.0 * float(mods.residue), "time": 2.0, "tick": 0.0})
+		## by it — the tick has always used one flat radius (SG-163). The rate is
+		## named by `source`/`stacks` now (SG-164) — the table decides it, not
+		## this call site.
+		_field({"position": land, "source": "residue",
+			"stacks": float(mods.residue), "time": 2.0, "tick": 0.0})
 	## All shots, hulk splash and Residue are resolved before the one public
 	## landing. A multi-shot cast therefore claims ground once, at its final land.
 	relocate_fields(land)
@@ -3426,8 +3426,11 @@ func _finish_active_channel() -> void:
 	var snap: Dictionary = row.snapshot
 	hulk_splash(Vector2(row.last_land), float(snap.damage) * float(snap.shots))
 	if float(snap.residue) > 0.0:
-		_field({"position": Vector2(row.last_land),
-			"dps": 13.0 * float(snap.residue), "time": 2.0, "tick": 0.0})
+		## THE CHANNELLED RESIDUE PATH — the one nobody counted. Same table,
+		## same source name, so an instant cast and a channelled one leave the
+		## same fire (board SG-164).
+		_field({"position": Vector2(row.last_land), "source": "residue",
+			"stacks": float(snap.residue), "time": 2.0, "tick": 0.0})
 	## Completion publishes the inherited Ray midpoint. Cancellation clears the
 	## channel without reaching this function, so it publishes nothing.
 	relocate_fields(Vector2(row.last_land))
@@ -4007,9 +4010,10 @@ func bleed_jet(direction: Vector2) -> bool:
 			+ heading * float(spec.distance) * (float(i) / float(steps))
 		## `spec.trail_radius` (46) was passed here and burned nothing — it sized
 		## only the picture, which is exactly the 46-drawn/78-burned gap SG-163
-		## closes. It is no longer read; `trail_dps` is left for board SG-164.
-		_field({"position": at,
-			"dps": float(spec.trail_dps), "time": float(spec.trail_life), "tick": 0.0})
+		## closes; the key is deleted now rather than left unread. `trail_dps` is
+		## gone too — the rate is the table's, keyed by `source` (board SG-164).
+		_field({"position": at, "source": "scald_trail",
+			"time": float(spec.trail_life), "tick": 0.0})
 	player.jet(heading, float(spec.distance), float(spec.time))
 	play_sfx("player/dash.ogg", -4.0)
 	return true
@@ -4656,6 +4660,25 @@ func fire_pool_radius() -> float:
 	return FIRE_RADIUS
 
 
+## The captain's share of a pool's rate. DERIVED, not chosen: the shipped pair
+## was 7.5 to a boarder and 3.0 to her, and 3.0 / 7.5 is 0.4. Writing it as the
+## ratio keeps that asymmetry true when a source's rate moves.
+const PLAYER_FIRE_SHARE := 0.4
+
+
+## Per-source damage rate (board SG-164). `_field()` stamps this into every
+## pool the way it stamps `radius` (SG-163), so a caller cannot put a rate into
+## a pool the burn will ignore. An unknown source falls back to `lantern`
+## rather than to zero, so a typo in a `source` string still burns.
+func fire_pool_dps(source: String, stacks: float) -> float:
+	var row: Dictionary = SkyGearData.FIRE_SOURCES.get(
+		source, SkyGearData.FIRE_SOURCES["lantern"])
+	var base: float = float(row.dps)
+	if bool(row.get("per_stack", false)):
+		return base * maxf(1.0, stacks)
+	return base
+
+
 func _update_fire_fields(delta: float) -> void:
 	for i in range(fire_fields.size() - 1, -1, -1):
 		var field: Dictionary = fire_fields[i]
@@ -4665,8 +4688,9 @@ func _update_fire_fields(delta: float) -> void:
 			field.tick = float(field.tick) + FIRE_TICK
 			## A pool tick CRITS (SG-159), per tick, four times a second.
 			## The radius is asked for, never restated (SG-163) — four numbers
-			## used to claim to be this one.
-			_damage_circle(field.position, fire_pool_radius(), 7.5, "EMBER", 0.0, false, false)
+			## used to claim to be this one. The rate is asked for too now
+			## (SG-164) — `field.dps` is stamped by `_field()`, never authored here.
+			_damage_circle(field.position, fire_pool_radius(), float(field.dps) * FIRE_TICK, "EMBER", 0.0, false, false)
 			if field.position.distance_to(player.global_position) <= fire_pool_radius():
 				## NO I-FRAMES (SG-117). This tick fires four times a second, and
 				## granting the standard 0.55 s window made a fire pool the safest
@@ -4675,7 +4699,7 @@ func _update_fire_fields(delta: float) -> void:
 				## third of its authored rate — and, far worse, that window is one
 				## global variable, so it blocked boarders' swings and gunners'
 				## bolts too. Standing in fire was a defensive move.
-				damage_player(3.0, "fire", false)
+				damage_player(float(field.dps) * FIRE_TICK * PLAYER_FIRE_SHARE, "fire", false)
 		if float(field.time) <= 0.0:
 			fire_fields.remove_at(i)
 
@@ -5576,6 +5600,11 @@ func _field(d: Dictionary) -> void:
 	## smaller than a residue pool is a live question and it is board SG-164 —
 	## the answer belongs in one place, and this is that place.
 	d["radius"] = FIRE_RADIUS
+	## A POOL'S RATE IS THE TABLE'S, NOT THE CALLER'S (board SG-164), on the
+	## same principle as the radius stamp above: the four creators name a
+	## `source` and, where it varies, `stacks`; the rate itself is decided here
+	## so a caller cannot put a number in the dictionary the tick will ignore.
+	d["dps"] = fire_pool_dps(str(d.get("source", "lantern")), float(d.get("stacks", 1.0)))
 	fire_fields.append(d)
 
 

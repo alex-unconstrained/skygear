@@ -127,7 +127,6 @@ const BAND_NEAR := 0.55   ## inside this fraction of the band she backs off
 const BAND_FAR := 1.00    ## beyond this fraction she closes
 const EDGE := 140.0       ## steer off a deck wall this close
 const DASH_AT := 90.0     ## dash defensively only when something is this close
-const FIRE_RADIUS := 78.0 ## `_update_fire_fields`' own number
 
 const ACTIONS := ["move_left", "move_right", "move_up", "move_down"]
 
@@ -212,7 +211,10 @@ func desired(game: SkyGearGame) -> Vector2:
 	for field in game.fire_fields:
 		var away: Vector2 = here - (field.position as Vector2)
 		var reach := away.length()
-		if reach < FIRE_RADIUS:
+		## Reads the pool's OWN radius (board SG-164) rather than a private
+		## constant she used to keep a second copy of, or she flees a pool by a
+		## remembered number instead of the one that is actually burning.
+		if reach < float(field.radius):
 			want += (away / reach if reach > 1.0 else Vector2.UP) * 2.0
 
 	var deck: Rect2 = SkyGearGame.DECK_RECT
