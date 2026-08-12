@@ -429,7 +429,7 @@ func _run() -> void:
 	## so the count is PINNED: it may fall, it may not rise. The next agent who
 	## adds a 57th has to look at it, and whoever fixes SG-153 lowers this number
 	## and the check tightens itself.
-	const ENGINE_ERROR_BUDGET := 56
+	const ENGINE_ERROR_BUDGET := 54
 	_check("harness", "and no more engine errors than the ones already written down",
 		_errors.engine_errors.size() <= ENGINE_ERROR_BUDGET,
 		"%d engine errors against a pinned %d (SG-153)%s"
@@ -2713,7 +2713,8 @@ func _owner_layout_untouched() -> void:
 	_owner_file_guard("and it never touches the player's own settings either", SkyGearAudio.SETTINGS_PATH,
 		_owner_settings_before, cfg_now_diverted)
 
-	## THE SG-182 THREE, and they are the BYTE-COMPARE kind on purpose.
+	## THE SG-182 THREE, and what they assert is `diverted` — the byte delta is
+	## reported alongside as corroboration, not asserted itself.
 	##
 	## The lesson SG-181 paid for: a check asserting "the scratch file has what I
 	## wrote into it" passes just as happily when the diversion is being ignored
@@ -3574,14 +3575,14 @@ func _berths_foot_strip() -> void:
 			var shelved: bool = SkyGearFittings.tabled(str(id))
 			## Exactly the two sentences `_draw_berths` builds, both branches.
 			var lead: String = "%s  ·  %s" % [str(fit.name),
-				("tabled with the crate-verb family — nothing is lost" if shelved
+				("stowed below decks — nothing you have earned is lost" if shelved
 					else str(fit.text))]
 			var states: Array = ["berthed · tap to clear the berth",
 				"earned · tap to berth",
 				"earned · the berth row is full — clear one first",
 				"locked · earned by: %s" % str(fit.earn)]
 			if shelved:
-				states = ["TABLED — an interaction pass will revisit"]
+				states = ["STOWED — not rigged for this voyage"]
 			for status in states:
 				var share: Vector2 = hud._share_strip(lead, 14,
 					SkyGearInk.MIN_PT, str(status), 13, 10, budget)
@@ -14657,6 +14658,23 @@ func _shipping_readme() -> void:
 		"offending phrases %s; wave count parameterised %s"
 			% [str(readme_sins), str(packer.contains("{WAVES}"))])
 
+	## HARDENED, per the Task 2 review: `packer.contains("{WAVES}")` alone is
+	## green in two scenarios where both zips still misinform — (A) the
+	## `.replace(...)` call site is deleted so the sentinel ships literally, or
+	## (B) the template is re-hardcoded to a literal count while the call site
+	## remains, so `contains()` is satisfied by the call site alone and the
+	## demo README promises the full-game count of its own shorter run. Require
+	## the sentinel INSIDE the template AND the substitution call, so neither
+	## alone can satisfy this.
+	var tmpl_start := packer.find("README_TMPL = ")
+	var tmpl_end := packer.find("\"\"\"", packer.find("\"\"\"", tmpl_start) + 3)
+	var template_body := packer.substr(tmpl_start, maxi(0, tmpl_end - tmpl_start))
+	_check("shipping", "the packed README's wave count is a sentinel in the template AND substituted at pack time",
+		template_body.contains("{WAVES}")
+			and packer.contains("README_TMPL.replace(\"{WAVES}\""),
+		"sentinel in template %s; substituted at pack time %s"
+			% [str(template_body.contains("{WAVES}")), str(packer.contains("README_TMPL.replace(\"{WAVES}\""))])
+
 
 func _shipping_version_stamp() -> void:
 	## SG-210 asked for this domain and it never got written, which is how the exe
@@ -14689,10 +14707,13 @@ func _shipping_window_title() -> void:
 	var game_src := FileAccess.get_file_as_string("res://scripts/game.gd")
 	_check("shipping", "the window names the game, and the save path is left where the saves are",
 		game_src.contains("DisplayServer.window_set_title(\"SkyGear\")")
-			and proj.contains("config/name=\"SkyGear: Godot Port\""),
-		"title call %s; config/name untouched %s"
+			and proj.contains("config/name=\"SkyGear: Godot Port\"")
+			and not proj.contains("use_custom_user_dir")
+			and not proj.contains("custom_user_dir_name"),
+		"title call %s; config/name untouched %s; no custom_user_dir door %s"
 			% [str(game_src.contains("DisplayServer.window_set_title(\"SkyGear\")")),
-				str(proj.contains("config/name=\"SkyGear: Godot Port\""))])
+				str(proj.contains("config/name=\"SkyGear: Godot Port\"")),
+				str(not proj.contains("use_custom_user_dir") and not proj.contains("custom_user_dir_name"))])
 
 
 func _is_letter(c: String) -> bool:
