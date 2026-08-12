@@ -1,0 +1,1637 @@
+Godot Engine v4.7.1.stable.official.a13da4feb - https://godotengine.org
+
+
+SKYGEAR Godot port · parity harness
+
+  ok  boot · boots to the title screen
+  ok  boot · the roster is loaded   9 shapes, 4 elements, 12 waves
+  ok  boot · a run starts on wave one with a weapon
+  ok  boot · the captain has two dash charges   2
+  ok  matrix · every shape x element deals damage   36 cells, dead: 
+  ok  close · pressure builds in close and only in close   close +34.0, at range +0.0
+  ok  close · a full gauge vents: heals, hits, and does not refill itself   hp 50, dealt 40, gauge 0
+  ok  close · no burst of healing exceeds the per-second ceiling   1000 offered, 12.0 taken (cap 12)
+  ok  close · lifesteal heals in close and heals nothing at range   close +50.0, at range +0.0
+  ok  deck · the deck carries destructible ordnance   31 props
+  ok  deck · a keg exists to light
+  ok  deck · killing a keg lights a fuse rather than detonating   fuse 0.45s
+  ok  deck · the blast lands on what is standing in it   victim 60 -> 35
+  ok  deck · the deck is re-stowed for the next wave   31 standing
+  ok  stow · the powder store keeps its kegs two hundred apart   12 kegs, nearest pair 202
+  ok  tempo · the same seed deals the same tempo twelve times   SSSSSSSSCSSS
+  ok  tempo · event waves are always STEADY   4/8/12 across 12 seeds, and Heat 4's pushed 6/10
+  ok  tempo · waves one and two keep the taught opening
+  ok  tempo · no profile pushes a spawn more than 8 seconds past the wave's authored last batch   worst overhang 6.89 s across 240 waves
+  ok  tempo · rolling the tempo leaves rng.state untouched
+  ok  tempo · STEADY deals today's queue byte-identically   12 waves under the flat lever
+  ok  tempo · SURGE's gaps are bimodal where STEADY's are unimodal — the gap-histogram valley test   SURGE 267 gaps: 219 at the metronome, 48 in the lulls, 0 in the 1–3 s valley · STEADY 804 gaps, all at 0.22
+  ok  tempo · CRESCENDO tightens monotonically through the wave
+  ok  fittings · no fitting names a forbidden field   6 rows, keys within {name,text,earn,props,wall,turret,verb}
+  ok  fittings · the tabled fittings are exactly the verb-granting ones while the family is down    wreck:tabled=false bow_barricade:tabled=false spare_gun:tabled=false fourth_vent:tabled=false winch:tabled=true scupper_grating:tabled=false
+  ok  fittings · and with the flag lifted every verb-granting fitting names its real row again, and the row names it back    winch<->winch_crate:true
+  ok  fittings · nothing is earned before the first victory
+  ok  fittings · the first victory keeps the wreck, and it berths itself
+  ok  fittings · at most one fitting per run — the first unowned rule in table order   kept bow_barricade
+  ok  fittings · a Heat win pays the spare gun   spare_gun
+  ok  fittings · a Boilerwright win pays his vent   fourth_vent
+  ok  fittings · twelve salvage pays nothing while the winch is tabled — its award rule is skipped   kept ''
+  ok  fittings · an unhealed win pays the scupper grating — the next rule takes the tabled winch's turn   scupper_grating
+  ok  fittings · and a ship that owns everything awardable earns nothing more — the winch stays unearnable while tabled
+  ok  fittings · five earned fittings berthed themselves into five berths — the tabled winch takes none   ["wreck", "bow_barricade", "spare_gun", "fourth_vent", "scupper_grating"]
+  ok  fittings · the berth cap refuses a seventh   6 berthed
+  ok  fittings · a fitting the ship has not earned refuses to berth
+  ok  fittings · an earned winch refuses to berth while tabled
+  ok  fittings · and nothing berths before the first victory
+  ok  fittings · berthing and clearing round-trip the state
+  ok  fittings · the earned set round-trips the save file, and a berthed winch un-berths gracefully on load — earned, never lost   berths ["bow_barricade"]
+  ok  fittings · a pre-berth winner's save keeps its wreck — earned and berthed by migration
+  ok  fittings · a denied write reports clean without reaching the disk
+  ok  fittings · the winch verb does not exist on a ship without the fitting   offered nothing
+  ok  fittings · a ship with nothing berthed sails today's deck exactly — byte for byte   880 vs 880 chars, 3 vents
+  ok  fittings · placing the whole berth set consumes nothing from the seeded stream   rng 1539453611242071813 vs 1539453611242071813
+  ok  fittings · the fourth vent and the scupper's vent stand at run start   5 vents
+  ok  fittings · the bow barricade's crate line stands where the boarders land   2 fixed crates
+  ok  fittings · the spare gun is a fourth cannon and it ships broken   4 guns
+  ok  fittings · and the lane's own gun still gates the lane while it lives
+  ok  fittings · the repair verb that already exists is how the spare gun comes back
+  ok  fittings · the scupper grating is closed to the captain   corrected to -358,515
+  ok  fittings · and invisible to the boarders' world — the cargo list is the eight walls   8 rects (8 walls; the tabled crate is an ordinary prop — SG-68)
+  ok  fittings · cross-passages stay passable with every fitting berthed   port 2 of 3 open (the scupper seals one by design), starboard 3 of 3
+  ok  fittings · there is still a crate stack the winch would have hauled
+  ok  fittings · the winch is tabled — a stale save's berthed winch never sails and grants no verb   offered nothing
+  ok  fittings · and the haul itself refuses while tabled — the stack never moves   moved 0.0 units
+  ok  log · the row carries the berthed set that reproduces the deck   ["wreck", "bow_barricade", "spare_gun", "fourth_vent", "scupper_grating"] (five sail — the tabled winch stays ashore, SG-68)
+  ok  log · and the report names the refit   refit · THE WRECK, BOW BARRICADE, SPARE GUN, FOURTH VENT, SCUPPER GRATING
+  ok  fittings · the ship never changes mid-run — a berth signed mid-run waits for the next run   3 vents, 3 guns, 0 walls
+  ok  fittings · and the next run collects everything that was signed — except the tabled winch   5 vents, 4 guns, 1 walls
+  ok  berths · every slate's foot strip fits both its sentences at the ink floor   0 over: 
+  ok  berths · and the tightest slate on the board still keeps room to spare   worst headroom 52.0 px, at scupper_grating at 1280x720
+  ok  berths · the strip hands its slack to the lead when both sentences fit   lead 891.0, status 9.0
+  ok  berths · and never widens a column past the strip to hide an overflow   lead 20.0 + status 20.0 against 40
+  ok  lanes · a deck cannon gates every lane   3 cannons
+  ok  lanes · a deck cannon fires on the boarder in its lane   1000000 -> 999992
+  ok  knockback · there is a boarder to shove
+  ok  knockback · a shove is capped however many things land at once   twelve hits stacked to 900 against a cap of 900
+  ok  knockback · and carries a fraction of the deck, not all of it   386 units against a 2320 deck
+  ok  knockback · there is an outer-lane boarder to push
+  ok  knockback · a hard shove at the rail puts a boarder over the side   still aboard at x=934
+  ok  knockback · and an ordinary hit leaves them on the deck   a 150 shove threw them off, which makes the rail a hazard rather than a finisher
+  ok  lanes · a boarder attacks the cannon in its way   cannon 712 -> 652
+  ok  lanes · crew muster and hold a lane   6 crew
+  ok  lanes · a push wave grapples a boarding hulk to the hull   hulk hp 1500, state sealed
+  ok  lanes · the push wave does not end while its hulk lives
+  ok  lanes · breaking the hulk clears the push   clear timer 0.15, state PLAY
+  ok  hulk · no wave, no hulk — the state is empty until one grapples on
+  ok  hulk · sealed until the grapple lands, open while it disgorges, destroyed when it breaks — each state wears its own face   sealed true (shrugged true) -> open true (bit true) -> destroyed true
+  ok  hulk · and every state the simulation can be in has a face to wear   clean
+  ok  hulk · every class's own swing bites the hull — the SG-186 zero   2 classes swung with the lane empty; all of them bit it
+  ok  hulk · and a boarder still wins the aim — the hull is the last resort, not the first   2 of 2 classes swung at the boarder standing beside the hull
+  ok  hulk · and the reach it swings at the hull from is the splash band, asked rather than re-derived   asks the band true · pays the splash true · carries the literal false
+  ok  hulk · and the bar reads the same hulk in all three states — full sealed, halved open, gone wrecked   sealed 1.000, open 0.500, wrecked gone
+  ok  hulk · with nothing grappled on, the bow is open deck as it always was   (0.0, -1000.0)
+  ok  hulk · the captain is stopped at the hull — walked into it from any side she ends outside it, and on the deck   clean
+  ok  hulk · and only there — every other step on the deck is handed back untouched   clean
+  ok  hulk · and the boarders walk out of it exactly as they always did — the hull is hers alone   clean
+  ok  crew · the leash is the lane spacing, read off the deck rather than typed twice   leash 560 against a 560 spacing
+  ok  crew · and two lanes over is out of reach by geometry, so the adjacency clause is a guard rather than the mechanism   nearest possible two-lanes-over boarder is 930 from a station, leash 560
+  ok  crew · a full watch musters and every hand has a station of his own   12 hands
+  ok  crew · a boarder in his own lane is still his, whatever is happening next door   clean
+  ok  crew · and a crewman whose own lane is clear goes to the fight in the next one   3 from port, 2 from starboard, 3 holding
+  ok  crew · he will not be sent further from his own post than one lane   clean; the boarder 850 out was picked by 0 outer hands
+  ok  crew · one man per boarder — a fight next door does not collect a mob   5 assisting onto 5 distinct boarders
+  ok  crew · and every lane keeps its anchor, however loud the fight next door   clean
+  ok  crew · and he turns for home the tick a boarder lands in his own lane — no timer to run out   hand 1 was on a lane-1 boarder, is now on the one that just landed in his own lane
+  ok  crew · a hulk with its door open outranks the fight next door — the siege is their actual job   1 assisting with no hulk, 0 with one open
+  ok  crew · a man with nothing to fight stands at his post instead of swinging at the planking   0 swing-ticks over 8 s on an empty deck, every hand at his post
+  ok  crew · and he is standing still in the field the renderer reads, not only in the one the simulation does   0 hands at rest carrying a non-zero velocity
+  ok  crew · every hand in a lane holds the same station — fanning the idle watch out cost 17% more damage taken, so it is refused   3 distinct stations for 12 hands across 3 lanes
+  ok  crew · a crew swing is counted in the crew row AND in the allies row; a cannon shot only in allies   crew 7.0 of allies 12.0, 1 kills
+  ok  crew · and a sailor swinging on a real deck moves both rows by the same amount   crew 21.0, allies 21.0
+  ok  victim · a crewman takes damage from a boarder's swing   34 of 68 left after one 34-damage swing
+  ok  victim · and enough of them KILL him — the thing nothing in this harness has ever said   down in 2 swings of 34 against a 68 pool
+  ok  victim · and a dead hand takes no more, so a corpse cannot soak a lane   hp 0.0 unchanged by a further blow
+  ok  victim · the fixture is honest: the crewman is inside the radius that would notice him   crewman 40 away against a 220 radius, and the lane gun is 1300 further down
+  ok  victim · a live lane cannon outranks a crewman standing right in front of it   walking at the turret
+  ok  victim · and with that gun down the same boarder turns on the same crewman — the SG-193 finding   walking at the crew
+  ok  victim · a crewman past the notice radius is a crewman nobody is walking at   walking at the boiler
+  ok  victim · and the captain inside the chase radius outranks every one of them   walking at the player
+  ok  victim · a resolved swing writes down what it aimed at and what it landed on   aimed/landed = player/player
+  ok  victim · a furnace knight's swing trips well inside the band the bot holds — the SG-194 arithmetic   trips at 99 against a 210 band, so he must close 111 units to swing at all
+  ok  victim · and he is slower than the captain, so closing that gap is not something he can simply do   knight 75 against a captain's 260 walk (and a 1656 dash)
+  ok  knockback · the SG-62 fling is dead: one capped hit through the enemy's own frame carries a shove, not the deck   the shove carried them 60 stern-ward against the 60 line; deepest y 435 (before the fix: 1338 units of carry, to the stern wall past the Boiler at 850)
+  ok  knockback · no stack of multipliers beats the per-hit cap   SLEDGE ×1.6 · ×1.4 every source · hits every 0.15 s: shove speed peaked 900 (cap 900), ground carried 390 (cap 390)
+  ok  knockback · an enemy is never delivered stern-ward   every hit from the bow side, and the whole barrage moved them 60 stern-ward against the 60 line — stopped, never handed to the Boiler
+  ok  knockback · a knock multiplier is applied once, not squared   table 260 at ×2.0 landed 520 — the squared version dealt 1040
+  ok  allies · the alive cap holds under flood   80 muster bells asked for 480 crew; 32 allies stand against the cap of 32
+  ok  allies · and a sentry never squeezes past the cap — refused full, honoured with room   32 allies with the sentry placed
+  ok  allies · an ordinary muster still arrives whole   6 crew from one bell
+  ok  draft · every card declares what it touches
+  ok  draft · the draft offers several classes of card   { "all": 13, "deck": 4, "element": 41, "captain": 24, "skill": 31, "ship": 6, "meta": 1 }
+  ok  draft · reroll spends one, deals a new hand, and stops at zero   rerolled=true changed=true refused=true
+  ok  draft · choosing a card changes the run   SCRAPPER'S LUCK
+  ok  seed · the same seed deals the same hand   FROST BEAM|EMBER WHIP|ARC SENTRY|
+  ok  seed · a different seed deals a different hand   FROST LANCE|STEAM WHIP|STEAM FIELD|
+  ok  report · damage is attributed to the slot that fired   slot0 154, slot1 0
+  ok  report · casts are counted   6
+  ok  report · engagement distance is sampled   1.05s close
+  ok  auto · an untouched core is the class's own   EMBER
+  ok  auto · and naming another one costs the seeded stream nothing   state moved to 3621344252800048673
+  ok  auto · the pick reaches the swing, not just the nameplate   Frost Cleave
+  ok  auto · the core cycles every element and comes home   4 of 4
+  ok  auto · and the Cleave is still never dealt as a card   8 shapes x 4 elements
+  ok  report · the run report names the build, the seed and the work   wave 1/12 · 0:02 · seed REPORT
+  ok  report · and it arrives as separate lines, not as one long string   14 lines, head SKYGEAR — Godot port
+  ok  report · and no script spells a newline by pressing Enter inside a string   raw line breaks in:
+  ok  report · both endings carry their reason — neither verdict trails an empty dash   won: DECK HELD — Twelve waves repelled. The deck is yours. / lost: BOARDED — The Boiler was destroyed on wave 1.
+  ok  beam · four scheduled ticks total twenty-eight base damage   1/60 28.0, 0.05 28.0, 0.40 catch-up 28.0
+  ok  beam · cooldown and Overpressure are paid once on press   pressure 40.0, cooldown 0.48, casts 1
+  ok  beam · maximum ordinary cooldown reduction cannot produce a cooldown below channel time; a free cast still cannot re-enter its live channel   floor 0.36, free 0.00, casts 5
+  ok  beam · an explicit target is stable and live aim can turn between ticks   fixed true, live true
+  ok  beam · walking is sixty percent while dash and jet cancel   scale 0.60, dash true, jet true
+  ok  beam · another cast and the basic wait for completion   blocked true, later cast 1, basic 0.36
+  ok  beam · pause, hit-stop, reset and death own no orphan tick   hurt true, pause true, stop true, reset true, death true, wave true
+  ok  beam · one cast and four hits share one slot attribution   casts 1, hits 4, damage 28.0
+  ok  beam · one body receives one element application per channel while damage and crit remain per tick; a swept-in body receives one and the next cast resets   serials 1/2, stacks 2/2, hits 15, immune true -> true
+  ok  beam · its crit explosion shares the element-once context while a kill explosion caused inside the same call tree receives null and applies normally   crit context true, kill null true
+  ok  beam · last_land is the current ray midpoint, not the line endpoint   land (20.0, -200.0), midpoint (20.0, -200.0), end (20.0, -440.0)
+  ok  beam · hulk and Residue resolve once, never once per visual frame   during true, hulk 1000.0 -> 993.0, fields 1
+  ok  beam · the forced clip shows a readable start, held line and release with zero probe noise   simulation endpoint reader true, forced probe true
+  ok  field · Field remains passive with frozen damage, radius and tick rate   passive true, damage 4.0, radius 150.0, rate 1.8
+  ok  field · initial center follows the captain live until first accepted active landing   owned true/true, centers (40.0, 80.0) -> (-120.0, 210.0)
+  ok  field · arc, line and cone publish their existing land results   { "CLOSEHIT": true, "LINE_BURST": true, "CONE": true }
+  ok  field · Mortar publishes its clamped target and Whip its final reached target   Mortar (420.0, 0.0)/(420.0, 0.0), Whip (250.0, 0.0)/(250.0, 0.0)
+  ok  field · manual Sentry relocates at its clamped placement and automatic placement does not   manual (520.0, 0.0) set true, auto (80.0, 90.0) set false, refused true at (-300.0, -300.0) cooldown 0.0/0.0
+  ok  field · Beam completion publishes its midpoint and cancellation publishes nothing   cancel true, completed (0.0, -240.0) set true
+  ok  field · multi-shot publishes final resolved land exactly once after all shots   center (260.0, 0.0)/(260.0, 0.0), cast calls 1, inside loop false, kill-autofire true at (260.0, 0.0)/(260.0, 0.0)
+  ok  field · wave start unsets anchors while pause and draft preserve initialized ground   pause (300.0, -200.0), draft (300.0, -200.0), wave (-80.0, 70.0) set false
+  ok  field · tick damage is centered on the anchored Field   anchor hp 96.0, captain hp 100.0
+  ok  field · renderer and simulation read the same field_center   simulation reader true, renderer reader true
+  ok  field · a passive-only build follows the captain for the full wave   set false, followed hp 96.0/96.0
+  ok  field · deleting field_center from the damage tick is observable   behavior true, anchored calls 1, deleted call false
+  ok  pulse · Pulse keeps its authored damage radius and raw period while adding a 0.35 cast advance   passive true damage 34.0 radius 210.0 raw 4.4 advance 0.35 derived 3.52
+  ok  pulse · an accepted regular cast advances every equipped Pulse once after Field and cooldown   timers [1.65, 1.65] field true cooldown 0.88 ordering true
+  ok  pulse · rejected casts passives and the class basic advance no Pulse   cooldown reject true passive true basic true timer 2.00
+  ok  pulse · Beam advances once at start while completion and cancellation add nothing   start 1.65 finish 1.65 second start 1.30 cancel 1.30
+  ok  pulse · a multi-shot cast advances once after its final landing   four shots left 1.65, advance in loop false
+  ok  pulse · successful manual Sentry advances after placement while automatic and refused Sentry do not   manual true auto true refused true timers 2.00/2.00/2.00
+  ok  pulse · kill-autofire is one real cast and advances Pulse once   casts 1 timer 1.65
+  ok  pulse · accumulated advance floors above one derived period and the public due-now read is zero   raw -3.5190 floor -3.5190 public 0.0000
+  ok  pulse · the derived Pulse timer carries remainder at 1/60 and 0.05   1/60 damage 34.0 left 2.6200, 0.05 damage 34.0 left 2.6200, want 2.6200
+  ok  pulse · multi-tick catch-up remains the sole Pulse firing scheduler   damage 102.0 hits 3 left 3.4200/3.420000
+  ok  pulse · pause and hit-stop freeze the Pulse timer   pause true hit-stop true timer 2.000
+  ok  pulse · reset and death own no orphan Pulse advance or discharge   death true timer/target held, reset skills 0
+  ok  pulse · Second Hand keeps a fifth keyless Pulse with one visible scheduler-owned timer   slots 5 passive true casts 0 sampled true HUD true/true left 1.073
+  ok  cleave · the Captain's arc keeps 0.36, 190, 2.443 and 150 while authoring 20/20, twelve degrees, 110 and 1.20   0.36/190/2.443/150, [20.0, 20.0] at 12.00 deg, close 110 x 1.20 = 44
+  ok  cleave · the Boilerwright's Scald and the drafted Cleave card carry no two-beat fields and no beat   Scald 18 then 18 (authored 18), serial 0
+ FAIL cleave · the next beat reads port before any target exists and begin_run puts it back   empty deck reads port at serial 0, then port, begin_run port at 0
+ FAIL cleave · odd cuts centre twelve degrees to port and even cuts twelve degrees to starboard   odd port 20 star 0, even port 20 star 0
+ FAIL cleave · a swing that finds no body and no hull advances neither serial, beat nor cooldown   miss quiet true, corpse quiet true, then serial 0 reading port
+ FAIL cleave · two connected close cuts total 44 and two cuts at the edge total 40   close 20 + 20 = 40, edge 20 + 20 = 40
+ FAIL cleave · the 110 band is measured per body inside one latched return cone   near 40 over two cuts, far 0 on the return
+ FAIL cleave · one swing latches one beat however many bodies the cone catches   serial 0 then 0 over 3 bodies paying [40.0, 40.0, 40.0]
+ FAIL cleave · the hull takes the resolved 20 or 24 once through the ordinary splash   hull close 20 then 20 at serial 0, hull far 40 over two
+ FAIL cleave · all four elements carry the same two-beat damage   4 elements, faults ["EMBER 20/40 drawn EMBER", "FROST 20/40 drawn FROST", "ARC 20/40 drawn ARC", "STEAM 20/40 drawn STEAM"]
+ FAIL cleave · crit, the global multipliers, knock, sound and basic attribution stay on the ordinary path   crit 40/80, x2 80, knock true, basic bucket 40 over 2 hits
+ FAIL cleave · the basic seam consumes no burn and reacts to no Kindle   burning body paid 40, stacks 1 then 2
+ FAIL cleave · staying out for the first cut and closing for the telegraphed return pays 20 then 24   stood off 20, tell port, closed for 20
+ FAIL cleave · the deck shows the side that enters next before a target is acquired, on no presentation timer   empty deck tell at -2.521, after one cut -2.521 (aim -1.571)
+ FAIL cleave · the two cuts enter from opposite sides without moving the simulation arc   sides port/port, aims -1.780/-1.780, arc 2.443, reach 190, leads -0.550/0.550
+  ok  status · Accelerant scales the shipped per-tick burn once   one stack dealt 1.875 (want 1.875)
+  ok  status · Slow Combustion extends Ember from the shipped three seconds   burn time 5.00
+  ok  status · Deep Chill supplies the existing Frost slow amount   slow 0.55 for 2.00
+  ok  status · Overload supplies Arc stun chance and zero chance consumes no RNG   zero/rng true, certain stun 0.45
+  ok  status · the quarter-second carried burn clock agrees at 1/60, 0.05 and catch-up steps   1/60 5.00, 0.05 5.00, catch-up 5.00
+  ok  status · the latest Ember source owns later burn, including the fifth slot   source 4, slot-four hits 1 damage 2.50
+  ok  status · primary attribution counts status once and reaction rows only describe it   primary 2.50, reaction { "triggers": 1, "damage": 2.5 }, row true, silent true
+  ok  status · burn cannot crit, recurse, knock, gain slow bonus or consume RNG   damage 1.25, stacks 1, knock (0.0, 0.0), rng true/true
+  ok  status · lethal burn uses one kill, salvage and report path without extending Tap Main   dead true, { "casts": 0, "damage": 1.0, "kills": 1, "hits": 1, "shape": "", "element": "" }, salvage 1, tap 1.00, stop 0.000
+  ok  status · airborne and boss-turn immunity spend suppressed ticks instead of storing a burst   air true/true/true, turn true -> 98.75
+  ok  status · deck and allied status damage fund no hero gauge or lifesteal   pressure 0.00, hp 80.00, deck 2.00, allies 3.00
+  ok  status · damage-attribution v2 changes the Ember report but not its physical outcome or the non-Ember control   hp 98.75, pressure 1.063/1.063, heal 0.625, ember row true, frost stable true
+  ok  status · the burn loop has no direct HP subtraction and deleting the status funnel is observable   helper true, burn calls helper true, direct subtraction false
+  ok  status · pause, expiry, reset and death leave no orphan status clock   pause true, expiry true, reset queued true
+  ok  status · immune and dead status targets deal zero, record no reaction and restore the source slot   immune 0.00, dead 0.00, reactions {  }, source 3
+  ok  crit · two boarders stand close enough to pass an explosion between them   2 spawned
+  ok  crit · an explosion may not explode   neighbour hp 41.0 dead=false — expected 41.0 alive
+  ok  crit · and the hit that opened it is still a crit   struck hp 21.0 dead=false — expected 21.0 alive
+  ok  crit · the explosion still reaches a neighbour at all — the guard against capping it to nothing   neighbour hp 41.0
+  ok  crit · a circle opened first-hand still crits, so the cap did not reach the auras   hp 380.0 — expected 380.0
+  ok  crit · the kill explosion can crit   the kill explosion dealt 60.0, expected the crit-doubled 60.0 - SG-148 is back at that call site
+  ok  crit · the vent can crit   the vent dealt 80.0, expected the crit-doubled 80.0 - SG-148 is back at that call site
+  ok  crit · a fire pool's tick can crit   a fire pool's tick dealt 15.0, expected the crit-doubled 15.0 - SG-148 is back at that call site
+  ok  crit · a keg can crit   a keg dealt 156.0, expected the crit-doubled 156.0 - SG-148 is back at that call site
+  ok  crit · the lane cannon can crit   the lane cannon dealt 88.0, expected the crit-doubled 88.0 - SG-148 is back at that call site
+  ok  crit · the crew's swing can crit   the crew's swing dealt 3.0, expected the crit-doubled 3.0 - SG-148 is back at that call site
+  ok  crit · and with no crit rolled the kill explosion deals its authored damage, so the check is reading that source   the kill explosion dealt 30.0, expected the authored 30.0
+  ok  crit · and with no crit rolled the vent deals its authored damage, so the check is reading that source   the vent dealt 40.0, expected the authored 40.0
+  ok  crit · and with no crit rolled a fire pool's tick deals its authored damage, so the check is reading that source   a fire pool's tick dealt 7.5, expected the authored 7.5
+  ok  crit · and with no crit rolled a keg deals its authored damage, so the check is reading that source   a keg dealt 78.0, expected the authored 78.0
+  ok  crit · and with no crit rolled the lane cannon deals its authored damage, so the check is reading that source   the lane cannon dealt 44.0, expected the authored 44.0
+  ok  crit · and with no crit rolled the crew's swing deals its authored damage, so the check is reading that source   the crew's swing dealt 1.5, expected the authored 1.5
+  ok  xray · the deck has somewhere to hide and somewhere to stand in the open   hidden (-340.0, -980.0) / open (-820.0, -1140.0)
+  ok  xray · a boarder is a mesh with no sprite, so the painted-plate silhouette could never have drawn one   rig true / billboard false
+  ok  xray · a boarder standing behind the cargo is drawn as a silhouette   1 of 1 mesh parts carry the ghost
+  ok  xray · and the silhouette draws THROUGH the crates rather than being hidden by them   no_depth_test true / unshaded true
+  ok  xray · and it clears the moment he steps into the open — the guard against a permanent ghost   0 of 1 still ghosted
+  ok  xray · and a corpse does not keep the ghost the boarder had — the guard against a silhouette outliving its owner   1 ghosted before the kill, 0 after
+  ok  figure · the renderer fits a boarder's swing to the WHOLE attack and never re-fits it mid-swing — SG-188   'swing3' at 0.96x..0.96x across 38 frames of a 1.90s attack (it read 1.83x rising to the 4.00x clamp)
+  ok  figure · and the clip it picked lasts the attack, so nothing is frozen waiting for the recovery to end   the swing covers 100% of its 1.90s attack
+  ok  weapon · the table arms the hero classes AND the figures on the deck   armed: armored, boilerwright, captain, crew, swarm
+  ok  weapon · every armed figure has a body and a weapon on disk   no body: -   no weapon: -
+  ok  weapon · and the renderer's own mount puts a real weapon in every one of those hands   reach from the hand —  armored 1.10m  boilerwright 0.82m  captain 0.89m  crew 1.26m  swarm 0.37m
+  ok  weapon · a weapon is scaled by the figure holding it, not by the captain   a 1 m body reaches 0.873 m, a 2 m body 1.746 m — ratio 2.000 against 2.000
+  ok  weapon · a kind with no fit row keeps an empty hand — a refusal, not a crash   3 rigged kinds refused cleanly
+  ok  weapon · a live deck puts the pike, the axe and the wrench in the hands they were made for — the SG-170 regression   crew true, armored true, swarm true
+  ok  weapon · and a kind the table never armed is still drawn, still a rig, still empty-handed   scrapper rig present true, holding false
+  ok  weapon · and the weapon is mounted once, not rebuilt on every frame   same mount node after 20 frames: true
+  ok  boss · the Colossus arrives
+  ok  boss · it begins on the first beat
+  ok  boss · it turns at half health   beat 1 state turn
+  ok  boss · it cannot be burst through the turn   1160 -> 1160
+  ok  boss · the turn clears what the first beat called
+  ok  boss · and it comes out of the turn   move
+  ok  boss · the captain's damage is recorded against the hand that dealt it   wave 12 by source: { "BOSS": 26.0, "SWARM": 9.0 }
+  ok  boss · and the split sums to the wave's own total   35.0 against 35.0
+  ok  boss · the Colossus and a scrapper are both on the deck to compare
+  ok  boss · the Colossus's chase is decided by the one named constant   chases_captain() = false against COLOSSUS_WALKS_THE_LANE = true (the gate exists: true)
+  ok  boss · and every other boarder still does — the SG-146 regression guard   scrapper chases_captain() = true
+  ok  boss · with the lane walk ON he walks at the ship while she stands on his toes   boss velocity 0.0,76.3 — positive y is toward the Boiler
+  ok  boss · and the scrapper beside him walks at her either way   lane walk true · scrapper velocity 0.0,-120.5
+  ok  boss · and with it OFF he turns on the captain like anything else   boss velocity 0.0,-76.3 — negative y is toward the captain
+  ok  boss · and the scrapper beside him walks at her either way   lane walk false · scrapper velocity 0.0,-120.5
+  ok  audio · the mixer has its own buses
+  ok  audio · music is tiered by wave and the finale has its own   combat_low / combat_high / boss
+  ok  audio · every tier has a file behind it
+  ok  audio · volume survives the session   0.42
+  ok  audio · and the write landed in the harness's own file, not the player's   scratch user://settings.harness.cfg · player's file 127 bytes, was 127
+  ok  boss · the stomp is decided by its own named constant, in both positions   on=true off=false, a fresh boarder ships true against COLOSSUS_STOMPS true
+  ok  boss · and no other boarder stomps even when told to — the regression guard   a scrapper with stomps=true returns false
+  ok  boss · the stomp reaches to its own rim and stops there   rim at 257: inside=true outside=false
+  ok  boss · beat one leaves her Cleave standoff safe and beat two takes it away   beat 1 reaches 257, beat 2 reaches 337, her Cleave reaches him at 260
+  ok  boss · the circle the renderer draws is the one the simulation resolves — asked, not re-derived   branch found true · asks radius true · asks origin true · carries the literal false
+  ok  boss · and the stomp's marks are telegraphs, not decor   ts/tsc/tsf -> 0/0/0, rune_read knows it: true
+  ok  endings · the Boiler reaching zero ends the run   GAMEOVER
+  ok  endings · the captain dying ends the run   GAMEOVER
+  ok  endings · clearing the last wave wins the run   VICTORY
+  ok  camera · the lens is the browser's focal length   36.09 deg vertical
+  ok  camera · the captain stands where the art was framed for   0.600 of screen height
+  ok  camera · deck coordinates land left of centre when they are to port   x 383
+  ok  boiler · renders at the browser's boilerH, not a taller mesh's own height   150.0 ground units vs browser boilerH 150
+  ok  boiler · the primitive fallback measures at boilerH on the fallback path itself   150.0 ground units against boilerH 150
+  ok  boiler · and it is the flat slatted furnace block, not the old golden ball   118 wide x 150 tall, grate true
+  ok  view · the deck is lit warm and even, not a hot pool   expo 0.80 · amb #494551 e0.62 · moon e1.45 · lantern e0.38 · furnace 1.00
+  ok  view · with no fx file at all the renderer runs its own shipped numbers   { "glow": 0.32, "spark": 1.0, "particle_life": 1.0 }
+  ok  view · the fx dial file round-trips through its own reader   { "glow": 0.32, "spark": 1.0, "particle_life": 1.0 } vs { "glow": 0.32, "spark": 1.0, "particle_life": 1.0 }
+  ok  view · a spoiled fx dial falls back alone, a wild one is clamped, an invented one is dropped   { "glow": 0.32, "spark": 4.0, "particle_life": 0.5 }
+  ok  view · every dial in the fx table is read by the renderer   3 dials walked, dead: none
+  ok  view · the lab's save is the renderer's load — and it clamps on the way out, not just on the way in    { "glow": 0.71, "spark": 4.0, "particle_life": 1.4 }
+  ok  view · and the renderer on screen is built out of those dials, not out of literals beside them   clean
+  ok  view · the model lights file round-trips through its own reader   6 model keys, stable
+  ok  view · a malformed lights entry falls back alone, never the deck   kept ["brazier", "steam_vent"]
+  ok  view · an absent lights file makes no light and changes no picture   absent true · pools 4/3 unchanged
+  ok  view · the model-light cap holds under a flood, and no file can save a sun   3 of 40 asked lit for 6.00 energy (cap 8, budget 7.50); a 40/4000 row read back as 2.00/460
+  ok  view · every field in the lights schema is read by the renderer   11 fields walked, dead: none
+  ok  view · model lights are accents, and the budget says so in numbers   cap 8 · per light <= 2.00 over <= 460 units · sum <= 7.50 · seed 6 rows, brightest 1.33, 6.73 nominal, shadows off
+  ok  view · what the lab saves is what the renderer reads back   write ok · round-trip true · emptying the model erased its row true
+  ok  view · a lit model key replaces the built-in flame light, never doubles it   0 built-in flame omnis · boiler lamp from the table · 9 painted pools · 7 of 10 model lights live for 7.40 energy
+  ok  cargo · the crate_stack albedo is warm, not navy   mean R/B 2.01, navy band 0.0%
+  ok  cargo · and the painted cargo module carries no steel-navy band   mean R/B 1.51, navy band 0.0% (was 11.5% before SG-41)
+  ok  fitting · the Colossus wreck is placed off the bow   at (0, -1500)
+  ok  fitting · and it never touches the gameplay envelope   deck=false cargo=false lane=false prop=false
+  ok  fitting · hidden on a bare ship, riding while berthed, cleared with the berth   bare->hidden true · berthed->shown true · cleared->hidden true
+  ok  fitting · the scupper grating stands in its crossing while berthed, and only then   bare->hidden true · berthed->shown true
+  ok  view · a boarder tucked behind cargo is x-rayed   at -347, 106
+  ok  view · one in the open is not
+  ok  view · and neither is one well clear of the run
+  ok  view · the tabled crate is no cargo rect — the x-ray reads the eight walls   8 rects
+  ok  view · a boarder behind an ordinary crate stack is in clear air — props cast no x-ray shadow   at -595, -569
+  ok  view · and the fixed walls still cast theirs
+  ok  view · moving the ordinary prop moves no shadow anywhere
+  ok  view · every boarder gets a body, mesh or billboard   5 bodies / 5 boarders
+  ok  view · a shelved spark comes back as a plate, not as a floating orb   override <Object#null>, region false, flip false, depth false, kind art
+  ok  view · every deployed sentry is a ballista wearing its own head, never an orb   2 posts of 2 sentries, 0 wearing a spark
+  ok  view · the deck is dressed   15 pieces
+  ok  view · and the dressing stays out of the fight   0 targetable
+  ok  telegraph · every melee windup has a reach and a swing arc to draw   bad:
+  ok  telegraph · a ranged shooter is not handed a melee swing   GUNNER carries a reach it will never swing
+  ok  telegraph · the windup gives at least the browser's warning time   shorter than the browser:
+  ok  telegraph · the furnace knight winds up at least as long as the Colossus   knight 0.90 against a boss 0.90
+  ok  telegraph · and leaves a punish window longer than the read   windup 0.90 recover 1.00
+  ok  telegraph · and hits hard enough that eating three is fatal   3 x 34 against 100 hp
+  ok  telegraph · a swing lands inside the wedge it drew and nowhere else   wrong:
+  ok  telegraph · and stepping behind the Colossus works, which it never did before   a swing aimed down still landed on a target 80 units up
+  ok  telegraph · while standing in front of him still costs you   the wedge stopped connecting dead ahead
+  ok  telegraph · a windup appends a telegraph decal to the deck   no telegraph decal for a winding boarder
+  ok  telegraph · the wedge is drawn at the reach the swing connects at   drew 92 against a reach of 92
+  ok  telegraph · the danger wedge's brightest pixel is its boundary, not its middle   brightest at 99% of the reach (144 units of the Colossus's 146)
+  ok  telegraph · and it still carries half its brightness at the line the swing connects at   half-brightness ends at 98.8% of the reach (144 of 146)
+  ok  telegraph · the fall from full to half happens inside three texels, not across a seventh of the reach   0.0 texels
+  ok  telegraph · and the ground inside it stays see-through, at the ring's own fill-to-edge ratio   fill 0.21 against an edge of 1.00 (4.7:1)
+  ok  telegraph · a cut side is a couple of texels wide on every arc, not a fraction of the arc   120° fan 0.9 texels · 80° fan 0.2 texels
+  ok  telegraph · and the wide fan is no softer than the narrow one, which it used to be by 3x   120° 0.9 vs 80° 0.2 texels
+  ok  telegraph · and the hard edge did not move the wedge — nothing is painted past the reach   0 texels painted outside d=1.0
+  ok  telegraph · the frame a swing lands is no longer blank planking — a strike flash is drawn   flash up on the strike frame
+  ok  telegraph · and it marks the wedge that was warned, at the same reach — not a third derivation   flash drew 92 against the wedge's 92
+  ok  telegraph · and the recovery is marked as his, in the player's colour, not left unlit   opening ring up through the recovery
+  ok  telegraph · and that ring is wider than the body standing in it, or nobody can see it   ring reads 55 across a 22 radius
+  ok  telegraph · the strike flash is spent well before he can swing again, so it never reads as the next warning   flash gone at half recovery, opening held
+  ok  telegraph · and a walking boarder carries neither mark, so the quiet frame stays quiet   a boarder in `move` is still drawing a strike or an opening
+  ok  telegraph · the windup pool stays inside its reserve under flood   48 live against 48
+  ok  hazard · a fire pool is drawn at exactly the radius it burns at   drawn 78.0 against a burn of 78.0
+  ok  hazard · and the pool the simulation stores carries that one radius, not the caller's   a `_field()` given radius 46 stored 78.0 against a burn of 78.0
+  ok  hazard · and a pool lying about its radius is still drawn at the one it burns at   field claimed 46, picture drew 78.0, burn is 78.0
+  ok  hazard · the burn radius did not move — the picture moved, not the damage   burn radius 78.0 (78.0 before SG-163)
+  ok  view · a hit puts a number in the world   1 floaters
+  ok  view · and does not disturb the seeded stream   state 5147283058137325692
+  ok  view · the air is moving past the camera   48 streaks
+  ok  view · and it actually travels   moved 2.54 m
+  ok  view · the ship rolls enough to see   0.65 deg
+  ok  sky · the backdrop is the browser's painting, not a gradient   ShaderMaterial
+  ok  sky · the shader is given the camera's own lens, not a second copy   0.325758 vs 0.325758
+  ok  sky · every cloud is inside the wedge the camera can actually see   0 of 6 outside 30.1 x [23.2, 59.3] deg
+  ok  sky · and clears the gunwale rather than sitting behind it   0 of 6 blocked
+  ok  sky · the two layers drift at the browser's own angular rates   33.2 and 15.5 px/s against 34 and 16
+  ok  sky · the near layer crosses the screen faster than the far one   33.1 px against 19.5 in one second
+  ok  sky · the far plane clears the furthest corner of the field   far 1800 m against a reach of 940 m
+  ok  vfx · every effect has an identity that outlives its index   4 effects, 4 ids
+  ok  vfx · and removing one does not renumber the rest   id 7 still 7
+  ok  vfx · a Field shows where it reaches   ring true, volume true
+  ok  vfx · ground effects are projected decals, not floating quads   projection depth 2.60 m
+  ok  vfx · and their emission is premultiplied, so it cannot flood the box
+  ok  sprites · a figure walking up-deck shows you its back
+  ok  sprites · and mirrors rather than needing a second painting
+  ok  sprites · a swing uses the attack view
+  ok  sprites · every kind has art behind every view it claims   missing: 
+  ok  sprites · a delivered cycle advances   0 -> 6
+  ok  sprites · and stays inside its own strip   frame 5 of 13
+  ok  sprites · a pingpong idle turns round rather than snapping
+  ok  sprites · an undelivered cycle falls back to the still, not to nothing
+  ok  sprites · and the outstanding list is honest   14 cycles outstanding
+  ok  art · every painted effect plate is on disk   missing: 
+  ok  art · every prop kind has art   missing: 
+  ok  art · and a height, so nothing is drawn at a default   missing: 
+  ok  art · the deck is dressed with the ship, not only with ordnance   30 pieces
+  ok  captain · the rigged model is in the build
+  ok  captain · she has the clips the state machine asks for   ["block", "combo", "dash", "hurt", "idle", "idle_alt", "run", "run_back", "spin", "swing", "swing2", "swing3", "taunt", "walk"]
+  ok  captain · and every track resolves against the rig   0 stray tracks
+  ok  captain · the scene carries no import-time dependency
+  ok  captain · figures are on their own visual layer, so decals stay on the deck
+  ok  aim · the centre of the screen unprojects onto the deck   (0, 149)
+  ok  aim · left of the screen is to port, right is to starboard   -349 vs 349
+  ok  aim · and lower on the screen is nearer the stern   500 vs -119
+  ok  aim · a cast with no explicit target uses the cursor on the deck   (120.0, -300.0)
+  ok  impact · a kill stops the simulation briefly   0.070s
+  ok  impact · and the frame it ends on runs the remainder rather than dropping it
+  ok  impact · a small hit stops, then waits
+  ok  impact · so clearing a horde cannot freeze the game
+  ok  impact · but a big one always lands
+  ok  impact · and nothing freezes longer than the cap   0.120s
+  ok  impact · shake is capped, so a keg cannot throw the deck   22.0 units
+  ok  impact · and it settles rather than being dragged back   22.00 -> 0.00
+  ok  impact · the harness can turn the whole thing off
+  ok  impact · one emitter per behaviour, not one per element or per hit   3 emitters: spark, shard, steam
+  ok  impact · every element maps to one of them   4 mapped
+  ok  impact · and they emit continuously rather than being restarted   3 of 3 live
+  ok  impact · and the flash pool is fixed   8 lights
+  ok  impact · sixty hits in a frame create nothing new   3 systems, 8 lights
+  ok  impact · elements differ in motion, not only in colour   frost falls and snaps, ember rises and drifts
+  ok  impact · and their light dies at different rates   frost 26/s, ember 8/s
+  ok  impact · every ELEMENT_FX field is read by the renderer   nothing reads:
+  ok  impact · the flashes add nothing to the fog, so hits leave no trail
+  ok  impact · a hit lights the deck as well as colouring it   8 of 8 lit
+  ok  impact · no impact particle is a camera-facing card — every family draws a real body   still billboarded quads:
+  ok  impact · and every body is oriented by its own motion rather than by the camera   unoriented:
+  ok  impact · and the steam puff is lit, so the deck's own lamps model it as a volume   per-pixel shading on the puff body
+  ok  impact · the bodies cost no extra emitters and no extra capacity   3 emitters at 512 each
+  ok  vfx · a burst has a body in the air, not only a mark on the planking   240 ribbon verts against 0 with no burst
+  ok  vfx · and its shards leave on a spread of angles rather than lying in the deck   0.26 m between the lowest and highest shard
+  ok  vfx · a burst throws its debris ONCE however many frames it is drawn for   one throw across twenty frames
+  ok  vfx · and the fired ledger is a fixed ring, like every other pool here   64 marks
+  ok  vfx · no ring or burst decal draws through a plate that measures opaque   0 call sites left
+  ok  vfx · the two retired plates are opaque at their centres, which is why they are retired   measured filled: ring burst
+  ok  vfx · and the generated ring they were replaced with is hollow at its centre   centre alpha 0.047
+  ok  ribbon · trails are one batch and one draw, not a mesh per projectile   one ArrayMesh
+  ok  ribbon · every element has its own shape in the air, not only a colour   4 written
+  ok  ribbon · and the shapes actually differ where it counts   frost 17 wide and sinks, steam 62 wide and rises, arc kinks
+  ok  ribbon · five hundred trails in a frame stay inside the vertex budget   3600 of 3600
+  ok  ribbon · and the ones that do not fit are dropped whole, never half   200 dropped
+  ok  ribbon · the scratch buffers are allocated once, not per frame   3600 vertices reserved
+  ok  core · the bolt head is a mesh by default, the painted sprite kept as fallback   USE_MESH_CORES true, fallback true
+  ok  core · every element's bolt differs on two motion axes, not only its colour   stretch 4 / pulse 4 / wake 4 distinct of four
+  ok  core · the enemy's shot is the size the browser draws it, and stays smaller than the mark it throws on the planking   14 units across against the browser's 14 and a 40-unit ground mark
+  ok  core · a bolt in flight draws an emissive core, not a spark billboard   1 cores live
+  ok  core · the core pool stays inside its cap under flood   24 live against 24
+  ok  core · the bolt light pool is smaller than the bolt pool   6 lights against a 24 core cap
+  ok  core · a flood of bolts lights only the nearest few, never all of them   6 of a 40 flood lit
+  ok  core · and the bolt lights add nothing to the fog and cast no shadow   energy 2.1, radius 230
+  ok  trail · the trail's source is a mount on the hand bone, holding the blade tip   mount on 'mixamorig_RightHand'
+  ok  trail · the blade tip moves with the swing clip — a bone is being sampled, not a timer   tip travelled 0.79 m between two clip times
+  ok  trail · a swing samples the blade into the trail, and the sample IS the tip   1 samples, last one 0.000 m off the live tip
+  ok  trail · the sample ring stays inside its cap through a held swing   24 samples against a cap of 24
+  ok  trail · and while the blade drives, the effect-clock sweep stands down
+  ok  trail · and the trail dies with the swing instead of running its own clock   0 stale samples
+  ok  cloak · worn by hand it is a lattice of three chains, not one, mounted at her shoulders   18 bones (3 chains of 6) on 'mixamorig_Spine2'
+  ok  cloak · almost none of the sheet is bound rigidly to one bone — it blends, so it can fold   90% of the sheet is shared between bones
+  ok  cloak · the sheet carries many normals, not one — it shades as cloth rather than as one facet   63 distinct normals
+  ok  cloak · the cut is a garment's: longer than it is wide, and the hem flares well past the collar   1.02 m long, 0.53 collar, 0.88 hem
+  ok  cloak · and the cloth is woven, not planked — no vertical-stripe painter, and a normal map behind the weave   a twill plus a normal map
+  ok  cloak · a hard turn lifts one corner of the hem and not the other — the columns are free   0.079 rad between the hem corners
+  ok  cloak · injected velocity swings the chain, and rest brings it back exactly   1.06 rad trailing at a full run, then bitwise rest
+  ok  cloak · a dash cracks the cape harder than a run trails it   dash peak 2.46 rad against the run's 1.06
+  ok  cloak · the forward swing is clamped so the cape never crosses her torso   blown to -0.02 rad against a -0.27 budget
+  ok  cloak · sway on the cape breathes; sway off it is bitwise still — the framing rule   breathed to 0.343 rad off a 0.25 rest, then held rest across 60 more frames
+  ok  cloak · a thousand driven frames grow nothing: fixed bones, pooled state   3 nodes before and 3 after
+  ok  cloak · no class wears a cape — the owner rejected it twice and it ships OFF until SG-63 re-earns it   rows: none
+  ok  cloak · and off means gone: without a row nothing cape-shaped exists in the tree   a bare rig carries no cape nodes
+  ok  cloak · the captain on the deck is bare-backed, through the renderer's own path   the live rig came back wearing one
+  ok  aimline · a ranged windup runs a dashed strip down the shot path, as geometry   17 dashes this frame
+  ok  aimline · the dashes march at the browser's 90 units a second and quicken as the shot nears   base 90 u/s, +170 units by the shot
+  ok  aimline · and the dashes are gone the frame the shot fires   0 dashes after the shot
+  ok  aimline · a mile of firing line still draws a capped number of dashes   26 dashes against a cap of 26
+  ok  ribbon · every skill effect names the element its trail is shaped from   7 shaped, missing on 
+  ok  ribbon · a Mortar records the throw, so the shell has an arc to fly   1 circles carry a from
+  ok  ribbon · a chain jump arcs through the air and a lance does not   4 arcing, 1 flat
+  ok  cannon · every deck cannon's bar has somewhere to be drawn at the shipped framing   3 of 3, zoom 1.00
+  ok  cannon · every deck cannon's bar has somewhere to be drawn at full zoom-out   3 of 3, zoom 1.55
+  ok  pool · returned nodes are kept for reuse rather than freed   24 decals and 7 billboards waiting
+  ok  pool · and the free list is trimmed rather than growing forever   24 / 7 against a slack of 24
+  ok  render · the build reports what it is actually running on   forward_plus / vulkan
+  ok  render · and knows whether it can draw the deck markings
+  ok  render · with something to say to the player when it cannot
+  ok  profile · frame timings are collected   123 samples, avg 9.02 ms
+  ok  profile · the 99th percentile reports the tail, not the middle   p99 50.00, median 8.00
+  ok  profile · spikes are counted rather than averaged away   3 spikes
+  ok  profile · and the report names the renderer it was measured on
+  ok  profile · reset clears the window
+  ok  capture · headless is detected, so a capture tool refuses instead of stalling   display headless, can_capture false
+  ok  capture · and the refusal tells you the fix
+  ok  render · a tonemapper is set, so bright colour does not clip to white   mode 2
+  ok  render · and its white point is above the values the effects push to   white 6.0 against tints at 1.7x
+  ok  render · generated textures carry mipmaps
+  ok  render · particles stay out of the shadow pass   0 casting
+  ok  render · every generated texture exists before the first frame of play   58 built at load
+  ok  shadow · contact shadows are one batch, not one decal each   batch present
+  ok  shadow · and none of them is a decal any more   0 shadow decals left
+  ok  shadow · the batch is capped   256 instances
+  ok  shadow · and decals do not paint onto it
+  ok  budget · a telegraph draws from its own reserve
+  ok  budget · decoration cannot spend past its own allowance   40 live against a budget of 40
+  ok  budget · and a telegraph still gets drawn on a flooded deck
+  ok  timing · every attack plays at a rate you can read   0 over the cap
+  ok  timing · and none of them is cut off before it lands   0 showing under a third of the clip
+  ok  timing · a one-shot is held for the action, not for the clip   held 0.30s
+  ok  timing · and when nothing fits it takes the shortest, not the next   swing2 at 2.27s, shortest is 2.27s
+  ok  timing · and casting the same skill again replays the swing   0.40 then 0.60
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8809)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8809)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8809)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8809)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8810)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8810)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8810)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8810)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8811)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8811)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8811)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8811)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8809)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8809)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8809)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8809)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8810)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8810)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8810)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8810)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8811)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8811)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8811)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8811)
+       [4] _run (res://tests/parity_test.gd:326)
+  ok  widget · the keyboard can reach a button
+  ok  widget · and focus skips a disabled one   landed on 2
+  ok  widget · and wraps rather than stopping at the end   landed on 0
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8829)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8829)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8829)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8829)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8830)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8830)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8830)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8830)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8831)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8831)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8831)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8831)
+       [4] _run (res://tests/parity_test.gd:326)
+  ok  widget · a disabled button refuses the click
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8846)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8846)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8846)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8846)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8847)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8847)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8847)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8847)
+       [4] _run (res://tests/parity_test.gd:326)
+  ok  widget · the widget list is reportable, so overlaps can be caught   2 declared
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8853)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8853)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8853)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8853)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8854)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8854)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8854)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8854)
+       [4] _run (res://tests/parity_test.gd:326)
+  ok  widget · and two stacked widgets are visibly stacked in it
+  ok  widget · a paused run can be restarted and quit
+  ok  lanes · a boarder in every lane can reach the Boiler   cannot, by:
+  ok  lanes · and is still held in its own column on the way down   2 of 2 outer lanes stayed separated
+  ok  deck · a healthy cannon offers no work
+  ok  deck · but a broken one does
+  ok  deck · and only when you are standing at it
+  ok  deck · it takes real seconds   2.4s
+  ok  deck · and boarders on it contest the work
+  ok  deck · but not from across the deck
+  ok  deck · a repaired cannon fires again
+  ok  deck · but not as good as new   418 of 760
+  ok  deck · and it is a verb table, not one hardcoded action
+  ok  deck · the tabled crate is an ordinary stowed prop at its home   barricade=<null>, prop at home=true
+  ok  deck · the cargo source of truth is the eight fixed walls — no movable rect
+  ok  deck · standing at the crate offers nothing — the shove verb is refused while tabled   offered nothing
+  ok  deck · the verb table carries no crate rows while tabled — and repair keeps its prompt   1 rows
+  ok  deck · heave_barricade is a no-op while tabled — the crate is static   stage 0
+  ok  deck · a boarder walks the old funnel line unbent — the tabled crate shapes nothing   bent to -450, -480
+  ok  deck · and the outboard route passes exactly as before   outboard route bent to -720, -480
+  ok  deck · and the home prop's footprint adds nothing to the lane clamp — ordinary props stop nobody   landed -385, -480 against the band's own -385, -480
+  ok  deck · the ordinary crate prop re-stows at the same home every wave   stage 0, prop at home=true
+  ok  deck · the shove cooldown holds   const 1.0s · ticked true · drained to 0.00
+  ok  deck · the tabled crate blocks nobody — the captain passes, and only fixed walls push   crate-line push 0.0 (want ~0) · fixed-wall push 77.0 (want >0)
+  ok  deckwork · the tabled verbs come back with one flag   rows back=true · instant=true · winch untabled=true · crate revived=true · offered=true · moved=true · bare again=true
+  ok  feel · stopping is quicker than starting   0.072s to stop, 0.076s to start
+  ok  feel · but not so quick it reads as glue   0.072s
+  ok  feel · a dash carries past its own end   x1.55
+  ok  feel · and is over in a tenth of a second   0.040s of carry
+  ok  shop · a loss before your first win pays nothing   paid 0
+  ok  shop · and there is nothing to spend it on either
+  ok  shop · the first win opens it   193 scrip
+  ok  shop · and pays a sigil for the first of a thing   4 sigils
+  ok  shop · and a second identical win pays no more sigils   4 -> 4
+  ok  shop · and replaying a seed you have beaten pays a quarter   48 against 193
+  ok  shop · a branch starts with only its first tier open
+  ok  shop · and two purchases open the next
+  ok  shop · and a node cannot be bought past its ranks   3 ranks
+  ok  shop · respec refunds everything
+  ok  shop · every talent's field is classified as power or not   unclassified: — say what it does to a run
+  ok  shop · the three-card yardstick is the real catalogue, not three typed numbers   applied [ aoe range dmg ] -> x2.28
+  ok  shop · the whole tree is worth less than three cards   tree x1.31 ( crit_chance+6% range+10% vent_radius+12% ) against cards x2.28
+  ok  shop · and no talent takes a card's exclusive
+  ok  shop · and every node can actually be reached
+  ok  shop · a test workshop never touches the file on disk
+  ok  shop · every talent field is read by something   nothing reads:
+  ok  shop · and a bought tree actually changes the run   hp 108/100 speed 270/260 boiler 560/500 cannon 874/760
+  ok  heat · Heat 0 is exactly the shipped scaling
+  ok  heat · and there is no ladder before a first victory
+  ok  heat · a first win opens exactly one rung
+  ok  heat · and clearing that one opens the next
+  ok  heat · but never past the top of what exists
+  ok  heat · and every rung is harder than the one below   softer at:
+  ok  heat · Rust actually hardens a late boarder   119 against 100 at wave 12
+  ok  heat · and a run cannot start above the rung you have earned   started at 1
+  ok  heat · clearing a rung records it
+  ok  heat · and clearing it twice pays once   4 -> 4
+  ok  heat · the stack is cumulative — no rung drops or softens a lower one   at:
+  ok  heat · every Heat modifier is read by something   nothing reads:
+  ok  heat · Cold Deck deals two cards on one reroll, not three on two   warm 3 cards/2 rerolls · cold 2 cards/1 rerolls
+  ok  heat · Boarders Aloft grapples a hulk on the odd pushes too   flat 4/6/8/10 = true/false/true/false · aloft = true/true/true/true
+  ok  heat · Skeleton Crew halves the cannons and stops the muster   cannon 380 against 760 · musters false
+  ok  heat · clearing the summit records it but pays no sigil   best 5 · sigils 0 -> 0
+  ok  heat · with the bypass off the ladder still climbs one rung at a time — the SG-160 regression   ceiling walked: 0,1,2
+  ok  heat · OPEN ALL HEATS offers the whole ladder from a save that has never won   ceiling 5 · earned 0
+  ok  heat · and switching it off puts the ceiling back exactly where it was, from every state of the save   drifted at:
+  ok  heat · a run above the rung you have earned banks nothing at all   scrip 77 · best_heat 0 · sigils 0 · fittings 0 -> 0
+  ok  heat · and a bypassed first clear does not open the Workshop   unlocked false · articles 0
+  ok  heat · and a Heat 0 run banks in full however the bypass is set   scrip 176 · sigils 3 · unlocked true
+  ok  heat · the bypass lives in settings.cfg and never in the save file   fresh keys: ["unlocked", "scrip", "sigils", "spent_sigils", "nodes", "articles", "bought_articles", "seeds", "fittings", "berths", "heat", "best_heat", "ephemeral"]
+  ok  heat · a run can start at the summit from a save that has never won   started at 5 against a top rung of 5
+  ok  heat · and it is the real rung — Skeleton Crew's cannons, not a Heat 0 run wearing the number   cannon 380 at the summit against 760 at Heat 0
+  ok  heat · and with the bypass off the same run is clamped back to Heat 0   started at 0
+  ok  shop · no article before the workshop opens
+  ok  shop · one sigil buys a one-sigil article
+  ok  shop · and taking it spends the sigil
+  ok  shop · and its opposite is barred, not merely expensive
+  ok  shop · the articles cost more than the sigils that exist   16 to own all against 5 obtainable
+  ok  shop · and every article is read by something   nothing reads:
+  ok  shop · the captain gets the keyed articles
+  ok  shop · the Boilerwright does not, because F and V are his class
+  ok  shop · but he still gets the ones with no key
+  ok  shop · the bid opens the whole matrix, not a deal   32 cells, all weapons: true
+  ok  shop · and the bid is final — a bought reroll is still refused   rerolls 0 with Deep Pockets bought
+  ok  shop · and the matrix shrinks by the shape you now hold   28 cells after the first pick
+  ok  shop · and SPARE PARTS leaves the catalogue rather than dealing dead   found true · dealable under the bid false
+  ok  shop · the second hand raises the capacity and its telemetry together   capacity 5 · buckets 5
+  ok  shop · the fifth is dealt where the first card would be, and fights alone   3 options, weapons that work unkeyed: true
+  ok  shop · and the hand is five   5 skills
+  ok  shop · and without the article that same draft deals cards   3 options, none a weapon
+  ok  shop · two sigils: the bid affordable, the second hand not
+  ok  shop · and the signed bid bars the second hand at any purse
+  ok  shop · and the bar holds the other way round
+  ok  shop · fourth card deals four on the opening hand   4 options
+  ok  shop · and the fourth is choosable and arms a slot   2 skills
+  ok  shop · and four cards fit the 1280 floor the audit poses   span 1222 at 1280
+  ok  shop · the first killing blow is survived   11.0 of 100
+  ok  shop · and only the first   0.0 hp
+  ok  class · the body comes from the class   130 hp, 205 speed
+  ok  class · and he has no recharging dash
+  ok  class · and nothing quietly gives it back   0 charges
+  ok  class · his gauge is banked, not measured
+  ok  class · and standing nowhere loses nothing   drained to 60.0
+  ok  class · no card can give the dashless class a dash   0 charges
+  ok  class · and is never offered one   0 dash cards offerable to him
+  ok  class · while the captain still is   3 of 3
+  ok  class · landing a hit grants him NO Head   filled to 0.0 by one hit
+  ok  class · and killing one grants him none either   filled to 0.0 by a kill
+  ok  class · but the captain still fills from landing one   34.0
+  ok  class · but standing on the Boiler fills it   45.0 after a second
+  ok  class · a full bank makes every weapon hit harder   x1.45
+  ok  class · and a cast spends some of it
+  ok  class · an empty one is strictly base damage
+  ok  class · a main cannot be opened on an empty bank
+  ok  class · but can be on a full one
+  ok  class · and it costs what it says
+  ok  class · and it is on the deck
+  ok  class · tapping a main opens the plant window the renderer reads off tap_cooldown   elapsed 0.00s of a 0.70s window (cooldown 6.0s)
+  ok  class · standing in it anchors him
+  ok  class · and refills the bank
+  ok  class · and it burns out
+  ok  class · and he is no longer anchored
+  ok  class · blowdown refuses a bank that is too small
+  ok  class · but fires on a full one
+  ok  class · and empties the bank
+  ok  class · and repairs the Boiler it is standing on
+  ok  class · taking the ship's heat costs the ship   54.0 HP for 90 Head
+  ok  class · and giving it back returns less than it cost   31.5 back for 54.0 spent
+  ok  class · his auto-attack reaches further and swings slower   210/0.60s against 190/0.36s
+  ok  class · and is narrower and weaker for it
+  ok  class · and Scald lands
+  ok  class · on his own clock, not hers   0.60s
+  ok  class · a jet cannot be paid for on an empty bank
+  ok  class · but can on a full one
+  ok  class · and every dodge is damage he did not do   80 -> 68
+  ok  class · and it leaves the lane behind him scalding   5 fields
+  ok  class · and he is actually moving
+  ok  class · his draft favours ground over rifles   40 ground, 0 rifle in 40 rolls
+  ok  class · but never forbids a shape outright
+  ok  class · and he is only anchored inside it
+  ok  class · standing in his own steam actually reduces damage   30.0 inside against 40.0 outside
+  ok  class · by the amount the table says   30.00 against an expected 30.00
+  ok  class · a kill inside a main extends it   4.00 -> 4.60
+  ok  class · but it cannot be extended past its cap   14.00 against a cap of 14.00
+  ok  class · crew inside a main work faster   1.30 inside, 1.00 outside
+  ok  class · and every lane has a vent to refill at   vents in lanes [0, 2, 1]
+  ok  class · and the captain is exactly as she was
+  ok  class · with no overpressure bonus to speak of
+  ok  boss · a Colossus walking at the ship cannot touch her with his swing — the SG-146 zero   she took 0.0 from him in 12 seconds on his toes, with the stomp off
+  ok  boss · and the stomp is what puts his weight back on a captain who comes to kill him   she took 26.0 from him from the same spot, with the stomp on
+  ok  boss · the stomp lands where he planted, not where he was shoved to   she stood 100 from the anchor and 316 from his body, and took 26
+  ok  boss · and a captain who stepped out of the circle takes nothing   she stood 300 out and took 0
+  ok  boss · STEAM still cancels his swing and never his stomp — the COLOSSUS-DESIGN §3 rule   stomp survived: true, swing cancelled: true
+  ok  boss · the stomp takes a lane cannon apart — the SG-185 regression   a cannon 200 from his anchor, inside a 240 rim, lost 26 of his 26
+  ok  boss · and a crewman standing under him takes the same weight   a sailor 57 out lost 26 of his 26
+  ok  boss · and the Boiler, on the day he finally reaches it   the Boiler 230 out lost 26 of his 26
+  ok  boss · everything in the circle takes it — a stomp has no priority order   captain true · cannons 1 · crew 1 · boiler true
+  ok  boss · and a cannon outside the rim is a cannon he missed   cannons 0 · crew 0 · boiler false, all stood 60 past the rim
+  ok  boss · the stomp's victims are found with the stomp's own circle, not a second one   4 calls to stomp_hits, carries its own distance test false, carries the literal false
+  ok  auto · she swings at anything in reach without being asked
+  ok  auto · and the ring the HUD draws is on that same clock   cooldown 0.360
+  ok  auto · and it keeps swinging while something is in reach   5 swings in 2 seconds
+  ok  auto · and stops when nothing is   cooldown 0.000
+  ok  coach · nothing is said during the first wave   said ''
+  ok  coach · and one bad second is not a mistake   said ''
+  ok  coach · but a held one earns a line
+  ok  coach · and never two at once   1 different lines in one window
+  ok  coach · and says the same thing at most twice   fired 2 times
+  ok  coach · the deck really is empty before we test an empty deck   0 boarders still aboard
+  ok  coach · and an empty deck is never a mistake   said ''
+  ok  coach · a downed cannon is announced at all   said nothing with a gun on the deck in pieces
+  ok  coach · and it names the bound key rather than a hard-coded one   'A cannon is down. Stand at it and HOLD R to bring it back.' does not carry 'R'
+  ok  coach · and goes quiet once they are already repairing it   still said ''
+  ok  coach · the shove line is tabled — a lane walking through gets the plain lane hint   first said 'A lane is walking through. The cannon holds, it does not kill.'
+  ok  coach · and no coaching in the whole window names the crate or the shove   said ''
+  ok  telegraph · the furnace knight now lives long enough to swing more than once   wave 11, 576 effective HP: lived 5.80s and resolved 3 swings against a 1.90s cycle
+  ok  telegraph · and at half that health he gets strictly fewer — the fixture bites   half 1 swings in 2.85s against full 3 in 5.80s
+  ok  telegraph · and his throughput against things that cannot dodge is SG-97's, untouched   17.9 dps (34 damage / 1.90s cycle) against SG-97's 17.9
+  ok  howto · there is a how-to-play screen at all
+  ok  howto · and starting a run closes it
+  ok  howto · and the close range it teaches is the one the game uses
+  ok  event · every fourth wave has one   got [4, 8, 12]
+  ok  event · and no two of them are the same event   3 kinds for 3 waves
+  ok  event · and each announces itself before it starts
+  ok  event · starting wave 8 runs the blackout   got 'blackout'
+  ok  event · and it announces itself for a few seconds
+  ok  event · and the blackout is worth being out in
+  ok  event · and wave 9 is a normal wave again   still ''
+  ok  event · wave 4 runs the grapple
+  ok  event · and the announcement clears itself   0.0s left
+  ok  event · while the event itself keeps running
+  ok  event · the deck can be darkened for the blackout
+  ok  frame · the layout and the renderer agree where the brass ends
+  ok  frame · and every plate keeps at least half of itself
+  ok  frame · and the shipped layout keeps its items on their plates
+  ok  frame · and no two lane rows land on the same line   0 rows collapsed
+  ok  preview · previewing a card changes nothing   0 of 3 cards leaked into the real state
+  ok  preview · and does not advance the seeded stream   0 cards moved the rng
+  ok  preview · every offerable card previews without leaking   38 swept, 0 leaked
+  ok  preview · and most of them have numbers to show   34 of 38 swept
+  ok  preview · more damage reads as an improvement   got [{ "label": "Ember Cleave dmg", "before": "22", "after": "44", "better": true }]
+  ok  preview · and a longer cooldown does not   got [{ "label": "Ember Cleave cd", "before": "0.36", "after": "0.72", "better": false }]
+  ok  screens · the menus can actually do 'toggle_fullscreen'   neither a method nor a property
+  ok  screens · the menus can actually do 'copy_report'   neither a method nor a property
+  ok  screens · the menus can actually do 'new_seed_run'   neither a method nor a property
+  ok  screens · the menus can actually do 'quit_game'   neither a method nor a property
+  ok  screens · the menus can actually do 'settings_open'   neither a method nor a property
+  ok  screens · PLAY AGAIN keeps the seed   became KEEPME
+  ok  screens · and NEW SEED does not
+  ok  screens · beginning a run closes the menus
+  ok  screens · copying the report is acknowledged
+  ok  sentry · a press puts one on the deck
+  ok  sentry · and it lands where you were pointing   landed at (300.0, -200.0)
+  ok  sentry · an out-of-reach cursor clamps to reach   at 520, reach 520
+  ok  sentry · and a cursor off the ship clamps to the ship
+  ok  sentry · a paused game does not auto-place
+  ok  sentry · an unpressed one waits before auto-casting
+  ok  sentry · and then places itself without a press
+  ok  sentry · a fresh sentry slot is not armed
+  ok  sentry · arming a slot is visible to anything that asks
+  ok  sentry · an armed slot drops at the captain's feet with no grace   1 live
+  ok  sentry · and stays armed across a wave change
+  ok  sentry · a paused armed slot places nothing
+  ok  sentry · and is still armed when the pause lifts
+  ok  sentry · standing it down puts the grace back
+  ok  sentry · the autocast hint names the slot's own binding, not a letter
+  ok  sentry · a slot that is not a sentry cannot be armed
+  ok  sentry · they retire oldest-first rather than stacking   2 live, cap 2
+  ok  sentry · it shoots on its own once placed
+  ok  sentry · and its damage is filed against the slot that placed it   slot 0 recorded 56.0
+  ok  sentry · and it expires rather than holding the lane forever
+  ok  rig · a swing outranks a dash outranks a run
+  ok  rig · one-shots are the ones that must not loop
+  ok  rig · an attack blends in faster than an idle   0.06s vs 0.22s
+  ok  rig · a turn is rate limited   0.100 rad after one step
+  ok  rig · and takes the short way round   3.100
+  ok  rig · and arrives rather than orbiting
+  ok  rig · it builds from an ingested model
+  ok  rig · and scales the model to the height we asked for   0.0178 units x 98.895
+  ok  rig · a run plays faster when she is moving faster   rate 1.43
+  ok  rig · and a swing is not cancelled by the run underneath it   playing swing2
+  ok  rig · an undelivered clip falls back to the nearest one it has   hurt -> idle
+  ok  figure · the Boilerwright loads a scene that is not the captain's   boilerwright.tscn vs captain.tscn
+  ok  figure · and the captain's own row still points at the ingested captain
+  ok  figure · and both classes stand the captain's height for the shared camera   176 vs 176 units
+  ok  figure · every class the sim can be has a player model row   classes ["captain", "boilerwright"]
+  ok  figure · captain: every Skin bind resolves to a bone its own skeleton has — an unresolved bind draws NOTHING   1 skinned mesh(es), 28 named binds, 0 unresolved
+  ok  figure · captain: the built rig stands its hips at human height — a mis-scaled skeleton is off-frame, not on it   hips 0.67 m above the deck
+  ok  figure · boilerwright: every Skin bind resolves to a bone its own skeleton has — an unresolved bind draws NOTHING   1 skinned mesh(es), 34 named binds, 0 unresolved
+  ok  figure · boilerwright: the built rig stands its hips at human height — a mis-scaled skeleton is off-frame, not on it   hips 0.85 m above the deck
+  ok  figure · the Boilerwright's rig builds from his retargeted scene
+  ok  figure · his native rig carries every clip the renderer is wired to ask for   12 of 12, out of 51 aboard
+  ok  figure · tapping a main plays the plant, and the kneel fits the tap window like a swing fits its cast   clip 'plant' at 0.95x shows 100% of the kneel in 0.70s
+  ok  figure · and a hero's swing rotation is untouched by the boarder's tempo gate — nothing in her pack fits a 0.62s cast at authored speed   6 swing variants, 0 of them short enough for the gate to prefer
+  ok  figure · and his triangle count is pinned — heavier than the remesh (recorded), still well under the captain's SG-13   12476 tris (remesh was 3093; the captain's SG-13 is 30634)
+  ok  trail · the Boilerwright's empty hand mounts the trail, and it moves with his retargeted swing   reach 0.60 m, tip travelled 1.36 m between two clip times
+  ok  weapon · the Boilerwright has a weapons.json fit, and his wrench is on disk   fit 'wrench_pipe' -> res://assets/models/wrench_pipe/wrench_pipe.glb
+  ok  weapon · his mount carries the wrench itself now, not the empty hand   held through the renderer's own hold(), tip measured in mount space
+  ok  weapon · and his trail tip measures the wrench — nonzero, past the empty hand's knuckle reach   tip 0.82 m against the empty hand's 0.60 m
+  ok  weapon · and the wrench sits inside the prop remesh budget — triangles and base colour both   3093 tris, 512 px base colour (budget 3000 / 512)
+  ok  weapon · and the captain's own fit still carries her cutlass beside his   captain holds 'sword_cutlass'
+  ok  figure · every committed boarder scene keeps the SG-45 bargain — meshes, an honest ruler, and any skeleton it carries resolving its binds at creature height   5 scenes (3 rigged, 2 static): clean
+  ok  figure · the first rigged boarder carries the pilot's clip set — walk and run to close, one swing, a flinch, and idle as the floor   hurt, idle, run, swing, walk
+  ok  figure · the furnace knight builds from the owner's own native rig   res://assets/models/armored/armored.tscn
+  ok  figure · the knight carries his clip set — a walk for the wall, five cuts, a flinch and a DEATH   11 of 11, out of 51 aboard
+  ok  figure · and he stands a head over the captain, because the SIM's own row says so   216 ground units against her 176
+  ok  figure · the renderer knows he can die, and knows the scrapper still cannot   knight yes; scrapper no — his borrowed library has no death (SG-65), so he despawns exactly as he shipped
+  ok  figure · dying plays the death, and the whole of it fits the window the body gets   clip 'die' at 1.50x shows 100% of a 2.40s death in 1.60s
+  ok  figure · and the body does not start leaving until the death has been played   held 2.00s (1.60s of death, 0.40s of sinking); drops 0.00 m mid-death, 2.16 m by the end
+  ok  figure · a boarder's swing is fitted to the WHOLE attack, not to the windup it happens to start in   beat 1.90s = windup 0.90s + recover 1.00s, against the 0.90s the clip used to be crammed into
+  ok  figure · and the rate a swing opens at is the rate it ends at — a window that counts down is a swing that speeds up   'swing3' held 0.96x across 32 frames of a shrinking window (was 0.96x rising to the 4.00x clamp)
+  ok  figure · a finished swing holds its follow-through instead of being dealt again, and a dropped walk cycle still restarts   swing held: true · walk restarted: true
+  ok  figure · and every swing he can rotate up fits the beat at the speed it was authored at, so the tempo is the same twice running   5 variants, 0.75x..0.98x in a 1.90s beat (excluded for being longer than the attack: none)
+  ok  rig · the same ground speed drives the TALLER figure's cycle slower — the stride law, the other way round   216-unit knight 0.617x against a captain-height copy at 0.758x, same 75 units a second
+  ok  rig · a wall at seventy-five walks and a rusher at a hundred and fifty still runs   knight 75 -> walk, scrapper 150 -> run, swarm 230 -> run (crossover 144)
+  ok  figure · his furnace chest emits, and only his furnace chest — the map is the emitter, never a flat colour   map yes, base (0.0, 0.0, 0.0, 1.0), energy 6.0
+  ok  figure · the Colossus builds as a scene of separate parts, not as a skinned rig   res://assets/models/boss/boss.tscn, skeleton none — it is parts
+  ok  figure · all thirteen parts are present and named by measurement, not by GLTF index   13 parts
+  ok  figure · and the whole machine is within the triangle budget pinned for the parts kit   28512 triangles across 13 parts, from a 30,606 textured twin (93.2% kept, pinned 28,512; the captain is 30,634)
+  ok  figure · it stands at the SIM's own number for the archetype, not the spec's guess   330 ground units = 120 + radius*3, drawn at 3.30 m (handoff-3d guessed ~360)
+  ok  figure · it carries the beats the fight actually plays — idle, walk, an attack, the TURN and a death   5 of 5
+  ok  figure · and every beat MOVES the parts — a driven pose differs from the rest pose   parts moved: idle 8, walk 13, swing 13, turn 13, die 13 (of 13)
+  ok  rig · the Colossus WALKS, and its cycle covers exactly the ground the simulation moves it over   1.916 m of stride per 1.109 s cycle at 0.55x = 95.0 ground units a second, against the sim's 95
+  ok  rig · the half-health turn is a beat the figure PLAYS, and the whole of it fits the 1.6 s it cannot be burst through   clip 'turn' at 1.00x shows 100% of it; beats the attack, loses to a death
+  ok  figure · DEATH DISASSEMBLES IT — the parts separate and spread across the planking   4.72 m between the two furthest parts of a 3.30 m machine, death played at 1.00x
+  ok  figure · and every part is accounted for — thirteen in, thirteen still on the rig, none leaked   13 nodes, moved not spawned — the disassembly allocates nothing, so the pool is the rig and the cap is one boss
+  ok  figure · and they come to REST on the deck rather than hanging in the air or sinking through it   lowest part sits -0.001 m and the highest 0.000 m above the planking (deck is y = 0)
+  ok  figure · and the painted billboard is still the fallback — delete the model and today's sprite comes back   a kind with no scene at its slug path resolves to nothing and falls through to colossus_front_idle.png
+  ok  figure · the Colossus is PAINTED — every part wears the marriage's own maps, not a flat role colour   13 of 13 parts textured
+  ok  figure · and all thirteen share ONE material, so the kit carries four maps rather than fifty-two   1 distinct materials across 13 parts
+  ok  figure · and its maps are shrunk to the budget a 616 px figure earns, not shipped at the delivered 4096   albedo 1024, normal 512, metal 256 (ceilings 1024 / 512 / 512)
+  ok  view · a segmented machine grounds itself part by part, and only the parts actually near the deck   9 of 13 parts darken the planking; the rest are over 1.0 m up
+  ok  view · and a part thrown across the deck TAKES ITS SHADOW WITH IT — the reported floating blob   the foot moved 2.00 m and exactly one shadow moved with it, by 2.00 m — 9 blobs before, 9 after, none left standing
+  ok  view · and a part lifted clear of the planking stops darkening it   8 blobs with the foot 2.0 m up against 9 with it down — exactly the foot's, and nothing new
+  ok  view · and every other figure's shadow keeps the squash it always had — the depth is opt-in   no depth given -> 62.0 (100 x 0.62); a part measuring its own -> 250.0
+  ok  figure · your own sailors build from the owner's own native rig   res://assets/models/crew/crew.tscn
+  ok  figure · and a crewman is drawn off the sim's own radius rather than a guess, through the one table that shrinks figures   144 ground units against her 176 — 165 raw from radius 15, at 0.875
+  ok  figure · and he is the ten-to-fifteen per cent shorter the owner asked for — under his captain, still well over a goblin   144 from 165 (12.5% off), 82% of her 176, 1.75x a goblin's 83
+  ok  figure · the crew carry their clip set — an idle, a walk up the deck, a bayonet stab and a DEATH   5 of 5, out of 12 aboard
+  ok  figure · a crewman's binds resolve against his own skeleton, and the built rig stands its hips at sailor height   1 skinned surface(s), 0 unresolved, hips 0.60 m above the deck
+  ok  figure · and the renderer knows a crewman can die — the SG-85 seam, on the ally side of the deck   held 2.00s, and drops nothing until the last 0.40s
+  ok  figure · the painted crew survive the mesh — the fallback the model-or-billboard fork exists for   front and back stills both load
+  ok  figure · one heading rule answers for an ally and a boarder alike — where you are going, or what you are fighting   travelling -> velocity, engaged -> threat, and a standing figure keeps its threat
+  ok  figure · a sailor sent back down the deck after a boarder TURNS ROUND to walk at him, instead of reversing into the fight   heading (0.00, 118.00) at a boarder 360 astern of him
+  ok  figure · and once a boarder is inside his reach he stops and faces it — the bayonet goes where the man is   state 'windup', facing (-1.00, 0.00)
+  ok  figure · and with the lane clear he faces the way he is marching, which is up the deck where it always was   heading (0.00, -118.00) toward the bow
+  ok  figure · a body has begun to fade BEFORE it starts through the planking, and the tail costs the corpse budget nothing   fade over the last 0.60s of a 2.00s hold, sink over the last 0.40s
+  ok  figure · a boarder with no death clip fades out where it stood instead of ceasing to exist mid-stride   held 0.60s, 1 mesh(es) to fade, no sink
+  ok  figure · and the bodies are capped — a wipe cannot turn a freed rig into a reserved one   16 bodies held against a cap of 16
+  ok  figure · a painted figure the renderer has finished with fades out instead of blinking, and drops its alpha scissor to do it   1 sprite(s) on the way out, 6 on the shelf
+  ok  figure · …and the sprite is back on the shelf when its tail runs out — a courtesy, not a leak   half way out at alpha 0.50, then shelved
+  ok  figure · the goblin builds from the owner's own native rig, where a lump used to stand   res://assets/models/swarm/swarm.tscn
+  ok  figure · the goblin carries its clip set — three different attacks, because six of them swinging one animation is one goblin drawn six times   7 of 7, out of 19 aboard
+  ok  rig · the goblin has no flinch, and a missing clip degrades instead of freezing   asked for 'hurt', got 'idle'
+  ok  rig · the same ground speed drives the SHORTER figure's cycle faster — the stride law, at half the captain's height   83-unit goblin 1.900x against a captain-height copy at 1.095x, same 230 units a second
+  ok  figure · six goblins on the deck are six skeletons and ONE mesh — the figure that arrives in numbers pays for its surface once   6 rigs, 1 surface(s), shared: yes
+  ok  figure · the drone arrives in four pieces — a body and three rotors, each pivoted on its own hub   body 1, rotors [RotorTop, RotorLeft, RotorRight], pivots on their hubs, animation player none, as designed
+  ok  figure · its spin is bounded for a whole run and its bob never reaches the planking   blade at -0.18 rad after 150 seconds; hovers between 17.5 and 26.5 ground units under a 92-unit drone
+  ok  figure · and only the drone flies — every other boarder walks, and never looks at the table   1 row(s): GUNNER
+  ok  figure · the drone is shrunk the hulk way — a tenth of the delivered file, and every triangle of it still there   1.29 MB against 14.65 delivered, 10344 triangles
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/crew/crew_albedo.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _view (res://tests/parity_test.gd:12702)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/swarm/swarm_albedo.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _view (res://tests/parity_test.gd:12703)
+  ok  figure · and the sailor's sheet is twice the goblin's side, because the sailor is twice his height on screen   crew 1024 px for 144 ground units, swarm 512 px for 83
+  ok  prop · every wired deck prop scene keeps the statics' bargain — a scene on disk, meshes inside it, and an honest ruler   15 scenes: clean
+  ok  prop · every wired prop stands the height of the picture it replaced, at the camera that actually looks at it   11 rows: all within a tenth
+  ok  prop · the ruler is the camera's: depth reads as height, and turning the long axis into the lens costs the most   card 0.752, cube 1.411, long 1.081, swung 2.071
+  ok  hulk · three faces, one wall — one ruler holds the silhouette still while the door changes   widths 528 / 529 / 521 gu (spread 1.4%); per-state rulers would have spread 27.7%
+  ok  rig · a full-height figure at the authored speed plays the cycle one-to-one   rate 1.000
+  ok  rig · the same ground speed drives a half-height figure's cycle twice as hard — stride, not just speed   half 1.429 vs full 0.714
+  ok  draft · three cards, side by side, on screen
+  ok  draft · and they do not overlap the reroll button
+  ok  draft · a click in the middle card hits the middle card
+  ok  audio · the fight ducks under a line and comes back   -7.9 dB speaking, -0.9 dB clear
+  ok  audio · music ducks harder than the fight does   -11 vs -7 dB
+  ok  audio · and it comes back slower than it goes, so it does not pump
+  ok  view · a model path is derived from the enemy kind   res://assets/models/scrapper/scrapper.tscn
+  ok  view · and the captain's own model is where that rule says it is
+  ok  view · the scrapper is a mesh rather than a billboard   res://assets/models/scrapper/scrapper.tscn
+  ok  rig · a model with no AnimationPlayer still builds
+  ok  rig · and the wrapper measured it, so nothing guesses its height   1.6839 model units
+  ok  rig · and it is scaled to the height the renderer asked for   0.915 m, wanted 0.915
+  ok  rig · and asking a clipless model to swing changes nothing   idle
+  ok  rig · and it still stands where the simulation put it   (1.2, 0.0, -0.4)
+  ok  rig · and it stands ON the deck rather than in it   lowest point at 0.0000 m
+  ok  rig · and it fills the height it was given, crown to sole   0.915 m of 0.915
+  ok  rig · and every piece of it is on the figures layer   layer 2
+  ok  rig · and a hit squashes it without moving it   scale 0.472 of 0.543
+  ok  view · and whichever renderer a kind uses, every boarder is drawn   0 billboards, 6 rigs, 0 boarders
+  ok  voice · the line sheet is delivered   67 takes
+  ok  voice · a line plays
+  ok  voice · and does not repeat inside its cooldown
+  ok  voice · a higher priority cuts in
+  ok  voice · an undelivered key is silence, not a fallback
+  ok  shadow · the pool leans where the moon does — one light vector, read and not retyped   400 up throws 3.13 m along the moon's own track (dot 1.0000)
+  ok  shadow · a mark 200 units up is wider and fainter than the same mark on the planking   width 1.269 -> 2.961, alpha 0.500 -> 0.177
+  ok  shadow · a projectile's mark is directly beneath it and is never thrown   400 units up, mark is 0.000 ground units off centre and still grows
+  ok  shadow · no mesh figure carries both a cast shadow and a full-strength blob   core 42.0 wide at alpha 0.310 against the painted blob's 100.0 at 0.500
+  ok  shadow · and it is still one batch, one material, one draw, capped at 256   256 instances, one material
+  ok  rig · nothing in the rig is in the colour pass   3 pieces, all SHADOWS_ONLY
+  ok  rig · every caster is inside the moon's 34 m shadow distance   furthest 22.2 m (mesh_node) against 34.0
+  ok  rig · the shrouds are thick enough to read as rope under a 2.2 blur   radius 9.0, blur 2.2
+  ok  rig · and no mast stands in a lane, drawn or not   3 masts, none within 180 of a lane centre
+  ok  hull · the ship has a drawn shape, and it is one node the harness can find   74 pieces
+  ok  hull · the drawn deck is a superset — she is never asked to stand where nothing is drawn   full beam through the rect; bow tip 0.000, transom 0.520
+  ok  hull · every drawn piece of her is outboard — nothing overhangs the deck she walks   182664 lattice probes
+  ok  hull · nothing outboard can stop her — the drawn hull carries no collision at all   75 nodes, all MeshInstance3D; 8 cargo rects, 0 fitting walls
+  ok  hull · the clamp never learned the ship has a bow — every point she can reach is inside the rectangle   775 probes
+  ok  hull · the sheer is one curve — peaked forward, lower aft, and flat where the fight is   bow 96.0, midships 35.7, stern 90.0
+  ok  edge · the deck rail is the tiling module, not the solid bar it replaced   20 modules over 10 tiles a side
+  ok  edge · the rail tiles the deck exactly, so the pitch survives every seam   10 tiles of 232.0, pitch 116.0, scale 1.3901
+  ok  edge · no rail module reaches inboard of the deck she walks   20 modules measured
+  ok  edge · nothing in the edge kit can stop her either   149 nodes
+  ok  edge · the prow on the deck is the piece he remade, not the 3.6:1 spike SG-157 refused   prow 638 x 280 = 2.27:1 wide; the refused bow_ram is 3.64:1
+  ok  edge · the prow's beam is the hull's own beam where it seats, so its corners land on the strakes   seat z -1620: apron is 638 wide, the prow is 638, aft face at -1620
+  ok  edge · nothing in the edge kit stands in the rectangle she walks   37 pieces in plan
+  ok  edge · the stern is cut, and seating it butts its top on the apron plane and its transom on the hull's aft limit   off by default; built, its top is at y -0.4 (apron plane 0.0) and its transom at z 1540 (aft limit 1540)
+  ok  edge · the upper deck's floor is two of the SHIPPED rail's own heights, and it moves when the rail does   N=10: rail top 125.3, floor 250.7, built 250.7;  N=8: rail top 156.7, floor 313.4, built 313.3
+  ok  edge · the upper deck's stair climbs from the deck plane to the platform's own floor, and lands at both ends   foot at y 0.0, forward face z -1519 against the platform's aft face z -1519; top tread 227.5, one 23.2 riser under the floor at 250.7
+  ok  edge · the whole upper deck stands forward of the bow line, by a margin rather than by a rounding   16 pieces; the aft-most is UpperStair, 4.0 units forward of the bow line
+  ok  edge · the rail run across the platform ends in the corner posts, and the whole run fits the platform's beam   3 modules span x -363.9..363.9; the posts' inboard faces are at -363.9 and 363.9, their outboard at +/-424.5 against a 980 beam
+  ok  deck · the owner-approved breast rails ship with the strake capping deleted, and rebuilding keeps that verdict   shipped 0 caps + 14/14 breast modules spanning 1696/1696; low prototype 0 caps + 40 modules; legacy 72 caps + box=true; back 0 caps + 14/14 modules
+  ok  deck · the shipped breast rails cannot stop her   114 nodes
+  ok  deck · the low run on the strake keeps a pitch that divides the shipped rail's, and stands outboard of it, on the strake   20 modules a side at div 2: pitch 58.0 against the rail's 116.0, spanning |x| 871.2..886.8 between the rail's outer face 871.2 and the strake's edge 898.0, topping out at 151.1 under the rail's 214.2; squashed to div 1 x 0.5 it is 20 modules reaching 886.8; 14 breast modules span 1696 of a 1680 beam
+  ok  prop · every wrapped static model is inside the triangle ceiling   33 models measured against a ceiling of 8000, 8 known over
+  ok  prop · and none of the models already over that ceiling has grown   8 recorded
+  ok  marks · the cap is a number, not a hope — five hundred events leave two dozen marks   24 live, 23 drawn, 1 pending, cap 24
+  ok  marks · at the cap the faintest is retired and fades out — nothing ever pops   1 of 24 retiring, the loudest still drawn at alpha 0.024, 24 live after the ramp
+  ok  marks · no mark ever glows — the light on the planking is telegraphs only   emission false, shading 0, blend 0
+  ok  marks · a mark is never a ring — a ring on this deck means gameplay   draws through the blob's soft falloff
+  ok  marks · and no mark is louder than the ceiling the design named   loudest 0.120 against a ceiling of 0.12
+  ok  marks · one batch, one material, one draw — and no node per mark   24 instances, 0 children
+  ok  marks · nothing is stamped under a cargo run or over the side   0 under cargo, 0 overboard
+  ok  marks · the same death in the same place deepens one pool instead of stacking twelve discs   1 marks from twelve kills inside 70 units
+  ok  marks · marks land on events and never on a clock — thirty seconds of nothing leaves nothing   0 marks after 30 s
+  ok  marks · a new run starts on clean boards — the deck remembers this fight, not the last one   1 before, 0 after begin_run
+  ok  hull · a bow, a stern and a bloody deck, and the sim sails today's numbers exactly   24 marks on the boards; rng -4586824789081416956 vs -4586824789081416956
+  ok  vent · every vent wears a lit grate and a hot core, whoever is aboard   3 vents, 3 grates, 3 cores
+  ok  vent · the captain sees no stand-here ring — to her a vent is scenery   0 rings for the captain
+  ok  vent · the plume path breathes on the smoke metering   18 plume ticks across 3 vents
+  ok  aim · nothing is drawn while nothing is armed   aim decals on an idle deck
+  ok  aim · no ring, no disc — the reticle is the whole feature   an armed skill drew a range shape, or drew no reticle at all
+  ok  aim · the reticle is small: its own blast, never the reach   drew 110 against a blast of 110 and a reach of 420
+  ok  aim · the reticle is floored and ceilinged, so no card reopens the disc   30..150 ground units
+  ok  aim · a range card moves the clamp, because there is only one number   card took the range 420 -> 567 and the reticle stopped at 567
+  ok  aim · in range the marker sits at the cursor and glows   marker off the cursor, cold, or wearing the removed clamp echo
+  ok  aim · past the reach the marker clamps at the range, the glow dies, and nothing else appears   marker unclamped, still glowing, or a second shape out past the reach
+  ok  aim · Cleave and passives arm nothing   an auto or a passive drew an aim read
+  ok  aim · the read stops the frame nothing is armed   aim decals survived disarming
+  ok  hulk · the push objective wears a full bar the moment it grapples   { "ratio": 1.0, "flash": false }
+  ok  hulk · the bar tracks the hulk's hp through the same function the screen draws   ratio 0.500 after half its hp
+  ok  hulk · and it dies with the hulk   a bar over a dead hulk, or over no hulk at all
+  ok  vent · the Boilerwright's teal ring stands at every vent   3 rings on 3 vents
+  ok  vent · the ring is drawn at the radius the bank actually fills at   ring 150 against VENT_STAND 150; fill inside 9.00, outside 0.00
+  ok  coach · the Boilerwright's first lesson names the vents and a live bearing   said: Those steaming deck grates are vents — HEAD for free, 18 a second while you stand on one. The nearest is ahead to port.
+  ok  coach · and standing on a vent is the lesson learned — the line never fires   fired 0 times after he had already found one
+  ok  coach · and the captain is never taught a mechanic she does not have   the vent line fired for the captain
+  ok  cutscene · there is at least one saved shot on disk   colossus_arrival, defeat, run_open, victory, wave_start_blackout, wave_start_grapple
+  ok  cutscene · the index names exactly the files beside it   index ["colossus_arrival", "defeat", "run_open", "victory", "wave_start_blackout", "wave_start_grapple"] vs disk ["colossus_arrival", "defeat", "run_open", "victory", "wave_start_blackout", "wave_start_grapple"]
+  ok  cutscene · every cue the table names is actually called in scripts/   never fired: 
+  ok  cutscene · the posed-shot tools suppress cutscenes so no cue poses their camera   still exposed:
+  ok  cutscene · and no saved shot names a cue that does not exist
+  ok  cutscene · the Colossus arriving resolves to a real shot   colossus_arrival
+  ok  cutscene · and it is a movement rather than a pose   4 keys over 4.00 s
+  ok  cutscene · sampling at a keyframe's own time returns that keyframe
+  ok  cutscene · inout leaves and arrives slowly, linear does not   inout(0.25) = 0.156
+  ok  cutscene · in accelerates, out decelerates, hold is a cut
+  ok  cutscene · and every curve lands on both of its keyframes
+  ok  cutscene · a key pinned to the gameplay camera resolves to the shipped solve   eye (-120.0, 760.0, 940.0)
+  ok  cutscene · and the file still says pinned, so it re-resolves next run
+  ok  cutscene · a shot can be played on the real renderer
+  ok  cutscene · and it takes the camera somewhere else entirely   1382 ground units away
+  ok  cutscene · and the captain is locked and the HUD is down while it runs
+  ok  cutscene · it ends on its own rather than holding the camera
+  ok  cutscene · THE GAMEPLAY CAMERA COMES BACK EXACTLY   0.00000 ground units and 0.00000 degrees off
+  ok  cutscene · and so does the lens the whole game is calibrated to   36.0868 deg vs 36.0868
+  ok  cutscene · and the HUD, the controls, the follow point and the zoom   hud true  controls true  focus (0.0, 500.5148)
+  ok  cutscene · a shot may break the shipped solve entirely
+  ok  cutscene · and it really is a different lens while it runs   70.00 deg
+  ok  cutscene · and the shipped lens is put back when it ends   36.0868 deg, wanted 36.0868
+  ok  cutscene · and the camera with it   0.00000 ground units off
+  ok  cutscene · a shot with no movement in it is refused rather than played
+  ok  cutscene · and an unknown cue plays nothing at all
+  ok  cutscene · the run_open cue carries a playable shot   run_open · 3 keys · 2.50s
+  ok  cutscene · and the run_open shot stays inside its duration budget   2.50s ≤ 2.60s
+  ok  cutscene · the victory cue carries a playable shot   victory · 4 keys · 5.40s
+  ok  cutscene · and the victory shot stays inside its duration budget   5.40s ≤ 6.00s
+  ok  cutscene · the defeat cue carries a playable shot   defeat · 4 keys · 3.60s
+  ok  cutscene · and the defeat shot stays inside its duration budget   3.60s ≤ 4.20s
+  ok  cutscene · wave_start fires on the event waves 4 and 8, never the boss wave or an ordinary one   4=wave_start_grapple 8=wave_start_blackout 12= 2=
+  ok  cutscene · and a wave_start flourish is short — under a second and a half   1.40s
+  ok  cutscene · the run_open shot plays and hands the gameplay camera back exactly   0.00000 gu off, lens 36.0868
+  ok  cutscene · the victory shot plays and hands the gameplay camera back exactly   0.00000 gu off, lens 36.0868
+  ok  cutscene · the defeat shot plays and hands the gameplay camera back exactly   0.00000 gu off, lens 36.0868
+  ok  cutscene · the wave_start_grapple shot plays and hands the gameplay camera back exactly   0.00000 gu off, lens 36.0868
+  ok  cutscene · the wave_start_blackout shot plays and hands the gameplay camera back exactly   0.00000 gu off, lens 36.0868
+  ok  cutscene · begin_run flags the run as owing an establishing shot
+  ok  cutscene · and _watch_cues spends it on the first wave, opening the run once
+  ok  log · a finished run is written to disk   1 rows
+  ok  log · and it carries the seed, the wave and the build   seed PARITY, wave 6
+  ok  log · the report itself is kept, not just the numbers
+  ok  log · and the row carries the class and the heat that reproduce the run   class captain, heat 2.0
+  ok  log · and a Heat run's report line names its Heat
+  ok  log · the title screen can read a best wave out of it   2 runs, best 11
+  ok  log · an old-format row without heat or class still loads and counts   3 runs, best 12 at heat 0
+  ok  log · it is capped rather than unbounded   keeps 60
+  ok  log · recording reports whether it actually reached the disk
+  ok  keys · an action can be rebound   dash is now F
+  ok  keys · and a key already spoken for is refused rather than double-bound   conflict reported: dash
+  ok  keys · the map survives a reload   after reload: F
+  ok  keys · and resets to what the project ships with   Space
+  ok  keys · menu keys are deliberately not rebindable   rebindable but should not be:
+  ok  keys · and every one of them is a real action   listed but not in the input map:
+  ok  layout · every HUD plate fits, and none overlap, at six sizes
+  ok  layout · everything but the objective is in the bottom band
+  ok  layout · the objective is at the top and slim enough to be there   76 px tall at y 12
+  ok  layout · the shipped default is a clean layout
+  ok  layout · and stays clean on a very wide screen
+  ok  layout · a right-anchored plate keeps its distance from the right edge   24 vs 24
+  ok  layout · and a bottom-anchored one from the bottom
+  ok  layout · changing an anchor leaves the plate where it was   [P: (24.0, 598.0), S: (380.0, 146.0)] -> [P: (24.0, 598.0), S: (380.0, 146.0)]
+  ok  layout · an edit survives a save and a load
+  ok  layout · a malformed plate falls back rather than taking the HUD with it   kept bottom_left
+  ok  layout · and a plate cannot be edited down to nothing   28 tall
+  ok  layout · every element inside a plate has a box of its own   3 in a slot, 7 on the captain
+  ok  layout · and it lands inside the plate's interior, not on its frame   [P: (603.0, 674.0), S: (32.0, 32.0)] in [P: (583.64, 656.64), S: (70.72, 62.72)]
+  ok  layout · and all four slots agree where their glyph sits
+  ok  layout · moving a plate carries its contents with it
+  ok  layout · and an element can then be moved on its own
+  ok  layout · an element dragged off its plate is reported, not silently lost
+  ok  layout · re-anchoring an element leaves it where it was   [P: (144.12, 630.12), S: (194.0, 30.0)] -> [P: (144.12, 630.12), S: (194.0, 30.0)]
+  ok  layout · screen offsets survive a save and a load
+  ok  layout · a malformed screen entry falls back alone   { "title": { "begin_run": [4.0, 5.0] } }
+  ok  layout · a typed offset takes a pair and refuses everything else
+  ok  layout · a readout's number is not part of its key
+  ok  layout · undo restores the pre-nudge value
+  ok  layout · screen size deltas survive a save and a load   { "title": { "skygear": { "o": [2.0, -4.0], "s": [-120.0, 0.0] } }, "draft": { "card_emblem": { "s": [8.0, 8.0] } } }
+  ok  layout · an entry older than sizes loads unchanged, and still saves as a pair   { "title": { "begin_run": [7.0, -2.0] } } vs { "title": { "begin_run": [7.0, -2.0] } }
+  ok  layout · a malformed size entry falls back alone   { "title": { "begin_run": [4.0, 5.0], "settings": { "s": [10.0, 0.0] }, "quit": { "o": [1.0, 1.0], "s": [2.0, 2.0] } } }
+  ok  layout · a zero size delta is erased and leaves the offset a bare pair   { "title": { "skygear": [3.0, 0.0] } } / {  }
+  ok  layout · a floor refuses a resize below the ink minimum   floored to (12.0, 20.0), a 6x4 mark floors at (6.0, 4.0)
+  ok  layout · undo restores the pre-resize size   (-30.0, 0.0)
+  ok  layout · the captain's plate clears the skill slots at the floor size   gap 12 px
+  ok  editor · the screen you are on is the screen you edit   title
+  ok  editor · the editor sees the title screen's elements   16 elements
+  ok  editor · a widget's key is its label   skygear, storm_dusk_godot_port, keep_the_boiler_alive_throug, wasd_move_mouse_aim_lmb_rmb, who_is_aboard, fills_her_gauge_by_fighting, the_core, her_basic_attack_and_the_onl, compare_the_two, begin_run, how_to_play, settings, controls, quit, runs_best_wave_held_best, milestone_v_combat_vertical
+  ok  editor · a saved offset moves the element by exactly that much
+  ok  editor · the offset is measured from the home — move the home and it follows
+  ok  editor · a saved size delta narrows the text box by exactly that much
+  ok  editor · and the selection carries a resize handle on the edge it can move   ["e"]
+  ok  editor · the size delta is measured from the home size — reflow and it follows
+  ok  editor · a resize past the floor is refused, not obeyed
+  ok  editor · and a box narrowed past its own words fires the live verdict
+  ok  editor · the screen is clean again once the delta is erased
+  ok  editor · Ctrl+S writes the file, and a fresh load reads the edit back   saved=true written=true error='' back=(6.0, -2.0)/(-25.0, 0.0)
+  ok  editor · and Ctrl+S is never modal — the typed box and the picker both let it through   typed box true, picker true
+  ok  editor · every screen family is reachable and captures its elements
+  ok  editor · the draft's cards are panels and the emblem is an element   choose_your_opening_weapon, every_skill_is_a_shape_and_a, reroll_x_r, new_skill, ember, common, card_emblem, active, ember_gale, cone_burns_targets, arms_slot, new_skill_2, steam, common_2, card_emblem_2, active_2, steam_mortar, aoe_knocks_back, arms_slot_2, new_skill_3, ember_2, common_3, card_emblem_3, passive, ember_field, aura_burns_targets, arms_slot_3
+  ok  editor · the shipped layout file parses
+  ok  editor · every key in the shipped file resolves to something drawn
+  ok  editor · shift while dragging locks the dominant axis
+  ok  editor · and the lock zeroes the minor axis   applied (10.0, 0.0) then (2.0, 0.0)
+  ok  editor · a shift re-press re-evaluates the axis   caught up (0.0, 14.0), re-locked axis 1, snapped (-12.0, 2.0)
+  ok  editor · a drag without shift is unchanged
+  ok  editor · the nudge path carries the lock only while drag motion feeds it   locked drag wrote (10.0, 0.0), the arrow nudge then wrote (10.0, 10.0)
+  ok  menu · the title stands on a board rather than on the planking   [P: (704.0, 352.0), S: (512.0, 636.0)]
+  ok  menu · every plate on the board is one column wide   9 plates, 1 off the board
+  ok  menu · QUIT is the one control that leaves the board   1 off the board
+  ok  menu · no two plates share pixels, and none sits on the board's frame   0: 
+  ok  menu · the board is exactly as deep as the column standing on it   foot gap 18.0, stile 18.0
+  ok  menu · every Heat rung is a named element, not an anonymous widget   skygear, storm_dusk_godot_port, keep_the_boiler_alive_throug, wasd_move_mouse_aim_lmb_rmb, difficulty, heat_boarders_aloft, heat, heat_2, heat_3, heat_4, heat_5, and_a_hulk_grapples_on_every, who_is_aboard, fills_her_gauge_by_fighting, the_core, her_basic_attack_and_the_onl, compare_the_two, the_workshop, the_berths, begin_run, how_to_play, settings, controls, quit, runs_best_wave_held_best, milestone_v_combat_vertical
+  ok  menu · a nudged Heat rung takes its own art with it   (730.0, 392.0) -> (747.0, 383.0)
+  ok  menu · the lamp flickers within bounds and never goes dark   0.721 .. 1.000
+  ok  menu · the engraved channel is opaque, so no light reaches the words   0.95999997854233
+  ok  menu · a save that has never won gets no Heat ladder — the gate, on the screen   0 rungs drawn
+  ok  menu · and OPEN ALL HEATS puts every rung on that same title, clickable   5 rungs drawn against 5 on the ladder
+  ok  menu · and the board is still exactly as deep as the column standing on it, with the ladder up and the Workshop absent   foot gap 18.0, stile 18.0, 0 collisions
+  ok  editor · the picker poses the batch tool's own screens — one list   25 tool vs 25 poser screens
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] pose (res://scripts/screen_poser.gd:128)
+       [1] pose_screen (res://scripts/game.gd:1533)
+       [2] _screen_poser (res://tests/parity_test.gd:14065)
+  ok  editor · the picker poses GAMEOVER on a sandbox, not on the run   sandbox results, live PLAY
+  ok  editor · and the pose freezes the run while the glass is up
+  ok  editor · a posed ending writes no fake row to the run log   5 rows before, 5 after
+  ok  editor · a posed screen captures its elements for the editor   12 elements
+  ok  editor · and the posed results screen carries its own buttons   deck_lost, the_boiler_went_cold_on_wave, skygear_godot_port, boarded_the_boiler_went_cold, wave_seed_audit, build_ember_cleave_auto_embe, vents_healed_salvage_rerolls, play_again, new_seed, copy_report, quit_to_title, saved_to_the_run_log
+  ok  editor · and leaving the pose hands the run back exactly
+  ok  editor · an offset saved on a posed screen moves the real screen   screen results, key play_again
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] pose (res://scripts/screen_poser.gd:128)
+       [1] pose_screen (res://scripts/game.gd:1533)
+       [2] _screen_poser (res://tests/parity_test.gd:14134)
+  ok  editor · every audit screen is posable from the picker
+  ok  editor · and the poses land on all ten screen families   unreached: 
+  ok  editor · two games in one tree keep their boarders and props apart   second held 5/31, now 5/31
+  ok  dash · the draft can actually raise the dash ceiling   2 -> 3
+  ok  dash · and the third charge can be spent   3 dashes from 3 charges
+  ok  dash · and a fresh run starts with all of them   3 of 3
+  ok  hazard · a fire tick lands   hp 97.0 of 100.0
+  ok  hazard · a fire tick never buys immunity to a swing   hp 71.0 after the swing, was 97.0
+  ok  hazard · but a dash still dodges one — the flag grants, it does not ignore   hp 71.0 vs 71.0
+  ok  hazard · a swing still opens the 0.55 s window it always did   0.55 s
+  ok  hazard · and a fire pool now deals its authored 12 dps, not a third of it   12.0 dps over 10 s
+  ok  hazard · and it deals it at any frame rate — the tick period is not the step   1/60 12.00 · 0.05 12.00 · 0.1 12.30 dps (spread 0.30)
+  ok  hazard · a fire tick carries its remainder instead of throwing it away   tick left at 0.2000, expected 0.2000
+  ok  hazard · a steam main ticks at its authored rate at any frame rate — SG-126   1/60 2.000 · 0.05 2.000 · 0.1 2.000 ticks/s against an authored 2.000 (spread 0.000)
+  ok  hazard · and a steam tick carries its remainder instead of throwing it away   tick left at 0.4000, expected 0.4000
+  ok  hazard · a Field aura ticks at the rate its card authored — SG-126   1/60 1.850 · 0.05 1.800 · 0.1 1.800 ticks/s against an authored 1.800 (spread 0.050)
+  ok  hazard · and a Pulse carries its remainder too — its period is the cooldown, not the tick rate   timer left at 3.4200, expected 3.4200 (period 3.5200 less the 0.1 it overshot)
+  ok  hazard · and a passive tick carries its remainder instead of throwing it away   timer left at 0.4556, expected 0.4556
+  ok  telegraph · the melee roster is read off the table, not typed into the harness   4 melee rows: SCRAPPER, ARMORED, SWARM, BOSS
+  ok  telegraph · the wedge that connects is the wedge that was drawn   SCRAPPER 0.263/0.264 ARMORED 0.335/0.333 SWARM 0.221/0.222 BOSS 0.335/0.333
+  ok  telegraph · and no enemy can take a reach-less path — both carve-outs are gone   left behind:
+  ok  telegraph · and the renderer takes the wedge from the simulation's own accessor   view3d.gd does not call swing_wedge_reach()/swing_wedge_arc()
+  ok  telegraph · a shooter's branch is taken before any wedge is resolved for it   in _physics_process: ranged branch at 3579, wedge resolved at 4843
+  ok  telegraph · and a ranged shooter still fires — it never asks for a wedge it has no reach for   2 bolts in the air
+  ok  telegraph · and the Colossus's swing still lands exactly as far as it always did   beat 0 146.0 (was 146.0) · beat 1 236.0 (was 236.0)
+  ok  telegraph · and SG-119 moved his shape and nothing else about him   dmg 26 windup 0.90 recover 1.00
+  ok  boss · his health is the number the measurement picked, not a feeling   hp 2900 = 4814 effective at wave 12, about 31 s at the measured 153.7 eff/s
+  ok  seed · the same seed twice lays the kegs in the same places   12 kegs vs 12
+  ok  seed · and a different seed is a different deck   12 kegs, all in the same places as KEGSEED
+  ok  seed · the cosmetic stream is seeded from the run's own seed text   seed 188117099, expected 188117099
+  ok  seed · and seeding it draws nothing from the run's own stream   rng state -8669342939185874577, a virgin stream on that seed is -8669342939185874577
+  ok  seed · and the cosmetic stream's salt cannot collide with a tempo stream's   collides at:
+  ok  bot · the bot's band is the captain's own gauge range   bot 210 vs CLOSE.range 210
+  ok  bot · the bot actually moves the captain — the SG-118 regression   776 units in 3.0 s
+  ok  bot · and she walks out of a fire pool she is standing in   steer 0.00,-1.00
+  ok  bot · a rig that steps a boarder by hand does it inside a physics frame — the SG-190 clock   7 hand-stepping tools; all of them hold the clock
+  ok  bot · the draft order is the catalogue's, with the passives at the back   8 of 8 shapes, last active at 5, first passive at 6
+  ok  bot · widening a draft does not change the card she takes   CONE at 4 cards, CONE at 32
+  ok  bot · and she takes the best card offered, not the first cell   took cell 1 of [PULSE, CHAIN]
+  ok  bot · she takes a passive only when the draft leaves her nothing else   AURA from two passives, CHAIN when an active is beside them
+  ok  bot · and an upgrade draft takes the first card at any width   cell 0 of 3, cell 0 of 12
+  ok  bot · and the passive probe inverts that on purpose, and only when asked   default off, probe took AURA where the plain order took CHAIN
+  ok  bal · 5 of 6 and 3 of 6 are the same result — the SG-14/SG-26 contradiction is a sample size, not a disagreement   Wilson (0.436491, 0.969947) vs (0.187613, 0.812387)
+  ok  bal · and the same two rates DO separate once the sample is honest — so the agreement above is resolution, not a blind comparator   Wilson (0.756546, 0.889441) vs (0.411937, 0.588063)
+  ok  bal · the floor below which nothing is recorded is derived from the gap it has to see, not picked   MIN_N 31 against a derivation of 31
+  ok  bal · a held-count at the old six-seed default is worth plus or minus forty points   +-40.0 points at n=6
+  ok  bal · and the quotable sample is the one that meets the eight percent the rig's own header declared   +-8.9 points at n=120
+  ok  bal · and the rig refuses a verdict in words at a sample it cannot support   n=6 says 'n=6 IS NOT A MEASUREMENT — a held-count here is worth +-40 points. Record nothing.'
+  ok  bal · the eight percent gate was three times too permissive at the sample size it was last quoted at   n=30 resolves 26%, against a gate quoted as 8%
+  ok  bal · and an effect the rig cannot afford to see is priced in runs rather than dismissed as noise   1% costs n=19985 per arm, 30% costs n=23
+  ok  bal · a planted trend across run order comes back as the slope it was planted at (REGRESSION GUARD — arithmetic identity, not evidence about the rig)   planted 0.25/run, recovered 0.250000000/run
+  ok  bal · and the p that calls a trend comes from Student's t, not the normal shortcut that would call it significant   t=2.10 df=10 gives p=0.0621; the normal shortcut gives 0.0357 and clears 0.05
+  ok  bal · and a trend resolves as n^1.5 where a mean resolves as n^0.5, which is why 480 runs can price a slope (REGRESSION GUARD — arithmetic identity)   doubling n buys 2.828x on a slope against 1.414x on a mean
+  ok  balance instrument · one hundred twenty requested samples are BAL1 through BAL120   120 generated, 120 distinct, BAL1 through BAL120
+  ok  balance instrument · repeated fingerprints never inflate effective n   4 rows, 2 distinct, effective n 2
+  ok  balance instrument · variation within one seed fails the instrument   ok=false · seed BAL2 produced differing fingerprints
+  ok  balance instrument · positional heat article and reps arguments remain compatible   120/4//2 · 31/3/opening_bid/1 · dash /7
+  ok  balance instrument · every reported interval reads the distinct-seed count   effective n 2 · Wilson (0.094529, 0.905471) · production readers present
+  ok  class · the boilerwright's top speed is 79% of hers, as designed   0.79
+  ok  class · but ground covered against a dashing captain is worse than that   he covers 40% of her distance against a 79% walk speed
+  ok  ink · a caller cannot argue the size floor down   got 12, floor is 12
+  ok  ink · and cannot ask for a size below it either   got 12
+  ok  ink · and a string that fits keeps the size it asked for   got 22
+  ok  ink · the point-size floor clears the physical floor at the min window   10.0 px at 1600 wide, floor 10.0
+  ok  ink · the downscale base matches the project's design canvas   BASE_W 1920 vs viewport_width 1920
+  ok  ink · widget text goes through the HUD's funnel, not its own
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _ink (res://tests/parity_test.gd:14359)
+       [2] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _ink (res://tests/parity_test.gd:14359)
+       [2] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _say (res://scripts/hud.gd:1918)
+       [2] _say_in (res://scripts/hud.gd:1993)
+       [3] _text (res://scripts/ui.gd:176)
+       [4] button (res://scripts/ui.gd:254)
+       [5] _ink (res://tests/parity_test.gd:14359)
+       [6] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _say (res://scripts/hud.gd:1918)
+       [2] _say_in (res://scripts/hud.gd:1993)
+       [3] _text (res://scripts/ui.gd:176)
+       [4] button (res://scripts/ui.gd:254)
+       [5] _ink (res://tests/parity_test.gd:14359)
+       [6] _run (res://tests/parity_test.gd:366)
+  ok  ink · and every widget carries the plate it was declared on   [P: (154.0, 154.0), S: (552.0, 292.0)]
+  ok  ink · and a button laid out from the sheet edge is caught
+  ok  ink · contrast runs 1 to 21, the WCAG way   21.00 and 1.00
+  ok  ink · and linearises sRGB rather than averaging bytes   3.95
+  ok  ink · the outline is a dark enough surround for every HUD tint   #b0813f scores 5.80
+  ok  ink · and it is actually drawn, not a constant nobody reads   2.0 px
+  ok  ink · the dimmed floor is under the body floor and over nothing
+  ok  card · every card in the catalogue resolves what the face draws   37 cards
+  ok  card · and the rarity field is read at last — all three tiers appear   common, epic, rare of ["common", "rare", "epic"]
+  ok  card · and reads as a ramp — heavier metal for a better card
+  ok  card · and no rarity metal is an element's hue
+  ok  card · every weapon shape says whether it is active or passive   ACTIVE, PASSIVE
+  ok  card · and a card that is not a weapon says neither
+  ok  card · an opening-draft weapon is painted its element's colour   3 options
+  ok  card · and a Frost card is Frost wherever the element came from
+  ok  card · and a card with no element is brass, which is not an element
+  ok  card · the lit slots and the card's hue name the same element   lit [1]
+  ok  card · every shaped card draws its emblem   9 shaped cards resolve a glyph
+  ok  card · the draft heading names the draft, not CHOOSE ONE   CHOOSE YOUR OPENING WEAPON / ARM A NEW SLOT / DRAFT AN UPGRADE
+  ok  card · the draft card is portrait, not the old near-square plate   0.708 (ceiling 0.78)
+  ok  lab · the fit Euler order is Node3D's own default, so hold() reproduces the basis   LabMath 2 vs Node3D 2
+  ok  lab · the shipped weapons.json fit loads to the same basis after the local-axis refactor   drift 0.0000000 at rot (-16.84806, 20.57716, -87.50021)
+  ok  lab · at pitch -90 the Euler yaw and roll rows collapse to one pose — the reported bug   euler yaw-vs-roll drift 0.00000002
+  ok  lab · but a local-axis nudge about pitch, yaw and roll stays distinct at that singularity   closest pair 0.5942 apart
+  ok  lab · a local-axis rotation nudge changes the pose   0.3486
+  ok  lab · the typed-input parser accepts a well-formed number and reads its value
+  ok  lab · and refuses malformed input so the old value is kept
+  ok  clip · a plan's frames follow from seconds and fps   { "every": 3, "frames": 80, "ticks": 240, "seconds": 4.0, "delay_ms": 50 }
+  ok  clip · a degenerate ask still yields one whole frame   { "every": 1, "frames": 1, "ticks": 1, "seconds": 0.01666666666667, "delay_ms": 17 }
+  ok  clip · a fractional ask rounds up to whole frames   { "every": 5, "frames": 13, "ticks": 65, "seconds": 1.08333333333333, "delay_ms": 83 }
+  ok  clip · every named scenario resolves
+  ok  clip · the scenario set covers every shipped cutscene
+  ok  clip · a cutscene clip's default length films the whole scene plus the hand-back
+  ok  clip · the stitcher refuses zero frames   exit 2
+  ok  still · every tool that photographs this deck says whether it freezes it   32 readback tools, all accounted for
+  ok  still · and the one freeze still stops every clock that ignores set_process   7 clocks
+  ok  still · and no photographing tool keeps a private copy of it   one helper, 32 tools
+  ok  still · and every frozen readback waits for the renderer, not for the tree   32 tools
+  ok  still · and the runtime half of it is in the hub where somebody will run it   tools/still_probe.gd
+  ok  rune · the rune mask is a diff of two plates, not a window onto a colour wheel   no colour test in the mask
+  ok  rune · and what counts as a changed pixel is still the one the freeze uses   SkyGearStill.MOVED
+  ok  rune · the telegraph prefixes the mask hides are the ones view3d actually draws   ["tar", "tf", "tg", "tn", "tp", "tr", "ts"]
+  ok  deck · the procedural deck obeys the same lamplit ceiling the models do   lamplit.py says 0.3400, view3d says 0.3400
+  ok  rune · nothing derives a rune from a colour window but the probe that exists to fail it   one, declared, in rune_probe.gd
+  ok  rune · and the runtime half of it is in the hub where somebody will run it   tools/rune_probe.gd
+  ok  rune · and every tool that decides on the gate takes its runes from that mask   rig_probe.gd, marks_shot.gd
+  ok  lit · the deck still has the third lamp the paintings are lit with   RIM_ANGLE, parented in _build_world
+  ok  lit · and it still grazes the boarders instead of washing the planking   pitch 1 degrees, ceiling 6
+  ok  lit · and it is still a COOL rim, which is what makes it read on a warm deck   #9fc6e8, blue 0.91 over red 0.62
+  ok  lit · and darkness takes it on the moon's curve, not the lantern's   _sync_darkness
+  ok  lit · and the half of it that needs a GPU is frozen before it reads   tests/lit_probe.gd
+  ok  lit · and the pose is pinned too, because a stopped clock is not a repeatable one   tests/lit_probe.gd, POSE_T
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/armored/armored_emission.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _grille (res://tests/parity_test.gd:2508)
+       [1] _lit (res://tests/parity_test.gd:2490)
+       [2] _run (res://tests/parity_test.gd:376)
+  ok  lit · the furnace knight's emission map has a furnace in it   peak 133/255, floor 100 (Meshy's shipped 51)
+  ok  lit · and it lights his grille rather than freckling the whole of him   0.55% of the sheet lit, window 0.30-2.00%
+  ok  lit · and the map is reproducible from the albedo rather than hand-daubed   tests/grille_map.py
+  ok  lit · and the energy the map is multiplied by is still the 6.0 it was tuned at   tools/models.json, armored
+  ok  immunity · a wave puts a boarder in its arrival window at all   SCRAPPER, hp 60
+  ok  immunity · an arriving boarder takes nothing from the funnel every skill goes through   dealt 0.0, hp 60.0 -> 60.0, state climb
+  ok  immunity · and is not knocked out of the air by a hit that dealt nothing   knock (0.0, 0.0)
+  ok  immunity · and cannot be burned while it is still arriving   hp 60.00 -> 60.00 over four burn ticks
+  ok  immunity · a boarder becomes hittable on the frame it stops arriving   state move, dealt 24.0
+  ok  immunity · the ticks an immunity swallows are never paid back afterwards   held 0.00 over 2s, then 0.00 on the landing frame against a 3.75 tick
+  ok  immunity · nothing outside enemy.gd names the arrival state by its string   named in: 
+  ok  immunity · every function in enemy.gd that lowers a boarder's hp asks can_be_hit()   1 lowering functions, unguarded: 
+  ok  immunity · nothing outside enemy.gd lowers a boarder's hp — the regression guard on (b)    
+  ok  arrival · every wave but the boss's brings a hull forward, and it is one already flying   1 boss waves; 
+  ok  arrival · and across a run the wedge is thinned in more than one place   4 distinct hulls over 12 waves
+  ok  arrival · wave one brings the hull with the furthest to travel   wave 1 brings skyship_tender; the longest run is the skyship_tender's at 4481 units
+  ok  arrival · the hull leaves its station at wave start and is on the bow hold before the fight   u(0)=0.000 u(2.6)=1.000 monotone=true
+  ok  arrival · and rides the wave's own clear countdown home, arriving as the draft opens   u at clear-start 1.000, at clear-end 0.000
+  ok  arrival · every arrival hull clears the deck and the cargo at the hold, and parks by its deck rather than its keel   4 hulls measured; 
+  ok  arrival · the hold sits at the fleet's own measured ceiling, not at a chosen height   ARRIVAL_DECK_Y -745 against the skyship_cutter's masthead at -745
+  ok  arrival · the arrival tier holds no clock of its own — the SG-133 regression guard   40 lines read
+  ok  arrival · the landing ring closes onto the boarder's own gameplay radius, for every kind    
+  ok  arrival · and only ever closes, never widens   ends at 44.00
+  ok  arrival · the ring's window is the boarder's own, never a second copy of 0.8   ARRIVAL_TIME 0.80, renderer restates it: false
+  ok  arrival · the landing ring draws on the telegraph budget, not the decor one   tar -> 0
+  ok  arrival · and it is the colour the hidden 2D ring has always been — the regression guard   enemy.gd still draws #e8c376: true
+  ok  arrival · the drop starts at the transport's own station and ends exactly on the simulation's spot   launch (-1250.0, -3000.0) (hold (-1250.0, -3000.0)), land (-140.0, -820.0) (sim (-140.0, -820.0))
+  ok  arrival · and the landing point is a parameter, so a boarder shoved in mid-air bends its arc instead of teleporting at the end   one instant, two destinations: (-350.3057, -1233.033) vs (-139.5664, -1087.136)
+  ok  arrival · the drop climbs out from under our own rail and lands at exactly deck height   launches at -745, apex 300, lands at 0.00
+  ok  arrival · and it is over its own landing ring before it begins to fall — the readability pin   83% of the crossing done at the apex, floor 80%
+  ok  arrival · and the per-boarder bow decorates the middle of the crossing and never the ends of it   six ids, both ends pinned: true
+  ok  arrival · who crosses and who keeps its own altitude is read off ROTOR_MOTION and SEGMENTED, never a typed roster       3 kinds get the whole arc
+  ok  arrival · the drop holds no clock of its own — the SG-133 rule applied to the arc       5 functions read
+  ok  arrival · no boarder crosses in an idle pose — a missing jump clip never stops a kind arriving   3 kinds asked, 2 play a real jump, 1 fall back to a gait;  BOSS never crosses.   
+  ok  arrival · and at least one kind reaches a real jump clip through the spelling table rather than the fallback   2 of 3 kinds play a jump clip; table ["jump", "jump2"]
+  ok  arrival · and the jump fallback is a moving cycle written into _fallback, not a fall-through to idle   _fallback names jump: true
+  ok  arrival · a boarder in its arrival window is drawn off the planking and short of its mark, not standing on it   lift 251, drawn 453 short of the mark, sim untouched at (54.53636, -1115.0)
+  ok  arrival · and the simulation's own position, clock and immunity are exactly as the renderer found them   sim at (54.53636, -1115.0), state climb, hittable false
+  ok  arrival · and casts no moon shadow of its own while it is crossing   0 meshes still casting
+  ok  arrival · a mark with height under it is never shrunk to a contact core   standing core 42.0 wide, the same mark at 300 up is 100.0 wide
+  ok  arrival · and a projectile's mark is still never thrown down the moonlight — the RULE ONE regression guard   a 400-unit bolt's mark sits at (0.37, 0.02, -0.12)
+  ok  arrival · and when the simulation ends the crossing it is on the simulation's own spot, casting again, and takes the impact   landed after 25 frames, drawn 0.000 from the sim, 1 meshes casting, squash 0.661
+  ok  cargo · the cargo runs are built out of the deck's own crate mesh   1 batch, 120 crate stacks over 8 runs (old renderer: 0 batches, 0 stacks)
+  ok  cargo · and no crate stack stands taller than the height the x-ray pass tests against   tallest 125.0 of 125.0 over 120 stacks — regression guard
+  ok  cargo · and every crate stack stands ON the plinth rather than sunk through it   lowest base 22.0 against a 22.0 plinth
+  ok  cargo · and no cargo module is projected onto the lid of a run   0 module decals aimed at the planking (old renderer: 24) — regression guard
+  ok  hulk · the boarding hulk is drawn at the width the simulation collides with   drawn 380 wide against a 380 hull (old renderer: 528 against 380)
+  ok  hulk · and it fits between the cargo runs it is parked between   380 wide in a 440 lane (old renderer: 528 in 440)
+  ok  hulk · a boarder spawns inside the hulk's own footprint, not behind it   spawn y -1115 against a hull reaching -846 — SG-141 carries the rest
+  ok  hulk · a destroyed hulk fades instead of standing at the bow   transparency 0.02 -> 0.72 over 2.2s (old renderer: 0.00 -> 0.00, forever)
+  ok  hulk · and the next hulk to break is not born a ghost   transparency 0.02 on a fresh wreck — regression guard
+  ok  editor · the harness never touches the player's own saved layout   was -1 bytes, now -1
+  ok  editor · and it never touches the player's own settings either   was 127 bytes, now 127, byte for byte
+  ok  editor · and it never wipes the player's own run history — the SG-182 regression   was 79198 bytes, now 79198, byte for byte
+  ok  editor · nor the keys he rebound   was 613 bytes, now 613, byte for byte
+  ok  editor · nor a byte of what he has earned   was 467 bytes, now 467, byte for byte
+  ok  harness · the run raised no script errors   0 raised
+  ok  harness · and no more engine errors than the ones already written down   56 engine errors against a pinned 56 (SG-153)
+
+1189/1202 checks passed  —  cleave · the next beat reads port before any target exists and begin_run puts it back   empty deck reads port at serial 0, then port, begin_run port at 0, cleave · odd cuts centre twelve degrees to port and even cuts twelve degrees to starboard   odd port 20 star 0, even port 20 star 0, cleave · a swing that finds no body and no hull advances neither serial, beat nor cooldown   miss quiet true, corpse quiet true, then serial 0 reading port, cleave · two connected close cuts total 44 and two cuts at the edge total 40   close 20 + 20 = 40, edge 20 + 20 = 40, cleave · the 110 band is measured per body inside one latched return cone   near 40 over two cuts, far 0 on the return, cleave · one swing latches one beat however many bodies the cone catches   serial 0 then 0 over 3 bodies paying [40.0, 40.0, 40.0], cleave · the hull takes the resolved 20 or 24 once through the ordinary splash   hull close 20 then 20 at serial 0, hull far 40 over two, cleave · all four elements carry the same two-beat damage   4 elements, faults ["EMBER 20/40 drawn EMBER", "FROST 20/40 drawn FROST", "ARC 20/40 drawn ARC", "STEAM 20/40 drawn STEAM"], cleave · crit, the global multipliers, knock, sound and basic attribution stay on the ordinary path   crit 40/80, x2 80, knock true, basic bucket 40 over 2 hits, cleave · the basic seam consumes no burn and reacts to no Kindle   burning body paid 40, stacks 1 then 2, cleave · staying out for the first cut and closing for the telegraphed return pays 20 then 24   stood off 20, tell port, closed for 20, cleave · the deck shows the side that enters next before a target is acquired, on no presentation timer   empty deck tell at -2.521, after one cut -2.521 (aim -1.571), cleave · the two cuts enter from opposite sides without moving the simulation arc   sides port/port, aims -1.780/-1.780, arc 2.443, reach 190, leads -0.550/0.550
+WARNING: 23 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 4 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

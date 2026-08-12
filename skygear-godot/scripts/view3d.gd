@@ -1480,7 +1480,65 @@ func _build_world() -> void:
 	camera.far = 1800.0
 	camera.current = true
 	add_child(camera)
+	_arm_deck_post()
 	_track_camera(1.0)
+
+
+## --- THE INK PASS (scripts/deck_post.gdshader) -------------------------------
+##
+## A screen-space edge over the whole deck, and a vignette under it. The full
+## argument is in the shader's own header; what belongs here is the installation
+## and the two ways it declines to install.
+##
+## IT REFUSES ON ANYTHING BUT FORWARD+. `hint_normal_roughness_texture` does not
+## exist in the Mobile or Compatibility renderers, and a shader that references a
+## missing hint does not fail loudly — it draws. Rather than ship a black screen
+## to whoever opens the project with `--rendering-method mobile`, this checks
+## first and leaves the deck exactly as it was.
+##
+## AND IT REFUSES WHEN THERE IS NO GPU. The harness, the batch camera and every
+## probe run headless or offscreen; a full-screen transparent quad sampling three
+## framebuffers is pure cost there and, worse, would put an ink line into every
+## photograph the audit tools take of the 3D deck. `still.gd` and `lit_probe.gd`
+## measure pixel ratios against published bands, and an edge pass would move
+## every one of them.
+var _post_quad: MeshInstance3D = null
+
+
+func _arm_deck_post() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
+	var method := str(ProjectSettings.get_setting(
+		"rendering/renderer/rendering_method", "forward_plus"))
+	if method != "forward_plus":
+		return
+	var shader: Shader = load("res://scripts/deck_post.gdshader")
+	if shader == null:
+		return
+	var quad := QuadMesh.new()
+	quad.size = Vector2(2.0, 2.0)
+	var mat := ShaderMaterial.new()
+	mat.shader = shader
+	_post_quad = MeshInstance3D.new()
+	_post_quad.name = "DeckPost"
+	_post_quad.mesh = quad
+	_post_quad.material_override = mat
+	## The vertex stage writes POSITION directly, so this geometry never lands
+	## anywhere the culler would recognise. Without a custom AABB the quad
+	## disappears the moment the camera looks away from wherever it nominally is.
+	_post_quad.custom_aabb = AABB(Vector3(-1e5, -1e5, -1e5), Vector3(2e5, 2e5, 2e5))
+	_post_quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	## After everything, including the transparent fire and the sky.
+	_post_quad.sorting_offset = 1e6
+	camera.add_child(_post_quad)
+
+
+## The owner's switch, and the tools'. `false` restores the exact picture the
+## renderer drew before this pass existed — the quad stops drawing rather than
+## drawing nothing, so there is no half state.
+func set_deck_post(on: bool) -> void:
+	if _post_quad != null and is_instance_valid(_post_quad):
+		_post_quad.visible = on
 
 
 ## Impact particles and impact light.
@@ -1716,6 +1774,30 @@ func _build_impacts() -> void:
 
 
 ## A hit landed here, this hard, of this element.
+## NOTHING ON A STRUCK BOARDER CHANGED (board SG-217), and the reason was not
+## that the reaction was hard — it was that `react_hit` had exactly two callers
+## in the whole repo, its own definition and one line for the captain. No enemy
+## rig had ever been handed a hit.
+##
+## THIS IS THE FLINCH ARGUMENT SG-85 MADE, ANSWERED RATHER THAN IGNORED. That
+## row rejected a per-hit CLIP because *"a flinch on every tick of damage would
+## freeze a 180-hp wall solid"* — a clip takes the figure's animation away from
+## it. This does not: `react_hit` writes a scale squash and an additive flash,
+## both of which ride ON TOP of whatever clip is playing. A gremlin taking a
+## Beam tick keeps walking, and it visibly registers the tick.
+##
+## Scaled by damage, and capped well under 1.0 for the small ones, so a 4-point
+## Field tick is a nudge and a 90-point crit Mortar is a real recoil — the
+## banding the floaters have never had (`NEEDS_ALEX`, the last small call).
+func react_enemy_hit(enemy: SkyGearEnemy, damage: float) -> void:
+	if enemy == null or not is_instance_valid(enemy):
+		return
+	var rig: SkyGearRig3D = _rigs.get("e%d" % enemy.get_instance_id())
+	if rig == null or not is_instance_valid(rig):
+		return
+	rig.react_hit(clampf(0.28 + damage / 90.0, 0.28, 1.0))
+
+
 func impact_at(ground: Vector2, element: String, damage: float) -> void:
 	var spec: Dictionary = ELEMENT_FX.get(element, ELEMENT_FX.EMBER)
 	var node: GPUParticles3D = _sparks.get(str(spec.family))
@@ -5055,6 +5137,19 @@ func _sync_aim() -> void:
 const CLEAVE_TELL_SIDE := 0.95     ## radians off the aim — a read, not the arc
 const CLEAVE_TELL_ARC := 0.34      ## the notch's own width
 const CLEAVE_TELL_REACH := 0.62    ## of the swing's reach, so it sits inside it
+## HOW LOUD, AND IN WHAT INK (SG-208 presentation critic, 2026-08-11). The first
+## cut of this tell shipped at 0.30 alpha in the raw element hue — ember-orange
+## on orange-brown planking — and the critic, hunting for it with the diff open,
+## catalogued it as a deck prop. A tell that has to be found is the CUT condition
+## (§17.7) wearing a decal. Two numbers fix it and neither invents a vocabulary:
+## the alpha comes up to where the danger wedge's own boundary lives, and the hue
+## is lifted halfway to white so no element's ink can match the planking or the
+## brazier pools. The fill-to-edge ratio is NOT restated here — `_fan_texture`
+## owns it (board SG-162: *a fill you can see through and an edge you cannot
+## miss*), so this is one loudness dial on a texture built to be read, exactly
+## the SG-162 arrangement the enemy wedge uses.
+const CLEAVE_TELL_ALPHA := 0.80    ## the whole mark's loudness; the texture owns fill vs edge
+const CLEAVE_TELL_LIFT := 0.5      ## toward white, off the element hue that camouflaged it
 
 
 func _sync_cleave_tell() -> void:
@@ -5077,10 +5172,15 @@ func _sync_cleave_tell() -> void:
 	var element: String = game.auto_element_id()
 	var tint: Color = SkyGearData.ELEMENTS[element].color \
 		if SkyGearData.ELEMENTS.has(element) else PLAYER_TEAL
+	## The FILLED fan, not the rim-only variant: SG-162's split lives in the
+	## texture — a see-through fill so the notch has a body at this size, and a
+	## rim that peaks at its boundary so the SIDE is a line, not a smudge. The
+	## rim-only variant at low alpha is what the critic mistook for a deck prop.
+	var ink: Color = tint.lerp(Color.WHITE, CLEAVE_TELL_LIFT)
 	_decal("fxcleaveside", game.player.global_position,
 		aim.rotated(lean).angle(), reach * 2.0, reach * 2.0,
-		_fan_texture(CLEAVE_TELL_ARC, false),
-		Color(tint.r, tint.g, tint.b, 0.30))
+		_fan_texture(CLEAVE_TELL_ARC, true),
+		Color(ink.r, ink.g, ink.b, CLEAVE_TELL_ALPHA))
 
 
 ## HOW FAR AHEAD OF ITS OWN CUT THE PICTURE STARTS, in radians, for a swing of
@@ -5169,9 +5269,26 @@ func _sync_effects() -> void:
 				## anything that does not carry one. The fan's WIDTH and REACH are
 				## the simulation's own, untouched — only where it is pointing on
 				## the way in moves, and only until it lands.
+				## THE GENERATED FAN, NOT `_art("slash", …)` — an evidenced
+				## exception to line 3732's "painted beats generated" (SG-226,
+				## 2026-08-11, owner in live play: "the vfx is triggering behind
+				## the player?"). The angle math is clean — instrumented, the
+				## effect-stamped direction equals the simulation cone to 0.00°
+				## on both cleave beats — but `slash_arc.png` paints its ink on
+				## the wrong side of its own axis: measured twice independently,
+				## 83.1% of its alpha sits in the −X half of the plate, 0.0%
+				## lands within ±30° of +X (the axis this `_decal` aims at the
+				## target and `_fan_texture` opens along), and its alpha centroid
+				## is 162.4° off aim. So the swing flash painted on the deck
+				## behind the captain while the bodies ahead of her took the
+				## damage. Same verdict SG-63 reached for `burst` and the runes:
+				## a plate whose measured shape disagrees with the geometry it
+				## stands for is retired from the decal path. The PAINTED entry
+				## and the asset stay — the owner chose "generated fan now,
+				## repaint later", and the repaint is filed separately.
 				_decal("fx%d" % fid, centre, float(fx.get("direction", 0.0))
 						+ cleave_lead(str(fx.get("side", "")), progress),
-					r * 2.0, r * 2.0, _art("slash", _fan_texture(float(fx.get("arc", 1.7)), false)),
+					r * 2.0, r * 2.0, _fan_texture(float(fx.get("arc", 1.7)), false),
 					tint)
 				## A player swing tells the blade trail what colour it is — the fx
 				## carries the element, and the trail is drawn from the bone.
@@ -9159,6 +9276,10 @@ func _sync_rig(key: String, kind: String, ground: Vector2, heading: Vector2,
 		if SEGMENTED.has(kind) and rig.model != null:
 			rig.set_meta(PARTS_META, rig.model.find_children(
 				"*", "MeshInstance3D", true, false))
+		## SG-217: and the hit flash gets a material that can actually receive
+		## it. Once per rig, at build time, on the same terms as the two lines
+		## above — a walk paid twice in a boarder's life rather than every frame.
+		_arm_hit_flash(rig)
 		_rigs[key] = rig
 	_used[key] = true
 	var doing := "idle"
@@ -9270,6 +9391,44 @@ const FLIGHT_CAST_META := "airborne_cast"
 ## The previous setting is remembered per mesh rather than restored to ON,
 ## because "everything on a rig casts" is an assumption about content and this
 ## file is not the place to bet on it.
+## --- THE HIT FLASH GETS SOMEWHERE TO LAND (board SG-217) ---------------------
+##
+## `react_hit` pushes its white through `set_instance_shader_parameter("flash",
+## …)`, which this file already records as a no-op against a StandardMaterial3D.
+## `scripts/hit_flash.gdshader` is the missing declaration; this hangs it on each
+## rig material's `next_pass` so the imported glTF look is untouched and the
+## flash draws additively over it.
+##
+## ONE ShaderMaterial FOR THE WHOLE DECK. `flash` is an *instance* uniform, so
+## twenty-one gremlins sharing this material still flash one at a time — and a
+## material per figure would be twenty-one shader compiles for one float.
+##
+## The `next_pass` is written onto the material the mesh is ALREADY using, which
+## is shared between every instance of a model. That is correct here and would
+## not be for a colour: `flash` defaults to 0.0, so a material armed by one rig
+## is inert on every other until that rig is struck.
+static var _flash_material: ShaderMaterial = null
+
+
+func _arm_hit_flash(rig: SkyGearRig3D) -> void:
+	if rig == null or rig.model == null:
+		return
+	if _flash_material == null:
+		var shader: Shader = load("res://scripts/hit_flash.gdshader")
+		if shader == null:
+			return
+		_flash_material = ShaderMaterial.new()
+		_flash_material.shader = shader
+	for child in rig.model.find_children("*", "MeshInstance3D", true, false):
+		var mi := child as MeshInstance3D
+		for i in mi.get_surface_override_material_count():
+			var mat := mi.get_active_material(i)
+			## Never displace a next_pass somebody else authored — an imported
+			## material with a second pass on it is carrying an intended look.
+			if mat != null and mat.next_pass == null:
+				mat.next_pass = _flash_material
+
+
 func _arrival_flight(rig: SkyGearRig3D, airborne: bool) -> void:
 	if rig == null or not is_instance_valid(rig):
 		return

@@ -1,0 +1,141 @@
+{
+	"acquisitions": [
+		{
+			"fire_fields": [
+				{
+					"id": 611,
+					"position": [
+						-610.0,
+						-100.0
+					],
+					"tick": 0.2,
+					"time": 2.45000000000001
+				}
+			],
+			"kill_explode": 0.0,
+			"kind": "SCRAPPER",
+			"position": [
+				-552.153076171875,
+				-167.083374023438
+			],
+			"run_time": 158.000000000002,
+			"spawn_serial": 149,
+			"stacks": 1,
+			"stage": "after game._process",
+			"wave": 7
+		},
+		{
+			"fire_fields": [
+				{
+					"id": 611,
+					"position": [
+						-610.0,
+						-100.0
+					],
+					"tick": 0.2,
+					"time": 2.20000000000001
+				}
+			],
+			"kill_explode": 0.0,
+			"kind": "SCRAPPER",
+			"position": [
+				-536.60546875,
+				-160.087203979492
+			],
+			"run_time": 158.250000000002,
+			"spawn_serial": 152,
+			"stacks": 1,
+			"stage": "after game._process",
+			"wave": 7
+		},
+		{
+			"fire_fields": [
+				{
+					"id": 680,
+					"position": [
+						620.0,
+						-420.0
+					],
+					"tick": 0.2,
+					"time": 5.7
+				}
+			],
+			"kill_explode": 0.0,
+			"kind": "SCRAPPER",
+			"position": [
+				590.739868164063,
+				-498.172821044922
+			],
+			"run_time": 170.150000000004,
+			"spawn_serial": 160,
+			"stacks": 1,
+			"stage": "after game._process",
+			"wave": 8
+		},
+		{
+			"fire_fields": [
+				{
+					"id": 680,
+					"position": [
+						620.0,
+						-420.0
+					],
+					"tick": 0.2,
+					"time": 5.45
+				}
+			],
+			"kill_explode": 0.0,
+			"kind": "SCRAPPER",
+			"position": [
+				585.665649414063,
+				-507.863250732422
+			],
+			"run_time": 170.400000000005,
+			"spawn_serial": 163,
+			"stacks": 1,
+			"stage": "after game._process",
+			"wave": 8
+		},
+		{
+			"fire_fields": [
+				{
+					"id": 1248,
+					"position": [
+						620.0,
+						-420.0
+					],
+					"tick": 0.2,
+					"time": 5.95
+				}
+			],
+			"kill_explode": 0.0,
+			"kind": "SCRAPPER",
+			"position": [
+				586.765869140625,
+				-374.264038085938
+			],
+			"run_time": 274.700000000028,
+			"spawn_serial": 280,
+			"stacks": 1,
+			"stage": "after game._process",
+			"wave": 11
+		}
+	],
+	"auto": "FROST",
+	"burn_acquisitions": 5,
+	"run": {
+		"elements": [
+			"FROST",
+			"FROST",
+			"FROST",
+			"STEAM",
+			"FROST"
+		],
+		"kill_explode": 0.0,
+		"report": "SKYGEAR — Godot port\nDECK HELD — Twelve waves repelled. The deck is yours.\nwave 12/12 · 5:22 · seed BAL2\nbuild: Frost Cleave (auto)  /  Frost Mortar  /  Frost Whip  /  Steam Lance  /  Frost Gale\ndraft: FROST MORTAR, FROST WHIP, STEAM LANCE, FROST GALE, OVERPRESSURE, KEEN EYE, FORKED CURRENT, LONG REACH, BRITTLE, BRITTLE, FIELD DRESSING, DEEP CHILL\n\nskills — damage · share · casts · kills\n  frost cleave            6002  20%   0 casts  38 kills\n  Frost Mortar            4887  17%   128 casts  80 kills\n  Frost Whip              6971  24%   161 casts  105 kills\n  Steam Lance             5932  20%   214 casts  72 kills\n  Frost Gale              3139  11%   160 casts  27 kills\n  crew and cannons        2658  9%   0 casts  0 kills\nrange: 14% close · 40% mid · 37% far · 9% clear\nvents 35 · healed 112 · salvage 6 · rerolls 0",
+		"run_time": 322.350000000039,
+		"wave": 12,
+		"won": true
+	},
+	"seed": "BAL2"
+}

@@ -1,0 +1,59 @@
+{
+  "packet": "AB-01",
+  "claim": "SG-202",
+  "baseline_commit": "af7d8ce76c16f9f405c6aa646b05e4d831a565a4",
+  "implementation_status": "MEASURED",
+  "candidate_commit": "508523c",
+  "red_first": {
+    "summary": "1134/1147",
+    "expected_failures": 13,
+    "script_errors": 0,
+    "log": "red-harness.log"
+  },
+  "harness": {
+    "summary": "1147/1147",
+    "beam_checks": "13/13",
+    "script_errors": 0,
+    "engine_errors": 56,
+    "engine_error_budget": 56,
+    "log": "full-harness-exact-candidate.log"
+  },
+  "g3": {
+    "requested_distinct_seeds": 120,
+    "effective_n_per_arm": 120,
+    "repetitions": 2,
+    "repetitions_increase_effective_n": false,
+    "determinism_pass": true,
+    "live_mean_damage": 28.0,
+    "locked_mean_damage": 11.6083333333333,
+    "full_stay_mean_damage": 28.0,
+    "paired_live_minus_locked_mean": 16.3916666666667,
+    "paired_95_half_width": 0.596492323088292,
+    "resolution_pass": true,
+    "selected_element_applications_per_accepted_body_channel": 1,
+    "status_reaction_damage": 0.0,
+    "crit_explosion_damage": 0.0,
+    "summary": "g3/summary.json",
+    "traces": "g3/traces.jsonl",
+    "driver": "g3-driver.gd",
+    "driver_sha256": "7D7AC64F2023112B3F7CA6D957D687E24BC533DF140673B63AA9ADA11B335A29"
+  },
+  "g4": {
+    "noise_percent": 0.0,
+    "released_cleanly": true,
+    "start": "visual-exact-candidate/beam-start.png",
+    "held": "visual-exact-candidate/beam-held.png",
+    "release": "visual-exact-candidate/beam-release.png",
+    "exact_candidate_dir": "visual-exact-candidate",
+    "log": "visual-probe-exact-candidate.log"
+  },
+  "itch": {
+    "version": "66-beam-channel-candidate",
+    "build": 1858483,
+    "zip_sha256": "39B3B3AB64ABDFEEE906B95A2A0E61A9B1E4A06494FF5953CA09A98E9ACAA587",
+    "rollback_version": "65-deck-edge-verdict",
+    "rollback_build": 1858433
+  },
+  "g5": "PENDING_NAMED_OWNER_VERDICT_ON_BUILD_66",
+  "merge": "PENDING_COORDINATOR"
+}

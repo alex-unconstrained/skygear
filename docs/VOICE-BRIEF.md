@@ -24,10 +24,19 @@ what makes it safe to cap, cull and cooldown voice aggressively.
 line is silence. A synthesised impression of a human voice is worse than
 nothing, and the game already sounds finished without it.
 
-**3 · The captain is not a narrator.** She is busy. Lines are short, thrown over
-a shoulder, sometimes half-swallowed by effort. Nothing she says explains a
+**3 · The captain is not a narrator.** He is busy. Lines are short, thrown over
+a shoulder, sometimes half-swallowed by effort. Nothing he says explains a
 mechanic to the player — the contextual prompts do that in text, and a voice
 line that repeats them makes the game feel like a tutorial that will not end.
+
+**3a · THE CAPTAIN IS MALE. RECAST 2026-08-11, ON THE OWNER'S RULING.** This
+document previously specified a captain in her 30s, and `tools/soundforge.py`
+pinned that to a middle-aged British female voice. The art never agreed: the
+sprite and the 3D model have always been a young man, and that is the figure
+the player looks at for an entire run. **The art is correct and the writing
+was wrong** — see board SG-228, which also carries the five player-facing
+strings that said "her" and the portrait that has to be redrawn. Anything in
+this file still written in the feminine is a leftover, not a second opinion.
 
 **4 · Repetition is the enemy.** Every key needs **three takes minimum** and
 four where marked, because the director refuses to repeat the last variant and
@@ -43,7 +52,7 @@ mixed under the survival tier, not over it.
 
 | Voice | Who | Direction |
 |---|---|---|
-| **CAPTAIN** | The player. A sky-pirate captain, 30s, weathered, dry. | Mid-low, slightly gravelled, unhurried even under pressure. Working, not performing. Think a good pilot on the radio: the worse it gets, the flatter she sounds. Occasional dark amusement. No quips, no catchphrases, no "let's do this". |
+| **CAPTAIN** | The player. A young sky-pirate captain — **male**, and the figure on the deck is the authority here (`assets/art/heroes/corsair_front_*.png` and the `captain` model: red greatcoat, goggles in his hair, brass gauntlet). Young, but he has done this before. | Mid-low, dry, unhurried even under pressure. Working, not performing. Think a good pilot on the radio: the worse it gets, the flatter he sounds. Occasional dark amusement. No quips, no catchphrases, no "let's do this". **He is young and the crew are young — so age is NOT what separates them. Steadiness is.** The crew shout across a deck; he does not raise his voice. If a take sounds like it belongs to a boarder, it is wrong. |
 | **CREW** | Your boarding crew, several of them. | Rougher, younger, more varied. Half of them are shouting across a deck in a storm. Lines are calls, not sentences. These may be several different voices — variety across takes is a feature here, not an inconsistency. |
 | **COLOSSUS** | The Brass Colossus, the wave-12 boss. | Not a person. A voice through a pressure vessel: low, resonant, mechanically processed, with the cadence of something reciting rather than speaking. Two lines only, and both should feel like the ship itself is talking. |
 
@@ -91,8 +100,14 @@ Post-process every take before ingest:
 
 ## 4 · The line sheet
 
-Cue key → what fires it → how long → what she says. **Every line is a take, not
+Cue key → what fires it → how long → what he says. **Every line is a take, not
 a script**: reword freely for delivery, keep the length and the intent.
+
+**The "she" and "her" left in the lines below are THE SHIP, not the captain** —
+"Get them off her", "She won't hold at this", "That's it. She's going down".
+That is the nautical register the whole game is written in and it stays. Only
+the captain's own pronouns moved to male (SG-228); do not run a blind
+find-and-replace over this sheet.
 
 Files go to `audio/voice/<folder>/<stem>_N.wav`, numbered from 1. The stems are
 already in the manifest and must match exactly.

@@ -1,14 +1,94 @@
 # NEEDS ALEX
 
-**Build 69 live · Field and Pulse G5 pending · harness 1187/1187.** Detail lives
-in `skygear-godot/docs/BOARD.md`.
+**Build 70 live (`70-demo-polish-pass`, #1875503) · harness 1202/1202 · Field and
+Pulse passed your G5 on 2026-08-11.** Detail lives in `skygear-godot/docs/BOARD.md`.
 This file is only your decisions.
 
-*Last cleaned 2026-08-05. Everything you answered is off this list.*
+*Last cleaned 2026-08-11. Everything you answered is off this list.*
+
+---
+
+## What is in build 70, and what to look at
+
+**Ten fixes, all from the 2026-08-11 demo-readiness audit.** The exe now has an
+icon and calls itself SkyGear rather than "SkyGear Godot Port"; the title screen
+no longer says GODOT PORT or "Milestone 1"; **every menu hover has sound for the
+first time in the life of the port** (the code asked for `card_hover.ogg`, which
+has never existed on disk, and `play_sfx` swallowed the miss silently); F3 and F4
+no longer open the profiler and the layout editor in a shipped build, and the
+pause sheet has stopped *telling you to press them*; RESTART RUN and QUIT TO
+TITLE now take two presses; the title's last line no longer draws off the bottom
+of the canvas after your first victory; and the exe no longer carries the test
+suite and every probe inside it.
+
+**AB-04 CLEAVE IS IN THIS BUILD AND HAS NOT BEEN REVIEWED.** The Captain's arc is
+now a two-beat combo: the odd cut swings twelve degrees to port for 20, the even
+one twelve degrees to starboard for 24 if the body is inside 110 units and 20 if
+it is not — so two connected close swings still total the 44 it always did, and
+fighting at the edge of your reach now costs you four. A miss does not advance
+the beat. **IT HAS NOW BEEN REVIEWED — and it needs twenty seconds of your
+eyes, item 5 below.** Both critic passes ran on 2026-08-11, serially this time so
+they could not repeat the freeze. Systems: **PASS**. Presentation: **FAIL, then
+PASS after one fix.** The tell that says which side the next cut enters from was
+a 25-pixel, 0.30-alpha ember notch on ember-lit orange planking — the critic
+hunting for it *with the diff open* logged it as a deck prop. It is now a pale
+half-white wedge at 0.80, pinned by a check that fails if anyone dials it back.
+Harness **1203/1203**, verified by me rather than quoted. **Cleave is reviewed
+and unapproved — G5 is yours and I have not invented it.**
+
+**Two things I could not fix without you** are items 3 and 4 below.
 
 ---
 
 ## Waiting on you
+
+**0 · SEVEN ART PICKS, AND NOTHING GETS INGESTED UNTIL YOU CALL THEM.** The
+Loom was never short of assets — it was pointing at a folder that no longer
+existed. **33 already-paid generations were sitting on disk**, four candidates
+each, and they cost nothing to recover. Contact sheets are built, one per
+asset. My picks, argued rather than guessed: `ui_plate_wide` **2** (thinnest
+border, most room left for text), `ui_plate_slot` **4** if you want the top tab
+to hold the key binding else **2**, `ui_bar_housing` **4** — and **not 3 at any
+price**, its leather straps cross the interior and a fill bar sliding under
+them will read as broken — `ui_pressure_dial` **1**, `weapon_cutlass` **2**,
+`weapon_gearblade` **2**, `weapon_boarding_axe` **3**. **One thing to settle
+first:** every file these would replace already exists in `assets/art/ui/`,
+while `forge.py list` insists they are "0 delivered". I did not overwrite your
+live art on the strength of a contradiction I cannot explain. Board **SG-240**.
+
+**0a · THE CUTSCENE NEEDS ONE ANSWER BEFORE SHOT 3 ROLLS.** Chibi proportions
+like the sprite (identity-safe across five captain shots) or naturalistic
+heroic (better trailer tone, real drift risk)? The rest of the package is
+built: 9 shots, 50.04 s of footage plus a title card, under your 60 s ceiling.
+It found the motive in your own material rather than inventing lore — the
+Colossus's recorded *"GIVE ME THE ENGINE."* is the only stated motive that
+exists anywhere in the game. **No new VO needed.** `docs/cutscene/`.
+
+**0b · THE CAPTAIN'S PORTRAIT IS THE LAST PIECE OF THE GENDER FIX.** Casting,
+voice and text are done and in the game — Will is installed, 50 takes, harness
+green. `portrait_corsair.png` is still a red-haired woman in a blue coat, and
+it is the **only** portrait in the project, which is why the Boilerwright wears
+it too. It wants redrawing, not recolouring. Board **SG-228** / **SG-105**.
+
+**5 · CLEAVE G5 — YOU ANSWERED THE FIRST QUESTION: "the cleave indicator is
+correct."** That retires the packet's kill condition on your own eyes rather than
+a critic's, and it is the answer that mattered most. **But the same look found a
+new P1** — *"the vfx is triggering behind the player?"* — which is the swing
+effect, not the tell, and is now **SG-226**; it reproduces in our own captures
+(the arc sweeps south while the bodies taking damage stand north). Still open for
+you, when you next play: **(b)** is 24-versus-20 something you *feel*, or only
+something the floaters told you? **(c)** does anything hide the marker when you
+fight beside the Boiler? The original ask, kept for context:
+This is the last gate on AB-04 and no automated pass can stand in for it. Play
+until boarders are actually reaching you, then answer: **(a)** without looking at
+numbers, which side is the next cut coming from? **(b)** did you notice when you
+stood close and got the big one — is 24-versus-20 something you *feel*, or only
+something the floaters told you? **(c)** does anything hide the marker when you
+fight beside the Boiler? Two critics disagree in a way only you can settle: the
+tell reads at a glance on open deck, but in a crowded frame both critics had to
+*hunt* for it for a second or two, and the Boiler's dome clips its lower edge.
+I filed that as **SG-225** rather than quietly widening the fix. If (a) is "no",
+the packet's own kill condition is back on the table. Board **SG-208**.
 
 **1 · The upper deck's bay is thicker than the spec asked** — 0.57 as thick as
 it is wide against "about a fifth". It costs nothing (it is all over apron you
@@ -20,20 +100,23 @@ Heat 5 holds **0 of 120 runs**, dead on wave 4 every time. You can judge this
 yourself now — SETTINGS → **OPEN ALL HEATS** → any rung. A run above your earned
 rung banks nothing, and having the switch on never voids a normal run.
 
-**3 · Does Field feel good when it claims ground?** On itch build 69, draft a
-Field plus any active. Before the first active cast of a wave, Field follows
-you. Cast once, then move away: its ring should stay at that landing and keep
-working there; your next active cast should move it. A completed Beam moves it
-to the Beam midpoint, while dash-cancelling Beam should leave it where it was.
-Please judge whether leaving a useful Field behind feels deliberate and
-readable, rather than like the passive stopped following by mistake.
+**3 · What is in the demo?** There is no demo build — the one export preset
+ships 100% of the game, and there is no gating seam in the code to hang one on
+(`grep -i demo scripts/` returns nothing). Upload today's exe as a demo and you
+hand over both heroes, the Colossus, the Workshop, Articles, fittings, and the
+whole Heat ladder via OPEN ALL HEATS. **You already wrote a cut** — in
+`docs/STEAM-LAUNCH.md`: *waves 1–6, Captain only, Heat 0, no fittings or berths,
+results screen intact, end card naming what the full game has.* That has never
+been a decision, only a proposal, so nobody has built it. Say yes to it, change
+it, or say the demo is a later problem. Board **SG-213**.
 
-**4 · Does Pulse make active timing feel deliberate?** On itch build 69, draft
-Pulse plus any active. Watch Pulse's timer, then cast when it has less than
-about 0.35 seconds left: it should jump to 0.0 and discharge early. Please judge
-whether spending an active to pull that discharge into a nearby group feels
-clear and satisfying, while Pulse still reads as one keyless passive rather
-than another button.
+**4 · The exe needs an icon, and it needs your eye once.** It currently ships
+with **no icon at all** (the stock Godot logo in the taskbar and on the launch
+splash), the product name *"SkyGear Godot Port"*, the description *"SkyGear v11
+Godot port - Milestone 1"*, version `0.1.0.0`, and empty company and copyright.
+Everything except the icon I can fix without you. The icon is an art asset and
+those are yours — and the Loom is still not on this machine. A 256×256 is all it
+needs. Board **SG-210**.
 
 ---
 
@@ -54,6 +137,16 @@ than another button.
 - **Enemy bolts** — size is fixed; the style proposal is a hard ink rim plus a
   hot leading spike. Yes?
 - **COLD DECK deals a draft with no weapon in it in ~31% of runs.** Intended?
+- **The Boilerwright speaks in the Captain's voice**, for the whole run — every
+  player-facing key in `voice.gd` points at `captain/…` and there is no
+  `boilerwright/` folder. Routing his keys to his own root makes him **mute**
+  until takes exist. Wrong voice, no voice, or leave it until there are takes?
+- **Every string in the game is Godot's fallback font**, on hand-authored brass.
+  A display and a body face is a purchase and a taste call, and it moves every
+  measured heading width, so it wants to be early or last — not in the middle.
+- **A 4-damage Field tick and a 90-damage crit Mortar draw the same two sizes**
+  — the floater's size argument is the crit flag, never the magnitude. Banding
+  it by damage is a taste call, not a defect.
 
 ---
 
@@ -93,6 +186,17 @@ harness check hard to diagnose. Filed, not yet fixed.
 ---
 
 ## What you decided, and what it turned into
+
+**Field and Pulse are in.** *"I approve of field and pulse changes. Those are
+unblocked now."* (2026-08-11.) That one verdict passed both G5 gates: Field may
+claim the last committed active landing instead of following you, and an
+accepted active cast pulls every equipped Pulse discharge forward by 0.35 once.
+SG-206 and SG-207 are HUMAN-VERIFIED and off the Active board. **It also freed
+the packet behind them** — Cleave (AB-04) was sitting on the queue-order gate
+and can now finish on its own evidence. **What it did not do is publish the
+combat train**: that is still held by the combined IN-00 audit, which wants
+AB-01–04, EL-00–03 and RF-01 all stable, and AB-04 is the one in hand. So
+nothing goes to a public build on the strength of this verdict alone.
 
 **Beam feels sweet.** The four-tick channel, 60% ordinary movement and
 dash/Bleed Jet escape passed your hands-on gate on itch build 66. AB-01 is

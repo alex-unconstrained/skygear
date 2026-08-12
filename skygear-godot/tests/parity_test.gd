@@ -346,6 +346,18 @@ func _run() -> void:
 	## AWAITED — this one poses real sandboxes over a live run. Same rule.
 	await _screen_poser()
 	await process_frame
+	## AWAITED — it walks the strings a real results draw put on screen.
+	await _results_fold()
+	await process_frame
+	## AWAITED — it poses every screen in the game and reads what each one said.
+	await _shipping_vocabulary()
+	await process_frame
+	## AWAITED — it rebinds a key and reads the strings back off a real draw.
+	await _controls_truth()
+	await process_frame
+	## AWAITED — it boots a mixer and reads back what is on the buses.
+	await _audio_cues()
+	await process_frame
 	_dash()
 	await process_frame
 	await _hazard()
@@ -1304,6 +1316,7 @@ func _cleave_beat() -> void:
 		"staying out for the first cut and closing for the telegraphed return pays 20 then 24",
 		"the deck shows the side that enters next before a target is acquired, on no presentation timer",
 		"the two cuts enter from opposite sides without moving the simulation arc",
+		"the tell's ink outshines the deck's brightest plank in every element — the SG-208 camouflage floor",
 	]
 	var ready := data_source.contains('"combo_damage": [20.0, 20.0]') \
 		and game_source.contains("var basic_swing_serial") \
@@ -1334,12 +1347,21 @@ func _cleave_beat() -> void:
 			and absf(rad_to_deg(float(auto.combo_angle)) - 12.0) < 0.01
 			and is_equal_approx(float(auto.combo_close_range), 110.0)
 			and is_equal_approx(float(auto.combo_return_scale), 1.20)
-			and is_equal_approx(shipped_total, 44.0),
-		"%.2f/%.0f/%.3f/%.0f, %s at %.2f deg, close %.0f x %.2f = %.0f" % [
+			and is_equal_approx(shipped_total, 44.0)
+			## AND THE PRICE TAG THE PLAYER READS. `auto.damage` is not used by
+			## the swing any more — the combo pays 20 then 24 — but it is still
+			## what the kit row and the comparison screen advertise, as the
+			## "Ember Cleave dmg" preview proves. Pinning it to exactly half the
+			## shipped close total is what stops a future tuning pass from
+			## moving `combo_damage` or the scale and leaving the advertised
+			## number behind, green, lying to the player about the price of
+			## ground (SG-208 systems critic, 2026-08-11).
+			and is_equal_approx(float(auto.damage) * 2.0, shipped_total),
+		"%.2f/%.0f/%.3f/%.0f, %s at %.2f deg, close %.0f x %.2f = %.0f, advertised %.0f x 2 = %.0f" % [
 			float(auto.period), float(auto.range), float(auto.arc),
 			float(auto.knock), str(combo), rad_to_deg(float(auto.combo_angle)),
 			float(auto.combo_close_range), float(auto.combo_return_scale),
-			shipped_total])
+			shipped_total, float(auto.damage), float(auto.damage) * 2.0])
 
 	## 2. AND NOBODY ELSE. The Boilerwright's cone is a different shape with a
 	## different name; the drafted Cleave CARD is a card. Neither is the
@@ -1704,6 +1726,50 @@ func _cleave_beat() -> void:
 			float(first_fx.direction), float(second_fx.direction),
 			float(first_fx.arc), float(first_fx.radius), lead_in, lead_out])
 	drawn_game.queue_free()
+
+	## 16. AND THE TELL CANNOT QUIETLY GO BACK TO CAMOUFLAGE (SG-208 presentation
+	## critic, 2026-08-11: at 0.30 alpha in the raw ember hue it was catalogued as
+	## a deck prop). This reads the RENDERED decal — the same node check 14 took
+	## its transform from — and holds two real separations rather than a bare
+	## constant: the mark's albedo mix is at least 0.75, and its ink's luminance
+	## clears the brightest plank tone `_planking_texture` actually paints by
+	## 0.30, for the LIVE element and for all four the run could deal. The plank
+	## tones are parsed out of the painter itself, so repainting the deck moves
+	## this floor with it instead of leaving it green and lying. The raw EMBER hue
+	## fails the floor on its own (0.57 against a deck peak of 0.40), so the
+	## half-to-white lift is load-bearing here, not decoration.
+	var tell_node: Decal = view._decals.get("fxcleaveside")
+	var plank_body := _function_body("res://scripts/view3d.gd", "_planking_texture")
+	var deck_peak := 0.0
+	var scan := 0
+	while true:
+		scan = plank_body.find('Color("#', scan)
+		if scan < 0:
+			break
+		var plank := Color(plank_body.substr(scan + 8, 6))
+		deck_peak = maxf(deck_peak,
+			plank.r * 0.2126 + plank.g * 0.7152 + plank.b * 0.0722)
+		scan += 8
+	var live_lum := -1.0
+	var live_mix := 0.0
+	if tell_node != null and is_instance_valid(tell_node):
+		live_lum = tell_node.modulate.r * 0.2126 \
+			+ tell_node.modulate.g * 0.7152 + tell_node.modulate.b * 0.0722
+		live_mix = float(tell_node.albedo_mix)
+	var pale_faults := PackedStringArray()
+	for element in SkyGearData.ELEMENTS:
+		var lifted: Color = Color(SkyGearData.ELEMENTS[element].color).lerp(
+			Color.WHITE, SkyGearView3D.CLEAVE_TELL_LIFT)
+		var lum: float = lifted.r * 0.2126 + lifted.g * 0.7152 + lifted.b * 0.0722
+		if lum - deck_peak < 0.30:
+			pale_faults.append("%s %.2f" % [str(element), lum])
+	_check("cleave", exact_names[15],
+		deck_peak > 0.0 and live_mix >= 0.75
+			and live_lum - deck_peak >= 0.30
+			and pale_faults.is_empty()
+			and tell_body.contains("_fan_texture(CLEAVE_TELL_ARC, true)"),
+		"decal mix %.2f, ink luminance %.2f over deck peak %.2f, dull elements %s" % [
+			live_mix, live_lum, deck_peak, str(pale_faults)])
 	world.queue_free()
 
 
@@ -4856,7 +4922,7 @@ func _report() -> void:
 	## reported it as an OVERFLOW of the head line at all four widths. A
 	## `contains()` check cannot see that — the characters are all still there.
 	_check("report", "and it arrives as separate lines, not as one long string",
-		text.split("\n").size() >= 6 and not text.split("\n")[0].contains("BOARDED"),
+		text.split("\n").size() >= 6 and not text.split("\n")[0].contains("DECK LOST"),
 		"%d lines, head %s" % [text.split("\n").size(), text.split("\n")[0]])
 
 	## AND THE REASON IT BROKE, pinned repo-wide so it cannot come back from any
@@ -4902,7 +4968,7 @@ func _report() -> void:
 	lost.queue_free()
 	_check("report", "both endings carry their reason — neither verdict trails an empty dash",
 		won_line.begins_with("DECK HELD — ") and won_line.length() > 12
-			and lost_line.begins_with("BOARDED — ") and lost_line.length() > 10
+			and lost_line.begins_with("DECK LOST — ") and lost_line.length() > 12
 			and won_line.contains("waves repelled"),
 		"won: %s / lost: %s" % [won_line, lost_line])
 	game.queue_free()
@@ -7987,6 +8053,54 @@ func _view() -> void:
 	var rim_mid: Color = rim.get_pixel(rim.get_width() / 2, rim.get_height() / 2)
 	_check("vfx", "and the generated ring they were replaced with is hollow at its centre",
 		rim_mid.a < 0.10, "centre alpha %.3f" % rim_mid.a)
+
+	## THE SLASH PLATE — THE SAME DISEASE, POINTED THE OTHER WAY (SG-226). The
+	## ring and burst plates were retired for being OPAQUE; `slash_arc.png` is
+	## retired for being BACKWARDS. `_decal` aims the quad's local +X at the
+	## target and `_fan_texture` opens along +X by its own convention, but the
+	## painted plate keeps 83.1% of its ink in the −X half, its alpha centroid
+	## 162.4° off aim and the two ±30° bins astride the aim axis exactly empty —
+	## so the Captain's cleave flash painted on the deck ~162° behind the bodies
+	## it was damaging, and the owner saw it live. This reads the texture the
+	## "arc" branch RESOLVES on the production path — a real effect through the
+	## real `_sync_effects`, the decal's own `texture_albedo` — because a check
+	## that re-derived the texture in test code would stay green however the
+	## branch was wired. The floor is a quarter of the alpha inside ±30° of +X:
+	## the shipped rim fan carries well over half of its ink there, the painted
+	## plate carries 0.0%, so this fails the moment anyone puts the plate back.
+	game.effects.append({"id": 900003, "kind": "arc", "position": Vector2(0.0, 0.0),
+		"direction": 0.0, "radius": 120.0, "arc": 1.7,
+		"color": Color("#ffe08a"), "time": 0.05, "life": 0.2})
+	view._ribbons_begin()
+	view._sync_effects()
+	var slash_node: Decal = view._decals.get("fx900003")
+	var slash_share := -1.0
+	if slash_node != null and slash_node.texture_albedo != null:
+		var slash_img: Image = slash_node.texture_albedo.get_image()
+		if slash_img.is_compressed():
+			slash_img.decompress()
+		var slash_cx := float(slash_img.get_width()) * 0.5
+		var slash_cy := float(slash_img.get_height()) * 0.5
+		var slash_total := 0.0
+		var slash_ahead := 0.0
+		for py in slash_img.get_height():
+			for px in slash_img.get_width():
+				var pa: float = slash_img.get_pixel(px, py).a
+				if pa <= 0.0:
+					continue
+				slash_total += pa
+				if absf(atan2(float(py) + 0.5 - slash_cy,
+						float(px) + 0.5 - slash_cx)) <= PI / 6.0:
+					slash_ahead += pa
+		if slash_total > 0.0:
+			slash_share = slash_ahead / slash_total
+	_check("vfx", "the cleave's slash mark keeps its ink ahead of the aim axis, where the damage lands — the SG-226 regression",
+		slash_share >= 0.25,
+		"%.1f%% of resolved-texture alpha within ±30° of +X against a floor of 25%%"
+			% (slash_share * 100.0))
+	game.effects.clear()
+	view._ribbons_begin()
+	view._sync_effects()
 
 	## RIBBONS — VFX-PLAN.md §3, and the reported half of "projectiles and vfx
 	## from the player still look like 2D".
@@ -14179,6 +14293,436 @@ func _screen_poser() -> void:
 	SkyGearHUD.layout = null
 	game.queue_free()
 	second.queue_free()
+	await process_frame
+
+
+## --- S1 · the results fold (UI/UX audit §B-2) --------------------------------
+## The results sheet's default face is the run's story — verdict, reason, the
+## wave/time line, the payout strip, four buttons — and the tester report is one
+## deliberate step behind DETAILS. Two contracts, both walked off a REAL draw
+## (`hud.ink` records every string `_say` puts on screen, headless-safe): the
+## sheet never says the verdict twice, and the clipboard never changes at all.
+func _results_fold() -> void:
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1600, 900)
+	_begin(game, "RESULTS-FOLD")
+	game.log_runs = false
+	## Enough telemetry for the report to grow its whole body — a skill table,
+	## a reactions table, the range line — through the same dictionaries the
+	## simulation writes, so the fold has something real to fold.
+	game.tel.basic = {"casts": 12, "damage": 640.0, "kills": 5, "hits": 30}
+	game.tel.per[0].shape = "RANGED_AOE"
+	game.tel.per[0].element = "FROST"
+	game.tel.per[0].damage = 360.0
+	game.tel.per[0].casts = 7
+	game.tel.per[0].kills = 3
+	game.tel.reactions = {"BURN": {"damage": 120.0, "triggers": 4}}
+	game.tel.range_time = {"close": 10.0, "mid": 20.0, "far": 5.0, "none": 5.0}
+	game.end_reason = "the Boiler went cold on wave 3"
+	game._set_state(SkyGearGame.State.GAMEOVER)
+	var nl := String.chr(10)
+
+	## One settled draw first, so the fresh-screen latch has engaged and the
+	## fold state the harness sets below is the one being photographed.
+	hud.queue_redraw()
+	await process_frame
+
+	## The walker: every DISTINCT string the results draw said. Deduplicated,
+	## because the draw can run more than once inside one awaited frame (the
+	## first run of this walk photographed every string exactly twice) — and the
+	## duplication §A-2 hunts is two DIFFERENT lines saying one thing, never one
+	## line drawn again by the shutter.
+	var said := func(open: bool) -> Array:
+		hud.results_details_open = open
+		hud.ink = []
+		hud.queue_redraw()
+		await process_frame
+		var texts: Array = []
+		for note in hud.ink:
+			var text := str((note as Dictionary).text)
+			if not texts.has(text):
+				texts.append(text)
+		return texts
+	var folded: Array = await said.call(false)
+	var opened: Array = await said.call(true)
+
+	## 1 · THE DRAWN SHEET DOES NOT SAY THE VERDICT TWICE (audit §A-2). Before
+	## S1 the banner said the verdict and the reason at 52pt and the body then
+	## printed the report's own first two lines — "SKYGEAR" and
+	## "<verdict> — <reason>" — a few hundred pixels below. Counted in BOTH fold
+	## states, because the strip is off the drawn body, not off the fold.
+	var count := func(texts: Array, needle: String) -> int:
+		var n := 0
+		for text in texts:
+			if str(text).contains(needle):
+				n += 1
+		return n
+	## S3 retired "BOARDED": the clipboard and the screen now both say DECK
+	## LOST, so this sum is two terms rather than three. Counting the retired
+	## noun here would make the check pass on a tree that had brought it back.
+	var verdicts_folded: int = count.call(folded, "DECK LOST") \
+		+ count.call(folded, "DECK HELD")
+	var verdicts_open: int = count.call(opened, "DECK LOST") \
+		+ count.call(opened, "DECK HELD")
+	_check("results", "the drawn sheet does not say the verdict twice",
+		verdicts_folded == 1 and verdicts_open == 1
+			and count.call(folded, game.end_reason) == 1
+			and count.call(opened, game.end_reason) == 1
+			and count.call(folded, "SKYGEAR") == 0
+			and count.call(opened, "SKYGEAR") == 0,
+		"verdict %d folded / %d open, reason %d/%d, bare name %d/%d"
+			% [verdicts_folded, verdicts_open,
+				count.call(folded, game.end_reason), count.call(opened, game.end_reason),
+				count.call(folded, "SKYGEAR"), count.call(opened, "SKYGEAR")])
+
+	## 2 · THE CLIPBOARD REPORT IS BYTE-IDENTICAL BEFORE AND AFTER — after the
+	## fold moves, and after S1 itself. Three teeth: drawing either pose leaves
+	## `run_report()` byte-for-byte unchanged; the report still CARRIES the two
+	## lines the drawn body strips (stripped on the drawn side, never the
+	## report's); and COPY REPORT's own source ships `run_report()` whole, so a
+	## future edit that reroutes the button through the drawn body goes red.
+	var before_fold: String = game.run_report()
+	hud.results_details_open = false
+	hud.queue_redraw()
+	await process_frame
+	hud.results_details_open = true
+	hud.queue_redraw()
+	await process_frame
+	var after_fold: String = game.run_report()
+	var copy_src := _function_body("res://scripts/game.gd", "copy_run_report")
+	_check("results", "the clipboard report is byte-identical before and after",
+		before_fold == after_fold
+			and before_fold.begins_with("SKYGEAR" + nl)
+			and before_fold.split(nl)[1] == "DECK LOST — " + game.end_reason
+			and copy_src.contains("clipboard_set(run_report())"),
+		"line 2: %s | copy path carries clipboard_set(run_report()): %s"
+			% [before_fold.split(nl)[1], str(copy_src.contains("clipboard_set(run_report())"))])
+
+	## The fold itself: folded, the sheet keeps the story and a labelled DETAILS
+	## control, and the telemetry is genuinely gone; open, the whole rest of the
+	## report is on screen — including the table drawn as CELLS on fixed rails
+	## (DR-12: %-20s padding cannot align in a proportional font, so a drawn row
+	## is its cells, while the clipboard keeps the padded string).
+	var wave_line: String = before_fold.split(nl)[2]
+	var vents_line := "vents 0 · healed 0 · salvage 0 · rerolls 0"
+	_check("results", "folded, the story stays and the telemetry is one step away",
+		folded.has(wave_line) and folded.has("DETAILS")
+			and count.call(folded, "vents ") == 0
+			and count.call(folded, "casts") == 0
+			and opened.has(vents_line)
+			and opened.has("12 casts") and opened.has("64%")
+			and count.call(opened, "range:") == 1,
+		"folded %d strings, open %d" % [folded.size(), opened.size()])
+
+	## And the NEXT ending opens back at the default, wherever the owner has
+	## RESULTS_DETAILS_OPEN_BY_DEFAULT pointing — a fold left open on this
+	## run's sheet is not a setting.
+	game.go_to_title()
+	hud.queue_redraw()
+	await process_frame
+	game.end_reason = "the Boiler went cold on wave 3"
+	game._set_state(SkyGearGame.State.GAMEOVER)
+	hud.queue_redraw()
+	await process_frame
+	_check("results", "a fresh ending opens at the default fold",
+		hud.results_details_open == SkyGearHUD.RESULTS_DETAILS_OPEN_BY_DEFAULT,
+		"open %s against a default of %s" % [hud.results_details_open,
+			SkyGearHUD.RESULTS_DETAILS_OPEN_BY_DEFAULT])
+
+	hud.ink = null
+	game.queue_free()
+	await process_frame
+
+
+## --- S3 · no development vocabulary on a shipping surface --------------------
+## THE WORST THING THE UI/UX AUDIT FOUND WAS NOT A LAYOUT BUG. It was that the
+## Berths screen printed our sprint planning at the player: "TABLED — an
+## interaction pass will revisit", and under it "tabled with the crate-verb
+## family" — this repo's internal design taxonomy, board SG-68. A first-time
+## demo player who reads those learns one thing, which is that they are looking
+## at scaffolding.
+##
+## The strings are easy to fix once. Keeping them fixed is what this is for: it
+## poses EVERY screen in `screen_poser.gd` and reads back what each one actually
+## drew, so the next person who reaches for "TODO", "playtest" or "milestone" in
+## a label goes red rather than shipping. It reads the real `hud.ink` record, not
+## the source, so a banned word assembled at runtime from two halves is still
+## caught — and a banned word in a COMMENT is correctly ignored.
+##
+## WHY THESE WORDS. Each one appeared on a shipping surface in this project, or
+## is the same failure one step away: `interaction pass` and `crate-verb`
+## (hud.gd:5209/5231/5237, fixed by S3), `a tree this small` (hud.gd:5038, the
+## self-deprecating Workshop aside), `TABLED` in the sprint sense, plus the
+## generic tells — TODO, FIXME, WIP, placeholder, milestone, godot port.
+## `playtest` is deliberately NOT here: SETTINGS carries "Playtest:" for the
+## owner's own OPEN ALL HEATS bypass (SG-160), and its fate is the demo-scope
+## decision (SG-213), not a copyedit — the demo gate hides that row wholesale.
+func _shipping_vocabulary() -> void:
+	var poser := preload("res://scripts/screen_poser.gd")
+	var banned: Array[String] = ["interaction pass", "crate-verb",
+		"a tree this small", "todo", "fixme", "wip", "placeholder",
+		"milestone", "godot port", "tbd", "lorem", "tabled"]
+
+	var game := _new_game()
+	await process_frame
+	game.layout_edit = true
+
+	var offences := ""
+	var screens_read := 0
+	var strings_read := 0
+	for screen in poser.SCREENS:
+		var name := str(screen.name)
+		await game.pose_screen(name)
+		if game.pose_game == null:
+			offences += "%s did not pose; " % name
+			continue
+		var posed: SkyGearHUD = game.pose_game.hud
+		posed.size = Vector2(1600, 900)
+		## THE SANDBOX POSES ITSELF IN EDIT MODE (`pose_screen` sets
+		## `sandbox.layout_edit = true`), and `_edit_begin` DETACHES the ink
+		## recorder on the gameplay HUD family — deliberately, because that
+		## screen's readouts move with the fight and an array attached there
+		## grows for ever. We are reading, not editing, so the flag comes off
+		## for the draw. Without this the walk hits a null on the three
+		## `playing` poses and reads nothing at all on the busiest surface.
+		game.pose_game.layout_edit = false
+		posed.ink = []
+		posed.queue_redraw()
+		await process_frame
+		screens_read += 1
+		if posed.ink == null:
+			offences += "%s detached the ink recorder; " % name
+			continue
+		for note in posed.ink:
+			var text := str((note as Dictionary).text)
+			strings_read += 1
+			var low := text.to_lower()
+			for word in banned:
+				## Word-ish, not substring: "wip" must not fire on "equipped"
+				## and "tabled" must not fire on "stable". The screens are
+				## English prose, so bounding on non-letters is enough and it
+				## is the rule that keeps this check from crying wolf.
+				var at := low.find(word)
+				while at != -1:
+					var before_ok := at == 0 \
+						or not _is_letter(low[at - 1])
+					var end := at + word.length()
+					var after_ok := end >= low.length() \
+						or not _is_letter(low[end])
+					if before_ok and after_ok:
+						offences += "%s: \"%s\" (%s); " % [name, text, word]
+						break
+					at = low.find(word, at + 1)
+	game.end_pose()
+
+	## NON-VACUOUS BY CONSTRUCTION. A walk that posed nothing, or posed screens
+	## that drew nothing, would report a clean sheet — which is exactly how a
+	## check like this rots. The floor is the screen count and a string count
+	## far below what these poses really produce.
+	_check("text", "no development vocabulary on a shipping surface",
+		offences == "" and screens_read >= poser.SCREENS.size()
+			and strings_read > 200,
+		"%d screens, %d strings; %s" % [screens_read, strings_read,
+			"clean" if offences == "" else offences])
+
+	game.queue_free()
+	await process_frame
+
+
+func _is_letter(c: String) -> bool:
+	return (c >= "a" and c <= "z") or (c >= "A" and c <= "Z")
+
+
+## --- SG-212 · nothing the code asks for is missing, and the menus have a bed --
+## THE HIGHEST-VALUE CHECK IN THE AUDIO SLICE, and the reason is what it caught:
+## `hud.gd` asked for `"ui/card_hover.ogg"`, which has never existed on disk —
+## the directory holds `card_deal, card_pick, click, hover, slot_unlock` — and
+## `play_sfx` swallows a miss silently (`if not ResourceLoader.exists: return`).
+## So every menu hover in the game was mute for the entire life of the port and
+## **nothing in the project could see it**. A silent failure with no reader is
+## the exact shape this harness exists to make loud.
+##
+## It walks the SOURCE for every literal handed to `play_sfx`, because the
+## alternative — playing them — cannot distinguish "missing" from "quiet".
+func _audio_cues() -> void:
+	var re := RegEx.new()
+	re.compile('play_sfx\\("([^"]+)"')
+	var missing := ""
+	var found := 0
+	for path in ["res://scripts/game.gd", "res://scripts/hud.gd",
+			"res://scripts/enemy.gd", "res://scripts/player.gd",
+			"res://scripts/view3d.gd", "res://scripts/deckwork.gd",
+			"res://scripts/workshop.gd"]:
+		if not FileAccess.file_exists(path):
+			continue
+		var src := FileAccess.get_file_as_string(path)
+		for m in re.search_all(src):
+			var cue := m.get_string(1)
+			## Only the literals. A `%d`-built name is checked by its own
+			## caller's list — `_sound_hit` names its four elements rather than
+			## trusting the table, for exactly this reason.
+			if cue.contains("%"):
+				continue
+			found += 1
+			if not ResourceLoader.exists("res://assets/audio/sfx/" + cue):
+				missing += cue + " "
+	## The families built by format string, named here so the walk above can
+	## skip them without losing coverage.
+	for i in 5:
+		if not ResourceLoader.exists("res://assets/audio/sfx/player/hit_%d.ogg" % (i + 1)):
+			missing += "player/hit_%d.ogg " % (i + 1)
+		found += 1
+	for i in 3:
+		if not ResourceLoader.exists("res://assets/audio/sfx/player/crit_%d.ogg" % (i + 1)):
+			missing += "player/crit_%d.ogg " % (i + 1)
+		found += 1
+	for e in ["ember", "frost", "arc", "steam"]:
+		if not ResourceLoader.exists("res://assets/audio/sfx/player/elem_%s.ogg" % e):
+			missing += "player/elem_%s.ogg " % e
+		found += 1
+	_check("audio", "every cue the code asks for is on disk",
+		missing == "" and found > 30,
+		"%d cues; missing: %s" % [found, "none" if missing == "" else missing])
+
+	## THE MENUS ARE NOT SILENT. `play_music` has one call site and it is inside
+	## `start_wave`, so everything before BEGIN RUN played nothing — while two
+	## ambience beds sat in `assets/audio/sfx/world/` with zero references.
+	## THE BEDS ARE OWNED BY THE FIRST MIXER IN THE PROCESS, not by whichever
+	## game asks — so this reads the owner rather than a game it just made. The
+	## harness has already built dozens of games by the time it reaches here,
+	## which is precisely the situation the ownership rule exists for.
+	var game := _new_game()
+	await process_frame
+	var owner: SkyGearAudio = SkyGearAudio._bed_owner
+	var up := 0
+	var looping := 0
+	if owner != null and is_instance_valid(owner):
+		for key in owner.ambience.keys():
+			var p: AudioStreamPlayer = owner.ambience[key]
+			if p.stream != null:
+				up += 1
+				## The loop is the contract. A one-shot bed is worse than
+				## silence: it plays once at boot and the menus go quiet
+				## again a minute later, which reads as a fault.
+				if p.stream is AudioStreamOggVorbis \
+						and (p.stream as AudioStreamOggVorbis).loop:
+					looping += 1
+	_check("audio", "the title screen has a looping bed under it before any run starts",
+		game.state_name == "TITLE" and owner != null
+			and up == SkyGearAudio.AMBIENCE.size() and looping == up and up >= 2,
+		"state %s, owner %s, %d beds, %d looping, of %d" % [game.state_name,
+			str(owner != null), up, looping, SkyGearAudio.AMBIENCE.size()])
+
+	## ...and only ONE game's worth of them, however many games exist. A posed
+	## sandbox that doubled the storm would be audible in the shipped build the
+	## first time anyone opened the F4 picker — and in the harness it would be
+	## one more ogg per `_new_game()` for the length of the run.
+	var second := _new_game()
+	await process_frame
+	_check("audio", "and a second game does not start a second storm",
+		second.audio.ambience.is_empty() and second.audio != owner,
+		"%d beds on the second mixer" % second.audio.ambience.size())
+	second.queue_free()
+	game.queue_free()
+	await process_frame
+
+
+## --- S4 · DR-09 · the controls the game shows are the controls you have ------
+## Two independent failures wore one row number. (a) Four surfaces printed key
+## names as LITERALS — the title's control line and the four skill-well tabs —
+## on a game that has shipped a rebind sheet since SG-33 and resolves PHYSICAL
+## keycodes, so an AZERTY player was told to press W while the game listened for
+## Z. (b) `REBINDABLE` had eleven rows and the sheet numbered them
+## `(i + 1) % 10`, so PAUSE was labelled "1" like MOVE UP and the reader mapped
+## only ten digits: **PAUSE could not be rebound at all.**
+##
+## Both halves are pinned against a REAL rebind and a REAL draw, not against the
+## source, so a future edit that re-hardcodes a label goes red.
+func _controls_truth() -> void:
+	## (b) EVERY ROW IS REACHABLE, AND NO TWO ROWS SHARE A SELECTOR. Pure data,
+	## so it costs nothing and it is the half that was silently false.
+	var rows: int = SkyGearKeybinds.REBINDABLE.size()
+	var unreachable := ""
+	var seen := {}
+	var collisions := ""
+	for i in rows:
+		if SkyGearKeybinds.slot_for(int(SkyGearKeybinds.SLOTS[i][0])) != i:
+			unreachable += "%d " % i
+		var lab := SkyGearKeybinds.slot_label(i)
+		if seen.has(lab):
+			collisions += "%s(%d,%d) " % [lab, int(seen[lab]), i]
+		seen[lab] = i
+	_check("keys", "every rebindable row is reachable and no two share a selector",
+		unreachable == "" and collisions == "" and rows >= 11
+			and SkyGearKeybinds.SLOTS.size() >= rows,
+		"%d rows, %d selectors; unreachable [%s] collisions [%s]"
+			% [rows, SkyGearKeybinds.SLOTS.size(), unreachable, collisions])
+
+	## ...and the row PAUSE actually sits on is the one that used to be lost.
+	var pause_row := -1
+	for i in rows:
+		if str(SkyGearKeybinds.REBINDABLE[i][0]) == "pause":
+			pause_row = i
+	_check("keys", "and PAUSE — the row the old modulo hid — is one of them",
+		pause_row >= 0 and SkyGearKeybinds.slot_for(
+			int(SkyGearKeybinds.SLOTS[pause_row][0])) == pause_row
+			and SkyGearKeybinds.slot_label(pause_row) != SkyGearKeybinds.slot_label(0),
+		"pause at row %d, selector \"%s\", row 0 selector \"%s\"" % [pause_row,
+			SkyGearKeybinds.slot_label(maxi(pause_row, 0)),
+			SkyGearKeybinds.slot_label(0)])
+
+	## (a) THE DRAWN STRING FOLLOWS A REBIND. Against the diverted store, so the
+	## owner's own `keys.cfg` is not touched (board SG-182 / SG-222).
+	var diverted := SkyGearKeybinds.store != SkyGearKeybinds.PATH
+	var game := _new_game()
+	await process_frame
+	var hud: SkyGearHUD = game.hud
+	hud.size = Vector2(1600, 900)
+	game.go_to_title()
+
+	var said := func() -> Array:
+		hud.ink = []
+		hud.queue_redraw()
+		await process_frame
+		var out: Array = []
+		for note in hud.ink:
+			out.append(str((note as Dictionary).text))
+		return out
+
+	var before: Array = await said.call()
+	var had_default := false
+	for t in before:
+		if str(t).contains("WASD"):
+			had_default = true
+
+	## Move UP off W and onto T — a key no other rebindable action holds, so the
+	## conflict guard cannot swallow the rebind and make this check vacuous.
+	var press := InputEventKey.new()
+	press.physical_keycode = KEY_T
+	var conflict := SkyGearKeybinds.rebind("move_up", press)
+	var after: Array = await said.call()
+	var says_t := false
+	var still_wasd := false
+	for t in after:
+		var s := str(t)
+		if s.contains("move ·") and s.contains("T"):
+			says_t = true
+		if s.contains("WASD"):
+			still_wasd = true
+
+	_check("keys", "the title's control line is read off the bindings, not a literal",
+		conflict == "" and had_default and says_t and not still_wasd,
+		"conflict \"%s\", said WASD before %s, says T after %s, still WASD %s"
+			% [conflict, str(had_default), str(says_t), str(still_wasd)])
+
+	SkyGearKeybinds.reset()
+	_check("keys", "and the harness rebound a DIVERTED keys file, never the player's",
+		diverted, "store %s" % SkyGearKeybinds.store)
+
+	hud.ink = null
+	game.queue_free()
 	await process_frame
 
 

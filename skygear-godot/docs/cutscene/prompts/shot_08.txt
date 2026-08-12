@@ -11,6 +11,9 @@
 # VO boss_arrive — "GIVE ME THE ENGINE." (audition voice/boss/arrive_1.ogg and
 # arrive_2.ogg for the take carrying that line; usable now, unaffected by SG-228).
 # The shot must END on the eye flaring — the cut to shot 09 lands on it.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact sky, palette and painting style: violet
 storm-dusk, moon behind churning cloud, ember horizon, hand-painted
@@ -32,3 +35,5 @@ eye flares bright, filling with light, staring straight into the camera.
 
 Immense scale, slow dreadful movement, the eye-flare as the final beat. No
 text, no watermark, no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

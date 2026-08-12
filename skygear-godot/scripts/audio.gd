@@ -48,9 +48,34 @@ const TRACKS := {
 }
 const CROSSFADE := 2.0
 
+## THE FIRST TEN SECONDS OF THE GAME WERE SILENT (board SG-212).
+##
+## `play_music` has exactly one call site and it is inside `start_wave`. The
+## game boots into `State.TITLE`, so the title, the Workshop, the Berths, HOW TO
+## PLAY, COMPARE and SETTINGS have never played anything but `ui/click.ogg` —
+## the whole of what a new player meets before they press BEGIN RUN, in silence.
+## Meanwhile `assets/audio/sfx/world/` has shipped `amb_ship.ogg` and
+## `amb_storm.ogg` since 2026-08-01 with **zero references anywhere in the repo**.
+##
+## THE ANSWER IS THE AMBIENCE, NOT A MENU TRACK. There are three music files and
+## all three are fight music; laying combat under a menu would be the wrong
+## promise, and there is no fourth track to write here. What the title screen
+## actually is, is a ship's deck in a storm-dusk sky — so it now sounds like
+## one. Two looping beds, storm under ship, and they do NOT stop when the run
+## starts: the fight layers over them, which is why the music mix has room for
+## it and why the join has nothing to hide.
+const AMBIENCE := {
+	"storm": "res://assets/audio/sfx/world/amb_storm.ogg",
+	"ship": "res://assets/audio/sfx/world/amb_ship.ogg",
+}
+## Well under the music, which is itself under the fight. This is the floor of
+## the mix — the level at which you notice it when it stops, not while it plays.
+const AMBIENCE_DB := {"storm": -22.0, "ship": -26.0}
+
 var players: Dictionary = {}
 var current := ""
 var _fading: Array[AudioStreamPlayer] = []
+var ambience: Dictionary = {}
 
 ## Voice sits ABOVE everything and everything else gets out of its way.
 ##
@@ -97,6 +122,50 @@ func _ready() -> void:
 		p.stream = stream
 		add_child(p)
 		players[key] = p
+	_start_ambience()
+
+
+## ONE SET OF BEDS PER PROCESS, AND THE FIRST MIXER TO BOOT OWNS THEM.
+##
+## There is one `SkyGearAudio` per `SkyGearGame`, and a `SkyGearGame` is not
+## always the game: `pose_screen` builds a whole sandbox game to photograph a
+## screen (SG-44) and the harness builds dozens. A per-instance bed would mean
+## the F4 editor doubled the storm the moment it posed anything, and it is the
+## same argument `play_sfx` already makes when it refuses to sound a posed
+## sandbox — a pose is a picture, not a mixer.
+static var _bed_owner: SkyGearAudio = null
+
+
+func _exit_tree() -> void:
+	if _bed_owner == self:
+		_bed_owner = null
+
+
+## The beds come up once, at boot, and stay up for the life of the process.
+## Starting them per-screen would mean a fade at every menu transition, which is
+## the one thing an ambience bed must never do — a storm that restarts when you
+## open SETTINGS is a bug you can hear.
+func _start_ambience() -> void:
+	if _bed_owner != null and is_instance_valid(_bed_owner):
+		return
+	_bed_owner = self
+	for key in AMBIENCE.keys():
+		var path: String = AMBIENCE[key]
+		if not ResourceLoader.exists(path):
+			continue
+		var stream: AudioStream = load(path)
+		## The .ogg imports are one-shots on disk; the loop is ours to ask for,
+		## and asking here rather than in the .import keeps the asset honest for
+		## anything else that wants to play it once.
+		if stream is AudioStreamOggVorbis:
+			stream.loop = true
+		var p := AudioStreamPlayer.new()
+		p.bus = "SFX"
+		p.stream = stream
+		p.volume_db = float(AMBIENCE_DB.get(key, -24.0))
+		add_child(p)
+		p.play()
+		ambience[key] = p
 
 
 func _ensure_buses() -> void:

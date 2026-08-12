@@ -1638,12 +1638,12 @@ func restart_run() -> void:
 	begin_run()
 
 
+## Which CONTROLS row a keypress selects. The mapping itself lives in
+## `SkyGearKeybinds.SLOTS` beside the labels the sheet draws, because holding it
+## in two places is what left PAUSE unreachable (DR-09b) — the sheet printed a
+## digit this function had never been taught to read.
 func _digit_slot(code: int) -> int:
-	if code >= KEY_1 and code <= KEY_9:
-		return code - KEY_1
-	if code == KEY_0:
-		return 9
-	return -1
+	return SkyGearKeybinds.slot_for(code)
 
 
 func _apply_rebind(event: InputEvent) -> void:
@@ -2065,7 +2065,13 @@ func run_report() -> String:
 	## first line of every bug report and every balance conversation this game
 	## will ever have. It said "Godot port" (board SG-211).
 	lines.append("SKYGEAR")
-	lines.append(("DECK HELD" if won else "BOARDED") + " — " + end_reason)
+	## ONE OUTCOME, ONE NOUN. The screen has always said DECK LOST
+	## (`hud.gd::_draw_results`) while the clipboard said BOARDED — two words
+	## for the single moment a frustrated player is most likely to screenshot,
+	## and the pair that reads as a bug in a bug report. DECK LOST wins because
+	## it is the half the player actually sees and because it is the true
+	## opposite of DECK HELD; BOARDED named the cause, not the outcome.
+	lines.append(("DECK HELD" if won else "DECK LOST") + " — " + end_reason)
 	var header := "wave %d/%d · %s · seed %s" % [wave, SkyGearData.WAVES.size(),
 		_format_time(run_time), seed_text]
 	## A Heat run's seed replays the same waves against different enemy health,
@@ -3586,12 +3592,30 @@ func damage_enemy(enemy: SkyGearEnemy, amount: float, element: String, knock: fl
 		## only says a hit of this size, of this element, landed here.
 		if view != null:
 			view.impact_at(hit_at, element, dealt)
+			## ...and the BODY reacts, which it never has (board SG-217). Not
+			## on the kill — a corpse has a death clip and a flinch inside it
+			## reads as a stumble the animation then contradicts.
+			if not killed:
+				view.react_enemy_hit(enemy, dealt)
 	if extends_taps and dealt >= 1.0:
 		# a lane cannon fires no element, so this cannot assume the table has one
 		var tint: Color = Color("#eee5d5")
 		if SkyGearData.ELEMENTS.has(element):
 			tint = SkyGearData.ELEMENTS[element].color
 		add_floater("%d" % roundi(dealt), hit_at, Color("#ffe08a") if crit else tint, crit)
+		## A CONNECTING HIT MAKES A SOUND (board SG-216). This funnel is the
+		## project's declared single entrance for damage dealt to a boarder, and
+		## for the life of the port it contained no `play_sfx` at all: kills,
+		## hulk hits, prop breaks and player-hurt all sounded, and the ordinary
+		## landed blow — the thing the player does most — did not. Meanwhile
+		## `hit_2`..`hit_5`, `crit_1..3` and the four `elem_*` takes had shipped
+		## since 2026-08-01 with exactly one reader between them, and that one
+		## was a fallback for an unknown CAST shape.
+		##
+		## A kill already has its own voice, so this stays out of its way and
+		## sounds only the non-lethal blow — the one that had nothing.
+		if not killed:
+			_sound_hit(element, crit)
 	SkyGearTelemetry.note_damage(tel, src_slot, dealt, killed)
 	## A KILL INSIDE A MAIN EXTENDS IT. `extend_on_kill` was data nothing read.
 	## This is the loop the class is built around: hold the ground and the ground
@@ -5296,6 +5320,29 @@ func play_sfx(relative_path: String, volume_db: float = -6.0) -> void:
 		_voices -= 1
 		audio.queue_free())
 	audio.play()
+
+## The acoustics of a landed blow: which body it has, and what it was made of.
+##
+## THE ROLL RIDES `visual_rng`, NEVER `rng`. `rng` is the seeded gameplay stream
+## — the one that decides crits, drafts and keg placement — and a seed has to
+## replay the same run whether or not the mixer had a free voice. Drawing a
+## sample variation from it would make the sound of a hit change the fight.
+##
+## Crit gets its own family rather than a louder `hit_*`: the floater already
+## says a crit happened in colour and size, and a signature the ear can name is
+## worth more than 3 dB. Element rides ON TOP at low level for the same reason
+## the floater is tinted — it is the second question, not the first.
+func _sound_hit(element: String, crit: bool) -> void:
+	if crit:
+		play_sfx("player/crit_%d.ogg" % (visual_rng.randi() % 3 + 1), -7.0)
+	else:
+		play_sfx("player/hit_%d.ogg" % (visual_rng.randi() % 5 + 1), -11.0)
+	## Four elements have takes; PHYSICAL and anything unnamed have none, and a
+	## missing file would be swallowed silently by `play_sfx` — so the set is
+	## named here rather than trusted.
+	if element in ["EMBER", "FROST", "ARC", "STEAM"]:
+		play_sfx("player/elem_%s.ogg" % element.to_lower(), -19.0)
+
 
 func _shape_sound(shape: String) -> String:
 	match shape:

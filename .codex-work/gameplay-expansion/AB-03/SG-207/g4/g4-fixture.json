@@ -1,0 +1,41 @@
+{
+  "accepted_active_cast": true,
+  "active_damage": 0.0,
+  "after_public": 3.42,
+  "after_raw": 3.42,
+  "authored_pulse_damage": 34.0,
+  "before_public": 0.3,
+  "before_raw": 0.3,
+  "camera": "production normal camera; no camera or renderer override",
+  "capture_sizes": [
+    [
+      2560,
+      1440
+    ],
+    [
+      2560,
+      1440
+    ],
+    [
+      2560,
+      1440
+    ]
+  ],
+  "crossing_target_damage": 34.0,
+  "due_public": 0.0,
+  "due_raw_negative_remainder": -0.05,
+  "frames": [
+    "01-pulse-before-cast-0.3.png",
+    "02-accepted-cast-pulse-due-now.png",
+    "03-pulse-fires-on-crossing-target.png",
+    "04-same-state-repeat.png"
+  ],
+  "packet": "SG-207",
+  "pulse_is_keyless_passive": true,
+  "pulse_slot": 0,
+  "same_state_bytes": 11059200,
+  "same_state_different_bytes": 0,
+  "same_state_noise_percent": 0.0,
+  "simulation_reader": "game.pulse_time_left(skill)",
+  "visible_reader": "HUD calls game.pulse_time_left(skill) and game.pulse_period(skill)"
+}

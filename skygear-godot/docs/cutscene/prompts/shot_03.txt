@@ -5,10 +5,9 @@
 # ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
 # Settings: the confirmed block in ../README.md §0. Paste everything below the line.
 # H3 audio: mute. No VO here — the captain is not a narrator.
-# OWNER DECISION GATE (README §6 q1): proportions. As written this keeps the
-# sprite's stylized proportions. If the owner picks naturalistic, append:
-# "Render him with naturalistic heroic proportions while keeping the exact same
-#  face, hair, costume and colors from the references."
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact sky, palette and painting style: moonlight cool
 and silver from the upper left, ember-orange glow from the lower right, violet
@@ -30,3 +29,5 @@ Hand-painted brushwork, exactly the style of ref_image_0.
 
 Subtle motion only — wind, coat, hair, the head turn. No walking, no fighting.
 No text, no watermark, no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

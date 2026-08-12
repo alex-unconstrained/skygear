@@ -1,27 +1,34 @@
 # SHOT 04 — THE BOILER (the why) — 141 frames (5.88 s) @ 24 fps, 1344x768
 # Grid check: (141 - 5) % 17 == 0  ✓
 # ref_images.ref_image_0 = refs R0  sky_backdrop.png
-# ref_images.ref_image_1 = refs R1b corsair_front_attack.png (flattened — costume/gauntlet)
-# ref_images.ref_image_2 = refs R5  staged boiler frame (model_lab capture, CROPPED — see refs/README.md)
+# ref_images.ref_image_1 = refs R1a corsair_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
 # ref_images.ref_image_3 = refs R2  crew_front_attack.png (flattened)
 # Settings: the confirmed block in ../README.md §0. Paste everything below the line.
 # H3 audio: mute. Game mix: combat_low.mp3 + close amb_ship.ogg bed.
 # If the staged boiler frame is not yet captured, this shot can be generated
 # from the text alone with R0/R1b/R2 — the boiler description below is the
 # model's real read: riveted iron dome, blazing fire grate, brass gauges.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact palette and painting style: ember-orange
 firelight as the key light, deep violet shadow, hand-painted brushwork. Use
-ref_image_1 for the exact character and costume of the captain — the same
-young man: red brass-buckled greatcoat, brass goggles in spiked brown hair,
-ornate brass clockwork gauntlet, no drifting features. Use ref_image_2 for the
-exact machine — the ship's Boiler: a massive riveted iron furnace with a domed
-top, a blazing fire grate glowing orange at its heart, brass pressure gauges
-and piping. Use ref_image_3 for the crew — rough working sailors in simple
-gear.
+ref_image_1 and ref_image_2 for the exact character and costume of the captain
+— the same young man in every detail: red brass-buckled greatcoat with a
+gold-starred hem, brass goggles pushed up into spiked brown hair, ornate brass
+clockwork gauntlet, dark boots with brass fittings. Same face, same build, no
+drifting features. Use ref_image_3 for the crew — rough working sailors in
+simple gear.
+
+The ship's Boiler has no reference and is built from this description: a
+massive riveted iron furnace with a domed top, a blazing fire grate glowing
+orange at its heart, brass pressure gauges and piping, painted in exactly the
+style of ref_image_0.
 
 The video: the beating heart of the airship, at her stern. The great Boiler
-of ref_image_2 dominates the frame, its fire grate breathing orange light that
+dominates the frame, its fire grate breathing orange light that
 swells and dims like a slow pulse, gauge needles trembling, steam sighing from
 a valve. Two crewmen from ref_image_3 tend it, one shoveling, firelight on
 their faces. The captain steps into frame and rests his brass gauntlet flat on
@@ -31,3 +38,5 @@ alive, protected.
 
 Slow cinematic pacing, subtle motion, no camera shake, no text, no watermark,
 no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

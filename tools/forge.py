@@ -33,7 +33,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LOOM = "http://127.0.0.1:8765"
-LOOM_DIR = Path(r"C:/Users/alexr/Documents/Codex/2026-07-26/done-66-images-fully-specced-for")
+# The Loom moved on 2026-08-11 (board SG-105: the old path below did not exist,
+# which is why `ingest` could not find a single already-paid candidate).
+LOOM_DIR = Path(r"C:/Users/alexr/OneDrive/Documents/GitHub/AetherLoom")
 STATE = Path(__file__).resolve().parent / "forge-state.json"
 
 # --- the house style --------------------------------------------------------

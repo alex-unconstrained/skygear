@@ -99,6 +99,12 @@ func _draw() -> void:
 	_in_frame = false
 	_banner_claim = false
 	_edit_begin()
+	## The results fold opens fresh per ending (S1): any frame drawn on a screen
+	## that is not the results sheet drops the latch, so the next ending comes up
+	## at RESULTS_DETAILS_OPEN_BY_DEFAULT rather than wherever the last run's
+	## toggle was left.
+	if game.state_name != "GAMEOVER" and game.state_name != "VICTORY":
+		_results_screen_was_up = false
 	if game.workshop_open:
 		draw_rect(Rect2(Vector2.ZERO, size), Color(0.03, 0.025, 0.045, 0.72))
 		_draw_workshop()
@@ -537,9 +543,8 @@ func _draw_title() -> void:
 	## The last clause is the class's, not a constant. "Space dash" is a lie for
 	## the man with no dash, and it is the one line on this screen that tells a
 	## player what their hands do.
-	_center_text("WASD move · mouse aim · LMB/RMB/Q/E skills · %s"
-		% ("Space bleeds a jet · F, V" if not (game.class_data().get("jet", {}) as Dictionary).is_empty()
-			else "Space dash"),
+	_center_text(SkyGearKeybinds.controls_line(
+		not (game.class_data().get("jet", {}) as Dictionary).is_empty()),
 		330.0, 18, Color("#b9afaa"))
 	## ONE CURSOR DOWN THE PAGE, not six offsets from a shared anchor.
 	##
@@ -624,7 +629,7 @@ func _draw_title() -> void:
 			{"key": "THE CORE", "pt": 17}):
 		game.cycle_auto_element()
 	y += MENU_PLATE_H + MENU_GAP
-	_says("Her basic attack, and the only weapon every run has. %s."
+	_says("His basic attack, and the only weapon every run has. %s."
 			% str(SkyGearData.ELEMENTS[game.auto_element_id()].blurb).capitalize(),
 		Vector2(wx + 10.0, y + 10.0), wide - 20.0, HORIZONTAL_ALIGNMENT_CENTER,
 		13, 2, Color("#b9afaa"))
@@ -2519,7 +2524,16 @@ func _draw_game_hud() -> void:
 	## Four wells, or five under THE SECOND HAND. The fifth has no key — the
 	## Articles' own rule against a binding nobody remembers — so its tab says
 	## what is true: it fires itself.
-	var labels := ["LMB", "RMB", "Q", "E", "AUTO"]
+	## THE WELL TABS ARE READ OFF THE BINDINGS (DR-09a). They were four literals,
+	## so a player who rebound `skill_3` off Q was told to press Q for the rest
+	## of the run. The fifth well keeps its literal because it has no binding to
+	## read — under THE SECOND HAND it fires itself, which is what AUTO says.
+	var labels := [
+		SkyGearKeybinds.short_label("skill_1"),
+		SkyGearKeybinds.short_label("skill_2"),
+		SkyGearKeybinds.short_label("skill_3"),
+		SkyGearKeybinds.short_label("skill_4"),
+		"AUTO"]
 	for i in game.skill_capacity():
 		var slot := "slot%d" % i
 		var rect: Rect2 = plates[slot]
@@ -3892,7 +3906,11 @@ func _draw_keys() -> void:
 	_sheet(sheet)
 	_banner(size.x * 0.5, 84.0, 420.0)
 	_center_text("CONTROLS", 124.0, 38, BRASS_LIT)
-	_center_text("press a number to rebind that row", 154.0, 15, Color("#8b8296"))
+	## "press a number" stopped being true at row 11 — see `SkyGearKeybinds.SLOTS`.
+	## The subtitle names the column instead, which stays true however many rows
+	## this sheet grows, and the column itself prints the exact character.
+	_center_text("press the key in the left column to rebind that row",
+		154.0, 15, Color("#8b8296"))
 	## Against the plate's own interior. Thirty pixels in from a 600-wide sheet is
 	## inside the brass, so the row number and the key name were both drawn on the
 	## frame — the audit reported "1", "2", "W" and "S" every run.
@@ -3913,7 +3931,10 @@ func _draw_keys() -> void:
 		if listening:
 			draw_rect(row, Color(0.69, 0.51, 0.25, 0.20))
 			draw_rect(row, BRASS, false, 1.6)
-		_say("%d" % ((i + 1) % 10), Vector2(row.position.x + 10.0, y + 6.0), 24,
+		## The character this row is actually selected with, from the one table
+		## that also tells `game.gd` what to listen for. It used to be
+		## `(i + 1) % 10`, which printed "1" twice on an eleven-row sheet.
+		_say(SkyGearKeybinds.slot_label(i), Vector2(row.position.x + 10.0, y + 6.0), 24,
 			HORIZONTAL_ALIGNMENT_LEFT, 15, Color("#6a6478"))
 		_say(name, Vector2(row.position.x + 40.0, y + 6.0), 240,
 			HORIZONTAL_ALIGNMENT_LEFT, 17, BONE)
@@ -3925,6 +3946,13 @@ func _draw_keys() -> void:
 	if game.rebind_conflict != "":
 		_center_text("that key already runs %s" % game.rebind_conflict.replace("_", " "),
 			y + 14.0, 15, Color("#ff9a5a"))
+	else:
+		## SAY IT ONCE, HERE. There is no gamepad support and no screen in the
+		## game admitted it — a player who plugged a controller in had to
+		## discover that by pressing everything on it (DR-09). This is the sheet
+		## where the question is asked, so it is the sheet that answers.
+		_center_text("keyboard and mouse only — no controller support yet",
+			y + 14.0, 15, Color("#8b8296"))
 	_center_text("Backspace resets · Esc closes · F2 toggles",
 		writing_area(sheet).end.y, 15,
 		Color("#37f0c8"))
@@ -5035,7 +5063,10 @@ func _draw_workshop() -> void:
 	if ui.button(Rect2(room.position.x, foot, 220.0, 34.0), respec_label,
 			{"disabled": committed <= 0}) and committed > 0:
 		SkyGearWorkshop.respec(w)
-	_label("free, and never mid-run — experimenting is all a tree this small has to offer",
+	## NO SELF-DEPRECATION ON A SHIPPING SURFACE. "all a tree this small has to
+	## offer" was an aside from us to us; the player it reaches has no way to
+	## read it except as an apology for the screen they are standing on.
+	_label("free, and never mid-run — change your mind between voyages as often as you like",
 		Vector2(room.position.x + 232.0, foot + 22.0), room.size.x - 460.0,
 		HORIZONTAL_ALIGNMENT_LEFT, 12)
 	if ui.button(Rect2(room.end.x - 200.0, foot, 200.0, 34.0), "BACK",
@@ -5189,7 +5220,7 @@ func _draw_berths() -> void:
 				tag = "LOCKED"
 				_padlock(Vector2(box.end.x - 14.0, cy - 3.0), FIT_INK[state])
 		if shelved:
-			tag = "TABLED"
+			tag = "STOWED"
 			tag_ink = FIT_INK[Fit.DEAR]
 		var tag_w := 118.0
 		_label(tag, Vector2(box.position.x, cy + 5.0),
@@ -5203,10 +5234,15 @@ func _draw_berths() -> void:
 				name_w, HORIZONTAL_ALIGNMENT_LEFT,
 				_fits(str(fit.name), name_w, 13), FIT_INK[state])
 			var blurb_w: float = box.size.x - 26.0 - tag_w - 12.0
-			## A tabled slate's blurb IS the tabling (SG-68) — the deck change
+			## A stowed slate's blurb IS the stowing (SG-68) — the deck change
 			## it used to promise is not on offer, and saying so beats a
 			## description of a verb that does not exist.
-			var blurb: String = "TABLED — an interaction pass will revisit" \
+			##
+			## IT SAYS IT IN THE SHIP'S REGISTER, NOT THE SPRINT'S. "TABLED —
+			## an interaction pass will revisit" told a paying player what our
+			## planning looked like; the only thing it taught them was that
+			## they were reading scaffolding. Same fact, ship's words.
+			var blurb: String = "STOWED — not rigged for this voyage" \
 				if shelved else str(fit.text)
 			_label(blurb, Vector2(box.position.x + 14.0, cy + 15.0),
 				blurb_w, HORIZONTAL_ALIGNMENT_LEFT,
@@ -5228,13 +5264,13 @@ func _draw_berths() -> void:
 				Fit.LOCKED:
 					status = "locked · earned by: %s" % str(fit.earn)
 			if shelved:
-				status = "TABLED — an interaction pass will revisit"
-			## A tabled slate's hover lead states the tabling, never the dead
+				status = "STOWED — not rigged for this voyage"
+			## A stowed slate's hover lead states the stowing, never the dead
 			## verb's sales pitch — honest, and it also cures the one
 			## foot-strip OVERFLOW the text audit caught on the winch's long
 			## verb description ("needs 614, given 578").
 			told = {"name": str(fit.name),
-				"text": ("tabled with the crate-verb family — nothing is lost"
+				"text": ("stowed below decks — nothing you have earned is lost"
 					if shelved else str(fit.text)),
 				"status": status, "tint": FIT_INK[state]}
 		y += step
@@ -5418,31 +5454,55 @@ func _draw_overlay(title: String, subtitle: String) -> void:
 	for i in lines.size():
 		_center_text(lines[i], 330.0 + i * 34.0, 22, Color("#eee5d5"))
 
-## The results screen IS the run report. One block of text a player can read and
-## copy, rather than a screen that says "twelve waves repelled" and a report
-## somewhere else that says something different.
-func _pause_text() -> String:
-	var lines := "Esc / P to return to the deck"
-	if game.audio != null:
-		lines += "
+## `_pause_text()` LIVED HERE AND HAD ZERO CALLERS (S3, 2026-08-11).
+## It was dead the moment `_draw_pause()` took over, and it had gone
+## stale twice while nobody could see it: "Space dash" is false for the
+## Boilerwright, and "1/2/3 pick a card" predates SG-46 dealing four.
+## Deleted rather than corrected — the live pause footer (`_draw_pause`,
+## which asks the class and reads live bindings) is the one truth, and a
+## second unreachable copy of the controls is how they diverge again.
 
-volume  %d%%   (- and = to change, M to mute)" % roundi(float(game.audio.volumes.master) * 100.0)
-		if game.audio.muted:
-			lines += "
-MUTED"
-	lines += "
 
-WASD move · mouse aim · LMB/RMB/Q/E skills · Space dash"
-	lines += "
-1/2/3 pick a card · R reroll · C copy the run report"
-	return lines
+## --- THE RESULTS FOLD (S1, UI/UX audit §B-2) ---------------------------------
+##
+## THE ONE LINE THAT INVERTS THE SLICE. `false` means a run ends on its story —
+## verdict, reason, wave and time, what it banked — with the tester report one
+## press behind DETAILS. `true` puts the whole report back as the default face
+## and changes nothing else: the fold, the button and the clipboard are
+## identical either way. It is a const rather than a setting because it is the
+## owner's taste call, not the player's, and the audit's kill condition for S1
+## was "invert the fold's default state — one bool".
+const RESULTS_DETAILS_OPEN_BY_DEFAULT := false
+
+## The live fold. Immediate mode has no widget to hold this, so the sheet does.
+var results_details_open := RESULTS_DETAILS_OPEN_BY_DEFAULT
+
+## THE LATCH THAT MAKES "PER ENDING" MEAN PER ENDING. Without it the fold is
+## per-process: a player who opened DETAILS on wave 3 would meet the full
+## telemetry table as the default face of every death afterwards, which is the
+## exact screen S1 exists to stop being first. `_draw` drops it on any frame
+## that is not an ending (above), so the next ending re-reads the default.
+var _results_screen_was_up := false
 
 
 func _draw_results(title: String, tint: Color) -> void:
 	_in_frame = false
 	draw_rect(Rect2(Vector2.ZERO, size), Color(0.02, 0.015, 0.028, 0.90))
+	if not _results_screen_was_up:
+		results_details_open = RESULTS_DETAILS_OPEN_BY_DEFAULT
+		_results_screen_was_up = true
 	var report: String = game.run_report()
-	var body := report.split("\n")
+	var full := report.split("\n")
+	## THE DRAWN BODY IS NOT THE CLIPBOARD (audit §A-2). The sheet already
+	## paints the game's name on the banner and the verdict + reason at 52pt
+	## right under it, and the report's first two lines say all three again —
+	## so those two lines are stripped from the DRAWN body only. `run_report()`
+	## itself is never touched: it is the clipboard truth, byte for byte.
+	var summary := full.slice(2, 3)
+	var details := full.slice(3)
+	var body := summary.duplicate()
+	if results_details_open:
+		body.append_array(details)
 	var tall := 0.0
 	for line in body:
 		tall += 20.0 if str(line).begins_with("  ") else 23.0
@@ -5453,7 +5513,10 @@ func _draw_results(title: String, tint: Color) -> void:
 	## adds underneath. A constant here was fine until Ledger and the payout line
 	## started appearing, and then the footer sat on the bottom rail; the audit
 	## found it on the first run after.
-	var chrome := 360.0
+	##
+	## The 50 over the old 360 is the fold control's own rail: 10 above the
+	## DETAILS plate, 30 of plate, 10 under it.
+	var chrome := 410.0
 	if game.talent("show_ledger") > 0.0:
 		chrome += 18.0
 	if not (game.banked as Dictionary).is_empty() and int(game.banked.get("scrip", 0)) > 0:
@@ -5470,7 +5533,6 @@ func _draw_results(title: String, tint: Color) -> void:
 	_center_text(title, 110.0, 52, tint)
 	if game.end_reason != "":
 		_center_text(game.end_reason, 146.0, 18, Color("#b9afaa"))
-	var lines := body
 	## Against the plate's own interior. 680 inside an 800-wide sheet leaves 60 a
 	## side, and the rail is 48 plus breathing room — so the longest build line
 	## needed 712 and got clipped at 680.
@@ -5478,15 +5540,35 @@ func _draw_results(title: String, tint: Color) -> void:
 	var body_x: float = page.position.x
 	var body_w: float = page.size.x
 	var y := 212.0
-	for i in lines.size():
-		var line: String = lines[i]
-		var small := line.begins_with("  ")
-		## Per line, because one long build string should not shrink the whole
-		## report — and a clipped build line is the one line a tester pastes.
+	for i in summary.size():
+		var line: String = summary[i]
 		_say(line, Vector2(body_x, y), body_w, HORIZONTAL_ALIGNMENT_LEFT,
-			_fits(line, body_w, 15 if small else 17, 11),
-			Color("#b9afaa") if small else Color("#eee5d5"))
-		y += 20.0 if small else 23.0
+			_fits(line, body_w, 17, 11), Color("#eee5d5"))
+		y += 23.0
+
+	## THE FOLD CONTROL (S1) — always on screen, its content folded by default.
+	## `ui.begin` moved up here so the toggle sits where its content unfolds;
+	## the widget keeps one editor key while its label states the fold.
+	ui.begin("results", self, font, get_local_mouse_position())
+	y += 10.0
+	if ui.button(Rect2(size.x * 0.5 - 113.0, y, 226.0, 30.0),
+			"HIDE DETAILS" if results_details_open else "DETAILS",
+			{"key": "DETAILS"}):
+		results_details_open = not results_details_open
+	y += 40.0
+	if results_details_open:
+		for i in details.size():
+			var line: String = details[i]
+			var small := line.begins_with("  ")
+			if small:
+				_report_cells(line, body_x, y, body_w)
+			else:
+				## Per line, because one long build string should not shrink the
+				## whole report — and a clipped build line is the one line a
+				## tester pastes.
+				_say(line, Vector2(body_x, y), body_w, HORIZONTAL_ALIGNMENT_LEFT,
+					_fits(line, body_w, 17, 11), Color("#eee5d5"))
+			y += 20.0 if small else 23.0
 	y += 16.0
 
 	## BUTTONS, not a line of text naming keys. This screen said "C to copy the
@@ -5497,7 +5579,6 @@ func _draw_results(title: String, tint: Color) -> void:
 	## PLAY AGAIN keeps the seed. A run you just lost on the third wave is a run
 	## you want to try again, not a different twelve waves, and the same seed is
 	## the only version of "again" you can learn anything from.
-	ui.begin("results", self, font, get_local_mouse_position())
 	var bw := 226.0
 	var gap := 12.0
 	var bx: float = size.x * 0.5 - (bw * 2.0 + gap) * 0.5
@@ -5578,6 +5659,42 @@ func _draw_results(title: String, tint: Color) -> void:
 	var log_note := "saved to the run log" if game.run_logged 		else "COULD NOT WRITE THE RUN LOG — copy it before you leave"
 	_center_text(log_note, y + 18.0, 14,
 		Color("#6a6478") if game.run_logged else Color("#ff9a5a"))
+
+
+## DR-12, drawn inside the DETAILS fold (audit §A-3): `_report_row` pads with
+## %-20s / %7d for a monospace CLIPBOARD, and this screen's font is
+## proportional, so the verbatim string cannot line its columns up. The drawn
+## row is split on its own 2+-space gaps and each cell lands on a fixed x —
+## name left, damage right-aligned against a shared rail, share right beside
+## it, casts and kills in their own columns. The STRING is untouched: the
+## clipboard keeps its monospace padding byte for byte.
+func _report_cells(line: String, at_x: float, y: float, body_w: float) -> void:
+	var cells: Array[String] = []
+	for piece in line.split("  ", false):
+		var cell := str(piece).strip_edges()
+		if cell != "":
+			cells.append(cell)
+	## A skill row is 5 cells, a reaction row is 3. A row this parse does not
+	## recognise is drawn verbatim — misaligned is honest, a dropped cell is not.
+	if cells.size() != 5 and cells.size() != 3:
+		_say(line, Vector2(at_x, y), body_w, HORIZONTAL_ALIGNMENT_LEFT,
+			_fits(line, body_w, 15, 11), Color("#b9afaa"))
+		return
+	var muted := Color("#b9afaa")
+	_say(cells[0], Vector2(at_x, y), 280.0, HORIZONTAL_ALIGNMENT_LEFT,
+		_fits(cells[0], 280.0, 15, 11), muted)
+	_say(cells[1], Vector2(at_x + 288.0, y), 92.0, HORIZONTAL_ALIGNMENT_RIGHT,
+		_fits(cells[1], 92.0, 15, 11), muted)
+	if cells.size() == 3:
+		_say(cells[2], Vector2(at_x + 412.0, y), body_w - 412.0,
+			HORIZONTAL_ALIGNMENT_LEFT, _fits(cells[2], body_w - 412.0, 15, 11), muted)
+		return
+	_say(cells[2], Vector2(at_x + 396.0, y), 60.0, HORIZONTAL_ALIGNMENT_RIGHT,
+		_fits(cells[2], 60.0, 15, 11), muted)
+	_say(cells[3], Vector2(at_x + 480.0, y), 100.0, HORIZONTAL_ALIGNMENT_LEFT,
+		_fits(cells[3], 100.0, 15, 11), muted)
+	_say(cells[4], Vector2(at_x + 592.0, y), body_w - 592.0,
+		HORIZONTAL_ALIGNMENT_LEFT, _fits(cells[4], body_w - 592.0, 15, 11), muted)
 
 
 func _center_text(text: String, y: float, font_size: int, color: Color) -> void:

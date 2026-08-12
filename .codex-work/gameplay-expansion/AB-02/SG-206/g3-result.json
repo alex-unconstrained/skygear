@@ -1,0 +1,4835 @@
+{
+  "authored_tick": 4.0,
+  "baseline": "f9aa3b2",
+  "candidate_ticks_exact": true,
+  "comparison_arms": [
+    "feature-off live follow",
+    "anchored candidate"
+  ],
+  "distinct_scripted_landings": 120,
+  "distinct_seed_states": 120,
+  "feature_off_seam": "AURA field_anchor_set=false",
+  "follow_zero": true,
+  "mean_paired_difference": 4.0,
+  "n_distinct_seeds": 120,
+  "observations_per_seed": 1,
+  "packet": "SG-206",
+  "paired_95_half_width": 0.0,
+  "passed": true,
+  "primary_statistic": "paired candidate-minus-follow damage to left-behind target",
+  "repetition_audit": [
+    {
+      "repeat_match": true,
+      "seed": "BAL1"
+    },
+    {
+      "repeat_match": true,
+      "seed": "BAL2"
+    }
+  ],
+  "repetition_audit_effective_n": 0,
+  "samples": [
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2739384739791421435,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3925722056046623287
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2739384739791421435,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3925722056046623287
+      },
+      "landing": [
+        -550.0,
+        -760.0
+      ],
+      "leave": [
+        -360.0,
+        -760.0
+      ],
+      "seed": "BAL1",
+      "seed_state": -3282504652399631231,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9123115848735334968,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8269300474853966382
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9123115848735334968,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8269300474853966382
+      },
+      "landing": [
+        -450.0,
+        -760.0
+      ],
+      "leave": [
+        -260.0,
+        -760.0
+      ],
+      "seed": "BAL2",
+      "seed_state": 5476470801263669958,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2538872363552539755,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -672526310681668145
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2538872363552539755,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -672526310681668145
+      },
+      "landing": [
+        -350.0,
+        -760.0
+      ],
+      "leave": [
+        -160.0,
+        -760.0
+      ],
+      "seed": "BAL3",
+      "seed_state": -4211297818782580469,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4045371121630255458,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7996678251970809328
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4045371121630255458,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7996678251970809328
+      },
+      "landing": [
+        -250.0,
+        -760.0
+      ],
+      "leave": [
+        -60.0,
+        -760.0
+      ],
+      "seed": "BAL4",
+      "seed_state": 4547677634880720720,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7817129466896500945,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2853291657566444051
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7817129466896500945,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2853291657566444051
+      },
+      "landing": [
+        -150.0,
+        -760.0
+      ],
+      "leave": [
+        40.0,
+        -760.0
+      ],
+      "seed": "BAL5",
+      "seed_state": -5140090985165529707,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1232885981713705732,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7196870076373787146
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1232885981713705732,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7196870076373787146
+      },
+      "landing": [
+        -50.0,
+        -760.0
+      ],
+      "leave": [
+        140.0,
+        -760.0
+      ],
+      "seed": "BAL6",
+      "seed_state": 3618884468497771482,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5351357503469089481,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 399904087798511091
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5351357503469089481,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 399904087798511091
+      },
+      "landing": [
+        50.0,
+        -760.0
+      ],
+      "leave": [
+        -140.0,
+        -760.0
+      ],
+      "seed": "BAL7",
+      "seed_state": -6068884151548478945,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6511143085057666922,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1490286761240899044
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6511143085057666922,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1490286761240899044
+      },
+      "landing": [
+        150.0,
+        -760.0
+      ],
+      "leave": [
+        -40.0,
+        -760.0
+      ],
+      "seed": "BAL8",
+      "seed_state": 2690091302114822244,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 73100400125128291,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 9087060925413197281
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 73100400125128291,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 9087060925413197281
+      },
+      "landing": [
+        250.0,
+        -760.0
+      ],
+      "leave": [
+        60.0,
+        -760.0
+      ],
+      "seed": "BAL9",
+      "seed_state": -6997677317931428183,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -962714470669396341,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6257083970858720327
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -962714470669396341,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6257083970858720327
+      },
+      "landing": [
+        350.0,
+        -760.0
+      ],
+      "leave": [
+        160.0,
+        -760.0
+      ],
+      "seed": "BAL10",
+      "seed_state": -3307825292457927535,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5621529014513398872,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7846081684043488194
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5621529014513398872,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7846081684043488194
+      },
+      "landing": [
+        450.0,
+        -760.0
+      ],
+      "leave": [
+        260.0,
+        -760.0
+      ],
+      "seed": "BAL11",
+      "seed_state": 5451150161205373654,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6240971574013357531,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3003888225493765185
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6240971574013357531,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3003888225493765185
+      },
+      "landing": [
+        550.0,
+        -760.0
+      ],
+      "leave": [
+        360.0,
+        -760.0
+      ],
+      "seed": "BAL12",
+      "seed_state": -4236618458840876773,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 343271911169437682,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5665316337158712288
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 343271911169437682,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5665316337158712288
+      },
+      "landing": [
+        -550.0,
+        -610.0
+      ],
+      "leave": [
+        -360.0,
+        -610.0
+      ],
+      "seed": "BAL13",
+      "seed_state": 4522356994822424416,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6927515396352232895,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5184653572378541091
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6927515396352232895,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5184653572378541091
+      },
+      "landing": [
+        -450.0,
+        -610.0
+      ],
+      "leave": [
+        -260.0,
+        -610.0
+      ],
+      "seed": "BAL14",
+      "seed_state": -5165411625223826011,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4934985192174523508,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8918512082523667430
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4934985192174523508,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8918512082523667430
+      },
+      "landing": [
+        -350.0,
+        -610.0
+      ],
+      "leave": [
+        -160.0,
+        -610.0
+      ],
+      "seed": "BAL15",
+      "seed_state": 3593563828439475178,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1649258293008271705,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1931457827013585949
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1649258293008271705,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1931457827013585949
+      },
+      "landing": [
+        -250.0,
+        -610.0
+      ],
+      "leave": [
+        -60.0,
+        -610.0
+      ],
+      "seed": "BAL16",
+      "seed_state": -6094204791606775249,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8233501778191066918,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -841075153571197996
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8233501778191066918,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -841075153571197996
+      },
+      "landing": [
+        -150.0,
+        -610.0
+      ],
+      "leave": [
+        40.0,
+        -610.0
+      ],
+      "seed": "BAL17",
+      "seed_state": 2664770662056525940,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3628998810335689485,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6755699010601100241
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3628998810335689485,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6755699010601100241
+      },
+      "landing": [
+        -50.0,
+        -610.0
+      ],
+      "leave": [
+        140.0,
+        -610.0
+      ],
+      "seed": "BAL18",
+      "seed_state": -7022997957989724487,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2955244674847105728,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2412120591793757146
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2955244674847105728,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2412120591793757146
+      },
+      "landing": [
+        50.0,
+        -610.0
+      ],
+      "leave": [
+        -140.0,
+        -610.0
+      ],
+      "seed": "BAL19",
+      "seed_state": 1735977495673576702,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5043608344151773704,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7311562094376690846
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5043608344151773704,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7311562094376690846
+      },
+      "landing": [
+        150.0,
+        -610.0
+      ],
+      "leave": [
+        -40.0,
+        -610.0
+      ],
+      "seed": "BAL20",
+      "seed_state": 9037203572787737462,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1540635141031021509,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 285212069795607391
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1540635141031021509,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 285212069795607391
+      },
+      "landing": [
+        250.0,
+        -610.0
+      ],
+      "leave": [
+        60.0,
+        -610.0
+      ],
+      "seed": "BAL21",
+      "seed_state": -650565047258512965,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8124878626213816722,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8954416632448084864
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8124878626213816722,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8954416632448084864
+      },
+      "landing": [
+        350.0,
+        -610.0
+      ],
+      "leave": [
+        160.0,
+        -610.0
+      ],
+      "seed": "BAL22",
+      "seed_state": 8108410406404788224,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3737621962312939681,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1895553277089168515
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3737621962312939681,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1895553277089168515
+      },
+      "landing": [
+        450.0,
+        -610.0
+      ],
+      "leave": [
+        260.0,
+        -610.0
+      ],
+      "seed": "BAL23",
+      "seed_state": -1579358213641462203,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2846621522869855532,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6239131695896511610
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2846621522869855532,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6239131695896511610
+      },
+      "landing": [
+        550.0,
+        -610.0
+      ],
+      "leave": [
+        360.0,
+        -610.0
+      ],
+      "seed": "BAL24",
+      "seed_state": 7179617240021838986,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9015879065656900871,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1357642468275786627
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9015879065656900871,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1357642468275786627
+      },
+      "landing": [
+        -550.0,
+        -460.0
+      ],
+      "leave": [
+        -360.0,
+        -460.0
+      ],
+      "seed": "BAL25",
+      "seed_state": -2508151380024411441,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2431635580474105658,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2448025141718174580
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2431635580474105658,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2448025141718174580
+      },
+      "landing": [
+        -450.0,
+        -460.0
+      ],
+      "leave": [
+        -260.0,
+        -460.0
+      ],
+      "seed": "BAL26",
+      "seed_state": 6250824073638889748,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4152607904708689555,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8401944767819078799
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4152607904708689555,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8401944767819078799
+      },
+      "landing": [
+        -350.0,
+        -460.0
+      ],
+      "leave": [
+        -160.0,
+        -460.0
+      ],
+      "seed": "BAL27",
+      "seed_state": -3436944546407360679,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7709892683818066848,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5701220887083129722
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7709892683818066848,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5701220887083129722
+      },
+      "landing": [
+        -250.0,
+        -460.0
+      ],
+      "leave": [
+        -60.0,
+        -460.0
+      ],
+      "seed": "BAL28",
+      "seed_state": 5322030907255940510,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1125649198635271635,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5148749022454123657
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1125649198635271635,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5148749022454123657
+      },
+      "landing": [
+        -150.0,
+        -460.0
+      ],
+      "leave": [
+        40.0,
+        -460.0
+      ],
+      "seed": "BAL29",
+      "seed_state": -4365737712790309917,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9124502217634151067,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4505955612003275521
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -9124502217634151067,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4505955612003275521
+      },
+      "landing": [
+        -50.0,
+        -460.0
+      ],
+      "leave": [
+        140.0,
+        -460.0
+      ],
+      "seed": "BAL30",
+      "seed_state": 2935488364323850843,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2540258732451355854,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4163248950649201952
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2540258732451355854,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4163248950649201952
+      },
+      "landing": [
+        50.0,
+        -460.0
+      ],
+      "leave": [
+        -140.0,
+        -460.0
+      ],
+      "seed": "BAL31",
+      "seed_state": -6752280255722399584,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4043984752731439359,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6686720958888051427
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4043984752731439359,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6686720958888051427
+      },
+      "landing": [
+        150.0,
+        -460.0
+      ],
+      "leave": [
+        -40.0,
+        -460.0
+      ],
+      "seed": "BAL32",
+      "seed_state": 2006695197940901605,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7818515835795317044,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7416444696014157094
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7818515835795317044,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7416444696014157094
+      },
+      "landing": [
+        250.0,
+        -460.0
+      ],
+      "leave": [
+        60.0,
+        -460.0
+      ],
+      "seed": "BAL33",
+      "seed_state": -7681073422105348822,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1234272350612521831,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3433525213523096285
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1234272350612521831,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3433525213523096285
+      },
+      "landing": [
+        350.0,
+        -460.0
+      ],
+      "leave": [
+        160.0,
+        -460.0
+      ],
+      "seed": "BAL34",
+      "seed_state": 1077902031557952367,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5349971134570273382,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2343142540080708332
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5349971134570273382,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2343142540080708332
+      },
+      "landing": [
+        450.0,
+        -460.0
+      ],
+      "leave": [
+        260.0,
+        -460.0
+      ],
+      "seed": "BAL35",
+      "seed_state": -8609866588488298060,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6512529453956483021,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5253631624091589905
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6512529453956483021,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5253631624091589905
+      },
+      "landing": [
+        550.0,
+        -460.0
+      ],
+      "leave": [
+        360.0,
+        -460.0
+      ],
+      "seed": "BAL36",
+      "seed_state": 149108865175003129,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 71714031226312192,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 910053205284246810
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 71714031226312192,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 910053205284246810
+      },
+      "landing": [
+        -550.0,
+        -310.0
+      ],
+      "leave": [
+        -360.0,
+        -310.0
+      ],
+      "seed": "BAL37",
+      "seed_state": 8908084318838304318,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6655957516409107405,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8506827369456545047
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6655957516409107405,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8506827369456545047
+      },
+      "landing": [
+        -450.0,
+        -310.0
+      ],
+      "leave": [
+        -260.0,
+        -310.0
+      ],
+      "seed": "BAL38",
+      "seed_state": -779684301207946109,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5206543072117648998,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5307488448978216056
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5206543072117648998,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5307488448978216056
+      },
+      "landing": [
+        -350.0,
+        -310.0
+      ],
+      "leave": [
+        -160.0,
+        -310.0
+      ],
+      "seed": "BAL39",
+      "seed_state": 7979291152455355080,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5241347982593023186,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7452349245938574528
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5241347982593023186,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7452349245938574528
+      },
+      "landing": [
+        -250.0,
+        -310.0
+      ],
+      "leave": [
+        -60.0,
+        -310.0
+      ],
+      "seed": "BAL40",
+      "seed_state": -3166226844140035776,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6621152605933733217,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3397620663598678851
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6621152605933733217,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3397620663598678851
+      },
+      "landing": [
+        -150.0,
+        -310.0
+      ],
+      "leave": [
+        40.0,
+        -310.0
+      ],
+      "seed": "BAL41",
+      "seed_state": 5592748609523265413,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -36909120750938004,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7741199082406021946
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -36909120750938004,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7741199082406021946
+      },
+      "landing": [
+        -50.0,
+        -310.0
+      ],
+      "leave": [
+        140.0,
+        -310.0
+      ],
+      "seed": "BAL42",
+      "seed_state": -4095020010522985014,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6547334364431857209,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -144424918233723709
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6547334364431857209,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -144424918233723709
+      },
+      "landing": [
+        50.0,
+        -310.0
+      ],
+      "leave": [
+        -140.0,
+        -310.0
+      ],
+      "seed": "BAL43",
+      "seed_state": 4663955443140316175,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5315166224094899194,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 945957755208664244
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5315166224094899194,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 945957755208664244
+      },
+      "landing": [
+        150.0,
+        -310.0
+      ],
+      "leave": [
+        -40.0,
+        -310.0
+      ],
+      "seed": "BAL44",
+      "seed_state": -5023813176905934252,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1269077261087896019,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8542731919380962481
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1269077261087896019,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8542731919380962481
+      },
+      "landing": [
+        250.0,
+        -310.0
+      ],
+      "leave": [
+        60.0,
+        -310.0
+      ],
+      "seed": "BAL45",
+      "seed_state": 3735162276757366937,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7853320746270691232,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4199153500573619386
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7853320746270691232,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4199153500573619386
+      },
+      "landing": [
+        350.0,
+        -310.0
+      ],
+      "leave": [
+        160.0,
+        -310.0
+      ],
+      "seed": "BAL46",
+      "seed_state": -5952606343288883490,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4009179842256065171,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6650816408963633993
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4009179842256065171,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6650816408963633993
+      },
+      "landing": [
+        450.0,
+        -310.0
+      ],
+      "leave": [
+        260.0,
+        -310.0
+      ],
+      "seed": "BAL47",
+      "seed_state": 2806369110374417699,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2575063642926730042,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8596588744267588632
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2575063642926730042,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8596588744267588632
+      },
+      "landing": [
+        550.0,
+        -310.0
+      ],
+      "leave": [
+        360.0,
+        -310.0
+      ],
+      "seed": "BAL48",
+      "seed_state": -6881399509671832728,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 9159307128109525255,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2253381165269664747
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 9159307128109525255,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2253381165269664747
+      },
+      "landing": [
+        -550.0,
+        -160.0
+      ],
+      "leave": [
+        -360.0,
+        -160.0
+      ],
+      "seed": "BAL49",
+      "seed_state": 1877575943991468461,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1160454109110645823,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -108520368309306275
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 1160454109110645823,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -108520368309306275
+      },
+      "landing": [
+        -450.0,
+        -160.0
+      ],
+      "leave": [
+        -260.0,
+        -160.0
+      ],
+      "seed": "BAL50",
+      "seed_state": 9178802021105629221,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7744697594293441036,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4452098787116649370
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7744697594293441036,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4452098787116649370
+      },
+      "landing": [
+        -350.0,
+        -160.0
+      ],
+      "leave": [
+        -160.0,
+        -160.0
+      ],
+      "seed": "BAL51",
+      "seed_state": -508966598940621206,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4117802994233315367,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3144675377055648867
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4117802994233315367,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3144675377055648867
+      },
+      "landing": [
+        -250.0,
+        -160.0
+      ],
+      "leave": [
+        -60.0,
+        -160.0
+      ],
+      "seed": "BAL52",
+      "seed_state": 8250008854722679983,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2466440490949479846,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4235058050498036820
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2466440490949479846,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4235058050498036820
+      },
+      "landing": [
+        -150.0,
+        -160.0
+      ],
+      "leave": [
+        40.0,
+        -160.0
+      ],
+      "seed": "BAL53",
+      "seed_state": -1437759765323570444,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 9050683976132275059,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6614911859039216559
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 9050683976132275059,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6614911859039216559
+      },
+      "landing": [
+        -50.0,
+        -160.0
+      ],
+      "leave": [
+        140.0,
+        -160.0
+      ],
+      "seed": "BAL54",
+      "seed_state": 7321215688339730745,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2811816612394481344,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7488253795862991962
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2811816612394481344,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7488253795862991962
+      },
+      "landing": [
+        50.0,
+        -160.0
+      ],
+      "leave": [
+        -140.0,
+        -160.0
+      ],
+      "seed": "BAL55",
+      "seed_state": -2366552931706519682,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3772426872788313869,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3361716113674261417
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3772426872788313869,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3361716113674261417
+      },
+      "landing": [
+        150.0,
+        -160.0
+      ],
+      "leave": [
+        -40.0,
+        -160.0
+      ],
+      "seed": "BAL56",
+      "seed_state": 6392422521956781507,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8090073715738442534,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6561055034152590408
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8090073715738442534,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6561055034152590408
+      },
+      "landing": [
+        250.0,
+        -160.0
+      ],
+      "leave": [
+        60.0,
+        -160.0
+      ],
+      "seed": "BAL57",
+      "seed_state": -3295346098089468920,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1505830230555647321,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1035719130019707829
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1505830230555647321,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1035719130019707829
+      },
+      "landing": [
+        350.0,
+        -160.0
+      ],
+      "leave": [
+        160.0,
+        -160.0
+      ],
+      "seed": "BAL58",
+      "seed_state": 5463629355573832269,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5078413254627147892,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3307859288787635266
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5078413254627147892,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3307859288787635266
+      },
+      "landing": [
+        450.0,
+        -160.0
+      ],
+      "leave": [
+        260.0,
+        -160.0
+      ],
+      "seed": "BAL59",
+      "seed_state": -4224139264472418158,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2920439764371731540,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1162998491827276794
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -2920439764371731540,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1162998491827276794
+      },
+      "landing": [
+        550.0,
+        -160.0
+      ],
+      "leave": [
+        360.0,
+        -160.0
+      ],
+      "seed": "BAL60",
+      "seed_state": 3077086812641742602,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3663803720811063673,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6433775672345021443
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3663803720811063673,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6433775672345021443
+      },
+      "landing": [
+        -550.0,
+        -10.0
+      ],
+      "leave": [
+        -360.0,
+        -10.0
+      ],
+      "seed": "BAL61",
+      "seed_state": -6610681807404507825,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8198696867715692730,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7524158345787409396
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8198696867715692730,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7524158345787409396
+      },
+      "landing": [
+        -450.0,
+        -10.0
+      ],
+      "leave": [
+        -260.0,
+        -10.0
+      ],
+      "seed": "BAL62",
+      "seed_state": 2148293646258793364,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1614453382532897517,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3325811563749843983
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1614453382532897517,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3325811563749843983
+      },
+      "landing": [
+        -350.0,
+        -10.0
+      ],
+      "leave": [
+        -160.0,
+        -10.0
+      ],
+      "seed": "BAL63",
+      "seed_state": -7539474973787457063,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4969790102649897696,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7669389982557187078
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4969790102649897696,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7669389982557187078
+      },
+      "landing": [
+        -250.0,
+        -10.0
+      ],
+      "leave": [
+        -60.0,
+        -10.0
+      ],
+      "seed": "BAL64",
+      "seed_state": 1219500479875844126,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6892710485876858707,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -72615818384888841
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -6892710485876858707,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -72615818384888841
+      },
+      "landing": [
+        -150.0,
+        -10.0
+      ],
+      "leave": [
+        40.0,
+        -10.0
+      ],
+      "seed": "BAL65",
+      "seed_state": -8468268140170406301,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -308467000694063494,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3271954738863217832
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -308467000694063494,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3271954738863217832
+      },
+      "landing": [
+        -50.0,
+        -10.0
+      ],
+      "leave": [
+        140.0,
+        -10.0
+      ],
+      "seed": "BAL66",
+      "seed_state": 290707313492894888,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6275776484488731719,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4324819425309080405
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6275776484488731719,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4324819425309080405
+      },
+      "landing": [
+        50.0,
+        -10.0
+      ],
+      "leave": [
+        -140.0,
+        -10.0
+      ],
+      "seed": "BAL67",
+      "seed_state": 9049682767156196077,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5586724104038024684,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -18758993498262690
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5586724104038024684,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -18758993498262690
+      },
+      "landing": [
+        150.0,
+        -10.0
+      ],
+      "leave": [
+        -40.0,
+        -10.0
+      ],
+      "seed": "BAL68",
+      "seed_state": -638085852890054350,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 997519381144770529,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7578015170674035547
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 997519381144770529,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7578015170674035547
+      },
+      "landing": [
+        250.0,
+        -10.0
+      ],
+      "leave": [
+        60.0,
+        -10.0
+      ],
+      "seed": "BAL69",
+      "seed_state": 8120889600773246839,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7001333637854108903,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8723868106075157597
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7001333637854108903,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8723868106075157597
+      },
+      "landing": [
+        350.0,
+        -10.0
+      ],
+      "leave": [
+        160.0,
+        -10.0
+      ],
+      "seed": "BAL70",
+      "seed_state": -3024628395822144017,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -417090152671313690,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7633485432632769644
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -417090152671313690,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7633485432632769644
+      },
+      "landing": [
+        450.0,
+        -10.0
+      ],
+      "leave": [
+        260.0,
+        -10.0
+      ],
+      "seed": "BAL71",
+      "seed_state": 5734347057841157172,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6167153332511481523,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -36711268460471407
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 6167153332511481523,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -36711268460471407
+      },
+      "landing": [
+        550.0,
+        -10.0
+      ],
+      "leave": [
+        360.0,
+        -10.0
+      ],
+      "seed": "BAL72",
+      "seed_state": -3953421562205093255,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5695347256015274880,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4380289687267814502
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5695347256015274880,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4380289687267814502
+      },
+      "landing": [
+        -550.0,
+        140.0
+      ],
+      "leave": [
+        -360.0,
+        140.0
+      ],
+      "seed": "BAL73",
+      "seed_state": 4805553891458207934,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 888896229167520333,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3216484476904483735
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 888896229167520333,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3216484476904483735
+      },
+      "landing": [
+        -450.0,
+        140.0
+      ],
+      "leave": [
+        -260.0,
+        140.0
+      ],
+      "seed": "BAL74",
+      "seed_state": -4882214728588042493,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7473139714350315546,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 17145556426154744
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7473139714350315546,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 17145556426154744
+      },
+      "landing": [
+        -350.0,
+        140.0
+      ],
+      "leave": [
+        -160.0,
+        140.0
+      ],
+      "seed": "BAL75",
+      "seed_state": 3876760725075258696,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4389360874176440857,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7613919720598452981
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4389360874176440857,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7613919720598452981
+      },
+      "landing": [
+        -250.0,
+        140.0
+      ],
+      "leave": [
+        -60.0,
+        140.0
+      ],
+      "seed": "BAL76",
+      "seed_state": -5811007894970991731,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2194882611006354356,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3270341301791109886
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2194882611006354356,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3270341301791109886
+      },
+      "landing": [
+        -150.0,
+        140.0
+      ],
+      "leave": [
+        40.0,
+        140.0
+      ],
+      "seed": "BAL77",
+      "seed_state": 2947967558692309458,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8779126096189149569,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7579628607746143493
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8779126096189149569,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7579628607746143493
+      },
+      "landing": [
+        -50.0,
+        140.0
+      ],
+      "leave": [
+        140.0,
+        140.0
+      ],
+      "seed": "BAL78",
+      "seed_state": -6739801061353940969,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3083374492337606834,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6489245934303755540
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3083374492337606834,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6489245934303755540
+      },
+      "landing": [
+        50.0,
+        140.0
+      ],
+      "leave": [
+        -140.0,
+        140.0
+      ],
+      "seed": "BAL79",
+      "seed_state": 2019174392309360220,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7364516562373065350,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4344385137343397068
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7364516562373065350,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4344385137343397068
+      },
+      "landing": [
+        150.0,
+        140.0
+      ],
+      "leave": [
+        -40.0,
+        140.0
+      ],
+      "seed": "BAL80",
+      "seed_state": -9126343604286030636,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4497984026153691053,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3252389026828901169
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4497984026153691053,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3252389026828901169
+      },
+      "landing": [
+        250.0,
+        140.0
+      ],
+      "leave": [
+        60.0,
+        140.0
+      ],
+      "seed": "BAL81",
+      "seed_state": -367368150622729447,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2086259459029104160,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1091189391978441926
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2086259459029104160,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1091189391978441926
+      },
+      "landing": [
+        350.0,
+        140.0
+      ],
+      "leave": [
+        160.0,
+        140.0
+      ],
+      "seed": "BAL82",
+      "seed_state": 8391607303040571742,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8670502944211899373,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6505584772193856311
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8670502944211899373,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6505584772193856311
+      },
+      "landing": [
+        450.0,
+        140.0
+      ],
+      "leave": [
+        260.0,
+        140.0
+      ],
+      "seed": "BAL83",
+      "seed_state": -1296161317005678685,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3191997644314857030,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3306245851715527320
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3191997644314857030,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3306245851715527320
+      },
+      "landing": [
+        550.0,
+        140.0
+      ],
+      "leave": [
+        360.0,
+        140.0
+      ],
+      "seed": "BAL84",
+      "seed_state": 7462814136657622504,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3392245840867938183,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7543724057821726059
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3392245840867938183,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7543724057821726059
+      },
+      "landing": [
+        -550.0,
+        290.0
+      ],
+      "leave": [
+        -360.0,
+        290.0
+      ],
+      "seed": "BAL85",
+      "seed_state": -2224954483388627923,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8470254747658818220,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6559441597080482462
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8470254747658818220,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6559441597080482462
+      },
+      "landing": [
+        -450.0,
+        290.0
+      ],
+      "leave": [
+        -260.0,
+        290.0
+      ],
+      "seed": "BAL86",
+      "seed_state": 6534020970274673266,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1886011262476023007,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4290528312456770917
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1886011262476023007,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4290528312456770917
+      },
+      "landing": [
+        -350.0,
+        290.0
+      ],
+      "leave": [
+        -160.0,
+        290.0
+      ],
+      "seed": "BAL87",
+      "seed_state": -3153747649771577161,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4698232222706772206,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3200145639014382964
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4698232222706772206,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -3200145639014382964
+      },
+      "landing": [
+        -250.0,
+        290.0
+      ],
+      "leave": [
+        -60.0,
+        290.0
+      ],
+      "seed": "BAL88",
+      "seed_state": 5605227803891724028,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7164268365819984197,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4396628525157915273
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7164268365819984197,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4396628525157915273
+      },
+      "landing": [
+        -150.0,
+        290.0
+      ],
+      "leave": [
+        40.0,
+        290.0
+      ],
+      "seed": "BAL89",
+      "seed_state": -4082540816154526399,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3283622688890687987,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6541489322118273745
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3283622688890687987,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6541489322118273745
+      },
+      "landing": [
+        -50.0,
+        290.0
+      ],
+      "leave": [
+        140.0,
+        290.0
+      ],
+      "seed": "BAL90",
+      "seed_state": 3218685260959634361,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8578877899636068416,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2197910903310930650
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8578877899636068416,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2197910903310930650
+      },
+      "landing": [
+        50.0,
+        290.0
+      ],
+      "leave": [
+        -140.0,
+        290.0
+      ],
+      "seed": "BAL91",
+      "seed_state": -6469083359086616066,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1994634414453273203,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8652059006226322729
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1994634414453273203,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8652059006226322729
+      },
+      "landing": [
+        150.0,
+        290.0
+      ],
+      "leave": [
+        -40.0,
+        290.0
+      ],
+      "seed": "BAL92",
+      "seed_state": 2289892094576685123,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4589609070729522010,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6595346147004899896
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4589609070729522010,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 6595346147004899896
+      },
+      "landing": [
+        250.0,
+        290.0
+      ],
+      "leave": [
+        60.0,
+        290.0
+      ],
+      "seed": "BAL93",
+      "seed_state": -7397876525469565304,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7272891517797234393,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4254623762532353483
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7272891517797234393,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4254623762532353483
+      },
+      "landing": [
+        350.0,
+        290.0
+      ],
+      "leave": [
+        160.0,
+        290.0
+      ],
+      "seed": "BAL94",
+      "seed_state": 1361098928193735885,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -688648032614439180,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8598202181339696578
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -688648032614439180,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8598202181339696578
+      },
+      "landing": [
+        450.0,
+        290.0
+      ],
+      "leave": [
+        260.0,
+        290.0
+      ],
+      "seed": "BAL95",
+      "seed_state": -8326669691852514542,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5895595452568356033,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1001428017167398341
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5895595452568356033,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -1001428017167398341
+      },
+      "landing": [
+        550.0,
+        290.0
+      ],
+      "leave": [
+        360.0,
+        290.0
+      ],
+      "seed": "BAL96",
+      "seed_state": 432305761810786647,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5966905135958400370,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 88954656274989612
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5966905135958400370,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 88954656274989612
+      },
+      "landing": [
+        -550.0,
+        440.0
+      ],
+      "leave": [
+        -360.0,
+        440.0
+      ],
+      "seed": "BAL97",
+      "seed_state": 9191281215474087836,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 617338349224394843,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7685728820447287849
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 617338349224394843,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7685728820447287849
+      },
+      "landing": [
+        -450.0,
+        440.0
+      ],
+      "leave": [
+        -260.0,
+        440.0
+      ],
+      "seed": "BAL98",
+      "seed_state": -496487404572162591,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7201581834407190056,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3342150401639944754
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7201581834407190056,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3342150401639944754
+      },
+      "landing": [
+        -350.0,
+        440.0
+      ],
+      "leave": [
+        -160.0,
+        440.0
+      ],
+      "seed": "BAL99",
+      "seed_state": 8262488049091138598,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4452639540826554597,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4473490444045479145
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4452639540826554597,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4473490444045479145
+      },
+      "landing": [
+        -250.0,
+        440.0
+      ],
+      "leave": [
+        -60.0,
+        440.0
+      ],
+      "seed": "BAL100",
+      "seed_state": 2738469896461751969,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2131603944356240616,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 129912025238136050
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 2131603944356240616,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 129912025238136050
+      },
+      "landing": [
+        -150.0,
+        440.0
+      ],
+      "leave": [
+        40.0,
+        440.0
+      ],
+      "seed": "BAL101",
+      "seed_state": -6949298723584498458,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8715847429539035829,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7726686189410434287
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 8715847429539035829,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 7726686189410434287
+      },
+      "landing": [
+        -50.0,
+        440.0
+      ],
+      "leave": [
+        140.0,
+        440.0
+      ],
+      "seed": "BAL102",
+      "seed_state": 1809676730078802731,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3146653158987720574,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2050853321646639856
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -3146653158987720574,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2050853321646639856
+      },
+      "landing": [
+        50.0,
+        440.0
+      ],
+      "leave": [
+        -140.0,
+        440.0
+      ],
+      "seed": "BAL103",
+      "seed_state": -7878091889967447696,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3437590326195074639,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5545920842525658381
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 3437590326195074639,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5545920842525658381
+      },
+      "landing": [
+        150.0,
+        440.0
+      ],
+      "leave": [
+        -40.0,
+        440.0
+      ],
+      "seed": "BAL104",
+      "seed_state": 880883563695853493,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8424910262331681764,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1202342423718315286
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8424910262331681764,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1202342423718315286
+      },
+      "landing": [
+        250.0,
+        440.0
+      ],
+      "leave": [
+        60.0,
+        440.0
+      ],
+      "seed": "BAL105",
+      "seed_state": -8806885056350396934,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1840666777148886551,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8799116587890613523
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1840666777148886551,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8799116587890613523
+      },
+      "landing": [
+        350.0,
+        440.0
+      ],
+      "leave": [
+        160.0,
+        440.0
+      ],
+      "seed": "BAL106",
+      "seed_state": -47909602687095745,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4743576708033908662,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8557244812376550140
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4743576708033908662,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -8557244812376550140
+      },
+      "landing": [
+        450.0,
+        440.0
+      ],
+      "leave": [
+        260.0,
+        440.0
+      ],
+      "seed": "BAL107",
+      "seed_state": 8711065850976205444,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7118923880492847741,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -960470648204251903
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7118923880492847741,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -960470648204251903
+      },
+      "landing": [
+        550.0,
+        440.0
+      ],
+      "leave": [
+        360.0,
+        440.0
+      ],
+      "seed": "BAL108",
+      "seed_state": -976702769070044983,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -534680395310052528,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5304049067011594998
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -534680395310052528,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5304049067011594998
+      },
+      "landing": [
+        -550.0,
+        590.0
+      ],
+      "leave": [
+        -360.0,
+        590.0
+      ],
+      "seed": "BAL109",
+      "seed_state": 7782272684593256206,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8533533414308931960,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3419012320527508626
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -8533533414308931960,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 3419012320527508626
+      },
+      "landing": [
+        -450.0,
+        590.0
+      ],
+      "leave": [
+        -260.0,
+        590.0
+      ],
+      "seed": "BAL110",
+      "seed_state": -3363245312002134650,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1949289929126136747,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7430957589009744753
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -1949289929126136747,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -7430957589009744753
+      },
+      "landing": [
+        -350.0,
+        590.0
+      ],
+      "leave": [
+        -160.0,
+        590.0
+      ],
+      "seed": "BAL111",
+      "seed_state": 5395730141661166539,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4634953556056658466,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1238246973642732720
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 4634953556056658466,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 1238246973642732720
+      },
+      "landing": [
+        -250.0,
+        590.0
+      ],
+      "leave": [
+        -60.0,
+        590.0
+      ],
+      "seed": "BAL112",
+      "seed_state": -4292038478385083888,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7227547032470097937,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8835021137815030957
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -7227547032470097937,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 8835021137815030957
+      },
+      "landing": [
+        -150.0,
+        590.0
+      ],
+      "leave": [
+        40.0,
+        590.0
+      ],
+      "seed": "BAL113",
+      "seed_state": 4466936975278217301,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -643303547287302724,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4491442719007687862
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -643303547287302724,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 4491442719007687862
+      },
+      "landing": [
+        -50.0,
+        590.0
+      ],
+      "leave": [
+        140.0,
+        590.0
+      ],
+      "seed": "BAL114",
+      "seed_state": -5220831644768033126,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5940939937895492489,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6358527190529565517
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5940939937895492489,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -6358527190529565517
+      },
+      "landing": [
+        50.0,
+        590.0
+      ],
+      "leave": [
+        -140.0,
+        590.0
+      ],
+      "seed": "BAL115",
+      "seed_state": 3538143808895268063,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5921560650631263914,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5268144517087177564
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -5921560650631263914,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -5268144517087177564
+      },
+      "landing": [
+        150.0,
+        590.0
+      ],
+      "leave": [
+        -40.0,
+        590.0
+      ],
+      "seed": "BAL116",
+      "seed_state": -6149624811150982364,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 662682834551531299,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2328629647085120673
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 662682834551531299,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 2328629647085120673
+      },
+      "landing": [
+        250.0,
+        590.0
+      ],
+      "leave": [
+        60.0,
+        590.0
+      ],
+      "seed": "BAL117",
+      "seed_state": 2609350642512318825,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7246926319734326512,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2014948771722222422
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 7246926319734326512,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -2014948771722222422
+      },
+      "landing": [
+        350.0,
+        590.0
+      ],
+      "leave": [
+        160.0,
+        590.0
+      ],
+      "seed": "BAL118",
+      "seed_state": -7078417977533931602,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4615574268792429891,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5581825392450075815
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": -4615574268792429891,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": 5581825392450075815
+      },
+      "landing": [
+        450.0,
+        590.0
+      ],
+      "leave": [
+        260.0,
+        590.0
+      ],
+      "seed": "BAL119",
+      "seed_state": 1680557476129369587,
+      "unrelated_match": true
+    },
+    {
+      "candidate": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5832316785918242293,
+        "matched_damage": 0.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 4.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4141857293720372177
+      },
+      "difference": 4.0,
+      "follow": {
+        "control_hp": 100.0,
+        "effects": 0,
+        "floaters": 1,
+        "gameplay_rng": 5832316785918242293,
+        "matched_damage": 4.0,
+        "pair_hp": 196.0,
+        "player_hp": 100.0,
+        "pressure": 3.4,
+        "target_damage": 0.0,
+        "timer": 0.505555555555556,
+        "visual_rng": -4141857293720372177
+      },
+      "landing": [
+        550.0,
+        590.0
+      ],
+      "leave": [
+        360.0,
+        590.0
+      ],
+      "seed": "BAL120",
+      "seed_state": 8981783553243530347,
+      "unrelated_match": true
+    }
+  ],
+  "tuning_pass": "none",
+  "unrelated_physical_and_rng_identical": true
+}

@@ -1,0 +1,51 @@
+{
+  "packet": "SG-205",
+  "design_packet": "EL-00",
+  "result": "PASS",
+  "baseline": "e870b6a",
+  "project_files": [
+    "skygear-godot/scripts/game.gd",
+    "skygear-godot/scripts/enemy.gd",
+    "skygear-godot/scripts/telemetry.gd",
+    "skygear-godot/tests/parity_test.gd"
+  ],
+  "red_first": {
+    "passed": 1147,
+    "total": 1162,
+    "expected_status_failures": 15,
+    "script_errors": 0,
+    "log_sha256": "73EB37A7E0539D64C4A7C9561D7E3E2BA6C4231CC96D1EF5EDD2CDD07D4FD123"
+  },
+  "full_harness": {
+    "passed": 1162,
+    "total": 1162,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "pinned_engine_errors": 56,
+    "log_sha256": "50F5BCFB151CBAB3DF69625DDA8EE669A068E85FE47668E8A7AA16AAD0C521B5"
+  },
+  "negative_control": {
+    "mutation": "replace production damage_status burn call with accepted-parent direct HP subtraction",
+    "passed": 1156,
+    "total": 1162,
+    "named_attribution_checks_red": 5,
+    "script_errors": 0,
+    "log_sha256": "17725243E1C9DBC4E559E04A75BE6A18F71E59C759245A09F4C21F68B12DE333",
+    "restored_harness": "1162/1162"
+  },
+  "g3": {
+    "result": "PASS",
+    "requested": 120,
+    "distinct": 120,
+    "repetitions": 1,
+    "effective_n": 120,
+    "physical_mismatches": 0,
+    "attribution_mismatches": 0,
+    "driver_sha256": "42F0965C91C596747C40392F68132EB801B157A31FA147B8E8B6B52969CA23C1",
+    "rows_sha256": "0AE24EC62E160527F284A543CE2FD62729AF9F3AADFFB4CEE561D2F2997E388C",
+    "sg203_baseline_sha256": "65F183243A8912D1D8005464EF9B2627E19BB4E6BF5D2D90A6C937A9794C3C7A",
+    "true_non_ember_fingerprint": "27938549114BED08AF8B3F9D36730778421B89ACD0F7AFC08986C055FAD75B44"
+  },
+  "g5": "NOT REQUIRED",
+  "rollback": "e870b6a"
+}

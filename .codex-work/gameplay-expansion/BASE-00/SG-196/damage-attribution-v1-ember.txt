@@ -1,0 +1,28 @@
+damage attribution v1
+seed: BAL1
+arm: representative Ember
+
+SKYGEAR — Godot port
+BOARDED — The Boiler was destroyed on wave 11.
+wave 11/12 · 4:37 · seed BAL1
+build: Ember Cleave (auto)  /  Frost Mortar  /  Ember Gale  /  Ember Whip  /  Frost Lance
+draft: FROST MORTAR, EMBER GALE, EMBER WHIP, FROST LANCE, SCRAPPER'S LUCK, OVERKILL, ACCELERANT, SPRING COILS, DEEP CHILL, OVERPRESSURE, WIDE BLAST
+
+skills — damage · share · casts · kills
+  ember cleave            3653  16%   0 casts  36 kills
+  Frost Mortar            3577  15%   108 casts  55 kills
+  Ember Gale              3186  14%   176 casts  39 kills
+  Ember Whip              4432  19%   123 casts  64 kills
+  Frost Lance             3761  16%   149 casts  57 kills
+  crew and cannons        4486  19%   0 casts  0 kills
+range: 13% close · 41% mid · 33% far · 12% clear
+vents 24 · healed 40 · salvage 49 · rerolls 0
+
+raw per-slot rows — slot / shape / element / damage / hits / kills / casts
+0 / RANGED_AOE / FROST / 3577.240 / 167 / 55 / 108
+1 / CONE / EMBER / 3185.580 / 174 / 39 / 176
+2 / CHAIN / EMBER / 4432.015 / 280 / 64 / 123
+3 / LINE_BURST / FROST / 3760.725 / 207 / 57 / 149
+basic: {"casts":0,"damage":3653.25,"hits":147,"kills":36}
+allies: {"damage":4485.83,"kills":59}
+deck: {"crates":0,"damage":0.0,"kegs":0,"kills":0,"lanterns":0}

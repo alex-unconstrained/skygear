@@ -1,0 +1,12 @@
+damage attribution v1
+accepted Beam implementation: 508523c
+fixture: focused production funnel; no props or fire fields
+seed: SG204-TRUE-NON-EMBER
+arm: true non-Ember
+auto element: FROST
+equipped elements: [FROST]
+burn acquisitions observed: 0
+BURN reaction rows: 0
+basic: {"casts":0,"damage":0.5,"hits":1,"kills":0}
+per slot: [{"casts":1,"damage":0.4,"element":"FROST","hits":1,"kills":0,"shape":"RANGED_AOE","slot":0},{"casts":0,"damage":0.0,"element":"","hits":0,"kills":0,"shape":"","slot":1},{"casts":0,"damage":0.0,"element":"","hits":0,"kills":0,"shape":"","slot":2},{"casts":0,"damage":0.0,"element":"","hits":0,"kills":0,"shape":"","slot":3}]
+fingerprint: 27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44

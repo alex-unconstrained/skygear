@@ -46,6 +46,35 @@ extends SceneTree
 func _initialize() -> void: call_deferred("_run")
 
 const DT := 1.0 / 60.0
+
+## AB-04'S WITNESS (SG-208, §17.7). No shipped scenario has ever put a body
+## inside the Captain's 190-unit reach for CONSECUTIVE basics: in `fight` the
+## crew and cannons intercept every boarder before it closes, and in `knight`
+## the knights die mid-deck — so the two cuts entering from opposite sides, and
+## the side tell FLIPPING between them, had never been seen by anyone. This
+## scenario parks two stout scrappers inside her reach, stands the crew and the
+## cannons down, and lets the real `_process_basic_attack` resolve swing after
+## swing on camera.
+##
+## The spec sits HERE rather than in `ClipMath.SCENARIOS` only because this
+## correction round's declared file list is view3d.gd / parity_test.gd / clip.gd
+## and `tools/clip_math.gd` is not on it. It SHOULD migrate into that table (and
+## into the `clip ·` pinning that reads it) the next time clip_math is open —
+## a scenario list split across two files is the two-lists-disagreeing failure
+## STATUS names, and this comment is the flag on it.
+const LOCAL_SCENARIOS := [
+	{"id": "cleave", "kind": "cleave", "seconds": 6.0, "still": false,
+		"what": "AB-04's repeated basics (SG-208): two stout boarders parked inside the Captain's 190, crew and cannons stood down — consecutive cuts entering from opposite sides, the side tell flipping between them"},
+]
+
+
+## The local table first, then ClipMath — one lookup, so `_run` and `_clip`
+## cannot disagree about what a name means.
+static func _find(name: String) -> Dictionary:
+	for spec in LOCAL_SCENARIOS:
+		if str(spec.id) == name:
+			return spec
+	return ClipMath.find(name)
 ## Un-captured settle before the shutter opens: banners expire, shadows land,
 ## the camera reaches the captain. Fight scenarios extend it (mid-swarm means
 ## the swarm has had time to board).
@@ -103,7 +132,7 @@ func _run() -> void:
 		quit(_fails)
 		return
 
-	var spec := ClipMath.find(name)
+	var spec := _find(name)
 	if spec.is_empty():
 		print("no scenario called '%s'. `-- list` names them." % name)
 		quit(1)
@@ -116,6 +145,8 @@ func _list() -> void:
 	print("")
 	print("CLIP SCENARIOS    godot --path . --resolution 1600x900 --script tools/clip.gd -- <id>")
 	print("")
+	for spec in LOCAL_SCENARIOS:
+		print("  %-22s %.1fs   %s" % [str(spec.id), float(spec.seconds), str(spec.what)])
 	for id in ClipMath.ids():
 		var spec := ClipMath.find(str(id))
 		print("  %-22s %.1fs   %s" % [str(id), float(spec.seconds), str(spec.what)])
@@ -130,7 +161,7 @@ func _list() -> void:
 ## plan) — the same facts every run prints, but with a verdict attached.
 func _clip(name: String, seconds: float, fps: float, out_name: String,
 		checked: bool) -> void:
-	var spec := ClipMath.find(name)
+	var spec := _find(name)
 	if seconds <= 0.0:
 		seconds = float(spec.seconds)
 	var plan := ClipMath.plan(seconds, fps)
@@ -252,6 +283,52 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 				walker.lane = int(stand.lane)
 				walker.state = "move"
 			await _settle(game, world, SETTLE_TICKS)
+		"cleave":
+			## TWO BODIES INSIDE HER REACH, AND NOTHING ELSE ALLOWED TO TOUCH
+			## THEM. Spawned through the real `spawn_enemy` (the simulation's own
+			## boarders), then placed up-deck of the captain inside the 190 so the
+			## real `_process_basic_attack` finds them every beat. Stout on the
+			## crewassist precedent — a scrapper's 60 hp is four cuts, and the
+			## clip has to carry at least three consecutive resolving swings, so
+			## a table-health pair would film the fight ending rather than the
+			## beat. Their damage, reach, speed and AI are the shipped ones.
+			game.skills.clear()
+			game.start_wave(1)
+			_hold_wave_open(game)
+			## The wave's own landed boarders off the deck (the crewassist rule):
+			## a stray in an outer lane pulls a cannon's fire across the frame.
+			for stray in game.get_tree().get_nodes_in_group("enemies"):
+				if is_instance_valid(stray):
+					stray.dead = true
+					stray.queue_free()
+			## No crew: a mustered watch walks into the fan and the clip films
+			## the crew fighting instead of the beat. The muster bell is simply
+			## never rung — `crew_timer` is held on the tick strip below.
+			game.crew_timer = 99999.0
+			## Knock zeroed, as `_cleave_pair` zeroes it in the harness: at the
+			## table's 150 each cut would throw the pair out past the reach and
+			## the "consecutive" in consecutive basics would be a walk cycle.
+			game.mods.knock_multiplier = 0.0
+			## OPEN PLANKING, NOT THE BOILER'S DOORSTEP. Her spawn point stands
+			## her beside the Boiler, whose own glow rings drown any mark on the
+			## deck — the first cut of this clip was unreadable for that reason
+			## alone. Mid-deck on the centre lane, the crewassist anchor idiom.
+			game.player.global_position = Vector2(0.0, SkyGearGame.BOW_Y + 420.0)
+			for stand in [Vector2(-45.0, -115.0), Vector2(70.0, -130.0)]:
+				game.spawn_enemy("SCRAPPER", 1)
+				var pair := game.get_tree().get_nodes_in_group("enemies")
+				var body = pair[pair.size() - 1]
+				body.global_position = game.player.global_position + stand
+				body.lane = 1
+				body.state = "move"
+				body.hp = 4000.0
+				body.max_hp = 4000.0
+			## She holds where she stands and faces up-deck at the pair, so the
+			## side tell reads off a steady aim and its flip is the only thing
+			## that moves between beats.
+			game.player.invulnerability_left = 99.0
+			await _settle(game, world, SETTLE_TICKS)
+			game.set_cursor_ground(game.player.global_position + Vector2(0.0, -420.0))
 		"knight":
 			## The furnace knight's witness (SG-85): the WALK (he is the one
 			## boarder slow enough to have one), the closing cut, and the first
@@ -557,6 +634,17 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 						var foes := game.get_tree().get_nodes_in_group("enemies")
 						if not foes.is_empty():
 							game.cast_skill(1, foes[0].global_position)
+				"cleave":
+					## The crewassist anvil idiom: the captain is held through the
+					## simulation's own i-frame field rather than a staged health
+					## number, the muster bell is never rung, and the lane guns are
+					## kept reloading — so the ONLY thing resolving on the pair is
+					## the basic under witness.
+					game.player.invulnerability_left = maxf(
+						game.player.invulnerability_left, 1.0)
+					game.crew_timer = maxf(game.crew_timer, 99999.0)
+					for turret in game.turrets:
+						turret.cooldown = maxf(turret.cooldown, 99999.0)
 				"knight":
 					## Two and a half seconds of the march — which is the whole
 					## point of him, a wall arriving rather than a rusher — then

@@ -1,0 +1,57 @@
+{
+  "accepted_active_cast": true,
+  "authored_landing": [
+    -40.0,
+    200.0
+  ],
+  "camera": "production normal camera; no camera or renderer override",
+  "captain_after_leave": [
+    -420.0,
+    200.0
+  ],
+  "capture_sizes": [
+    [
+      2560,
+      1440
+    ],
+    [
+      2560,
+      1440
+    ],
+    [
+      2560,
+      1440
+    ]
+  ],
+  "center_after_leave": [
+    -40.0,
+    200.0
+  ],
+  "committed_center": [
+    -40.0,
+    200.0
+  ],
+  "frames": [
+    "01-initial-live-follow.png",
+    "02-committed-active-landing.png",
+    "03-captain-leaves-useful-field.png",
+    "04-same-state-repeat.png"
+  ],
+  "initial_center": [
+    -300.0,
+    200.0
+  ],
+  "initial_player": [
+    -300.0,
+    200.0
+  ],
+  "initial_unset": true,
+  "leave_distance": 380.0,
+  "packet": "SG-206",
+  "renderer_reader": "game.field_center(skill)",
+  "same_state_bytes": 11059200,
+  "same_state_different_bytes": 0,
+  "same_state_noise_percent": 0.0,
+  "simulation_reader": "field_center(skill)",
+  "target_damage_from_anchored_tick": 4.0
+}

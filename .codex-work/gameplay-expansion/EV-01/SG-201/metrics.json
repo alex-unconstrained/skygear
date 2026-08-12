@@ -1,0 +1,15 @@
+{
+  "primary_statistic": "wave-6 absolute lateral Captain travel",
+  "comparison_arms": ["forced ASSAULT", "forced PINCER"],
+  "n_per_arm": 120,
+  "distinct_seeds": "BAL1..BAL120",
+  "repetitions": 1,
+  "assault_mean": 6801.662,
+  "pincer_mean": 7387.775,
+  "paired_difference": 586.113,
+  "effect_percent": 8.62,
+  "paired_95_half_width": 102.610,
+  "printed_resolution_percent": 1.51,
+  "required_effect_percent": 10.0,
+  "verdict": "FAIL"
+}

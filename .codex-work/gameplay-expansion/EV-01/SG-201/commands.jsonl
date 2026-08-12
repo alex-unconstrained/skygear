@@ -1,0 +1,4 @@
+{"phase":"candidate_harness","cwd":"skygear-godot","command":"godot --headless --path . --log-file ../.codex-work/gameplay-expansion/EV-01/SG-201/full-harness-candidate.log --script res://tests/parity_test.gd","result":"1145/1145"}
+{"phase":"g3_primary","cwd":"skygear-godot","command":"godot --headless --path . --log-file ../.codex-work/gameplay-expansion/EV-01/SG-201/g3-forced-120.log --script res://builds/muster_g3.gd -- 120","result":"FAIL 8.62% < 10.00%; n=120 distinct seeds per arm; repetitions=1"}
+{"phase":"rollback","cwd":"repository root","command":"git revert --no-edit b2cae3e","result":"2ce2313"}
+{"phase":"post_cut_harness","cwd":"skygear-godot","command":"godot --headless --path . --log-file ../.codex-work/gameplay-expansion/EV-01/SG-201/post-cut-harness.log --script res://tests/parity_test.gd","result":"1134/1134"}

@@ -1,23 +1,27 @@
 # SHOT 09 — THE STAND (bookend, into title) — 124 frames (5.17 s) @ 24 fps, 1344x768
 # Grid check: (124 - 5) % 17 == 0  ✓
 # ref_images.ref_image_0 = refs R0  sky_backdrop.png
-# ref_images.ref_image_1 = refs R1b corsair_front_attack.png (flattened)
-# ref_images.ref_image_2 = refs R1c corsair_back_idle.png (flattened)
-# ref_images.ref_image_3 = refs R10 colossus_front_idle.png (flattened)
-#   (+ optionally refs R5 staged boiler frame as ref_image_4 for the glow behind him)
+# ref_images.ref_image_1 = refs R1a corsair_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
+# ref_images.ref_image_3 = refs R1c corsair_back_idle.png (flattened)
+# ref_images.ref_image_4 = refs R10 colossus_front_idle.png (flattened)
 # Settings: the confirmed block in ../README.md §0. Paste everything below the line.
 # H3 audio: mute. Game mix: boss_loop.mp3 under; VO wave_start — "Hold the
 # deck." (PENDING SG-228 recast) as his answer to shot 08's "GIVE ME THE
 # ENGINE."; wave_start.ogg on the cut to black. The editor's SKYGEAR title
-# card follows on black. Apply the same proportion decision as shot 03.
+# card follows on black.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact palette and painting style: ember-orange warmth
 against violet storm shadow, silver moonlit rims, hand-painted brushwork. Use
-ref_image_1 and ref_image_2 for the exact hero — the same young captain: red
-brass-buckled greatcoat, brass goggles in spiked brown hair, ornate brass
-clockwork gauntlet, large curved cutlass. Same face, same proportions as the
-references, no drifting features. Use ref_image_3 only for the shape looming
-at the frame's edges — the Brass Colossus, kept soft and out of focus.
+ref_image_1, ref_image_2 and ref_image_3 for the exact hero — the same young
+captain: red brass-buckled greatcoat, brass goggles in spiked brown hair,
+ornate brass clockwork gauntlet, large curved cutlass. Same face, same
+proportions as the references, no drifting features. Use ref_image_4 only for
+the shape looming at the frame's edges — the Brass Colossus, kept soft and out
+of focus.
 
 The video: the captain stands alone at the centre of his lantern-lit deck,
 feet planted, facing the camera. Behind him, deeper in frame, the warm orange
@@ -31,3 +35,5 @@ and the giant.
 
 One slow push-in, subtle motion only, held resolve. No text, no watermark,
 no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

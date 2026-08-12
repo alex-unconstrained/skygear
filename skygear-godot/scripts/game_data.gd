@@ -244,8 +244,8 @@ const WAVES := [
 const CLASSES := {
 	"captain": {
 		"name": "THE CAPTAIN",
-		"blurb": "Fills her gauge by fighting close, and it vents itself.",
-		"long": "Two recharging dashes with contact damage. Her gauge fills from damage landed inside 210 units and empties when it is not, and at full it vents by itself for damage and health. Fast, evasive, and correct only where the boarders are.",
+		"blurb": "Fills his gauge by fighting close, and it vents itself.",
+		"long": "Two recharging dashes with contact damage. His gauge fills from damage landed inside 210 units and empties when it is not, and at full it vents by itself for damage and health. Fast, evasive, and correct only where the boarders are.",
 		"hp": 100.0, "speed": 260.0, "dashes": 2,
 		"gauge": "PRESSURE",
 		## Fills from fighting, decays out of it, discharges at the cap.
@@ -302,9 +302,9 @@ const CLASSES := {
 			## SG-59's teaching line. Parallel key, no balance numbers — the rate
 			## lives on `vent_rate` and the coach says it live; this row only has
 			## to make the vents EXIST for a player reading the two classes.
-			"free steam": "means nothing to her. Her gauge comes from the fight, not from the ship.",
+			"free steam": "means nothing to him. His gauge comes from the fight, not from the ship.",
 			"your keys": "Space dashes. Nothing else to press.",
-			"stand": "wherever the boarders are — her spot moves, and she chases it",
+			"stand": "wherever the boarders are — his spot moves, and he chases it",
 			"you lose by": "kiting. Range is the losing line and the gauge says so.",
 		},
 		"starting": [["CLOSEHIT", "EMBER"]],

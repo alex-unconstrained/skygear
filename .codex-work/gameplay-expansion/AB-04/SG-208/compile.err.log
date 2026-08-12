@@ -1,0 +1,428 @@
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8339)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8339)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8339)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8339)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8340)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8340)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8340)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8340)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8341)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8341)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8341)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8341)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8339)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8339)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8339)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8339)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8340)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8340)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8340)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8340)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8341)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8341)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8341)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8341)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8359)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8359)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8359)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8359)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8360)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8360)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8360)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8360)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8361)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8361)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8361)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8361)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8376)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8376)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8376)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8376)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8377)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8377)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8377)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8377)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8383)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8383)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8383)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8383)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _view (res://tests/parity_test.gd:8384)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _view (res://tests/parity_test.gd:8384)
+       [2] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8384)
+       [4] _run (res://tests/parity_test.gd:326)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _text (res://scripts/ui.gd:178)
+       [2] button (res://scripts/ui.gd:254)
+       [3] _view (res://tests/parity_test.gd:8384)
+       [4] _run (res://tests/parity_test.gd:326)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/crew/crew_albedo.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _view (res://tests/parity_test.gd:12232)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/swarm/swarm_albedo.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _view (res://tests/parity_test.gd:12233)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] pose (res://scripts/screen_poser.gd:128)
+       [1] pose_screen (res://scripts/game.gd:1532)
+       [2] _screen_poser (res://tests/parity_test.gd:13595)
+WARNING: Nodes with non-equal opposite anchors will have their size overridden after _ready(). 
+If you want to set size, change the anchors or consider using set_deferred().
+   at: _set_size (scene/gui/control.cpp:1519)
+   GDScript backtrace (most recent call first):
+       [0] pose (res://scripts/screen_poser.gd:128)
+       [1] pose_screen (res://scripts/game.gd:1532)
+       [2] _screen_poser (res://tests/parity_test.gd:13664)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:247)
+       [1] _ink (res://tests/parity_test.gd:13889)
+       [2] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_rect (scene/main/canvas_item.cpp:919)
+   GDScript backtrace (most recent call first):
+       [0] button (res://scripts/ui.gd:251)
+       [1] _ink (res://tests/parity_test.gd:13889)
+       [2] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string_outline (scene/main/canvas_item.cpp:1133)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:187)
+       [1] _say (res://scripts/hud.gd:1918)
+       [2] _say_in (res://scripts/hud.gd:1993)
+       [3] _text (res://scripts/ui.gd:176)
+       [4] button (res://scripts/ui.gd:254)
+       [5] _ink (res://tests/parity_test.gd:13889)
+       [6] _run (res://tests/parity_test.gd:366)
+ERROR: Drawing is only allowed inside this node's `_draw()`, functions connected to its `draw` signal, or when it receives NOTIFICATION_DRAW.
+   at: draw_string (scene/main/canvas_item.cpp:1117)
+   GDScript backtrace (most recent call first):
+       [0] write (res://scripts/ink.gd:189)
+       [1] _say (res://scripts/hud.gd:1918)
+       [2] _say_in (res://scripts/hud.gd:1993)
+       [3] _text (res://scripts/ui.gd:176)
+       [4] button (res://scripts/ui.gd:254)
+       [5] _ink (res://tests/parity_test.gd:13889)
+       [6] _run (res://tests/parity_test.gd:366)
+WARNING: Loaded resource as image file, this will not work on export: 'res://assets/models/armored/armored_emission.png'. Instead, import the image file as an Image resource and load it normally as a resource.
+   at: load_from_file (core/io/image.cpp:2780)
+   GDScript backtrace (most recent call first):
+       [0] _grille (res://tests/parity_test.gd:2038)
+       [1] _lit (res://tests/parity_test.gd:2020)
+       [2] _run (res://tests/parity_test.gd:376)
+WARNING: 13 ObjectDB instances were leaked at exit (run with `--verbose` for details).
+   at: cleanup (core/object/object.cpp:2536)
+ERROR: 2 resources still in use at exit (run with --verbose for details).
+   at: clear (core/io/resource.cpp:822)

@@ -1,0 +1,53 @@
+{
+	"accepted_beam_commit": "508523c",
+	"checks": {
+		"effective_n_is_distinct_seed_count": true,
+		"ember_representative_is_ember": true,
+		"repeat_fingerprints_match": true,
+		"repetitions_do_not_inflate_n": true,
+		"requested_120_distinct": true,
+		"true_non_ember_all_elements_are_non_ember": true,
+		"true_non_ember_auto_is_frost": true,
+		"true_non_ember_has_no_burn_reaction_row": true,
+		"true_non_ember_has_no_ember_element": true,
+		"true_non_ember_never_acquired_burn": false
+	},
+	"coordinator_baseline": "52ffb7922ef180edd7e36e2c92f8b500d5ac5513",
+	"driver_sha256": "75ab8cb2d0ff3e3505c736b81b47a79684fa6920a23d3552139bf837ea4b56f7",
+	"ember_fingerprint": "4a907b7ba68b04b04c7d6a3635578280a6c84cc87d49132f64f9a4705419f157",
+	"ember_seed": "BAL1",
+	"packet": "SG-203",
+	"repeat_audit": [
+		{
+			"match": true,
+			"original_fingerprint": "4a907b7ba68b04b04c7d6a3635578280a6c84cc87d49132f64f9a4705419f157",
+			"repeat_fingerprint": "4a907b7ba68b04b04c7d6a3635578280a6c84cc87d49132f64f9a4705419f157",
+			"seed": "BAL1"
+		},
+		{
+			"match": true,
+			"original_fingerprint": "22619446935f0b3ed862265271429a86d7127f184d21b04ef42f708b7f9e452d",
+			"repeat_fingerprint": "22619446935f0b3ed862265271429a86d7127f184d21b04ef42f708b7f9e452d",
+			"seed": "BAL2"
+		}
+	],
+	"result": "FAIL",
+	"sample": {
+		"distinct": 120,
+		"effective_n": 120,
+		"repetitions": 1,
+		"requested": 120
+	},
+	"true_non_ember_auto": "FROST",
+	"true_non_ember_burn_acquisitions": 5,
+	"true_non_ember_burn_reaction_rows": [],
+	"true_non_ember_elements": [
+		"FROST",
+		"FROST",
+		"FROST",
+		"STEAM",
+		"FROST"
+	],
+	"true_non_ember_fingerprint": "f393a17dff036808d0d041042e2092b41718dbe165a181e133ebd1531946359d",
+	"true_non_ember_seed": "BAL2"
+}

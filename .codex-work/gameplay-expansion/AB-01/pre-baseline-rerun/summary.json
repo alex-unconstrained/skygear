@@ -1,0 +1,26 @@
+{
+  "schema": "beam-moving-target-summary-v1",
+  "requested_distinct_seeds": 120,
+  "seed_first": "BEAM1",
+  "seed_last": "BEAM120",
+  "arms": [
+    "live",
+    "explicit"
+  ],
+  "canonical_trace_rows": 240,
+  "repetitions": 1,
+  "effective_n_per_arm": 120,
+  "repetitions_increase_effective_n": false,
+  "determinism_pass": true,
+  "divergence": [],
+  "mean_hp_delta": {
+    "live": 28.0,
+    "explicit": 28.0
+  },
+  "source_contract": {
+    "live": "set_cursor_ground(target); player._update_aim(); cast_skill(0)",
+    "explicit": "cast_skill(0, initial_target Vector2)",
+    "target_motion": "manual positions at elapsed 0.00, 0.12, 0.24, 0.36",
+    "simulation_step": "game._process(delta); enemy physics disabled"
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "packet": "SG-207",
+  "baseline": "d123e88",
+  "development_cursor": "d968499",
+  "result": "IMPLEMENTED_MEASURED_G4_FIXTURE_PENDING_HUMAN_G5_AND_SG206_G5",
+  "tracked_files": [
+    "skygear-godot/scripts/game_data.gd",
+    "skygear-godot/scripts/game.gd",
+    "skygear-godot/scripts/hud.gd",
+    "skygear-godot/tests/parity_test.gd"
+  ],
+  "red_first": {
+    "passed": 1174,
+    "total": 1187,
+    "new_checks_red": 13,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "sha256": "8BF5F574149295ACCD3BE530810852939B93FCBC2A2C2D906A2B55368321EA6E"
+  },
+  "final_harness": {
+    "passed": 1187,
+    "total": 1187,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "sha256": "0E275A9ECDB6B61CEF8654A8AAE3D686C7F7DC1EF274B82B85958430C1192481"
+  },
+  "deletion_negative": {
+    "mutation": "advance_pulses body replaced by no-op",
+    "passed": 1181,
+    "total": 1187,
+    "expected_pulse_failures": 6,
+    "unrelated_failures": 0,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "restored": true,
+    "sha256": "5399076D24D5E2004AC77A46811027489B8EF9EC22A2DB32999E9155794B3C1E"
+  },
+  "g3": {
+    "seed_names": "PULSE1..PULSE120",
+    "distinct_seeds": 120,
+    "observations_per_seed": 1,
+    "mean_paired_difference": 102.0,
+    "paired_95_half_width": 0.0,
+    "feature_off_crossing_damage": 0.0,
+    "candidate_crossing_damage": 102.0,
+    "authored_damage_per_hit": 34.0,
+    "active_damage_zero": true,
+    "physical_and_rng_identical": true,
+    "repeat_audit_effective_n": 0,
+    "tuning_pass": "none",
+    "passed": true,
+    "sha256": "5A8E5BF18CBE85C8D5691108F666EFB75151D7156648E0A0CBA5EF32FC685AB1"
+  },
+  "g4_fixture": {
+    "normal_camera": true,
+    "accepted_active_cast": true,
+    "before_public_timer": 0.3,
+    "due_public_timer": 0.0,
+    "due_raw_timer": -0.05,
+    "pulse_damage": 34.0,
+    "active_damage": 0.0,
+    "same_state_noise_percent": 0.0,
+    "same_state_different_bytes": 0,
+    "same_state_bytes": 11059200,
+    "human_g5": "pending"
+  },
+  "authority_conflicts": [],
+  "cards_or_view_changed": false,
+  "save_schema_changed": false,
+  "commit": null,
+  "itch_push": null
+}

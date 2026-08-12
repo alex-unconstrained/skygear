@@ -1,0 +1,35 @@
+{
+	"accepted_beam_commit": "508523c",
+	"checks": {
+		"control_damage_uses_basic_and_slot_buckets": true,
+		"control_has_no_burn_reaction_row": true,
+		"control_has_no_environmental_sources": true,
+		"control_has_only_non_ember_player_sources": true,
+		"control_never_acquires_burn": true,
+		"control_repeat_fingerprint_matches": true,
+		"control_repeat_is_byte_identical": true,
+		"control_rng_is_unchanged": true,
+		"evidence_driver_writes_no_user_file": true,
+		"negative_makes_the_exact_no_burn_assertion_fail": true,
+		"negative_uses_one_real_production_fire_field": true
+	},
+	"control_fingerprint": "27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44",
+	"control_report_sha256": "27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44",
+	"coordinator_baseline": "349489799803cd4ad289c690579a79bb43e6565e",
+	"packet": "SG-204",
+	"repeat_fingerprint": "27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44",
+	"result": "PASS",
+	"reused_sg203_production_arm_sha256": "65F183243A8912D1D8005464EF9B2627E19BB4E6BF5D2D90A6C937A9794C3C7A",
+	"user_after": {
+		"keys.cfg": "107396345e1c2173b5991501b13a77b043ec833fed026a4bf7c3497a24ee9d9e",
+		"runs.json": "f929dd2c6e3bd6d4f03f5c724bdaeb956b8dd6b02788b2593aac12b4c6c5bf0b",
+		"settings.cfg": "e3d539522072087be3f9fa4f8ba0561ce17c561d55fb87e04b72085ba52b50ec",
+		"workshop.json": "036c8daa1b97d12de4bd0b7db0468daad931bf92029a1824e98a7a382ca39967"
+	},
+	"user_before": {
+		"keys.cfg": "107396345e1c2173b5991501b13a77b043ec833fed026a4bf7c3497a24ee9d9e",
+		"runs.json": "f929dd2c6e3bd6d4f03f5c724bdaeb956b8dd6b02788b2593aac12b4c6c5bf0b",
+		"settings.cfg": "e3d539522072087be3f9fa4f8ba0561ce17c561d55fb87e04b72085ba52b50ec",
+		"workshop.json": "036c8daa1b97d12de4bd0b7db0468daad931bf92029a1824e98a7a382ca39967"
+	}
+}

@@ -1,0 +1,28 @@
+damage attribution v1
+seed: BAL2
+arm: representative non-Ember
+
+SKYGEAR — Godot port
+DECK HELD — Twelve waves repelled. The deck is yours.
+wave 12/12 · 4:56 · seed BAL2
+build: Ember Cleave (auto)  /  Frost Mortar  /  Frost Whip  /  Frost Gale  /  Frost Lance
+draft: FROST MORTAR, FROST WHIP, FROST GALE, FROST LANCE, LIGHT BOOTS, OVERKILL, HEAVY HIT, FROST CADENCE, LONG REACH, FIELD DRESSING, KEEN EYE, HAIR TRIGGER
+
+skills — damage · share · casts · kills
+  ember cleave            5882  20%   0 casts  44 kills
+  Frost Mortar            4364  15%   125 casts  59 kills
+  Frost Whip              6441  22%   159 casts  102 kills
+  Frost Gale              4152  14%   183 casts  42 kills
+  Frost Lance             3905  13%   168 casts  37 kills
+  crew and cannons        4515  15%   0 casts  0 kills
+range: 18% close · 36% mid · 32% far · 14% clear
+vents 45 · healed 161 · salvage 13 · rerolls 0
+
+raw per-slot rows — slot / shape / element / damage / hits / kills / casts
+0 / RANGED_AOE / FROST / 4363.668 / 178 / 59 / 125
+1 / CHAIN / FROST / 6440.957 / 346 / 102 / 159
+2 / CONE / FROST / 4151.904 / 217 / 42 / 183
+3 / LINE_BURST / FROST / 3905.260 / 201 / 37 / 168
+basic: {"casts":0,"damage":5881.688,"hits":253,"kills":44}
+allies: {"damage":4515.074,"kills":57}
+deck: {"crates":0,"damage":0.0,"kegs":0,"kills":0,"lanterns":0}

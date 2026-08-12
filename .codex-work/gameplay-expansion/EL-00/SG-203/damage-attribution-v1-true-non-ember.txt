@@ -1,0 +1,35 @@
+damage attribution v1
+accepted Beam implementation: 508523c
+seed: BAL2
+arm: true non-Ember; auto forced FROST before begin_run
+auto element: FROST
+equipped elements: ["FROST","FROST","FROST","STEAM","FROST"]
+burn acquisitions observed: 5
+BURN reaction rows: 0
+fingerprint: f393a17dff036808d0d041042e2092b41718dbe165a181e133ebd1531946359d
+
+SKYGEAR — Godot port
+DECK HELD — Twelve waves repelled. The deck is yours.
+wave 12/12 · 5:22 · seed BAL2
+build: Frost Cleave (auto)  /  Frost Mortar  /  Frost Whip  /  Steam Lance  /  Frost Gale
+draft: FROST MORTAR, FROST WHIP, STEAM LANCE, FROST GALE, OVERPRESSURE, KEEN EYE, FORKED CURRENT, LONG REACH, BRITTLE, BRITTLE, FIELD DRESSING, DEEP CHILL
+
+skills — damage · share · casts · kills
+  frost cleave            6002  20%   0 casts  38 kills
+  Frost Mortar            4887  17%   128 casts  80 kills
+  Frost Whip              6971  24%   161 casts  105 kills
+  Steam Lance             5932  20%   214 casts  72 kills
+  Frost Gale              3139  11%   160 casts  27 kills
+  crew and cannons        2658  9%   0 casts  0 kills
+range: 14% close · 40% mid · 37% far · 9% clear
+vents 35 · healed 112 · salvage 6 · rerolls 0
+
+raw per-slot rows — slot / shape / element / damage / hits / kills / casts
+0 / RANGED_AOE / FROST / 4886.946 / 163 / 80 / 128
+1 / CHAIN / FROST / 6971.331 / 328 / 105 / 161
+2 / LINE_BURST / STEAM / 5932.284 / 221 / 72 / 214
+3 / CONE / FROST / 3139.438 / 126 / 27 / 160
+basic: {"casts":0,"damage":6002.261875,"hits":170,"kills":38}
+allies: {"damage":2658.34,"kills":23}
+deck: {"crates":0,"damage":0.0,"kegs":0,"kills":0,"lanterns":0}
+reaction rows: []

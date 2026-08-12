@@ -56,15 +56,27 @@ TARGET_PEAK_DB = -8.0
 # Chosen from the stock library against VOICE-BRIEF §2. Pinned by id, because a
 # voice picked by NAME in a later session is a different voice.
 #
-#   CAPTAIN   Lily — middle-aged, British, confident, an actor rather than a
-#             narrator. The brief asks for weathered and dry; if she reads too
-#             polished the alternate is Arabella (aEO01A4wXwd1O8GPgGlF, raspy),
-#             and that swap is one line here.
+#   CAPTAIN   Will — YOUNG, male, American, relaxed. RECAST 2026-08-11 on the
+#             owner's ruling (board SG-228): this was Lily, middle-aged and
+#             British and female, which never matched the art — the sprite and
+#             the 3D model have always been a young man. Two candidates were
+#             generated in full and judged by ear side by side; the owner chose
+#             Will. Charlie (IKne3meq5aSn9XLyUdCD, young, deep, Australian) was
+#             the runner-up and his complete 50 takes are kept in /casting-ab/
+#             rather than deleted, so this decision can be re-heard.
+#             "Relaxed" is doing real work here: the brief wants unhurried
+#             under pressure, and the crew are cast young too — so the captain
+#             is separated from his own boarders by STEADINESS, not by age.
+#             DO NOT cast Harry (SOYHLrjzK2X1ezoPC6cr) — he is a CREW voice
+#             below, and the captain must not sound like one of them.
 #   CREW      three voices, round-robined across takes, because the brief wants
 #             six takes of "man down" to sound like six different people.
 #   COLOSSUS  Ezekiel Wren, old and raspy, then processed. It is not a person.
 VOICES = {
-    "captain":  ["pFZP5JQG7iQjIQuC4Bku"],
+    # WILL — chosen by the owner on 2026-08-11 after hearing both sets side by
+    # side (`/casting-ab/`). Charlie (IKne3meq5aSn9XLyUdCD, young/deep/
+    # Australian) was the other candidate and his 50 takes are kept there.
+    "captain":  ["bIHbv24MWmeRgasZH58o"],
     "crew":     ["SOYHLrjzK2X1ezoPC6cr", "N2lVS1w4EtoT3dr4eOWO", "HIGUfNOdjuWQwwapnTRW"],
     "boss":     ["2tTjAGX0n5ajDmazDcWk"],
 }

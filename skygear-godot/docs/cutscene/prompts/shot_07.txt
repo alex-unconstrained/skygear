@@ -1,25 +1,29 @@
 # SHOT 07 — THE HEAVY (furnace knight, the dash) — 124 frames (5.17 s) @ 24 fps, 1344x768
 # Grid check: (124 - 5) % 17 == 0  ✓
 # ref_images.ref_image_0 = refs R0  sky_backdrop.png
-# ref_images.ref_image_1 = refs R9  furnace_knight_front_attack.png (flattened)
-# ref_images.ref_image_2 = refs R9b furnace_knight_front_idle.png (flattened)
-# ref_images.ref_image_3 = refs R1b corsair_front_attack.png (flattened)
+# ref_images.ref_image_1 = refs R1a corsair_front_idle.png (flattened)
+# ref_images.ref_image_2 = refs R1b corsair_front_attack.png (flattened)
+# ref_images.ref_image_3 = refs R9  furnace_knight_front_attack.png (flattened)
+# ref_images.ref_image_4 = refs R9b furnace_knight_front_idle.png (flattened)
 # Settings: the confirmed block in ../README.md §0. Paste everything below the line.
 # H3 audio: mute. Game mix: telegraph.ogg on the windup, slam.ogg on the miss,
 # dash.ogg on the slide. The shot must END inside the steam burst — the cut to
-# shot 08 hides in it. Apply the same proportion decision as shot 03.
+# shot 08 hides in it.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact palette and painting style: ember-orange key
 light, violet shadow, hand-painted brushwork. Use ref_image_1 and ref_image_2
-for the exact enemy — a furnace knight: a hulking suit of dark riveted boiler
-armour with a domed lantern helm glowing orange from within, a blazing fire
-grate in its chest, a brass pressure gauge on one shoulder, wielding a huge
-two-headed bearded axe on a long haft. Use ref_image_3 for the exact hero —
-the same young captain: red brass-buckled greatcoat, brass goggles in spiked
-brown hair, brass clockwork gauntlet, curved cutlass. Same face, same
-proportions as the reference, no drifting features.
+for the exact hero — the same young captain: red brass-buckled greatcoat,
+brass goggles in spiked brown hair, brass clockwork gauntlet, curved cutlass.
+Same face, same proportions as the references, no drifting features. Use
+ref_image_3 and ref_image_4 for the exact enemy — a furnace knight: a hulking
+suit of dark riveted boiler armour with a domed lantern helm glowing orange
+from within, a blazing fire grate in its chest, a brass pressure gauge on one
+shoulder, wielding a huge two-headed bearded axe on a long haft.
 
-The video: on the lantern-lit airship deck, the furnace knight of ref_image_1
+The video: on the lantern-lit airship deck, the furnace knight of ref_image_3
 towers over the captain and heaves its great axe up — the fire in its chest
 flaring bright with the effort — then brings it down in a massive overhead
 arc. The captain dashes aside in a blur of red coat and ember trail, sliding
@@ -30,3 +34,5 @@ through the steam.
 
 The shot ends inside the steam burst. Readable, weighty action; no text, no
 watermark, no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.

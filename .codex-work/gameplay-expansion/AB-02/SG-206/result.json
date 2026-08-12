@@ -1,0 +1,61 @@
+{
+  "packet": "SG-206",
+  "baseline": "f9aa3b2",
+  "result": "IMPLEMENTED_MEASURED_G4_FIXTURE_PENDING_HUMAN_G5",
+  "tracked_files": [
+    "skygear-godot/scripts/game_data.gd",
+    "skygear-godot/scripts/game.gd",
+    "skygear-godot/scripts/view3d.gd",
+    "skygear-godot/tests/parity_test.gd"
+  ],
+  "red_first": {
+    "passed": 1162,
+    "total": 1174,
+    "new_checks_red": 12,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "sha256": "74BDD888713574FE6A9EE2720F700E3A7A44F95F5B7CCF71A91B07664BCD3797"
+  },
+  "final_harness": {
+    "passed": 1174,
+    "total": 1174,
+    "script_errors": 0,
+    "engine_errors": 56,
+    "sha256": "5F3E2B736C38F867E491D6B8DBE4993C9D0B5EB67BD961B3282BB96B8E3BDE6F"
+  },
+  "deletion_negative": {
+    "passed": 1171,
+    "total": 1174,
+    "expected_field_failures": 3,
+    "restored": true,
+    "sha256": "A6DA2E02DA9592A47A556360A7050C49E3EA51E1C2183F005558202629DB52B0"
+  },
+  "g3": {
+    "distinct_seeds": 120,
+    "observations_per_seed": 1,
+    "distinct_scripted_landings": 120,
+    "mean_paired_difference": 4.0,
+    "paired_95_half_width": 0.0,
+    "feature_off_target_damage": 0.0,
+    "candidate_target_damage": 4.0,
+    "unrelated_physical_and_rng_identical": true,
+    "repeat_audit_effective_n": 0,
+    "tuning_pass": "none",
+    "passed": true,
+    "sha256": "7AD52FCC07E0A93A04B2F9DA4E6B5B86C48AC6CEE7D55F29F92D3BF070F1B43F"
+  },
+  "g4_fixture": {
+    "normal_camera": true,
+    "accepted_active_cast": true,
+    "leave_distance": 380.0,
+    "anchored_tick_damage": 4.0,
+    "same_state_noise_percent": 0.0,
+    "same_state_different_bytes": 0,
+    "same_state_bytes": 11059200,
+    "human_g5": "pending"
+  },
+  "authority_conflicts": [],
+  "cards_or_hud_changed": false,
+  "commit": null,
+  "itch_push": null
+}

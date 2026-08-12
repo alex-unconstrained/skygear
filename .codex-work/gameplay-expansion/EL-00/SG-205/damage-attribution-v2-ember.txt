@@ -1,0 +1,7 @@
+damage attribution v2
+seed: BAL1
+feature-off primary: 0.500
+feature-on primary: 1.750
+BURN reaction damage: 1.250
+physical match: true
+source row: {"casts":0,"damage":1.75,"element":"","hits":2,"kills":0,"shape":""}

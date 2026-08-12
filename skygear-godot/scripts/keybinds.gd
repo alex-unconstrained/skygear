@@ -32,6 +32,43 @@ const REBINDABLE := [
 	["pause", "PAUSE"],
 ]
 
+## THE KEY THAT SELECTS EACH ROW, AND THE ONLY COPY OF THAT MAPPING (DR-09b).
+##
+## This list had ELEVEN rows and the sheet numbered them `(i + 1) % 10`, so row
+## 10 (PAUSE) was labelled `"1"` — the same digit as MOVE UP — and the reader,
+## `game.gd::_digit_slot`, mapped only KEY_1..9 and KEY_0. The result was not a
+## cosmetic clash: **PAUSE could not be rebound at all**, on a sheet whose own
+## subtitle says "press a number to rebind that row", and the rows are not
+## clickable so there was no other way in.
+##
+## One table, two readers — the drawn label and the keycode both come from here,
+## so a twelfth row cannot re-open the gap by being added in one place only. Past
+## the ten digits the selectors keep going along the number row, which is where
+## a hand already is: `-` for row 11, `=` for a row 12 if one is ever added.
+const SLOTS := [
+	[KEY_1, "1"], [KEY_2, "2"], [KEY_3, "3"], [KEY_4, "4"], [KEY_5, "5"],
+	[KEY_6, "6"], [KEY_7, "7"], [KEY_8, "8"], [KEY_9, "9"], [KEY_0, "0"],
+	[KEY_MINUS, "-"], [KEY_EQUAL, "="],
+]
+
+
+## The character printed beside row `i` — and the one the player must press.
+static func slot_label(i: int) -> String:
+	return str(SLOTS[i][1]) if i >= 0 and i < SLOTS.size() else "?"
+
+
+## The row a keycode selects, or -1. Numpad twins included: a player rebinding
+## on a full-size board should not have to find the top row.
+static func slot_for(code: int) -> int:
+	for i in SLOTS.size():
+		if code == int(SLOTS[i][0]):
+			return i
+	if code == KEY_KP_SUBTRACT:
+		return 10
+	if code == KEY_KP_ADD:
+		return 11
+	return -1
+
 ## THE FILE EVERY READER AND WRITER HERE ACTUALLY GOES THROUGH. `PATH` is where
 ## a PLAYER's rebinds live; `store` is the pointer, so a TEST RUN can be sent
 ## somewhere else. The third application of `SkyGearHudLayout.store` (SG-83) and
@@ -87,6 +124,57 @@ static func label(action: String) -> String:
 	if parts.is_empty():
 		return "UNBOUND"
 	return " / ".join(parts)
+
+
+## ONE event's label, for the places a string has to fit — the four skill-well
+## tabs, the title's control line. `label()` joins everything an action answers
+## to ("LMB / 1"), which is right on the CONTROLS sheet and eight pixels too wide
+## on a well tab.
+##
+## Mouse first, deliberately: `skill_1` is LMB *and* 1, and the hand that plays
+## this game is on the mouse. A player who rebinds the key still sees the button
+## they are actually using.
+static func short_label(action: String) -> String:
+	var whole := label(action)
+	if whole == "UNBOUND" or whole == "—":
+		return whole
+	var parts := whole.split(" / ")
+	for p in parts:
+		if p in ["LMB", "RMB", "MMB"]:
+			return p
+	return str(parts[0])
+
+
+## The one line on the title screen that tells a player what their hands do, and
+## for the whole life of the port it was the string `"WASD move · mouse aim ·
+## LMB/RMB/Q/E skills · Space dash"` — four claims, none of them read from the
+## bindings, on a game that has shipped a rebind sheet since SG-33 and resolves
+## PHYSICAL keycodes so an AZERTY board silently gets ZQSD (DR-09a).
+##
+## `jet` is the class fact, not a binding fact: the Boilerwright's Space is a
+## Bleed Jet and calling it a dash is the reason that move goes undiscovered.
+static func controls_line(jet: bool) -> String:
+	var move := ""
+	var spaced := false
+	for action in ["move_up", "move_left", "move_down", "move_right"]:
+		var k := short_label(action)
+		if k.length() != 1:
+			spaced = true
+		move += k + " "
+	move = move.strip_edges()
+	## WASD reads as a word; anything with a multi-character key in it reads as
+	## a list and needs its spaces. Arrow keys are the case that proves it.
+	if not spaced:
+		move = move.replace(" ", "")
+
+	var skills: Array[String] = []
+	for i in 4:
+		skills.append(short_label("skill_%d" % (i + 1)))
+
+	var last := "%s bleeds a jet" % short_label("dash") if jet \
+		else "%s dash" % short_label("dash")
+	return "%s move · mouse aim · %s skills · %s" % [
+		move, "/".join(skills), last]
 
 
 ## Bind an action to one event, replacing everything on it.

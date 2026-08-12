@@ -1,0 +1,128 @@
+{
+	"auto_element": "FROST",
+	"basic": {
+		"casts": 0,
+		"damage": 0.5,
+		"hits": 1,
+		"kills": 0
+	},
+	"burn_reaction_rows": [],
+	"burn_stacks": 0,
+	"equipped_elements": [
+		"FROST"
+	],
+	"fingerprint": "27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44",
+	"fire_fields": 0,
+	"negative_fire_fields": 0,
+	"per_slot": [
+		{
+			"casts": 1,
+			"damage": 0.4,
+			"element": "FROST",
+			"hits": 1,
+			"kills": 0,
+			"shape": "RANGED_AOE",
+			"slot": 0
+		},
+		{
+			"casts": 0,
+			"damage": 0.0,
+			"element": "",
+			"hits": 0,
+			"kills": 0,
+			"shape": "",
+			"slot": 1
+		},
+		{
+			"casts": 0,
+			"damage": 0.0,
+			"element": "",
+			"hits": 0,
+			"kills": 0,
+			"shape": "",
+			"slot": 2
+		},
+		{
+			"casts": 0,
+			"damage": 0.0,
+			"element": "",
+			"hits": 0,
+			"kills": 0,
+			"shape": "",
+			"slot": 3
+		}
+	],
+	"props": 0,
+	"report_record": {
+		"allies": {
+			"damage": 0.0,
+			"kills": 0
+		},
+		"arm": "true non-Ember, no environmental Ember sources",
+		"auto_element": "FROST",
+		"basic": {
+			"casts": 0,
+			"damage": 0.5,
+			"hits": 1,
+			"kills": 0
+		},
+		"burn_stacks": 0,
+		"deck": {
+			"crates": 0,
+			"damage": 0.0,
+			"kegs": 0,
+			"kills": 0,
+			"lanterns": 0
+		},
+		"enemy_hp": 59.1,
+		"equipped_elements": [
+			"FROST"
+		],
+		"per_slot": [
+			{
+				"casts": 1,
+				"damage": 0.4,
+				"element": "FROST",
+				"hits": 1,
+				"kills": 0,
+				"shape": "RANGED_AOE",
+				"slot": 0
+			},
+			{
+				"casts": 0,
+				"damage": 0.0,
+				"element": "",
+				"hits": 0,
+				"kills": 0,
+				"shape": "",
+				"slot": 1
+			},
+			{
+				"casts": 0,
+				"damage": 0.0,
+				"element": "",
+				"hits": 0,
+				"kills": 0,
+				"shape": "",
+				"slot": 2
+			},
+			{
+				"casts": 0,
+				"damage": 0.0,
+				"element": "",
+				"hits": 0,
+				"kills": 0,
+				"shape": "",
+				"slot": 3
+			}
+		],
+		"reaction_rows": [],
+		"schema": "damage-attribution-v1-focused-control",
+		"seed": "SG204-TRUE-NON-EMBER"
+	},
+	"report_text": "damage attribution v1\naccepted Beam implementation: 508523c\nfixture: focused production funnel; no props or fire fields\nseed: SG204-TRUE-NON-EMBER\narm: true non-Ember\nauto element: FROST\nequipped elements: [FROST]\nburn acquisitions observed: 0\nBURN reaction rows: 0\nbasic: {\"casts\":0,\"damage\":0.5,\"hits\":1,\"kills\":0}\nper slot: [{\"casts\":1,\"damage\":0.4,\"element\":\"FROST\",\"hits\":1,\"kills\":0,\"shape\":\"RANGED_AOE\",\"slot\":0},{\"casts\":0,\"damage\":0.0,\"element\":\"\",\"hits\":0,\"kills\":0,\"shape\":\"\",\"slot\":1},{\"casts\":0,\"damage\":0.0,\"element\":\"\",\"hits\":0,\"kills\":0,\"shape\":\"\",\"slot\":2},{\"casts\":0,\"damage\":0.0,\"element\":\"\",\"hits\":0,\"kills\":0,\"shape\":\"\",\"slot\":3}]\nfingerprint: 27938549114bed08af8b3f9d36730778421b89acd0f7afc08986c055fad75b44\n",
+	"rng_after": "-5146286512052208434",
+	"rng_before": "-5146286512052208434",
+	"visual_rng_after": "4479605840267596570",
+	"visual_rng_before": "4479605840267596570"
+}

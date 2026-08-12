@@ -8,6 +8,9 @@
 # Frame 1 lands ON the cut from shot 4 — the edit puts hulk_grapple.ogg here.
 # H3 audio: audition the metal impact; duck to -18 dB under the game SFX, else mute.
 # VO in the edit: first_board "They're over the rail." — PENDING SG-228 recast.
+# OWNER DECISION (2026-08-11, README section 6 q1): CHIBI — "maintain the chibi
+# style that exists in the protagonist reference images". The locked clause is
+# the last paragraph below and is byte-identical in every character shot.
 ----
 Use ref_image_0 for the exact sky, palette and painting style: violet
 storm-dusk, ember-orange glow, moonlit silver rims, hand-painted brushwork.
@@ -29,3 +32,5 @@ hulk's red core are the only warmth against the violet storm.
 
 Dynamic but readable action, no camera shake beyond the initial impact
 tremor, no text, no watermark, no photorealism — painted fantasy style only.
+
+Proportions are locked to the character references: stylized chibi build — a large expressive head, compact heroic body roughly three and a half heads tall, small hands and feet, oversized weapon. Keep the references' painterly brushwork, fine brass detailing and warm rim-light at that scale. Do NOT restyle anyone to realistic adult proportions.
