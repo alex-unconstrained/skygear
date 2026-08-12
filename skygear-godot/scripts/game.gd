@@ -163,7 +163,11 @@ var opening_draft := false
 ## line is a flag, and the watcher fires the cue where a camera is allowed to.
 var run_opening := false
 var boiler_hp := 500.0
-var boiler_max_hp := 500.0
+## The Boiler's own health. BOILER_BASE_HP is a const because `begin_run` has to
+## be able to return to it: the talent below is `+=`, and without a reset every
+## run in a session compounded the last one's maximum (board SG-259).
+const BOILER_BASE_HP := 500.0
+var boiler_max_hp := BOILER_BASE_HP
 var boiler_position := BOILER_POSITION
 var boiler_radius := 62.0
 var end_reason := ""
@@ -2052,7 +2056,7 @@ func begin_run() -> void:
 	## CARD might add mid-run — SPARE PARTS also stops being dealt.)
 	if article("opening_bid"):
 		rerolls = 0
-	boiler_max_hp += float(talents.get("boiler_hp", 0.0))
+	boiler_max_hp = BOILER_BASE_HP + float(talents.get("boiler_hp", 0.0))
 	boiler_hp = boiler_max_hp
 
 	## The body the class describes. Done here rather than in `SkyGearPlayer`

@@ -9568,6 +9568,52 @@ func _view() -> void:
 				float(kitted.turrets[0].max_hp), base_turret])
 	kitted.queue_free()
 
+	## THE BUG UNDER THE TYPO. `boiler_max_hp` was declared once and `+=`'d in
+	## `begin_run` on every run, and a mid-run card adds another 150 — so a second
+	## run in one process started with a Boiler maximum the player never bought.
+	## Found by trying to print the live number on HOW TO PLAY.
+	##
+	## `boiler_game.workshop.talents = {...}` (the brief's literal check) is
+	## inert here: `talents` is a plain member of `game.gd`, resolved fresh from
+	## `SkyGearWorkshop.resolved(workshop)` on the FIRST line of every `begin_run`
+	## — reading `workshop.nodes`' bought ranks, never a `workshop.talents` key,
+	## which does not exist in `SkyGearWorkshop.fresh()`'s schema. Writing that
+	## key was dead code that happened to leave both runs at the unmodified 500,
+	## which read as a false RED for the right check. Grant the talent through
+	## the real pipeline instead: three ranks of Spare Plate (`+60` each,
+	## `workshop.gd:122-124`) is `+180`, set directly on `workshop.nodes` so the
+	## fixture does not also have to fake `unlocked` and `scrip`.
+	var boiler_game := _new_game()
+	boiler_game.workshop.nodes = {"spare_plate": 3}
+	boiler_game.begin_run()
+	var first_max: float = boiler_game.boiler_max_hp
+	boiler_game.begin_run()
+	var second_max: float = boiler_game.boiler_max_hp
+	_check("run", "a second run starts with the Boiler the player actually bought",
+		is_equal_approx(first_max, second_max) and is_equal_approx(first_max, 680.0),
+		"first run %.1f, second run %.1f (want 680.0 both)" % [first_max, second_max])
+
+	## The player's half was read from the class table and the Boiler's half was a
+	## literal, so the teaching page understated the Boiler by exactly what the
+	## Workshop talent cost. A first-timer has no talents, so it is the RETURNING
+	## player — the one who paid — who was misinformed.
+	var how_hud: SkyGearHUD = boiler_game.hud
+	var how_said := func() -> String:
+		how_hud.ink = []
+		how_hud.queue_redraw()
+		await process_frame
+		var all := ""
+		for note in how_hud.ink:
+			all += str((note as Dictionary).text) + "\n"
+		return all
+	boiler_game.how_open = true
+	var how_page: String = await how_said.call()
+	boiler_game.how_open = false
+	_check("how", "the page quotes the Boiler's live maximum",
+		how_page.contains("it has 680"),
+		"drawn page says: %s" % how_page.substr(maxi(0, how_page.find("it has")), 24))
+	boiler_game.queue_free()
+
 	## HEAT. The reason a permanently stronger captain does not make twelve waves
 	## permanently easier — an opt-in ladder, earned by the same first victory,
 	## so there is exactly ONE difficulty until the game has been beaten.

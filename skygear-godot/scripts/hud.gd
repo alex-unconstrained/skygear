@@ -5055,7 +5055,7 @@ func _draw_how() -> void:
 		]
 	var lines: Array = one_thing + [
 		["WHAT YOU LOSE BY", ""],
-		["", "The Boiler, not you. It sits at the stern and boarders walk to it. You have %d health and it has %d; dying costs you the run, but so does letting three lanes through while you are alive and well." % [int(kit.get("hp", SkyGearPlayer.MAX_HP)), 500]],
+		["", "The Boiler, not you. It sits at the stern and boarders walk to it. You have %d health and it has %d; dying costs you the run, but so does letting three lanes through while you are alive and well." % [int(kit.get("hp", SkyGearPlayer.MAX_HP)), int(game.boiler_max_hp)]],
 		["THE DECK FIGHTS", ""],
 		["", "Three lanes, each with a cannon and crew. They hold, they do not kill — treat them as time, not as damage. Kegs and lanterns explode when hit and count as yours."],
 		["YOUR HAND", ""],
