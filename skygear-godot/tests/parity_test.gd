@@ -15441,20 +15441,39 @@ func _ink() -> void:
 	## before this item. This is the arithmetic that ties the point-size floor, the
 	## physical floor and the minimum window together so lowering any one of the
 	## three fails the build.
-	_check("ink", "the point-size floor clears the physical floor at the min window",
-		SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_WINDOW_W)
-			>= SkyGearInk.MIN_PHYS_PX,
-		"%.1f px at %d wide, floor %.1f" % [
-			SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_WINDOW_W),
-			SkyGearInk.MIN_WINDOW_W, SkyGearInk.MIN_PHYS_PX])
-	## The downscale denominator has to be the canvas the project actually renders,
-	## or `physical_pt` measures against a fiction. If someone re-bases the viewport
-	## width, BASE_W must follow, and this is what says so.
-	_check("ink", "the downscale base matches the project's design canvas",
-		absf(SkyGearInk.BASE_W - float(ProjectSettings.get_setting(
-			"display/window/size/viewport_width"))) < 0.5,
-		"BASE_W %.0f vs viewport_width %s" % [SkyGearInk.BASE_W,
-			str(ProjectSettings.get_setting("display/window/size/viewport_width"))])
+	## PIN WHAT THE FLOOR WAS COMPUTED AGAINST. Godot rewrites project.godot on
+	## editor open and can reorder or drop hand-added keys, so the key and its pin
+	## land together or the key will not survive. Folds in the old "downscale base
+	## matches the project's design canvas" check rather than leaving it beside a
+	## near-duplicate.
+	_check("ink", "the floor is measured against the scaling the game actually ships",
+		str(ProjectSettings.get_setting("display/window/stretch/mode")) == "canvas_items"
+			and str(ProjectSettings.get_setting("display/window/stretch/aspect")) == "keep"
+			and int(ProjectSettings.get_setting("display/window/size/mode")) == 3
+			and int(ProjectSettings.get_setting("display/window/size/viewport_width")) == SkyGearInk.BASE_W,
+		"mode %s / aspect %s / window mode %s / canvas %s"
+			% [str(ProjectSettings.get_setting("display/window/stretch/mode")),
+				str(ProjectSettings.get_setting("display/window/stretch/aspect")),
+				str(ProjectSettings.get_setting("display/window/size/mode")),
+				str(ProjectSettings.get_setting("display/window/size/viewport_width"))])
+
+	## THE CATEGORY ERROR THIS REPLACES: MIN_WINDOW_W is a WINDOW constraint and
+	## the game is fullscreen, so the binding quantity is the narrowest DISPLAY the
+	## build claims to support.
+	_check("ink", "the point-size floor clears the physical floor on the narrowest supported display",
+		SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_SUPPORTED_W) >= SkyGearInk.MIN_PHYS_PX,
+		"%.2f physical px at %d wide against a floor of %.1f"
+			% [SkyGearInk.physical_pt(SkyGearInk.MIN_PT, SkyGearInk.MIN_SUPPORTED_W),
+				SkyGearInk.MIN_SUPPORTED_W, SkyGearInk.MIN_PHYS_PX])
+
+	## AND THE PROOF IT WOULD GO RED, which is the thing nobody can say about the
+	## check this replaces. Use MIN_PT - 1 rather than a width step: a hand-picked
+	## `- 64` is arithmetically broken under other choices of the constant.
+	_check("ink", "and that floor is tight rather than slack",
+		SkyGearInk.physical_pt(SkyGearInk.MIN_PT - 1, SkyGearInk.MIN_SUPPORTED_W) < SkyGearInk.MIN_PHYS_PX,
+		"one point smaller gives %.2f px, which must be under %.1f"
+			% [SkyGearInk.physical_pt(SkyGearInk.MIN_PT - 1, SkyGearInk.MIN_SUPPORTED_W),
+				SkyGearInk.MIN_PHYS_PX])
 
 	## AND THE WIDGET LAYER IS NOT EXEMPT.
 	##

@@ -43,6 +43,11 @@ window/size/window_height_override=900
 ; out is a game people force-quit.
 window/size/mode=3
 window/stretch/mode="canvas_items"
+; DRIFT GUARD, not a distortion fix — Godot already defaults stretch/aspect to
+; "keep" and tools/text_audit.gd:95-96 describes the shipped behaviour as a
+; letterbox. Pinned explicitly so the editor rewriting this file cannot let the
+; default move out from under SG-215's floor-vs-display math (build-72 task 16).
+window/stretch/aspect="keep"
 window/vsync/vsync_mode=1
 
 [rendering]

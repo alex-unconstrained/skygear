@@ -59,6 +59,14 @@ const BASE_W := 1920.0
 const MIN_WINDOW_W := 1600
 const MIN_WINDOW_H := 900
 
+## THE NARROWEST DISPLAY THIS BUILD CLAIMS TO SUPPORT. `MIN_WINDOW_W` above is a
+## WINDOW constraint and `min_size` cannot reach a borderless-fullscreen window,
+## so it never governed the shipped path — this does. 1600 is not chosen, it is
+## the break-even: 12 pt across a 1920 canvas on a 1600-wide display is exactly
+## MIN_PHYS_PX. A narrower display needs a bigger MIN_PT, which re-measures every
+## string in the game (owner, 2026-08-12: declare 1600).
+const MIN_SUPPORTED_W := 1600
+
 ## THE SMALLEST A GLYPH IS ALLOWED TO BE ON THE PLAYER'S ACTUAL SCREEN, in
 ## physical pixels. MIN_PT is the floor in the 1920 design space; this is the
 ## floor after the downscale, and the two are tied: `MIN_PT * MIN_WINDOW_W /
