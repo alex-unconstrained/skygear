@@ -217,6 +217,35 @@ def clamp_glb(path: Path, verbose: bool = True) -> dict:
     return {"changed": True, "materials": notes}
 
 
+## KEPT ABOVE THE CEILING BY THE OWNER, 2026-08-13, ON A PHOTOGRAPHED A/B.
+##
+## These thirteen carry no `metallicFactor`, which glTF reads as 1.0, and the
+## audit below correctly reports that their peak texel is over the ceiling. They
+## were clamped on 2026-08-12 (board SG-291) and the clamp was REVERTED the next
+## day on the owner's verdict.
+##
+## He was shown five of them as labelled side-by-sides — `tools/shiny_ab.gd`,
+## both plates in one frozen scene, only the metallic factor changed between
+## them, noise floor 0.00% — and chose the fully-metallic plate on every one:
+## "B across the board."
+##
+## THIS LIST EXISTS SO THE NEXT PASS DOES NOT UNDO A DECISION IT CANNOT SEE. The
+## audit's verdict on these is still that they are over; what changes is that it
+## says WHY they are still here, rather than presenting a settled taste call as
+## an outstanding defect for somebody to helpfully fix. Anything NOT on this list
+## and over the ceiling is a real finding.
+##
+## The ceiling itself is unmoved and still governs everything else — including
+## every flat-albedo material the renderer builds in code, which is the surface
+## class SG-179 was actually about and which was NOT part of this A/B.
+OWNER_KEPT = {
+    "boarding_hulk", "boarding_hulk_sealed", "brazier", "cannon_deck",
+    "crate_small", "crate_stack", "mast_section", "powder_keg",
+    "railing_segment", "skyship_barge", "skyship_barge_heavy",
+    "skyship_skiff", "skyship_tender",
+}
+
+
 def audit(show_all: bool = False) -> int:
     """Measure every shipped model against the ceiling. Reports, never rewrites."""
     import trimesh
@@ -250,7 +279,9 @@ def audit(show_all: bool = False) -> int:
     ## The mean and p95 columns STAY, because they are the useful context — a
     ## peak of 1.0 over a mean of 0.04 is a few bright rivets and a peak of 1.0
     ## over a mean of 0.28 is most of the object — but the verdict is the peak.
-    over = [r for r in rows if r[4] > LAMPLIT_METALLIC_MAX + 1e-6]
+    high = [r for r in rows if r[4] > LAMPLIT_METALLIC_MAX + 1e-6]
+    kept = [r for r in high if r[0] in OWNER_KEPT]
+    over = [r for r in high if r[0] not in OWNER_KEPT]
     print("%-26s %-7s %8s %8s %8s" % (
         "model", "factor", "eff mean", "eff p95", "eff peak"))
     for name, factor, mean, p95, peak in sorted(rows, key=lambda r: -r[4]):
@@ -263,9 +294,17 @@ def audit(show_all: bool = False) -> int:
         print("%-26s %-7s %8.4f %8.4f %8.4f  %s" % (
             name, "unset" if factor == 1.0 else "%.3f" % factor,
             mean, p95, peak,
-            "OVER" if peak > LAMPLIT_METALLIC_MAX + 1e-6 else "ok"))
+            ("KEPT" if name in OWNER_KEPT else "OVER")
+            if peak > LAMPLIT_METALLIC_MAX + 1e-6 else "ok"))
     print("\n%d of %d shipped models have a texel above the %.2f lamplit "
-          "ceiling." % (len(over), len(rows), LAMPLIT_METALLIC_MAX))
+          "ceiling and are not accounted for."
+          % (len(over), len(rows), LAMPLIT_METALLIC_MAX))
+    if kept:
+        print("%d more are over it and are KEPT THERE BY THE OWNER "
+              "(2026-08-13, on a 0.00%% noise-floor A/B): %s."
+              % (len(kept), ", ".join(sorted(r[0] for r in kept))))
+        print("Do not re-clamp those without asking him again — see "
+              "OWNER_KEPT above.")
     ## Only true while there ARE any. It was printed unconditionally, so the
     ## run that cleared the last one still ended on a sentence about how they
     ## all have it unset.
@@ -276,6 +315,8 @@ def audit(show_all: bool = False) -> int:
                   "as 1.0: %s." % (len(unset), ", ".join(sorted(unset))))
         print("Run `lamplit.py clamp <file.glb> ...` on each; it writes the "
               "factor only and never touches a pixel.")
+    elif kept:
+        print("Nothing is outstanding. The %d above are the owner's." % len(kept))
     else:
         ## THE SENTENCE THAT USED TO LIVE HERE WAS FALSE, AND IT WAS PRINTED
         ## DIRECTLY BENEATH THE COLUMN THAT REFUTED IT (board SG-291). It read:

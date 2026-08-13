@@ -15532,7 +15532,14 @@ func _shipping_version_stamp() -> void:
 	## SG-210 asked for this domain and it never got written, which is how the exe
 	## carried 0.70.0.0 through build 71. Four keys, two presets — counting them is
 	## half the check, because a third preset would otherwise slip past unstamped.
-	const SHIPPED_VERSION := "0.72.0.0"
+	## 0.72 -> 0.73 for the build the owner asked for on 2026-08-13. This constant
+	## is the point of the check: it does not read the presets and agree with
+	## itself, it is the number a HUMAN decided this commit ships, so bumping the
+	## presets without bumping this goes red — which is exactly what it did when
+	## the presets moved to 0.73 a moment ago, and is the whole reason SG-258
+	## exists (the exe carried 0.70.0.0 through two builds because nothing here
+	## disagreed with it).
+	const SHIPPED_VERSION := "0.73.0.0"
 	var presets := FileAccess.get_file_as_string("res://export_presets.cfg")
 	var stamped := 0
 	var wrong: Array[String] = []
