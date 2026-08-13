@@ -404,3 +404,58 @@ defect; the direction of the fix is his to confirm.
 | Models & materials | not scored | **7** | Every shipped model and every code-built material is under the ceiling for the first time, and both halves of the enforcement now measure what they claim. Not higher: the captain still ships albedo-only with her own normal/rough/metal maps unbound on disk (audit rank 2, untouched) |
 | Deck & environment | not scored | **7** | The near-camera prop kit no longer reads as tinted plastic. Untouched: the starboard hatch is authored inside a cargo wall (SG-294 territory), and boarders walk through the stern cargo stacks |
 | Evidence discipline | 9 | **9** | Held. Two instruments were corrected mid-pass by reading their own output — the audit tool and one of my own checks — and both corrections are in the record rather than in a silent edit |
+
+---
+
+## §9 · CLOSING GATES
+
+Run on the committed tree, machine idle, one Godot process at a time.
+
+**Harness — `1285/1285 checks passed`, exit 0, `0 raised` script errors, `54
+engine errors against a pinned 54`.** 1259 at the start of the session; **26 new
+checks**, every one demonstrated red first.
+
+**Performance, `profile_fight -- 60`, windowed 1600×900, vsync off:**
+
+| | p50 | p95 | p99 | worst |
+| --- | --- | --- | --- | --- |
+| pre-pass `git stash` control | 7.57 | 11.46 | 13.74 | 53.08 |
+| after wave 1 | 8.06 | 11.10 | 14.27 | 55.97 |
+| **final, all three waves** | **7.71** | **11.21** | **12.91** | 54.74 |
+
+**p99 12.91 ms against the 16.67 ms budget — and lower than the control it
+started from.** That is not a coincidence and it is not an optimisation pass
+either: SG-294's fix pushes shader parameters *on change* rather than *while
+non-zero*, which removes a per-frame `find_children` walk from every rig that is
+not currently flashing — most of them, most of the time. The old guard paid that
+walk for exactly the rigs that did not need it.
+
+The ~50 ms periodic spike is unchanged and unexplained, in the control as well as
+in the result. It is **SG-290** and it is still nobody's new fault.
+
+**Single-machine caveat, restated: one machine has ever been profiled.**
+
+## §10 · WHAT THIS SESSION IS, HONESTLY
+
+Twelve rows filed, nine closed, three left open on purpose. The closed work is
+**seven defects of absence** — things that had never been asked for, in places
+nobody had photographed — plus the two instruments that were supposed to have
+caught them.
+
+**The pattern is worth naming, because it is the whole yield of the pass:** every
+single one of these was invisible to a check that asserted a function was called,
+a tool that measured the wrong number, or a name that promised more than its
+assertion delivered. The hero's death, the boarder's burn, the hit-stop, the
+white flash, the ceiling — none of them was *broken*. Each was simply never
+wired, under a green gate that said otherwise.
+
+**And the pass committed two of the same class itself, both caught by measuring
+rather than by reasoning:** a new tool that judged the metallic factor instead of
+the effective value and called twelve correct models wrong, and a picture
+measurement taken through an instrument whose floor was larger than the signal —
+in a repository that already contained the right tool, with the reason written in
+its header. Both are in the record at full length. That is the only way the next
+person gets them for free.
+
+**What is not done is named in §7 and on the board**, and the largest of it is
+still the captain shipping albedo-only with her own maps unbound on disk.
