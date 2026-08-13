@@ -459,3 +459,38 @@ person gets them for free.
 
 **What is not done is named in §7 and on the board**, and the largest of it is
 still the captain shipping albedo-only with her own maps unbound on disk.
+
+---
+
+## §11 · A CORRECTION TO §0.2 AND §4 — THE MACHINE WAS NOT IDLE
+
+Every profile in this log is qualified "machine confirmed idle". **That was not
+true, and I only found out at the ship gate.** Enumerating processes to identify
+a crash dialog turned up two long-lived Godot 4.7 instances belonging to a
+DIFFERENT project — `Card-Game-Prototype---Next.js\tools\godot\` — started
+2026-08-12 23:09 and holding **6,389 seconds of CPU**.
+
+**What that does and does not invalidate.** It does NOT touch the "one Godot
+process at a time" rule as this project means it: that rule is about thrashing
+*this* project's shared `.godot` import cache, and those instances have their own
+project and never opened SkyGear's. Nothing was at risk of the 2026-08-11 freeze.
+
+What it does mean is that "idle" was an assumption I never checked, on a machine
+where I had already thrown away one profile for exactly this reason (§0.2). The
+numbers in §4 and §9 were all taken under the same background load and are
+therefore **internally comparable to each other and to the `git stash` control**,
+which is what the conclusion "the pass costs nothing measurable" actually rests
+on — a differential, not an absolute. The ABSOLUTE figures, including
+`p99 12.91 ms` against the 16.67 ms budget, carry an unmeasured amount of
+somebody else's CPU in them.
+
+**It is also a live candidate for SG-290**, the ~50 ms periodic script spike this
+log has been unable to attribute: a second engine burning 6,389 CPU-seconds
+beside the measurement is exactly the shape of thing that produces one excursion
+every few seconds in the `script` bucket and nowhere near the GPU. It is not
+proof, and SG-290 still names no cause — but the next person to profile this
+should check the process list first, and the row now says so.
+
+**The rule this breaks is the one this log has invoked four times: measure the
+instrument, and do not assume the conditions.** I asserted a condition in the
+same document in which I withdrew a measurement for the same failure.

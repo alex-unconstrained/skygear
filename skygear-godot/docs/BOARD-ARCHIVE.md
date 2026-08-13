@@ -29,6 +29,35 @@ If it is not here it is still open, and it is in `docs/BOARD.md`.
 
 
 
+
+## Build 73 — 2026-08-13 (opus/director)
+
+**The quality-directive pass, live on both channels, on the owner's word.** He
+asked for it in one line — *"push changes to itch and I will test the newest
+build"* — which is the butler gate given for this build and not for the next one.
+
+**What a player gets that build 72 did not.** The hero dies on screen, on both
+classes, for the first time in the life of the port (SG-282), and the card over
+her body names the defeat that actually happened (SG-283). Hit-stop reaches the
+captain and every boarder instead of only the bookkeeping (SG-286). The hero
+flashes white when she is hit (SG-287). A figure with no flinch clip no longer
+plays its idle at four times speed through every stun (SG-288). Burn, frost and
+stun are visible on a boarder at all (SG-293), and the permanent ember residual
+is off every figure that had ever been hit (SG-294). Plus **the owner's own call
+on the metal** — the thirteen models stay fully metallic, SG-291's clamp reverted
+on a 0.00%-floor A/B he judged.
+
+**The ship gate caught a P1 on the way out.** SG-297: the demo README's first
+instruction named `SkyGear-Godot.exe`, and the demo zip contains
+`SkyGear-Demo.exe`. Third in the SG-256 / SG-257 family, all three found at a
+gate by reading the artifact instead of the template. Fixed, gated with a check
+demonstrated red, re-packed, and shipped correct.
+
+| ID | P | Type | Title | Status | Notes |
+|----|---|------|-------|--------|-------|
+| SG-296 | P1 | SHIPPING | **Build 73 — the quality pass, the owner's metallic verdict, and the first build in which the hero dies on screen** | **DONE 2026-08-13 (opus/director) — build 73 is live on itch, both channels, off commit `640942b`.** itch **`73-quality-pass`**: `windows` build **#1880125** (from #1878613), `windows-demo` build **#1880126** (from #1878614), both processed √. **ROLLBACK: build 72 — `windows` #1878613, `windows-demo` #1878614.** A hand-written number is the only rollback this project has. | **WHAT IT CARRIES.** The quality-directive pass of 2026-08-12/13: the hero dying on screen on both classes (SG-282) with the defeat card naming the defeat that happened (SG-283); hit-stop reaching the captain and every boarder for the first time (SG-286); the hero's white flash armed (SG-287); a borrowed clip no longer played at the 4.00x attack clamp (SG-288); burn, frost and stun visible on a boarder at all (SG-293); and the permanent ember residual removed from every figure that had ever been hit (SG-294). **Plus the owner's own call on 2026-08-13**: the thirteen models stay fully metallic, reverted from SG-291's clamp on a 0.00%-floor A/B he judged. **VERSION 0.72.0.0 -> 0.73.0.0**, both presets and the harness's own `SHIPPED_VERSION` — which went red the moment the presets moved and is the reason that check exists (SG-258's exe carried 0.70.0.0 through two builds). **GATE:** harness 1285/1285, exit 0, 0 script errors, 54 engine errors against the pinned 54. `profile_fight -- 60` p99 12.91 ms against the 16.67 budget, lower than the pre-pass control's 13.74. **VERIFIED, NOT ASSUMED, BEFORE THE PUSH.** Both exes read their identity back off the binaries: `SkyGear-Godot.exe` -> product `SkyGear`, `SkyGear-Demo.exe` -> product **`SkyGear Demo`**, both FileVersion **0.73.0.0**, company `Unconstrained` — the differing product name is how the demo FEATURE TAG is proved applied rather than assumed. **The READMEs were read OUT OF BOTH ZIPS**, not scanned in source: full contains `SkyGear-Godot.exe` and says *twelve*; demo contains `SkyGear-Demo.exe` and says *six*; neither carries an unsubstituted `{WAVES}` or `{EXE}`; none of the three banned strings appears. **And that gate caught a P1 on this build: SG-297**, the demo README's first instruction naming an executable that is not in the demo zip — found by reading the archive rather than the template, fixed and re-packed on the same commit rather than pushed and filed after. **THE DEMO EXE WAS LAUNCHED AND PHOTOGRAPHED**: 60 s alive, `responding=True`, 730 MB, 42.9 s CPU, closed cleanly via `CloseMainWindow`, and its stderr carried only the two at-exit teardown notices the harness has carried for months (`3 ObjectDB instances leaked`, `1 resource still in use`). Title screen correct for the cut: the six-wave strapline, no class picker. `.shots/build73/demo-60s.png`. **ONE ALARM INVESTIGATED AND CLEARED RATHER THAN WAVED THROUGH.** The first launch photograph caught a Windows hard-error box reading `Godot_v4.7.1-stable_win64.exe - Application Error … The memory could not be read`, and the push was held until it was explained. It is **not this build**: the window is owned by `csrss` (a hard error whose faulting process is already gone), the exported exes carry an EMPTY `OriginalFilename` and so cannot title a dialog with a raw engine binary's name, `Get-WinEvent` finds **zero** Application Error events mentioning Godot in seven days, and — decisively — it sat unchanged on screen through a second, fresh 60 s run of the demo under a new PID. Stale, pre-existing, dismissed. |
+
+
 ## What a boarder says about itself — 2026-08-12 (opus/director)
 
 **Two no-ops that had been running for the life of the port, on the same shader,

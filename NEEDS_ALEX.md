@@ -1,65 +1,40 @@
 # NEEDS ALEX
 
-**THE HERO NEVER DIED ON SCREEN. SHE DOES NOW.** Five more fixes are on `main`
-on top of your eight playtest ones, none of it in any build. Harness
-**1285/1285, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
-Still nothing blocked on you — the decision is whether to pack and push build 73.
+**BUILD 73 IS LIVE ON ITCH. BOTH CHANNELS. GO AND BREAK IT.**
 
-**The five, in the order they will hit you:**
+- **`windows`** build **#1880125** (from #1878613) — the full game.
+- **`windows-demo`** build **#1880126** (from #1878614) — the demo cut.
+- Version string on both: **`73-quality-pass`**, off commit `640942b`.
+- **Rollback is build 72: #1878613 and #1878614.**
 
-- **You die on screen now.** For the whole life of the port, being killed put the
-  captain in a *breathing idle* — and then held her there, framed and
-  letterboxed, for the length of the defeat cutscene. Her body also stopped being
-  drawn where the game thought she was, by up to nineteen units. **The
-  Boilerwright has had a death animation since the day he was ingested and
-  nothing had ever asked for it.** The captain had none at all, and her animation
-  archive is long gone off this machine, so hers was retargeted in-project off
-  the crew's — Mixamo's unarmed backwards fall, which suits a one-handed axe
-  better than the two-handed deaths in the sword pack. No spend.
-- **Dying as the Captain no longer tells you the Boiler was lost.** One cue
-  covers both defeats and there is one defeat scene, so the card read THE BOILER
-  IS LOST over a Boiler at full health — and then the results sheet behind it
-  said the opposite. It says what actually happened now.
-- **HIT-STOP HAS NEVER ACTUALLY STOPPED ANYTHING, AND NOW IT DOES.** This is the
-  one to feel. The freeze on a kill gated the wave logic and the projectiles; the
-  captain and every boarder live on the *physics* tick and nothing there had ever
-  read the freeze. So they kept moving at full speed through all 0.070 s of it —
-  measured, a captain slides 11.4 units and a boarder 5.6 inside a window you
-  were being told was frozen. **I changed no tuning number.** 0.070 and 0.040
-  were tuned against a stop that reached half the game; they now reach all of it,
-  so they may be too strong. **That is a playtest question and it is yours** —
-  tell me if kills feel sticky and I will move them with evidence.
-- **You flash white when you are hit.** Every gremlin and knight already did; the
-  hero's material had never been armed for it. Half her hit reaction was missing.
-- **A stunned gremlin no longer breathes at four times speed.** It has no flinch
-  clip, so it borrowed its idle — and the idle got stretched to fit the stun,
-  which pinned it at the 4x clamp. Every ARC proc in the game did this.
+Harness **1286/1286**, exit 0, 0 script errors, 54 engine errors against a pinned 54.
 
-**AND THE DECK'S METAL WAS NEVER ACTUALLY HELD TO YOUR OWN STANDARD.** You looked
-at flat brass at metallic 0.4 once and said *"very placeholder"*, and the 0.34
-ceiling came out of that. Two things were supposed to enforce it and neither did:
-the clamp tool guarantees the brightest texel is under the ceiling and its AUDIT
-was checking the average one, so **thirteen of forty models were over — up to a
-flat 1.0 — and every one printed `ok`**. The railing you run along peaks at 1.0.
-So do the deck cannon, the powder keg and the boarding hulk; the crate stacks,
-the brazier and the mast are all over. On the deck's own side, the brass capping
-on all eight cargo runs — fifty-six pieces of it, at waist height in the middle
-of the fight — sat at 0.45. All of it is under the ceiling now. **See item 9: it
-is the one change in this pass you should look at before it ships.**
+**WHAT TO GO AND LOOK AT, in the order it will hit you:**
 
-**AND YOUR BOARDERS NOW SHOW YOU WHAT YOU HAVE DONE TO THEM.** Burn, frost and
-stun had no mark on the target at all — a burning gremlin, a three-stack gremlin
-and a fresh one were the same picture, and a stunned one gave you nothing to tell
-you it was helpless. The code for it was there and had been a no-op since the
-models were ingested: it tinted the painted plate, and nobody has a painted plate
-any more. It rides the hit-flash shader now as a low glow on the silhouette edge —
-ember for burn, the cold rim for frost, brass for a stun, with the stun loudest
-because it is the only one of the three that is a window you can spend. **And
-every figure that had ever been hit was wearing a permanent faint ember rim**,
-because the flash was never pushed back to zero; measured at 8.3% of a full
-flash, on for the rest of the run.
+1. **Die.** You never could, on screen. The captain stood in a breathing idle
+   through her own defeat cutscene for the entire life of this port, drifting up
+   to nineteen units from where the game thought she was. She falls now, and so
+   does the Boilerwright — whose death animation has been sitting in his pack
+   since the day he was ingested with nothing ever asking for it. **Then read the
+   card over the body**: it used to say THE BOILER IS LOST even when the Boiler
+   was at full health and a furnace knight had killed you.
+2. **Kill something and feel the pause.** Hit-stop has never once stopped the
+   captain or a boarder — it froze the wave logic and the projectiles, and the
+   swordsman kept moving at full speed through all 0.070 s of it. **I changed no
+   tuning number.** It may now be too strong. That is a playtest call and it is
+   yours — tell me and I will move it with evidence.
+3. **Set something on fire.** Burn, frost and stun had no mark on a boarder at
+   all. A three-stack target and a fresh one were the same picture. Watch a
+   stunned gremlin especially — it also used to breathe at four times speed.
+4. **The metal is exactly as you left it.** "B across the board" is in; all
+   thirteen models are back to fully metallic and the decision is written into
+   `lamplit.py` so no future pass quietly re-clamps them.
 
-**One thing I found by filming the death fix and did NOT change — see item 7.**
+**Caught on the way out the door** — the demo's README told players to run
+`SkyGear-Godot.exe`, and the demo zip contains `SkyGear-Demo.exe`. Wrong for
+every demo download ever made. Found by reading the file out of the archive
+instead of trusting the template, fixed before the push, and gated now.
+
 
 ---
 
@@ -272,6 +247,24 @@ instead of grey.
 
 **If you hate it, it is one commit to revert** and the board row names every file.
 Board SG-291 and SG-292.
+
+**11 · TWO THINGS I GOT WRONG THIS SESSION, BOTH WORTH YOU KNOWING.**
+First, a Windows crash box reading "Godot… Application Error" was sitting on your
+desktop when I photographed the demo. I held the push until I could prove it was
+not the build: it is owned by `csrss` (the process that faulted is long gone),
+your exported exes cannot title a dialog with that name, Windows has logged no
+Godot crash in seven days, and it sat there unchanged through a second clean 60 s
+run of the demo. Stale, and I have closed it. **The build launches, runs and
+exits clean.**
+
+Second, and this one is mine: I have been writing "machine confirmed idle" over
+every performance number in the log. **It was not.** Two Godot instances from your
+Card-Game-Prototype project have been running since 23:09 last night holding
+6,389 seconds of CPU. They cannot touch this project's import cache so nothing
+was at risk — but my absolute frame numbers carry an unknown amount of someone
+else's CPU, and the honest claim is only the differential one (the pass costs
+nothing measurable against a stash control). It is also a live suspect for that
+~50 ms hitch I could not attribute. Corrected in the night log.
 
 **10 · I HAVE TO WITHDRAW A NUMBER I GAVE YOU IN ITEM 9.**
 I said the metal change moved 9-26% of the pixels and told you what happened on
