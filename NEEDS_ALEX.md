@@ -2,7 +2,7 @@
 
 **THE HERO NEVER DIED ON SCREEN. SHE DOES NOW.** Five more fixes are on `main`
 on top of your eight playtest ones, none of it in any build. Harness
-**1278/1278, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
+**1285/1285, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
 Still nothing blocked on you — the decision is whether to pack and push build 73.
 
 **The five, in the order they will hit you:**
@@ -47,6 +47,18 @@ on all eight cargo runs — fifty-six pieces of it, at waist height in the middl
 of the fight — sat at 0.45. All of it is under the ceiling now. **See item 9: it
 is the one change in this pass you should look at before it ships.**
 
+**AND YOUR BOARDERS NOW SHOW YOU WHAT YOU HAVE DONE TO THEM.** Burn, frost and
+stun had no mark on the target at all — a burning gremlin, a three-stack gremlin
+and a fresh one were the same picture, and a stunned one gave you nothing to tell
+you it was helpless. The code for it was there and had been a no-op since the
+models were ingested: it tinted the painted plate, and nobody has a painted plate
+any more. It rides the hit-flash shader now as a low glow on the silhouette edge —
+ember for burn, the cold rim for frost, brass for a stun, with the stun loudest
+because it is the only one of the three that is a window you can spend. **And
+every figure that had ever been hit was wearing a permanent faint ember rim**,
+because the flash was never pushed back to zero; measured at 8.3% of a full
+flash, on for the rest of the run.
+
 **One thing I found by filming the death fix and did NOT change — see item 7.**
 
 ---
@@ -88,8 +100,8 @@ that exclusion for any reason would have brought the dead button back silently.
 **If you were hitting a slot you could not press, it was something else — tell me
 which key and which weapon and I will find it.**
 
-Detail lives in `skygear-godot/docs/BOARD.md`. **43 open rows; next free ID is
-SG-293.** The eight playtest rows and the quality pass's seven are closed in
+Detail lives in `skygear-godot/docs/BOARD.md`. **44 open rows; next free ID is
+SG-296.** The eight playtest rows and the quality pass's eleven are closed in
 `skygear-godot/docs/BOARD-ARCHIVE.md`; the pass's own write-up is
 `skygear-godot/docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`.
 
@@ -260,6 +272,26 @@ instead of grey.
 
 **If you hate it, it is one commit to revert** and the board row names every file.
 Board SG-291 and SG-292.
+
+**10 · I HAVE TO WITHDRAW A NUMBER I GAVE YOU IN ITEM 9.**
+I said the metal change moved 9-26% of the pixels and told you what happened on
+them. Then I ran the capture tool twice against ITSELF, on one commit, with the
+seed pinned and nothing else running — and it disagreed with itself on **13% of
+the pixels**. Two of my three numbers were at or under its own noise floor. They
+are struck on the board and in the night log.
+
+**The change is still right and the frames are still worth looking at** — it rests
+on the clamp tool's own written guarantee, on 27 of the 40 models already sitting
+exactly where I have now put the other 13, and on a harness check I proved red
+first. But I cannot tell you I measured the picture, so I am not going to.
+
+The same is true of the boarder status tints: I could not photograph those either
+(that tool disagrees with itself on 22%), so they rest on five behavioural checks
+and your eyes. **Two of this project's capture tools cannot currently support a
+before/after claim, and the five checks that exist to guarantee they can never run
+a tool twice and compare.** That is board SG-295 and it is the most useful thing
+this session found, because it is the one that says how much of everything else to
+believe.
 
 **6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
 Named but not built — a results sheet with every progression line skipped

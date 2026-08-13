@@ -788,6 +788,27 @@ static func _turn_toward(from: float, to: float, step: float) -> float:
 	return from + signf(difference) * step
 
 
+## WHAT CONDITION THIS FIGURE IS UNDER, as an additive rim on the silhouette
+## (board SG-293). `rgb` is the ink and `a` is the strength; `Color(0,0,0,0)` is
+## "nothing", and that is the resting value the `rune`-guarded rule asks for —
+## with no status on a figure the pass selects no pixels at all.
+##
+## Idempotent and free to call every frame: `_process` only walks the meshes when
+## the value has actually moved, so a deck of twenty-one gremlins with nothing on
+## them costs nothing.
+##
+## The RENDERER decides the ink, not this file — `view3d.gd` owns the palette and
+## reads the simulation's own `burn_stacks` / `slow_time` / `stun_time`. This is
+## the rail, not the policy.
+var _status := Color(0.0, 0.0, 0.0, 0.0)
+var _status_sent := Color(0.0, 0.0, 0.0, 0.0)
+var _flash_sent := -1.0
+
+
+func set_status(ink: Color) -> void:
+	_status = ink
+
+
 ## A hit. White for a moment, and a squash that recovers — both purely visual.
 func react_hit(strength: float = 1.0) -> void:
 	_flash = clampf(strength, 0.0, 1.0)
@@ -872,10 +893,28 @@ func _process(delta: float) -> void:
 	_squash = _squash * exp(-delta * 9.0)
 	if _squash < 0.002:
 		_squash = 0.0
-	if model != null and _flash > 0.0:
+	## PUSHED ON CHANGE, NOT ON NON-ZERO (board SG-294). This read
+	## `if model != null and _flash > 0.0:` — so on the frame the decay landed ON
+	## zero the guard closed and THE ZERO WAS NEVER PUSHED. The shader's early-out
+	## is `flash <= 0.001`, so whatever the previous frame sent kept drawing for
+	## ever. Measured from `react_hit(1.0)` at 60 fps: the step is 0.09167 and the
+	## last value the shader ever received is **0.08333** — 8.3% of a full flash,
+	## on an unshaded additive pass, permanently. And `react_hit` fires on every
+	## damage tick, so inside a second of the first exchange every boarder on the
+	## deck was wearing a faint ember rim that never came off.
+	##
+	## Comparing against the LAST PUSHED value rather than against zero also
+	## removes the per-frame tree walk from every rig that is not currently
+	## flashing, which is most of them most of the time — the old guard paid it
+	## for exactly the rigs that did not need it and skipped it for the one frame
+	## that did.
+	if model != null and (_flash != _flash_sent or _status != _status_sent):
+		_flash_sent = _flash
+		_status_sent = _status
 		for child in model.find_children("*", "MeshInstance3D", true, false):
 			var mi := child as MeshInstance3D
 			mi.set_instance_shader_parameter("flash", _flash)
+			mi.set_instance_shader_parameter("status_ink", _status)
 	if anim != null and _clip != "" and _clock >= _one_shot_until \
 			and ONE_SHOT.get(state, false) and _one_shot_until > 0.0:
 		_one_shot_until = 0.0

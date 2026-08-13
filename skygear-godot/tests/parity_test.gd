@@ -331,6 +331,9 @@ func _run() -> void:
 	## AWAITED — it builds a real world and reads materials off it.
 	await _deck_metal()
 	await process_frame
+	## AWAITED — it builds a real world and drives a real boarder's status.
+	await _status_read()
+	await process_frame
 	## AWAITED. `_view` and `_audio` are coroutines — they suspend on their own
 	## `await` — and calling one without `await` hands control straight back here.
 	## `_run` then walked to the summary and called `quit()` while two thirds of
@@ -6688,6 +6691,120 @@ func _deck_metal() -> void:
 			% [judged, mapped, worst, SkyGearView3D.LAMPLIT_METALLIC_MAX,
 				("" if over.is_empty() else "  OVER: " + ", ".join(over))])
 	world.queue_free()
+
+
+## --- WHAT A BOARDER SAYS ABOUT ITSELF (board SG-293, SG-294) ------------------
+##
+## Both of these are no-ops that had been running for the life of the port, and a
+## no-op is invisible to any check that asserts a function was called. So neither
+## of these reads a call site: they drive the real `_sync_all` over a real
+## boarder with a real status on it and read back the value that ended up on the
+## rig — the thing the shader will actually be handed.
+##
+## AND THE RESTING VALUE IS ASSERTED TO BE EXACTLY ZERO, not small. That is the
+## `rune ·` rule applied to a second additive pass: with nothing on a figure, the
+## pass must select no pixels. A floor allowed to be small is a floor that can
+## hide a feature — and in this case it is also the SG-294 defect, which is a
+## residual of exactly 0.0833 that nobody could see because nothing looked.
+func _status_read() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var view: SkyGearView3D = world as SkyGearView3D
+	var game: SkyGearGame = world.get_node("SkyGear")
+	if game.impact != null:
+		game.impact.enabled = false
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	_begin(game, "STATUS")
+	view.sway = false
+	game.spawn_enemy("SCRAPPER", 1)
+	await process_frame
+	var boarders: Array = game.enemies()
+	if boarders.is_empty():
+		_check("figure", "a boarder exists to read a status off", false, "none spawned")
+		world.queue_free()
+		return
+	var boarder: SkyGearEnemy = _landed(boarders[0])
+	await process_frame
+	var key := "e%d" % boarder.get_instance_id()
+	var rig: SkyGearRig3D = view._rigs.get(key)
+	_check("figure", "the boarder is on the mesh path before its status is read",
+		rig != null, "rig %s" % ("built" if rig != null else "MISSING"))
+	if rig == null:
+		world.queue_free()
+		return
+
+	## NOTHING ON IT. The resting case first, because it is the one that was
+	## never true for the hit flash.
+	boarder.burn_stacks = 0
+	boarder.slow_time = 0.0
+	boarder.stun_time = 0.0
+	await process_frame
+	_check("figure", "a boarder with nothing on it wears nothing — the status pass selects no pixels at rest",
+		rig._status.a == 0.0, "alpha %.4f" % rig._status.a)
+
+	## BURNING, and the stack count is the strength.
+	boarder.burn_stacks = 1
+	await process_frame
+	var one_stack: float = rig._status.a
+	var burn_ink := Color(rig._status.r, rig._status.g, rig._status.b)
+	boarder.burn_stacks = 3
+	await process_frame
+	var three_stacks: float = rig._status.a
+	_check("figure", "a burning boarder wears the ember, and three stacks read louder than one",
+		one_stack > 0.0 and three_stacks > one_stack
+			and burn_ink.is_equal_approx(Color(SkyGearView3D.STATUS_BURN.r,
+				SkyGearView3D.STATUS_BURN.g, SkyGearView3D.STATUS_BURN.b)),
+		"1 stack %.3f -> 3 stacks %.3f, ink %s" % [one_stack, three_stacks,
+			burn_ink.to_html(false)])
+	## ...and it caps, so an EMBER build cannot white out its own kills.
+	boarder.burn_stacks = 12
+	await process_frame
+	_check("figure", "and it caps, so a stacked EMBER build does not white out the thing it is killing",
+		is_equal_approx(rig._status.a, three_stacks),
+		"12 stacks %.3f against 3 stacks %.3f" % [rig._status.a, three_stacks])
+
+	## STUNNED OUTRANKS BURNING. The window the player can spend beats the
+	## condition they can only wait out.
+	boarder.stun_time = 0.4
+	await process_frame
+	var stun_ink := Color(rig._status.r, rig._status.g, rig._status.b)
+	_check("figure", "and a stun outranks a burn, because a stun is a window and a burn is a condition",
+		stun_ink.is_equal_approx(Color(SkyGearView3D.STATUS_STUN.r,
+			SkyGearView3D.STATUS_STUN.g, SkyGearView3D.STATUS_STUN.b))
+			and rig._status.a > three_stacks,
+		"ink %s at %.3f against a 3-stack burn's %.3f"
+			% [stun_ink.to_html(false), rig._status.a, three_stacks])
+	## And it comes back OFF.
+	boarder.stun_time = 0.0
+	boarder.burn_stacks = 0
+	boarder.slow_time = 0.0
+	await process_frame
+	_check("figure", "and every status comes back off — a condition that ends leaves nothing behind",
+		rig._status.a == 0.0, "alpha %.4f" % rig._status.a)
+
+	## --- SG-294: THE FLASH IS PUT BACK TO ZERO -------------------------------
+	## Driven on a bare rig rather than through the deck, because what is being
+	## asserted is the DECAY's last frame and that wants an exact tick count, not
+	## whatever the tree happened to hand out.
+	var solo := SkyGearRig3D.new()
+	root.add_child(solo)
+	if solo.setup(SkyGearView3D.CAPTAIN_SCENE,
+			SkyGearView3D.CAPTAIN_HEIGHT * SkyGearView3D.WORLD_SCALE,
+			SkyGearView3D.LAYER_FIGURES):
+		solo.react_hit(1.0)
+		solo._process(1.0 / 60.0)
+		var lit: float = solo._flash_sent
+		## Thirty ticks is comfortably past the 5.5/s decay from 1.0.
+		for _i in 30:
+			solo._process(1.0 / 60.0)
+		_check("figure", "a hit flash is pushed back to ZERO rather than left on the last value it decayed to",
+			lit > 0.5 and solo._flash == 0.0 and solo._flash_sent == 0.0,
+			"lit at %.4f, decayed to %.4f, last value the shader was handed %.4f"
+				% [lit, solo._flash, solo._flash_sent])
+	solo.queue_free()
+	world.queue_free()
+	await process_frame
 
 
 ## --- what you actually look at ----------------------------------------------

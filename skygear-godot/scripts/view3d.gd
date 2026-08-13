@@ -1779,6 +1779,33 @@ func _build_impacts() -> void:
 		_flashes.append(light)
 
 
+## THE THREE STATUS INKS AND HOW HARD THEY ARE PUSHED (board SG-293). Every one
+## is a colour this deck already spends: ember, the rim, and brass-lit. The
+## strengths are deliberately small — this is an additive pass on an unshaded
+## next_pass, and the failure it must not commit is the one the airstream and the
+## aura motes were both cut for, a field of light that hides the boarders
+## standing in it. At `STATUS_MIN` a single burn stack is a warm edge you notice
+## on a figure you are already looking at; at three it is unmistakable across the
+## deck; and all of them together are under half of a single hit flash.
+const STATUS_BURN := Color("#ff9a4a")
+const STATUS_SLOW := Color("#9fc6e8")
+const STATUS_STUN := Color("#e8c376")
+const STATUS_MIN := 0.16
+const STATUS_PER_STACK := 0.06
+## Where the burn stops climbing. Three stacks is already unmistakable across the
+## deck and a six-stack EMBER build would otherwise white out the thing it is
+## killing.
+const STATUS_STACK_CAP := 3
+## AND THE STUN IS ONE STACK LOUDER THAN THE LOUDEST BURN, DERIVED RATHER THAN
+## TYPED. Written as a literal 0.34 first, and the check caught it in the same
+## run: that is exactly a three-stack burn, so "a stun outranks a burn" was true
+## of the INK and false of the STRENGTH, and the two would have read as the same
+## intensity in two different colours. Deriving it means the ordering cannot come
+## apart later — raise the cap or the per-stack step and the stun moves with them
+## — which is the second failure mode refused at the point it would have started.
+const STATUS_STUN_ALPHA := STATUS_MIN + STATUS_PER_STACK * (STATUS_STACK_CAP + 1)
+
+
 ## A hit landed here, this hard, of this element.
 ## NOTHING ON A STRUCK BOARDER CHANGED (board SG-217), and the reason was not
 ## that the reaction was hard — it was that `react_hit` had exactly two callers
@@ -8327,17 +8354,59 @@ func _sync_all(delta: float) -> void:
 		if not _part_shadows(key, _rigs.get(key), 1.0):
 			_shadow(key, draw_at, float(enemy.radius) * 2.6, 0.5,
 				0.0, lift, SHADOW_CORE if _casts_own_shadow(key) else SHADOW_LEANS)
-		# burning boarders glow; frozen ones go blue. The status is the read.
-		var node: Sprite3D = _billboards.get(key)
-		if node != null:
-			var tint := Color.WHITE
-			if enemy.burn_stacks > 0:
-				tint = Color(1.0, 0.72, 0.52).lerp(Color(1.6, 0.9, 0.6), 0.4)
-			elif enemy.slow_time > 0.0:
-				tint = Color(0.68, 0.86, 1.0)
-			if enemy.stun_time > 0.0:
-				tint = tint.lerp(Color(1.3, 1.25, 0.8), 0.5)
-			node.modulate = tint
+		## WHAT IS HAPPENING TO THIS BOARDER, ON THE FIGURE (board SG-293).
+		##
+		## This block used to end `_billboards.get(key).modulate = tint` and had
+		## been a no-op since the models were ingested: `_billboards` is the
+		## PAINTED-PLATE pool, written in exactly one place, reached only when
+		## `_sync_rig` returns false — and it does not return false for a boarder,
+		## because every kind has a rig. So burn, slow and stun had no channel on
+		## the target at all. SG-141 found the identical bug in `_xray`, fixed it,
+		## and wrote the reason down eleven hundred lines below this line.
+		##
+		## The rig path is now first and the plate is the fallback, which is the
+		## shape `_xray` settled on — a painted figure keeps exactly the behaviour
+		## it always had.
+		##
+		## THE PALETTE, NOT NEW COLOURS. Burn is the ember `#FF9A4A` the HUD
+		## already spends on heat; slow is the rim `#9FC6E8`, the coldest light on
+		## this deck; stun is brass-lit `#E8C376`. A fourth invented hue would be
+		## a fourth thing to learn.
+		##
+		## STACKS ARE THE STRENGTH, because "the player cannot tell a stacked
+		## target from a fresh one" is half of what was wrong: one stack is a
+		## suggestion and three is unmistakable, and it caps there so a six-stack
+		## EMBER build does not white out its own kills.
+		var tint := Color(0.0, 0.0, 0.0, 0.0)
+		if enemy.burn_stacks > 0:
+			tint = STATUS_BURN
+			tint.a = STATUS_MIN + STATUS_PER_STACK 				* mini(int(enemy.burn_stacks), STATUS_STACK_CAP)
+		elif enemy.slow_time > 0.0:
+			tint = STATUS_SLOW
+			tint.a = STATUS_MIN
+		## Stun OUTRANKS both and is deliberately the loudest of the three: it is
+		## the only one of them that is a WINDOW — 0.45 s of a boarder unable to
+		## act — and a window the player can spend is worth more than a condition
+		## they can only wait out.
+		if enemy.stun_time > 0.0:
+			tint = STATUS_STUN
+			tint.a = STATUS_STUN_ALPHA
+		var srig: SkyGearRig3D = _rigs.get(key)
+		if srig != null and is_instance_valid(srig):
+			srig.set_status(tint)
+		else:
+			var node: Sprite3D = _billboards.get(key)
+			if node != null:
+				## The painted fallback keeps the multiply it always had: a plate
+				## has no normal to take a rim off.
+				var plate := Color.WHITE
+				if enemy.burn_stacks > 0:
+					plate = Color(1.0, 0.72, 0.52).lerp(Color(1.6, 0.9, 0.6), 0.4)
+				elif enemy.slow_time > 0.0:
+					plate = Color(0.68, 0.86, 1.0)
+				if enemy.stun_time > 0.0:
+					plate = plate.lerp(Color(1.3, 1.25, 0.8), 0.5)
+				node.modulate = plate
 		_xray(key, draw_at, height, Color(0.95, 0.30, 0.22, 0.55))
 	for prop in game.props():
 		if not is_instance_valid(prop) or prop.dead:

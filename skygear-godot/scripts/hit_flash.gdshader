@@ -36,6 +36,35 @@ render_mode blend_add, unshaded, depth_draw_never, cull_back, shadows_disabled, 
 
 instance uniform float flash : hint_range(0.0, 1.0) = 0.0;
 
+/*  AND THE STATUS, ON THE SAME RAIL (board SG-293).
+
+    Burn, frost and stun had no channel on a boarder at all. `view3d.gd` carried
+    a block that read `_billboards.get(key).modulate = tint` — and `_billboards`
+    is the PAINTED-PLATE pool, null for every rigged figure in the game, so the
+    line had been a no-op since the models were ingested. SG-141 found and fixed
+    exactly that in `_xray` and left this one standing beside it.
+
+    A SECOND INSTANCE UNIFORM RATHER THAN A SECOND PASS, for the same reason the
+    first one is an instance uniform: twenty-one gremlins share one material and
+    one compile, and each carries its own status.
+
+    `rgb` is the ink and `a` is the strength, so one vec4 says both and there is
+    no second parameter to keep in step with the first.
+
+    ADDITIVE AND RIM-WEIGHTED, WHICH IS NOT WHAT THE DEAD LINE DID. That line
+    MULTIPLIED a sprite — it made a frozen figure darker and bluer. On a deck
+    whose entire readability argument is bright pops against #0D0B12, taking a
+    figure DOWN to say something about it is the wrong direction: it costs
+    contrast against the planking exactly when the player most needs to pick the
+    boarder out. This adds a low, edge-biased glow instead, so the status reads
+    on the silhouette and the figure underneath keeps its own material.
+
+    HELD WELL UNDER THE FLASH. A hit is an event and must out-read a condition,
+    so the status is capped far below `flash` and the two are summed rather than
+    blended — a boarder struck WHILE burning gets the hit, plainly, and keeps its
+    burn underneath it.  */
+instance uniform vec4 status_ink = vec4(0.0, 0.0, 0.0, 0.0);
+
 const vec3 FLASH_INK = vec3(1.0, 0.86, 0.62);
 
 /*  The rim term. A flat additive pass lights the parts of the figure already
@@ -44,13 +73,18 @@ const vec3 FLASH_INK = vec3(1.0, 0.86, 0.62);
     flat, half rim — enough to see the whole figure react, biased to the part
     that carries the shape.  */
 void fragment() {
-    if (flash <= 0.001) {
+    if (flash <= 0.001 && status_ink.a <= 0.001) {
         ALBEDO = vec3(0.0);
         ALPHA = 0.0;
     } else {
         float facing = clamp(dot(normalize(NORMAL), vec3(0.0, 0.0, 1.0)), 0.0, 1.0);
         float rim = pow(1.0 - facing, 2.0);
-        ALBEDO = FLASH_INK * flash * (0.45 + 0.55 * rim);
+        /*  The hit keeps its own weighting — half flat, half rim. The status is
+            pushed harder onto the edge (a fifth flat, four fifths rim) because a
+            condition has to be readable for seconds without ever becoming the
+            thing the eye lands on, and an edge does that where a wash does not. */
+        ALBEDO = FLASH_INK * flash * (0.45 + 0.55 * rim)
+               + status_ink.rgb * status_ink.a * (0.20 + 0.80 * rim);
         ALPHA = 1.0;
     }
 }

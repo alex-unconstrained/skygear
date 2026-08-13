@@ -307,7 +307,16 @@ the mapped set to `lamplit.py` *by name*, prints the map flag rather than
 assuming it, and shouts if a code-built material ever gains a map. One authority
 per number.
 
-### 8.4 The picture, measured rather than admired
+### 8.4 The picture — and the measurement I had to withdraw
+
+**READ 8.4b FIRST. The numbers in this section are struck.** They were taken
+through `tools/prop_shot.gd` before anyone had asked that tool what its own noise
+floor was, and when it was finally asked it answered **13.27%**. Two of the three
+signals below are at or under that. The table is kept rather than deleted,
+because a withdrawn measurement that is still on the page is the only kind the
+next person can learn anything from.
+
+### 8.4a What was published, and is withdrawn
 
 `tools/prop_shot.gd`, three poses, 1600×900, identical seed and camera:
 `.shots/sg291/before/` and `.shots/sg291/after/`.
@@ -318,8 +327,25 @@ per number.
 | bow | 26.2% | 218 | 41.8 → **42.7** | 22.48 → 22.58 | 24.89 → 24.98 |
 | hulk | 12.4% | 162 | 47.7 → **50.8** | 25.91 → 26.31 | 28.54 → 29.01 |
 
-**My first reading of these frames by eye was that the deck got warmer, and the
-measurement says that is not what happened.** Global mean warmth moves +0.2% to
+**8.4b — AND THEN THE INSTRUMENT WAS MEASURED, WHICH IT SHOULD HAVE BEEN FIRST.**
+`prop_shot.gd` run twice against itself, one commit, one pinned seed, nothing
+else running: **13.27% and 13.15% of pixels differ at the 8/255 threshold**, peak
+disagreement over 200. `vfx_shot.gd` answers **22.45%** on the same question. Both
+call `SkyGearStill.freeze()` for real and both pin a seed, so this is not SG-152's
+comment-satisfies-the-check problem — the freeze is stopping the clocks it knows
+about and something else is moving. Board **SG-295** carries the full measurement,
+one hypothesis tested and rejected (pinning the sway made it *worse*, 13.27% ->
+18.46%, and the edit was reverted rather than shipped with a comment its own
+measurement refuted), and the leading unconfirmed one.
+
+So: the change is real, the frames on disk are worth looking at, and **the claim
+that it measurably improved the picture is not established by this session.** It
+rests instead on `clamp_metallic`'s own stated guarantee, on 27 of 40 models
+already sitting at peak exactly 0.3400 while 13 did not, and on a harness check
+demonstrated red. That is enough. The picture claim was not.
+
+*(The withdrawn reading, kept because it is instructive:)* my first impression by
+eye was that the deck got warmer, and the numbers said otherwise — Global mean warmth moves +0.2% to
 +0.4% — nothing. Exposure and hue balance are unchanged, which is the *right*
 result for a change that should touch only metal. What changed is confined to
 9.5–26.2% of the frame, is large where it lands, and on exactly those pixels the
