@@ -187,35 +187,49 @@ var basic_swing_serial := 0
 ## build-44 playtest: *"Can we get a way to change the auto-attack to another
 ## element? So it's not always fire?"*).
 ##
-## It lives on the TITLE SCREEN, on a plate directly under WHO IS ABOARD, and
-## every other candidate loses to it for a reason worth writing down:
+## IT LIVED ON THE TITLE SCREEN AND IT IS A WAVE-4 CHOICE NOW (board SG-275).
+##
+## SG-99 put it on a plate directly under WHO IS ABOARD, and ruled out the three
+## alternatives for reasons that are worth keeping because two of them still
+## hold:
 ##
 ##   * **A card** would have been cheapest to build — `cards.gd` already has
 ##     RETUNE CORE, which re-elements a slot — but a card is DEALT. "So it's not
 ##     always fire" is a request about every run, and an answer that arrives in
-##     some runs is not one. It also cannot be the answer for the first two
-##     waves of any run, which is where the complaint was formed.
-##   * **The opening weapon draft** is where the run's first choice already is,
-##     but the draft deals SHAPES; the Cleave is deliberately not among them
-##     (`DRAFT_SHAPES`), and the 32-cell matrix the Opening Bid opens is
+##     some runs is not one.
+##   * **The opening weapon draft** deals SHAPES; the Cleave is deliberately not
+##     among them (`DRAFT_SHAPES`), and the matrix the Opening Bid opens is
 ##     8 draftable shapes × 4 elements. Putting the auto in there changes that
-##     arithmetic and puts the Cleave back on a card, breaking both rules at
-##     once.
+##     arithmetic and puts the Cleave back on a card.
 ##   * **A Workshop node** would gate a flavour choice behind scrip, which makes
 ##     "not always fire" a thing you grind for.
 ##
-## The title screen already carries exactly this kind of choice — WHO IS ABOARD
-## is a class pick that, among other things, decides the auto-attack's element
-## today. This makes the second half of that decision separable. And it is a
-## NAMED choice, not a rolled one: it consumes no RNG at all, which is the
-## `_bid_matrix` precedent and the only reason a new pre-run choice can exist
-## without shifting every seeded card deal, crit and spawn jitter in the game.
+## WHAT THE OWNER CHANGED, 2026-08-12, after playing it: *"I don't think we
+## should have the player pick the element of their cleave before they start
+## playing. I think that should happen maybe as a bonus on round four, because at
+## that point they would have kind of settled on what element they want to focus
+## on."* SG-99 answered "where can this live" and got the timing wrong — the
+## choice was being asked at the one moment in the run when the player has no
+## information to answer it with. By wave 4 the hand is full and the build has a
+## colour, and the question is about that build instead of about nothing.
 ##
-## `""` means "whatever the class brings" — so a player who never touches the
-## plate gets a byte-identical run to the one they got before this existed.
+## AND IT IS STILL NOT A CARD, WHICH IS WHY SG-99's FIRST BULLET SURVIVES. The
+## offer is not dealt: it is NAMED, rng-free, at a fixed wave, and it does not
+## replace the draft the player was owed — `choose_draft` re-opens the normal
+## draft behind it. It arrives in every run that reaches wave 4, and it consumes
+## no RNG at all, which is the `_bid_matrix` precedent and the only reason it can
+## exist without shifting every seeded card deal, crit and spawn jitter.
+##
+## `""` means "whatever the class brings" — so a player who never takes the offer
+## gets a byte-identical run to the one they got before this existed.
 var auto_element := ""
-## Not reset by `begin_run`: like `class_id` and `heat`, it is a property of the
-## run you are ABOUT to start, chosen before you start it.
+## AND IT IS RESET BY `begin_run` NOW, WHICH IT DELIBERATELY WAS NOT. While the
+## choice was made before the run it belonged with `class_id` and `heat` — a
+## property of the run you are ABOUT to start. It is made DURING the run now, so
+## leaving it standing would carry run one's Frost Cleave silently into run two.
+## That is `boiler_max_hp`'s bug (SG-271) by another route, and the rule it broke
+## is the same one: a thing chosen inside a run is cleared when the next one
+## starts.
 func auto_element_id() -> String:
 	if auto_element != "" and SkyGearData.ELEMENTS.has(auto_element):
 		return auto_element
@@ -229,10 +243,75 @@ func auto_name() -> String:
 		str(class_data().get("auto", {}).get("name", "Cleave"))]
 
 
-func cycle_auto_element() -> void:
-	var keys: Array = SkyGearData.ELEMENTS.keys()
-	var at: int = maxi(0, keys.find(auto_element_id()))
-	auto_element = str(keys[(at + 1) % keys.size()])
+## THE WAVE THE CORE IS OFFERED ON, and it is the owner's number: *"maybe as a
+## bonus on round four"*. Named once because three readers ask — the draft that
+## deals it, `begin_run` that clears the latch, and the harness.
+##
+## FOUR IS ALSO WHERE THE HAND IS FULL, which is why the number is not three or
+## five. The opening draft deals the first weapon and waves 1, 2 and 3 deal the
+## rest, so the draft that opens when wave 4 clears is the first one at which the
+## player is choosing ABOUT a build rather than still assembling one. That is the
+## "settled on what element they want to focus on" the ask names, in the
+## schedule's own terms.
+##
+## IT IS INSIDE THE DEMO CUT TOO. `SkyGearDemo.last_wave()` is 6, so a demo run
+## reaches wave 4 and gets the offer — no second branch, no second number.
+const CORE_WAVE := 4
+
+## Whether this run has already been offered the core. A LATCH rather than a
+## `wave == CORE_WAVE` test at the point of use, because the draft can be
+## re-entered — `reroll_draft` calls `open_draft` again on the same wave — and an
+## offer that re-deals itself would let a player take it, reroll, and take it
+## again. Cleared by `begin_run` with everything else about a run in progress.
+var core_offered := false
+
+
+## THE FOUR CORES, AS A DRAFT. Named, never dealt: every element every time, in
+## the table's own order, and there is no `rng` call anywhere in it. That is the
+## `_bid_matrix` precedent and it is what lets this exist without moving a single
+## seeded card, crit or spawn jitter in the run it sits in the middle of.
+##
+## THE ONE HE ALREADY SWINGS IS IN THE LIST, and that is deliberate. Offering
+## only the other three would make this a forced re-tune, and "keep what I have"
+## is a real answer to a question about a build you have settled into — the more
+## so because the class picked this element for him without ever saying so.
+##
+## The card carries `shape: CLOSEHIT` so the face draws the Cleave's own slash
+## glyph rather than a themed fallback: `SkyGearCards.emblem_shape` reads
+## `card.shape` for exactly this case. The scope is CAPTAIN because that is what
+## it affects — his basic attack — and `affects()` returns no lit slot glyphs for
+## it, which is true: re-tuning the core touches none of the four weapons.
+func _core_offer() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var weapon: String = str(class_data().get("auto", {}).get("name", "Cleave"))
+	var here := auto_element_id()
+	for element in SkyGearData.ELEMENTS.keys():
+		var id := str(element)
+		out.append({
+			"kind": "core",
+			"element": id,
+			"shape": "CLOSEHIT",
+			"scope": SkyGearCards.SCOPE_CAPTAIN,
+			"class_label": SkyGearCards.SCOPE_LABEL[SkyGearCards.SCOPE_CAPTAIN],
+			"rarity": SkyGearCards.RARITY_DEFAULT,
+			"title": ("%s %s" % [str(SkyGearData.ELEMENTS[id].name), weapon]).to_upper(),
+			## The card that is already true says so, so "keep it" is visibly an
+			## option rather than a card that looks identical to the other three.
+			"text": ("what you already swing · %s" if id == here
+				else "re-tune the core · %s") % str(SkyGearData.ELEMENTS[id].blurb),
+		})
+	return out
+
+
+## Is the draft currently on screen the core offer? Asked by the reroll (which
+## refuses it) and by the HUD (which draws no reroll strip over it), off the
+## OPTIONS rather than off `wave` or the latch — because what those two callers
+## need to know is what is in front of the player right now, and only the options
+## can answer that after a reload or inside a posed screen.
+func core_draft() -> bool:
+	if draft_options.is_empty():
+		return false
+	return str((draft_options[0] as Dictionary).get("kind", "")) == "core"
 var pressure := 0.0
 var pressure_grace := 0.0
 ## Which captain is aboard. The gauge, the speed, the health and whether there
@@ -2007,6 +2086,13 @@ func begin_run() -> void:
 	## take. Every run starts on the port cut.
 	basic_swing_serial = 0
 	end_reason = ""
+	## THE CORE IS A CHOICE MADE INSIDE A RUN NOW (board SG-275), so both halves of
+	## it are cleared here. Without the first line the offer arrives once per
+	## session rather than once per run; without the second, run one's Frost Cleave
+	## is still swinging in run two — which is `boiler_max_hp`'s bug (SG-271) with
+	## a different field's name on it.
+	core_offered = false
+	auto_element = ""
 	opening_draft = true
 	## The establishing shot is owed for this run; the renderer spends it on wave 1.
 	run_opening = true
@@ -2121,9 +2207,24 @@ func _bid_matrix() -> Array[Dictionary]:
 	var used: Array[String] = []
 	for skill in skills:
 		used.append(skill.shape)
-	for shape in DRAFT_SHAPES:
-		if str(shape) in used:
-			continue
+	## THE KEYLESS WELL TAKES ONLY WHAT FIGHTS ALONE (board SG-279). The Article
+	## opens the matrix instead of dealing it, and "everything you do not hold" was
+	## read as literally everything — which put a Mortar in the well with no key.
+	## Same rule as the weighted dealer, asked through the same function.
+	var pool: Array = alone_shapes() if keyless_draft() else DRAFT_SHAPES
+	var fresh: Array = []
+	for shape in pool:
+		if not str(shape) in used:
+			fresh.append(str(shape))
+	## AND IF YOU HOLD EVERY ONE OF THEM ALREADY, THE OFFER IS THEM AGAIN. Two
+	## self-firing shapes exist, so a hand of four that has taken both would filter
+	## this matrix down to nothing — and an empty draft is not a hard choice, it is
+	## a run that cannot continue: `choose_draft` has no index to accept and the
+	## state never leaves DRAFT. The weighted dealer already falls through its own
+	## guard to a duplicate for this case; this is the same answer, said out loud.
+	if fresh.is_empty():
+		fresh = pool.duplicate()
+	for shape in fresh:
 		for element in ["EMBER", "FROST", "ARC", "STEAM"]:
 			out.append(_weapon_option(SkyGearData.make_skill(str(shape),
 				str(element))))
@@ -2398,8 +2499,20 @@ func choose_draft(index: int) -> void:
 			pressure = minf(99.0, pressure + 35.0)
 		"dash":
 			player.refund_dash(0.65)
+		"core":
+			## The whole of the choice, in one assignment. Every reader in the game
+			## goes through `auto_element_id()` — the swing, the renderer's tell,
+			## the HUD ring, the run report — so they turn together or not at all.
+			auto_element = str(option.get("element", ""))
 	play_sfx("ui/card_pick.ogg", -4.0)
 	draft_options.clear()
+	## AND THE CORE DOES NOT END THE INTERMISSION (board SG-275). It was inserted
+	## in FRONT of the draft, not in place of it, so what happens next is the draft
+	## the player was owed: same wave, same position in the seeded stream, and
+	## `core_offered` already latched so this cannot recur.
+	if str(option.kind) == "core":
+		open_draft()
+		return
 	if opening_draft:
 		opening_draft = false
 		start_wave(1)
@@ -2749,6 +2862,12 @@ func reroll_draft() -> bool:
 	## the card — this is the drawback path, and the harness executes it.
 	if article("opening_bid"):
 		return false
+	## AND SO IS THE CORE OFFER, for the plainer reason that there is nothing in
+	## it to roll: `_core_offer` deals all four elements every time and touches no
+	## RNG. Refusing it is not a nicety — `open_draft` latches `core_offered`, so a
+	## reroll here would spend the offer and hand back an ordinary draft.
+	if core_draft():
+		return false
 	if state != State.DRAFT or rerolls <= 0:
 		return false
 	rerolls -= 1
@@ -2765,6 +2884,59 @@ func reroll_draft() -> bool:
 ## here because the Cleave is the auto attack, not a card.
 const DRAFT_SHAPES := ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY",
 	"AURA", "PULSE", "SENTRY"]
+
+
+## --- THE KEYLESS WELL, AND THE ONE RULE IT HAS (board SG-279) -----------------
+##
+## THE SECOND HAND grants a fifth slot and there is no fifth key. That is what
+## the Article IS — `hud.gd` prints AUTO on the well's tab instead of a binding,
+## and the Articles' own rule is against a binding nobody remembers. So the fifth
+## weapon has to be one that fires itself, or the player has bought a button they
+## cannot press.
+##
+## THE RULE EXISTED AND ONE OF THE TWO DEALERS DID NOT ASK IT. `open_draft`'s
+## weighted branch narrowed the fifth draft to the shapes carrying
+## `passive: true`; `_bid_matrix` — the whole open grid THE OPENING BID deals
+## instead — had no such filter and offered every shape in the game. Take a Mortar
+## from it and `_slot_skill` fills actives forward into the only free index, which
+## is 4, and `_process_skill_input` walks `skill_1..skill_4` and never reaches it.
+##
+## AND IT WAS NOT REACHABLE, WHICH IS SAID PLAINLY RATHER THAN QUIETLY FIXED.
+## `workshop.gd`'s ARTICLES table gives The Opening Bid `"excludes":
+## "second_hand"` and the Second Hand `"excludes": "opening_bid"`, and
+## `can_take` enforces it — so no save can hold both, and no run has ever been
+## able to open the matrix while the capacity is five. The owner's report
+## (*"Let's make sure that that slot is always filled with an auto, because I
+## found myself just spamming my moves a lot and just so many different hot keys
+## to keep in mind"*) describes a thing that was already true; this is not the
+## bug he hit.
+##
+## SO WHY THE FILTER STAYS. The invariant "the keyless well holds only what fires
+## itself" was being guaranteed by a purchase constraint in a different file. That
+## is the shape of a rule nobody can see from where it matters: lift the exclusion
+## for any reason — a balance pass, a ninth Article, a Workshop rework — and the
+## dead button comes back silently, in the one dealer that never asked. Both
+## dealers ask the same two functions now, so the rule holds by construction here
+## and the exclusion is what it should be, a design choice about Articles rather
+## than the thing standing between a player and an unpressable slot.
+
+## The shapes that fight on their own — Field and Pulse today, read off the
+## table's own `passive` flag rather than named here, so a new self-firing shape
+## joins them by being authored rather than by being remembered.
+static func alone_shapes() -> Array:
+	var out: Array = []
+	for shape in DRAFT_SHAPES:
+		if bool(SkyGearData.SHAPES[str(shape)].get("passive", false)):
+			out.append(str(shape))
+	return out
+
+
+## Is the draft about to open the one whose card lands in the keyless well? The
+## hand is full at four and the capacity is five, so the next weapon can only go
+## to index 4 — `_slot_skill` fills actives forward from 0 and passives backward
+## from the end, and both arrive at the same place once 0..3 are taken.
+func keyless_draft() -> bool:
+	return skill_capacity() > 4 and skills.size() >= 4
 
 
 ## The eight shapes, ordered by how much this class wants them. Deterministic
@@ -2823,7 +2995,18 @@ func open_draft() -> void:
 	if voice != null:
 		voice.say("draft")
 	draft_options.clear()
-	if skills.size() < skill_capacity() and article("opening_bid"):
+	## THE CORE, ONCE, WHEN WAVE 4 CLEARS (board SG-275). First in the chain
+	## because it is not one of the others: it does not deal a card, and it does
+	## not spend the draft — `choose_draft` calls this function again the moment it
+	## is answered, `core_offered` is already set by then, and the weapon or
+	## upgrade the player was owed arrives behind it rather than instead of it.
+	##
+	## `not opening_draft` because the opening draft runs at `wave == 0`; the guard
+	## is belt and braces against a future schedule that opens one on wave 4.
+	if wave == CORE_WAVE and not opening_draft and not core_offered:
+		core_offered = true
+		draft_options = _core_offer()
+	elif skills.size() < skill_capacity() and article("opening_bid"):
 		## THE OPENING BID. The matrix is not dealt, it is opened: every shape
 		## you do not hold, in all four elements, and you name the cell. The
 		## weighted dealer, the element-match rule and Fourth Card all step
@@ -2845,12 +3028,13 @@ func open_draft() -> void:
 		## run's first upgrade cards — deals only the shapes that fight on their
 		## own (Field, Pulse), because no fifth key exists and an active in the
 		## keyless slot would be a dead button. The card it displaced IS the
-		## price; the harness holds a check on exactly that draft.
-		if skills.size() >= 4:
+		## price; the harness holds a check on exactly that draft. Both halves of
+		## the question are functions now (board SG-279), because `_bid_matrix` has
+		## to ask the same one and used not to.
+		if keyless_draft():
 			var alone: Array[String] = []
-			for shape in DRAFT_SHAPES:
-				if bool(SkyGearData.SHAPES[shape].get("passive", false)):
-					alone.append(str(shape))
+			for shape in alone_shapes():
+				alone.append(str(shape))
 			shape_order = alone
 		var element_order: Array[String] = ["EMBER", "FROST", "ARC", "STEAM"]
 		var used_shapes: Array[String] = []

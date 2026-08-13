@@ -86,8 +86,21 @@ const DEFAULT := {
 	## the plate's own head is what has to give way. The first captain string
 	## sits at (720 - 24 - h) + min(54, 0.22h) + 8, which clears 586 for
 	## h <= 151; 146 takes it with three pixels to spare rather than one.
+	## AND 400 WIDE, WHERE IT WAS 380 (board SG-276). Nothing inside this plate
+	## moved: `interior()` stopped handing out 22 px of painted brass on each side
+	## as if it were usable, so the plate grew by exactly what it had been
+	## borrowing. Laid out against the old interior, `health` (88 + 194 = 282) and
+	## `vent_icon` (262 + 14 = 276) both ended past the corrected 272, and the
+	## renderer's clamp would have answered by sliding the health bar left across
+	## the portrait — on the one plate whose whole job is being read at a glance.
+	##
+	## AND 400 IS A CEILING, NOT A PREFERENCE. `problems()` is asked at 1366, where
+	## the hand's leftmost well starts at 431 and this plate's left edge is pinned
+	## at 24 — so anything past 407 overlaps the wells, and 440 duly did. 400 keeps
+	## seven pixels of daylight there and still gives a 292 interior, which clears
+	## the health bar's 282 by ten.
 	"captain": {
-		"anchor": "bottom_left", "offset": [24, -24], "size": [380, 146],
+		"anchor": "bottom_left", "offset": [24, -24], "size": [400, 146],
 		"items": {
 			## The porthole. It is the interior's full height less the chip line
 			## reserved under it, which is why it is not square-to-the-plate.
@@ -138,20 +151,42 @@ const DEFAULT := {
 	## lifting was the first attempt and it made the pile-up worse, because a
 	## negative offset in a too-small interior moves an item INTO its neighbour.
 	## The plate grew instead.
+	## 470 WIDE, WHERE IT WAS 420, AND THE SAME REASON AS THE CAPTAIN (SG-276).
+	## The corrected interior of a 420 plate is 312, which the 340-wide BOILER
+	## gauge does not fit inside — and WAVE (150) and BOARDERS (160) together are
+	## 310 of it, so the two readouts the owner reported as "not clear and not well
+	## aligned" would have been touching. At 470 the interior is 362: the gauge has
+	## 22 px of margin and the readouts have 52 px of daylight between them.
 	"objective": {
-		"anchor": "top_centre", "offset": [0, 12], "size": [420, 118],
+		"anchor": "top_centre", "offset": [0, 12], "size": [470, 118],
 		"items": {
 			"boiler": {"anchor": "top_centre", "offset": [0, 4], "size": [340, 26]},
 			"wave": {"anchor": "bottom_left", "offset": [0, -2], "size": [150, 20]},
 			"boarders": {"anchor": "bottom_right", "offset": [0, -2], "size": [160, 20]},
 		},
 	},
+	## THE LANE READOUT, RE-AUTHORED (SG-276). Two separate faults, one report —
+	## the owner's *"the enemy tracker in the three lanes is not aligned properly
+	## at all"*:
+	##
+	##   * WIDTH. 350 corrects to a 242 interior against 268-wide rows, so PORT,
+	##     CENTRE and STARBOARD hung off the left of their own panel and the
+	##     boarder counts off the right. 400 gives 292, and the rows are 280. The
+	##     ceiling is the captain's, mirrored: at 1366 the rightmost well ends at
+	##     935 and this plate's right edge is pinned 24 from the frame.
+	##   * HEIGHT, and this one was never the arithmetic's fault. The shipped file
+	##     carried a hand-dragged 186-tall plate with its rows at y = 48/66/84,
+	##     which left 48 px of dead brass ABOVE the three tracks and 4 px below —
+	##     the rows sat low in a panel half again as tall as they needed. 150 tall
+	##     gives an 84 px interior for 60 px of rows, and 12/34/56 centres them in
+	##     it. `assets/hud_layout.json` is regenerated from this table, so the two
+	##     stop disagreeing.
 	"ship": {
-		"anchor": "bottom_right", "offset": [-24, -24], "size": [350, 118],
+		"anchor": "bottom_right", "offset": [-24, -24], "size": [400, 150],
 		"items": {
-			"lane0": {"anchor": "top_left", "offset": [0, 6], "size": [268, 16]},
-			"lane1": {"anchor": "top_left", "offset": [0, 26], "size": [268, 16]},
-			"lane2": {"anchor": "top_left", "offset": [0, 46], "size": [268, 16]},
+			"lane0": {"anchor": "top_left", "offset": [0, 12], "size": [280, 16]},
+			"lane1": {"anchor": "top_left", "offset": [0, 34], "size": [280, 16]},
+			"lane2": {"anchor": "top_left", "offset": [0, 56], "size": [280, 16]},
 		},
 	},
 	## Centre-relative, because that is what a centre anchor means: the offset is
@@ -175,7 +210,12 @@ const DEFAULT := {
 const SLOT_ITEMS := {
 	"key": {"anchor": "top_centre", "offset": [0, -1], "size": [66, 14]},
 	"icon": {"anchor": "centre", "offset": [0, 2], "size": [32, 32]},
-	"name": {"anchor": "bottom_centre", "offset": [0, 1], "size": [74, 13]},
+	## 66, MATCHING `key` (SG-276). A slot is 120 wide, so its corrected interior is
+	## 67.2 and a 74-wide nameplate was authored 7 px outside its own well — which
+	## `problems()` would now say out loud and the renderer was silently clamping.
+	## The two boxes on this plate that hold words are the same width now, which is
+	## what they should always have been.
+	"name": {"anchor": "bottom_centre", "offset": [0, 1], "size": [66, 13]},
 }
 
 const ORDER := ["objective", "captain", "slot0", "slot1", "slot2", "slot3",

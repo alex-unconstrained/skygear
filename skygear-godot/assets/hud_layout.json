@@ -1,6 +1,6 @@
 {
   "_readme": "The shipped HUD layout. Press F4 in game to drag it, which writes user://hud_layout.json \u2014 that file wins over this one. To make a hand-placed layout the default, copy it over this file. Anchors are the nine of a 3x3 grid; an offset is measured to the box's matching edge, so a bottom_right box keeps its bottom-right corner a fixed distance from the screen's, and a centre box measures centre to centre. Plates are placed against the screen; items are placed against their plate's interior, which is the plate minus its painted brass frame.",
-  "version": 2,
+  "version": 3,
   "plates": {
     "captain": {
       "anchor": "bottom_left",
@@ -9,7 +9,7 @@
         -24
       ],
       "size": [
-        380,
+        400,
         146
       ],
       "items": {
@@ -92,6 +92,52 @@
         }
       }
     },
+    "objective": {
+      "anchor": "top_centre",
+      "offset": [
+        0,
+        12
+      ],
+      "size": [
+        470,
+        118
+      ],
+      "items": {
+        "boiler": {
+          "anchor": "top_centre",
+          "offset": [
+            0,
+            4
+          ],
+          "size": [
+            340,
+            26
+          ]
+        },
+        "wave": {
+          "anchor": "bottom_left",
+          "offset": [
+            0,
+            -2
+          ],
+          "size": [
+            150,
+            20
+          ]
+        },
+        "boarders": {
+          "anchor": "bottom_right",
+          "offset": [
+            0,
+            -2
+          ],
+          "size": [
+            160,
+            20
+          ]
+        }
+      }
+    },
     "ship": {
       "anchor": "bottom_right",
       "offset": [
@@ -99,18 +145,18 @@
         -24
       ],
       "size": [
-        350,
-        186
+        400,
+        150
       ],
       "items": {
         "lane0": {
           "anchor": "top_left",
           "offset": [
             0,
-            48
+            12
           ],
           "size": [
-            268,
+            280,
             16
           ]
         },
@@ -118,10 +164,10 @@
           "anchor": "top_left",
           "offset": [
             0,
-            66
+            34
           ],
           "size": [
-            268,
+            280,
             16
           ]
         },
@@ -129,10 +175,10 @@
           "anchor": "top_left",
           "offset": [
             0,
-            84
+            56
           ],
           "size": [
-            268,
+            280,
             16
           ]
         }
@@ -181,6 +227,17 @@
         120,
         112
       ]
+    },
+    "slot4": {
+      "anchor": "bottom_centre",
+      "offset": [
+        128,
+        -140
+      ],
+      "size": [
+        120,
+        112
+      ]
     }
   },
   "slot_items": {
@@ -213,9 +270,10 @@
         1
       ],
       "size": [
-        74,
+        66,
         13
       ]
     }
-  }
+  },
+  "screens": {}
 }

@@ -874,6 +874,29 @@ func _poster_cross(period: float, phase: float) -> float:
 	return fposmod(t / period + phase, 1.0)
 
 
+## WHERE THE DISTANT SHIP IS IN HER CROSSING — arithmetic, not a draw, so the one
+## thing about her that was wrong can be asked headless (board SG-274).
+##
+## SHE SAILS RIGHT TO LEFT, AND THAT IS ANCHORED TO THE ART RATHER THAN CHOSEN.
+## `assets/art/env/airship_distant.png` carries the hull's prow and bowsprit at
+## the LEFT of the frame and the tail fins at the RIGHT: the painted ship points
+## left. The crossing used to run `cross` straight, which drove her left to
+## right — stern first, for the whole width of the title screen, for as long as
+## the poster has existed. The owner caught it off a still: *"That sky ship is
+## actually going backwards. You can't see the movement, but it's going
+## backwards."*
+##
+## `1.0 - cross` RATHER THAN A MIRRORED SOURCE RECT. Flipping the region would
+## also flip the painted light, and every other object on this poster is lit from
+## the same side; a ship lit from the wrong one is a second bug traded for the
+## first. Reversing the travel moves nothing but the direction.
+##
+## The travel is a ship's width plus 60 clear of BOTH edges, so she is fully off
+## the canvas at each end and never pops.
+static func poster_ship_x(cross: float, view_w: float, ship_w: float) -> float:
+	return -ship_w - 60.0 + (1.0 - cross) * (view_w + ship_w * 2.0 + 120.0)
+
+
 ## --- THE POSTER (SG-248) ------------------------------------------------------
 ##
 ## THE TITLE SCREEN IS A PICTURE NOW, and the menu stands on it.
@@ -913,11 +936,19 @@ func _poster_cross(period: float, phase: float) -> float:
 ##                             bleeding off the left edge so the cutlass is
 ##                             cropped by the frame rather than floating in it.
 ##
-## AND IT SAYS WHAT THE GAME IS, which was the other half of the ask. Twenty-four
-## new words, and the load-bearing one is not a word at all: THE HAND is a drawn
-## grid of every shape crossed with every element, four rows by nine columns,
-## along the foot. A player does not read that skills are a matrix; they see
-## thirty-six of them.
+## IT NO LONGER TEACHES, AND THE FOOT IS THE PICTURE'S AGAIN (board SG-274's
+## neighbour, SG-273). THE HAND — the drawn grid of every shape crossed with
+## every element, four rows by nine columns — stood along the foot of this
+## screen, because a player does not read that skills are a matrix, they see
+## thirty-six of them. The owner cut it from here: *"I don't think that needs to
+## be on the main menu. I don't think we need to show that to the player. It just
+## doesn't really suit the rest of the title screen."*
+##
+## THE DIAGRAM IS NOT DELETED, IT IS WHERE IT WAS ALWAYS FOR. `_draw_hand` still
+## draws the same object on the foot of HOW TO PLAY, which is the screen a
+## stranger opens to be told what a skill is. What the title screen loses is a
+## lesson nobody asked it for; what it gains is 193 px of sky and a prow that
+## stands on the bottom of the frame instead of on a chart.
 ## Measured alpha bounding boxes. Every one read off the file rather than
 ## estimated, because a source rect that guesses at the transparent margin puts
 ## the figure somewhere other than where the arithmetic says it is.
@@ -929,6 +960,18 @@ const SHIP_FAR_SRC := Rect2(88, 6, 338, 143)
 ## The prow's two lanterns, as fractions of its own box.
 const PROW_LAMPS := [Vector2(0.161, 0.522), Vector2(0.831, 0.522)]
 const POSTER_EMBER := Color("#ff9a4a")
+
+## THE PICTURE'S FOOT LINE, measured up from the bottom of the canvas. The prow
+## hangs off it (`rail_y + 62 - ph`) and the menu board measures its head up from
+## it, so it is the one number that decides how the title screen stacks.
+##
+## 72, WHERE IT USED TO BE 193 (board SG-273). The old value was not chosen — it
+## was THE HAND's own height, four rows of cells plus a heading and a sentence,
+## and the figurehead stood on top of the chart because the chart was there. With
+## the grid gone, the line is only a margin: 72 keeps the prow's two lit lanterns
+## inside the frame while letting her stand on the bottom of it rather than
+## floating a fifth of the canvas above it.
+const POSTER_FOOT := 72.0
 
 
 ## THE PICTURE. Nine draws, back to front, and every one of them is a texture
@@ -955,7 +998,7 @@ func _draw_poster(board_x: float, rail_y: float) -> void:
 		var sw: float = size.y * 0.070
 		var sh: float = sw * SHIP_FAR_SRC.size.y / SHIP_FAR_SRC.size.x
 		draw_texture_rect_region(ship, Rect2(
-			-sw - 60.0 + _poster_cross(104.0, 0.0) * (size.x + sw * 2.0 + 120.0),
+			poster_ship_x(_poster_cross(104.0, 0.0), size.x, sw),
 			size.y * 0.115 + 15.0 * _poster_swing(41.0, 0.7), sw, sh),
 			SHIP_FAR_SRC, Color(1, 1, 1, 0.60))
 	var near := _tex("res://assets/art/env/clouds_near.png")
@@ -1009,11 +1052,17 @@ func _draw_poster(board_x: float, rail_y: float) -> void:
 
 ## THE HAND — the explanation, drawn rather than written.
 ##
-## The one thing a stranger could not learn from this screen was what a skill IS.
-## A sentence saying "every skill is a shape crossed with an element" is a claim;
+## The one thing a stranger could not learn from the game was what a skill IS. A
+## sentence saying "every skill is a shape crossed with an element" is a claim;
 ## thirty-six icons in four coloured rows is the thing itself. Nine shapes across,
 ## four elements down, each cell the shape's own icon in the element's own
 ## colour — the same two tables the draft deals from.
+##
+## IT HAS ONE CALLER NOW, AND IT IS HOW TO PLAY (board SG-273). This was drawn on
+## the title screen as well until the owner cut it from there — a diagram that
+## explains a system is furniture on the screen you pass through every launch and
+## the point of the screen you deliberately open. Nothing about the object
+## changed; it lost the caller that was showing it to people who had not asked.
 func _draw_hand(rail: Rect2) -> void:
 	_stamp(rail, 0.62)
 	var shapes: Array = SLOT_ICONS.keys()
@@ -1046,12 +1095,18 @@ func _draw_hand(rail: Rect2) -> void:
 
 func _draw_title() -> void:
 	## The picture's two anchors, decided before anything is drawn: where the
-	## board's left edge sits, and where the foot rail's top is.
+	## board's left edge sits, and where the picture's foot line is.
+	##
+	## THE FOOT IS A MARGIN NOW, NOT A CHART (board SG-273). It used to be the
+	## height of THE HAND — four rows of cells plus its heading and its sentence,
+	## 193 px on a 1080 canvas — because the grid stood there and the prow stood on
+	## the grid. With the grid gone the line has one job left, which is to tell the
+	## figurehead where the bottom of the frame is, and 72 px is what puts her
+	## lanterns just inside it. Both readers are below: the poster hangs the prow
+	## off this line, and the menu board measures its own head up from it.
 	var board_left: float = size.x - 40.0 - (MENU_W + MENU_PAD * 2.0)
-	var hand_h: float = clampf(size.y * 0.0225, 17.0, 26.0) * 4.0 + 6.0 * 3.0 + 78.0
-	var hand_rail := Rect2(0.0, size.y - hand_h, size.x, hand_h + 6.0)
-	_draw_poster(board_left, hand_rail.position.y)
-	_draw_hand(hand_rail)
+	var foot_y: float = size.y - POSTER_FOOT
+	_draw_poster(board_left, foot_y)
 	## --- THE LOCKUP ---------------------------------------------------------
 	##
 	## THE BANNER IS RETIRED FROM THIS SCREEN. Its art (`frame_hud.png`'s
@@ -1174,7 +1229,8 @@ func _draw_title() -> void:
 		body += MENU_LADDER_H + MENU_GAP
 	if classes_on:
 		body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP ## WHO IS ABOARD + sentence
-	body += MENU_PLATE_H + MENU_BLURB_H + MENU_GAP     ## THE CORE + sentence
+	## THE CORE IS NOT ON THIS SCREEN ANY MORE (board SG-275) — it is a wave-4
+	## choice now, so it costs this column nothing.
 	if classes_on:
 		body += MENU_PLATE_H + MENU_GAP                ## COMPARE THE TWO
 	if shop_on:
@@ -1188,10 +1244,11 @@ func _draw_title() -> void:
 
 	## AND ITS HEAD IS MEASURED FROM ITS FOOT, not from a constant. `MENU_TOP`
 	## was 352 — a number chosen when the banner above it was the tallest thing
-	## on the screen. The board now has to clear THE HAND at the bottom and sit
-	## under the lockup at the top, and the full post-victory column is 636 tall
-	## against 1080 of canvas with the grid taking 168 of it. So the foot is
-	## pinned above the rail and the head follows from the height.
+	## on the screen. The board has to clear the picture's foot line at the bottom
+	## and sit under the lockup at the top, so the foot is pinned above the line
+	## and the head follows from the height. (It used to have to clear THE HAND,
+	## which took 168 of the canvas; SG-273 gave that back and the same
+	## arithmetic simply has more room to work in.)
 	##
 	## MEASURED, NOT ASSUMED: the canvas is ALWAYS 1920x1080 —
 	## `window/stretch/mode="canvas_items"` with a 1920x1080 base viewport, so
@@ -1200,7 +1257,7 @@ func _draw_title() -> void:
 	## and the arithmetic below is against 1080 because that is what it is
 	## always drawing into.
 	var board_h: float = body + MENU_STILE * 2.0
-	var board_top: float = clampf(hand_rail.position.y - 46.0 - 30.0 - 14.0 - board_h,
+	var board_top: float = clampf(foot_y - 46.0 - 30.0 - 14.0 - board_h,
 		size.y * 0.20, size.y * 0.34)
 	var board := Rect2(wx - MENU_PAD, board_top, wide + MENU_PAD * 2.0, board_h)
 	_menu_board(board)
@@ -1228,21 +1285,17 @@ func _draw_title() -> void:
 		y += MENU_PLATE_H
 		_menu_caption(wx, y, wide, str(game.class_data().get("blurb", "")))
 		y += MENU_BLURB_H + MENU_GAP
-	## THE CORE (board SG-99). Directly under WHO IS ABOARD because it is the
-	## other half of the same decision: the class already chose the auto-attack's
-	## element and never said so, and the ask was for a way to say otherwise.
-	## Cycling, like the class row, for the same reason — a screen of its own for
-	## four options is a click paid every run. The plate names the WEAPON rather
-	## than the element ("Frost Cleave", not "FROST"), because the thing being
-	## changed is what she swings, and the element's own colour carries which one.
-	if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
-			"THE CORE  ·  %s" % game.auto_name(),
-			{"key": "THE CORE", "pt": 17}):
-		game.cycle_auto_element()
-	y += MENU_PLATE_H
-	_menu_caption(wx, y, wide, "His basic attack, and the only weapon every run has. %s."
-		% str(SkyGearData.ELEMENTS[game.auto_element_id()].blurb).capitalize())
-	y += MENU_BLURB_H + MENU_GAP
+	## THE CORE USED TO BE HERE, DIRECTLY UNDER WHO IS ABOARD (board SG-99), and
+	## the owner moved it off this screen entirely (board SG-275): *"I don't think
+	## we should have the player pick the element of their cleave before they start
+	## playing. I think that should happen maybe as a bonus on round four, because
+	## at that point they would have kind of settled on what element they want to
+	## focus on."*
+	##
+	## SG-99's argument against a CARD still holds and is not what this breaks — a
+	## card is dealt, and an answer that arrives in some runs is not one. The
+	## wave-4 offer is not dealt: it is named, rng-free, at a fixed wave, and it
+	## arrives in every run that gets there. See `game.gd::_core_offer`.
 	## ...AND A WAY TO SEE WHAT THE OTHER ONE IS.
 	##
 	## A cycling row plus one sentence is enough to pick a class you already know
@@ -1734,6 +1787,28 @@ const RAIL_BREATH := 6.0
 ## thinner than the slice carrying it, and this cap is the cheap approximation of
 ## that. Measured against the delivered plates, which is where the old 0.19 came
 ## from.
+##
+## AND IT IS APPLIED PER AXIS NOW, WHICH IS THE WHOLE OF BOARD SG-276. It was one
+## number for both, taken off the plate's SHORT side — so on a plate that is short
+## and WIDE the vertical squeeze silently paid for itself out of the horizontal
+## budget. `objective` is 420 x 118: the cap bound at `118 * 0.22 = 25.96` and
+## every string on it was laid out 25.96 px from the plate's edge against a
+## painted rail of 48, which put WAVE 2 / 12 and BOARDERS across the rivets. The
+## `ship` plate (350 x 186) did the same thing to PORT, CENTRE and STARBOARD by
+## 7 px, which is how a lane label ends up hanging off its own panel. Both were
+## reported by the owner in the same message, from one playtest, as two bugs.
+##
+## MEASURED, NOT ASSUMED, because 48 is the slice and not the paint. On
+## `assets/art/ui/plate_wide.png` (512 x 378) the brass on the centre row runs to
+## x = 59 and on the centre column to y = 57, so the 48 px corner slice is all
+## brass AND the stretched edge slice carries ~11 px more. On the ship plate that
+## middle band scales by 254/416, so the painted rail lands at 48 + 7.3 = 55.3 —
+## against which `rail + RAIL_BREATH = 54` is very nearly exact. The 6 px of
+## breath was always the right number; it was being thrown away on one axis.
+##
+## THE CAP STILL EARNS ITS KEEP ON THE OTHER ONE. A 118-tall plate inset 54 top
+## and bottom has a 10 px interior, which is no interior at all — so height keeps
+## the compromise and width stops paying for it.
 const RAIL_MAX_FRACTION := 0.22
 
 
@@ -1761,9 +1836,17 @@ static func sheet_room(rect: Rect2) -> Rect2:
 
 
 static func interior(rect: Rect2) -> Rect2:
-	var short: float = minf(rect.size.x, rect.size.y)
-	var inset: float = minf(rail(rect) + RAIL_BREATH, short * RAIL_MAX_FRACTION)
-	return rect.grow(-inset)
+	## What the painted rail actually costs, plus the breath that keeps a glyph
+	## off it. `rail()` is the renderer's own number, asked rather than guessed.
+	var want: float = rail(rect) + RAIL_BREATH
+	## ...and then capped against EACH axis separately (SG-276). A plate that is
+	## too short to give 54 px top and bottom is not thereby too narrow to give 54
+	## left and right, and pretending otherwise is what drew the lane labels and
+	## the wave line on the brass.
+	var inset := Vector2(
+		minf(want, rect.size.x * RAIL_MAX_FRACTION),
+		minf(want, rect.size.y * RAIL_MAX_FRACTION))
+	return Rect2(rect.position + inset, rect.size - inset * 2.0)
 
 
 ## --- the screen editor's capture (SG-42) ---------------------------------------
@@ -3832,17 +3915,26 @@ func _draw_world_overlay(under_menu: bool = false) -> void:
 			_stamp(plate, 0.62)
 			_say_free(line, Vector2(plate.position.x, plate.position.y + 15.0),
 				plate.size.x, HORIZONTAL_ALIGNMENT_CENTER, 13, tint)
-			## The ring under the words, so the commitment reads as a commitment.
-			## Only a CHANNELLED verb has a commitment to draw — the instant crate
-			## shove (board SG-37) has no progress bar; it just fires.
-			if not stopped and not bool(spec.get("instant", false)) \
-					and game.deckwork_progress > 0.0:
-				var run := Rect2(plate.position.x + 28.0, plate.end.y + 2.0,
-					plate.size.x - 56.0, 3.0)
-				draw_rect(run, Color(0.05, 0.04, 0.07, 0.7))
-				draw_rect(Rect2(run.position, Vector2(run.size.x * clampf(
-					game.deckwork_progress, 0.0, 1.0), run.size.y)),
-					Color("#ffb347"))
+			## AND NO SECOND PROGRESS BAR HERE (board SG-278). A 3 px run used to be
+			## drawn under this plate, ten world-units from the amber that fills the
+			## gun's own health bed — so one channel drew two bars, and from where
+			## the captain stands they read as one on her and one on the cannon. The
+			## owner: *"Two repair bars appear, one on the player and one on the
+			## turret at the same time. That's unnecessary. You should really just
+			## do one."*
+			##
+			## THE BED IS THE ONE THAT SURVIVES, and it is the better half rather
+			## than the nearer one: it fills the empty bar of the thing being mended,
+			## in the same language every other health bar on this deck speaks, so
+			## the progress and the thing it is progress TOWARD are one object. A
+			## line under a caption is a percentage; a gun refilling is a gun coming
+			## back.
+			##
+			## NOTHING IS LEFT WITHOUT PROGRESS BY THIS. `deckwork.gd::actions` has
+			## exactly one channelled verb — REPAIR THE CANNON — and
+			## `deckwork.gd::_valid` allows it only on a DEAD gun, which is precisely
+			## the state the bed is drawn in. The other two verbs are `instant` and
+			## have never had a bar to lose.
 
 	## The objective, when it is not in the frame. Losing sight of the Boiler is
 	## normal — losing track of whether it is being hit is not.
@@ -4080,6 +4172,12 @@ static func card_face(rect: Rect2) -> Rect2:
 ## (`drawDraft` ~180) — where the port said the generic "CHOOSE ONE" for all
 ## three. Resolved here so the face and the harness read one answer.
 static func draft_heading(game) -> String:
+	## THE CORE names itself before any of them (board SG-275). It is four cards
+	## like an ordinary draft and it is not one — nothing is dealt, nothing is
+	## spent, and the draft the player was owed is still to come — so the heading
+	## is the one place that difference can be said before they read a card.
+	if game.core_draft():
+		return "RE-TUNE THE CORE"
 	## THE OPENING BID's matrix names itself first: more than four options is
 	## the grid, whichever draft it stands in for.
 	if game.draft_options.size() > 4:
@@ -4350,14 +4448,27 @@ func _draw_draft() -> void:
 		_draw_bid_matrix()
 		return
 	# reroll: two per RUN, so spending one is a decision about which hand
-	var reroll := reroll_button(size)
-	var can_reroll: bool = game.rerolls > 0
-	var reroll_hot: bool = can_reroll and reroll.has_point(get_local_mouse_position())
-	draw_rect(reroll, Color(0.69, 0.51, 0.25, 0.22 if reroll_hot else 0.10))
-	draw_rect(reroll, BRASS_LIT if reroll_hot else BRASS, false, 2.0)
-	_center_in_rect(("REROLL  x%d   (R)" % game.rerolls) if can_reroll else "NO REROLLS LEFT",
-		Rect2(reroll.position + Vector2(0, 6), reroll.size), 18,
-		BRASS_LIT if can_reroll else Color("#6a6478"))
+	##
+	## NOT OVER THE CORE (board SG-275). `_core_offer` deals all four elements
+	## every time and touches no RNG, so there is nothing in it to roll — and
+	## `reroll_draft` refuses it for the harder reason that rolling it would spend
+	## the offer. A button that is refused when pressed is worse than no button, so
+	## the strip is simply absent here, exactly as it is under The Opening Bid.
+	## The line below stands in its place, because a band that goes empty reads as
+	## a screen that failed to draw.
+	if game.core_draft():
+		_label("this does not cost you your draft — it comes next",
+			Vector2(0.0, reroll_button(size).get_center().y + 6.0), size.x,
+			HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#b9afaa"))
+	else:
+		var reroll := reroll_button(size)
+		var can_reroll: bool = game.rerolls > 0
+		var reroll_hot: bool = can_reroll and reroll.has_point(get_local_mouse_position())
+		draw_rect(reroll, Color(0.69, 0.51, 0.25, 0.22 if reroll_hot else 0.10))
+		draw_rect(reroll, BRASS_LIT if reroll_hot else BRASS, false, 2.0)
+		_center_in_rect(("REROLL  x%d   (R)" % game.rerolls) if can_reroll else "NO REROLLS LEFT",
+			Rect2(reroll.position + Vector2(0, 6), reroll.size), 18,
+			BRASS_LIT if can_reroll else Color("#6a6478"))
 	var card_width := CARD_W
 	## `mini(4...)`, and it was `mini(3...)` — which silently hid FOURTH CARD's
 	## whole purchase: the talent dealt a fourth option and this cap kept it off
@@ -5152,7 +5263,17 @@ func _draw_how() -> void:
 	## offset from the page's floor, which is what put it on top of the text.
 	var hand := Rect2(room.position.x - 12.0, maxf(cy[0], cy[1]) + 18.0,
 		room.size.x + 24.0, hand_h)
+	var page_frame := _frame
 	_draw_hand(hand)
+	## AND THE PAGE TAKES ITS FRAME BACK (board SG-281). `_draw_hand` opens with
+	## `_stamp`, and a stamp CLAIMS the frame — that is what it is for, so a label
+	## written into a recessed strip is measured against the strip. The BACK button
+	## below is not written into the diagram, it belongs to the page; declared
+	## against the hand's strip it is a widget sitting nowhere near its own plate,
+	## and `SkyGearUI.collisions` said exactly that: `widget 0 of 1 sits on the
+	## frame`. The verdict was right and had nobody reading it — this screen's
+	## editor line has been reporting it since the diagram landed here.
+	_frame = page_frame
 
 	ui.begin("how", self, font, get_local_mouse_position())
 	if ui.button(Rect2(size.x * 0.5 - 110.0, room.end.y - 38.0, 220.0, 38.0),

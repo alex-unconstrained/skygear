@@ -1,22 +1,52 @@
 # NEEDS ALEX
 
-**BUILD 72 IS LIVE ON ITCH, both channels, off one commit (`84dadd7`) and one
-harness run — 1245/1245, exit 0, 54 engine errors against a pinned 54.**
+**EIGHT FIXES OFF YOUR HEAT 3 PLAYTEST ARE ON `main` AND NOT IN ANY BUILD.**
+Harness **1259/1259, exit 0, 0 script errors, 54 engine errors against a pinned
+54.** Nothing here is blocked on you — the only decision left is whether to pack
+and push build 73, which is yours.
+
+What you get when you do:
+
+- **The title screen** loses the WHAT YOU DRAFT grid (it stays on HOW TO PLAY)
+  and loses THE CORE entirely. The airship flies forwards now.
+- **THE CORE is a wave-4 choice.** All four elements, once per run, and it does
+  **not** cost you the draft — the ordinary draft opens behind it.
+- **The wave/boarders readout and the lane tracker are off the rivets.** One
+  cause, not two: the code that decides where a plate's brass ends was capping
+  both axes off the SHORT side, so wide HUD strips laid their text 22 px inside
+  the painted frame.
+- **The Furnace Knight can reach you.** His swing now connects at 222 — exactly
+  where your Cleave connects with him — against 135 before. Same health, same
+  damage, same 0.90 s tell. There is a wedge to step out of now.
+- **One repair bar**, on the gun.
+- The keyless fifth slot's rule now lives with both dealers. **See the note
+  below: this one was not the bug you hit.**
+
+**BUILD 72 IS STILL WHAT IS LIVE ON ITCH**, both channels, off commit `84dadd7`.
 
 - **`windows`** build **#1878613** (from #1876329) — the full game.
 - **`windows-demo`** build **#1878614** (from #1876328) — the demo cut.
 - Version string on both: `72-polish-pass`. **Rollback is build 71: #1876329 and #1876328.**
 
-Both exes were made to read their own identity back before the push — `SkyGear`
-and `SkyGear Demo`, both 0.72.0.0 — and the `README.txt` was read out of both
-ZIPS rather than scanned in source, because for two builds it told your testers
-the CAPTAIN "fights at range" while the class screen says range is the losing
-line. It says the right thing now, and the demo copy says six waves, not twelve.
+## One thing you asked for that was already true
 
-Detail lives in `skygear-godot/docs/BOARD.md`. **38 open rows; next free ID is
-SG-273.**
+You said: *"In the workshop, you can get a talent that unlocks an additional
+slot. Let's make sure that that slot is always filled with an auto."* It already
+was. The fifth well has only ever been dealt Field or Pulse, both of which fire
+themselves, and its tab says AUTO for that reason. There was a hole in the OTHER
+dealer — The Opening Bid's open matrix had no such filter — but the Workshop
+makes the Bid and the Second Hand mutually exclusive, so no save can hold both
+and no run could ever reach it. I closed it anyway and wrote down why: the rule
+was being guaranteed by a purchase constraint in a different file, so lifting
+that exclusion for any reason would have brought the dead button back silently.
+**If you were hitting a slot you could not press, it was something else — tell me
+which key and which weapon and I will find it.**
 
-*Last cleaned 2026-08-12, at the build-72 push.*
+Detail lives in `skygear-godot/docs/BOARD.md`. **39 open rows; next free ID is
+SG-282.** The eight rows from this session are closed in
+`skygear-godot/docs/BOARD-ARCHIVE.md`.
+
+*Last cleaned 2026-08-12, after the build-72 playtest fixes.*
 
 ---
 

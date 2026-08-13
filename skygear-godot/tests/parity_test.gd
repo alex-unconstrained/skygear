@@ -3822,20 +3822,40 @@ func _victim_chain() -> void:
 		_swing_ledger(game, boarder) == "player/player",
 		"aimed/landed = %s" % _swing_ledger(game, boarder))
 
-	## 7. THE SG-194 ARITHMETIC, and it is a table fact rather than a simulation.
-	## A furnace knight trips his windup at `attack_range + 17` and `tools/bot.gd`
-	## holds the captain at `BAND`. While the first is smaller than the second, a
-	## captain who holds the band is a captain he cannot swing at AT ALL — which
-	## is what the probe measured (0 swings resolved in 6 minutes of orbit) and
-	## what the owner reported feeling. This check is the claim, not the feeling.
-	var trip: float = float(SkyGearData.ENEMIES.ARMORED.attack_range) + 17.0
-	_check("victim", "a furnace knight's swing trips well inside the band the bot holds — the SG-194 arithmetic",
-		trip < BOT_SCRIPT.BAND,
-		"trips at %.0f against a %.0f band, so he must close %.0f units to swing at all"
-			% [trip, BOT_SCRIPT.BAND, BOT_SCRIPT.BAND - trip])
-	## AND HE IS SLOWER THAN SHE IS, which is the other half of why he never
-	## closes it. Read off both tables so that changing either one moves this.
-	_check("victim", "and he is slower than the captain, so closing that gap is not something he can simply do",
+	## 7. THE SG-194 / SG-277 ARITHMETIC, and it is a table fact rather than a
+	## simulation.
+	##
+	## THIS CHECK USED TO ASSERT THE BUG, WHICH IS WHY IT IS REWRITTEN RATHER THAN
+	## RE-PINNED. It read `attack_range + 17 < BOT_SCRIPT.BAND` and its comment
+	## drew the conclusion out loud — *"a captain who holds the band is a captain
+	## he cannot swing at AT ALL"*. That was an honest record of a DIAGNOSIS when
+	## SG-194 measured it (0 swings resolved in 6 minutes of orbit), and it stopped
+	## being one the moment nobody re-read it: a green row stating that the game's
+	## heavy melee boarder cannot reach the player is a green row over a defect.
+	## The owner found it by playing: *"I'm able to kill them with my lit melee
+	## without them even being able to melee. It seems really silly."*
+	##
+	## AND IT WAS THE WRONG NUMBER FOR ITS OWN CLAIM. The trip is where he BEGINS
+	## his windup; he walks until then, so a trip inside the band never meant he
+	## could not swing at the band. What decides whether he can touch her is the
+	## REACH, and that is what both rows below ask.
+	var reach_at: float = float(SkyGearData.ENEMIES.ARMORED.reach) 		+ SkyGearEnemy.CAPTAIN_RADIUS
+	_check("victim", "a furnace knight's swing now covers the band the bot holds — the SG-277 repair of SG-194",
+		reach_at >= BOT_SCRIPT.BAND,
+		"connects at %.0f against a %.0f band" % [reach_at, BOT_SCRIPT.BAND])
+	## AND THE HARDER HALF: it covers the range the CAPTAIN'S OWN Cleave connects
+	## from, so there is no distance at which she hits him for free. Both sides
+	## read off their own tables — his reach and her auto's range — so a tuning
+	## pass that moves either one moves this row, in either direction.
+	var cleave_at: float = float(SkyGearData.CLASSES.captain.auto.range) 		+ float(SkyGearData.ENEMIES.ARMORED.radius)
+	_check("victim", "and it covers the range her Cleave reaches him from, so the free standoff is gone",
+		reach_at >= cleave_at,
+		"his swing connects at %.0f, her Cleave at %.0f — %.0f units of daylight"
+			% [reach_at, cleave_at, cleave_at - reach_at])
+	## AND HE IS STILL SLOWER THAN SHE IS, which is what keeps the fix from being a
+	## boarder who simply runs her down: the reach lets him answer, the speed still
+	## lets her leave. Read off both tables so that changing either one moves this.
+	_check("victim", "and he is still slower than the captain, so the answer to him is still to move",
 		float(SkyGearData.ENEMIES.ARMORED.speed) < SkyGearPlayer.SPEED,
 		"knight %.0f against a captain's %.0f walk (and a %.0f dash)"
 			% [float(SkyGearData.ENEMIES.ARMORED.speed), SkyGearPlayer.SPEED,
@@ -4892,45 +4912,112 @@ func _report() -> void:
 		"%.2fs close" % game.tel.range_time.close)
 	## THE AUTO-ATTACK'S ELEMENT IS THE RUN'S, NOT THE TABLE'S (board SG-99, the
 	## build-44 ask: *"Can we get a way to change the auto-attack to another
-	## element? So it's not always fire?"*). Four things have to be true at once,
-	## and each of them is a way this could have been a cheat rather than a
-	## feature: an untouched pick has to be byte-identical to the old game; the
-	## choice has to reach the SWING and not only the label; it must consume no
-	## RNG, because a new draw before the first card deal moves every seeded crit,
-	## element roll and spawn jitter in the game; and it must not put the Cleave
-	## back into the draft, whose 32-cell matrix is 8 draftable shapes × 4
+	## element? So it's not always fire?"*) — AND IT IS CHOSEN ON WAVE 4, NOT
+	## BEFORE THE RUN (board SG-275, the build-72 playtest: *"I don't think we
+	## should have the player pick the element of their cleave before they start
+	## playing... maybe as a bonus on round four"*).
+	##
+	## SG-99's four conditions all still have to hold, and each of them is a way
+	## this could be a cheat rather than a feature: an untouched pick is
+	## byte-identical to the old game; the choice reaches the SWING and not only
+	## the label; it consumes no RNG, because a new draw mid-run moves every
+	## seeded crit, element roll and spawn jitter after it; and it never puts the
+	## Cleave back into the draft, whose 32-cell matrix is 8 draftable shapes × 4
 	## elements and derives that number by counting.
+	##
+	## THE MOVE ADDS THREE MORE, because "a bonus on round four" is a promise
+	## about WHEN and about COST: it must arrive on wave 4 rather than at any
+	## draft, it must not spend the draft the player was owed, and it must be
+	## offered once per run rather than once per session.
 	_check("auto", "an untouched core is the class's own",
 		game.auto_element == ""
 			and game.auto_element_id() == str(game.class_data().auto.element),
 		game.auto_element_id())
-	var auto_before: int = game.rng.state
-	game.cycle_auto_element()
-	_check("auto", "and naming another one costs the seeded stream nothing",
-		game.rng.state == auto_before, "state moved to %d" % game.rng.state)
-	_check("auto", "the pick reaches the swing, not just the nameplate",
-		game.auto_element_id() != str(game.class_data().auto.element)
-			and game.auto_name().begins_with(
-				str(SkyGearData.ELEMENTS[game.auto_element_id()].name))
-			and game.auto_name().ends_with(str(game.class_data().auto.name)),
-		game.auto_name())
-	## All four, and back to where it started — a cycle that cannot return you to
-	## the run you meant to play is a one-way door.
-	var seen: Array[String] = []
-	for i in SkyGearData.ELEMENTS.size():
-		if not game.auto_element_id() in seen:
-			seen.append(game.auto_element_id())
-		game.cycle_auto_element()
-	_check("auto", "the core cycles every element and comes home",
-		seen.size() == SkyGearData.ELEMENTS.size()
-			and game.auto_element_id() == seen[0],
-		"%d of %d" % [seen.size(), SkyGearData.ELEMENTS.size()])
 	_check("auto", "and the Cleave is still never dealt as a card",
 		not "CLOSEHIT" in SkyGearGame.DRAFT_SHAPES
 			and SkyGearGame.DRAFT_SHAPES.size() * SkyGearData.ELEMENTS.size() == 32,
 		"%d shapes x %d elements" % [SkyGearGame.DRAFT_SHAPES.size(),
 			SkyGearData.ELEMENTS.size()])
-	game.auto_element = ""
+
+	## Its own run, so nothing here perturbs the report fixture above.
+	var core := _new_game()
+	_begin(core)
+	## THE TIMING, BOTH WAYS. A draft on any wave BUT four deals cards; the draft
+	## on four deals the core. Without the negative half this passes for a build
+	## that offers the core at every intermission.
+	core.wave = SkyGearGame.CORE_WAVE - 1
+	core.opening_draft = false
+	core.open_draft()
+	var early_core: bool = core.core_draft()
+	core.wave = SkyGearGame.CORE_WAVE
+	var stream_before: int = core.rng.state
+	core.open_draft()
+	var offered: Array = core.draft_options.duplicate()
+	var elements_offered: Array[String] = []
+	var all_core := true
+	for option in offered:
+		if str((option as Dictionary).get("kind", "")) != "core":
+			all_core = false
+		elements_offered.append(str((option as Dictionary).get("element", "")))
+	_check("auto", "the core is offered when wave 4 clears, and at no other draft",
+		not early_core and core.core_draft() and all_core
+			and offered.size() == SkyGearData.ELEMENTS.size(),
+		"wave %d dealt %s; wave %d dealt %d %s options" % [
+			SkyGearGame.CORE_WAVE - 1, "the core" if early_core else "cards",
+			SkyGearGame.CORE_WAVE, offered.size(),
+			"core" if all_core else "mixed"])
+	## EVERY element, including the one he already swings — "keep what I have" is
+	## an answer, and an offer that omits it is a forced re-tune.
+	var missing := ""
+	for element in SkyGearData.ELEMENTS.keys():
+		if not str(element) in elements_offered:
+			missing += str(element) + " "
+	_check("auto", "and it offers all four, the one he already carries included",
+		missing == "" and str(core.auto_element_id()) in elements_offered,
+		"offered %s; missing %s" % [str(elements_offered), missing])
+	_check("auto", "and naming one costs the seeded stream nothing",
+		core.rng.state == stream_before,
+		"state moved to %d" % core.rng.state)
+	## THE PICK REACHES THE SWING. Driven through `choose_draft`, the door a
+	## player actually uses, on an element the class did not bring.
+	var want := ""
+	for element in SkyGearData.ELEMENTS.keys():
+		if str(element) != str(core.class_data().auto.element):
+			want = str(element)
+			break
+	var took := -1
+	for i in core.draft_options.size():
+		if str(core.draft_options[i].get("element", "")) == want:
+			took = i
+	core.choose_draft(took)
+	_check("auto", "the pick reaches the swing, not just the nameplate",
+		core.auto_element_id() == want
+			and core.auto_name().begins_with(
+				str(SkyGearData.ELEMENTS[core.auto_element_id()].name))
+			and core.auto_name().ends_with(str(core.class_data().auto.name)),
+		core.auto_name())
+	## AND IT DOES NOT COST THE DRAFT. Taking a core leaves the player still in a
+	## draft — the ordinary one — on the SAME wave, rather than walking them onto
+	## wave 5 having spent their intermission on a flavour choice.
+	_check("auto", "taking the core does not spend the draft it stands in front of",
+		core.state == SkyGearGame.State.DRAFT and not core.core_draft()
+			and not core.draft_options.is_empty()
+			and core.wave == SkyGearGame.CORE_WAVE,
+		"state %s with %d %s options on wave %d" % [core.state_name,
+			core.draft_options.size(),
+			"core" if core.core_draft() else "ordinary", core.wave])
+	## ONCE PER RUN. Re-entering the same wave's draft — which a reroll does —
+	## must not re-deal it, or the offer is taken as many times as it is asked.
+	core.open_draft()
+	var twice: bool = core.core_draft()
+	## ...and once per RUN rather than once per session: a second run gets its own
+	## offer, and does NOT inherit the first run's element (the SG-271 shape).
+	core.begin_run()
+	_check("auto", "it is offered once per run, and a new run starts on the class's own again",
+		not twice and not core.core_offered and core.auto_element == ""
+			and core.auto_element_id() == str(core.class_data().auto.element),
+		"re-dealt %s; new run carries %s" % [twice, core.auto_element_id()])
+	core.queue_free()
 
 	var text: String = game.run_report()
 	_check("report", "the run report names the build, the seed and the work",
@@ -9203,6 +9290,30 @@ func _view() -> void:
 			and SkyGearDeckwork.actions()[0].has("verb")
 			and SkyGearDeckwork.actions()[0].has("at"))
 
+	## ONE JOB, ONE BAR (board SG-278). The owner: *"Two repair bars appear, one on
+	## the player and one on the turret at the same time. That's unnecessary. You
+	## should really just do one."* The one that was cut is the 3 px run under the
+	## HOLD prompt; the one that stayed fills the broken gun's own empty health bed,
+	## because progress drawn INTO the thing being mended says what it is progress
+	## toward.
+	##
+	## KEEPING ONE IS ONLY SUFFICIENT WHILE THE TABLE SAYS SO, and that is what
+	## this row asks rather than scanning `hud.gd` for the deleted lines — a source
+	## scan over a drawing decision is SG-272's mistake. Two conditions: exactly ONE
+	## verb is channelled, and its target is in the state the bed is drawn in.
+	## The second is already pinned two rows up by `deck · a healthy cannon offers
+	## no work` and `deck · but a broken one does` — repair is offered only on a
+	## dead gun, and a dead gun is exactly when the empty bed is on screen. Add a
+	## second channelled verb and this goes red before anyone channels with no
+	## progress shown anywhere.
+	var channelled: Array[String] = []
+	for spec in SkyGearDeckwork.actions():
+		if not bool(spec.get("instant", false)):
+			channelled.append(str(spec.id))
+	_check("deck", "exactly one deckwork verb is channelled, which is why one progress bar covers them all",
+		channelled.size() == 1 and channelled[0] == "repair_turret",
+		"channelled: %s" % str(channelled))
+
 	## THE SECOND VERB IS TABLED (board SG-68). The owner, 2026-08-02: "the
 	## current push crate mechanic is boring. table that feature for now we can
 	## revisit interactions like that later." The SG-10/SG-37 checks that
@@ -10289,6 +10400,53 @@ func _view() -> void:
 	hand.choose_draft(0)
 	_check("shop", "and the hand is five", hand.skills.size() == 5,
 		"%d skills" % hand.skills.size())
+	## AND THE WELL IT LANDED IN HOLDS SOMETHING THAT FIRES ITSELF — the invariant
+	## rather than the dealer that was supposed to produce it. Index 4 is the
+	## keyless one: `_process_skill_input` walks `skill_1..skill_4` and stops.
+	_check("shop", "and the keyless well holds a weapon that fires itself, whichever dealer filled it",
+		bool(SkyGearData.SHAPES[str(hand.skills[4].shape)].get("passive", false)),
+		"slot 5 holds %s" % str(hand.skills[4].shape))
+	## THE OTHER DEALER, ASKED DIRECTLY (board SG-279). THE OPENING BID does not
+	## deal three cards, it opens the whole matrix — and it did so with no passive
+	## filter, so the same fifth draft would have offered a Mortar for the well
+	## with no key.
+	##
+	## IT IS NOT REACHABLE IN A RUN AND THIS CHECK SAYS SO RATHER THAN PRETENDING.
+	## `workshop.gd` gives the two Articles `excludes` on each other and `can_take`
+	## enforces it, so no save holds both — which is exactly why the rule must not
+	## LIVE in that exclusion. `_bid_matrix` is called here directly, on a fixture
+	## whose capacity is five and whose hand is four, because that is the state the
+	## dealer would be asked in the day somebody lifts the exclusion. Delete the
+	## filter and this goes red; delete the exclusion and nothing else changes.
+	_check("shop", "the Bid and the Second Hand still exclude each other, so the matrix case is guarded rather than live",
+		str(SkyGearWorkshop.ARTICLES.opening_bid.excludes) == "second_hand"
+			and str(SkyGearWorkshop.ARTICLES.second_hand.excludes) == "opening_bid",
+		"%s / %s" % [str(SkyGearWorkshop.ARTICLES.opening_bid.excludes),
+			str(SkyGearWorkshop.ARTICLES.second_hand.excludes)])
+	hand.skills.resize(4)
+	var bid_keyless := hand.keyless_draft()
+	var bid_alone := true
+	var bid_shapes := {}
+	for option in hand._bid_matrix():
+		var shape := str((option as Dictionary).skill.shape)
+		bid_shapes[shape] = true
+		if not bool(SkyGearData.SHAPES[shape].get("passive", false)):
+			bid_alone = false
+	_check("shop", "and the open matrix obeys the same rule — the bid cannot name an active into the keyless well",
+		bid_keyless and bid_alone and not bid_shapes.is_empty(),
+		"keyless %s, shapes %s" % [bid_keyless, str(bid_shapes.keys())])
+	## THE CONTROL, and without it the row above passes for a build that had simply
+	## narrowed the bid to passives everywhere. One card earlier the same matrix
+	## must still open wide — that is what The Opening Bid IS.
+	hand.skills.resize(3)
+	var wide_shapes := {}
+	for option in hand._bid_matrix():
+		var shape := str((option as Dictionary).skill.shape)
+		if not bool(SkyGearData.SHAPES[shape].get("passive", false)):
+			wide_shapes[shape] = true
+	_check("shop", "and it opens wide again the moment the next card is not the keyless one",
+		not hand.keyless_draft() and wide_shapes.size() > 1,
+		"%d active shapes offered on a hand of three" % wide_shapes.size())
 	## The control: the same full hand WITHOUT the Article deals cards — which
 	## is exactly the card the Second Hand's fifth weapon displaced.
 	var bare := _new_game()
@@ -13643,6 +13801,53 @@ func _layout() -> void:
 	_check("layout", "and it lands inside the plate's interior, not on its frame",
 		SkyGearHudLayout.interior(slot).grow(2.0).encloses(glyph),
 		"%s in %s" % [glyph, SkyGearHudLayout.interior(slot)])
+
+	## --- AND THE INTERIOR IS INSIDE THE OPENING THE FRAME PAINTS (SG-276) -------
+	##
+	## The check above asks whether an item is inside `interior()`. It cannot
+	## catch the fault the owner reported twice in one message — *"the game wave
+	## number and number of boarders are not clear and not well aligned"* and
+	## *"the enemy tracker in the three lanes is not aligned properly at all"* —
+	## because in that fault the item WAS inside `interior()`, and `interior()`
+	## was outside the brass. Every item passed; every string was on the rivets.
+	##
+	## `_nine` paints a rail of `rail(rect)` on all four sides. `interior()` insets
+	## by `rail + RAIL_BREATH`, capped — and the cap was one number taken off the
+	## SHORT side, so a plate that is short and wide paid for its vertical squeeze
+	## out of its horizontal budget. This asks the two functions about each other,
+	## on the real shipped plates, and it is the row that goes red the day the cap
+	## goes back to being shared.
+	## THE THREE WIDE PLATES, AND NOT THE SLOTS. A skill well is 120 x 112 and
+	## cannot afford a 48 px rail on either axis, so the cap binds on both and it
+	## is right to — and its housing is a different painting: on
+	## `assets/art/ui/plate_slot.png` (255 x 256) the brass ends at x = 35, where on
+	## `plate_wide.png` (512 x 378) it runs to 59. `rail()` answers 48 for both,
+	## which is calibrated to the wide plate and generous for the slot. That is a
+	## real second-order fault and it is board SG-280, not this row: it was not what
+	## the owner reported, and pinning a number here that is wrong for one of the
+	## two housings would be the wrong number pinned twice.
+	var painted_faults := ""
+	var shipped := SkyGearHudLayout.load_layout()
+	for plate_name in ["objective", "captain", "ship"]:
+		var box: Rect2 = shipped.rect(plate_name, Vector2(1920, 1080))
+		var room: Rect2 = SkyGearHUD.interior(box)
+		## The horizontal inset must cover the painted rail. Vertical deliberately
+		## is NOT asserted: a 118-tall plate cannot give 54 px top and bottom and
+		## still have an interior, which is the whole reason the cap exists.
+		var got: float = room.position.x - box.position.x
+		if got < SkyGearHUD.rail(box) - 0.01:
+			painted_faults += "%s insets %.1f against a %.1f rail; " % [
+				plate_name, got, SkyGearHUD.rail(box)]
+	_check("layout", "a plate's interior starts inside the brass its own frame paints, on every axis it can afford to",
+		painted_faults == "", painted_faults)
+	## AND THE CAP IS STILL DOING ITS JOB ON THE SHORT AXIS, which is what stops
+	## this being "delete the cap". A 420 x 118 strip must still have a usable
+	## interior height — without the cap it is 118 - 108 = 10 px.
+	var strip := Rect2(0, 0, 420, 118)
+	var strip_room: Rect2 = SkyGearHUD.interior(strip)
+	_check("layout", "and the cap still protects a short plate's height, which is why it exists",
+		strip_room.size.y > 40.0 and strip_room.size.x < strip.size.x - 100.0,
+		"a 420x118 strip keeps %.0f x %.0f" % [strip_room.size.x, strip_room.size.y])
 	## The four slots share one set of item positions. Four slots that disagree
 	## about where the glyph goes is four bugs rather than four decisions.
 	var other: Rect2 = plan.rect("slot3", Vector2(1366, 768))
@@ -14104,10 +14309,20 @@ func _screen_editor() -> void:
 	## that was not about the editor at all.
 	##
 	## What this is testing is the RESIZE MECHANISM: a saved delta narrows a box,
-	## rides a reflow, refuses the floor, and fires the live verdict. Any
-	## single-line text element on the title exercises all four. So it takes the
-	## widest one it can find, which keeps the test about the mechanism and
-	## immune to the copy changing again.
+	## rides a reflow, refuses the floor, and fires the live verdict. So it takes
+	## the widest single-line string it can find, which keeps the test about the
+	## mechanism and immune to the copy changing again.
+	##
+	## AND IT RUNS ON HOW TO PLAY, NOT THE TITLE (board SG-273). The reflow leg
+	## needs a string whose BOX follows the window, and it used to get one by
+	## accident: the widest string on the title was THE HAND's caption, laid out at
+	## `size.x - 80`. The owner took the hand off the title screen, and every string
+	## left there has a fixed box — the menu column is `MENU_W`, and the strapline
+	## rides `min(820, board_left - 76)`, which is CLAMPED at 820 at both 1600 and
+	## 1920. So the leg became untestable on that screen, and this block followed
+	## the diagram to where it now lives. Same object, same mechanism, and HOW TO
+	## PLAY lays out against the sheet's own writing area, which does reflow.
+	game.how_open = true
 	hud.queue_redraw()
 	await process_frame
 	var probe := ""
@@ -14125,7 +14340,7 @@ func _screen_editor() -> void:
 	await process_frame
 	if probe != "" and hud.edit_elements.has(probe):
 		var base0: Vector2 = hud.edit_elements[probe].base
-		SkyGearHUD.layout.set_screen_size("title", probe, Vector2(-400, 0))
+		SkyGearHUD.layout.set_screen_size("how", probe, Vector2(-400, 0))
 		hud.queue_redraw()
 		await process_frame
 		var field: Rect2 = hud.edit_elements[probe].field
@@ -14147,7 +14362,7 @@ func _screen_editor() -> void:
 				wide.x - 400.0)
 		hud.size = Vector2(1600, 900)
 		## Past the floor: a five-thousand-pixel shrink stops at MIN_PT.
-		SkyGearHUD.layout.set_screen_size("title", probe, Vector2(-5000, 0))
+		SkyGearHUD.layout.set_screen_size("how", probe, Vector2(-5000, 0))
 		hud.queue_redraw()
 		await process_frame
 		floor_held = is_equal_approx(
@@ -14158,9 +14373,10 @@ func _screen_editor() -> void:
 		for line in hud.edit_trouble:
 			if str(line).contains("escapes its width"):
 				verdict_fired = true
-		SkyGearHUD.layout.set_screen_size("title", probe, Vector2.ZERO)
+		SkyGearHUD.layout.set_screen_size("how", probe, Vector2.ZERO)
 		hud.queue_redraw()
 		await process_frame
+	game.how_open = false
 	game.layout_key = ""
 	game.layout_panel = -1
 	_check("editor", "a saved size delta narrows the text box by exactly that much",
@@ -14173,7 +14389,7 @@ func _screen_editor() -> void:
 	_check("editor", "and a box narrowed past its own words fires the live verdict",
 		verdict_fired, "; ".join(hud.edit_trouble))
 	_check("editor", "the screen is clean again once the delta is erased",
-		hud.edit_trouble.is_empty() and not SkyGearHUD.layout.screens.has("title"),
+		hud.edit_trouble.is_empty() and not SkyGearHUD.layout.screens.has("how"),
 		"; ".join(hud.edit_trouble))
 
 	## CTRL+S, END TO END (SG-83 — "I hit Ctrl+S and it looks like it didn't
@@ -15061,10 +15277,63 @@ func _demo_cut() -> void:
 	## The second half is what makes the first half mean something: if none of
 	## these plates were on the full title either, "not in the demo" would be
 	## true of a screen that simply failed to draw.
+	## The ungated controls used to be BEGIN RUN and THE CORE. THE CORE left this
+	## screen entirely on 2026-08-12 (board SG-275) — it is a wave-4 choice now —
+	## so HOW TO PLAY takes its place as the second one. Two are wanted, not one:
+	## a single control can be satisfied by a screen that drew almost nothing.
 	_check("demo", "the title withholds the full game's doors, and still opens them without the tag",
 		leaked == "" and absent_from_full == "" and demo_title.contains("BEGIN RUN")
-			and demo_title.contains("THE CORE"),
+			and demo_title.contains("HOW TO PLAY"),
 		"leaked into demo [%s]; missing from full [%s]" % [leaked, absent_from_full])
+
+	## WHAT THE TITLE SCREEN STOPPED SAYING ON 2026-08-12, both by the owner's
+	## word, and both asked of the DRAWN screen rather than of the source — a
+	## source scan is how SG-272 stayed green over a fix that never worked.
+	##
+	##   * THE HAND, the 36-cell shape × element grid: *"I don't think that needs
+	##     to be on the main menu... It just doesn't really suit the rest of the
+	##     title screen."* (board SG-273)
+	##   * THE CORE, the pre-run cleave element: *"I don't think we should have the
+	##     player pick the element of their cleave before they start playing."*
+	##     (board SG-275)
+	_check("menu", "the title screen no longer teaches the draft matrix or asks for the core",
+		not full_title.contains("WHAT YOU DRAFT")
+			and not full_title.contains("every skill is a shape crossed")
+			and not full_title.contains("THE CORE"),
+		full_title.replace("\n", " · ").substr(0, 160))
+	## AND THE GRID IS NOT DELETED, IT IS WHERE IT WAS ALWAYS FOR. Without this
+	## half, "not on the title" would be satisfied by having thrown the diagram
+	## away — which is a different change from the one that was asked for.
+	game.how_open = true
+	var how_page: String = await said.call()
+	game.how_open = false
+	_check("menu", "and it still teaches it on HOW TO PLAY, which is the screen you open to be taught",
+		how_page.contains("WHAT YOU DRAFT")
+			and how_page.contains("every skill is a shape crossed"),
+		how_page.replace("\n", " · ").substr(0, 160))
+
+	## THE DISTANT AIRSHIP SAILS THE WAY HER PROW POINTS (board SG-274). The owner
+	## caught this off a still: *"That sky ship is actually going backwards."*
+	## `assets/art/env/airship_distant.png` carries the hull's prow at the LEFT of
+	## the frame and the tail fins at the RIGHT, so the crossing has to run right
+	## to left — and it ran the other way for as long as the poster has existed.
+	##
+	## Asked of the arithmetic, because the art's facing is a fact about a PNG that
+	## no check can read: what this pins is the DIRECTION, so restoring the bare
+	## sawtooth turns it red. Sampled across the whole crossing rather than at the
+	## ends, so a function that merely starts and finishes in the right places
+	## cannot pass by going the wrong way in between.
+	var ship_x: Array[float] = []
+	for step in 9:
+		ship_x.append(SkyGearHUD.poster_ship_x(float(step) / 8.0, 1920.0, 76.0))
+	var sails_left := true
+	for i in range(1, ship_x.size()):
+		if ship_x[i] >= ship_x[i - 1]:
+			sails_left = false
+	_check("menu", "the distant airship sails the way her prow points, all the way across",
+		sails_left and ship_x[0] > 1920.0 and ship_x[-1] + 76.0 < 0.0,
+		"enters at %.0f, leaves at %.0f, %s" % [ship_x[0], ship_x[-1],
+			"monotonic" if sails_left else "TURNS ROUND MID-CROSSING"])
 
 	## SETTINGS: OPEN ALL HEATS and its "Playtest:" caption are now an editor
 	## tool, gated on game.dev_tools rather than the demo tag — testers get the

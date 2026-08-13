@@ -260,6 +260,19 @@ func _swing_hits(point: Vector2, swing_reach: float, body: float) -> bool:
 const BOSS_SECOND_BEAT_REACH := 90.0
 
 
+## HOW WIDE THE CAPTAIN IS TO A BOARDER'S SWING. Every hostile shape in this file
+## measures to its target's NEAR EDGE, so this number is a term in every question
+## anyone asks about whether a blow lands on him — the stomp's circle, the wedge's
+## resolve, and the `victim()` dictionary the two of them read their radius out of.
+##
+## NAMED, BECAUSE IT WAS TYPED THREE TIMES (board SG-277). It was a bare `17.0` at
+## each of those three sites and a fourth copy in the harness, which is this
+## project's second failure mode — two functions disagreeing about one number —
+## sitting one careless edit away from happening. Nothing about the value moved;
+## it stopped being a literal.
+const CAPTAIN_RADIUS := 17.0
+
+
 ## THE COLOSSUS WALKS THE LANE, NOT THE CAPTAIN — COLOSSUS-DESIGN §2 graft 1,
 ## the root fix, and SET TO `false` TO PUT HIM BACK ON HER HEELS (board SG-146).
 ##
@@ -589,7 +602,7 @@ func stomp_hits(point: Vector2, body: float) -> bool:
 func _resolve_stomp() -> Dictionary:
 	var hit := {"player": false, "turrets": 0, "crew": 0, "boiler": false}
 	var damage := float(config.damage)
-	if stomp_hits(game.player.global_position, 17.0):
+	if stomp_hits(game.player.global_position, CAPTAIN_RADIUS):
 		game.damage_player(damage, kind)
 		hit.player = true
 	for t in game.turrets:
@@ -654,7 +667,7 @@ const CREW_NOTICE := 220.0
 ## one, because the damage call needs the row and not just its geometry.
 func victim() -> Dictionary:
 	if chases_captain() and global_position.distance_to(game.player.global_position) < CAPTAIN_NOTICE:
-		return {"who": "player", "position": game.player.global_position, "radius": 17.0}
+		return {"who": "player", "position": game.player.global_position, "radius": CAPTAIN_RADIUS}
 	var gate: Dictionary = game.turret_in_lane(lane)
 	if not gate.is_empty() and global_position.y < float(gate.position.y) + TURRET_GATE_SLACK:
 		return {"who": "turret", "position": gate.position,
@@ -821,7 +834,7 @@ func _physics_process(delta: float) -> void:
 				## `_resolve_stomp` returning what it touched is the precedent: a
 				## damage total answers "how much" and hides "on whom".
 				last_swing = {"aimed": aim_who, "landed": ""}
-				if aim_who == "player" and _swing_hits(game.player.global_position, swing_reach, 17.0):
+				if aim_who == "player" and _swing_hits(game.player.global_position, swing_reach, CAPTAIN_RADIUS):
 					game.damage_player(float(config.damage), kind)
 					last_swing.landed = "player"
 				elif aim_who == "turret" and _swing_hits(target_position, swing_reach, target_radius):

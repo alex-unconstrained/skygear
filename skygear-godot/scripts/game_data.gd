@@ -107,7 +107,49 @@ const ENEMIES := {
 	## — and against everything that does not dodge (the Boiler, a cannon, a
 	## crewman) his throughput is 17.9 dps before and 17.9 after. This buys him
 	## TIME to be that thing, and nothing else. The measured result is at SG-165.
-	"ARMORED": {"hp": 360.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 82.0, "reach": 118.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
+	## ---------------------------------------------------------------------------
+	## AND HE STILL COULD NOT REACH HER (board SG-277, owner 2026-08-12, over a
+	## Heat 3 run of build 72): *"increase the range of the auto attack for the
+	## furnace knights, because it seems like their melee is very small range. I'm
+	## able to kill them with my lit melee without them even being able to melee.
+	## It seems really silly. Give me something to dodge there."*
+	##
+	## THE ARITHMETIC, OFF BOTH TABLES, AND IT IS THE WHOLE BUG. Every melee
+	## resolve measures to the target's NEAR EDGE, so a swing connects at
+	## `reach + target radius` and her Cleave connects at `auto.range + his
+	## radius`:
+	##
+	##   his swing    reach 118 + her radius 17               = 135
+	##   her Cleave   CLASSES.captain.auto.range 190 + his 32 = 222
+	##
+	## **87 units in which she hits him and he cannot answer** — and he closes it
+	## at 75 u/s against her 260 walk and two 265-unit dashes, so in practice he
+	## never closes it at all. SG-97 above designed *"slow, telegraphed,
+	## hard-hitting, dodgeable by stepping out of a wedge you can see"*, and
+	## SG-165 bought him the lifetime to be it. Neither is reachable while the
+	## wedge stops 87 units short of the fight: there is nothing to step out of.
+	##
+	## `reach` 118 -> 205, SO HIS SWING CONNECTS EXACTLY WHERE HERS DOES.
+	## 205 + 17 = 222, which is her Cleave's own contact distance to the unit. That
+	## is the number BECAUSE it is hers: at every range from which she can hit him
+	## he can now hit back, and the standoff stops being free without becoming a
+	## place she cannot fight. It is a long lunge and it is his — a two-handed
+	## polearm on a body of radius 32 — and the renderer draws the wedge from this
+	## same field (`swing_wedge_reach`), so the telegraph grows with it. That is
+	## the thing to dodge, and the 0.90 s read is unchanged: 234 units of her walk
+	## against a 120-degree fan she can simply step around.
+	##
+	## `attack_range` 82 -> 190, so he COMMITS at 190 + 17 = 207 rather than
+	## walking to 99 first. Kept under the reach on purpose — the harness holds
+	## `telegraph · nothing may connect from outside the shape that was drawn`, and
+	## a trip further out than the swing would be exactly that.
+	##
+	## WHAT DOES NOT MOVE: hp, speed, damage, radius, swing, windup, recover. His
+	## throughput against everything on this deck that cannot dodge — the Boiler, a
+	## cannon, a crewman — is `damage / (windup + recover)` and is still SG-97's
+	## 17.9 dps to the decimal, which the harness pins. This buys him the ability
+	## to be a threat to a player who moves, and nothing else.
+	"ARMORED": {"hp": 360.0, "speed": 75.0, "damage": 34.0, "radius": 32.0, "attack_range": 190.0, "reach": 205.0, "swing": 2.094395, "windup": 0.90, "recover": 1.00, "ai": "melee", "scale": 0.20, "texture": "res://assets/art/enemies/furnace_knight_front_idle.png"},
 	"SWARM": {"hp": 20.0, "speed": 230.0, "damage": 6.0, "radius": 15.0, "attack_range": 46.0, "reach": 64.0, "swing": 1.396263, "windup": 0.40, "recover": 0.30, "ai": "melee", "scale": 0.22, "texture": "res://assets/art/enemies/gremlin_front_idle.png"},
 	## THE COLOSSUS'S HITBOX WAS BIGGER THAN HIS TELEGRAPH IN BOTH DIMENSIONS
 	## (board SG-119). He was the only melee row carrying no `reach` and no
