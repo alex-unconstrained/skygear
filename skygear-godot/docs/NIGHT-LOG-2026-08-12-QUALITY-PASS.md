@@ -344,8 +344,42 @@ rests instead on `clamp_metallic`'s own stated guarantee, on 27 of 40 models
 already sitting at peak exactly 0.3400 while 13 did not, and on a harness check
 demonstrated red. That is enough. The picture claim was not.
 
-*(The withdrawn reading, kept because it is instructive:)* my first impression by
-eye was that the deck got warmer, and the numbers said otherwise — Global mean warmth moves +0.2% to
+**8.4c — AND THEN IT WAS MEASURED PROPERLY, WITH THE TOOL THE PROJECT ALREADY
+HAD.** `tools/shiny_ab.gd` is titled *"THE METALLIC CEILING, AS A PICTURE"*. It
+takes both plates inside ONE freeze with only that float changed, prints its own
+noise floor first, and its header contains the sentence this session spent an
+hour rediscovering: *"two runs of a shot tool never land the brazier flicker, the
+particle clock and the cloud drift in the same place twice (SG-108)."*
+
+**The repository knew. Nothing pointed at it, and I did not look.** That is the
+sixth failure mode — a fact known in one place and contradicted in another — and
+this pass committed it while closing three other instances of it.
+
+Run with the clamped tree as plate A and `metallicFactor 1.0` restored in memory
+as plate B:
+
+```
+NOISE FLOOR (nothing changed between two plates): 0.00%  (0.00 is the pass condition)
+```
+
+| model | % of frame | clamped luma | unclamped | warmth (R−B) | saturation |
+| --- | --- | --- | --- | --- | --- |
+| railing_segment | 1.49% | **58.17** | 40.76 | 42.84 / 32.27 | 44.40 / 34.17 |
+| cannon_deck | 2.29% | **69.86** | 52.16 | 67.29 / 50.90 | 69.92 / 53.45 |
+| powder_keg | 1.82% | **49.19** | 40.87 | — | 32.73 / 31.06 |
+| crate_stack | 0.34% | 47.35 | 45.40 | 25.16 / 23.76 | 32.64 / 31.28 |
+| brazier | 0.36% | 43.96 | 42.11 | 11.62 / 11.01 | 21.76 / 21.35 |
+
+**The railing is 43% brighter clamped and the deck cannon 34%**, with warmth and
+saturation up by a third on both. And the plates settle it by eye as well:
+`cannon_deck-B.png` is glassy chrome-gold with a hard mirror highlight, outside
+the deck's painted language entirely; `-A.png` is flat warm brass with tonal
+shading — the style bible's *"brass = 2–3 flat tones + a hard specular stripe"*
+rather than a mirror. SG-179's verdict and its correction, side by side, at a
+zero floor.
+
+*(The withdrawn reading from 8.4a, kept because it is instructive:)* my first
+impression by eye was that the deck got warmer, and the numbers said otherwise — Global mean warmth moves +0.2% to
 +0.4% — nothing. Exposure and hue balance are unchanged, which is the *right*
 result for a change that should touch only metal. What changed is confined to
 9.5–26.2% of the frame, is large where it lands, and on exactly those pixels the

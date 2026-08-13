@@ -285,9 +285,18 @@ on the clamp tool's own written guarantee, on 27 of the 40 models already sittin
 exactly where I have now put the other 13, and on a harness check I proved red
 first. But I cannot tell you I measured the picture, so I am not going to.
 
-The same is true of the boarder status tints: I could not photograph those either
-(that tool disagrees with itself on 22%), so they rest on five behavioural checks
-and your eyes. **Two of this project's capture tools cannot currently support a
+**Then I found you already own the right tool and I had not used it.**
+`tools/shiny_ab.gd` — "the metallic ceiling, as a picture" — takes both plates in
+ONE frozen scene, prints its noise floor first, and its header says outright that
+two runs of a shot tool never match. It came back **0.00%**, and with a real floor
+the answer is not subtle: on the pixels that change, the **railing is 43%
+brighter** clamped and the **deck cannon 34%**, with warmth and saturation up by a
+third on both. `.shots/sg291/ab/cannon_deck-A.png` and `-B.png` are the two to
+look at — B is glassy chrome-gold with a mirror highlight, A is flat warm brass
+with shading. **A is the one that looks like your game.**
+
+The status tints I still could not photograph (that tool disagrees with itself on
+22%), so they rest on five behavioural checks and your eyes. **Two of this project's capture tools cannot currently support a
 before/after claim, and the five checks that exist to guarantee they can never run
 a tool twice and compare.** That is board SG-295 and it is the most useful thing
 this session found, because it is the one that says how much of everything else to
