@@ -1,11 +1,45 @@
 # NEEDS ALEX
 
-**EIGHT FIXES OFF YOUR HEAT 3 PLAYTEST ARE ON `main` AND NOT IN ANY BUILD.**
-Harness **1259/1259, exit 0, 0 script errors, 54 engine errors against a pinned
-54.** Nothing here is blocked on you — the only decision left is whether to pack
-and push build 73, which is yours.
+**THE HERO NEVER DIED ON SCREEN. SHE DOES NOW.** Five more fixes are on `main`
+on top of your eight playtest ones, none of it in any build. Harness
+**1277/1277, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
+Still nothing blocked on you — the decision is whether to pack and push build 73.
 
-What you get when you do:
+**The five, in the order they will hit you:**
+
+- **You die on screen now.** For the whole life of the port, being killed put the
+  captain in a *breathing idle* — and then held her there, framed and
+  letterboxed, for the length of the defeat cutscene. Her body also stopped being
+  drawn where the game thought she was, by up to nineteen units. **The
+  Boilerwright has had a death animation since the day he was ingested and
+  nothing had ever asked for it.** The captain had none at all, and her animation
+  archive is long gone off this machine, so hers was retargeted in-project off
+  the crew's — Mixamo's unarmed backwards fall, which suits a one-handed axe
+  better than the two-handed deaths in the sword pack. No spend.
+- **Dying as the Captain no longer tells you the Boiler was lost.** One cue
+  covers both defeats and there is one defeat scene, so the card read THE BOILER
+  IS LOST over a Boiler at full health — and then the results sheet behind it
+  said the opposite. It says what actually happened now.
+- **HIT-STOP HAS NEVER ACTUALLY STOPPED ANYTHING, AND NOW IT DOES.** This is the
+  one to feel. The freeze on a kill gated the wave logic and the projectiles; the
+  captain and every boarder live on the *physics* tick and nothing there had ever
+  read the freeze. So they kept moving at full speed through all 0.070 s of it —
+  measured, a captain slides 11.4 units and a boarder 5.6 inside a window you
+  were being told was frozen. **I changed no tuning number.** 0.070 and 0.040
+  were tuned against a stop that reached half the game; they now reach all of it,
+  so they may be too strong. **That is a playtest question and it is yours** —
+  tell me if kills feel sticky and I will move them with evidence.
+- **You flash white when you are hit.** Every gremlin and knight already did; the
+  hero's material had never been armed for it. Half her hit reaction was missing.
+- **A stunned gremlin no longer breathes at four times speed.** It has no flinch
+  clip, so it borrowed its idle — and the idle got stretched to fit the stun,
+  which pinned it at the 4x clamp. Every ARC proc in the game did this.
+
+**One thing I found by filming the fix and did NOT change — see item 7 below.**
+
+---
+
+**Your eight playtest fixes, still unbuilt.** What you get when you push:
 
 - **The title screen** loses the WHAT YOU DRAFT grid (it stays on HOW TO PLAY)
   and loses THE CORE entirely. The airship flies forwards now.
@@ -42,11 +76,12 @@ that exclusion for any reason would have brought the dead button back silently.
 **If you were hitting a slot you could not press, it was something else — tell me
 which key and which weapon and I will find it.**
 
-Detail lives in `skygear-godot/docs/BOARD.md`. **39 open rows; next free ID is
-SG-282.** The eight rows from this session are closed in
-`skygear-godot/docs/BOARD-ARCHIVE.md`.
+Detail lives in `skygear-godot/docs/BOARD.md`. **43 open rows; next free ID is
+SG-291.** The eight playtest rows and the quality pass's five are closed in
+`skygear-godot/docs/BOARD-ARCHIVE.md`; the pass's own write-up is
+`skygear-godot/docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`.
 
-*Last cleaned 2026-08-12, after the build-72 playtest fixes.*
+*Last cleaned 2026-08-12, after the quality-directive pass.*
 
 ---
 
@@ -167,6 +202,32 @@ P1 you found with it (the swing drawing away from the bodies) is fixed. Still
 open when you next play: **(b)** is 24-versus-20 something you *feel*, or only
 something the floaters told you? **(c)** does anything hide the marker when you
 fight beside the Boiler?
+
+**7 · THE DEFEAT CAMERA POINTS AT THE BOILER, SO YOUR NEW DEATH PLAYS BEHIND IT.**
+I filmed the fix before believing it, and the frames say the shot is aimed at the
+wrong thing. `assets/cutscenes/defeat.json` is a four-key push whose every look
+target is the Boiler — exactly right for the defeat it was authored for, and
+wrong for the other defeat that fires the same cue. In
+`.shots/clips/sg282-captain-death/`, frame 6 shows her red coat at the foot of
+the Boiler and **frame 30 shows no captain at all.** So she dies properly, for
+about a second, and then the camera swallows her.
+
+**I did not fix it, on purpose.** A new authored camera move is a taste call, and
+you already have unapproved visual work queued (the ink pass). **My
+recommendation: a second scene, `defeat_hero.json`, framing the body, cued off
+the same `player.hp <= 0` test the card already reads — and `defeat.json` left
+exactly as it is for the Boiler.** Say the word and it is one lab session. Board
+SG-289.
+
+**8 · ONE FRAME IN EVERY FOUR SECONDS COSTS ~50 MS, AND IT IS NOT NEW.** Measured
+on an idle machine at sixty boarders: p99 is **14.27 ms against the 16.67 budget**,
+so the budget holds — but the worst frame is 56 ms, it is entirely in the script
+bucket (the GPU never passes 3.6 ms), and **it is there on a clean control of the
+tree without any of my changes.** The only baseline this project ever recorded had
+*no frame over 8.71 ms at all*. I have not attributed it to anything, because the
+comparison spans a hundred-plus commits and two resolutions. Board SG-290 says
+what would settle it. **Nothing for you to decide** — flagged because you will
+feel it as an occasional hitch and should know it is known and measured.
 
 **6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
 Named but not built — a results sheet with every progression line skipped
