@@ -8,7 +8,7 @@
 metadata/model_height = 0.017796721
 metadata/target_height = 176.0
 metadata/facing_degrees = 0.0
-metadata/clips = PackedStringArray("block", "combo", "dash", "hurt", "idle", "idle_alt", "run", "run_back", "spin", "swing", "swing2", "swing3", "taunt", "walk")
+metadata/clips = PackedStringArray("block", "combo", "dash", "die", "hurt", "idle", "idle_alt", "run", "run_back", "spin", "swing", "swing2", "swing3", "taunt", "walk")
 
 [node name="Skeleton3D" type="Skeleton3D" parent="." unique_id=1692830125]
 bones/0/name = "mixamorig_Hips"

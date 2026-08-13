@@ -717,6 +717,14 @@ func _physics_process(delta: float) -> void:
 	if game == null or dead or not game.is_playing():
 		velocity = Vector2.ZERO
 		return
+	## AND IT REACHES THE BOARDERS (board SG-286). Below the guard above rather
+	## than folded into it, and that placement is the whole of the correctness
+	## here: the guard ZEROES velocity, and a hit-stop must leave the momentum
+	## exactly where it found it so the shove resumes when the frame does. A
+	## frozen boarder holds its knock velocity, its stun clock and its attack
+	## beat; it does not lose them.
+	if game.sim_frozen():
+		return
 	_update_statuses(delta)
 	if dead:
 		return

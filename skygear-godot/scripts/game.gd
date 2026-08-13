@@ -1871,6 +1871,35 @@ func _process(delta: float) -> void:
 	_process_dash_impacts()
 	queue_redraw()
 
+## IS THE SIMULATION FROZEN THIS INSTANT — the hit-stop, asked rather than
+## assumed (board SG-286).
+##
+## `_process` already gates ITSELF on `impact.advance`, and its comment says
+## "Only the simulation stops." The simulation's two MOVING BODIES are not in
+## `_process`: `SkyGearPlayer._physics_process` and `SkyGearEnemy._physics_process`
+## are, and until this existed nothing outside `impact.gd` had ever read
+## `stop_left` at all. So a 0.070 s kill-stop paused the wave logic and the
+## projectiles and left the swordsman and the twenty-one goblins running at full
+## speed through the whole of it — a captain who killed mid-dash covered 116
+## ground units inside a window the player was being told was frozen.
+##
+## THE THREE CONDITIONS ARE EACH LOAD-BEARING. `state == State.PLAY`, because
+## `_process` returns BEFORE `advance` in every other state and a `stop_left`
+## that is never decremented would freeze the bodies for good — including the
+## dead hero's own slide to a halt in GAMEOVER (SG-282). `impact.enabled`,
+## because the harness turns hit-stop off in `_new_game` precisely so a check
+## that advances three seconds advances three seconds. And `stop_left > 0.0`,
+## which is the stop itself.
+##
+## The RENDERER is deliberately not gated by this and must not be: `_process`'s
+## own comment is right that a frozen frame with a frozen explosion on it reads
+## as a crash rather than as impact. Effects, particles and the camera keep
+## running. What stops is what the word says — the simulation.
+func sim_frozen() -> bool:
+	return state == State.PLAY and impact != null and impact.enabled \
+		and impact.stop_left > 0.0
+
+
 func is_playing() -> bool:
 	## A pose freezes both sides of the glass (SG-44): the live run holds its
 	## breath while a sandbox is posed over it — this is what stops its boarders

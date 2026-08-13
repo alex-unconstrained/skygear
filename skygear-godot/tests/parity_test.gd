@@ -323,6 +323,11 @@ func _run() -> void:
 	await process_frame
 	_endings()
 	await process_frame
+	## AWAITED — it builds two real worlds and drives the mirror across a death.
+	## An un-awaited coroutine here reports a clean pass for checks that never ran
+	## (the `_view` lesson, three paragraphs down).
+	await _hero_dies()
+	await process_frame
 	## AWAITED. `_view` and `_audio` are coroutines — they suspend on their own
 	## `await` — and calling one without `await` hands control straight back here.
 	## `_run` then walked to the summary and called `quit()` while two thirds of
@@ -6416,6 +6421,197 @@ func _endings() -> void:
 	third.queue_free()
 
 
+## --- THE LAST THREE SECONDS OF A LOST RUN (board SG-282, SG-283) ------------
+##
+## `_endings` above proves the simulation ENDS correctly and proved nothing at
+## all about what is on the screen while it does. Both of the bugs these close
+## were regressions of absence — nothing was broken, something had simply never
+## been asked for — and absence is exactly what a source scan cannot see. So
+## none of this reads a file:
+##
+##   * the death checks drive the REAL `_sync_all` on a REAL dead player and read
+##     back the clip the AnimationPlayer ended up holding, not the state anyone
+##     asked for. A harness that asserted `state == "die"` alone would pass on a
+##     rig with no death clip playing an idle, which is the exact bug (`rig3d`'s
+##     own `playing()` exists for this reason and says so).
+##   * the caption checks build the string the cutscene player would really put
+##     on screen, through the same function that builds it in the game.
+func _hero_dies() -> void:
+	for who in ["captain", "boilerwright"]:
+		var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+		root.add_child(world)
+		var view: SkyGearView3D = world as SkyGearView3D
+		var game: SkyGearGame = world.get_node("SkyGear")
+		if game.impact != null:
+			game.impact.enabled = false
+		game.workshop = SkyGearWorkshop.fresh(true)
+		game.refresh_berthed()
+		game.set_class(who)
+		_begin(game, "FELL")
+		view.sway = false
+		await process_frame
+
+		## The mesh path has to be the live one for any of this to mean anything:
+		## the sprite fallback has no death and is deliberately left alone.
+		_check("figure", "the %s is on the mesh path before she is killed" % who,
+			view._captain != null and view._captain.has_clip("idle"),
+			"rig %s" % ("built" if view._captain != null else "MISSING"))
+		if view._captain == null:
+			world.queue_free()
+			continue
+
+		## AND HER MATERIAL CAN TAKE THE WHITE (board SG-287). `react_hit` writes
+		## a scale squash AND a `flash` instance uniform, and the uniform is a
+		## no-op against an imported glTF `StandardMaterial3D` — which is the
+		## whole of SG-217. That row armed every boarder at its rig-build and left
+		## the hero's build block alone, so for the life of the port the one
+		## figure the player never looks away from had half a reaction.
+		##
+		## Asserted on the LIVE rig the renderer actually built, by walking the
+		## meshes the way `_arm_hit_flash` does and reading back what is on them —
+		## not by checking that a function was called.
+		var lit := 0
+		var bare := 0
+		for child in view._captain.model.find_children("*", "MeshInstance3D", true, false):
+			var mi := child as MeshInstance3D
+			for i in mi.get_surface_override_material_count():
+				var mat := mi.get_active_material(i)
+				if mat == null:
+					continue
+				if mat.next_pass is ShaderMaterial \
+						and (mat.next_pass as ShaderMaterial).shader != null:
+					lit += 1
+				else:
+					bare += 1
+		_check("figure", "and the %s's own material can take the white flash, not just the squash" % who,
+			lit > 0 and bare == 0, "%d surfaces armed, %d bare" % [lit, bare])
+
+		## SHE WAS RUNNING WHEN SHE DIED. A body does not stop dead: with the
+		## controls gone the velocity still decays under FRICTION, so the drawn
+		## figure has to keep being placed for the two or three frames it takes —
+		## and that is the half of this bug a pose check would miss.
+		game.player.velocity = Vector2(400.0, 0.0)
+		game.damage_player(99999.0)
+		await process_frame
+		await process_frame
+
+		var playing: String = view._captain.playing()
+		_check("figure", "the %s dies on screen instead of standing there breathing" % who,
+			view._captain.state == "die" and playing.begins_with("die"),
+			"state %s, playing '%s'" % [view._captain.state, playing])
+
+		## SETTLE FIRST, AND THIS IS THE INSTRUMENT BEING FIXED RATHER THAN THE
+		## TOLERANCE BEING LOOSENED. Written as two frames and a 1.0-unit
+		## tolerance, this check passed for the captain and went red for the
+		## Boilerwright on the very next run at `drawn (5.7) against sim (10.3)` —
+		## not a bug in the game but a race in the check: `_sync_all` runs in
+		## `_process` and the body moves in `_physics_process`, so a figure still
+		## sliding at 400 units a second is legitimately up to a frame's travel
+		## behind whatever `global_position` reads a moment later. Comparing a
+		## MOVING body against a position sampled after it is a measurement of
+		## the frame order.
+		##
+		## So wait for the slide to stop — FRICTION 3600 from 400 is about seven
+		## frames — and compare a body at rest. The discrimination is not weakened
+		## by this and is in fact sharper: with the sync gated off, `place` never
+		## runs at all, so the drawn figure stays on the death frame while the sim
+		## carries the body its full braking distance away, and the gap at rest is
+		## the whole slide (measured on the negative control: 19.0 units against a
+		## 1.0 tolerance).
+		for _s in 20:
+			if game.player.velocity.length() < 1.0:
+				break
+			await process_frame
+		await process_frame
+		var drawn := Vector2(view._captain.position.x, view._captain.position.z) \
+			/ SkyGearView3D.WORLD_SCALE
+		_check("figure", "and her body is still drawn where the simulation put it, not frozen where she last lived",
+			game.player.velocity.length() < 1.0
+				and drawn.distance_to(game.player.global_position) < 1.0,
+			"drawn (%.1f, %.1f) against sim (%.1f, %.1f), settled at %.2f u/s"
+				% [drawn.x, drawn.y, game.player.global_position.x,
+					game.player.global_position.y, game.player.velocity.length()])
+
+		## The one-shot must HOLD. `die` is first in PRIORITY and `ONE_SHOT`
+		## keeps a finished clip on its last pose — if either of those is ever
+		## unpicked the corpse stands back up, which is worse than never having
+		## fallen. Half a second of frames is enough to catch a state that
+		## resolves back to idle on the frame the clip ends.
+		for _i in 30:
+			await process_frame
+		_check("figure", "and she stays down — the death holds its last pose rather than resolving back to idle",
+			view._captain.state == "die"
+				and view._captain.playing().begins_with("die"),
+			"after 32 frames: state %s, playing '%s'"
+				% [view._captain.state, view._captain.playing()])
+		world.queue_free()
+		await process_frame
+
+	## A LOST BOILER IS THE OTHER DEFEAT AND THE HERO IS ALIVE IN IT. Same state,
+	## same cue, same cutscene — and if the death were hung off `State.GAMEOVER`
+	## instead of off the player's own health, this is the run where she would
+	## collapse for no reason with the Boiler smoking behind her.
+	var standing: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(standing)
+	var sview: SkyGearView3D = standing as SkyGearView3D
+	var sgame: SkyGearGame = standing.get_node("SkyGear")
+	if sgame.impact != null:
+		sgame.impact.enabled = false
+	sgame.workshop = SkyGearWorkshop.fresh(true)
+	sgame.refresh_berthed()
+	_begin(sgame, "BOILER")
+	sview.sway = false
+	await process_frame
+	sgame.damage_boiler(99999.0)
+	await process_frame
+	await process_frame
+	_check("figure", "but a lost Boiler does not kill a hero who is still standing in front of it",
+		sgame.state_name == "GAMEOVER" and sgame.player.hp > 0.0
+			and sview._captain != null and sview._captain.state != "die",
+		"state %s, hp %.0f, rig %s"
+			% [sgame.state_name, sgame.player.hp,
+				("null" if sview._captain == null else sview._captain.state)])
+
+	## --- THE CARD OVER THE BODY (board SG-283) -------------------------------
+	##
+	## One cue covers both defeats and there is one defeat scene, so the literal
+	## caption in the file was wrong for half of every player's losses: killed by
+	## a furnace knight with the Boiler untouched, you were told full-screen that
+	## the Boiler was lost, and then read the truth on the results sheet directly
+	## behind it. Built through the real `_caption_text` on the real loaded scene.
+	var card := SkyGearCutscenePlayer.new()
+	root.add_child(card)
+	card.view = sview
+	card.scene = SkyGearCutscene.load_scene("defeat")
+	sgame.end_reason = "The Boilerwright fell on wave 7."
+	var fell: String = card._caption_text()
+	sgame.end_reason = "The Boiler was destroyed on wave 7."
+	var cold: String = card._caption_text()
+	_check("cutscene", "the defeat card names the defeat that actually happened",
+		fell != cold and fell.contains("BOILERWRIGHT") and fell.contains("FELL")
+			and not fell.contains("THE BOILER IS LOST")
+			and cold.contains("BOILER") and cold.contains("DESTROYED"),
+		"hero: '%s'  |  boiler: '%s'" % [fell, cold])
+	## `fell != the file's own caption` is part of this one and not an accident:
+	## without it the check passes on the FALLBACK string, which is already upper
+	## case and already has no full stop, and a negative control that removes
+	## `caption_from` leaves it green. It went red with it. A check that only
+	## fails when some OTHER check has already failed is not a second gate.
+	_check("cutscene", "and it is a title rather than a sentence — upper case, no full stop",
+		fell == fell.to_upper() and not fell.ends_with(".")
+			and fell != str(card.scene.get("caption", "")),
+		"'%s'" % fell)
+	## AND THE FILE'S OWN STRING IS STILL THE FLOOR. A scene played out of the
+	## lab, or a pose with no ending behind it, must still have a card.
+	sgame.end_reason = ""
+	_check("cutscene", "and with no reason written down it falls back to the caption in the file",
+		card._caption_text() == str(card.scene.get("caption", "")) and card._caption_text() != "",
+		"'%s'" % card._caption_text())
+	card.queue_free()
+	standing.queue_free()
+	await process_frame
+
+
 ## --- what you actually look at ----------------------------------------------
 ## The port shipped a build whose simulation was right and whose picture was a
 ## different game, and nothing in this harness caught it, because every check
@@ -7921,6 +8117,73 @@ func _view() -> void:
 	_check("impact", "and nothing freezes longer than the cap",
 		punch.hit_stop(9.0) and punch.stop_left <= SkyGearImpact.STOP_MAX,
 		"%.3fs" % punch.stop_left)
+
+	## AND IT REACHES THE TWO MOVING BODIES (board SG-286). Every check above this
+	## line interrogates the ACCOUNTANT — `hit_stop` sets `stop_left`, `advance`
+	## spends it, the cap holds, the refractory holds — and not one of them asks
+	## whether anything on the deck stopped. Nothing did: `impact.advance` gates
+	## `game._process`, and the captain and every boarder integrate in
+	## `_physics_process`, which for the whole life of the port no `stop_left`
+	## reader had ever touched. Nine green checks over a feature that half existed.
+	##
+	## Driven the way the engine drives it — `_physics_process` called directly,
+	## the same idiom `_advance` uses for boarders — because a check that steps a
+	## different loop than the game runs is testing itself.
+	##
+	## TWO ASSERTIONS, AND THE SECOND IS THE DETERMINISTIC ONE. Position is what
+	## the player sees, but `move_and_slide()` reads the engine's own delta
+	## outside a real physics frame (SG-190), so its MAGNITUDE off this rig means
+	## nothing and only "moved / did not move" does. `invulnerability_left` is
+	## plain arithmetic on the delta handed in, so it is exact both ways.
+	var frozen := _new_game()
+	_begin(frozen, "STOP")
+	frozen.impact.enabled = true
+	frozen.impact.reset()
+	var stopped: SkyGearPlayer = frozen.player
+	stopped.controls_enabled = true
+	stopped.velocity = Vector2(600.0, 0.0)
+	stopped.invulnerability_left = 1.0
+	var stop_from := stopped.global_position
+	frozen.impact.hit_stop(SkyGearImpact.STOP_KILL)
+	for _i in 3:
+		stopped._physics_process(0.02)
+	var slid_frozen: float = stopped.global_position.distance_to(stop_from)
+	var iframes_frozen: float = stopped.invulnerability_left
+	## Spend the stop the way `_process` does, then step the identical three ticks.
+	frozen.impact.advance(SkyGearImpact.STOP_KILL + 0.001)
+	var resumed := stopped.global_position
+	for _i in 3:
+		stopped._physics_process(0.02)
+	var slid_live: float = stopped.global_position.distance_to(resumed)
+	_check("impact", "a hit-stop stops the captain's own body, not just the bookkeeping",
+		slid_frozen == 0.0 and slid_live > 0.0,
+		"frozen %.3f units over 3 ticks, then %.3f once it expires"
+			% [slid_frozen, slid_live])
+	_check("impact", "and her clocks stop with her — a frozen frame does not spend i-frames",
+		is_equal_approx(iframes_frozen, 1.0)
+			and stopped.invulnerability_left < 0.99,
+		"1.000 -> %.3f frozen -> %.3f live" % [iframes_frozen, stopped.invulnerability_left])
+
+	## THE BOARDER HALF, on the same terms. A stop that freezes the swordsman and
+	## lets twenty-one goblins keep closing is a stop that makes the fight WORSE.
+	frozen.impact.reset()
+	frozen.spawn_enemy("SWARM", 1)
+	var boarders: Array = frozen.enemies()
+	if not boarders.is_empty():
+		var boarder: SkyGearEnemy = _landed(boarders[0])
+		boarder.velocity = Vector2(0.0, 220.0)
+		var held_at := boarder.global_position
+		var held_stun: float = boarder.stun_time
+		frozen.impact.hit_stop(SkyGearImpact.STOP_KILL)
+		for _i in 3:
+			boarder._physics_process(0.02)
+		_check("impact", "and it stops the boarders too — velocity and clocks held, not zeroed",
+			boarder.global_position.distance_to(held_at) == 0.0
+				and boarder.velocity.length() > 0.0
+				and is_equal_approx(boarder.stun_time, held_stun),
+			"moved %.3f, kept %.0f u/s"
+				% [boarder.global_position.distance_to(held_at), boarder.velocity.length()])
+	frozen.queue_free()
 
 	punch.reset()
 	punch.add_shake(9999.0)
@@ -13028,11 +13291,43 @@ func _view() -> void:
 		## NO FLINCH IN THIS PACK, and that is recorded rather than hidden: a
 		## stunned goblin falls back through rig3d's own chain to something it
 		## does have, which is the behaviour a missing clip is supposed to get.
+		##
+		## REWRITTEN 2026-08-12 (board SG-288) AND THE REASON IS THE SEVENTH
+		## FAILURE MODE. As written this check asserted `not grig.has_clip("hurt")`
+		## as a CONJUNCT — so it was a tripwire on its own subject, red the day
+		## anyone gave the gremlin a flinch, for the wrong reason. Worse, it never
+		## looked at `speed_scale`, and that is the number the bug was hiding in:
+		## `want` fitted the BORROWED idle to the flinch's 0.45 s window and pinned
+		## it at the 4.00x attack clamp, so the most numerous boarder in the game
+		## breathed four times too fast across the deck through every ARC stun,
+		## under a green gate. Having no hurt clip is a fact about the PACK and is
+		## reported as a detail; what is asserted is the DEGRADATION — that
+		## something plays, and that it plays at the speed it was authored at.
 		grig.state = "idle"
 		grig.want("hurt", 0.0, 0.3)
-		_check("rig", "the goblin has no flinch, and a missing clip degrades instead of freezing",
-			not grig.has_clip("hurt") and grig._clip != "" and grig.anim.is_playing(),
-			"asked for 'hurt', got '%s'" % grig._clip)
+		_check("rig", "a missing clip degrades to one the rig has, and the borrowed clip plays at the speed it was authored at",
+			grig._clip != "" and grig.anim.is_playing()
+				and absf(grig.anim.speed_scale - 1.0) < 0.01,
+			"asked for 'hurt', got '%s' at %.2fx (pack %s flinch)"
+				% [grig._clip, grig.anim.speed_scale,
+					"has" if grig.has_clip("hurt") else "has no"])
+		## AND THE EXEMPTION IS PINNED FROM THE OTHER SIDE. `_fallback("jump")`
+		## returns a run cycle ON PURPOSE for the whole roster that has no jump,
+		## and stretching it across the crossing window IS the arrival feature —
+		## so the rule above must not quietly flatten that to 1.00x too. The
+		## gremlin is the wrong figure to prove it on (it is the one kind that
+		## ships a literal `jump`), so this asks a rig that has no jump at all.
+		var jrig := SkyGearRig3D.new()
+		root.add_child(jrig)
+		if jrig.setup("res://assets/models/scrapper/scrapper.tscn",
+				93.0 * SkyGearView3D.WORLD_SCALE, SkyGearView3D.LAYER_FIGURES):
+			jrig.state = "idle"
+			jrig.want("jump", 0.0, 0.4)
+			_check("rig", "but a borrowed JUMP is still stretched over the crossing — the one fallback that is meant to be fitted",
+				not jrig.has_clip("jump") and jrig._clip != ""
+					and jrig.anim.speed_scale > 1.01,
+				"asked for 'jump', got '%s' at %.2fx" % [jrig._clip, jrig.anim.speed_scale])
+		jrig.queue_free()
 		## THE STRIDE LAW, the small case (SG-65's direction). It is the fastest
 		## thing on the deck AND the shortest, and both push the same way: the
 		## cycle has to run faster than the captain's copy of it.

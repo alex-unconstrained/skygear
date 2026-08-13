@@ -8152,7 +8152,22 @@ func _sync_auras() -> void:
 
 func _sync_all(delta: float) -> void:
 	_age_corpses(delta)
-	if game.player != null and game.player.hp > 0.0:
+	## A DEAD HERO IS STILL ON THE DECK, AND THIS GATE USED TO SAY OTHERWISE
+	## (board SG-282). It read `game.player.hp > 0.0` alone, and it did far more
+	## than skip an animation: it skipped THE WHOLE PLAYER BLOCK. On the frame she
+	## died her blob shadow stopped being drawn, and `_sync_captain` stopped being
+	## called at all — so the mesh froze in whatever pose the last live frame had
+	## left it in, un-positioned, un-shadowed and still breathing, and held that
+	## way for the length of the defeat cutscene `_watch_cues` fires on the very
+	## same transition. Nothing was broken. The last three seconds of every lost
+	## run were simply never asked for.
+	##
+	## `_captain != null` rather than a second `hp` test, so the SPRITE FALLBACK
+	## is byte-for-byte what it always was: there is no painted death, and a
+	## billboard hero going on standing after she dies is the behaviour that
+	## shipped. Only the mesh path — the one that now has a `die` clip on both
+	## classes — is asked to carry it.
+	if game.player != null and (game.player.hp > 0.0 or _captain != null):
 		## She is a mesh whenever `_sync_captain` is driving her, so her blob is a
 		## contact core and the moon draws the rest. On the sprite fallback the
 		## blob is all she has and it stays whole.
@@ -8860,13 +8875,55 @@ func _sync_captain(delta: float) -> bool:
 		## the figure that shipped before capes existed.
 		if HERO_CLOAKS.has(who):
 			_captain.wear(HERO_CLOAKS[who], LAYER_FIGURES)
+		## AND THE HERO GETS A MATERIAL THAT CAN TAKE A FLASH (board SG-287).
+		## SG-217 armed every BOARDER — `_sync_rig` pays this once per rig at
+		## build time — and left the one figure the player never looks away from
+		## unarmed, while `react_hit(1.0)` went on being called on her fifty lines
+		## below every time `hurt_time` crosses 0.30. `hit_flash.gdshader`'s own
+		## header had already written the verdict for the general case: that call
+		## "is a no-op against a StandardMaterial3D — it needs a shader that
+		## declares the uniform, which an imported glTF material does not." So the
+		## squash half of her reaction was real and the white half never was —
+		## SG-217's exact finding, left standing on the hero.
+		##
+		## LAST IN THE BUILD BLOCK, which is where `_sync_rig` puts it too, and
+		## the position is the correctness: the weapon and the cape are mounted
+		## ABOVE this line and are children of the rig, so arming here catches
+		## them and arming earlier does not. Written above `mount_weapon` first
+		## and the check said so — "1 surface armed, 1 bare" — a captain whose
+		## body flashed and whose axe did not. Once per rig either way.
+		_arm_hit_flash(_captain)
 	var player := game.player
 	## What she is doing, in the order the rig resolves it. Dash beats run, swing
 	## beats dash — and the rig holds a one-shot for its own length rather than
 	## having it cancelled on the next frame by the run underneath it.
 	var speed: float = player.velocity.length()
 	var doing := "idle"
-	if player.hurt_time > 0.0:
+	## SHE DIES ON SCREEN NOW, AND SHE NEVER DID (board SG-282). This ladder had
+	## no death arm for the whole life of the port: `_set_state(GAMEOVER)` takes
+	## the controls away and does nothing else, so a killed hero's velocity decays
+	## under FRICTION and inside about a fourteenth of a second `doing` resolves to
+	## `idle` like any other figure standing still. `_watch_cues` fires
+	## `cue("defeat")` on that same transition — a held, letterboxed, HUD-less
+	## four-key camera move — so the last thing every lost run showed was the hero
+	## BREATHING, framed and lit. The Boilerwright's own pack has carried `die`
+	## since his ingest and nothing in the tree had ever asked for it; the captain
+	## had no death clip at all until `tools/graft_clip.gd` gave her one.
+	##
+	## `player.hp` and not the state, because GAMEOVER is ALSO how a lost Boiler
+	## ends a run and the hero is alive and standing in that one. It is the same
+	## discriminator the caption reads (SG-283) and it is read from the same place,
+	## so the two cannot come to disagree about which defeat this is.
+	##
+	## WINDOW ZERO, DELIBERATELY. A one-shot handed a window is stretched to fit
+	## it (`rig3d.want`), and a death fitted to a camera move is a death that
+	## accelerates — SG-188's bug, in the one place it would be most visible. At
+	## zero the clip plays at the speed it was authored and holds its last pose,
+	## which is what `ONE_SHOT` is for; `die` is first in `PRIORITY`, so nothing
+	## underneath it can take the body back afterwards.
+	if player.hp <= 0.0:
+		doing = "die"
+	elif player.hurt_time > 0.0:
 		doing = "hurt"
 	elif player.attack_time > 0.0:
 		doing = "swing"

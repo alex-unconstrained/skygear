@@ -235,6 +235,47 @@ func pose_at(at: float) -> void:
 
 # ------------------------------------------------------------------- the bars --
 
+## WHAT THE CARD SAYS, and why it is not always what the file says (board SG-283).
+##
+## `view3d._watch_cues` fires `cue("defeat")` on ANY transition into GAMEOVER, and
+## the simulation reaches that state from two different places: the hero falling
+## (`game.gd`, `player.hp <= 0.0`) and the Boiler being destroyed. There is one
+## defeat scene, and its `caption` was the constant string "THE BOILER IS LOST" —
+## so a player killed by a furnace knight on wave 7, with the Boiler untouched,
+## was told full-screen that the Boiler was lost, and then read the truth on the
+## results sheet immediately behind it. One fact, known in two places, disagreeing
+## — the sixth recurring failure mode, on a screen nobody can look away from.
+##
+## THE FIX IS ONE MORE READER, NOT ONE MORE FILE. A second `defeat_hero.json`
+## would put the wording of a defeat in two files and invite exactly the drift
+## that caused this. A scene may instead declare `"caption_from": "end_reason"`,
+## and then the card says whatever the SIMULATION already decided to call this
+## ending — the same string `hud.gd` prints under the verdict, written once at
+## `game.gd`'s two `_set_state` sites and pinned by
+## `runs · the defeat line names the class that actually fell`.
+##
+## The literal `caption` stays in the file and stays the fallback, so a scene with
+## no reason to offer — a posed shot, a cutscene played out of the lab — still has
+## a card, and a malformed key can only ever cost the sentence its specificity.
+const CAPTION_FROM_REASON := "end_reason"
+
+
+func _caption_text() -> String:
+	var written := str(scene.get("caption", ""))
+	if str(scene.get("caption_from", "")) != CAPTION_FROM_REASON:
+		return written
+	var game = view.game if view != null else null
+	if game == null:
+		return written
+	var reason := str(game.end_reason).strip_edges()
+	if reason == "":
+		return written
+	## Upper case because every other card in the set is, and without the full
+	## stop: `end_reason` is a SENTENCE ("The Boilerwright fell on wave 7.")
+	## because it is printed as one, and a caption is a title.
+	return reason.trim_suffix(".").to_upper()
+
+
 ## Letterbox, a caption and a line saying how to leave. Built in code and thrown
 ## away with the shot rather than living in the HUD, for two reasons: `hud.gd`
 ## is one file with every screen in it and this is not a screen, and a cutscene
@@ -265,7 +306,7 @@ func _build_bars() -> void:
 	_bottom.scale.y = 0.0
 
 	_caption = Label.new()
-	_caption.text = str(scene.get("caption", ""))
+	_caption.text = _caption_text()
 	_caption.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_caption.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_caption.anchor_top = 1.0 - height

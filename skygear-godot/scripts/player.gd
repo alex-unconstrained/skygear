@@ -97,6 +97,16 @@ func reset_for_run() -> void:
 func _physics_process(delta: float) -> void:
 	if game == null:
 		return
+	## THE HIT-STOP REACHES HER NOW (board SG-286). `game._process` has always
+	## gated itself on `impact.advance` and said "only the simulation stops" —
+	## but the body integrates HERE, on the physics tick, and nothing outside
+	## `impact.gd` had ever read `stop_left`. So for the whole 0.070 s of a kill
+	## the captain kept accelerating, her i-frames kept expiring and her attack
+	## window kept closing, and the freeze the player was being sold happened
+	## only to bookkeeping. Everything below this line is the simulation; a stop
+	## that does not stop it is not a stop.
+	if game.sim_frozen():
+		return
 	invulnerability_left = maxf(0.0, invulnerability_left - delta)
 	_update_dash_recharge(delta)
 	_update_aim()

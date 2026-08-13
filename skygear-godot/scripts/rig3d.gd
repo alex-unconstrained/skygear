@@ -635,8 +635,27 @@ func want(next: String, speed: float = 0.0, window: float = 0.0) -> void:
 		## entire leap"* — and it was true of the CLIP and false of the RATE.
 		## Two places knowing one thing differently; it is one place now.
 		if starting:
+			## A BORROWED CLIP IS NOT FITTED TO A WINDOW IT KNOWS NOTHING ABOUT
+			## (board SG-288). `clip` here is the RESOLVED clip and `next` is the
+			## state that was asked for, and for a figure whose pack has no such
+			## clip the resolver has already fallen through `_fallback` to
+			## something else entirely. The gremlin has no `hurt`, so a stun
+			## resolved to its multi-second IDLE and this line divided that idle
+			## by an ARC proc's 0.45 s: it pinned at `ATTACK_RATE_MAX` and the
+			## most numerous boarder in the game breathed FOUR TIMES TOO FAST
+			## across the deck for the whole stun, which reads as a rendering
+			## fault rather than as a flinch. The arithmetic is sound and the
+			## number it is done on does not apply: an idle standing in for a
+			## flinch has no authored relationship to the flinch's length.
+			##
+			## `jump` IS THE DELIBERATE EXCEPTION AND STAYS ONE. `_fallback`
+			## returns a run cycle for it on purpose — most of the roster has no
+			## jump under any spelling — and stretching that cycle over the
+			## crossing window is the feature, not a side effect. So the test is
+			## "did the state get its OWN clip", with jump exempted by name.
+			var fitted: bool = has_clip(next) or next == "jump"
 			_one_shot_rate = clampf(anim.get_animation(clip).length / window,
-				ATTACK_RATE_MIN, ATTACK_RATE_MAX) if window > 0.0 else 1.0
+				ATTACK_RATE_MIN, ATTACK_RATE_MAX) if (window > 0.0 and fitted) else 1.0
 		anim.speed_scale = _one_shot_rate
 	else:
 		anim.speed_scale = 1.0

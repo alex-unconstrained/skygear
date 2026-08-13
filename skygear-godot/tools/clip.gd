@@ -65,6 +65,21 @@ const DT := 1.0 / 60.0
 const LOCAL_SCENARIOS := [
 	{"id": "cleave", "kind": "cleave", "seconds": 6.0, "still": false,
 		"what": "AB-04's repeated basics (SG-208): two stout boarders parked inside the Captain's 190, crew and cannons stood down — consecutive cuts entering from opposite sides, the side tell flipping between them"},
+	## THE ONE BEAT NOTHING COULD FILM (board SG-282). NAMED `hero_death` AND NOT
+	## `defeat`: `ClipMath` already answers to `defeat` with the CUTSCENE-playback
+	## scenario, `_find` checks this local table first, and a local row called
+	## `defeat` would silently shadow it — a scenario list split across two files
+	## is the failure the comment above already flags, and shadowing a name in it
+	## is that failure with a shorter fuse. Every scenario in both
+	## tables films a hero who is winning; the last three seconds of a LOST run
+	## had no scenario at all, which is a large part of why it went unnoticed
+	## that she did not have them. Two variants off one kind so the pair is a
+	## controlled A/B: same seed, same deck, same camera, same frame count, and
+	## the only difference is which class fell.
+	{"id": "hero_death", "kind": "defeat", "seconds": 6.0, "still": false,
+		"what": "SG-282/SG-283: the Captain is killed on wave 3 and the defeat cue fires over her body — the death clip, the hold, and the card that now names the defeat that happened"},
+	{"id": "hero_death_bw", "kind": "defeat", "seconds": 6.0, "still": false,
+		"what": "the same six seconds for the Boilerwright, whose pack has carried `die` since his ingest and had never been asked for it"},
 ]
 
 
@@ -215,7 +230,7 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 	var kind := str(spec.kind)
 	## The boilerwright scenario is ABOUT the second class; everything else
 	## films the captain, the default the other scenarios were framed for.
-	game.set_class("boilerwright" if kind == "boilerwright" else "captain")
+	game.set_class("boilerwright" if kind == "boilerwright" or name == "hero_death_bw" else "captain")
 	game.set_seed_text("CLIP")
 	game.begin_run()
 	game.choose_draft(0)
@@ -232,6 +247,29 @@ func _clip(name: String, seconds: float, fps: float, out_name: String,
 			## Mid-swarm means the swarm has boarded: five un-captured seconds of
 			## real spawning before the shutter opens.
 			await _settle(game, world, 300)
+		"defeat":
+			## A real wave, a real boarder, and then the real killing blow —
+			## `damage_player` is what sets `end_reason` and pushes GAMEOVER, so
+			## the caption under the letterbox is the one the game would write,
+			## not one posed into place. Settled FIRST so the camera has reached
+			## her and the wave banner has expired before she is killed: the
+			## shutter has to open on the deck, not on a transition.
+			game.skills.clear()
+			game.skills.append(SkyGearData.make_skill("CLOSEHIT", "EMBER"))
+			game.start_wave(3)
+			await _settle(game, world, SETTLE_TICKS)
+			## AND THE CUE IS PUT BACK, for this scenario only. `:208` turns the
+			## auto-cues off for every clip — rightly, because a `wave_start`
+			## flourish firing inside a scenario about a walk cycle is noise. But
+			## the defeat CUE IS THE SUBJECT here: without it the HUD's
+			## full-screen results plate covers the deck and the death happens
+			## behind it. Filmed with it off first and the evidence was 120
+			## byte-identical frames of the DECK LOST sheet — a clip that proved
+			## only that the shutter worked. Re-armed after the settle so the
+			## wave-3 opening flourish is still suppressed and only the ending
+			## plays.
+			world.cutscenes_enabled = true
+			game.damage_player(99999.0)
 		"dash":
 			game.start_wave(1)
 			_hold_wave_open(game)

@@ -153,6 +153,15 @@ static func normalise(raw: Dictionary) -> Dictionary:
 	scene["hide_hud"] = bool(scene.get("hide_hud", true))
 	scene["letterbox"] = clampf(float(scene.get("letterbox", 0.12)), 0.0, 0.3)
 	scene["caption"] = str(scene.get("caption", ""))
+	## WHERE THE CAPTION COMES FROM, for the one cue that covers two endings
+	## (board SG-283). `defeat` fires both when the hero falls and when the Boiler
+	## is destroyed, so a literal string in the file is wrong half the time.
+	## `"caption_from": "end_reason"` hands the card to the simulation's own
+	## sentence instead. Normalised here — rather than only read where it is used
+	## — so a scene round-tripped through `tools/cutscene_lab.gd` keeps it, and so
+	## this file names every key a scene may carry. The only reader is
+	## `cutscene_player._caption_text`; the only value it acts on is `end_reason`.
+	scene["caption_from"] = str(scene.get("caption_from", ""))
 	## The ship keeps moving under a cutscene unless the shot says otherwise. A
 	## locked-off camera on a flying ship reads as a still image, and the sway is
 	## the cheapest thing there is that says the deck is in the air.
