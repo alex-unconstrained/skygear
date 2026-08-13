@@ -328,6 +328,9 @@ func _run() -> void:
 	## (the `_view` lesson, three paragraphs down).
 	await _hero_dies()
 	await process_frame
+	## AWAITED — it builds a real world and reads materials off it.
+	await _deck_metal()
+	await process_frame
 	## AWAITED. `_view` and `_audio` are coroutines — they suspend on their own
 	## `await` — and calling one without `await` hands control straight back here.
 	## `_run` then walked to the summary and called `quit()` while two thirds of
@@ -2458,7 +2461,17 @@ func _rune() -> void:
 	if lamplit_at >= 0:
 		var tail := lamplit_src.substr(lamplit_at + 23, 12).strip_edges()
 		lamplit_py = float(tail.get_slice("\n", 0).strip_edges())
-	_check("deck", "the procedural deck obeys the same lamplit ceiling the models do",
+	## RENAMED TO WHAT IT ACTUALLY DOES (board SG-292). This check carried the
+	## sentence "the procedural deck obeys the same lamplit ceiling the models do"
+	## and asserted nothing of the kind: it reads two literals, one out of a
+	## Python file as TEXT and one off a GDScript const, and compares them. That
+	## is a real and useful guard — a GDScript cannot import a Python module, so
+	## the restatement genuinely can go stale — but it never constructed a deck
+	## and never opened a StandardMaterial3D, so three code-built materials sat
+	## 32-62% over the ceiling underneath it, one of them on fifty-six instances,
+	## and this stayed green. The sentence is now the guard's own job description
+	## and the sentence it used to carry is the check below, which earns it.
+	_check("deck", "lamplit.py and view3d agree about the ceiling — the cross-language drift guard",
 		lamplit_py > 0.0
 			and absf(lamplit_py - SkyGearView3D.LAMPLIT_METALLIC_MAX) < 0.0001,
 		"lamplit.py says %.4f, view3d says %.4f" % [lamplit_py,
@@ -6610,6 +6623,71 @@ func _hero_dies() -> void:
 	card.queue_free()
 	standing.queue_free()
 	await process_frame
+
+
+## --- THE CEILING, ON THE DECK THE RENDERER ACTUALLY BUILDS (board SG-292) -----
+##
+## The check above is arithmetic on two literals and is named for what it is now.
+## THIS is the one that carries SG-179's sentence, and it earns it by building a
+## real world and reading back the materials that ended up on it.
+##
+## SCOPE, AND IT IS THE WHOLE CORRECTNESS OF THE CHECK. glTF's effective metallic
+## is `metallicFactor` times the BLUE channel of the metallic-roughness map, and
+## `BaseMaterial3D.metallic` is the FACTOR. For a material with a MAP the factor
+## is not the effective value — `crate_stack` ships a factor of 0.556 over a map
+## peaking at 0.612, which is an effective 0.34 and exactly clamped — so judging
+## the factor would fail twelve correctly-clamped models. Those belong to
+## `tools/lamplit.py`, which reads the real pixels with numpy and is the one
+## authority on them.
+##
+## What is left is the set this check exists for and can judge exactly: materials
+## the RENDERER ITSELF built with `StandardMaterial3D.new()`, which have no
+## `resource_path` and no map, so factor IS effective. `tools/metal_audit.gd`
+## prints the same two tables for a human.
+func _deck_metal() -> void:
+	var world: Node3D = load("res://scenes/main3d.tscn").instantiate()
+	root.add_child(world)
+	var game: SkyGearGame = world.get_node("SkyGear")
+	game.log_runs = false
+	game.workshop = SkyGearWorkshop.fresh(true)
+	game.refresh_berthed()
+	_begin(game, "METAL")
+	await process_frame
+	await process_frame
+
+	var seen := {}
+	var over: Array[String] = []
+	var worst := 0.0
+	var judged := 0
+	var mapped := 0
+	for node in world.find_children("*", "MeshInstance3D", true, false):
+		var mi := node as MeshInstance3D
+		for i in maxi(1, mi.get_surface_override_material_count()):
+			var mat := mi.get_active_material(i)
+			if mat == null or mat is not BaseMaterial3D:
+				continue
+			var base := mat as BaseMaterial3D
+			if str(base.resource_path) != "":
+				continue
+			if seen.has(base.get_instance_id()):
+				continue
+			seen[base.get_instance_id()] = true
+			if base.metallic_texture != null:
+				## Not this check's jurisdiction — see the scope note above. Counted
+				## so a silent drift from flat to mapped shows up in the detail
+				## rather than quietly shrinking what is being judged.
+				mapped += 1
+				continue
+			judged += 1
+			worst = maxf(worst, base.metallic)
+			if base.metallic > SkyGearView3D.LAMPLIT_METALLIC_MAX + 0.0001:
+				over.append("%s %.3f" % [str(world.get_path_to(mi)), base.metallic])
+	_check("deck", "the procedural deck obeys the same lamplit ceiling the models do",
+		judged > 0 and over.is_empty(),
+		"%d flat code-built materials judged (%d mapped, deferred to lamplit.py), worst %.3f against %.2f%s"
+			% [judged, mapped, worst, SkyGearView3D.LAMPLIT_METALLIC_MAX,
+				("" if over.is_empty() else "  OVER: " + ", ".join(over))])
+	world.queue_free()
 
 
 ## --- what you actually look at ----------------------------------------------

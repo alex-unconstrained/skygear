@@ -1338,7 +1338,12 @@ func _build_world() -> void:
 	grate.mesh = grate_mesh
 	var grate_mat := StandardMaterial3D.new()
 	grate_mat.albedo_color = Color("#3f3428")
-	grate_mat.metallic = 0.55
+	## THE CEILING, NOT A NUMBER OF ITS OWN (board SG-292). This was 0.55 — 62%
+	## over — on a flat albedo with no map, which is the exact surface SG-179 got
+	## the ceiling FOR. Measured on the built deck by `tools/metal_audit.gd`, not
+	## grepped: it is one of only three code-built materials the player can
+	## actually see that were above it.
+	grate_mat.metallic = LAMPLIT_METALLIC_MAX
 	grate_mat.roughness = 0.5
 	grate.material_override = grate_mat
 	grate.position = Vector3(grate_rect.get_center().x * WORLD_SCALE,
@@ -1354,7 +1359,8 @@ func _build_world() -> void:
 	lip.mesh = lip_mesh
 	var lip_mat := StandardMaterial3D.new()
 	lip_mat.albedo_color = Color("#6d5227")
-	lip_mat.metallic = 0.45
+	## Was 0.45, +32% over the ceiling (board SG-292).
+	lip_mat.metallic = LAMPLIT_METALLIC_MAX
 	lip_mat.roughness = 0.55
 	lip.material_override = lip_mat
 	lip.position = Vector3(0.0, (GRATING_H * 0.5 + 2.5) * WORLD_SCALE, 0.0)
@@ -3326,7 +3332,15 @@ func _build_cargo() -> void:
 	crate_mat.uv1_scale = Vector3(1.0, 1.0, 1.0) / (70.0 * WORLD_SCALE)
 	var band_mat := StandardMaterial3D.new()
 	band_mat.albedo_color = Color("#6d5227")
-	band_mat.metallic = 0.45
+	## THE MOST OF THIS THERE IS IN THE FRAME (board SG-292). `tools/metal_audit.gd`
+	## counted this one material on **fifty-six instances** of the built deck —
+	## the brass capping and lashing straps on all eight cargo runs, at waist to
+	## chest height through the middle of the play space, nearer the camera than
+	## either surface SG-179 actually corrected. It was 0.45 against a 0.34
+	## ceiling on a flat albedo with no metallic map, which under a lamp-only rig
+	## with no reflection probe and no SSR is the "placeholder plastic" read the
+	## ceiling exists to prevent.
+	band_mat.metallic = LAMPLIT_METALLIC_MAX
 	band_mat.roughness = 0.55
 	## The mesh every run is built out of, and the fork this whole row turns on.
 	## Without it the runs stay the solid painted box they have always been: a
@@ -3585,27 +3599,39 @@ func _build_boiler() -> void:
 ## Its own function so the harness can stand the FALLBACK tier up and measure
 ## it whether or not the mesh is on disk — the check that makes §13c true.
 func _boiler_primitive(parent: Node3D) -> void:
+	## THE FIVE MATERIALS BELOW ARE THE SAFETY NET, AND A SAFETY NET MUST NOT
+	## DEPLOY AS CHROME (board SG-292). Nothing here renders while the Boiler
+	## MESH loads — `tools/metal_audit.gd` walked the built deck and saw none of
+	## them — so these are not the finding, and they are named separately in the
+	## row rather than counted with it. They are brought under the ceiling
+	## regardless: a ceiling with exceptions is not a ceiling, and the one moment
+	## this code runs is the moment something has already gone wrong, which is a
+	## poor time to also be the only object on the deck rendering at 0.55.
 	var iron := StandardMaterial3D.new()
 	iron.albedo_color = Color("#4c4238")
-	iron.metallic = 0.45
+	iron.metallic = LAMPLIT_METALLIC_MAX
 	iron.roughness = 0.58
 	var brass := StandardMaterial3D.new()
 	## Darker and rougher than the old #c9903c at 0.3: a bright mirror-gold
 	## block is the "polished toy" read again, just with corners.
 	brass.albedo_color = Color("#a87a34")
-	brass.metallic = 0.5
+	## The comment above is about the ALBEDO and it stands. The metallic that
+	## came with it did not: 0.5 is 47% over the ceiling, and "a bright
+	## mirror-gold block is the polished toy read again" is an argument FOR the
+	## ceiling, not for sitting above it (board SG-292).
+	brass.metallic = LAMPLIT_METALLIC_MAX
 	brass.roughness = 0.55
 	var lid_mat := StandardMaterial3D.new()
 	lid_mat.albedo_color = Color("#5d4a33")
-	lid_mat.metallic = 0.4
+	lid_mat.metallic = LAMPLIT_METALLIC_MAX
 	lid_mat.roughness = 0.5
 	var bright := StandardMaterial3D.new()
 	bright.albedo_color = Color("#d8a44b")
-	bright.metallic = 0.55
+	bright.metallic = LAMPLIT_METALLIC_MAX
 	bright.roughness = 0.4
 	var bronze := StandardMaterial3D.new()
 	bronze.albedo_color = Color("#7d5a2c")
-	bronze.metallic = 0.5
+	bronze.metallic = LAMPLIT_METALLIC_MAX
 	bronze.roughness = 0.45
 	## The fallback goes cold and grey as the Boiler dies, exactly like the mesh
 	## tier — same reader (`_sync_boiler_damage`), same fiction.
@@ -7504,7 +7530,10 @@ func _build_legacy_gunwale() -> void:
 	var mat := StandardMaterial3D.new()
 	mat.albedo_color = Color("#b0813f")
 	mat.roughness = 0.6
-	mat.metallic = 0.4
+	## The palette's own BRASS, at +18% over the ceiling, on a trial path only
+	## `tools/edge_place.gd` can switch on (board SG-292). Not in the shipped
+	## frame; brought under it for the same reason as the Boiler's fallbacks.
+	mat.metallic = LAMPLIT_METALLIC_MAX
 	for side in [-1.0, 1.0]:
 		var bar := MeshInstance3D.new()
 		var bm := BoxMesh.new()

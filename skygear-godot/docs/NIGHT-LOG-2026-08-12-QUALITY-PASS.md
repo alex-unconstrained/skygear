@@ -232,3 +232,115 @@ worth a row are filed. The largest, in the audit's own ranking:
 
 None of those were touched, none are claimed, and each needs its own row before
 it is worked. That is the next session's queue, not this one's omission.
+
+---
+
+## §8 · THE SECOND WAVE — the lamplit ceiling was enforced nowhere it was claimed
+
+§7 named five survivors. This is the third of them, closed, and it turned out to
+be larger than the audit had it.
+
+### 8.1 What was actually true
+
+`LAMPLIT_METALLIC_MAX = 0.34` exists because the owner looked at flat-albedo
+brass at metallic 0.4 and called it **"very placeholder"** (SG-179). Under this
+game's lamp-only rig — no reflection probe, no SSR, no environment map worth the
+name — metallic above the ceiling has nothing to reflect but the lantern, so it
+reads as tinted plastic rather than as brass. Two things were supposed to enforce
+it, and **neither did**:
+
+| Supposed to enforce it | What it actually asserted |
+| --- | --- |
+| `tools/lamplit.py audit` | that the **mean** texel was under the ceiling, while `clamp_metallic`'s own docstring guarantees the **peak** |
+| `deck · the procedural deck obeys the same lamplit ceiling the models do` | that a float parsed out of a Python file equals a GDScript const. It never built a deck and never opened a material. |
+
+A metallic map is a mask and is mostly dark by construction, so the mean of a map
+whose brass is at 1.0 sits comfortably under 0.34. **Thirteen of forty shipped
+models were over on peak and every one printed `ok`.** And beneath the table that
+contained the disproof, the tool printed:
+
+> *"13 carry an UNSET metallicFactor and pass anyway, because their map is dark
+> enough that 1.0 x map stays under the ceiling."*
+
+That is a claim about the peak, made by a function measuring the mean, and it was
+false for all thirteen — four of which peaked at exactly 1.0. **Three failure
+modes at once**: a detector reporting what it was not measuring (3), a claim
+asserted rather than measured (4), and a guard green over the bug it is named
+for (7).
+
+### 8.2 What the player was looking at
+
+Measured on the running game by `tools/metal_audit.gd` (new), which builds the
+real deck and walks every `MeshInstance3D`:
+
+```
+309 surfaces walked, 39 distinct materials (16 built in code, 23 off disk)
+MATERIALS THAT CAME OFF DISK: 15 over the ceiling of 23
+  metallic 1.000  x4   Railing Segment      metallic 1.000  x4   Powder Keg
+  metallic 1.000  x3   Cannon Deck          metallic 1.000  x3   Brazier
+  metallic 1.000  x4   Crate Stack          metallic 1.000  x3   Crate Small
+  metallic 1.000  x1   Mast Section         metallic 1.000  x5   Skyship Barge
+```
+
+The railing he runs along. The cannon. The crates every fight happens between.
+The keg he detonates. The lit brazier. And on the code side, `band_mat` — the
+brass capping and lashing straps — on **fifty-six instances**, waist to chest
+height, through the middle of the play space, nearer the camera than either
+surface SG-179 actually corrected.
+
+### 8.3 The fix, and the instrument that had to be fixed first
+
+Two lines in `lamplit.py` (judge `r[4]`, sort and filter on peak), the false
+sentence replaced with what the tool can support, thirteen models through
+`lamplit.py clamp` — which writes the factor and never touches a pixel — a forced
+`godot --headless --import` of the thirteen, and nine `metallic` assignments in
+`view3d.gd` brought to the constant. There is no other value left in that file.
+
+**`tools/metal_audit.gd` reported twelve correctly-clamped models as failures on
+its first run after the clamp, and that is recorded rather than quietly fixed.**
+It was judging `BaseMaterial3D.metallic`, which is the *factor*; glTF's effective
+metallic is factor × the map's blue channel, so `crate_stack`'s post-clamp factor
+of 0.556 over a map peaking at 0.612 is an effective 0.34 and exactly right. **A
+rig measuring the wrong number, inside the instrument built to catch a check that
+measured the wrong number.** It judges only the flat code-built set now, defers
+the mapped set to `lamplit.py` *by name*, prints the map flag rather than
+assuming it, and shouts if a code-built material ever gains a map. One authority
+per number.
+
+### 8.4 The picture, measured rather than admired
+
+`tools/prop_shot.gd`, three poses, 1600×900, identical seed and camera:
+`.shots/sg291/before/` and `.shots/sg291/after/`.
+
+| | pixels moved >8/255 | max delta | on those pixels: luma | warmth (R−B) | saturation |
+| --- | --- | --- | --- | --- | --- |
+| portrail | 9.5% | 205 | 45.3 → **47.0** | 35.94 → 37.04 | 38.84 → 40.08 |
+| bow | 26.2% | 218 | 41.8 → **42.7** | 22.48 → 22.58 | 24.89 → 24.98 |
+| hulk | 12.4% | 162 | 47.7 → **50.8** | 25.91 → 26.31 | 28.54 → 29.01 |
+
+**My first reading of these frames by eye was that the deck got warmer, and the
+measurement says that is not what happened.** Global mean warmth moves +0.2% to
++0.4% — nothing. Exposure and hue balance are unchanged, which is the *right*
+result for a change that should touch only metal. What changed is confined to
+9.5–26.2% of the frame, is large where it lands, and on exactly those pixels the
+surfaces get **brighter, marginally warmer and marginally more saturated**.
+
+That is what taking metal off a surface does here: metal has no diffuse response,
+so a near-metallic surface under a lamp can only return a cold specular
+highlight. Below the ceiling the same surface takes the lantern as *painted
+colour*. Which is the style bible's **"brass reads as brass by tone-stripe, not
+by mirror metallic"** restated as a measurement rather than as a preference.
+
+**It is player-visible, so it is mirrored to `/NEEDS_ALEX.md` with the A/B rather
+than presented as settled** — even though it is conformance to a standard the
+owner's own verdict produced, and even though twenty-seven of the forty models in
+the same kit were already at peak exactly 0.3400. The inconsistency was the
+defect; the direction of the fix is his to confirm.
+
+### 8.5 Scorecard delta
+
+| Domain | §5 | now | Why |
+| --- | --- | --- | --- |
+| Models & materials | not scored | **7** | Every shipped model and every code-built material is under the ceiling for the first time, and both halves of the enforcement now measure what they claim. Not higher: the captain still ships albedo-only with her own normal/rough/metal maps unbound on disk (audit rank 2, untouched) |
+| Deck & environment | not scored | **7** | The near-camera prop kit no longer reads as tinted plastic. Untouched: the starboard hatch is authored inside a cargo wall (SG-294 territory), and boarders walk through the stern cargo stacks |
+| Evidence discipline | 9 | **9** | Held. Two instruments were corrected mid-pass by reading their own output — the audit tool and one of my own checks — and both corrections are in the record rather than in a silent edit |

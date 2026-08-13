@@ -234,11 +234,27 @@ def audit(show_all: bool = False) -> int:
             factor, mean, p95, peak = map_peak(material)
             rows.append((glb.stem, factor, mean, p95, peak))
             break
-    over = [r for r in rows if r[2] > LAMPLIT_METALLIC_MAX]
+    ## JUDGED ON THE PEAK, WHICH IS WHAT `clamp_metallic` GUARANTEES (board
+    ## SG-291). This read `r[2]` — the MEAN — for the whole life of the tool,
+    ## and the two halves of one module therefore disagreed about what the
+    ## ceiling meant: the clamp sets the factor so the map's peak texel lands on
+    ## LAMPLIT_METALLIC_MAX and says so in its own docstring ("no texel on this
+    ## surface exceeds"), while the audit passed anything whose AVERAGE texel was
+    ## under it. A metallic map is mostly dark by construction — it is a mask,
+    ## and the painted difference between plate and brass is the reason to have
+    ## one — so the mean of a map whose brass is at 1.0 sits comfortably under
+    ## 0.34 and the audit called it ok. Thirteen shipped props were over on peak
+    ## and every one of them printed `ok`, including the railing the player runs
+    ## along (p95 0.9176, peak 1.0000) and the deck cannon (0.7961 / 1.0000).
+    ##
+    ## The mean and p95 columns STAY, because they are the useful context — a
+    ## peak of 1.0 over a mean of 0.04 is a few bright rivets and a peak of 1.0
+    ## over a mean of 0.28 is most of the object — but the verdict is the peak.
+    over = [r for r in rows if r[4] > LAMPLIT_METALLIC_MAX + 1e-6]
     print("%-26s %-7s %8s %8s %8s" % (
         "model", "factor", "eff mean", "eff p95", "eff peak"))
-    for name, factor, mean, p95, peak in sorted(rows, key=lambda r: -r[2]):
-        if not show_all and mean <= LAMPLIT_METALLIC_MAX:
+    for name, factor, mean, p95, peak in sorted(rows, key=lambda r: -r[4]):
+        if not show_all and peak <= LAMPLIT_METALLIC_MAX + 1e-6:
             continue
         ## The verdict is per row, not printed on every line. `--all` shows the
         ## models already UNDER the ceiling, and stamping OVER on those too made
@@ -246,22 +262,36 @@ def audit(show_all: bool = False) -> int:
         ## seventeen were clamped and the audit still looked full of failures.
         print("%-26s %-7s %8.4f %8.4f %8.4f  %s" % (
             name, "unset" if factor == 1.0 else "%.3f" % factor,
-            mean, p95, peak, "OVER" if mean > LAMPLIT_METALLIC_MAX else "ok"))
-    print("\n%d of %d shipped models are above the %.2f lamplit ceiling on "
-          "MEAN effective metallic." % (len(over), len(rows),
-                                        LAMPLIT_METALLIC_MAX))
+            mean, p95, peak,
+            "OVER" if peak > LAMPLIT_METALLIC_MAX + 1e-6 else "ok"))
+    print("\n%d of %d shipped models have a texel above the %.2f lamplit "
+          "ceiling." % (len(over), len(rows), LAMPLIT_METALLIC_MAX))
     ## Only true while there ARE any. It was printed unconditionally, so the
     ## run that cleared the last one still ended on a sentence about how they
     ## all have it unset.
     if over:
-        print("Every one of them has metallicFactor UNSET, which glTF reads "
-              "as 1.0.")
+        unset = [r[0] for r in over if r[1] == 1.0]
+        if unset:
+            print("%d of them carry an UNSET metallicFactor, which glTF reads "
+                  "as 1.0: %s." % (len(unset), ", ".join(sorted(unset))))
+        print("Run `lamplit.py clamp <file.glb> ...` on each; it writes the "
+              "factor only and never touches a pixel.")
     else:
+        ## THE SENTENCE THAT USED TO LIVE HERE WAS FALSE, AND IT WAS PRINTED
+        ## DIRECTLY BENEATH THE COLUMN THAT REFUTED IT (board SG-291). It read:
+        ## "N carry an UNSET metallicFactor and pass anyway, because their map is
+        ## dark enough that 1.0 x map stays under the ceiling." That is a claim
+        ## about the PEAK; the audit was judging the mean, so nothing had ever
+        ## checked it; and it was wrong for all thirteen models it named, four of
+        ## which peaked at exactly 1.0. An explanation the tool cannot support is
+        ## worse than no explanation, because it tells the next reader to stop
+        ## looking. What is printed now is what was actually established.
         still_unset = [r[0] for r in rows if r[1] == 1.0]
         if still_unset:
             print("%d carry an UNSET metallicFactor and pass anyway, because "
-                  "their map is dark enough that 1.0 x map stays under the "
-                  "ceiling: %s." % (len(still_unset), ", ".join(still_unset)))
+                  "their map's PEAK texel is under the ceiling even at a factor "
+                  "of 1.0 — measured, not assumed: %s."
+                  % (len(still_unset), ", ".join(sorted(still_unset))))
     print("This reports and does not rewrite — see the module docstring for why.")
     return 0
 

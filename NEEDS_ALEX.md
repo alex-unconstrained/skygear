@@ -2,7 +2,7 @@
 
 **THE HERO NEVER DIED ON SCREEN. SHE DOES NOW.** Five more fixes are on `main`
 on top of your eight playtest ones, none of it in any build. Harness
-**1277/1277, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
+**1278/1278, exit 0, 0 script errors, 54 engine errors against a pinned 54.**
 Still nothing blocked on you — the decision is whether to pack and push build 73.
 
 **The five, in the order they will hit you:**
@@ -35,7 +35,19 @@ Still nothing blocked on you — the decision is whether to pack and push build 
   clip, so it borrowed its idle — and the idle got stretched to fit the stun,
   which pinned it at the 4x clamp. Every ARC proc in the game did this.
 
-**One thing I found by filming the fix and did NOT change — see item 7 below.**
+**AND THE DECK'S METAL WAS NEVER ACTUALLY HELD TO YOUR OWN STANDARD.** You looked
+at flat brass at metallic 0.4 once and said *"very placeholder"*, and the 0.34
+ceiling came out of that. Two things were supposed to enforce it and neither did:
+the clamp tool guarantees the brightest texel is under the ceiling and its AUDIT
+was checking the average one, so **thirteen of forty models were over — up to a
+flat 1.0 — and every one printed `ok`**. The railing you run along peaks at 1.0.
+So do the deck cannon, the powder keg and the boarding hulk; the crate stacks,
+the brazier and the mast are all over. On the deck's own side, the brass capping
+on all eight cargo runs — fifty-six pieces of it, at waist height in the middle
+of the fight — sat at 0.45. All of it is under the ceiling now. **See item 9: it
+is the one change in this pass you should look at before it ships.**
+
+**One thing I found by filming the death fix and did NOT change — see item 7.**
 
 ---
 
@@ -77,7 +89,7 @@ that exclusion for any reason would have brought the dead button back silently.
 which key and which weapon and I will find it.**
 
 Detail lives in `skygear-godot/docs/BOARD.md`. **43 open rows; next free ID is
-SG-291.** The eight playtest rows and the quality pass's five are closed in
+SG-293.** The eight playtest rows and the quality pass's seven are closed in
 `skygear-godot/docs/BOARD-ARCHIVE.md`; the pass's own write-up is
 `skygear-godot/docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`.
 
@@ -228,6 +240,26 @@ tree without any of my changes.** The only baseline this project ever recorded h
 comparison spans a hundred-plus commits and two resolutions. Board SG-290 says
 what would settle it. **Nothing for you to decide** — flagged because you will
 feel it as an occasional hitch and should know it is known and measured.
+
+**9 · THE METAL CHANGE IS THE ONE TO LOOK AT, AND I HAVE SHOT IT BOTH WAYS.**
+`.shots/sg291/before/` and `.shots/sg291/after/` — three poses, same seed, same
+camera, 1600x900. This is conformance to YOUR standard rather than a taste of
+mine, and twenty-seven of the forty models were already sitting exactly where I
+have now put the other thirteen — the inconsistency was the defect. But it is
+player-visible on the prop kit you see every second of every run, so you get the
+pair rather than an announcement.
+
+**What it does, measured:** the frame overall does not change — exposure and hue
+balance move by a fraction of a percent, which is correct, since only metal
+should move. Between 9% and 26% of the pixels change, by up to 218 of 255, and on
+exactly those the surfaces get **brighter and slightly warmer**. That is the
+whole mechanism: metal has no diffuse response, so a near-metallic railing under
+a lamp can only give you a cold highlight; under the ceiling the same railing
+takes the lantern as painted colour. Crates read as timber with brass hardware
+instead of grey.
+
+**If you hate it, it is one commit to revert** and the board row names every file.
+Board SG-291 and SG-292.
 
 **6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
 Named but not built — a results sheet with every progression line skipped
