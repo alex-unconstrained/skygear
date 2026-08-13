@@ -15521,6 +15521,28 @@ func _shipping_readme() -> void:
 	var tmpl_start := packer.find("README_TMPL = ")
 	var tmpl_end := packer.find("\"\"\"", packer.find("\"\"\"", tmpl_start) + 3)
 	var template_body := packer.substr(tmpl_start, maxi(0, tmpl_end - tmpl_start))
+	## AND THE SAME FOR THE EXECUTABLE'S NAME (board SG-297). The demo zip holds
+	## `SkyGear-Demo.exe` and its README's FIRST INSTRUCTION said "Run
+	## SkyGear-Godot.exe" — a file that is not in it. `inside` already names the
+	## archive entry correctly at pack time; the template simply never asked for
+	## it. Found at the build-73 ship gate by reading the README out of the zip,
+	## which is the only place the two can be seen disagreeing.
+	##
+	## Both halves, exactly like the wave count above and for the same two failure
+	## scenarios: the sentinel must be IN THE TEMPLATE (or a re-hardcoded literal
+	## satisfies the call site alone) and the substitution must be AT THE CALL
+	## SITE (or the sentinel ships literally). And the substitution must be fed
+	## from `inside` — the same value the zip entry is written under — rather than
+	## from a second copy of the conditional, or the sentence and the archive can
+	## drift apart again while both halves of this check stay green.
+	_check("shipping", "and the README names the executable that is actually in the zip beside it",
+		template_body.contains("{EXE}")
+			and packer.contains("readme.replace(\"{EXE}\", inside)")
+			and not template_body.contains("Run SkyGear-Godot.exe"),
+		"sentinel in template %s, substituted from `inside` %s, no hardcoded name %s"
+			% [str(template_body.contains("{EXE}")),
+				str(packer.contains("readme.replace(\"{EXE}\", inside)")),
+				str(not template_body.contains("Run SkyGear-Godot.exe"))])
 	_check("shipping", "the packed README's wave count is a sentinel in the template AND substituted at pack time",
 		template_body.contains("{WAVES}")
 			and packer.contains("README_TMPL.replace(\"{WAVES}\""),

@@ -56,7 +56,7 @@ first frame, and SETTINGS has a WATCH THE OPENING row if you want it back.
 
 README_TMPL = """SKYGEAR — Windows build
 
-Run SkyGear-Godot.exe. No installer, nothing written outside the game folder.
+Run {EXE}. No installer, nothing written outside the game folder.
 
   W A S D   move
   mouse     aim
@@ -99,7 +99,14 @@ def main() -> int:
     exe = DEMO_EXE if a.demo else EXE
     out = DEMO_OUT if a.demo else OUT
     inside = "SkyGear-Demo.exe" if a.demo else "SkyGear-Godot.exe"
+    ## THE EXE NAME IS A SENTINEL FOR THE SAME REASON THE WAVE COUNT IS
+    ## (board SG-297). `inside` below already names the binary that goes INTO
+    ## the archive, and the README hardcoded "SkyGear-Godot.exe" — so the
+    ## demo's first instruction named a file that is not in the demo zip.
+    ## Substituted from `inside` rather than from a second copy of the
+    ## conditional, so the sentence and the archive entry cannot disagree.
     readme = README_TMPL.replace("{WAVES}", "six" if a.demo else "twelve")
+    readme = readme.replace("{EXE}", inside)
     if a.demo:
         readme += DEMO_TAIL
 
