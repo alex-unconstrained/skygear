@@ -1,18 +1,58 @@
 # SkyGear Godot port -- where things stand
 
-Last updated **2026-08-13, against commit `7931da8`.** **Read this first, then
+Last updated **2026-08-14, against commit `45a4e40`.** **Read this first, then
 `docs/BOARD.md` — the work queue agents claim items from and report evidence to.
 `docs/OUTSTANDING.md` stays the ledger of owner asks; an ask lands there first
 and is mirrored to the board as workable items.**
 
-**WHERE THE TREE STANDS AT HEAD (`7931da8`, 2026-08-13): 1286/1286 checks
+**WHERE THE TREE STANDS AT HEAD (`45a4e40`, 2026-08-14): 1305/1305 checks
 passed, exit 0, 0 script errors, 54 engine errors against a pinned 54.** The body
 of this file below is a ledger of findings and most of it is dated earlier than
 that; the paragraph you are reading is the only one reconciled to HEAD.
 
-**BUILD 73 IS LIVE ON ITCH, both channels, off commit `640942b`** — itch tag
-`73-quality-pass`, `windows` build **#1880125**, `windows-demo` **#1880126**.
-Rollback is build 72: #1878613 and #1878614.
+**BUILD 74 IS LIVE ON ITCH, both channels, off commit `45a4e40`** — itch tag
+`74-title-and-binds`, `windows` build **#1883053**, `windows-demo` **#1883057**.
+Rollback is build 73: #1880125 and #1880126.
+
+**THE BUILD-73 FEEDBACK PASS, 2026-08-13/14, IS WHAT IS IN IT** (board SG-298
+through SG-308, and `docs/OUTSTANDING.md`'s "The build-73 playtest"). Harness
+**1286 → 1305**, twenty-five new checks, every one demonstrated RED first. Six
+items of owner feedback, and **two of the six were second reports of complaints
+that already had DONE rows behind them** — which is the finding, not the
+footnote:
+
+- **the title screen's "parallax" was a SWAY** (SG-307). Two cloud sheets rocking
+  ±38 px on a 74 s period over a fixed sky: motion with no depth. Three layers
+  of discrete clumps drift across it now — twenty between them, at 190/132/74 s
+  per loop, nearer faster and larger and lower and more opaque, all four at once.
+  Discrete clumps rather than a scrolling band because a band has to be
+  horizontally seamless and no image API guarantees that; a clump that walks off
+  one edge re-enters at the other, so the loop is free.
+- **both captains are on the poster** (SG-304), and half of that was a WIRING ask
+  wearing an art order's clothes: the Boilerwright's plate had been on disk since
+  2026-08-11, drawn against this poster's own lighting brief, referenced by
+  nothing in the tree.
+- **the objective text was bolted to the LOGO's rect** (SG-302), which is why it
+  landed across the captain's chest, and it drew before `_open_board` so the
+  containment audit could not see it — every *"the text audit is clean at four
+  widths"* sentence was true and had no opinion about the two strings the owner
+  was pointing at.
+- **a passive drafted before the hand was full owned a mouse button for the whole
+  run** (SG-298), and `game.gd` had documented the cure since it was written —
+  *"Actives take the mouse from the left; passives fill from the far end"* —
+  while `_trim_empty_slots` deleted the reservation two lines later. Nothing
+  pinned the placement, which is how a documented rule stayed absent.
+- **the Boilerwright's five teaching surfaces all shipped 2026-07-31** and he
+  still could not tell what the class does (SG-305), because every deep one is
+  opt-in behind a function key and nothing ever opened one. The gap was DELIVERY,
+  not content.
+- **two capture tools could not support a before/after, and now one can**
+  (SG-295/SG-267). The row's own hypothesis was wrong: two runs of `prop_shot`
+  were **96.31%** apart because one photographed the OPENING FILM — the guard
+  meant to prevent that refused only under `headless`, and every capture tool is
+  windowed by necessity. Taken to **0.19%** across five measured steps, and the
+  ink pass, whose guard was the exact inverse of its own comment, no longer arms
+  on tool runs. **This is the row that unblocks every future visual claim.**
 
 **THE QUALITY-DIRECTIVE PASS, 2026-08-12/13, IS WHAT IS IN IT** (`docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`,
 and `docs/BOARD-ARCHIVE.md`'s four new blocks). Harness **1259 → 1286**, twenty-seven

@@ -1,20 +1,37 @@
 # NEEDS ALEX
 
-## FIRST: SIX THINGS ARE IN THE TREE AND NOT IN A BUILD (2026-08-13)
+## BUILD 74 IS LIVE ON ITCH. BOTH CHANNELS. GO AND BREAK IT.
 
-Off your build-73 playtest. **Harness 1286 → 1302, exit 0, 54 engine errors
-against a pinned 54.** Five commits, `7d39632`..`bb96312`. **None of it is on
-itch yet — say the word and it ships as build 74.**
+- **`windows`** build **#1883053** (from #1880125) — the full game.
+- **`windows-demo`** build **#1883057** (from #1880126) — the demo cut.
+- Version string on both: **`74-title-and-binds`**, off commit `45a4e40`.
+- **Rollback is build 73: #1880125 and #1880126.**
 
-**Four of your six are done.** The title screen sails now (three drifting layers,
-20 clumps, both captains on it, and the objective text is bolted to the board
-instead of floating over the art). Passives no longer take the mouse buttons, and
-a well holding one says AUTO instead of naming a key that does nothing. The
-Boilerwright has his own face and tells you what he is in his first breath. An
-enemy bolt that hits you leaves something where it landed, and impact particles
-cool across their lives instead of only shrinking.
+Harness **1305/1305**, exit 0, 0 script errors, 54 engine errors against a
+pinned 54. Both exes read their identity back before the push — `SkyGear` and
+`SkyGear Demo`, both **0.74.0.0** — and both READMEs were read out of the built
+ZIPS rather than the template, naming the executable that is actually inside
+them. That is SG-297's gate, and it is the third build it has held.
 
-**Two are not, and both are waiting on you rather than on me:**
+**WHAT TO GO AND LOOK AT, in the order it will hit you:**
+
+1. **The title screen, before you touch anything.** It sails now — three layers
+   of weather at three speeds, twenty separate clumps, sky-isles between the
+   clouds and the ship. Watch it for thirty seconds; the far cloud takes 190
+   seconds to cross and the near one 74, which is the whole of what makes it
+   depth rather than motion. **Both captains are on it.** And the objective line
+   is bolted to the menu board instead of floating across the captain's chest.
+2. **Draft a Field or a Pulse early and look at your mouse buttons.** They are
+   yours now. A passive lands behind your actives and steps aside the moment you
+   draft another one, and a well holding a passive says **AUTO** instead of
+   naming a key that does nothing when you press it.
+3. **Play the Boilerwright.** He has his own face in the porthole — he has been
+   wearing yours since the port began — and in his first wave he tells you what
+   he is in one line, without you having to open anything.
+4. **Let something shoot you.** A bolt that reaches you now leaves an impact
+   where it landed. It never has.
+
+**STILL WAITING ON YOU, and both are the same two as before:**
 
 1. **THE DEATH CAMERA — say yes and it is one lab session (SG-289).** You
    reported it independently, which is the confirmation that row was holding for.
@@ -25,15 +42,23 @@ cool across their lives instead of only shrinking.
    proposal: open on the gameplay camera, hold ~0.8 s over you, settle keeping
    you in frame, ~5.4 s long. That needs a new pinned budget longer than the
    Boiler defeat's 4.2 s, which is why it is a yes/no rather than a fix.
-2. **THE VFX — two of four beats shipped and I stopped on purpose.** The two
-   that landed are provable without eyes: a bolt now leaves an impact, and
-   particles carry a colour ramp. The two that did not — an additive halo on
-   bolt heads, and a muzzle flash at the instant of a cast — are changes whose
-   entire value is how they LOOK, and **I could not look at them**: SG-295 puts
-   `vfx_shot.gd`'s run-to-run noise floor at 22.5% of pixels and SG-267 says
-   every capture goes through an inverted ink guard, so an A/B would not have
-   been evidence either. Shipping unverifiable visual work to something you have
-   just criticised is exactly how SG-40 happened.
+2. **THE VFX — two of four beats shipped, and my reason for stopping has since
+   got much weaker.** The two that landed are provable without eyes: a bolt now
+   leaves an impact where it died, and particles cool across their lives instead
+   of only shrinking. The two that did not — an additive halo on bolt heads and
+   a muzzle flash at the instant of a cast — are changes whose entire value is
+   how they LOOK, and at the time I could not look at them.
+
+   **THAT IS NO LONGER TRUE, and I would rather say so than let a stale excuse
+   stand.** SG-295 and SG-267 were both fixed after I wrote that: two runs of
+   `prop_shot` were **96.31%** apart because one of them was photographing the
+   opening film, and every capture was going through an ink pass whose guard was
+   the exact inverse of its own comment. Both are closed, and that tool now has
+   a measured **0.19%** cross-run floor — proven by using it, the ink change
+   showing a real **7.41%**, thirty-nine times the noise.
+
+   **So I can now build those two beats and show you a measured before/after**
+   rather than asking you to take them on trust. Say go and I will.
 
 **THREE THINGS I WANT AN ANSWER ON, none urgent:**
 
@@ -54,7 +79,7 @@ cool across their lives instead of only shrinking.
 
 ---
 
-**BUILD 73 IS LIVE ON ITCH. BOTH CHANNELS. GO AND BREAK IT.**
+**BUILD 73 WAS THE PREVIOUS ONE, and what follows is its page. Kept because the four items under "Waiting on you" are still open.**
 
 - **`windows`** build **#1880125** (from #1878613) — the full game.
 - **`windows-demo`** build **#1880126** (from #1878614) — the demo cut.
