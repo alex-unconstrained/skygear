@@ -1,5 +1,59 @@
 # NEEDS ALEX
 
+## FIRST: SIX THINGS ARE IN THE TREE AND NOT IN A BUILD (2026-08-13)
+
+Off your build-73 playtest. **Harness 1286 → 1302, exit 0, 54 engine errors
+against a pinned 54.** Five commits, `7d39632`..`bb96312`. **None of it is on
+itch yet — say the word and it ships as build 74.**
+
+**Four of your six are done.** The title screen sails now (three drifting layers,
+20 clumps, both captains on it, and the objective text is bolted to the board
+instead of floating over the art). Passives no longer take the mouse buttons, and
+a well holding one says AUTO instead of naming a key that does nothing. The
+Boilerwright has his own face and tells you what he is in his first breath. An
+enemy bolt that hits you leaves something where it landed, and impact particles
+cool across their lives instead of only shrinking.
+
+**Two are not, and both are waiting on you rather than on me:**
+
+1. **THE DEATH CAMERA — say yes and it is one lab session (SG-289).** You
+   reported it independently, which is the confirmation that row was holding for.
+   Your word *"immediately"* also found a second fault it had not measured: the
+   cut fires on the first renderer frame after your hp crosses zero and the
+   camera hard-teleports, and **the death clip is 4.600 s against a 3.6 s
+   cutscene**, so even a perfectly aimed shot ends before the body lands. The
+   proposal: open on the gameplay camera, hold ~0.8 s over you, settle keeping
+   you in frame, ~5.4 s long. That needs a new pinned budget longer than the
+   Boiler defeat's 4.2 s, which is why it is a yes/no rather than a fix.
+2. **THE VFX — two of four beats shipped and I stopped on purpose.** The two
+   that landed are provable without eyes: a bolt now leaves an impact, and
+   particles carry a colour ramp. The two that did not — an additive halo on
+   bolt heads, and a muzzle flash at the instant of a cast — are changes whose
+   entire value is how they LOOK, and **I could not look at them**: SG-295 puts
+   `vfx_shot.gd`'s run-to-run noise floor at 22.5% of pixels and SG-267 says
+   every capture goes through an inverted ink guard, so an A/B would not have
+   been evidence either. Shipping unverifiable visual work to something you have
+   just criticised is exactly how SG-40 happened.
+
+**THREE THINGS I WANT AN ANSWER ON, none urgent:**
+
+- **The bloom is at 0.32 of a 1.2 ceiling**, while the emissive language under it
+  is authored at 2.2–4.2 on cores and ~1.45 hot on ribbons against a 1.05
+  threshold. It is one clamped number you can drag in the lab. Is brighter bloom
+  on the dark deck what "impressive" means to you, or is the restraint the look?
+- **May a cast spend ~0.1 s on an anticipation beat** before the damage picture?
+  Your skills currently appear at full size on frame one and live 0.18–0.32 s
+  total, which alone caps how impressive any single one can read. It is a feel
+  change, so it is yours.
+- **`tests/parity_test.gd` is misnamed** and it misled you when you asked. It
+  contains zero references to the browser build — 1,274 checks over 21,427 lines,
+  all Godot-side. The thing that compares against the browser is `tools/parity.py`,
+  which is manual and not in the harness. But seven check NAMES carry browser
+  provenance and one or two use fidelity as their stated rationale, which rule 3a
+  bans. Want me to rename the file and re-argue those pins in Godot terms?
+
+---
+
 **BUILD 73 IS LIVE ON ITCH. BOTH CHANNELS. GO AND BREAK IT.**
 
 - **`windows`** build **#1880125** (from #1878613) — the full game.
@@ -18,11 +72,13 @@ Harness **1286/1286**, exit 0, 0 script errors, 54 engine errors against a pinne
    since the day he was ingested with nothing ever asking for it. **Then read the
    card over the body**: it used to say THE BOILER IS LOST even when the Boiler
    was at full health and a furnace knight had killed you.
-2. **Kill something and feel the pause.** Hit-stop has never once stopped the
-   captain or a boarder — it froze the wave logic and the projectiles, and the
-   swordsman kept moving at full speed through all 0.070 s of it. **I changed no
-   tuning number.** It may now be too strong. That is a playtest call and it is
-   yours — tell me and I will move it with evidence.
+2. ~~**Kill something and feel the pause.**~~ **ANSWERED 2026-08-13: *"Hit stun
+   was fine."*** Hit-stop had never once stopped the captain or a boarder — it
+   froze the wave logic and the projectiles while the swordsman kept moving at
+   full speed through all 0.070 s of it — and the build-73 pass fixed that while
+   deliberately changing **no tuning number**, precisely so the question of
+   whether it was now too strong could be yours. It is not. The constants stay
+   where they are and this comes off the page.
 3. **Set something on fire.** Burn, frost and stun had no mark on a boarder at
    all. A three-stack target and a fresh one were the same picture. Watch a
    stunned gremlin especially — it also used to breathe at four times speed.
@@ -162,11 +218,16 @@ feel it as an occasional hitch and should know it is known and measured.
 - **The Aether Loom** — still not on this machine, **but it is no longer the
   blocker it was.** `tools/imageforge.py` is a second, independent door: it calls
   an image API directly, needs nothing local, and it has already drawn the logo
-  and the Boilerwright's first 2D art. What is left behind it is a **taste and a
-  money call, not a technical one**: the Boilerwright is still drawn wearing the
-  Captain's portrait in the HUD (one hardcoded path, no class branch), and since
-  that portrait was redrawn as one specific young man the mismatch is worse than
-  it was. **Say go and it gets drawn; it costs money to generate.**
+  and the Boilerwright's first 2D art. ~~What is left behind it is a taste and a
+  money call: the Boilerwright is still drawn wearing the Captain's portrait in
+  the HUD.~~ **DONE 2026-08-13 on your standing go** (*"Spend on anything that's
+  going to help us achieve our goals. Generate what you need to."*) — he has his
+  own cut-out bust now, and the poster carries a fresh captain plate beside the
+  Boilerwright's, which had been on disk since 2026-08-11 wired to nothing.
+  Twelve generations across five assets, all of them promoted through
+  `tools/cutout.py` or `tools/skyslice.py` rather than copied straight in.
+  **The Loom itself is still not on this machine and SG-240's 33 stranded paid
+  generations are still stranded**; that half is unchanged.
 - **Steam** — the paperwork is the only critical path and it is entirely yours.
   The tax interview alone is 2–7 business days. **Send friends the itch link,
   not a Steam key** — keys need a three-week wait for a first-time dev.
