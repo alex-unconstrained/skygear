@@ -17,6 +17,89 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The build-74 playtest — ten items off a Heat 4 win, and two of them are my own regressions
+Reported 2026-08-14 after a full twelve-wave hold on Heat 4 (seed KJDYFT, 6:10,
+Frost build, refit BOW BARRICADE / SPARE GUN / THE WRECK), with three
+screenshots: the title screen, a draft-card pair, and wave 12 with the Colossus.
+**ID block issued: SG-309 … SG-320.**
+
+**TWO OF THESE ARE DEFECTS IN WORK THAT SHIPPED THIS MORNING AND THEY ARE MINE.**
+Said first because a ledger that buries its own regressions among the owner's
+wishes is a ledger nobody can prioritise from.
+
+1. **"Some of the clouds don't have all of the alpha removed."** Confirmed by
+   capturing the real title screen through `tools/screen_shot.gd`: the near cloud
+   right of the Boilerwright carries a **hard straight diagonal cut** across its
+   lower right where soft painted cloud stops dead. The twenty source clumps are
+   clean — every one of them was composited over the sky colour and checked — so
+   this is `tools/skyslice.py`, not the art. Leading suspect is the ownership
+   watershed: where two clouds' feathers overlapped, the slicer assigned each
+   texel to its nearest body and cut a straight line between them. **SG-311.**
+2. **"Maybe adjust the parallax scrolling, as a lot of the objects are just
+   moving at the same pace."** Right, and the reason is exact: the three LAYERS
+   travel at 190, 132 and 74 seconds a loop, so depth between them is real — but
+   inside a layer every clump ran at one rate. A rigid sheet with holes in it.
+   Nine clouds crossing in perfect step is the one thing weather never does.
+   **FIXED SAME DAY (SG-309)**: each clump now keeps its own pace off the golden
+   angle, spanning 0.814 to 1.215 of its layer's rate.
+
+**THE TITLE SCREEN, TWO MORE.**
+
+3. **"I would much rather have a picture of the skyship instead of the current
+   image."** The poster's subject changes: the ship itself rather than two
+   figures and a bow. This supersedes composition work rather than adding to it —
+   the two hero plates and the drifting sky may or may not survive the new
+   subject, and that is his call to make before anything is built. **SG-310.**
+4. **"Why is there no music in the title screen?"** ANSWERED, and the answer was
+   already on his page: there is no menu track. Three fight tracks exist and the
+   menus run a bed (storm, then the ship) because a fight track under a menu is
+   the wrong promise. Putting music there is a COMPOSITION, not a setting.
+   **SG-312** carries the decision: commission one, reuse a fight track quietly,
+   or leave the bed.
+
+**THE GAME, FIVE.**
+
+5. **"There are still some 2D assets left in the game, such as the health pickups
+   or floating 2D assets."** He offers to model them in Meshy or have the
+   pipeline do it — "fairly straightforward". **SG-313.**
+6. **"I still feel like the Colossus gets kind of stuck doing his big AoE and is
+   not moving forward with intentionality, so it doesn't put too much pressure on
+   the player because they have a lot of time to defeat him."** This is a live
+   report against SG-186's own measured finding — the stomp is anchored and he
+   spends 43% of his life planted, which the row recorded as the cost of the
+   telegraph. He is saying that cost is now the defect. **SG-314.**
+7. **"For things like bombs on the deck, could we give a subtle outline, maybe?
+   That can show the player that this is different than other objects and that
+   this will trigger an explosion."** **SG-315.**
+8. **"In choosing skills … it would be nice if the player could better know which
+   skill it's affecting in case they haven't memorized the order of their
+   skills."** The card names the skill in its body and its footer; what it does
+   NOT do is say which of the five pips is the one being upgraded in any language
+   but position. He also wants the cards themselves "more interesting".
+   **SG-316.**
+9. **"I felt like in this playthrough I was just spamming my skills … left and
+   right mouse button, short cooldowns, that's okay. If it's left, right, and
+   another short cooldown, it just feels like a lot to keep spamming. For
+   something like a beam, maybe if it was a lot stronger or lasted longer
+   channeled and then had a longer cooldown … so that the player, when playing,
+   doesn't just develop arthritis all the time."** A shape request, not a number
+   request: he is asking for the hand to have RHYTHM rather than one tempo.
+   **SG-317.**
+
+**AND THE ONE THAT IS NOW A FOURTH REPORT.**
+
+10. **"I guess the biggest thing for me is still the lack of really interesting
+    VFX. It feels like it's just a lot of the same color, whether that's in a
+    beam format, a ring format, or a projectile."** **This is the fourth time**
+    (2026-07-31, 2026-08-01 → SG-40, 2026-08-13 → SG-300, now). And the new
+    sentence is the most useful thing he has said about it: *the same colour
+    across every SHAPE*. A Frost build makes a frost beam, a frost ring and a
+    frost bolt that are all the same teal, so the eleven skills read as one
+    skill in three silhouettes. That is an ELEMENT-over-SHAPE problem, not a
+    fidelity one, and no amount of halo or erosion fixes it. Folded into SG-300
+    rather than filed again.
+
+
 ### The build-73 playtest — six items, and TWO OF THEM ARE FIXES HE HAS ALREADY REJECTED ONCE
 Reported 2026-08-13, with two screenshots (the title screen, and the in-run
 skill HUD showing a frost draft on the Boilerwright). **ID block issued for this

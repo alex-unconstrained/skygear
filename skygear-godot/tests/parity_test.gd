@@ -16497,6 +16497,33 @@ func _demo_cut() -> void:
 		wraps_offscreen, worst_wrap if worst_wrap != "" else
 			"three layers, a full loop each, every wrap outside 0..1920")
 
+	## AND NO TWO CLUMPS IN A LAYER KEEP STEP (board SG-309). The owner, on build
+	## 74: *"a lot of the objects are just moving at the same pace."* The three
+	## layers did differ — 190, 132 and 74 seconds a loop — but inside a layer
+	## every clump ran at exactly one rate, which is a rigid sheet with holes in
+	## it. Depth was a property of the layer and of nothing else.
+	##
+	## Asserted as a SPREAD rather than as "they are not all equal", because two
+	## rates out of nine differing would satisfy the weaker sentence while the
+	## layer still read as a sheet. The slowest and fastest clump in the biggest
+	## layer must differ by a real fraction, and every pace must stay near 1.0 so
+	## a clump cannot lap the layer it belongs to.
+	var paces: Array[float] = []
+	for i in 9:
+		paces.append(SkyGearHUD.poster_clump_pace(i))
+	var slowest: float = paces[0]
+	var fastest: float = paces[0]
+	for p in paces:
+		slowest = minf(slowest, p)
+		fastest = maxf(fastest, p)
+	var in_band := true
+	for p in paces:
+		if p < 0.6 or p > 1.4:
+			in_band = false
+	_check("menu", "and no two clumps in a layer keep step, so a layer is weather and not a sheet",
+		fastest - slowest > 0.15 and in_band,
+		"nine clumps span %.3f to %.3f of their layer's rate" % [slowest, fastest])
+
 	## BOTH HEROES ARE ON THE POSTER (board SG-304), and the second one cost a
 	## draw call rather than an art order: `boilerwright_front_attack.png` had
 	## been on disk since 2026-08-11, drawn against this poster's own lighting

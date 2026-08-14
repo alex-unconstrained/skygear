@@ -1118,10 +1118,36 @@ static func poster_span(view_w: float, widest: float, density: float) -> float:
 	return (view_w + widest + 40.0) * density
 
 
+## AND EACH CLUMP KEEPS ITS OWN PACE WITHIN THE LAYER (board SG-309).
+##
+## The owner, on build 74: *"maybe adjust the parallax scrolling, as a lot of the
+## objects are just moving at the same pace."* He is right and the first version
+## earned it. The three LAYERS travel at 190, 132 and 74 seconds a loop, so the
+## depth between them is real — but inside a layer every clump moved at exactly
+## one rate, which is a rigid sheet with holes in it, and nine clouds crossing in
+## perfect step is the one thing weather never does. Depth was a property of the
+## layer and of nothing else.
+##
+## `POSTER_PACE` is the spread, as a fraction: a clump runs between 1-p and 1+p
+## of its layer's rate. Taken off the SAME golden-angle sequence the altitudes
+## use, so a clump that sits high also has its own speed and the two never
+## correlate into a pattern — and, being derived from the index, it is stable
+## across frames and reproducible, which a random jitter would not be.
+##
+## THE LOOP STAYS A LOOP. Each clump still travels the same `span`; only how long
+## it takes changes, so every one of them still wraps off-screen exactly as
+## before and `menu · and every clump it drifts wraps off-screen` is untouched.
+const POSTER_PACE := 0.22
+
+
+static func poster_clump_pace(index: int) -> float:
+	return 1.0 + POSTER_PACE * (fposmod(float(index) * POSTER_PHI + 0.37, 1.0) - 0.5) * 2.0
+
+
 static func poster_clump_x(index: int, count: int, span: float, secs: float,
 		t: float, widest: float) -> float:
 	var station: float = span * float(index) / float(maxi(count, 1))
-	return fposmod(station - (t / secs) * span, span) - widest
+	return fposmod(station - (t / (secs / poster_clump_pace(index))) * span, span) - widest
 
 
 ## Altitude. The golden-angle sequence scatters the layer without clustering, and
