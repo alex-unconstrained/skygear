@@ -1521,12 +1521,27 @@ func _draw_title() -> void:
 	if classes_on:
 		var ids: Array = SkyGearData.CLASSES.keys()
 		var at: int = maxi(0, ids.find(game.class_id))
+		## THE CAPTION SPEAKS FOR THE CLASS THE PLATE NAMED (board SG-306).
+		##
+		## `_menu_plate` HANDLES THE CLICK AS IT DRAWS — this is immediate mode, so
+		## it paints the plate with the name it was given and returns true on the
+		## same call, and `set_class` then runs before the caption below is drawn.
+		## So on the click frame the plate said THE CAPTAIN and the sentence under
+		## it described the Boilerwright, because `game.class_data()` had already
+		## moved on. One frame, on a screen that redraws at full rate — and one
+		## frame is exactly long enough for somebody cycling the plate to read a
+		## sentence about a man whose name is not on it.
+		##
+		## Held by remembering the id the TITLE used rather than by re-reading the
+		## game's current one: the two cannot disagree if there is only one of them.
+		var named: String = str(ids[at])
 		if _menu_plate(Rect2(wx, y, wide, MENU_PLATE_H),
-				"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[ids[at]].name),
+				"WHO IS ABOARD  ·  %s" % str(SkyGearData.CLASSES[named].name),
 				{"key": "WHO IS ABOARD", "pt": 17}):
 			game.set_class(str(ids[(at + 1) % ids.size()]))
 		y += MENU_PLATE_H
-		_menu_caption(wx, y, wide, str(game.class_data().get("blurb", "")))
+		_menu_caption(wx, y, wide,
+			str((SkyGearData.CLASSES[named] as Dictionary).get("blurb", "")))
 		y += MENU_BLURB_H + MENU_GAP
 	## THE CORE USED TO BE HERE, DIRECTLY UNDER WHO IS ABOARD (board SG-99), and
 	## the owner moved it off this screen entirely (board SG-275): *"I don't think
@@ -1903,12 +1918,36 @@ func _nine(texture: Texture2D, rect: Rect2, margin: float) -> void:
 ## code-drawn approximation of one — dark fill, hard ink edge, brass inlay,
 ## rivet in each corner. Both are the same shape, so the layout does not move
 ## when the art lands. docs/HUD-PLAN.md is the brief.
+## THE SLICE BELONGS TO THE PLATE, NOT TO THE FUNCTION (board SG-280).
+##
+## Both paintings were nine-sliced at 48 source pixels, and they are not the same
+## painting. Measured off the art: on `plate_wide.png` (512x378) the painted brass
+## on the centre row runs to x = 59, so a 48 px slice plus the stretched edge
+## lands at about 55 destination px and the number is very nearly exact. On
+## `plate_slot.png` (255x256) the brass ends at **x = 35** — so a skill well was
+## being sliced 13 source pixels past its own brass, and the corner slice was
+## carrying dark field into the corner.
+##
+## One constant standing for two paintings is STATUS's second failure mode, and
+## this is the shape it takes in art rather than in arithmetic. Fixed here because
+## it is the number that actually DRAWS.
+##
+## `rail()`'s own `PLATE_MARGIN` is deliberately left at 48 and that is not an
+## oversight: `RAIL_MAX_FRACTION` (0.22) binds first on anything slot-sized — a
+## 120x112 well insets 24.6 either way — so changing it would move nothing on
+## screen while adding a second constant that has to be kept in step with this
+## one. If a slot is ever drawn large enough for the margin to bind, the number
+## to reach for is the 35 above.
+const SLOT_SLICE := 35.0
+const WIDE_SLICE := 48.0
+
+
 func _panel(rect: Rect2, slot: bool = false) -> void:
 	_open_frame(rect)
 	var plate := _tex("res://assets/art/ui/plate_slot.png" if slot
 		else "res://assets/art/ui/plate_wide.png")
 	if plate != null:
-		_nine(plate, rect, 48.0)
+		_nine(plate, rect, SLOT_SLICE if slot else WIDE_SLICE)
 		return
 	draw_rect(rect, PANEL_FILL)
 	draw_rect(rect, Color("#0d0b12"), false, 5.0)

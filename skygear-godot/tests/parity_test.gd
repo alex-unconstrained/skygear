@@ -16153,6 +16153,140 @@ func _demo_cut() -> void:
 		"enters at %.0f, leaves at %.0f, %s" % [ship_x[0], ship_x[-1],
 			"monotonic" if sails_left else "TURNS ROUND MID-CROSSING"])
 
+	## --- ONE SLICE PER PAINTING (board SG-280) -------------------------------
+	##
+	## `_panel` nine-sliced both plates at 48 source pixels and they are not the
+	## same painting: `plate_wide.png`'s brass runs to x 59 so 48 is very nearly
+	## exact, while `plate_slot.png`'s ends at x 35, so every skill well was
+	## sliced thirteen pixels past its own brass and carried dark field into the
+	## corner. One constant standing for two paintings.
+	##
+	## WHAT THIS DOES **NOT** DO, AND WHY, because the first version of it did and
+	## was vacuous. It tried to re-derive "where the brass ends" from the PNG by
+	## walking the centre row for the last texel with presence — and both plates
+	## are OPAQUE edge to edge, so it measured 254 and 511, their full widths, and
+	## would have passed any slice under a quarter of a kilopixel. The control
+	## that caught it only went red on the "the two differ" conjunct.
+	##
+	## The boundary in question is where painted BRASS becomes dark FIELD, which
+	## is a colour judgement, not an alpha one — and any threshold picked here to
+	## make the answer come out at 35 would be a number chosen to reproduce the
+	## number it is supposed to verify. The 35 and the 59 are HAND measurements
+	## off the art, recorded in SG-280, and this check does not pretend to redo
+	## them.
+	##
+	## What it pins instead is the STRUCTURE, which is the thing that actually
+	## regressed and the thing somebody would undo: `_panel` must slice per plate
+	## rather than at a literal, and the two numbers must not be the same number
+	## again. Each is also sanity-bounded against its own plate.
+	var slice_says: Array[String] = []
+	var slice_ok := SkyGearHUD.SLOT_SLICE != SkyGearHUD.WIDE_SLICE
+	var panel_src := FileAccess.get_file_as_string("res://scripts/hud.gd")
+	var per_plate: bool = panel_src.contains(
+		"_nine(plate, rect, SLOT_SLICE if slot else WIDE_SLICE)")
+	for spec in [{"png": "res://assets/art/ui/plate_slot.png", "slice": SkyGearHUD.SLOT_SLICE},
+			{"png": "res://assets/art/ui/plate_wide.png", "slice": SkyGearHUD.WIDE_SLICE}]:
+		var tex: Texture2D = load(str(spec.png))
+		if tex == null:
+			slice_ok = false
+			slice_says.append("%s MISSING" % str(spec.png).get_file())
+			continue
+		var half: float = minf(tex.get_width(), tex.get_height()) * 0.5
+		slice_says.append("%s %dx%d sliced at %.0f"
+			% [str(spec.png).get_file(), tex.get_width(), tex.get_height(),
+				float(spec.slice)])
+		## A nine-slice whose corners meet in the middle has no centre left to
+		## stretch, which is the one thing about these numbers a machine CAN judge.
+		if float(spec.slice) >= half:
+			slice_ok = false
+	_check("hud", "a plate is nine-sliced at its own brass, not at one number for both",
+		slice_ok and per_plate,
+		"%s | _panel slices per plate: %s" % [", ".join(slice_says), per_plate])
+
+	## --- THE ONE SENTENCE READ BEFORE THE CHOICE (board SG-306) --------------
+	##
+	## The Captain's blurb was written in the OTHER class's vocabulary: *"Fills
+	## his gauge by fighting close, and it vents itself"* — true of her PRESSURE
+	## gauge, and a near-mirror of the sentence the actual steam class should own,
+	## since the Boilerwright BANKS a head of steam and never self-vents. Two
+	## sentences about a steam gauge, one after the other as the plate cycles, on
+	## the screen where the choice is made. It is a plausible root of the owner's
+	## *"I still have NO CLUE what he actually does"* and it cost one line.
+	##
+	## ASSERTED AS AN ABSENCE AND A PRESENCE TOGETHER, because either alone is
+	## satisfiable by deleting the wrong thing: the Captain's sentence must not
+	## speak the steam class's language, AND the Boilerwright's must still speak
+	## it, or "they no longer sound alike" would be true of a game that had
+	## stopped describing him at all.
+	var cap_blurb := str((SkyGearData.CLASSES.captain as Dictionary).get("blurb", ""))
+	var bw_blurb := str((SkyGearData.CLASSES.boilerwright as Dictionary).get("blurb", ""))
+	var steam_words := ["vent", "steam"]
+	var cap_steams := false
+	var bw_steams := false
+	for word in steam_words:
+		if cap_blurb.to_lower().contains(word):
+			cap_steams = true
+		if bw_blurb.to_lower().contains(word):
+			bw_steams = true
+	_check("menu", "the captain's blurb speaks pressure, not the other man's steam",
+		not cap_steams and bw_steams and cap_blurb.to_upper().contains("PRESSURE"),
+		"captain: \"%s\" | boilerwright: \"%s\"" % [cap_blurb, bw_blurb])
+
+	## AND THE PLATE AND ITS CAPTION READ ONE CLASS ID, NOT TWO.
+	##
+	## THE DEFECT AND WHY THIS CHECK IS THE SHAPE IT IS. `_menu_plate` handles the
+	## click AS IT DRAWS — immediate mode — so it painted the plate with the name
+	## it was given and returned true, `set_class` ran, and the caption below then
+	## read `game.class_data()`, which had already moved on. The title said one
+	## class and the sentence under it described the other, for exactly one frame.
+	##
+	## THAT FRAME IS UNREACHABLE FROM HERE AND SAYING SO IS PART OF THE CHECK. It
+	## exists only while a click is being handled, and a click on this screen
+	## arrives through `get_local_mouse_position()`, which a headless harness
+	## cannot place. Worse for a naive check: in the STEADY state
+	## `game.class_data()` and `CLASSES[named]` are the same dictionary, so a
+	## runtime assertion that the two agree passes under the broken code as
+	## happily as under the fixed one. The first draft of this check did exactly
+	## that and was vacuous.
+	##
+	## So it is asserted in two halves, and the weaker half is declared rather
+	## than dressed up. RUNTIME: the title and the caption move together across
+	## BOTH classes, which catches a caption wired to a constant, to the wrong
+	## class, or to nothing. STRUCTURAL: the caption is not read from the live
+	## class at all — a source scan, which SG-272's lesson says cannot tell
+	## whether a fix works, used here because what is being pinned is WHICH
+	## EXPRESSION is written, and that is a structural fact the source states
+	## exactly once.
+	var seen: Array[String] = []
+	for want in ["captain", "boilerwright"]:
+		game.set_class(want)
+		hud.ink = []
+		hud.queue_redraw()
+		await process_frame
+		var plate_line := ""
+		var caption_line := ""
+		for note in hud.ink:
+			var drawn := str((note as Dictionary).text)
+			if drawn.begins_with("WHO IS ABOARD"):
+				plate_line = drawn
+			elif drawn == cap_blurb or drawn == bw_blurb:
+				caption_line = drawn
+		var named := str((SkyGearData.CLASSES[want] as Dictionary).name)
+		var blurb := str((SkyGearData.CLASSES[want] as Dictionary).get("blurb", ""))
+		seen.append("%s -> plate %s, caption %s" % [want,
+			"ok" if plate_line.contains(named) else "\"%s\"" % plate_line,
+			"ok" if caption_line == blurb else "\"%s\"" % caption_line])
+		if not plate_line.contains(named) or caption_line != blurb:
+			seen.append("MISMATCH")
+	game.set_class("captain")
+	var hud_src2 := FileAccess.get_file_as_string("res://scripts/hud.gd")
+	var reads_one_id: bool = hud_src2.contains(
+		"str((SkyGearData.CLASSES[named] as Dictionary).get(\"blurb\", \"\"))")
+	_check("menu", "the plate's title and its caption read one class id, not two",
+		not seen.has("MISMATCH") and reads_one_id,
+		"%s | caption reads the id the title used: %s"
+			% [", ".join(seen), reads_one_id])
+
 	## --- THE DRIFTING SKY (board SG-307) -------------------------------------
 	##
 	## The owner, 2026-08-13: *"A dynamic title screen will be more interesting."*

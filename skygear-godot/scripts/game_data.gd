@@ -286,7 +286,18 @@ const WAVES := [
 const CLASSES := {
 	"captain": {
 		"name": "THE CAPTAIN",
-		"blurb": "Fills his gauge by fighting close, and it vents itself.",
+		## THE ONE SENTENCE A PLAYER READS BEFORE HE PICKS, and until SG-306 it was
+		## written in the OTHER class's vocabulary. It said "Fills his gauge by
+		## fighting close, and it vents itself" — every word true of her PRESSURE
+		## gauge, and a near-mirror of the sentence the actual steam class should
+		## own: the Boilerwright BANKS a head of steam and never self-vents. Two
+		## sentences about a steam gauge, one after the other as the plate cycles,
+		## on the screen where the choice is made. The owner, having played the
+		## other one: *"I still have NO CLUE what he actually does."* This names
+		## the gauge instead of describing steam, and keeps the Boilerwright's
+		## grammar so the two read as a pair of choices rather than a pair of
+		## paraphrases.
+		"blurb": "Builds PRESSURE where he fights, and discharges it at the cap.",
 		"long": "Two recharging dashes with contact damage. His gauge fills from damage landed inside 210 units and empties when it is not, and at full it vents by itself for damage and health. Fast, evasive, and correct only where the boarders are.",
 		"hp": 100.0, "speed": 260.0, "dashes": 2,
 		"gauge": "PRESSURE",
