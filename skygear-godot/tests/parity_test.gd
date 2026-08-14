@@ -6956,6 +6956,7 @@ func _view() -> void:
 	var view: SkyGearView3D = world as SkyGearView3D
 	var game: SkyGearGame = world.get_node("SkyGear")
 	_begin(game)
+
 	game.player.global_position = Vector2(0, 200)
 	view.sway = false           # the framing is what the sway moves around
 	view._process(1.0)          # a long step, so the follow lands rather than eases
@@ -14148,6 +14149,42 @@ func _view() -> void:
 	_check("voice", "a higher priority cuts in", game.voice.say("defeat", 4))
 	_check("voice", "an undelivered key is silence, not a fallback",
 		not game.voice.say("no_such_line"))
+
+	## --- A SHOT THAT REACHES YOU LEAVES SOMETHING (board SG-301) -------------
+	##
+	## `_update_projectiles` resolved all three of its strikes and deleted the
+	## bolt in silence, while `impact_at` sat one call away with three pooled
+	## emitters and an eight-light flash pool already built and already exercised
+	## by every swing on the deck. The single most important event on the screen
+	## for deciding whether to move was the quietest thing in the game.
+	##
+	## ASKED OF THE FLASH POOL RATHER THAN OF THE SOURCE. `impact_at` claims one
+	## pooled `OmniLight3D` per call and advances `_flash_next` exactly once, so
+	## the counter is a true behavioural witness: it moves if and only if the
+	## renderer was actually told a hit landed. Both arms matter — a check that
+	## only proved "an impact happens" would pass on a version that threw sparks
+	## every time a bolt fizzled over the sea, which is a lie about where the
+	## danger was.
+	game.projectiles.clear()
+	game.player.global_position = Vector2(0, 200)
+	var flash_before: int = view._flash_next
+	game.spawn_enemy_bolt(game.player.global_position + Vector2(10, 0),
+		game.player.global_position, 9.0, 1.0)
+	game._update_projectiles(0.016)
+	var on_strike: int = view._flash_next - flash_before
+	var cleared: bool = game.projectiles.is_empty()
+	## ...and one that simply runs out of life leaves nothing behind it.
+	game.projectiles.clear()
+	var quiet_before: int = view._flash_next
+	game.spawn_enemy_bolt(Vector2(0, -600), Vector2(0, -900), 9.0, 1.0)
+	game.projectiles[0].life = 0.0
+	game._update_projectiles(0.016)
+	var on_fizzle: int = view._flash_next - quiet_before
+	_check("core", "a bolt that dies on something leaves sparks where it died, not nothing",
+		on_strike == 1 and cleared and on_fizzle == 0,
+		"striking the captain claimed %d flash(es) and removed the bolt: %s; expiring over the sea claimed %d"
+			% [on_strike, cleared, on_fizzle])
+	game.projectiles.clear()
 	world.queue_free()
 
 

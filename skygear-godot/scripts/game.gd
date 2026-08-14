@@ -4672,12 +4672,11 @@ func _update_projectiles(delta: float) -> void:
 			trail.pop_back()
 		var remove := float(bolt.life) <= 0.0 or not DECK_RECT.grow(80.0).has_point(bolt.position)
 		## OURS OR THEIRS. Every bolt used to be hostile because every bolt WAS,
-		## and the cannon shot added above would otherwise fly down the lane and
-		## damage the captain and the Boiler it was fired to defend.
-		## OURS OR THEIRS. Every bolt used to be hostile because every bolt WAS,
 		## and a cannon shot would otherwise fly down the lane and damage the
 		## captain and the Boiler it was fired to defend. A friendly bolt looks
 		## for a boarder and is done either way — it never touches anything else.
+		## *(This paragraph was here twice, verbatim-ish, from a copy-paste; the
+		## first copy is deleted.)*
 		if bool(bolt.get("friendly", false)):
 			if not remove:
 				var hit := nearest_enemy(bolt.position, 46.0)
@@ -4691,19 +4690,52 @@ func _update_projectiles(delta: float) -> void:
 			if remove:
 				projectiles.remove_at(i)
 			continue
+		## WHETHER THIS SHOT DIED ON SOMETHING OR JUST RAN OUT (board SG-301). The
+		## three ways it can strike are below; expiry and leaving the deck are not
+		## among them, because nothing was hit and a fizzle that throws sparks is a
+		## lie about where the danger was.
+		var struck := false
 		if not remove and bolt.position.distance_to(player.global_position) <= 27.0:
 			damage_player(float(bolt.damage), "bolt")
 			remove = true
+			struck = true
 		if not remove and bolt.position.distance_to(BOILER_POSITION) <= boiler_radius:
 			damage_boiler(float(bolt.damage))
 			remove = true
+			struck = true
 		if not remove:
 			for prop in props():
 				if is_instance_valid(prop) and prop.is_targetable() and bolt.position.distance_to(prop.global_position) <= prop.radius + 8.0:
 					prop.damage(float(bolt.damage))
 					remove = true
+					struck = true
 					break
 		if remove:
+			## AND A SHOT THAT REACHES YOU LEAVES SOMETHING WHERE IT LANDED.
+			##
+			## It never has. All three arms above resolved their damage and deleted
+			## the bolt in silence, while `impact_at` sat one call away with three
+			## pooled emitters and an eight-light flash pool already built and
+			## already exercised by every sword swing on the deck. So the single
+			## most important event on the screen for deciding whether to move —
+			## a shot arriving on the captain — was the quietest thing in the game,
+			## and a kill four metres away got a shock ring, a shell dome and
+			## eighteen pieces of debris.
+			##
+			## EMBER BECAUSE THE BOLT IS ALREADY EMBER, not because it is the
+			## default. `view3d.gd`'s trail draws this exact projectile with
+			## `_ribbon_path(pts, "FROST" if friendly else "EMBER", ...)` under a
+			## comment choosing it on purpose — *"Ember's handwriting for a burning
+			## drone bolt"* — so the impact and the trail that arrived at it are
+			## now the same element rather than two guesses. The head keeps its own
+			## oxblood, which is what holds theirs and ours apart.
+			##
+			## The simulation says a hit of this size, of this element, landed
+			## here, and the renderer owns the picture — the same division
+			## `damage_enemy` already uses, through the same one function, so no
+			## second particle path exists to drift from the first.
+			if struck and view != null:
+				view.impact_at(bolt.position, "EMBER", float(bolt.damage))
 			projectiles.remove_at(i)
 
 ## ONE source of truth for where cargo stands, so the collision clamp, the boarder
