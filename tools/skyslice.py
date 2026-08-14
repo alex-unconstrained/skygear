@@ -96,18 +96,45 @@ def clean(rgba: np.ndarray) -> np.ndarray:
     return out
 
 
-def bleed(rgba: np.ndarray) -> np.ndarray:
-    """Push real colour outward into the transparent region. Alpha untouched.
+## A texel is BODY, and therefore a trustworthy source of colour, only when it is
+## this opaque. Everything below it is feather, and on these sheets feather means
+## contaminated — see `bleed`.
+BODY = 230
 
-    One distance transform gives, for every texel, the index of the nearest texel
-    that HAS presence — so it replaces the whole iterative dilate, exactly, and
-    there is no round count to tune wrong.
+
+def bleed(rgba: np.ndarray) -> np.ndarray:
+    """Give every non-body texel the nearest BODY colour. Alpha untouched.
+
+    THIS DE-MATTES AS WELL AS BLEEDS, and the second job is the one that was
+    missing. The owner, looking at a contact sheet of the twenty clumps: *"the
+    bottom left two have visible white halos."* He was right, and they were the
+    worst of a problem every clump had.
+
+    THE MECHANISM. `gpt-image-1` does not return a premultiplied cut-out; it
+    paints the subject over SOME background and hands back an alpha channel. So
+    every partially-transparent texel carries that background blended into its
+    RGB, and when the result is composited over this game's violet sky the
+    borrowed light shows as a bright rim. Measured as the difference between a
+    clump's feather (alpha 32..200) and its own body (alpha >= 240): **+84 and
+    +97** brightness units on the two he pointed at, which came off rolls with a
+    pale grey backdrop, and +30 to +50 on almost everything else.
+
+    The first version of this only rewrote texels BELOW the bleed threshold, so
+    it fixed the invisible region outside the shape and left the visible rim
+    exactly as it was — it cured the fringe a filtered lookup would drag in and
+    not the halo a human can see.
+
+    Replacing every non-body texel's colour with its nearest BODY colour removes
+    the borrowed light while leaving alpha untouched, so the edge stays exactly as
+    soft as it was painted and simply stops being white. A genuine lit rim
+    survives, because the body immediately behind a moonlit edge is itself the lit
+    part and is therefore the nearest body colour.
     """
     out = rgba.copy()
-    solid = out[..., 3] > 0
-    if solid.all() or not solid.any():
+    body = out[..., 3] >= BODY
+    if body.all() or not body.any():
         return out
-    _, (iy, ix) = ndimage.distance_transform_edt(~solid, return_indices=True)
+    _, (iy, ix) = ndimage.distance_transform_edt(~body, return_indices=True)
     out[..., :3] = out[iy, ix, :3]
     return out
 

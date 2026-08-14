@@ -116,41 +116,29 @@
   "near": {
    "texture": "res://assets/art/env/sky_clouds_near.png",
    "sheet": [
-    3639,
-    931
+    2192,
+    838
    ],
    "note": "near storm cloud, fastest, largest, most saturated",
-   "from": "sky_clouds_near_1.png + sky_clouds_near_2.png + sky_clouds_near_r1a.png + sky_clouds_near_r1b.png",
+   "from": "sky_clouds_near_1.png + sky_clouds_near_2.png",
    "clumps": [
     [
      24,
-     170,
+     124,
      677,
      590
     ],
     [
      725,
-     70,
+     24,
      725,
      790
     ],
     [
      1474,
-     142,
+     96,
      694,
      646
-    ],
-    [
-     2192,
-     24,
-     793,
-     883
-    ],
-    [
-     3009,
-     135,
-     606,
-     660
     ]
    ]
   }
