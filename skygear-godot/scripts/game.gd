@@ -694,6 +694,32 @@ func _maybe_play_opening() -> void:
 func replay_opening() -> void:
 	if pose_owner != null or DisplayServer.get_name() == "headless":
 		return
+	## AND A TOOL RUN IS THE SAME CASE AS HEADLESS (board SG-295).
+	##
+	## THIS IS WHY TWO RUNS OF A CAPTURE TOOL COULD DISAGREE ON 96% OF THE FRAME.
+	## The headless refusal above exists so a tool never photographs the film.
+	## Every capture tool in `tools/` is WINDOWED and has to be — SG-29: there is
+	## no rendering device under `--headless` — so that guard has never once
+	## covered the case it was written for. Measured on `prop_shot.gd`, same
+	## arguments, back to back: one run returned the deck and the other returned
+	## the opening cinematic, "press any key to skip" and all. Not a noise floor.
+	## A different picture.
+	##
+	## AND IT IS INTERMITTENT FOR A REASON THAT LOOKS LIKE NOTHING. The film is
+	## once-only, gated on `SkyGearOpening.seen()`, which lives in the player's
+	## own `user://` state — the state the harness DIVERTS and restores on every
+	## run (SG-181/SG-182). So whether a capture tool photographs the deck or the
+	## film depends on what else has been run on this machine since, which is the
+	## worst possible shape for a bug: it is invisible, it is not reproducible on
+	## demand, and it silently voids any before/after taken across it.
+	##
+	## ASKED OF THE COMMAND LINE RATHER THAN OF A FLAG EACH TOOL SETS, because a
+	## rule seventeen tools have to remember is a rule the eighteenth will not
+	## (the SG-292 argument: hold it by construction where it matters, not by
+	## convention somewhere else). SETTINGS -> WATCH THE OPENING is untouched — a
+	## player's build carries no `--script`.
+	if "--script" in OS.get_cmdline_args():
+		return
 	if not ResourceLoader.exists(SkyGearOpening.FILM):
 		return
 	if has_node("Opening"):

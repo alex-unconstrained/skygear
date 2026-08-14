@@ -96,6 +96,31 @@ func _run() -> void:
 		await _shoot(scene, path)
 		print("  %-8s %s" % [str(scene.id), path])
 	print("vfx shots ok")
+	## AND WHAT THEY CAN AND CANNOT SUPPORT (board SG-295).
+	##
+	## `SkyGearStill`'s header sets the standard — *"if it is not 0.00 the scene
+	## is not still and every number the tool prints below it is that motion, not
+	## the feature"* — and WITHIN one run these plates meet it: `freeze` pins the
+	## particles at the chosen tick and the readback is of that frame.
+	##
+	## ACROSS TWO RUNS THEY DO NOT, AND THIS TOOL CANNOT BE MADE TO. Every lever
+	## that makes a frame reproducible — `Engine.time_scale`,
+	## `GPUParticles3D.speed_scale`, pinning the clocks before the settle the way
+	## `prop_shot` now does — is the same lever that stops the effect under
+	## judgement from existing. A tool whose subject is particles in flight is
+	## measuring the flight, and the honest thing is to say so rather than be
+	## quietly rebuilt into a tool that photographs an empty deck.
+	##
+	## So: judge these plates BY EYE, one at a time, for what the effect looks
+	## like. Do not diff two of them across a code change and call the difference
+	## the change. `tools/shiny_ab.gd` and `tools/edge_ab.gd` are the shape for
+	## that question — both plates inside ONE frozen scene with only the thing
+	## under test changed between them, and the floor printed first.
+	print("  ACROSS TWO RUNS these plates differ by about %.2f%% on an unchanged "
+		% float(SkyGearStill.CROSS_RUN_FLOOR.vfx_shot)
+		+ "scene — particles in flight are the subject, so that cannot go to zero.")
+	print("  Judge them by eye. For a before/after, use shiny_ab/edge_ab: "
+		+ "both plates in one frozen scene, floor printed first.")
 	quit(0)
 
 

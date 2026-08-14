@@ -2444,6 +2444,64 @@ func _still() -> void:
 		missing.is_empty(), "no longer stopped:%s" % _joined(missing) if not missing.is_empty()
 			else "%d clocks" % clocks.size())
 
+	## --- AND A TOOL THAT PUBLISHES A COMPARISON STATES ITS OWN FLOOR (SG-295) -
+	##
+	## THE GAP THIS CLOSES IS THE ONE THAT COST A MEASUREMENT. The five checks in
+	## this group assert that a photographing tool DECLARES whether it freezes,
+	## that the helper still stops its list of clocks, that nobody keeps a private
+	## copy, and that readbacks wait for the renderer. **Not one of them runs a
+	## tool twice and compares the two frames** — so `prop_shot` could disagree
+	## with itself on 96% of the frame, and did, and SG-291 published three
+	## numbers through it of which two sat under its own noise.
+	##
+	## The floors themselves are measured by hand and recorded in
+	## `SkyGearStill.CROSS_RUN_FLOOR` — this cannot re-measure them, because
+	## running a windowed capture tool twice is not a thing a headless harness can
+	## do. What it CAN guarantee is that the number exists for every tool that
+	## takes one plate per process, and that the tool actually says it out loud
+	## where somebody reading the output will see it. A floor recorded in a
+	## constant and never printed is the SG-11 failure: a coverage claim nobody
+	## can act on.
+	var floors: Dictionary = SkyGearStill.CROSS_RUN_FLOOR
+	var silent: Array[String] = []
+	for tool_name in floors:
+		var tool_src := FileAccess.get_file_as_string("res://tools/%s.gd" % str(tool_name))
+		if tool_src == "":
+			silent.append("%s (no such tool)" % str(tool_name))
+			continue
+		## It must quote the shared constant rather than a number of its own, and
+		## it must name the tools that DO support a cross-run comparison, or the
+		## warning is a dead end for whoever reads it.
+		if not tool_src.contains("CROSS_RUN_FLOOR"):
+			silent.append("%s (never prints its floor)" % str(tool_name))
+		elif not (tool_src.contains("shiny_ab") and tool_src.contains("edge_ab")):
+			silent.append("%s (warns, but names no tool that works)" % str(tool_name))
+	_check("still", "and a tool that publishes one plate per process says what two of them are worth",
+		silent.is_empty() and floors.size() >= 2,
+		"not saying it:%s" % _joined(silent) if not silent.is_empty()
+			else "%d tools quote the shared floor and point at shiny_ab/edge_ab"
+				% floors.size())
+
+	## AND THE FILM CANNOT WALK INTO A JUDGING FRAME (SG-295). The headless
+	## refusal in `replay_opening` existed so a tool never photographs the opening
+	## cinematic, and it covered nothing: every capture tool is WINDOWED by
+	## necessity (SG-29 — there is no rendering device under `--headless`), so the
+	## one guard that was supposed to stop this had never once applied to the case
+	## it was written for. Measured: two runs of `prop_shot` with identical
+	## arguments returned the deck and the film, 96.31% of pixels apart.
+	## Bounded by the NEXT function rather than by a character count — the first
+	## draft used `substr(find(...), 1400)` and the guard sat past the end of that
+	## window, so the check went red on a fix that was present. A window measured
+	## in characters is a window that moves when somebody writes a comment.
+	var opening_src := FileAccess.get_file_as_string("res://scripts/game.gd")
+	var from := opening_src.find("func replay_opening")
+	var to := opening_src.find("\nfunc ", from + 10)
+	var guard := opening_src.substr(from, (to - from) if to > from else 2000)
+	_check("still", "and a tool run never photographs the opening film",
+		guard.contains("--script") and guard.contains("OS.get_cmdline_args()"),
+		"replay_opening refuses a --script run: %s"
+			% (guard.contains("--script") and guard.contains("OS.get_cmdline_args()")))
+
 	## AND THE OTHER DIRECTION: no tool may keep a private copy of the fix. This
 	## is the check that stops the chain starting again — `marks_shot` found three
 	## of these and wrote them into itself, `rig_probe` copied those three and

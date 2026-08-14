@@ -88,8 +88,36 @@ func _run() -> void:
 	if at.size() == 2:
 		game.player.global_position = Vector2(float(at[0]), float(at[1]))
 	var steps: int = int(scene.get("steps", 40))
+	## A SETTLE ON A FIXED CLOCK (board SG-295), because this loop was the second
+	## half of why two runs of this tool disagreed.
+	##
+	## `game._process(1/60)` is explicit and deterministic. The `await
+	## process_frame` under it was NOT: the renderer is still processing, and
+	## `_track_camera` eases with `_focus.lerp(target, 1.0 - exp(-delta /
+	## CAM_TAU))` off the WALL CLOCK, so forty frames of however long they
+	## happened to take left the camera in a slightly different place every run.
+	## That is exactly the signature SG-295 recorded and could not name — "a
+	## sub-pixel shift of EVERYTHING, amplified by the ink pass's edge detection,
+	## not of one object moving". It is the camera, and it never settles to the
+	## same pixel twice.
+	##
+	## `SkyGearStill.pin_clocks` takes the wall clock out of everything that does
+	## not belong to the scene tree — the engine's own scale, the GPU particle
+	## systems, the temporal accumulators and the lighting phase — and the two
+	## explicit calls below put the settle back on a clock this tool owns. The
+	## four renderer-sync frames further down are then free: with the scale at
+	## zero they advance nothing and only let the rendering server catch up.
+	##
+	## PINNED HERE RATHER THAN AT THE SHUTTER, which is the whole point. `freeze`
+	## pins the same clocks, but it runs at the END, so it was freezing the
+	## braziers and the steam wherever forty frames of wall time had left them —
+	## a different phase every run. The measured climb down from 96.31% to 0.19%,
+	## step by step, is in `SkyGearStill.pin_clocks`.
+	SkyGearStill.pin_clocks(self, view)
 	for _i in steps:
 		game._process(1.0 / 60.0)
+		if view != null:
+			view._process(1.0 / 60.0)
 		await process_frame
 
 	## The hulk's face, posed rather than played (SG-76). `hulk_state()` reads
@@ -129,5 +157,33 @@ func _run() -> void:
 	await RenderingServer.frame_post_draw
 	var img := root.get_texture().get_image()
 	img.save_png(out.replace("\\", "/"))
+
+	## AND THE TOOL SAYS WHAT IT CAN AND CANNOT SUPPORT (board SG-295).
+	##
+	## `SkyGearStill`'s header sets the standard: *"if it is not 0.00 the scene is
+	## not still and every number the tool prints below it is that motion, not the
+	## feature."* WITHIN one run this tool is still — `floor_pct` takes two plates
+	## with nothing changed between them and that figure is printed below.
+	##
+	## ACROSS TWO RUNS IT IS NOT, AND THAT IS THE COMPARISON ANYBODY ACTUALLY
+	## MAKES: a before/after taken over a code change is two processes. That
+	## number was 96.31% when this row was opened — one run photographing the
+	## opening film and the other the deck — and is 0.19% now. Better is not zero,
+	## so a difference this tool photographs is only a finding if it is
+	## comfortably larger than that, and a claim under it is noise wearing a
+	## measurement's clothes. SG-291 published three numbers through this tool and
+	## two of them sat under its own floor.
+	##
+	## `tools/shiny_ab.gd` and `tools/edge_ab.gd` are the shape that does not have
+	## this problem: both plates inside ONE frozen scene with only the thing under
+	## test changed between them, and the floor printed first. Reach for those
+	## when the question is "did this change move the picture".
+	var box := Rect2i(200, 150, 1200, 600)
+	var within: float = await SkyGearStill.floor_pct(self, box)
 	print("shot ok")
+	print("  NOISE FLOOR, within this run: %.2f%%  (0.00 is the pass condition)"
+		% within)
+	print("  ACROSS TWO RUNS this tool measures %.2f%% on an unchanged scene "
+		% float(SkyGearStill.CROSS_RUN_FLOOR.prop_shot)
+		+ "— a before/after under that is noise. Use shiny_ab/edge_ab instead.")
 	quit(0)

@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(butler status *)",
+      "Bash(tasklist *)",
+      "Bash(nvidia-smi --query-gpu=*)",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_snapshot",
+      "mcp__plugin_playwright_playwright__browser_console_messages",
+      "mcp__claude-in-chrome__read_console_messages"
+    ]
+  }
+}

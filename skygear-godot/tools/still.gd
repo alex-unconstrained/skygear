@@ -64,12 +64,10 @@ static func freeze(tree: SceneTree, view: Node, game: Node = null) -> Dictionary
 	if game != null:
 		game.set_process(false)
 
-	## 2. THE ENGINE'S OWN CLOCK, which is the one `set_process(false)` never
-	## touched. Everything below is belt AND braces on purpose: `time_scale`
-	## alone would do it, but a tool that later sets `time_scale` back to 1 to
-	## step something would silently un-freeze seventeen rigs, and per-node
-	## `speed_scale` survives that.
-	Engine.time_scale = 0.0
+	## 2, 4, 5, 6 — THE CLOCKS THAT ARE NOT THE SCENE TREE'S. Split into
+	## `pin_clocks` for board SG-295 so a tool can pin them BEFORE its settle
+	## rather than only at the shutter; see that function for why that matters.
+	var pinned := pin_clocks(tree, view)
 
 	## 3. EVERY RIG. This is SG-108 itself.
 	var players := 0
@@ -79,10 +77,94 @@ static func freeze(tree: SceneTree, view: Node, game: Node = null) -> Dictionary
 		## `advance(0.0)` flushes the pose it is holding so the first plate is
 		## the pose the second plate will also have, rather than one tick behind.
 		if ap.is_playing():
+			## AND THE POSE IS PINNED, NOT MERELY STOPPED (board SG-295).
+			##
+			## `speed_scale = 0` freezes a rig WHERE IT HAS GOT TO, and where it
+			## has got to depends on the frame its scene finished loading on —
+			## which is disk timing, and differs run to run. Measured on
+			## `prop_shot.gd` with every other clock already pinned: the residual
+			## difference between two runs was one solid blob, and the blob was
+			## the captain, one idle frame apart. Everything else in the frame was
+			## edge speckle.
+			##
+			## So the rigs get the same treatment `_flicker` has had since SG-101:
+			## a phase pinned to a fixed number rather than to whatever happened.
+			## `fposmod` because these clips are all different lengths and the
+			## number has to land inside every one of them.
+			var clip := ap.get_animation(ap.current_animation)
+			if clip != null and clip.length > 0.0:
+				ap.seek(fposmod(POSE, clip.length), true)
 			ap.advance(0.0)
 		players += 1
 
-	## 4. THE GPU'S OWN CLOCK. `GPUParticles3D` runs on the graphics card and does
+	if view.has_method("set_process"):
+		view.set_process(false)
+
+	## Three ticks at a zero delta to flush the pinned phase and the held poses
+	## into the frame, then two frames for the readback to be of THAT frame.
+	for _i in 3:
+		if view.has_method("_process"):
+			view.call("_process", 0.0)
+		await tree.process_frame
+	await tree.process_frame
+
+	return {"animation_players": players, "particles": int(pinned.particles),
+		"debanding": true, "fog_reprojection": bool(pinned.fog_reprojection)}
+
+
+## THE CLOCKS THAT DO NOT BELONG TO THE SCENE TREE — pinned, and separable from
+## the rest of `freeze` (board SG-295).
+##
+## WHY THIS IS ITS OWN FUNCTION NOW. `freeze` runs at the SHUTTER, which is the
+## right moment to stop everything and the wrong moment to have started. These
+## four clocks ignore `set_process(false)` and run on wall time, so a tool that
+## settles its scene for forty frames and freezes afterwards freezes them
+## WHEREVER THAT RUN'S WALL CLOCK HAPPENED TO PUT THEM — a phase that is
+## different every run. `thaw`'s own comment has recorded the consequence for
+## months: *"the braziers and the particle systems do not arrive at the shutter
+## in the same place twice across two runs"*, at 0.72% and 13.55% on one build.
+## Pinned BEFORE the settle instead, they arrive at the shutter in the same place
+## every time, and a before/after taken across two processes becomes a thing you
+## can believe.
+##
+## THE WHOLE MEASURED CLIMB DOWN, on `prop_shot.gd`, same arguments, two runs
+## back to back at each step — because a fix of this shape is worth nothing
+## stated as "it is better now":
+##
+##     96.31%   as found. Not noise: one run photographed the OPENING FILM
+##              (`game.gd::replay_opening` refused only under headless, and every
+##              capture tool is windowed by necessity).
+##     19.84%   with the film refused for tool runs.
+##      2.21%   with the settle on a fixed clock instead of `await process_frame`
+##              (the camera eases with `1.0 - exp(-delta / CAM_TAU)`, so forty
+##              wall-clock frames landed it somewhere new every run).
+##      1.49%   with these clocks pinned BEFORE the settle rather than at the
+##              shutter.
+##      0.19%   with rig poses pinned as well (see `POSE`).
+##
+## AND 0.19% IS NOT 0.00%, WHICH IS THE PASS CONDITION THIS FILE'S OWN HEADER
+## SETS. It is a low-amplitude speckle along high-contrast edges — peak channel
+## disagreement 85 of 255, nothing at all above 120, spread evenly over the
+## frame rather than pooled on any object. ONE HYPOTHESIS WAS TESTED AND
+## REJECTED: SSAO is noisy per frame and looked like the obvious candidate, and
+## disabling it in this function made the floor WORSE, 0.19% -> 4.04%. That is
+## recorded rather than dropped, because a rejected hypothesis is the cheapest
+## thing the next person can be handed. The residual is unattributed, and until
+## it is zero the tools say so at the point of use rather than implying a
+## precision they do not have.
+##
+## `freeze` calls this too, so there is exactly one statement of what a pinned
+## clock is rather than one here and a second at the shutter.
+static func pin_clocks(tree: SceneTree, view: Node) -> Dictionary:
+	var root := tree.get_root()
+	## THE ENGINE'S OWN CLOCK, which is the one `set_process(false)` never
+	## touched. Belt AND braces with the per-node scales below on purpose:
+	## `time_scale` alone would do it, but a tool that later sets `time_scale`
+	## back to 1 to step something would silently un-freeze seventeen rigs, and
+	## per-node `speed_scale` survives that.
+	Engine.time_scale = 0.0
+
+	## THE GPU'S OWN CLOCK. `GPUParticles3D` runs on the graphics card and does
 	## not care that the tree stopped processing — embers and steam kept moving
 	## between two plates and turned up in SG-101's contrast figures as if the
 	## marks had done it. `speed_scale = 0` freezes them IN PLACE rather than
@@ -93,7 +175,7 @@ static func freeze(tree: SceneTree, view: Node, game: Node = null) -> Dictionary
 		(node as GPUParticles3D).speed_scale = 0.0
 		particles += 1
 
-	## 5. THE TEMPORAL ACCUMULATORS. Debanding is a per-frame RANDOM dither: it
+	## THE TEMPORAL ACCUMULATORS. Debanding is a per-frame RANDOM dither: it
 	## moves a little of every pixel on every frame whether the scene changed or
 	## not, and with it on two identical plates differed across 53% of the deck.
 	## Volumetric fog's temporal reprojection blends each frame into the last few
@@ -108,7 +190,7 @@ static func freeze(tree: SceneTree, view: Node, game: Node = null) -> Dictionary
 		env.volumetric_fog_temporal_reprojection_enabled = false
 		fog = true
 
-	## 6. THE LIGHTING PHASE. `_flicker` advances on real frames, so two plates
+	## THE LIGHTING PHASE. `_flicker` advances on real frames, so two plates
 	## reach the shutter with the braziers, the lantern and the vent at different
 	## points in their cycle — and the first attempt at SG-101's measurement
 	## reported the contrast getting WORSE when the marks got FAINTER, which is
@@ -116,24 +198,42 @@ static func freeze(tree: SceneTree, view: Node, game: Node = null) -> Dictionary
 	## are lit identically.
 	if "_flicker" in view:
 		view.set("_flicker", FLICKER)
-	if view.has_method("set_process"):
-		view.set_process(false)
-
-	## Three ticks at a zero delta to flush the pinned phase and the held poses
-	## into the frame, then two frames for the readback to be of THAT frame.
-	for _i in 3:
-		if view.has_method("_process"):
-			view.call("_process", 0.0)
-		await tree.process_frame
-	await tree.process_frame
-
-	return {"animation_players": players, "particles": particles,
-		"debanding": true, "fog_reprojection": fog}
+	return {"particles": particles, "debanding": true, "fog_reprojection": fog}
 
 
 ## The pinned brazier phase. Any fixed number works; this is the one SG-101 and
 ## SG-107 both used, kept so old plates and new plates are lit the same.
 const FLICKER := 12.0
+
+## The pinned RIG phase, same idea one system over (board SG-295). Any fixed
+## number works and this one is chosen to be past the start of a breathing idle
+## without being at its exact midpoint — a figure caught dead on 0.0 reads as a
+## bind pose in a judging frame. Taken `fposmod` a clip's own length, so one
+## number lands inside a 0.9 s flinch and a 4.6 s death alike.
+const POSE := 0.75
+
+## WHAT A CROSS-RUN COMPARISON THROUGH A ONE-PLATE-PER-PROCESS TOOL IS WORTH
+## (board SG-295). Measured, two runs, same arguments, nothing changed between
+## them. It is not zero, so the tools that publish one plate per process PRINT it
+## rather than letting a reader assume the difference they are looking at is the
+## feature. Numbers, not feelings, and they live here so a tool and a check
+## cannot come to different conclusions about the same instrument.
+##
+## `prop_shot` — 0.19%. Was 96.31% when this row opened: one run photographed the
+## OPENING FILM. See the full climb down in `pin_clocks`.
+##
+## `vfx_shot` — 7.73% (the `arc` scene; `aoe` 6.56%). Was 22.45%, and the film
+## refusal is most of what it lost. **It does not get `prop_shot`'s treatment and
+## it cannot.** Its whole subject is particles in flight, and every lever that
+## makes a frame reproducible — `Engine.time_scale`, `GPUParticles3D.speed_scale`
+## — is the lever that stops the thing being photographed from existing. A tool
+## that photographs motion across two processes is measuring the motion, and the
+## honest fix is for it to say so rather than to be quietly rebuilt into a tool
+## that photographs nothing.
+const CROSS_RUN_FLOOR := {
+	"prop_shot": 0.19,
+	"vfx_shot": 7.73,
+}
 
 
 ## AND BACK, for a tool that shoots more than one pose. A freeze that could not
