@@ -1502,17 +1502,37 @@ func _build_world() -> void:
 ## to whoever opens the project with `--rendering-method mobile`, this checks
 ## first and leaves the deck exactly as it was.
 ##
-## AND IT REFUSES WHEN THERE IS NO GPU. The harness, the batch camera and every
-## probe run headless or offscreen; a full-screen transparent quad sampling three
-## framebuffers is pure cost there and, worse, would put an ink line into every
-## photograph the audit tools take of the 3D deck. `still.gd` and `lit_probe.gd`
-## measure pixel ratios against published bands, and an edge pass would move
-## every one of them.
+## AND IT REFUSES ON A TOOL RUN. The harness, the batch camera and every probe
+## are here to MEASURE the deck; a full-screen transparent quad sampling three
+## framebuffers would put an ink line into every photograph they take of it.
+## `still.gd` and `lit_probe.gd` measure pixel ratios against published bands,
+## and an edge pass moves every one of them.
+##
+## THAT PARAGRAPH WAS TRUE AND THE GUARD UNDER IT DID THE EXACT OPPOSITE
+## (board SG-267). It read `if DisplayServer.get_name() == "headless": return` —
+## and headless is precisely the set of runs that CANNOT photograph anything.
+## `SkyGearRendererCheck.can_capture()` is false exactly when the display is
+## headless. So the ink was armed on every run that could take a picture and
+## skipped on every run that could not: the inverse of the sentence above it,
+## for the whole life of the pass. Measured at the time it was filed — five
+## deck-bearing poses shot twice, ink armed and ink off — the corner/centre
+## luminance ratio was lower with ink in ALL FIVE and the mean gradient
+## magnitude higher in ALL FIVE. Every published deck figure taken since the ink
+## landed was taken through it.
+##
+## ASKED OF THE COMMAND LINE, the same predicate `game.gd::replay_opening` now
+## uses to keep the opening film out of a judging frame (SG-295). A tool run is
+## not a player's run, and stating that once in the same shape in both places is
+## how it stays true of the next tool as well.
+##
+## THE PLAYER'S BUILD IS UNTOUCHED: no `--script`, so the ink arms exactly as it
+## did. This changes what the INSTRUMENTS see, which is the only thing that was
+## ever wrong here.
 var _post_quad: MeshInstance3D = null
 
 
 func _arm_deck_post() -> void:
-	if DisplayServer.get_name() == "headless":
+	if "--script" in OS.get_cmdline_args():
 		return
 	var method := str(ProjectSettings.get_setting(
 		"rendering/renderer/rendering_method", "forward_plus"))

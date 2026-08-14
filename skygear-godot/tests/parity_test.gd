@@ -2502,6 +2502,31 @@ func _still() -> void:
 		"replay_opening refuses a --script run: %s"
 			% (guard.contains("--script") and guard.contains("OS.get_cmdline_args()")))
 
+	## NOR THROUGH THE INK (board SG-267), which is the same defect one system
+	## over and was found by the same question: which runs is this guard actually
+	## covering?
+	##
+	## `_arm_deck_post`'s own comment says a full-screen edge pass "would put an
+	## ink line into every photograph the audit tools take of the 3D deck" — and
+	## the guard under it read `if DisplayServer.get_name() == "headless"`, which
+	## is FALSE for every run that can photograph anything and TRUE for every run
+	## that cannot. It armed the ink on exactly the set it was written to spare.
+	## Measured when it was filed: five poses shot both ways, corner/centre
+	## luminance lower with ink in all five, mean gradient higher in all five.
+	##
+	## Asserted on the GUARD rather than on a rendered pixel, because the harness
+	## is headless and under the old rule headless was the one case that never saw
+	## the ink — a pixel check here would have passed throughout.
+	var view_src := FileAccess.get_file_as_string("res://scripts/view3d.gd")
+	var arm_from := view_src.find("func _arm_deck_post")
+	var arm_to := view_src.find("\nfunc ", arm_from + 10)
+	var arm := view_src.substr(arm_from, (arm_to - arm_from) if arm_to > arm_from else 900)
+	_check("still", "and never through the ink pass either",
+		arm.contains("--script") and arm.contains("OS.get_cmdline_args()")
+			and not arm.contains("get_name() == \"headless\""),
+		"_arm_deck_post refuses a --script run: %s; still keyed off headless: %s"
+			% [arm.contains("--script"), arm.contains("get_name() == \"headless\"")])
+
 	## AND THE OTHER DIRECTION: no tool may keep a private copy of the fix. This
 	## is the check that stops the chain starting again — `marks_shot` found three
 	## of these and wrote them into itself, `rig_probe` copied those three and
