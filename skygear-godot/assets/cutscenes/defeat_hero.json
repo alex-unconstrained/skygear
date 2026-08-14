@@ -1,0 +1,50 @@
+{
+  "id": "defeat_hero",
+  "name": "THE HERO HAS FALLEN",
+  "cue": "defeat_hero",
+  "wave": 0,
+  "hold": true,
+  "hide_hud": true,
+  "sway": true,
+  "letterbox": 0.14,
+  "caption": "THE HERO HAS FALLEN",
+  "caption_from": "end_reason",
+  "keys": [
+    {
+      "t": 0.0,
+      "eye": [0.0, 760.0, 1180.0],
+      "look": [0.0, 0.0, 315.0],
+      "fov": 36.09,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": "gameplay"
+    },
+    {
+      "t": 0.8,
+      "eye": [0.0, 760.0, 1180.0],
+      "look": [0.0, 0.0, 315.0],
+      "fov": 36.09,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": "gameplay"
+    },
+    {
+      "t": 4.6,
+      "eye": [0.0, 1750.0, 2350.0],
+      "look": [0.0, 0.0, -60.0],
+      "fov": 44.0,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": ""
+    },
+    {
+      "t": 5.4,
+      "eye": [0.0, 1750.0, 2350.0],
+      "look": [0.0, 0.0, -60.0],
+      "fov": 44.0,
+      "roll": 0.0,
+      "ease": "inout",
+      "from": ""
+    }
+  ]
+}

@@ -4935,7 +4935,17 @@ func _watch_cues() -> void:
 		cue("victory")
 		return
 	if state_changed and state == int(SkyGearGame.State.GAMEOVER):
-		cue("defeat")
+		## TWO DEFEATS, ONE STATE (board SG-289). Asked of the HERO'S OWN HP
+		## rather than of the state, because a lost Boiler reaches GAMEOVER with
+		## her still standing — which is the whole reason SG-282's death ladder
+		## reads `player.hp` here too (view3d.gd, `_sync_captain`) and SG-283's
+		## card reads the same fact for its wording. Three readers, one question,
+		## so the shot, the body and the sentence over it cannot name different
+		## endings.
+		if game.player != null and game.player.hp <= 0.0:
+			cue("defeat_hero")
+		else:
+			cue("defeat")
 		return
 	## The establishing shot, owed by `begin_run` and spent HERE — the one place a
 	## camera is allowed, once the opening draft is behind us and the deck is in

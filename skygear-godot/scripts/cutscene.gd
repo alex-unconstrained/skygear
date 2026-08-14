@@ -69,6 +69,15 @@ const CUES := {
 	"wave_start": "a wave begins; the `wave` field narrows it to one — scripts/view3d.gd, _watch_cues",
 	"victory": "the twelfth wave is cleared — scripts/view3d.gd, _watch_cues",
 	"defeat": "the Boiler goes — scripts/view3d.gd, _watch_cues",
+	## TWO DEFEATS REACH ONE STATE, AND ONLY ONE OF THEM IS ABOUT THE BOILER
+	## (board SG-289). `defeat` is the ship's ending and its shot pushes in on the
+	## thing you failed to protect, which is right for it and wrong for the other
+	## one — the owner, having died to a furnace knight with the Boiler at full
+	## health: *"I died and it just immediately cut to the boiler and mission
+	## failed message."* A second CUE rather than a second scene on the same cue,
+	## because `for_cue` returns the first SORTED match and "defeat" wins that
+	## sort for ever; the discriminator has to live where `player.hp` is readable.
+	"defeat_hero": "the hero falls with the Boiler still standing — scripts/view3d.gd, _watch_cues",
 }
 
 ## How a segment gets from one keyframe to the next.

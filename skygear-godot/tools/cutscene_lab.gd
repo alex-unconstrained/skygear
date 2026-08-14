@@ -72,7 +72,7 @@ const SPEEDS := [[0.1, "0.1x"], [0.25, "0.25x"], [0.5, "0.5x"], [1.0, "1x"], [2.
 ## What the CUE button cycles through. "" is a cutscene that nothing plays,
 ## which is a legitimate thing to be while it is being written — and the reason
 ## it is first in the list rather than absent from it.
-const CUE_CHOICES := ["", "boss_arrival", "wave_start", "victory", "defeat"]
+const CUE_CHOICES := ["", "boss_arrival", "wave_start", "victory", "defeat", "defeat_hero"]
 
 
 ## Input, and the late tick. `process_priority` is the load-bearing part: the

@@ -2,6 +2,7 @@
   "cutscenes": [
     "colossus_arrival",
     "defeat",
+    "defeat_hero",
     "run_open",
     "victory",
     "wave_start_blackout",

@@ -6726,10 +6726,98 @@ func _hero_dies() -> void:
 		## controls gone the velocity still decays under FRICTION, so the drawn
 		## figure has to keep being placed for the two or three frames it takes —
 		## and that is the half of this bug a pose check would miss.
+		## SETTLE THE CAMERA BEFORE SNAPSHOTTING IT, and this is the instrument
+		## being fixed rather than the tolerance being loosened — the same
+		## correction the body check three paragraphs down had to make, for the
+		## same reason one system over.
+		##
+		## `_track_camera` eases `_focus` toward the captain with
+		## `1.0 - exp(-delta / CAM_TAU)`, and this fixture has just teleported her,
+		## so the camera is still travelling when the kill lands. Snapshot it
+		## mid-ease and the pin — resolved in `begin()` against `_focus` a frame or
+		## two LATER — is legitimately somewhere else, and the check measures the
+		## ease rather than the cut. Measured on the first run: 186 ground units
+		## for the captain and 399 for the Boilerwright, which is the travel left
+		## in the ease and not a fault in the shot. Wait for it to stop.
+		for _c in 40:
+			var was: Vector3 = view.camera.global_transform.origin
+			await process_frame
+			if view.camera.global_transform.origin.distance_to(was) < 0.01:
+				break
 		game.player.velocity = Vector2(400.0, 0.0)
+		## THE SHOT THE DEATH GETS (board SG-289), snapshotted off a settled
+		## camera so the opening is compared against the pose the player was
+		## actually looking at rather than against a number written down here.
+		var cam_before: Vector3 = view.camera.global_transform.origin
+		var fov_before: float = view.camera.fov
 		game.damage_player(99999.0)
 		await process_frame
 		await process_frame
+
+		## THE HERO'S DEATH IS FILMED AS THE HERO'S.
+		##
+		## One cue served both defeats and its every look-target is the Boiler —
+		## correct for the ship's ending and wrong for this one. The owner, having
+		## died to a furnace knight with the Boiler at full health: *"I died and it
+		## just immediately cut to the boiler and mission failed message."*
+		##
+		## Read off the ACTIVE scene dictionary rather than out of the source: a
+		## scan would say the branch exists, and SG-272 is the standing reminder
+		## that a scan cannot say it works.
+		var live_id := str((view._cutscene.scene as Dictionary).get("id", ""))
+		_check("cutscene", "a fallen %s takes her own shot, not the Boiler's" % who,
+			live_id == "defeat_hero",
+			"the shot playing over the body is \"%s\"" % live_id)
+
+		## AND IT OPENS WHERE THE GAMEPLAY CAMERA STOOD.
+		##
+		## `begin()` teleports to key 0 with `pose_at(0.0)` — there is no
+		## transition — so a scene whose first key is an authored position CUTS,
+		## which is the second half of the owner's "immediately" and the half the
+		## row had not measured. Key 0 here is pinned `from: "gameplay"`, so the
+		## teleport lands on the pose the player was already looking at.
+		##
+		## ASKED OF THE BOUND SCENE, BECAUSE EVERY SNAPSHOT MEASURES THE EASE.
+		##
+		## Two drafts of this compared the camera against a remembered transform
+		## and then against `shipped_eye(view._focus)`, and both measured the
+		## camera's own travel rather than the cut: `_focus` keeps easing toward a
+		## body still sliding at 400 units a second, BEFORE the cue and — as
+		## `cutscene_player.begin` says in as many words — while the shot runs.
+		## Any two readings taken at different instants differ by that ease
+		## (measured: 2.16, then 2.91 and 9.53). There is no instant at which the
+		## quantity I wanted is observable.
+		##
+		## What IS exactly observable is what `bind()` did. It replaces a key
+		## marked `from: "gameplay"` with the live gameplay pose and leaves an
+		## unmarked key alone, so comparing the LIVE scene's first key against the
+		## FILE's first key answers the only question that matters — did the pin
+		## fire — with no clock in it at all. Then `pose_at(0.0)` having landed on
+		## that key is what makes it the opening frame.
+		##
+		## Not tautological: strip `from: "gameplay"` and the bound key IS the
+		## file's key, which is the red control.
+		var file_key: Dictionary = ((SkyGearCutscene.load_scene("defeat_hero")
+			.get("keys", []) as Array)[0] as Dictionary)
+		var live_key: Dictionary = (((view._cutscene.scene as Dictionary)
+			.get("keys", []) as Array)[0] as Dictionary)
+		var file_eye := SkyGearCutscene.to_vector(file_key.get("eye", []))
+		var live_eye := SkyGearCutscene.to_vector(live_key.get("eye", []))
+		var pin_fired: bool = not live_eye.is_equal_approx(file_eye)
+		## And the pose it resolved to is the gameplay camera's: its own height,
+		## its own lens, and standing over the captain rather than over the deck's
+		## centre. `shipped_eye` puts the eye at `CAM_HEIGHT` and at the focus's own
+		## x, and the focus is clamped within `DECK_RECT.size.x * 0.22` of centre.
+		var gameplay_pose: bool = (absf(live_eye.y - SkyGearView3D.CAM_HEIGHT) < 0.5
+			and absf(float(live_key.get("fov", 0.0)) - SkyGearCutscene.shipped_fov()) < 0.05)
+		var landed: float = (view.camera.global_transform.origin.distance_to(
+			live_eye * SkyGearView3D.WORLD_SCALE) / SkyGearView3D.WORLD_SCALE)
+		_check("cutscene", "and the %s's shot opens where the gameplay camera stood" % who,
+			pin_fired and gameplay_pose and landed < 0.5
+				and absf(view.camera.fov - fov_before) < 0.05,
+			"pin fired %s (file eye %s, bound eye %s); camera landed %.3f units off it; lens moved %.3f deg"
+				% [pin_fired, file_eye, live_eye, landed,
+					absf(view.camera.fov - fov_before)])
 
 		var playing: String = view._captain.playing()
 		_check("figure", "the %s dies on screen instead of standing there breathing" % who,
@@ -17523,7 +17611,7 @@ func _cutscene() -> void:
 	## done and plays nothing — failure mode one — so every cue must resolve to a
 	## shot with real movement, and the shots that play EVERY run are held under a
 	## duration budget so a slow one cannot creep in later and be hated 60 times.
-	var cue_budget := {"run_open": 2.6, "victory": 6.0, "defeat": 4.2}
+	var cue_budget := {"run_open": 2.6, "victory": 6.0, "defeat": 4.2, "defeat_hero": 6.0}
 	for cue_name in cue_budget:
 		var cid := SkyGearCutscene.for_cue(cue_name)
 		var csc := SkyGearCutscene.load_scene(cid)
