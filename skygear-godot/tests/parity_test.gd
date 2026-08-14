@@ -15854,6 +15854,230 @@ func _demo_cut() -> void:
 		"enters at %.0f, leaves at %.0f, %s" % [ship_x[0], ship_x[-1],
 			"monotonic" if sails_left else "TURNS ROUND MID-CROSSING"])
 
+	## --- THE DRIFTING SKY (board SG-307) -------------------------------------
+	##
+	## The owner, 2026-08-13: *"A dynamic title screen will be more interesting."*
+	## What was there SWAYED — two cloud sheets rocking a few dozen pixels on
+	## ~1-minute periods — so the picture had motion and no depth. Three layers of
+	## discrete clumps drift across it now, and these are the properties that make
+	## that parallax rather than decoration.
+	var sky_file := "res://assets/art/env/sky_layers.json"
+	var sky_layers := {}
+	if FileAccess.file_exists(sky_file):
+		var sf := FileAccess.open(sky_file, FileAccess.READ)
+		if sf != null:
+			var parsed: Variant = JSON.parse_string(sf.get_as_text())
+			if parsed is Dictionary:
+				sky_layers = ((parsed as Dictionary).get("layers", {}) as Dictionary)
+	var layer_names: Array = []
+	var clump_total := 0
+	for spec in SkyGearHUD.POSTER_LAYERS:
+		layer_names.append(str(spec["key"]))
+		clump_total += ((sky_layers.get(str(spec["key"]), {}) as Dictionary)
+			.get("clumps", []) as Array).size()
+	_check("menu", "the poster's weather is measured art, not a guessed margin",
+		sky_layers.size() == SkyGearHUD.POSTER_LAYERS.size() and clump_total >= 12,
+		"%d layers (%s), %d clumps between them" % [sky_layers.size(),
+			", ".join(layer_names), clump_total])
+
+	## DEPTH IS A RATE. This is the whole of what makes it parallax: if the three
+	## layers ever travel at the same speed, or in the wrong order, the picture is
+	## three sheets sliding rather than a sky with distance in it. Asserted as a
+	## strict ordering front-to-back so flattening any pair turns it red — and
+	## every other depth cue is asserted to agree with it, because a layer that is
+	## nearer in SPEED and farther in SIZE reads as neither.
+	var faster_forward := true
+	var bigger_forward := true
+	var lower_forward := true
+	var solider_forward := true
+	for i in range(1, SkyGearHUD.POSTER_LAYERS.size()):
+		var back: Dictionary = SkyGearHUD.POSTER_LAYERS[i - 1]
+		var front: Dictionary = SkyGearHUD.POSTER_LAYERS[i]
+		faster_forward = faster_forward and float(front["secs"]) < float(back["secs"])
+		bigger_forward = bigger_forward and float(front["height"]) > float(back["height"])
+		lower_forward = lower_forward and float(front["alt"]) > float(back["alt"])
+		solider_forward = solider_forward and float(front["alpha"]) > float(back["alpha"])
+	_check("menu", "the poster's depth is a rate, not a coincidence — nearer weather travels faster",
+		faster_forward and bigger_forward and lower_forward and solider_forward,
+		"speed %s, size %s, altitude %s, weight %s" % [
+			"ordered" if faster_forward else "FLAT OR INVERTED",
+			"ordered" if bigger_forward else "FLAT OR INVERTED",
+			"ordered" if lower_forward else "FLAT OR INVERTED",
+			"ordered" if solider_forward else "FLAT OR INVERTED"])
+
+	## AND EVERY CLUMP WRAPS OFF-SCREEN. The loop is the one thing about this that
+	## can fail silently and horribly: a span that is not wider than the canvas
+	## plus the widest clump makes a cloud vanish and reappear IN FRAME, which
+	## reads as a glitch rather than as weather. Asked of the arithmetic across a
+	## whole loop of each layer, at the real canvas width.
+	var wraps_offscreen := true
+	var worst_wrap := ""
+	for spec in SkyGearHUD.POSTER_LAYERS:
+		var boxes := ((sky_layers.get(str(spec["key"]), {}) as Dictionary)
+			.get("clumps", []) as Array)
+		if boxes.is_empty():
+			continue
+		var tallest := 1.0
+		var widest_box := 1.0
+		for b in boxes:
+			tallest = maxf(tallest, float((b as Array)[3]))
+			widest_box = maxf(widest_box, float((b as Array)[2]))
+		var scale: float = 1080.0 * float(spec["height"]) / tallest
+		var widest: float = widest_box * scale
+		var span: float = SkyGearHUD.poster_span(1920.0, widest, float(spec["density"]))
+		## A clump is at its wrap the instant its x jumps; the guarantee is that
+		## the x it jumps FROM is off the right edge and the x it jumps TO is off
+		## the left, so no frame can ever contain the discontinuity.
+		if span < 1920.0 + widest:
+			wraps_offscreen = false
+			worst_wrap = "%s: span %.0f under canvas+widest %.0f" % [
+				str(spec["key"]), span, 1920.0 + widest]
+		## ASKED ALGEBRAICALLY RATHER THAN BY SAMPLING, and the first two drafts of
+		## this check are why. `poster_clump_x` sweeps the half-open range
+		## [-widest, span - widest), so the two facts that matter are the ENDS of
+		## that range, and no finite set of samples lands on them: draft two went
+		## red reporting "clump 3 (407 wide) jumped -407 -> 2893", which is a
+		## correct loop measured 0.6 px before its own extreme. Sampling a
+		## continuous function and asserting about its limits is a bug in the
+		## check, every time.
+		##
+		##   left  — at its leftmost a clump sits at -widest, so its right edge is
+		##           at own_w - widest, which is off-screen exactly when no clump
+		##           is wider than the one the span was sized for.
+		##   right — at its rightmost it sits at span - widest, which must be at
+		##           or past the canvas edge.
+		for i in boxes.size():
+			var own_w: float = float((boxes[i] as Array)[2]) * scale
+			if own_w > widest + 0.5:
+				wraps_offscreen = false
+				worst_wrap = "%s clump %d is %.0f wide against a span sized for %.0f" % [
+					str(spec["key"]), i, own_w, widest]
+		if span - widest < 1920.0:
+			wraps_offscreen = false
+			worst_wrap = "%s re-enters at %.0f with the canvas ending at 1920" % [
+				str(spec["key"]), span - widest]
+		## And the travel between wraps is leftward and steady — the half that
+		## makes it drift rather than jitter, which IS a sampling question.
+		var prev: float = SkyGearHUD.poster_clump_x(0, boxes.size(), span,
+			float(spec["secs"]), 0.0, widest)
+		var falls := 0
+		for step in range(1, 241):
+			var now: float = SkyGearHUD.poster_clump_x(0, boxes.size(), span,
+				float(spec["secs"]), float(spec["secs"]) * float(step) / 240.0,
+				widest)
+			if now < prev:
+				falls += 1
+			prev = now
+		if falls < 238:
+			wraps_offscreen = false
+			worst_wrap = "%s travelled leftward on only %d of 240 steps" % [
+				str(spec["key"]), falls]
+	_check("menu", "and every clump it drifts wraps off-screen, never in the middle of it",
+		wraps_offscreen, worst_wrap if worst_wrap != "" else
+			"three layers, a full loop each, every wrap outside 0..1920")
+
+	## BOTH HEROES ARE ON THE POSTER (board SG-304), and the second one cost a
+	## draw call rather than an art order: `boilerwright_front_attack.png` had
+	## been on disk since 2026-08-11, drawn against this poster's own lighting
+	## brief, and referenced by NOTHING in the tree.
+	##
+	## Asserted against the FILES and the measured boxes rather than by scanning
+	## the draw code, because the failure this guards is a plate that exists and
+	## is never asked for — which is what the last eleven days looked like.
+	var cap_plate := "res://assets/art/heroes/corsair_hero_pose.png"
+	var bw_plate := "res://assets/art/heroes/boilerwright_front_attack.png"
+	var both_on_disk: bool = (ResourceLoader.exists(cap_plate)
+		and ResourceLoader.exists(bw_plate))
+	## A source rect that guesses at the transparent margin puts the figure
+	## somewhere other than where the arithmetic says it is — so each box must be
+	## INSIDE its own sheet and must not BE the sheet, which is exactly what an
+	## unmeasured box (or one measured through the generator's alpha-1 film)
+	## would be.
+	var boxes_measured := false
+	if both_on_disk:
+		var cap_tex: Texture2D = load(cap_plate)
+		var bw_tex: Texture2D = load(bw_plate)
+		var cap_fills: float = (SkyGearHUD.CAPTAIN_SRC.get_area()
+			/ maxf(1.0, cap_tex.get_size().x * cap_tex.get_size().y))
+		var bw_fills: float = (SkyGearHUD.BOILERWRIGHT_SRC.get_area()
+			/ maxf(1.0, bw_tex.get_size().x * bw_tex.get_size().y))
+		boxes_measured = (cap_fills < 0.98 and bw_fills < 0.98
+			and SkyGearHUD.CAPTAIN_SRC.position.x > 0.0
+			and SkyGearHUD.BOILERWRIGHT_SRC.position.x > 0.0)
+	_check("menu", "both figures stand the poster, each drawn from its own measured alpha box",
+		both_on_disk and boxes_measured,
+		"captain %s, boilerwright %s" % [SkyGearHUD.CAPTAIN_SRC,
+			SkyGearHUD.BOILERWRIGHT_SRC])
+
+	## --- THE CHECK THE DRAW CODE HAS BEEN CLAIMING (board SG-303) -------------
+	##
+	## `hud.gd` closes a comment about the title's tail with: *"the check `title ·
+	## nothing the title draws falls off the bottom of the canvas` is what keeps
+	## the next row from re-creating it."* THAT CHECK DID NOT EXIST. `grep`
+	## returned zero occurrences of the string and there was no `title ·` group in
+	## this file at all — a coverage claim naming no check, sitting in shipped
+	## source rather than in a doc, which is the worse place for it because it
+	## reads as a reason not to look (board rule 2, and STATUS's failure mode
+	## seven wearing a comment).
+	##
+	## The defect is real and already shipped once (DR-13): after a first win the
+	## Heat ladder, the Workshop and the Berths all appear and the column grows
+	## past the canvas. This is posed at exactly that state — `open_heats` and
+	## `workshop.unlocked` are both true above — and it measures EVERY box the
+	## screen actually drew, text and widgets alike, rather than the two or three
+	## a reader would think to name.
+	##
+	## AND IT IS WHY THE BRIEF WAS ALLOWED ONTO THE BOARD (SG-302): moving two
+	## strips off the picture and onto the column made the column 78 px taller,
+	## which is precisely the change this check exists to catch. Writing it FIRST
+	## is what made that move safe to make.
+	## RE-POSED FIRST, AND THIS LINE IS THE CHECK. Without it `hud.ink` still held
+	## HOW TO PLAY — the "and it still teaches it" check above opens that screen
+	## and never closes the pose — so the first version of this measured the wrong
+	## screen entirely and sat green through a negative control that pushed the
+	## title 300 px off the canvas. A check that reads whatever the last check
+	## left on screen is not measuring anything (STATUS failure mode seven).
+	var _posed: String = await said.call()
+	var floor_y := 0.0
+	var deepest := ""
+	for note in hud.ink:
+		var nb: Rect2 = (note as Dictionary).box
+		if nb.end.y > floor_y:
+			floor_y = nb.end.y
+			deepest = str((note as Dictionary).text).substr(0, 40)
+	for item in hud.ui.declared():
+		var ir: Rect2 = (item as Dictionary).rect
+		if ir.end.y > floor_y:
+			floor_y = ir.end.y
+			deepest = "widget " + str((item as Dictionary).get("label", ""))
+	_check("title", "nothing the title draws falls off the bottom of the canvas",
+		floor_y <= 1080.0,
+		"deepest %.1f of 1080 — \"%s\"%s" % [floor_y, deepest,
+			"" if int(SkyGearRunLog.summary().runs) > 0
+			else "  (run log empty this pass, so the footer line is not in the pose)"])
+
+	## --- WHOSE FACE IS IN THE PORTHOLE (board SG-105) -------------------------
+	##
+	## One hardcoded path with no class branch, so the Boilerwright wore the
+	## Captain's face for the whole life of this port — on the largest object in
+	## the HUD cluster, the one `docs/HUD-DESIGN.md` §3.2 keeps large *because it
+	## is the only thing here identifiable at zero resolution*. Since SG-228 that
+	## face is one specific young man, so the mismatch got sharper rather than
+	## fading.
+	##
+	## BOTH SIDES, AND BOTH FILES. Asserting only that he resolves his own path
+	## would pass on a branch pointing at a portrait nobody ever drew, which is
+	## the state this row sat in while the Loom was off the machine.
+	var cap_face := SkyGearHUD.class_portrait("captain")
+	var bw_face := SkyGearHUD.class_portrait("boilerwright")
+	_check("hud", "the Boilerwright wears his own face, and the captain keeps his",
+		cap_face != bw_face and ResourceLoader.exists(cap_face)
+			and ResourceLoader.exists(bw_face)
+			and cap_face.contains("corsair") and bw_face.contains("boilerwright"),
+		"captain -> %s (%s), boilerwright -> %s (%s)" % [
+			cap_face.get_file(), "on disk" if ResourceLoader.exists(cap_face) else "MISSING",
+			bw_face.get_file(), "on disk" if ResourceLoader.exists(bw_face) else "MISSING"])
+
 	## SETTINGS: OPEN ALL HEATS and its "Playtest:" caption are now an editor
 	## tool, gated on game.dev_tools rather than the demo tag — testers get the
 	## FULL build (owner, 2026-08-12), so the row is absent from BOTH exported

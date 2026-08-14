@@ -100,6 +100,116 @@ ASSETS = {
             "the brass, cool moonlight rimming his shoulders. Determined, "
             "patient, dangerous."),
     ),
+    ## --- THE TITLE SKY (SG-307, owner 2026-08-13: "A dynamic title screen will
+    ## be more interesting. Generate what you need to.") -----------------------
+    ##
+    ## WHY THESE ARE SHEETS OF SEPARATE CLUMPS RATHER THAN ONE WIDE BAND.
+    ## `env/clouds_far.png` and `env/clouds_near.png` are 2048x512 canvases each
+    ## carrying ONE painted cloud mass across the middle third, which is why
+    ## `_draw_poster` reads a 512-672 px region out of them and can only SWAY it.
+    ## A band that scrolls has to be horizontally seamless, and nothing in an
+    ## image API guarantees that — you heal the wrap seam afterwards and hope the
+    ## repeat is not visible. Discrete clumps have no seam to heal: a clump that
+    ## walks off the left edge re-enters at the right, so the loop is free and the
+    ## motion reads as the SHIP SAILING rather than as a texture sliding. It also
+    ## matches the vocabulary of the art we already own.
+    ##
+    ## Each sheet is sliced into its individual clumps by `tools/skyslice.py`,
+    ## which walks the alpha and writes the boxes into `env/sky_layers.json`. So
+    ## one generation buys a layer's worth of sprites, and the renderer never
+    ## guesses at a transparent margin.
+    "sky_clouds_far": dict(
+        size="1536x1024", background="transparent",
+        dest="skygear-godot/assets/art/env/sky_clouds_far.png",
+        prompt=(
+            "FIVE SEPARATE distant cloud masses arranged in a loose row across "
+            "the image, on a fully transparent background, with WIDE EMPTY "
+            "TRANSPARENT SKY between them — they must not touch or overlap each "
+            "other, and there must be clear empty space at the far left and far "
+            "right edges. Each is a small, soft, far-away storm cloud seen from "
+            "high altitude at dusk: layered anvil tops in deep indigo and violet, "
+            "cool silver moonlight catching the upper edges, a faint dull ember "
+            "warmth low in the undersides. They are DISTANT — low contrast, "
+            "hazy, small, pale, less saturated than weather close by. Vary their "
+            "shapes and sizes so no two read as the same cloud. "
+            "No horizon line, no ground, no ship, no characters, no text."),
+    ),
+    "sky_isles": dict(
+        size="1536x1024", background="transparent",
+        dest="skygear-godot/assets/art/env/sky_isles.png",
+        prompt=(
+            "THREE SEPARATE floating sky-islands hanging in mid-air, arranged "
+            "across the image on a fully transparent background, with WIDE EMPTY "
+            "TRANSPARENT SKY between them — they must not touch or overlap, and "
+            "there must be clear empty space at the far left and far right edges. "
+            "Each is a broken mass of dark weathered rock, wider at the top and "
+            "tapering to a ragged root beneath, carrying a small ruined stone "
+            "tower or spire, iron chains, and a few tiny warm amber lantern "
+            "windows glowing in the shadow. They read mostly as BACKLIT "
+            "SILHOUETTES: deep violet-black bodies with a cool moonlit silver rim "
+            "along their upper edges and a faint ember glow catching their "
+            "undersides. Distant, hazy and small in scale, as if miles off. "
+            "Vary their shapes so no two read as the same island. "
+            "No horizon line, no ground plane, no clouds, no characters, no text."),
+    ),
+    "sky_clouds_near": dict(
+        size="1536x1024", background="transparent",
+        dest="skygear-godot/assets/art/env/sky_clouds_near.png",
+        prompt=(
+            ## THE MARGIN CLAUSE IS LOAD-BEARING AND IT IS WHY THIS PROMPT IS
+            ## WORDIER THAN ITS SIBLINGS. The first two rolls each asked for three
+            ## separated clouds and got three — but a close storm cloud is large,
+            ## and both rolls ran two of the three off the canvas, so
+            ## `skyslice.py` refused four of six clumps for ending in a dead
+            ## straight vertical cut. Every clump here is going to DRIFT across
+            ## the screen, and a straight-edged cloud sailing into frame is the
+            ## one thing on this poster that could not possibly be weather.
+            "TWO SEPARATE large storm clouds seen from close up, both sitting "
+            "WELL INSIDE the frame with a wide band of completely empty "
+            "transparent space all the way around them — a clear margin at the "
+            "left edge, at the right edge, at the top and at the bottom. Neither "
+            "cloud may touch or run off any edge of the image; each must be "
+            "whole, with its entire outline visible and empty transparent sky "
+            "between them. Make the clouds SMALLER than you otherwise would in "
+            "order to fit them both complete inside the frame. The background is "
+            "fully transparent. "
+            "Each is a heavy near cloud with a torn ragged underside and real "
+            "holes you can see straight through: deep violet and near-black "
+            "masses lit hard from below by ember orange furnace light, rimmed "
+            "above in cool moonlit silver, with fine wisps trailing off the "
+            "edges. They are CLOSE — big, high contrast, richly saturated, far "
+            "more detailed and dramatic than distant weather. Vary their shapes "
+            "so no two read as the same cloud. "
+            "No horizon line, no ground, no ship, no characters, no text."),
+    ),
+    ## --- THE HUD DIAL (SG-105) ------------------------------------------------
+    ## He has worn the Captain's face beside his own HEAD gauge for the whole life
+    ## of the port, and since SG-228 redrew that face as one specific young man
+    ## the mismatch is sharper than when the row was filed. A CUT-OUT BUST on
+    ## transparency, because `hud.gd` draws the glass, the rim and the live arc
+    ## around it — a framed portrait would put a second rim inside the first.
+    "portrait_boilerwright": dict(
+        size="1024x1024", background="transparent",
+        dest="skygear-godot/assets/art/ui/portrait_boilerwright.png",
+        prompt=(
+            "A CUT-OUT BUST PORTRAIT of a heavy steampunk engineer — head, neck "
+            "and the tops of both shoulders only — on a fully transparent "
+            "background. No frame, no border, no disc, no background scenery of "
+            "any kind: just the figure, cleanly cut out. "
+            "STYLISED CHIBI PROPORTIONS: a large expressive head, small compact "
+            "shoulders. He is broad and thickset, with a weathered face, a heavy "
+            "brow, a short dark beard and a shaved head, wearing a leather "
+            "welding cap with a cracked smoked-glass visor pushed up onto his "
+            "brow. Riveted iron shoulder plates and the top of a soot-stained "
+            "canvas apron. A copper pipe runs up over one shoulder from behind, "
+            "venting a wisp of white steam. Ember firelight from below warms the "
+            "brass and one side of his face; cool moonlight rims the other "
+            "shoulder. He faces the viewer three-quarters on, patient and "
+            "dangerous. The head fills most of the square and the shoulders are "
+            "cut off by the bottom edge. Must be recognisable at a glance at very "
+            "small size: strong silhouette, high contrast, bold shapes. "
+            "No text, no logo, no watermark."),
+    ),
     "hero_captain": dict(
         size="1024x1536", background="transparent",
         dest="skygear-godot/assets/art/heroes/corsair_hero_pose.png",

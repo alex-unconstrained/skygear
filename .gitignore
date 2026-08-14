@@ -17,3 +17,6 @@ node_modules/
 # repo keeps the manifest, not the prepped copies — every one is derivable from
 # an asset already tracked, by `tools/cutscene_render.py --shot N`.
 skygear-godot/docs/cutscene/refs/prepped/
+
+__pycache__/
+*.pyc

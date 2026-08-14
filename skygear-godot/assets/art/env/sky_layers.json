@@ -1,0 +1,158 @@
+{
+ "_": "written by tools/skyslice.py \u2014 do not hand-edit",
+ "layers": {
+  "far": {
+   "texture": "res://assets/art/env/sky_clouds_far.png",
+   "sheet": [
+    3227,
+    480
+   ],
+   "note": "distant cloud masses, slowest, palest",
+   "from": "sky_clouds_far_1.png + sky_clouds_far_2.png",
+   "clumps": [
+    [
+     24,
+     133,
+     340,
+     213
+    ],
+    [
+     388,
+     24,
+     479,
+     432
+    ],
+    [
+     891,
+     132,
+     335,
+     216
+    ],
+    [
+     1250,
+     144,
+     284,
+     192
+    ],
+    [
+     1558,
+     179,
+     263,
+     121
+    ],
+    [
+     1845,
+     169,
+     274,
+     141
+    ],
+    [
+     2143,
+     56,
+     490,
+     367
+    ],
+    [
+     2657,
+     155,
+     280,
+     169
+    ],
+    [
+     2961,
+     186,
+     242,
+     107
+    ]
+   ]
+  },
+  "isles": {
+   "texture": "res://assets/art/env/sky_isles.png",
+   "sheet": [
+    2319,
+    910
+   ],
+   "note": "floating rock islands, mid depth",
+   "from": "sky_isles_1.png + sky_isles_2.png",
+   "clumps": [
+    [
+     24,
+     108,
+     332,
+     694
+    ],
+    [
+     380,
+     24,
+     334,
+     862
+    ],
+    [
+     738,
+     114,
+     357,
+     681
+    ],
+    [
+     1119,
+     135,
+     366,
+     639
+    ],
+    [
+     1509,
+     24,
+     399,
+     861
+    ],
+    [
+     1932,
+     141,
+     363,
+     628
+    ]
+   ]
+  },
+  "near": {
+   "texture": "res://assets/art/env/sky_clouds_near.png",
+   "sheet": [
+    3639,
+    931
+   ],
+   "note": "near storm cloud, fastest, largest, most saturated",
+   "from": "sky_clouds_near_1.png + sky_clouds_near_2.png + sky_clouds_near_r1a.png + sky_clouds_near_r1b.png",
+   "clumps": [
+    [
+     24,
+     170,
+     677,
+     590
+    ],
+    [
+     725,
+     70,
+     725,
+     790
+    ],
+    [
+     1474,
+     142,
+     694,
+     646
+    ],
+    [
+     2192,
+     24,
+     793,
+     883
+    ],
+    [
+     3009,
+     135,
+     606,
+     660
+    ]
+   ]
+  }
+ }
+}

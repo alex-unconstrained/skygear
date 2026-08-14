@@ -17,6 +17,100 @@ interesting. `SkyGear Tools.bat todo` prints the open ones.
 
 ## Open
 
+### The build-73 playtest — six items, and TWO OF THEM ARE FIXES HE HAS ALREADY REJECTED ONCE
+Reported 2026-08-13, with two screenshots (the title screen, and the in-run
+skill HUD showing a frost draft on the Boilerwright). **ID block issued for this
+playtest: SG-298 … SG-310.** Verbatim, in the order he wrote them:
+
+> *"Main Menu can be better, there's no doubt. If we are going to do parallax
+> scrolling I'm sure we can make it more interesting. We should also feature both
+> characters on it. And why do we have that objective text just floating in the
+> middle there? You have the OpenAI key and can generate (or regenerate)
+> assets!! PLEASE can we figure out a way to not have passive or auto moves
+> taking up important keybinds like RMB? It's super wasteful and as a player, I
+> dont want to have to rebind keys every run. Also, I played the boilerwright
+> class - and I still have NO CLUE what he actually does. Oh, and I died and it
+> just immediately cut to the boiler and mission failed message. Finally, WTF are
+> up with the projectiles, and VFX. Is this really your attempt at AAA VFX? In a
+> game like this we NEEED visuals to be impressive. Hit stun was fine."*
+
+**THE FIRST THING TO SAY ABOUT THIS LIST IS THAT TWO OF ITS SIX ITEMS ARE
+SECOND REPORTS, AND BOTH OF THEM HAVE A "DONE" ROW BEHIND THEM.** Reading it as
+six new asks would be the mistake it invites.
+
+- **The projectiles and VFX are his FIRST post-parity ask, asked again.**
+  2026-08-01: *"Can we get better VFX particles? Instead of these 2D sprites
+  that look like they are cheap?"* Board **SG-40** shipped that day — every bolt
+  head became a real emissive teardrop mesh with a per-element motion signature,
+  the painted fireball retired to the art-missing fallback, measured at p99
+  5.98 ms under 51 live bolts — and it was archived as *DONE, awaiting owner's
+  eyes*, with the section above saying in as many words: *"This stays OPEN
+  because YOU judge whether it reads better now — play it and say."* **He has
+  now played it and said, and the verdict is "WTF".** So the open question is
+  not "should the bolts be 3D" — they already are. It is that a correct,
+  measured, geometry-level fix did not move his verdict at all, and the next
+  attempt cannot be another increment of the same kind.
+- **The Boilerwright being unreadable is the same complaint one level up.**
+  2026-08-02, his morning-after run: *"I dont understand the vent mechanics,
+  cant seem to visually identify a vent."* Board **SG-59** answered exactly that
+  and closed DONE — a continuous plume out of every live vent, a warm lit grate,
+  a teal stand-here ring drawn only for his class, and a coach line that points.
+  Eleven days later the complaint is no longer about vents: *"I still have NO
+  CLUE what he actually does."* **The word carrying the finding is "still".**
+  Teaching one mechanic did not teach the class, and the gap is now the whole
+  kit rather than one affordance of it.
+
+**AND ONE ITEM IS ALREADY FILED WITH A RECOMMENDATION WAITING ON HIM.** *"I died
+and it just immediately cut to the boiler and mission failed message"* is board
+**SG-289**, filed 2026-08-12 by filming SG-282's own fix and looking at the
+frames: `assets/cutscenes/defeat.json` is a four-key push whose every look
+target is the Boiler — right for the defeat it was authored for, wrong for the
+other defeat that fires the same cue. It was deliberately NOT fixed because a
+new authored camera move is a taste call. **He has independently reported it
+from live play, which is the confirmation that row was waiting for**, and the
+recommendation on file — a second scene, `defeat_hero.json`, cued off the same
+`player.hp <= 0` test the card already reads — no longer needs to be pitched.
+What his wording adds is a question the row did not ask: he says *immediately*,
+so whether the death clip gets any beat at all before the cut is a timing
+question on top of the framing one.
+
+**HIT-STOP IS ANSWERED AND THE ANSWER IS "LEAVE IT."** *"Hit stun was fine."*
+That closes item 2 of `/NEEDS_ALEX.md` — the build-73 pass fixed hit-stop
+reaching the moving bodies for the first time and deliberately changed **no
+tuning constant**, flagging that it might now be too strong and that the call
+was his. It is not too strong. The constants stay where they are and the
+question comes off the page.
+
+**THE FOUR THAT ARE GENUINELY NEW, as workable items:**
+
+1. **The main menu.** Three separate complaints in one breath — the parallax
+   exists but is not interesting, only ONE of the two classes is on the screen,
+   and the objective line *"Keep the Boiler alive through twelve boarding
+   waves."* plus the control hint under it read as unstyled boxes dropped on top
+   of the character art rather than as part of the riveted board SG-91 built.
+   Note that the third is a UI-structure bug and the first two are asset asks,
+   and they are not the same job.
+2. **Passive and auto skills are eating the prime binds.** *"It's super
+   wasteful and as a player, I dont want to have to rebind keys every run."*
+   The HUD screenshot shows LMB/RMB/Q/E carrying Frost Mortar / Frost Pulse /
+   Frost Gale / Frost Lance above an AUTO slot ("the second hand") reading
+   EMPTY — so the shape of the fix is visible in his own picture: there is
+   already a home for a thing that fires itself, and the draft is not using it.
+   **The second sentence is the harder half**: rebinding every run means the
+   cost is recurring, so a fix that only makes the assignment better once is not
+   a fix.
+3. **He wants the image pipeline used.** *"You have the OpenAI key and can
+   generate (or regenerate) assets!!"* Said in the middle of the menu ask, so it
+   is scoped to the menu at minimum, but the two exclamation marks are about the
+   general reluctance. `tools/imageforge.py` is the door — it needs nothing
+   local, and it has already drawn the logo and the Boilerwright's first 2D art.
+   The standing rule on specs holds: **ratios plus descriptive prompts, never
+   pixel dimensions.**
+4. **"In a game like this we NEEED visuals to be impressive."** Filed as its own
+   line rather than folded into the VFX row above, because it is a standard, not
+   a bug — and because SG-40 proves a fix can be correct, measured and green and
+   still not meet it.
+
 ### "Our ship feels like a floating plane" — and why the fix is the EDGE, not one modelled deck
 Asked 2026-08-02: *"Any chance it might be worth having meshy create the 3D
 model of the deck of our ship? I'm still not very happy with the design of the

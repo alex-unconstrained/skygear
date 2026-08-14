@@ -297,6 +297,7 @@ const MENU_PLATE_H := 44.0
 const MENU_DOOR_H := 54.0            ## BEGIN RUN is not a menu item
 const MENU_GAP := 8.0
 const MENU_BLURB_H := 30.0           ## a two-line sentence under a plate
+const MENU_BRIEF_H := 40.0           ## the objective, at the head of the board
 const MENU_RULE_H := 14.0            ## the rule that separates the door
 const MENU_LADDER_H := 96.0          ## DIFFICULTY: header, rungs, sentence
 const MENU_TOP := 352.0              ## the board's head, under the banner
@@ -666,6 +667,75 @@ func _widget_chrome(rect: Rect2, state: Dictionary) -> void:
 ## reads as a smaller label screwed under a bigger one, with the same engraved
 ## floor and a hairline of the same brass. Narrower than its plate on purpose:
 ## a caption the same width as the thing it captions is a second plate.
+## THE BRIEF — the one sentence that says what the game is, bolted to the head of
+## the board (SG-302).
+##
+## IT USED TO FLOAT ON THE PICTURE AND THE OWNER ASKED WHY: *"why do we have that
+## objective text just floating in the middle there?"* Three things were wrong
+## and they compound.
+##
+## IT WAS ANCHORED TO THE WRONG OBJECT. The strip was placed at
+## `lock.position.x + 90` — off the LOGO's rect — so it belonged to nothing it
+## stood on, and at 1920x1080 that put it at roughly x 353..993, y 584..628,
+## which is across the captain's chest. It was not floating by accident; it was
+## bolted to something that is not there.
+##
+## IT WAS THE GRAMMAR THIS SCREEN GAVE UP. A `_stamp` recess plus ONE 1.4 px
+## hairline is two shape calls and a tint — precisely what `docs/MENU-DESIGN.md`
+## §1 identified as the reason the old menu "looked like it came from a different
+## game" than the header, and what SG-91 replaced everywhere else with plates
+## that have a bevel, a brass surround and rivets. The strapline never got the
+## pass. §2 of that same doc: *"Nothing below needs new art."*
+##
+## AND NOTHING COULD SEE IT. Both strips drew BEFORE `_open_board`, so `_in_frame`
+## was false, and the containment half of the text audit returns early when it is
+## not inside a frame. Every *"the text audit is clean at four widths"* sentence
+## in these docs was true and had no opinion whatsoever about the two strings the
+## owner was pointing at. On the board they are inside the board's own frame and
+## the detector applies to them like everything else.
+##
+## `SkyGearInk.recess` DIRECTLY RATHER THAN `_stamp`, which is what `_menu_caption`
+## does one function down and for the same reason: `_stamp` reassigns `_frame`,
+## and a caption is not the frame the plates under it should be measured against.
+## WHOSE FACE IS IN THE PORTHOLE (SG-105).
+##
+## This was one hardcoded path with no branch, so THE BOILERWRIGHT HAS WORN THE
+## CAPTAIN'S FACE FOR THE WHOLE LIFE OF THIS PORT — beside his own HEAD gauge,
+## in the largest object in the cluster, on the one surface `docs/HUD-DESIGN.md`
+## §3.2 says is there because it is *"the only thing here identifiable at zero
+## resolution"*. Since SG-228 redrew that face as one specific young man the
+## mismatch got worse, not better.
+##
+## AND IT IS PART OF WHY THE OWNER STILL COULD NOT TELL WHAT THE CLASS DOES
+## (SG-305). Five surfaces explain his kit and every one of them is opt-in behind
+## a plate click or a function key; this one is on screen every frame of every
+## run, and until now it was telling him he was somebody else.
+##
+## Static so the harness can ask it without a HUD, and so the two paths are one
+## statement rather than one in the draw and another in a check.
+static func class_portrait(class_id: String) -> String:
+	return ("res://assets/art/ui/portrait_boilerwright.png"
+		if class_id == "boilerwright"
+		else "res://assets/art/ui/portrait_corsair.png")
+
+
+func _menu_brief(wx: float, y: float, wide: float, text: String) -> void:
+	var strip := Rect2(wx + 10.0, y, wide - 20.0, MENU_BRIEF_H)
+	draw_rect(strip, Color(MENU_FIELD.r, MENU_FIELD.g, MENU_FIELD.b, 0.92))
+	_bevel(strip, Color(1.0, 0.92, 0.76, 0.12), Color(0.0, 0.0, 0.0, 0.58), true)
+	draw_rect(strip, Color(BRASS.r, BRASS.g, BRASS.b, 0.46), false, 1.2)
+	var lamp: float = _lamp(strip.position.y * 0.02)
+	var stud := Color(BRASS.r, BRASS.g, BRASS.b, 0.85)
+	_rivet(Vector2(strip.position.x + 10.0, strip.get_center().y), stud, false, lamp * 0.5)
+	_rivet(Vector2(strip.end.x - 10.0, strip.get_center().y), stud, false, lamp * 0.5)
+	## The engraved channel LAST, after every light — the rule that keeps the lamp
+	## off the words, and the reason the flicker cannot reach a glyph.
+	SkyGearInk.recess(self, strip.grow(-5.0), 0.42)
+	_says(text, Vector2(strip.position.x + 22.0, strip.position.y + 21.0),
+		strip.size.x - 44.0, HORIZONTAL_ALIGNMENT_CENTER, 16, 2,
+		Color("#eee5d5"))
+
+
 func _menu_caption(wx: float, y: float, wide: float, text: String) -> void:
 	var strip := Rect2(wx + 26.0, y - 1.0, wide - 52.0, MENU_BLURB_H - 4.0)
 	draw_rect(strip, Color(MENU_FIELD.r, MENU_FIELD.g, MENU_FIELD.b, 0.86))
@@ -953,13 +1023,75 @@ static func poster_ship_x(cross: float, view_w: float, ship_w: float) -> float:
 ## estimated, because a source rect that guesses at the transparent margin puts
 ## the figure somewhere other than where the arithmetic says it is.
 const PROW_SRC := Rect2(103, 9, 833, 600)
-const HERO_SRC := Rect2(57, 43, 384, 401)
-const CLOUD_FAR_SRC := Rect2(768, 0, 512, 512)
-const CLOUD_NEAR_SRC := Rect2(688, 0, 672, 512)
 const SHIP_FAR_SRC := Rect2(88, 6, 338, 143)
+## BOTH HEROES, both measured by `tools/cutout.py` off the files themselves.
+##
+## AND THE MEASUREMENT IS WHY THAT TOOL EXISTS RATHER THAN A ONE-LINER. Read raw,
+## the captain plate's alpha box is `Rect2(0, 5, 1024, 1531)` — the entire canvas
+## — because the generator leaves a film of alpha exactly 1 over every texel it
+## returns. A box measured through that film is the sheet, not the figure, and
+## the figure would have been drawn at whatever fraction of its own size that
+## implies. Cleaned first, it is the rect below.
+const CAPTAIN_SRC := Rect2(68, 54, 937, 1463)
+const BOILERWRIGHT_SRC := Rect2(26, 51, 952, 1389)
+## `CLOUD_FAR_SRC` and `CLOUD_NEAR_SRC` are GONE, with the sway they served
+## (SG-307). They read a 512- and a 672-wide window out of `clouds_far.png` and
+## `clouds_near.png` — two 2048x512 canvases each carrying ONE painted cloud
+## across the middle third — and rocked that window a few dozen pixels. The
+## weather is a set of drifting objects now; see `POSTER_LAYERS`. Both PNGs stay
+## on disk, and `clouds_near.png`'s mass was offered to the new near layer and
+## REFUSED by `skyslice.py` for ending in a straight vertical cut, which is
+## exactly the defect that tool exists to catch.
 ## The prow's two lanterns, as fractions of its own box.
 const PROW_LAMPS := [Vector2(0.161, 0.522), Vector2(0.831, 0.522)]
 const POSTER_EMBER := Color("#ff9a4a")
+
+## --- THE DRIFTING SKY (SG-307) ------------------------------------------------
+##
+## The owner, 2026-08-13: *"A dynamic title screen will be more interesting.
+## Generate what you need to."* What was there answered the word "parallax" and
+## not the word "dynamic": two cloud sheets SWAYING +/-38 and +/-56 px on 74- and
+## 49-second periods, and one 76-pixel airship crossing over 104 seconds. Nothing
+## travelled, so nothing had depth — a swaying picture reads as a still one that
+## has not quite settled.
+##
+## WHY OBJECTS AND NOT A SCROLLING BAND. A band that scrolls has to be
+## horizontally seamless, and no image API guarantees that; you heal the wrap
+## seam afterwards and hope the repeat is not visible. Discrete clumps have no
+## seam to heal: one walks off the left edge and re-enters at the right, so the
+## loop is free, and the motion reads as THE SHIP SAILING rather than as a
+## texture sliding. It also matches the vocabulary of the art already here.
+##
+## THE MEASURED HALF IS IN THE FILE AND THE AUTHORED HALF IS HERE. The clump
+## boxes come from `assets/art/env/sky_layers.json`, written by
+## `tools/skyslice.py`, for the same reason `PROW_SRC` is measured rather than
+## estimated. Everything below is a design decision and belongs in code where it
+## can be argued with.
+const SKY_PATH := "res://assets/art/env/sky_layers.json"
+
+## `secs` is how long one clump takes to travel the whole loop, and it is the one
+## number that MUST be monotonic front to back, because that ordering IS the
+## parallax: nearer weather is faster, larger, lower and more opaque, all four at
+## once. Pinned by `menu · the poster's depth is a rate, not a coincidence`.
+##
+## `density` stretches the loop the clumps are spread around. It is the only dial
+## here that is taste rather than depth: at 1.0 the six spires sat five-on-screen
+## at once, all the same silhouette, and a sky with five identical castles in it
+## is a wallpaper rather than a horizon.
+const POSTER_LAYERS := [
+	{"key": "far", "secs": 190.0, "height": 0.20, "alt": 0.360,
+		"spread": 0.085, "alpha": 0.62, "density": 1.0},
+	{"key": "isles", "secs": 132.0, "height": 0.27, "alt": 0.500,
+		"spread": 0.065, "alpha": 0.76, "density": 2.1},
+	{"key": "near", "secs": 74.0, "height": 0.42, "alt": 0.645,
+		"spread": 0.090, "alpha": 0.90, "density": 1.4},
+]
+
+## The golden angle as a fraction of a turn. Stepping a clump's index by this and
+## taking the fraction spreads altitudes evenly without ever repeating a pattern
+## the eye can count — which is what you want instead of either a straight line
+## of clouds or a random scatter that clumps.
+const POSTER_PHI := 0.6180339887
 
 ## THE PICTURE'S FOOT LINE, measured up from the bottom of the canvas. The prow
 ## hangs off it (`rail_y + 62 - ph`) and the menu board measures its head up from
@@ -974,25 +1106,107 @@ const POSTER_EMBER := Color("#ff9a4a")
 const POSTER_FOOT := 72.0
 
 
-## THE PICTURE. Nine draws, back to front, and every one of them is a texture
-## this project has owned for months.
+## THE LOOP, AS ARITHMETIC, so it can be asked headless — the same reason
+## `poster_ship_x` is static (board SG-274, where the one thing that was wrong
+## about the distant ship could only be caught because it could be asked).
+##
+## A clump stands at its own station around a virtual loop of `span` pixels and
+## the whole loop slides left at a constant rate. `span` is wider than the canvas
+## plus the widest clump in the layer, so the wrap always happens off-screen and
+## nothing ever pops.
+static func poster_span(view_w: float, widest: float, density: float) -> float:
+	return (view_w + widest + 40.0) * density
+
+
+static func poster_clump_x(index: int, count: int, span: float, secs: float,
+		t: float, widest: float) -> float:
+	var station: float = span * float(index) / float(maxi(count, 1))
+	return fposmod(station - (t / secs) * span, span) - widest
+
+
+## Altitude. The golden-angle sequence scatters the layer without clustering, and
+## a slow bob on a period that does not divide the drift keeps it from reading as
+## objects on a rail.
+static func poster_clump_y(index: int, view_h: float, alt: float, spread: float,
+		t: float) -> float:
+	var lift: float = fposmod(float(index) * POSTER_PHI, 1.0) - 0.5
+	var bob: float = sin(t * TAU / (37.0 + float(index) * 3.0)
+		+ float(index) * POSTER_PHI * TAU)
+	return view_h * (alt + spread * lift) + 14.0 * bob
+
+
+## The measured clump boxes, read once. `{}` if the file is missing, which costs
+## the weather and nothing else — the backdrop, the prow and the heroes are all
+## still drawn, so a missing sheet degrades to the sky it used to be rather than
+## to a black screen.
+func _sky_layers() -> Dictionary:
+	if _sky_cache.is_empty() and not _sky_read:
+		_sky_read = true
+		if ResourceLoader.exists(SKY_PATH) or FileAccess.file_exists(SKY_PATH):
+			var f := FileAccess.open(SKY_PATH, FileAccess.READ)
+			if f != null:
+				var parsed: Variant = JSON.parse_string(f.get_as_text())
+				if parsed is Dictionary:
+					_sky_cache = ((parsed as Dictionary).get("layers", {})
+						as Dictionary)
+	return _sky_cache
+
+
+## One drifting layer, back to front within itself.
+func _draw_sky_layer(spec: Dictionary, t: float) -> void:
+	var data := (_sky_layers().get(str(spec["key"]), {}) as Dictionary)
+	var boxes := (data.get("clumps", []) as Array)
+	if boxes.is_empty():
+		return
+	var sheet := _tex(str(data.get("texture", "")))
+	if sheet == null:
+		return
+	## The layer's SCALE comes from its tallest clump, so the painted size
+	## relationships inside a layer survive — a small cloud stays small instead of
+	## every clump being stretched to one height.
+	var tallest: float = 1.0
+	var widest_box: float = 1.0
+	for b in boxes:
+		tallest = maxf(tallest, float((b as Array)[3]))
+		widest_box = maxf(widest_box, float((b as Array)[2]))
+	var scale: float = size.y * float(spec["height"]) / tallest
+	var widest: float = widest_box * scale
+	var span: float = poster_span(size.x, widest, float(spec["density"]))
+	var tint := Color(1, 1, 1, float(spec["alpha"]))
+	for i in boxes.size():
+		var b := (boxes[i] as Array)
+		var src := Rect2(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+		var w: float = src.size.x * scale
+		var h: float = src.size.y * scale
+		var x: float = poster_clump_x(i, boxes.size(), span,
+			float(spec["secs"]), t, widest)
+		if x > size.x or x + w < 0.0:
+			continue
+		var y: float = poster_clump_y(i, size.y, float(spec["alt"]),
+			float(spec["spread"]), t) - h * 0.5
+		draw_texture_rect_region(sheet, Rect2(x, y, w, h), src, tint)
+
+
+## THE PICTURE. Back to front, and the only thing in it that is not a texture
+## this project owns is the light.
 func _draw_poster(board_x: float, rail_y: float) -> void:
 	var full := Rect2(Vector2.ZERO, size)
+	var t := float(Time.get_ticks_msec()) * 0.001
 	## 1 — the ground. Opaque, so nothing behind it can show through and the
 	## drawn hull and the painted prow can never share a screen (view3d.gd:1290).
+	## It does NOT drift: the moon and the horizon are where the picture is
+	## anchored, and weather moving against a fixed sky is what makes the weather
+	## read as moving at all.
 	_poster_cover(_tex("res://assets/art/env/sky_backdrop.png"), full,
 		Vector2(0.5, 0.34))
 
-	## 2, 3, 4 — weather, and the one ship that is not this one. Three periods
-	## that do not divide into each other.
-	var far := _tex("res://assets/art/env/clouds_far.png")
-	if far != null:
-		var fw: float = size.x * 0.66
-		draw_texture_rect_region(far, Rect2(
-			size.x * 0.17 + 38.0 * _poster_swing(74.0, 0.0),
-			size.y * 0.40 + 10.0 * _poster_swing(57.0, 0.31),
-			fw, fw * CLOUD_FAR_SRC.size.y / CLOUD_FAR_SRC.size.x),
-			CLOUD_FAR_SRC, Color(1, 1, 1, 0.68))
+	## 2, 3 — the two layers behind the airship.
+	_draw_sky_layer(POSTER_LAYERS[0], t)
+	_draw_sky_layer(POSTER_LAYERS[1], t)
+
+	## 4 — the one ship that is not this one, between the isles and the near
+	## weather. Her crossing is untouched by this pass, including the direction
+	## the owner caught (SG-274).
 	var ship := _tex("res://assets/art/env/airship_distant.png")
 	if ship != null:
 		var sw: float = size.y * 0.070
@@ -1001,14 +1215,9 @@ func _draw_poster(board_x: float, rail_y: float) -> void:
 			poster_ship_x(_poster_cross(104.0, 0.0), size.x, sw),
 			size.y * 0.115 + 15.0 * _poster_swing(41.0, 0.7), sw, sh),
 			SHIP_FAR_SRC, Color(1, 1, 1, 0.60))
-	var near := _tex("res://assets/art/env/clouds_near.png")
-	if near != null:
-		var nw: float = size.x * 0.90
-		draw_texture_rect_region(near, Rect2(
-			size.x * 0.04 + 56.0 * _poster_swing(49.0, 0.42),
-			size.y * 0.55 + 14.0 * _poster_swing(63.0, 0.18),
-			nw, nw * CLOUD_NEAR_SRC.size.y / CLOUD_NEAR_SRC.size.x),
-			CLOUD_NEAR_SRC, Color(1, 1, 1, 0.86))
+
+	## 5 — the near weather, in front of her.
+	_draw_sky_layer(POSTER_LAYERS[2], t)
 
 	## 5, 6, 7 — THE PROW, with the Boiler's light rising off the rail behind it
 	## and its own two lanterns lit. Its right third runs under the board on
@@ -1035,15 +1244,45 @@ func _draw_poster(board_x: float, rail_y: float) -> void:
 			draw_circle(c, pw * 0.052, Color(POSTER_EMBER, 0.16 * flame))
 			draw_circle(c, pw * 0.030, Color(POSTER_EMBER, 0.30 * flame))
 
-	## 8 — THE CAPTAIN. The dest rect IS the figure, because the source is the
-	## measured alpha box. Bleeding off the left so the cutlass is cropped by the
-	## frame rather than ending in mid-air.
-	var hero := _tex("res://assets/art/heroes/corsair_front_attack.png")
-	if hero != null:
-		var hh: float = size.y * 0.60
-		var hw: float = hh * HERO_SRC.size.x / HERO_SRC.size.y
-		draw_texture_rect_region(hero,
-			Rect2(-maxf(28.0, hw * 0.06), size.y - hh + 18.0, hw, hh), HERO_SRC)
+	## 8 — BOTH HEROES. The owner, 2026-08-13: *"We should also feature both
+	## characters on it."*
+	##
+	## AND HIS WAS A WIRING ASK WEARING AN ART ASK'S CLOTHES.
+	## `heroes/boilerwright_front_attack.png` had been on disk since 2026-08-11 —
+	## drawn by `tools/imageforge.py` against this poster's own lighting brief,
+	## 1024x1536 with real alpha — and a grep across every `.gd`, `.py` and
+	## `.json` in the tree returned NO reference to it from anything. The
+	## build-72 plan had even recorded it as "referenced by nothing". So half of
+	## what he asked for was already paid for and had never been drawn.
+	##
+	## THE CAPTAIN IS A NEW PLATE AND THE OLD ONE IS NOT DELETED.
+	## `corsair_front_attack.png` is a 512x512 GAMEPLAY sprite that was being
+	## blown up to 648 px on a 1080 canvas; standing beside a native 1024x1536
+	## figure it would have been the softer of the two, and the fix for that is a
+	## plate rather than a filter. `corsair_hero_pose.png` is that plate, from the
+	## `hero_captain` job that had been written in `imageforge.py` and never
+	## spent. The sprite stays exactly where it was, in `sprites.gd`, doing the
+	## job it was drawn for.
+	##
+	## The dest rect IS the figure, because the source is the measured alpha box.
+	## He bleeds off the left so the cutlass is cropped by the frame rather than
+	## ending in mid-air; the Boilerwright stands inboard of him, shorter because
+	## he is a step further back, and clear of the prow's left edge.
+	var cap := _tex("res://assets/art/heroes/corsair_hero_pose.png")
+	var cap_w: float = 0.0
+	if cap != null:
+		var ch: float = size.y * 0.60
+		cap_w = ch * CAPTAIN_SRC.size.x / CAPTAIN_SRC.size.y
+		draw_texture_rect_region(cap,
+			Rect2(-maxf(28.0, cap_w * 0.06), size.y - ch + 18.0, cap_w, ch),
+			CAPTAIN_SRC)
+	var bw := _tex("res://assets/art/heroes/boilerwright_front_attack.png")
+	if bw != null:
+		var bh: float = size.y * 0.525
+		var bwidth: float = bh * BOILERWRIGHT_SRC.size.x / BOILERWRIGHT_SRC.size.y
+		draw_texture_rect_region(bw,
+			Rect2(cap_w * 0.74, size.y - bh + 14.0, bwidth, bh),
+			BOILERWRIGHT_SRC)
 
 	## 9 — the vignette, so the corners fall away and the eye goes to the middle.
 	## The cached 96² texture the fight HUD already builds once.
@@ -1159,30 +1398,11 @@ func _draw_title() -> void:
 	## and something had to replace it. The emblem carries the identity now, and
 	## a subtitle under a logo that already has wings is a caption on a sign.
 
-	## --- THE STRAPLINE ------------------------------------------------------
-	## The one sentence that says what the game is, on its own riveted strip
-	## under the lockup rather than floating on the picture. Until SG-213 it
-	## said "twelve" in a build that stops at six — a demo whose first screen
-	## overstates what it contains is a broken promise on the line a player
-	## reads before anything else.
-	var strip := Rect2(lock.position.x + 90.0, lock.end.y - logo_h * 0.04,
-		lock.size.x - 180.0, 44.0)
-	_stamp(strip, 0.62)
-	draw_rect(strip, Color(BRASS.r, BRASS.g, BRASS.b, 0.34), false, 1.4)
-	_say("Keep the Boiler alive through %s boarding waves."
-		% ("six" if SkyGearDemo.active() else "twelve"),
-		Vector2(strip.position.x, strip.position.y + 30.0), strip.size.x,
-		HORIZONTAL_ALIGNMENT_CENTER, 21, Color("#eee5d5"))
-	## The last clause is the class's, not a constant. "Space dash" is a lie for
-	## the man with no dash, and it is the one line on this screen that tells a
-	## player what their hands do.
-	var keys := Rect2(strip.position.x + 40.0, strip.end.y + 6.0,
-		strip.size.x - 80.0, 30.0)
-	_stamp(keys, 0.46)
-	_say(SkyGearKeybinds.controls_line(
-		not (game.class_data().get("jet", {}) as Dictionary).is_empty()),
-		Vector2(keys.position.x, keys.position.y + 20.0), keys.size.x,
-		HORIZONTAL_ALIGNMENT_CENTER, 16, Color("#c8bfb8"))
+	## THE STRAPLINE AND THE CONTROLS LINE USED TO BE HERE, floating on the
+	## picture off the LOGO's rect. They are the head of the BOARD now — see
+	## `_menu_brief` for the three separate things that were wrong with standing
+	## them on the art, and board SG-302. The strings themselves are unchanged,
+	## including SG-213's demo-aware wave count and the class-aware controls line.
 	## ONE CURSOR DOWN THE PAGE, not six offsets from a shared anchor.
 	##
 	## Every row here was placed at `ty` plus or minus a magic number, and adding
@@ -1225,6 +1445,16 @@ func _draw_title() -> void:
 	var shop_on: bool = not demo and bool(game.workshop.unlocked)
 	var classes_on: bool = not demo
 	var body: float = 0.0
+	## THE BRIEF AND THE CONTROLS LINE, always — every build has an objective and
+	## every player has hands. Counted here for the same reason every other row
+	## is: the board goes UNDER its contents, so its depth is arithmetic done
+	## before the first plate is placed, and a row that is drawn without being
+	## counted is a board that is the wrong length (STATUS failure mode two, with
+	## a ruler). The pair sits at the HEAD of the column, so it moves everything
+	## below it down by exactly what it adds here and the foot gap is untouched —
+	## `menu · the board is exactly as deep as the column standing on it` stays
+	## green because it measures the lowest widget against the foot.
+	body += MENU_BRIEF_H + MENU_BLURB_H + MENU_GAP
 	if heat_on:
 		body += MENU_LADDER_H + MENU_GAP
 	if classes_on:
@@ -1265,6 +1495,19 @@ func _draw_title() -> void:
 	## title screen has never had, because nothing on it was inside any frame.
 	_open_board(board)
 	var y: float = board.position.y + MENU_STILE
+
+	## THE BRIEF, at the head of the column: what the run is, then what your hands
+	## do. SG-213's wave count is demo-aware and stays so — a demo whose first
+	## screen overstates what it contains is a broken promise on the line a player
+	## reads before anything else. The controls line is the CLASS's, not a
+	## constant: "Space dash" is a lie for the man with no dash, and it is the one
+	## line on this screen that says what the keys are for.
+	_menu_brief(wx, y, wide, "Keep the Boiler alive through %s boarding waves."
+		% ("six" if demo else "twelve"))
+	y += MENU_BRIEF_H
+	_menu_caption(wx, y, wide, SkyGearKeybinds.controls_line(
+		not (game.class_data().get("jet", {}) as Dictionary).is_empty()))
+	y += MENU_BLURB_H + MENU_GAP
 
 	## DIFFICULTY, as a ladder rather than a cycling row (SG-14). Only once the
 	## first victory has opened it — before that there is exactly one difficulty
@@ -1600,6 +1843,11 @@ const SLOT_ICONS := {
 	"SENTRY": "res://assets/art/ui/icon_skill_sentry.png",
 }
 var _tex_cache := {}
+## The poster's measured clump boxes (SG-307). `_sky_read` is separate from
+## emptiness so a missing or malformed file is read ONCE rather than re-parsed
+## on every frame of a screen that redraws at full rate.
+var _sky_cache: Dictionary = {}
+var _sky_read := false
 
 
 func _tex(path: String) -> Texture2D:
@@ -2990,7 +3238,7 @@ func _draw_game_hud() -> void:
 	## it, and because a bust standing on painted brass is a bust with rivets
 	## through its jaw.
 	draw_circle(eye, seat, Color(0.055, 0.045, 0.085, 0.98))
-	var portrait := _tex("res://assets/art/ui/portrait_corsair.png")
+	var portrait := _tex(class_portrait(str(game.class_id)))
 	if portrait != null:
 		## Inside the glass by six, so her hair and shoulders are cut by the rim
 		## rather than spilling past it onto the plate.
