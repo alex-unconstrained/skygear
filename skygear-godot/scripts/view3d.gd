@@ -1601,6 +1601,28 @@ const FLASH_POOL := 8
 ## and in the light decay, exactly where finding 4 put it.
 ##
 ## Sized in GROUND units, like everything else a caller here reasons about.
+## HOW EACH FAMILY COOLS ACROSS ITS OWN LIFE (board SG-300), as multipliers on
+## the colour `impact_at` injects per particle. Values above 1 are deliberate:
+## these are additive bodies under a Filmic tonemap, and the first fifth of a
+## spark's life should be hotter than its own element before it falls back
+## through it — that early over-brightness is what reads as *struck* rather than
+## as *appeared*. The ceiling is held under the ~1.45 the project measured as the
+## point additive stacking goes white and stops reading as anything.
+##
+## The three differ in KIND, not only in speed, which is the same argument
+## `ELEMENT_FX` already makes about motion: a spark burns down through orange
+## into ash, a frost shard loses its heat upward into pale blue and simply gets
+## colder, and a steam puff greys as it disperses because it is lit air rather
+## than something burning.
+const PARTICLE_RAMP := {
+	"spark": [[0.0, Color(1.42, 1.30, 1.02)], [0.22, Color(1.15, 0.84, 0.48)],
+		[0.62, Color(0.74, 0.36, 0.17)], [1.0, Color(0.30, 0.12, 0.07)]],
+	"shard": [[0.0, Color(1.40, 1.44, 1.45)], [0.30, Color(0.92, 1.10, 1.32)],
+		[1.0, Color(0.26, 0.42, 0.64)]],
+	"steam": [[0.0, Color(1.24, 1.24, 1.28)], [0.35, Color(0.95, 0.95, 1.00)],
+		[1.0, Color(0.42, 0.42, 0.50)]],
+}
+
 const PARTICLE_BODY := {
 	"spark": {"girth": 9.0, "long": 25.0},
 	"shard": {"girth": 6.0, "long": 36.0},
@@ -1754,6 +1776,35 @@ func _build_impacts() -> void:
 		curve.curve = ramp
 		process.scale_curve = curve
 		process.alpha_curve = curve
+		## COLOUR OVER LIFE (board SG-300).
+		##
+		## Every impact particle carried ONE constant tint for its whole life, and
+		## the single linear curve above took its SCALE and its ALPHA to zero
+		## together. So nothing here ever COOLED: a spark got smaller and fainter
+		## and stayed the same colour doing it, which is the difference between a
+		## cinder and a shrinking dot. That is one of the compositional gaps
+		## SG-300 names, and it is the cheapest of them — a gradient is GPU-side,
+		## costs no per-frame script, and spends the budget SG-290 says is free
+		## (the GPU never passes 3.6 ms of 16.67) rather than the one that is
+		## already blowing.
+		##
+		## THE RAMP MULTIPLIES THE PARTICLE'S OWN COLOUR rather than replacing it,
+		## so the element identity injected per-particle by `impact_at` survives —
+		## Frost stays blue while it dims, Ember stays warm while it darkens. Its
+		## alpha is 1.0 the whole way across on purpose: `alpha_curve` above owns
+		## the fade, and a ramp that faded as well would fade it twice.
+		var stops: Array = PARTICLE_RAMP[family]
+		var offs := PackedFloat32Array()
+		var cols := PackedColorArray()
+		for stop in stops:
+			offs.append(float((stop as Array)[0]))
+			cols.append((stop as Array)[1] as Color)
+		var grad := Gradient.new()
+		grad.offsets = offs
+		grad.colors = cols
+		var grad_tex := GradientTexture1D.new()
+		grad_tex.gradient = grad
+		process.color_ramp = grad_tex
 		node.process_material = process
 		node.layers = LAYER_FIGURES
 		## A5. Particles do not cast. `cast_shadow` defaults ON, so three

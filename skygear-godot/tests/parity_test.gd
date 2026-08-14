@@ -14185,6 +14185,48 @@ func _view() -> void:
 		"striking the captain claimed %d flash(es) and removed the bolt: %s; expiring over the sea claimed %d"
 			% [on_strike, cleared, on_fizzle])
 	game.projectiles.clear()
+
+	## --- A PARTICLE COOLS, IT DOES NOT ONLY SHRINK (board SG-300) ------------
+	##
+	## Every impact particle carried one constant tint for its whole life under a
+	## single linear curve that took its scale and its alpha to zero together — so
+	## nothing ever cooled, it only got smaller and fainter, which is the
+	## difference between a cinder and a shrinking dot.
+	##
+	## THREE THINGS ASSERTED, AND THE SECOND IS THE ONE WITH TEETH. That a ramp
+	## exists at all is trivially satisfiable by giving all three families the
+	## same grey; the project's own argument about `ELEMENT_FX` is that families
+	## must differ in KIND rather than only in speed, so the ramps are required to
+	## differ from each other too. And the ramp's alpha must stay 1.0 across its
+	## whole length, because `alpha_curve` already owns the fade and a ramp that
+	## faded as well would fade every particle twice — a bug that would look like
+	## "the sparks are too short" and be tuned for in the wrong place.
+	var ramps: Dictionary = {}
+	var opaque_all := true
+	for family in ["spark", "shard", "steam"]:
+		var emitter: GPUParticles3D = view._sparks.get(family)
+		if emitter == null:
+			continue
+		var pm := emitter.process_material as ParticleProcessMaterial
+		if pm == null or pm.color_ramp == null:
+			continue
+		var grad: Gradient = (pm.color_ramp as GradientTexture1D).gradient
+		var sig := PackedStringArray()
+		for k in grad.colors.size():
+			var c: Color = grad.colors[k]
+			sig.append("%.2f:%.2f,%.2f,%.2f" % [grad.offsets[k], c.r, c.g, c.b])
+			if not is_equal_approx(c.a, 1.0):
+				opaque_all = false
+		ramps[family] = ", ".join(sig)
+	var all_three: bool = ramps.size() == 3
+	var distinct: bool = all_three and (ramps.values() as Array).size() == 3 \
+		and str(ramps.spark) != str(ramps.shard) \
+		and str(ramps.shard) != str(ramps.steam) \
+		and str(ramps.spark) != str(ramps.steam)
+	_check("impact", "a particle cools across its life, not only shrinks",
+		all_three and distinct and opaque_all,
+		"%d of 3 families carry a colour ramp, all different: %s, none of them fading twice: %s"
+			% [ramps.size(), distinct, opaque_all])
 	world.queue_free()
 
 
