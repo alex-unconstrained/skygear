@@ -38,122 +38,13 @@ instead of trusting the template, fixed before the push, and gated now.
 
 ---
 
-**Your eight playtest fixes, still unbuilt.** What you get when you push:
-
-- **The title screen** loses the WHAT YOU DRAFT grid (it stays on HOW TO PLAY)
-  and loses THE CORE entirely. The airship flies forwards now.
-- **THE CORE is a wave-4 choice.** All four elements, once per run, and it does
-  **not** cost you the draft — the ordinary draft opens behind it.
-- **The wave/boarders readout and the lane tracker are off the rivets.** One
-  cause, not two: the code that decides where a plate's brass ends was capping
-  both axes off the SHORT side, so wide HUD strips laid their text 22 px inside
-  the painted frame.
-- **The Furnace Knight can reach you.** His swing now connects at 222 — exactly
-  where your Cleave connects with him — against 135 before. Same health, same
-  damage, same 0.90 s tell. There is a wedge to step out of now.
-- **One repair bar**, on the gun.
-- The keyless fifth slot's rule now lives with both dealers. **See the note
-  below: this one was not the bug you hit.**
-
-**BUILD 72 IS STILL WHAT IS LIVE ON ITCH**, both channels, off commit `84dadd7`.
-
-- **`windows`** build **#1878613** (from #1876329) — the full game.
-- **`windows-demo`** build **#1878614** (from #1876328) — the demo cut.
-- Version string on both: `72-polish-pass`. **Rollback is build 71: #1876329 and #1876328.**
-
-## One thing you asked for that was already true
-
-You said: *"In the workshop, you can get a talent that unlocks an additional
-slot. Let's make sure that that slot is always filled with an auto."* It already
-was. The fifth well has only ever been dealt Field or Pulse, both of which fire
-themselves, and its tab says AUTO for that reason. There was a hole in the OTHER
-dealer — The Opening Bid's open matrix had no such filter — but the Workshop
-makes the Bid and the Second Hand mutually exclusive, so no save can hold both
-and no run could ever reach it. I closed it anyway and wrote down why: the rule
-was being guaranteed by a purchase constraint in a different file, so lifting
-that exclusion for any reason would have brought the dead button back silently.
-**If you were hitting a slot you could not press, it was something else — tell me
-which key and which weapon and I will find it.**
-
-Detail lives in `skygear-godot/docs/BOARD.md`. **44 open rows; next free ID is
-SG-296.** The eight playtest rows and the quality pass's eleven are closed in
-`skygear-godot/docs/BOARD-ARCHIVE.md`; the pass's own write-up is
-`skygear-godot/docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`.
-
-*Last cleaned 2026-08-12, after the quality-directive pass.*
-
----
-
-## What changed since build 71 — all of it pending a fresh build and your eyes
-
-**None of this is in the build you have.** It is in the tree, it is green, and it
-needs a pack and a look.
-
-**THE FILM IS FINISHED, AND THE VERSION YOU HEARD WAS BROKEN.** You caught the
-sound: three fight tracks were playing at once. The cause was not a mix balance —
-the code unpacked a fade-out from every cue row and then never used it, so
-nothing ever stopped; `combat_low` and `combat_high` alone overlapped for 31.25
-seconds. Cues own a window now and hand over on named 0.8 s crossfades. There is
-a guard so you are not the detector next time: `assert_mix_sane` refuses a mix
-with an undeclared overlap **before** the four-minute encode, and it was
-demonstrated against the shipped mix first — it names the 31.25 s pile-up. You
-also found water in a shot; my audit had cropped one third of one frame per shot
-and could not have seen it. Re-audited on three full frames from all nine — shot
-6 was the only other offender, both are re-rolled, and the world rule is in every
-prompt. **Two new spoken lines**, at your invitation: *"She's the only thing
-holding us up."* at 18.2 s, because the film's WHY was previously stated only by
-the enemy at 41.7 s of a 53 s film; and *"Then come and take her."* at 44.9 s, so
-the ending is demand / refusal / order instead of demand / order. Final:
-**53.54 s, -19.9 LUFS, peak -1.8 dBFS, 39 cues, seven voice moments.**
-
-**THE TITLE SCREEN IS A POSTER NOW, AND THE LOGO IS A DRAWN EMBLEM.** You were
-right about the type — *"I dont need the title written in the same lame font as
-everything else"* — and my first two attempts were bigger versions of the wrong
-thing. `logo_skygear.png` is carved brass with rivets, filigree, airship wings, a
-gear stack, a gauge and ember light behind the metal; the plate that used to box
-the typeset name is gone. The screen behind it is built from three paintings this
-project already owned and had never shown you, including the prow that was
-retired from the 3D world for being *"a wall across the top of the frame"* —
-which on a head-on poster is exactly what a foreground is. **STORM-DUSK is off
-every surface**, on your word. And the title now says what the game *is*: THE
-HAND, thirty-six icons, nine shapes crossed with four elements.
-
-**THE MENU PASS YOU MARKED IN BLUE IS DONE, AND YOUR DIAGNOSIS WAS THE FIX.**
-*"This is a consistent issue across all menus. So fixing it here will help us
-everywhere."* It was one constant. Sheets laid content out in the least inset
-that keeps a string off the painted edge — a floor, not a margin — so every row
-ran rail to rail. Every sheet in the game takes its margin from one place now,
-and each grew by twice the breath so content keeps its width and only the gap is
-new. Your *"thin and poorly aligned"* was also one cause and it was a colour: the
-engraved channel was a cold near-black, which reads as a hole punched through the
-plate rather than metal cut into metal. It is the same hue in shadow now, so a
-label reads as stamped.
-
-**AND I HAVE TO RETRACT SOMETHING I TOLD YOU.** The last page said the four
-screens a new player opens were *"drawn in the title's own hardware"*. That was
-based on a chrome swap — I changed how buttons are **painted** and touched no
-layout, no density and no hierarchy on any sheet. **Calling that done was wrong.**
-What has actually been done since: **HOW TO PLAY is rebuilt** — it was eleven
-prose sections in one column at 15pt on the screen whose only job is to teach, and
-it is a two-column spread ending on THE HAND now; and **the objective plate — the
-Boiler gauge, the thing you lose by — was printing four strings on top of each
-other for the whole life of the build**, because the plate was 76 px holding 66 px
-of content in a 44 px budget. It is 118 px. Nobody had ever opened a screenshot of
-the actual playing screen. **Still not done, still named rather than claimed:**
-the Workshop is four columns of ~35 rows at 11pt, the Berths two of the same
-(both hidden in the demo), and SETTINGS is ten rows where the audit says four.
-
-**Every string in the game is a real typeface** — Oswald over Lato, both OFL,
-licences in `assets/fonts/`. Shipped in 71; still unverified by you (item 1).
-
-**THREE SHIPPING BUGS THAT WOULD HAVE COST A BUILD.** The README inside both itch
-zips taught the *losing* play — it said the CAPTAIN "fights at range" when range
-is the line she dies on, called both male classes "she", and told demo players to
-survive twelve waves of their six. `SkyGear Tools.bat pack --demo` silently threw
-away the `--demo` flag and built and zipped the **full game under the full game's
-filename** — a wrong-file push waiting for ship day. And the exe had stamped
-`0.70.0.0` into its Windows version info for two builds, including 71. All three
-now have checks; none of them had ever had one.
+**EVERYTHING THAT WAS "IN THE TREE AND NOT IN A BUILD" IS NOW IN A BUILD.** The
+eight fixes off your Heat 3 playtest, the finished opening film, the poster title
+screen, the menu pass, the real typefaces, the demo cut and the three shipping
+bugs that would have cost a build — all of it went out in 72 and 73. That
+inventory used to live here at seventy lines; it is history now, so it lives in
+`skygear-godot/docs/BOARD-ARCHIVE.md` and the night logs, and this page is back to
+being a page. **Nothing below is a status report. Everything below needs you.**
 
 ---
 
@@ -202,6 +93,16 @@ open when you next play: **(b)** is 24-versus-20 something you *feel*, or only
 something the floaters told you? **(c)** does anything hide the marker when you
 fight beside the Boiler?
 
+**6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
+Named but not built — a results sheet with every progression line skipped
+(no scrip, no sigil, no fitting, no `best_heat` moved) is strictly less closure
+than the demo cut gives a player who was never promised a win at all. Nobody
+has decided what that sheet should say instead. Deferred out of build-72's
+scope on purpose (task-18 brief §"deferred"); it needs your call before anyone
+writes it.
+
+---
+
 **7 · THE DEFEAT CAMERA POINTS AT THE BOILER, SO YOUR NEW DEATH PLAYS BEHIND IT.**
 I filmed the fix before believing it, and the frames say the shot is aimed at the
 wrong thing. `assets/cutscenes/defeat.json` is a four-key push whose every look
@@ -227,83 +128,6 @@ tree without any of my changes.** The only baseline this project ever recorded h
 comparison spans a hundred-plus commits and two resolutions. Board SG-290 says
 what would settle it. **Nothing for you to decide** — flagged because you will
 feel it as an occasional hitch and should know it is known and measured.
-
-**9 · THE METAL CHANGE IS THE ONE TO LOOK AT, AND I HAVE SHOT IT BOTH WAYS.**
-`.shots/sg291/before/` and `.shots/sg291/after/` — three poses, same seed, same
-camera, 1600x900. This is conformance to YOUR standard rather than a taste of
-mine, and twenty-seven of the forty models were already sitting exactly where I
-have now put the other thirteen — the inconsistency was the defect. But it is
-player-visible on the prop kit you see every second of every run, so you get the
-pair rather than an announcement.
-
-**What it does, measured:** the frame overall does not change — exposure and hue
-balance move by a fraction of a percent, which is correct, since only metal
-should move. Between 9% and 26% of the pixels change, by up to 218 of 255, and on
-exactly those the surfaces get **brighter and slightly warmer**. That is the
-whole mechanism: metal has no diffuse response, so a near-metallic railing under
-a lamp can only give you a cold highlight; under the ceiling the same railing
-takes the lantern as painted colour. Crates read as timber with brass hardware
-instead of grey.
-
-**If you hate it, it is one commit to revert** and the board row names every file.
-Board SG-291 and SG-292.
-
-**11 · TWO THINGS I GOT WRONG THIS SESSION, BOTH WORTH YOU KNOWING.**
-First, a Windows crash box reading "Godot… Application Error" was sitting on your
-desktop when I photographed the demo. I held the push until I could prove it was
-not the build: it is owned by `csrss` (the process that faulted is long gone),
-your exported exes cannot title a dialog with that name, Windows has logged no
-Godot crash in seven days, and it sat there unchanged through a second clean 60 s
-run of the demo. Stale, and I have closed it. **The build launches, runs and
-exits clean.**
-
-Second, and this one is mine: I have been writing "machine confirmed idle" over
-every performance number in the log. **It was not.** Two Godot instances from your
-Card-Game-Prototype project have been running since 23:09 last night holding
-6,389 seconds of CPU. They cannot touch this project's import cache so nothing
-was at risk — but my absolute frame numbers carry an unknown amount of someone
-else's CPU, and the honest claim is only the differential one (the pass costs
-nothing measurable against a stash control). It is also a live suspect for that
-~50 ms hitch I could not attribute. Corrected in the night log.
-
-**10 · I HAVE TO WITHDRAW A NUMBER I GAVE YOU IN ITEM 9.**
-I said the metal change moved 9-26% of the pixels and told you what happened on
-them. Then I ran the capture tool twice against ITSELF, on one commit, with the
-seed pinned and nothing else running — and it disagreed with itself on **13% of
-the pixels**. Two of my three numbers were at or under its own noise floor. They
-are struck on the board and in the night log.
-
-**The change is still right and the frames are still worth looking at** — it rests
-on the clamp tool's own written guarantee, on 27 of the 40 models already sitting
-exactly where I have now put the other 13, and on a harness check I proved red
-first. But I cannot tell you I measured the picture, so I am not going to.
-
-**Then I found you already own the right tool and I had not used it.**
-`tools/shiny_ab.gd` — "the metallic ceiling, as a picture" — takes both plates in
-ONE frozen scene, prints its noise floor first, and its header says outright that
-two runs of a shot tool never match. It came back **0.00%**, and with a real floor
-the answer is not subtle: on the pixels that change, the **railing is 43%
-brighter** clamped and the **deck cannon 34%**, with warmth and saturation up by a
-third on both. `.shots/sg291/ab/cannon_deck-A.png` and `-B.png` are the two to
-look at — B is glassy chrome-gold with a mirror highlight, A is flat warm brass
-with shading. **A is the one that looks like your game.**
-
-The status tints I still could not photograph (that tool disagrees with itself on
-22%), so they rest on five behavioural checks and your eyes. **Two of this project's capture tools cannot currently support a
-before/after claim, and the five checks that exist to guarantee they can never run
-a tool twice and compare.** That is board SG-295 and it is the most useful thing
-this session found, because it is the one that says how much of everything else to
-believe.
-
-**6 · WHAT DOES A TESTER SEE IF THEY DIE BEFORE THEIR FIRST TWELVE-WAVE WIN?**
-Named but not built — a results sheet with every progression line skipped
-(no scrip, no sigil, no fitting, no `best_heat` moved) is strictly less closure
-than the demo cut gives a player who was never promised a win at all. Nobody
-has decided what that sheet should say instead. Deferred out of build-72's
-scope on purpose (task-18 brief §"deferred"); it needs your call before anyone
-writes it.
-
----
 
 ## Smaller calls, whenever
 
@@ -441,6 +265,26 @@ writes it.
 ---
 
 ## Things you should know, no action needed
+
+**THE METAL QUESTION IS CLOSED — you answered it.** You were shown five labelled
+side-by-sides and said *"B across the board."* All thirteen models are back to
+fully metallic, and the decision is written into `tools/lamplit.py` as an
+`OWNER_KEPT` list with the date and your words, so the audit reports them as KEPT
+rather than as a defect and no future pass quietly re-clamps them. The nine
+FLAT-albedo materials the renderer builds in code are still clamped and were not
+part of what you judged — different surface class, the one SG-179 was actually
+about. Say the word in either direction.
+
+**AND TWO THINGS I GOT WRONG GETTING THERE.** I published a before/after
+measurement taken through a capture tool without first asking that tool what its
+own noise floor was; it turned out to be 13.2%, larger than two of my three
+numbers, and they are struck on the board and in the night log. The project
+already owned the right tool — `tools/shiny_ab.gd`, both plates in one frozen
+scene, 0.00% floor — and its header says so in as many words. Separately, I wrote
+"machine confirmed idle" over every performance figure without checking: two
+Godot instances from your Card-Game-Prototype were holding 6,389 CPU-seconds
+throughout. Nothing was at risk (they cannot touch this project's import cache),
+but only the differential numbers survive. Board SG-295.
 
 **A truncated `workshop.json` used to wipe every unlock silently, and the next
 run made it permanent.** The save opened the live file with a truncating write,

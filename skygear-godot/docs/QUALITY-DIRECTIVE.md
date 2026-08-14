@@ -6,6 +6,49 @@
 
 ---
 
+## ERRATA — CHECKED AT HEAD ON 2026-08-13, AFTER THE FIRST PASS RAN THIS DOCUMENT
+
+**Read this before the ground-truth table below, because four of these would
+otherwise become work.** The directive is right that the repo outranks it; this
+block is what a full pass found when it actually did the recount, so the next one
+does not have to spend the morning on it. Everything here was verified in the
+code, not inherited.
+
+| The directive says | At HEAD (2026-08-13) | Where it was checked |
+| --- | --- | --- |
+| "~1,245-check harness" | **1286** | the harness's own printed total |
+| "build 72 … held at the door", "not yet on itch" | **Build 73 is live on both channels** (`73-quality-pass`, `windows` #1880125 / `windows-demo` #1880126) | `butler status`; board SG-296 |
+| "next free ID was SG-280" | recount at the head of `docs/BOARD.md` — it moved to SG-298 in one session | `grep -c '^\| SG-' docs/BOARD.md` |
+| **"`VFX-PLAN.md` §5 is still an open decision — make it a decision, not an omission"** | **ALREADY DECIDED, 2026-08-01, BY THE OWNER.** The chromatic hit and radial blur are DROPPED and it is written down | `skygear-godot/VFX-PLAN.md:116`, board SG-19 |
+| **"SG-217 … verify every enemy type actually receives `react_hit`"** | **FIXED.** `view3d.gd:1792 react_enemy_hit` has a live caller at `game.gd:3864`. The HERO's half was still missing and is now closed (SG-287) | grep for the call sites |
+| **"no landing animation exists for anyone"** | half-stale. There is no landing CLIP, but `rig3d.react_land()` is real and is called on the frame a boarder stops being airborne | `rig3d.gd:782`, called `view3d.gd:9460` |
+| **"the swarm gremlin has no flinch — the only feedback a 20-hp boarder gives"** | the CLIP gap is real; the claim is not. It takes the `react_hit` squash-and-flash like everything else, and since SG-293 it also wears its burn, slow and stun | `swarm.tscn` `metadata/clips`; `view3d.gd` |
+| **"the legacy A/B graveyard … dead branches are a defect"** | **NOT dead code.** Every one of `_build_legacy_gunwale`, `edge_rail_legacy`, `shadow_legacy`, `strake_cap_mode`, `end_cap_mode`, `edge_stern_trial` has a live consumer in `tools/edge_place.gd`, `tools/edge_ab.gd` or `tools/shadow_probe.gd`, and **two are pinned from both sides by named harness checks** — deleting `strake_cap_mode` or `shadow_legacy` turns a check red. The one genuinely unreachable branch is the one this document does not name: the procedural body of `_build_rigging` | traced by an eight-agent read-only audit and spot-verified |
+| **"SG-267 — the ink pass's headless guard is the exact negation of the rule it cites"** | the guard reads `if DisplayServer.get_name() == "headless": return`, which refuses correctly. The reachable half of that row — `set_deck_post` having no caller — stands | `view3d.gd:1509`, read by two agents independently |
+| **"dark base `#14121B` … has no code home"** | it has one, written as a float triple, which is why every hex grep has missed it | `hud.gd:1587 const PANEL_FILL := Color(0.078, 0.070, 0.106, 0.94)` |
+| **"SG-239 … no durable encoder to `.ogg` exists on this machine"** | smaller than the row says: `imageio_ffmpeg`'s bundled **ffmpeg 7.1 with libvorbis** is installed at a persistent site-packages path and was run | found and executed by the audit |
+| "`docs/superpowers/…`", "`.superpowers/sdd/…`" — cited for the build-72 process | **neither directory exists in this repository** | `ls` |
+| "`docs/skygear-visual-asset-spec-v1.md`" | lives at **repo-root** `docs/`, not `skygear-godot/docs/` | `find` |
+| "`VFX-PLAN.md` §5" | lives at **`skygear-godot/VFX-PLAN.md`**, not under `docs/` | `find` |
+
+**AND ONE CORRECTION TO THE METHOD, NOT THE FACTS.** This document tells you to
+prove visual work with before/after captures. **Two of the tools it points at
+cannot currently support that claim** — `tools/prop_shot.gd` disagrees with itself
+across two runs on 13.2% of its pixels and `tools/vfx_shot.gd` on 22.5%, both
+while correctly calling `SkyGearStill.freeze()` and pinning a seed. The freeze is
+not broken: it guarantees stillness WITHIN a run, and that is what
+`SkyGearStill.floor_pct` measures. What has no instrument is run-to-run
+reproducibility, which is what a before/after across a code change actually needs.
+**Use an `_ab` tool** — `tools/shiny_ab.gd` or `tools/edge_ab.gd` — which take both
+plates inside ONE frozen scene and print their own noise floor first;
+`shiny_ab` returns **0.00%**. Board **SG-295**. A pass that ignores this will
+publish a number and have to withdraw it, which is what happened to the one that
+found it.
+
+---
+
+---
+
 You are acting as the Executive Game Director, Technical Director, Art Director, Animation Director, Audio Director, and QA Lead for **SkyGear**, a wave-defence action roguelite on the deck of a flying ship: twelve boarding waves, two classes (the Captain and the Boilerwright), a card draft between waves, a Workshop between runs, and the Colossus on wave twelve. It ships to itch.io as a Windows desktop build from **`skygear-godot/`** — the only live project in this repository. The repo root is the frozen browser predecessor and it is **memory, not authority** (see THE BROWSER RULE below).
 
 Your assignment is not to make the game functional. It is functional, shipped, and gated by a ~1,245-check harness.

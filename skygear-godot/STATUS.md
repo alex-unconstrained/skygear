@@ -1,15 +1,59 @@
 # SkyGear Godot port -- where things stand
 
-Last updated **2026-08-12, against commit `0e515f7`.** **Read this first, then
+Last updated **2026-08-13, against commit `7931da8`.** **Read this first, then
 `docs/BOARD.md` — the work queue agents claim items from and report evidence to.
 `docs/OUTSTANDING.md` stays the ledger of owner asks; an ask lands there first
 and is mirrored to the board as workable items.**
 
-**WHERE THE TREE STANDS AT HEAD (`0e515f7`, 2026-08-12): 1244/1244 checks
-passed, exit 0, 0 script errors, 54 engine errors.** The body of this file below
-is a ledger of findings and most of it is dated earlier than that; the paragraph
-you are reading is the only one reconciled to HEAD. Three things about that
-figure are worth stating plainly rather than inheriting:
+**WHERE THE TREE STANDS AT HEAD (`7931da8`, 2026-08-13): 1286/1286 checks
+passed, exit 0, 0 script errors, 54 engine errors against a pinned 54.** The body
+of this file below is a ledger of findings and most of it is dated earlier than
+that; the paragraph you are reading is the only one reconciled to HEAD.
+
+**BUILD 73 IS LIVE ON ITCH, both channels, off commit `640942b`** — itch tag
+`73-quality-pass`, `windows` build **#1880125**, `windows-demo` **#1880126**.
+Rollback is build 72: #1878613 and #1878614.
+
+**THE QUALITY-DIRECTIVE PASS, 2026-08-12/13, IS WHAT IS IN IT** (`docs/NIGHT-LOG-2026-08-12-QUALITY-PASS.md`,
+and `docs/BOARD-ARCHIVE.md`'s four new blocks). Harness **1259 → 1286**, twenty-seven
+new checks, every one demonstrated RED before it was allowed to pass. Nine rows
+closed, and **every one of them was a defect of ABSENCE — a thing that had never
+been asked for, under a green gate that said otherwise**:
+
+- **the hero never died on screen, on either class** (SG-282). `_sync_all`
+  skipped the whole player block once `hp <= 0`, so the body froze mid-idle up to
+  nineteen units from where the simulation had it, and held that way through the
+  defeat cutscene. The Boilerwright had carried a `die` clip since his ingest with
+  nothing ever asking for it; the captain had none, and `tools/graft_clip.gd` is
+  new — it retargets an already-baked clip between two built rigs in-project, no
+  FBX import and no archive, which is the only route left now that her own
+  archives are off this machine.
+- **the defeat card named the wrong defeat** (SG-283) — "THE BOILER IS LOST" over
+  a Boiler at full health.
+- **hit-stop had never reached either moving body** (SG-286). `impact.advance`
+  gates `_process`; the captain and every boarder integrate in `_physics_process`
+  and nothing there had ever read `stop_left`. Measured: 11.4 units of captain
+  slide inside a "frozen" window. **No tuning constant was touched** — they were
+  tuned against a stop that reached half the game and now reach all of it, which
+  is an owner playtest question and is in `/NEEDS_ALEX.md`.
+- **the hero's white flash was still a no-op** (SG-287) — SG-217 armed every
+  boarder and not her.
+- **a borrowed clip was fitted to a window it knew nothing about** (SG-288): a
+  gremlin with no flinch played its IDLE at the 4.00x attack clamp for the whole
+  of every ARC stun, under a check that asserted the missing flinch as a conjunct.
+- **burn, frost and stun had no channel on a boarder at all** (SG-293) — the
+  status block tinted a `Sprite3D` that is null for every rigged figure, the
+  identical bug SG-141 fixed in `_xray` and left standing beside it.
+- **every figure that had ever been hit wore a permanent ember rim** (SG-294),
+  measured at 8.3% of a full flash, because `_flash` was never pushed back to zero.
+- **the lamplit ceiling was enforced on 27 of 40 models and on none of the deck**
+  (SG-291/SG-292) — see the fourth bullet below, because the owner then overturned
+  half of it.
+- **the demo's README told the player to run an executable that is not in the
+  demo zip** (SG-297), caught at the build-73 ship gate by reading the file out of
+  the archive instead of the template.
+
+Four things about all that are worth stating plainly rather than inheriting:
 
 - **The engine-error count and `ENGINE_ERROR_BUDGET` now agree, at 54.** The
   paragraph this replaced described a two-error gap between a measured 54 and a
@@ -24,21 +68,31 @@ figure are worth stating plainly rather than inheriting:
   `docs/BOARD-ARCHIVE.md`; the Active table's own header states the current row
   count and next free ID, recounted rather than incremented each time a sweep
   runs, per board rule 5.
-- **Build 72 is gated, exported and verified, but not yet on itch.** The last
-  build actually live on itch is still **71**
-  (`71-demo-cut-and-opening-film`, `windows` #1876329 / `windows-demo` #1876328).
-  Task 18 of the build-72 polish pass ran the stricter `all` gate clean
-  (1244/1244, exit 0, 0 script errors, 54 engine errors against the pinned 54),
-  exported both `SkyGear-Windows.zip` and `SkyGear-Demo-Windows.zip` off this one
-  commit, read `0.72.0.0` back off both binaries' VersionInfo, verified both
-  packed READMEs (twelve waves / six waves, no unsubstituted `{WAVES}`, none of
-  the three banned strings), and launched and photographed the demo's title
-  screen (six-wave strapline, no class picker, survived a clean run). **The push
-  to itch itself did not happen** — the pass folded in a player-visible change
-  mid-flight (the cleave `filled = true` flip) that the owner has not seen, so
-  the coordinator is holding `butler push` for his word. See the SHIPPING row for
-  build 72 in `docs/BOARD.md` for the rollback number and what still needs his
-  eyes; `/NEEDS_ALEX.md` carries the same list.
+- **The owner overturned the metallic clamp on 2026-08-13, and the decision is
+  encoded where the tool will state it.** SG-291 found `lamplit.py audit` judging
+  the MEAN texel while `clamp_metallic` guarantees the PEAK — so thirteen shipped
+  models sat up to metallic 1.0, every one printed `ok`, and the summary line gave
+  a false reason for the pass. The audit is fixed and now judges the peak. **The
+  CLAMP is reverted**: shown five labelled side-by-sides through
+  `tools/shiny_ab.gd` at a printed 0.00% noise floor, the owner preferred the
+  fully-metallic plate on all five — *"B across the board."* The thirteen are an
+  explicit `OWNER_KEPT` set in `lamplit.py` with the date, the method and the
+  verdict, and the audit reports them `KEPT` rather than `OVER`, **because the next
+  pass will otherwise re-derive the finding and silently undo a decision it cannot
+  see.** SG-292's nine code-side clamps are NOT reverted and that is deliberate:
+  those are flat-albedo materials with no metallic map, which is the surface class
+  SG-179 was actually about and which was not what he was shown.
+- **Two capture tools cannot currently support a before/after claim, and this is
+  the most useful thing the pass found** (SG-295, open). `tools/prop_shot.gd`
+  disagrees with itself across two runs on **13.2%** of its pixels and
+  `tools/vfx_shot.gd` on **22.5%** — both call `SkyGearStill.freeze()` for real
+  and both pin a seed. The freeze is NOT broken: it guarantees stillness WITHIN a
+  run and `SkyGearStill.floor_pct` measures exactly that. What has no instrument
+  is RUN-TO-RUN reproducibility, and every before/after taken across a code change
+  is two runs. **`tools/shiny_ab.gd` already solves this and says so in its own
+  header** — both plates in one frozen scene, noise floor printed first — and it
+  returned 0.00%. The capability exists; the routing to it does not. A measurement
+  published earlier in the same pass was withdrawn for exactly this.
 
 **THE GOAL CHANGED 2026-08-01, by the owner:** visual parity with browser v11
 is retired — *"we build the Godot version to be better than the web one ever
@@ -68,15 +122,15 @@ FITTINGS earned by finishing runs (at most one per run, `scripts/fittings.gd`),
 chosen into six berths BETWEEN runs on the title's berth screen, applied to the
 deck once at run start and never mid-run (the owner's rule, harness-pinned —
 board SG-56). **1128 harness checks** *(that count is the 2026-08-04 figure and
-is kept as the dated record of this paragraph; at HEAD it is **1244** — see the
+is kept as the dated record of this paragraph; at HEAD it is **1286** — see the
 reconciliation block at the top)*; the text audit covers 25 screens at
 4 widths and **is clean as of 2026-08-02, for the first time in a while** — the
 sentence above it said so for days while the audit reported a BERTHS overflow on
 every windowed run, filed under an ID (SG-68) that belongs to a different,
 finished row. Board SG-92 has the whole of it, and the reason it was one finding
-rather than four. *(**The live build is 71** as of 2026-08-12 and no build 72
-exists; the sentence that follows is the 2026-08-04 record and the URLs in it are
-still correct.)* Build 64 is on itch at
+rather than four. *(**The live build is 73** as of 2026-08-13 — see the
+reconciliation block at the top; the sentence that follows is the 2026-08-04
+record and the URLs in it are still correct.)* Build 64 is on itch at
 https://alex-unconstrained.itch.io/skygear-godot-test (butler pushes directly
 from this machine now) and the source is at
 https://github.com/alex-unconstrained/skygear
@@ -839,6 +893,54 @@ Assume you are about to commit one:
   — and the one melee row missing from that list was the only row that could
   have failed it. A check written from the same misunderstanding as the code
   does not test the code. Prefer checks that read the table.
+
+**THE 2026-08-13 QUALITY PASS PRODUCED TEXTBOOK INSTANCES OF THREE OF THESE, AND
+COMMITTED TWO OF THEM ITSELF.** Recorded here rather than only in the night log,
+because that is the whole point of keeping this list:
+
+- **Mode 7, twice, and both were NAMES.** `deck · the procedural deck obeys the
+  same lamplit ceiling the models do` read a float out of a Python file and
+  compared it to a GDScript const. Two literals. It never constructed a deck or
+  opened a material, and three code-built materials sat 32–62% over the ceiling
+  underneath that sentence, one of them on fifty-six instances. The check was
+  real and useful — it IS a cross-language drift guard — but it was not the guard
+  its name claimed, and the name is what everyone reads. It is renamed to what it
+  does and the sentence it used to carry now belongs to a check that builds a deck.
+  Beside it, `rig · the goblin has no flinch, and a missing clip degrades instead
+  of freezing` asserted `not has_clip("hurt")` **as a conjunct** — a tripwire that
+  would go red the day anyone fixed its subject — while never reading
+  `speed_scale`, which is where the actual defect lived. **When a check's name and
+  its assertion disagree, the name is the bug.**
+- **Mode 5, in a brand-new instrument, on its first run.** `tools/metal_audit.gd`
+  was written to catch the above and judged `BaseMaterial3D.metallic` — the
+  FACTOR — when glTF's effective metallic is factor × the map's blue channel. It
+  called twelve correctly-clamped models failures. A rig measuring the wrong
+  number, inside the tool built to catch a check that measured the wrong number.
+  It judges only the flat code-built set now and defers the mapped set to
+  `lamplit.py` BY NAME. **One authority per number.**
+- **Mode 5 again, at the level of the CONDITIONS rather than the tool.** A
+  before/after was published from two runs of `tools/prop_shot.gd` before anyone
+  asked that tool what its own run-to-run floor was. It is **13.2%** — larger than
+  two of the three signals. The numbers were withdrawn in place. See SG-295: the
+  freeze is not broken, `floor_pct` measures stillness WITHIN a run correctly, and
+  what has no instrument is RUN-TO-RUN reproducibility — which is what every
+  before/after across a code change actually depends on.
+- **Mode 6, and the repository already had the answer written down.**
+  `tools/shiny_ab.gd` exists, is titled *"THE METALLIC CEILING, AS A PICTURE"*,
+  takes both plates inside ONE freeze, prints its own noise floor first, and its
+  header carries the sentence the pass spent an hour rediscovering by measurement:
+  *"two runs of a shot tool never land the brazier flicker, the particle clock and
+  the cloud drift in the same place twice."* Nothing pointed at it. Run afterwards
+  it returned **0.00%** and produced the measurement first time. **The capability
+  existed; the routing to it did not** — which is the form this failure mode takes
+  once a repository is big enough that nobody can hold it all.
+- **And "machine confirmed idle" was asserted over every profile in the pass and
+  was never checked.** Two Godot instances from a different project were holding
+  6,389 CPU-seconds throughout. They cannot touch this project's import cache so
+  the one-process rule was not breached in the sense that matters — but the
+  absolute frame figures carry another engine's CPU, and only the DIFFERENTIAL
+  against a `git stash` control survives. **Check the process list before you
+  write "idle".**
 
 **AND THE ONE SENTENCE TO MEET BEFORE YOU TYPE "NO SIGNIFICANT DIFFERENCE" IN A
 BOARD ROW (SG-128).** `tools/balance.gd` **can see about a third of a change and
