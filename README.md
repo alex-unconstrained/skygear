@@ -1,3 +1,14 @@
+> ## THE GODOT GAME HAS MOVED (2026-08-14)
+>
+> Active development is in **`../skygear-godot`** now — a clean repo carrying the
+> Godot project, its tools and its three ledgers, without the browser build or the
+> 15.8 GB of derived captures, exports and caches. Verified by a cold import and a
+> full harness run there: 1315/1315.
+>
+> **THIS REPO IS NOT DELETED AND SHOULD NOT BE.** It keeps the browser build, and
+> it keeps every commit hash that `BOARD-ARCHIVE.md` and the night logs cite —
+> those resolve HERE and nowhere else. Read it, do not work in it.
+
 # SKYGEAR
 
 A single-player top-down steampunk hero-defense. You are a sky-pirate captain
