@@ -37,6 +37,11 @@ const DWELL := {
 	## Short, because this one is not a mistake being earned — it is a fact the
 	## player has no other way to learn. Long enough that a gun dying in the last
 	## second of a wave does not fire it at the draft screen.
+	## HIS, and the shortest dwell here, because it is not a mistake being earned
+	## at all — it is the frame every other line of his assumes. Short enough to
+	## arrive in the opening seconds of the first wave the coach speaks in, long
+	## enough that it is not the very first thing on screen.
+	"class_loop": 2.0,
 	"broken_cannon": 3.5,
 	## His, and short for the same reason `broken_cannon` is: it is not a mistake
 	## being earned, it is a fact with no other way in. Long enough that walking
@@ -76,9 +81,52 @@ const FIRST_WAVE := 2    ## nothing before this
 ## `sentry_auto` sits with the other two verb-announcements rather than with the
 ## mistakes, but BELOW them: a sentry you are placing by hand is working, which
 ## is not true of a cannon you are walking past.
-const ORDER := ["broken_cannon", "find_vent", "empty_bank", "gauge", "kiting", "shape_lane", "sentry_auto", "lane", "idle_skill"]
+## `class_loop` LEADS, above even `broken_cannon`, and the argument is the one
+## this list already makes one line down (board SG-305). `find_vent` sits above
+## `empty_bank` because the bank line says *"stand on a vent"* — advice that
+## lands on nobody who has not been told the vents exist. The same is true one
+## level up and worse: `empty_bank` also says *"or crack a main with F"*, and
+## `find_vent` promises HEAD "for free", to a player who has never been told what
+## HEAD is worth. Every lesson he has assumes the loop, and the loop was the one
+## thing the game only said on screens he had to go and open.
+##
+## BUT THIS LIST IS THE TIEBREAK, NOT THE SEQUENCER, and that is worth stating
+## because the first version of the SG-305 comment got it wrong. `advise` walks
+## ORDER and takes the first id whose condition has ALREADY held for its own
+## DWELL, so between two lines that become true together it is the dwells that
+## decide who speaks first — 2.0 against `find_vent`'s 6.0 here — and ORDER only
+## breaks a tie when both are ripe at once. Measured: demoting `class_loop` to
+## the end of this list changes nothing, while raising its dwell to 8.0 puts the
+## vent line first and turns `coach · and the loop he is playing arrives before
+## the lesson that assumes it` red. Both are set deliberately; only one of them
+## is load-bearing for the ordering.
+const ORDER := ["class_loop", "broken_cannon", "find_vent", "empty_bank", "gauge", "kiting", "shape_lane", "sentry_auto", "lane", "idle_skill"]
 
 const TEXT := {
+	## HIS, AND THE ONE THE GAME NEVER SAID WHERE HE COULD HEAR IT (board SG-305).
+	## The owner, 2026-08-13, having played the class: *"I still have NO CLUE what
+	## he actually does."* The word carrying the finding is STILL — he reported
+	## the same confusion on 2026-08-02 about the vents, SG-59 answered exactly
+	## that, and eleven days later the complaint had grown rather than gone.
+	##
+	## THE MECHANICS WERE NOT MISSING. Five surfaces state them and most are
+	## pinned: the WHO IS ABOARD blurb, COMPARE THE TWO, a class-forked HOW TO
+	## PLAY with live numbers, the in-run HUD's own `x1.45 DAMAGE` readout and
+	## `F MAIN / V BLOW / SPC JET` strip, and two coach lines. All of them landed
+	## on 2026-07-31, eleven builds before the one he played. WHAT WAS MISSING WAS
+	## DELIVERY: every deep surface is opt-in behind a plate click or a function
+	## key, and nothing in the game has ever opened one unprompted, so before he
+	## commits he has one sentence and after he commits he has two function keys
+	## nobody told him to press.
+	##
+	## So this is not a sixth surface saying the same thing — that would be the
+	## increment-of-the-same-kind trap SG-300 is about. It is the existing content
+	## arriving without being asked for, through the one channel this game already
+	## has for that, at the moment the confusion is actually happening.
+	##
+	## `{gain}` is filled live off `overpressure` in his own class data — the same
+	## number COMPARE THE TWO renders — so the line cannot drift from the kit.
+	"class_loop": "HEAD fills only where you plant yourself — the Boiler, a vent, a cracked main — and any of it makes every weapon you own hit {gain} harder. F cracks a main, V blows it down, {key} is a jet.",
 	"kiting": "You have been at range a while — the gauge only fills inside 210 units.",
 	"gauge": "Gauge is full. Get among them: it vents by itself and heals you for it.",
 	## HIS. The reported confusion, in one line, at the moment it is costing him:
@@ -187,6 +235,12 @@ func _still_showing(game) -> String:
 			str(int(game.class_data().get("vent_rate", 0))))
 	if line.find("{vent}") != -1:
 		line = line.replace("{vent}", _vent_bearing(game))
+	## SG-305. Off his own class data, and rendered exactly the way COMPARE THE
+	## TWO renders it, so the coach and the comparison screen cannot come to
+	## different conclusions about the same number.
+	if line.find("{gain}") != -1:
+		line = line.replace("{gain}", "%d%%" % roundi(
+			float(game.class_data().get("overpressure", 0.0)) * 100.0))
 	return line
 
 
@@ -227,6 +281,10 @@ func _vent_bearing(game) -> String:
 ## depends on where the draft put the Sentry — so the token resolves per hint,
 ## and a line that names a key can never name a key the player did not press.
 func _key_action(id: String, game) -> String:
+	## The jet is on the DASH action for him — the row the keybinds sheet renames
+	## BLEED JET — so the line names whatever he has that bound to, not "Space".
+	if id == "class_loop":
+		return "dash"
 	if id != "sentry_auto":
 		return "deckwork"
 	if game != null:
@@ -248,6 +306,22 @@ func _may_fire(id: String, now: float) -> bool:
 ## --- the four mistakes -------------------------------------------------------
 func _is(id: String, game) -> bool:
 	match id:
+		"class_loop":
+			## HIS, and pure teaching — no enemies required and no mistake being
+			## made, because the lesson is what the class IS. ONCE per run rather
+			## than twice: `MAX_SHOWS` is 2 and the repeat exists so a mistake a
+			## player keeps making gets one more chance to land, which is the
+			## wrong shape for a statement of fact. Reading `_shown` here rather
+			## than adding a per-line cap keeps the cap in one place.
+			##
+			## ONCE PER RUN AND NOT ONCE EVER, deliberately. Once-ever needs a
+			## flag in `user://workshop.json` — a save-format change, in a file
+			## the harness byte-compares, to spare a returning player 4.5 seconds
+			## he can already read past. If it grates after a few runs that is a
+			## cheap thing to add later, and the owner will be the one who says so.
+			if not game.gauge_is_banked():
+				return false
+			return int(_shown.get("class_loop", 0)) == 0
 		"kiting":
 			## HERS ONLY. "The gauge only fills inside 210 units" is false for the
 			## Boilerwright — his fills from the ground he is standing on and

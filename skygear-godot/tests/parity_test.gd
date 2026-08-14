@@ -19303,17 +19303,65 @@ func _readability() -> void:
 	bw.spawn_queue.clear()
 	bw.player.global_position = Vector2(300, 300)   # off every vent's radius
 	bw.coach.reset()
-	var vent_line := ""
-	for _i in 160:
+	## THE SEQUENCE, NOT THE FIRST LINE. This used to break on the first thing his
+	## coach said and assert it was the vent lesson, which was true when `find_vent`
+	## was the only teaching line he had. SG-305 puts `class_loop` ahead of it, so
+	## the check now walks the whole opening window and asks which lines arrived —
+	## and the RENAME is part of the change rather than a tidy-up after it: a check
+	## called "his FIRST lesson" that no longer asserts anything about ordering
+	## would be a name disagreeing with its own assertion, which this project
+	## treats as the name being the bug.
+	## THE RUN CLOCK HAS TO ADVANCE OR ONLY ONE LINE CAN EVER FIRE, and that is a
+	## thing this fixture could not have discovered while it only asked for one.
+	## `_may_fire` gates on `now > _current_until` and `advise` reads `now` off
+	## `game.run_time` — not off the delta it is handed — so a loop that steps the
+	## coach without moving the game's own clock holds the first hint on screen
+	## for ever and starves every hint behind it.
+	var lines: Array[String] = []
+	for _i in 240:
+		bw.run_time = float(bw.run_time) + 0.1
 		var said: String = bw.coach.advise(bw, 0.1)
-		if said != "":
-			vent_line = said
+		if said != "" and (lines.is_empty() or said != lines[lines.size() - 1]):
+			lines.append(said)
+	var vent_line := ""
+	for line in lines:
+		if line.find("vents") != -1:
+			vent_line = line
 			break
-	_check("coach", "the Boilerwright's first lesson names the vents and a live bearing",
+	_check("coach", "the Boilerwright's vent lesson names them and gives a live bearing",
 		vent_line.find("vents") != -1 and vent_line.find("ahead to port") != -1
 			and vent_line.find("18 a second") != -1
 			and vent_line.find("{") == -1,
 		"said: %s" % vent_line)
+
+	## --- WHAT THE CLASS IS, WITHOUT BEING ASKED (board SG-305) ---------------
+	##
+	## The owner having played him: *"I still have NO CLUE what he actually does."*
+	## The mechanics were not missing — five surfaces state them, all landed
+	## 2026-07-31, eleven builds before the one he played — but every deep one is
+	## opt-in behind a plate click or a function key and nothing has ever opened
+	## one unprompted. So this asserts DELIVERY, which is what was absent: the
+	## loop arrives on its own, first, before the lesson that assumes it.
+	##
+	## The `{` clause is the one that would have caught the whole class of bug
+	## this line could have shipped with: a live fill that never got filled says
+	## "hit {gain} harder" to a player, and it would look fine in the source.
+	var loop_line := ""
+	for line in lines:
+		if line.find("HEAD fills only") != -1:
+			loop_line = line
+			break
+	var loop_first: bool = not lines.is_empty() and lines[0] == loop_line \
+		and loop_line != ""
+	_check("coach", "and the loop he is playing arrives before the lesson that assumes it",
+		loop_first and loop_line.find("45%") != -1
+			and loop_line.find("F cracks a main") != -1
+			and loop_line.find("{") == -1 and vent_line != "",
+		"opened with: %s" % (lines[0].substr(0, 96) if not lines.is_empty() else "nothing"))
+	## ...and it is said ONCE in a run, not twice like a mistake being corrected.
+	_check("coach", "and it is said once, because it is a fact rather than a mistake",
+		int(bw.coach._shown.get("class_loop", 0)) == 1,
+		"fired %d times across the window" % int(bw.coach._shown.get("class_loop", 0)))
 	## Learned by standing, not by being told twice: on the grate for one frame,
 	## then away — the line never fires.
 	bw.coach.reset()
