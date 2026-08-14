@@ -3539,7 +3539,23 @@ func _draw_game_hud() -> void:
 		var rect: Rect2 = plates[slot]
 		_panel(rect, true)
 		var key_at := l.item(slot, "key", rect)
-		_label(labels[i], key_at.position + Vector2(0, key_at.size.y), key_at.size.x,
+		## A WELL HOLDING SOMETHING THAT FIRES ITSELF SAYS SO (board SG-299).
+		##
+		## The tab used to print the binding whatever was in the well, so a Field
+		## or a Pulse that had landed on a keyed slot advertised a button that
+		## `cast_skill` refuses on sight — it returns early on `shape.passive`, so
+		## the press is DEAD, not weak. The owner photographed exactly that: a
+		## Frost Pulse on RMB, and RMB doing nothing all run.
+		##
+		## SG-298 stops passives taking a keyed slot while you own four actives.
+		## This is the other half, for the runs where you do not: the well tells
+		## the truth about itself instead of naming a key that is not a control.
+		## It reuses the literal the fifth keyless well has printed since THE
+		## SECOND HAND shipped, so the vocabulary is one word old, not new.
+		var holds_passive: bool = (i < game.skills.size()
+			and SkyGearGame.skill_is_passive(game.skills[i] as Dictionary))
+		var tab: String = "AUTO" if holds_passive else str(labels[i])
+		_label(tab, key_at.position + Vector2(0, key_at.size.y), key_at.size.x,
 			HORIZONTAL_ALIGNMENT_CENTER, 13, BRASS_LIT)
 		## ARMED (SG-98). A slot has had two states since the port began — ready
 		## and cooling — and autocast is a third that neither the sweep nor the
@@ -3608,12 +3624,37 @@ func _draw_game_hud() -> void:
 				else float(st.cooldown)
 			var frac: float = clampf(clock_left / maxf(0.01, clock_period),
 				0.0, 1.0)
-			_cooldown(icon_at.grow(4.0), frac)
-			## The number, not just the wedge. "Can I press this in time" is a
-			## question an angle cannot answer.
-			_value("%.1f" % clock_left,
-				Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
-				icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
+			if holds_passive:
+				## A SCHEDULE, NOT A COOLDOWN (board SG-299), and the difference is
+				## the whole row. `_cooldown`'s filled wedge is this HUD's word for
+				## *this weapon is coming back* — an answer to "can I press it in
+				## time", which is a question you can only ask about something you
+				## press. Drawn on a Pulse it argued the opposite of the truth: the
+				## owner's screenshot has `3.2` sweeping on a dead RMB, which reads
+				## as a weapon about to be ready and is a thing that will never
+				## accept a press.
+				##
+				## A thin ring FILLING toward the next tick instead, in the
+				## element's own colour rather than the ready-white, so it says
+				## *this happens on its own, and here is when* — information, with
+				## no affordance in it. The timer itself stays visible, which the
+				## Article's own pin requires (`pulse · Second Hand keeps a fifth
+				## keyless Pulse with one visible scheduler-owned timer`); only the
+				## grammar it is drawn in changes.
+				draw_arc(icon_at.get_center(), icon_at.size.x * 0.62 + 6.0,
+					-PI * 0.5, -PI * 0.5 + TAU * (1.0 - frac), 28,
+					Color(element.r, element.g, element.b, 0.55), 2.0)
+				_value("%.1f" % clock_left,
+					Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
+					icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15,
+					Color(element.r, element.g, element.b, 0.78))
+			else:
+				_cooldown(icon_at.grow(4.0), frac)
+				## The number, not just the wedge. "Can I press this in time" is a
+				## question an angle cannot answer.
+				_value("%.1f" % clock_left,
+					Vector2(icon_at.position.x, icon_at.get_center().y + 6.0),
+					icon_at.size.x, HORIZONTAL_ALIGNMENT_CENTER, 15, Color("#fff6e4"))
 		if armed:
 			draw_arc(icon_at.get_center(), icon_at.size.x * 0.62 + 3.0, 0.0, TAU, 28,
 				element, 2.4)

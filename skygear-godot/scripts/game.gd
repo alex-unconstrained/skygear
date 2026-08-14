@@ -2471,36 +2471,80 @@ func _close_share() -> int:
 ## Actives take the mouse from the left; passives fill from the far end. Neither
 ## is locked — a fifth draft still has to go somewhere — but the common case
 ## stops being wrong.
+##
+## AND FOR THE WHOLE LIFE OF THAT PARAGRAPH THE CODE UNDER IT DID NOT DO IT
+## (board SG-298). The owner, 2026-08-13: *"PLEASE can we figure out a way to not
+## have passive or auto moves taking up important keybinds like RMB? It's super
+## wasteful and as a player, I dont want to have to rebind keys every run."*
+##
+## THE OLD SHAPE AND WHY IT COULD NOT WORK. It grew `skills` to capacity with
+## empty placeholders, walked them from the far end for a passive and from the
+## front for an active — correct so far — and then called `_trim_empty_slots`,
+## which deleted every placeholder and reindexed. The reservation was destroyed
+## in the same breath it was made. It only survived when slots 0..3 were ALREADY
+## occupied, which is the one case where it changes nothing. Net effect: plain
+## draft order, the exact behaviour the paragraph above says was replaced.
+##
+## Traced on his own screenshot: capacity 5, draft Mortar then Pulse.
+## `skills=[Mortar]` grows to `[M,{},{},{},{}]`, the passive is placed at 4,
+## the trim collapses it to `[Mortar, Pulse]` — and Pulse is index 1, which is
+## `skill_2`, which is RMB. Gale and Lance then fill in behind it. Character for
+## character the plate row he photographed. And the press is DEAD, not weak:
+## `cast_skill` returns early on `shape.passive`, so the button does nothing at
+## all for the rest of the run.
+##
+## THE INVARIANT, RATHER THAN A RESERVATION THAT SOMETHING ELSE CAN UNDO. The
+## array is always `[actives in draft order..., passives in draft order...]`. An
+## active inserts after the last active and pushes the passives right; a passive
+## appends. So a passive holds a keyed slot only while you own fewer than four
+## actives — a state no rebind could improve either — and the next active you
+## draft reclaims the key automatically, with no reorder step to forget.
+##
+## WHY THIS ALSO KILLS THE RECURRING COST, which is the half his second sentence
+## is about. Bindings are per-ACTION (`skill_2` is RMB, `project.godot`), but
+## WHICH skill sits in slot 2 is decided by draft order, fresh every run. The
+## draft never touches `user://keys.cfg`; it invalidates what the rebind was FOR.
+## Rebinding could not have fixed this even in principle, and there is no swap,
+## reorder or drag anywhere in the game to fall back on.
+##
+## Draft OFFERS are untouched — only where a pick lands — so SG-132's Heat
+## baselines, which were re-derived on what the dealers offer, do not move.
+static func skill_is_passive(skill: Dictionary) -> bool:
+	if skill.is_empty() or not skill.has("shape"):
+		return false
+	return bool(SkyGearData.SHAPES[skill.shape].get("passive", false))
+
+
 func _slot_skill(skill: Dictionary) -> void:
-	var passive: bool = bool(SkyGearData.SHAPES[skill.shape].get("passive", false))
-	## Grow to the size we need, marking the gaps so they can be filled in
-	## whichever order the class of skill prefers. Capacity is 4, or 5 under THE
-	## SECOND HAND — and the fifth is passive by construction (`open_draft` deals
-	## it only the shapes that fight alone), so the far end it fills from is the
-	## keyless slot.
-	while skills.size() < skill_capacity():
-		skills.append({})
-	var order: Array = range(skills.size() - 1, -1, -1) if passive \
-		else range(skills.size())
-	for slot in order:
-		if (skills[slot] as Dictionary).is_empty():
-			skills[slot] = skill
-			_trim_empty_slots()
-			return
-	## Nothing free: the oldest of its own kind gives way, so a fifth passive
-	## replaces a passive rather than evicting your Cleave.
-	skills[order[0]] = skill
-	_trim_empty_slots()
-
-
-## The rest of the game counts `skills.size()` to mean "how many you have", so
-## the placeholders cannot outlive the placement.
-func _trim_empty_slots() -> void:
-	var kept: Array[Dictionary] = []
+	## Where the actives end. This is both "how many actives you own" and "where
+	## the next active goes", which is the whole of the invariant in one integer.
+	var split: int = 0
 	for entry in skills:
-		if not (entry as Dictionary).is_empty():
-			kept.append(entry)
-	skills = kept
+		if not skill_is_passive(entry as Dictionary):
+			split += 1
+	if skills.size() < skill_capacity():
+		if skill_is_passive(skill):
+			skills.append(skill)
+		else:
+			skills.insert(split, skill)
+		return
+	## NOTHING FREE, AND THIS IS UNREACHABLE FROM THE ONLY CALLER — `choose_draft`
+	## enters here solely while `skills.size() < skill_capacity()`. Kept rather
+	## than deleted because it is the only written statement of what should happen
+	## if a second caller ever arrives, and a rule that exists nowhere is the rule
+	## that gets broken silently (the SG-298 lesson, one level up).
+	if skill_is_passive(skill):
+		## A FULL HAND OF ACTIVES REFUSES A PASSIVE OUTRIGHT. No key is worth
+		## trading for a thing that fires itself — which is this row's entire
+		## point, and the old code did the opposite: its `order[0]` for a passive
+		## was the LAST slot, so it evicted an active to seat one.
+		if split >= skills.size():
+			return
+		skills[split] = skill              ## the oldest passive gives way
+	else:
+		skills[0] = skill                  ## the oldest active gives way; if he
+		                                   ## owns none, the oldest passive does,
+		                                   ## and index 0 is where an active belongs
 
 
 func choose_draft(index: int) -> void:
@@ -2930,6 +2974,12 @@ const DRAFT_SHAPES := ["CHAIN", "RANGED_AOE", "CONE", "LINE_BURST", "RAY",
 ## from it and `_slot_skill` fills actives forward into the only free index, which
 ## is 4, and `_process_skill_input` walks `skill_1..skill_4` and never reaches it.
 ##
+## *(Half of that mechanism is gone with SG-298: under the actives-first invariant
+## a Mortar arriving at a hand of three actives and a passive takes index 3 and
+## pushes the passive out to the well. It still strands itself at 4 against four
+## actives, so the filter is still the thing standing between a player and a dead
+## slot — the argument below is unchanged and now has one fewer way to bite.)*
+##
 ## AND IT WAS NOT REACHABLE, WHICH IS SAID PLAINLY RATHER THAN QUIETLY FIXED.
 ## `workshop.gd`'s ARTICLES table gives The Opening Bid `"excludes":
 ## "second_hand"` and the Second Hand `"excludes": "opening_bid"`, and
@@ -2961,9 +3011,18 @@ static func alone_shapes() -> Array:
 
 
 ## Is the draft about to open the one whose card lands in the keyless well? The
-## hand is full at four and the capacity is five, so the next weapon can only go
-## to index 4 — `_slot_skill` fills actives forward from 0 and passives backward
-## from the end, and both arrive at the same place once 0..3 are taken.
+## hand is full at four and the capacity is five, so the next weapon goes to index
+## 4 — a passive APPENDS there, which is why this is safe, and both dealers narrow
+## the offer to `alone_shapes()` when this is true so a passive is all it can be.
+##
+## RESTATED FOR THE ACTIVES-FIRST INVARIANT (SG-298), because the old sentence
+## here was "both arrive at the same place once 0..3 are taken" and that is no
+## longer true of an ACTIVE. If one ever reached this call with three actives and
+## a passive in hand, it would now insert at index 3 and push the passive out to
+## 4 — taking the key and giving the well to the thing that fires itself, which
+## is the right answer and the opposite of what the old fill did. The narrowing
+## above means it cannot happen; the invariant means it would be correct if it
+## did, which is the difference between a rule and a coincidence.
 func keyless_draft() -> bool:
 	return skill_capacity() > 4 and skills.size() >= 4
 

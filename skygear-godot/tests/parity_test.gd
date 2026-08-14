@@ -295,6 +295,8 @@ func _run() -> void:
 	await process_frame
 	_pulse_cadence()
 	await process_frame
+	_slot_placement()
+	await process_frame
 	_cleave_beat()
 	await process_frame
 	_status_attribution()
@@ -1019,6 +1021,141 @@ func _field_game(active_shape: String = "") -> SkyGearGame:
 
 ## AB-03. The red-first names cover the complete accepted-cast and timer
 ## matrix; behavior fixtures replace this seam guard after the first run.
+## WHERE A DRAFTED WEAPON LANDS (board SG-298 / SG-299).
+##
+## THE ROW EXISTS BECAUSE NOTHING HERE DID. `game.gd:2463` documented the rule —
+## *"Actives take the mouse from the left; passives fill from the far end"*, named
+## against the defect *"two dead mouse buttons"* — and `_trim_empty_slots`
+## deleted the reservation in the same breath it was made, so the code did plain
+## draft order for the whole life of the paragraph. No check anywhere pinned
+## `_slot_skill`'s ordering, which is the entire reason a documented rule could
+## be silently absent. The fix and the pin land together or not at all.
+func _slot_placement() -> void:
+	var game := _new_game()
+	_begin(game, "SLOT1")
+	game.skills = []
+
+	## THE OWNER'S OWN RUN, REPRODUCED FROM HIS SCREENSHOT. Frost Mortar, then
+	## Frost Pulse, then Frost Gale, then Frost Lance — the four plates he
+	## photographed, in draft order. Under the old fill that put PULSE, a passive
+	## whose press `cast_skill` refuses on sight, on RMB for the rest of the run.
+	for pick in [["RANGED_AOE", "FROST"], ["PULSE", "FROST"],
+			["CONE", "FROST"], ["LINE_BURST", "FROST"]]:
+		game._slot_skill(SkyGearData.make_skill(str(pick[0]), str(pick[1])))
+	var order: Array[String] = []
+	for entry in game.skills:
+		order.append(str((entry as Dictionary).shape))
+	## `skill_N` is index N-1, and skill_1/skill_2 are the mouse buttons.
+	var mouse_is_active: bool = (game.skills.size() >= 2
+		and not SkyGearGame.skill_is_passive(game.skills[0] as Dictionary)
+		and not SkyGearGame.skill_is_passive(game.skills[1] as Dictionary))
+	_check("slots", "actives take the mouse from the left and a trim no longer undoes it",
+		mouse_is_active and order.size() == 4 and str(order[3]) == "PULSE",
+		"drafted Mortar, Pulse, Gale, Lance -> %s" % ", ".join(order))
+
+	## THE HAND REORDERS ITSELF AS IT FILLS. A passive taken first DOES hold LMB
+	## for as long as you own no actives — no arrangement could improve that, and
+	## refusing to seat it would cost the player the card — but it must step aside
+	## the moment there is an active to take the key, without the player doing
+	## anything. That is what makes the recurring cost disappear rather than merely
+	## shrink: it is not a better first placement, it is a hand that stays sorted.
+	var later := _new_game()
+	_begin(later, "SLOT2")
+	later.skills = []
+	later._slot_skill(SkyGearData.make_skill("AURA", "EMBER"))
+	var passive_first: bool = SkyGearGame.skill_is_passive(later.skills[0] as Dictionary)
+	later._slot_skill(SkyGearData.make_skill("LINE_BURST", "EMBER"))
+	var yielded: bool = (not SkyGearGame.skill_is_passive(later.skills[0] as Dictionary)
+		and SkyGearGame.skill_is_passive(later.skills[1] as Dictionary))
+	## AND IT TRAVELS WHOLE. The Sentry autocast flag lives on the skill dict
+	## rather than in an array keyed by slot index precisely so a shuffle cannot
+	## strand it (game.gd:3330); the same has to be true of a passive's own
+	## scheduler clock, or a Pulse re-seated mid-run silently restarts its timer.
+	(later.skills[1] as Dictionary).passive_timer = 3.25
+	later._slot_skill(SkyGearData.make_skill("CONE", "EMBER"))
+	var clock_rode: bool = is_equal_approx(
+		float((later.skills[2] as Dictionary).get("passive_timer", 0.0)), 3.25)
+	_check("slots", "a passive drafted first yields the key the moment an active arrives",
+		passive_first and yielded and clock_rode,
+		"AURA alone at 0: %s; after a Lance it is at 1: %s; its timer rode the move: %s"
+			% [passive_first, yielded, clock_rode])
+	later.queue_free()
+
+	## THE FULL-HAND RULE. Unreachable from `choose_draft`, which only calls
+	## `_slot_skill` while there is room — and asserted anyway, because it is the
+	## only written statement of the rule and an unasserted rule is how this row
+	## happened in the first place. A passive may never take an active's key by
+	## eviction: with four actives held, a fifth passive is REFUSED outright.
+	var full := _new_game()
+	_begin(full, "SLOT3")
+	full.skills = []
+	for shape in ["LINE_BURST", "CONE", "RANGED_AOE", "CHAIN"]:
+		full._slot_skill(SkyGearData.make_skill(str(shape), "ARC"))
+	var before: int = full.skills.size()
+	var first_shape := str((full.skills[0] as Dictionary).shape)
+	full._slot_skill(SkyGearData.make_skill("PULSE", "ARC"))
+	var refused: bool = (full.skills.size() == before
+		and not SkyGearGame.skill_is_passive(full.skills[before - 1] as Dictionary))
+	## …and an active arriving at a full hand replaces the OLDEST ACTIVE, not a
+	## passive and not the newest thing you just chose.
+	full._slot_skill(SkyGearData.make_skill("RAY", "ARC"))
+	var evicted_oldest: bool = (str((full.skills[0] as Dictionary).shape) == "RAY"
+		and first_shape == "LINE_BURST")
+	_check("slots", "a full mixed hand evicts the oldest of the newcomer's own kind, never an active for a passive",
+		refused and evicted_oldest,
+		"four actives refused a fifth passive: %s; a fifth active replaced the oldest (%s -> RAY): %s"
+			% [refused, first_shape, evicted_oldest])
+	full.queue_free()
+
+	## AND THE ARTICLE'S OWN INVARIANT SURVIVES THE REWRITE. THE SECOND HAND's
+	## fifth well has no key, so what lands in it must fire itself — the owner's
+	## rule, quoted at game.gd:2938. Both dealers narrow the fifth offer to
+	## `alone_shapes()`, and the placement has to agree: with four actives held, a
+	## passive APPENDS to index 4, which is the keyless one.
+	var second := _new_game()
+	_begin(second, "SLOT4")
+	## The RUN's own articles dict, which is what `article()` reads — not the
+	## workshop's purchased list, which is a different thing one function away.
+	second.articles["second_hand"] = true
+	second.skills = []
+	for shape in ["LINE_BURST", "CONE", "RANGED_AOE", "CHAIN"]:
+		second._slot_skill(SkyGearData.make_skill(str(shape), "STEAM"))
+	var opens_keyless: bool = second.keyless_draft()
+	second._slot_skill(SkyGearData.make_skill("PULSE", "STEAM"))
+	_check("slots", "the fifth draft under the Second Hand still lands in the keyless well",
+		second.skill_capacity() == 5 and opens_keyless and second.skills.size() == 5
+			and SkyGearGame.skill_is_passive(second.skills[4] as Dictionary),
+		"capacity %d, keyless_draft %s, the well holds %s" % [
+			second.skill_capacity(), opens_keyless,
+			str((second.skills[second.skills.size() - 1] as Dictionary).get("shape", "nothing"))])
+	second.queue_free()
+	game.queue_free()
+
+	## THE HUD HALF (board SG-299). The well used to print its binding whatever it
+	## held, so a passive on a keyed slot advertised a button `cast_skill` refuses
+	## on sight, and it drew the passive's scheduler countdown through
+	## `_cooldown` — this HUD's word for *this weapon is coming back*, which is an
+	## answer to a question you can only ask about something you press. The owner's
+	## screenshot has `3.2` sweeping on a dead RMB.
+	##
+	## ASKED OF THE SOURCE, and that is a weaker instrument than this file usually
+	## accepts (SG-272: a source scan cannot tell whether a fix works). It is used
+	## here because the alternative is posing a live HUD and reading pixels, and
+	## what is being pinned is which BRANCH a passive takes — a structural fact the
+	## source states exactly once. The behavioural half is pinned above, on the
+	## simulation, where it belongs.
+	var hud_src := FileAccess.get_file_as_string("res://scripts/hud.gd")
+	_check("hud", "a passive well's tab says AUTO where an active's tab says its binding",
+		hud_src.contains("var tab: String = \"AUTO\" if holds_passive else str(labels[i])")
+			and hud_src.contains("SkyGearGame.skill_is_passive(game.skills[i] as Dictionary)"),
+		"tab branches on the shape's own passive flag: %s" % hud_src.contains("if holds_passive"))
+	_check("hud", "and a passive's scheduler ring is not drawn as a press-me cooldown",
+		hud_src.contains("if holds_passive:") and hud_src.contains("_cooldown(icon_at.grow(4.0), frac)")
+			and hud_src.find("if holds_passive:") < hud_src.find("_cooldown(icon_at.grow(4.0), frac)")
+			and hud_src.contains("game.pulse_time_left(skill)"),
+		"the filled wedge is on the active branch only, and the timer is still drawn")
+
+
 func _pulse_cadence() -> void:
 	var game_source := FileAccess.get_file_as_string("res://scripts/game.gd")
 	var data_source := FileAccess.get_file_as_string("res://scripts/game_data.gd")
